@@ -12,7 +12,8 @@
 ;; - Obviously the existing Emacs Scheme mode and Inferior Scheme mode.
 ;;
 ;; - The source code for Neil Van Dyke's Quack provided a model for
-;;   many of the scheme-indent-function settings, and smart paren closing.
+;;   many of the scheme-indent-function settings, smart paren closing,
+;;   and pretty lambda.
 
 (defconst racket-mode-copyright
   "Copyright (c) 2013 by Greg Hendershott. Portions Copyright (c) Free Software Foundation and Copyright (c) 2002-2012 Neil Van Dyke.")
@@ -36,6 +37,8 @@ http://www.gnu.org/licenses/ for details.")
 
 (defvar racket-program "/Users/greg/src/plt/racket/bin/racket"
   "Path to Racket program")
+
+(defconst racket-lambda-char (make-char 'greek-iso8859-7 107))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Like DrRacket's F5 (Run)
@@ -78,6 +81,13 @@ relative module `require's work."
   (interactive)
   (newline)
   (lisp-indent-line))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Insert lambda char (like DrRacket)
+
+(defun racket-insert-lambda ()
+  (interactive)
+  (insert-char racket-lambda-char 1))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Automatically insert matching \?) \?] or \?}
@@ -1538,6 +1548,14 @@ relative module `require's work."
     ;; defineXxx -- functions
     ("(\\(define[^ ]*[ ]*([ ]*\\([^ ]+\\)\\)" 2 font-lock-function-name-face)
 
+    ;; pretty lambda
+    ("[[(]\\(case-\\|match-\\|opt-\\)?\\(lambda\\)\\>"
+     2
+     (progn (compose-region (match-beginning 2)
+                            (match-end       2)
+                            racket-lambda-char)
+            nil))
+
     ;; #t #f
     (,(regexp-opt '("#t" "#f") 'symbols) . racket-selfeval-face)
 
@@ -1606,6 +1624,8 @@ relative module `require's work."
 	(map (make-sparse-keymap "Racket")))
     (set-keymap-parent smap lisp-mode-shared-map)
     (define-key smap [menu-bar scheme] (cons "Racket" map))
+    (define-key map [insert-lambda]
+      '("Insert lambda λ" . racket-insert-lambda))
     (define-key map [indent-region]
       '("Indent Region" . indent-region))
     (define-key map [comment-dwim]
@@ -1632,14 +1652,14 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 
 (define-key racket-mode-map (kbd "<f5>")   'racket-run)
 (define-key racket-mode-map (kbd "C-<f5>") 'racket-run-test)
-(define-key racket-mode-map "\r" 'racket-newline)
-(define-key racket-mode-map ")"  'racket-insert-closing-paren)
-(define-key racket-mode-map "]"  'racket-insert-closing-bracket)
-(define-key racket-mode-map "}"  'racket-insert-closing-brace)
-
-(define-key racket-mode-map "\M-\C-x"  'racket-send-definition)
-(define-key racket-mode-map "\C-x\C-e" 'racket-send-last-sexp)
-(define-key racket-mode-map "\C-c\C-r" 'racket-send-region)
+(define-key racket-mode-map "\r"           'racket-newline)
+(define-key racket-mode-map ")"            'racket-insert-closing-paren)
+(define-key racket-mode-map "]"            'racket-insert-closing-bracket)
+(define-key racket-mode-map "}"            'racket-insert-closing-brace)
+(define-key racket-mode-map "\s-\\"        'racket-insert-lambda)
+(define-key racket-mode-map "\M-\C-x"      'racket-send-definition)
+(define-key racket-mode-map "\C-x\C-e"     'racket-send-last-sexp)
+(define-key racket-mode-map "\C-c\C-r"     'racket-send-region)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Files

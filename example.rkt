@@ -13,6 +13,9 @@
 
 (define-values (1st-var 2nd-var) (values 1 2))
 
+;; Following should be `lambda' not `lambda':
+(lambda (x) #t)
+
 #|
 
 Multi-line comment
