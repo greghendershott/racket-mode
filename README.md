@@ -7,7 +7,7 @@ inferior mode for running Racket.
 
 - Focus on Racket (not various current and historical Schemes).
 
-- Fontify all Racket keywords, builtins, self-evals, and so on.
+- Fontify all Racket keywords, built-ins, self-evals, and so on.
 
 - Fontify variations of `define` for functions and variables.
 
@@ -37,7 +37,7 @@ font-lock issue with Quack under Emacs 24.2.
 
 Knowing nothing about how to make a mode in Emacs, I tried to isolate
 the problem by making a simple major mode, then adding things until it
-broke. Intead I ended up with this.
+broke. Instead I ended up with this.
 
 I took various `.emacs.d` hacks that I'd previously made to use with
 Quack, and rolled them into this mode.
@@ -55,7 +55,7 @@ Racket. I started using Emacs when projects needed me to edit various
 other file formats (like JavaScript, HTML, CSS, Markdown) in addition
 to Racket.
 
-## Acknowledgements
+## Acknowledgments
 
 - Obviously the existing Emacs Scheme mode and Inferior Scheme mode.
 
