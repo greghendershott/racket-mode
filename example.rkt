@@ -16,14 +16,16 @@
 ;; Following should be `lambda' not `lambda':
 (lambda (x) #t)
 
+;; Single line comment
+
 #|
 
-Multi-line comment
+Multi-line
+comment
 
 |#
 
-;; Single line comment
-
+#;(sexpr comment)
 
 (define (a-function x #:keyword [y 0])
   (define foo0 'symbol) ; ()
