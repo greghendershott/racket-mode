@@ -1673,8 +1673,8 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 
 (defun racket-mode-variables ()
   ;; Font Lock
-  (setq font-lock-defaults `(,racket-font-lock-keywords))
-  ;;(font-lock-add-keywords nil racket-font-lock-keywords)
+  ;;(setq font-lock-defaults `(,racket-font-lock-keywords))
+  (font-lock-add-keywords nil racket-font-lock-keywords)
 
   ;; Indentation
   (racket-set-indentation)
