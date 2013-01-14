@@ -5,15 +5,22 @@ inferior mode for running Racket.
 
 ## Goals
 
-- Focus on Racket (not various Schemes).
+- Focus on Racket (not various current and historical Schemes).
 
-- Fontify all Racket keywords, builtins, and so on.
+- Fontify all Racket keywords, builtins, self-evals, and so on.
 
 - Fontify variations of `define` for functions and variables.
 
-- Follow DrRacket concepts where applicable.
+- Use DrRacket concepts where applicable.
 
 - Compatible with Emacs 23.4 and 24.2+.
+
+- Compatible with whichever one you prefer:
+
+  - [Geiser](http://www.nongnu.org/geiser/).
+
+  - Racket's [XREPL](http://docs.racket-lang.org/xrepl/index.html)
+    (e.g. to use XREPL commands like `,log`).
 
 ## Caveats
 
