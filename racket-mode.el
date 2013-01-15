@@ -1,5 +1,5 @@
-;; Racket mode for Emacs
-;;
+;;; racket-mode.el --- Racket mode for Emacs
+
 ;; Goals:
 ;; - Focus on Racket (not various Schemes).
 ;; - Fontify all Racket keywords, builtins, and so on.
@@ -35,8 +35,8 @@ http://www.gnu.org/licenses/ for details.")
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defvar racket-program "/Users/greg/src/plt/racket/bin/racket"
-  "Path to Racket program")
+(defvar racket-program "racket"
+  "Name of Racket program. May include path to it.")
 
 (defconst racket-lambda-char (make-char 'greek-iso8859-7 107))
 
@@ -58,8 +58,7 @@ http://www.gnu.org/licenses/ for details.")
     (select-window w)))
 
 (defun racket-run ()
-  "Use `enter!` to evaluate the buffer's file. Temporarily changes current directory to that of the file so that
-relative module `require's work."
+  "Use `enter!` to evaluate the buffer's file. Temporarily changes current directory to that of the file so that relative module `require's work."
   (interactive)
   (racket-eval
    (format "(parameterize ([current-directory \"%s\"]) (enter! \"%s\")) \n"
