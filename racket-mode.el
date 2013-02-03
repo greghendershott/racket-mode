@@ -69,7 +69,7 @@ http://www.gnu.org/licenses/ for details.")
   "Do `raco test -x <file>`, to run <file>'s `test` submodule."
   (interactive)
   (racket-eval
-   (format "(parameterize ([current-directory \"%s\"]) (system* (build-path (path-only (find-system-path 'exec-file)) \"raco\") \"test\" \"-x\" \"%s\"))\n"
+   (format "(begin (require racket/system racket/path) (parameterize ([current-directory \"%s\"]) (system* (build-path (path-only (find-system-path 'exec-file)) \"raco\") \"test\" \"-x\" \"%s\")))\n"
            (file-name-directory (buffer-file-name))
            (file-name-nondirectory (buffer-file-name)))))
 
