@@ -1674,10 +1674,11 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(defun racket-mode-variables ()
+(defun racket-mode-variables (add?)
   ;; Font Lock
-  ;;(setq font-lock-defaults `(,racket-font-lock-keywords))
-  (font-lock-add-keywords nil racket-font-lock-keywords)
+  (if add?
+      (font-lock-add-keywords nil racket-font-lock-keywords)
+    (setq font-lock-defaults `(,racket-font-lock-keywords)))
 
   ;; Indentation
   (racket-set-indentation)
@@ -1694,8 +1695,7 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 (define-derived-mode racket-mode scheme-mode
   "Racket"
   "Major mode for editing Racket"
-  (racket-mode-variables)
-  )
+  (racket-mode-variables t))
 
 (provide 'racket-mode)
 
@@ -1716,7 +1716,7 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 (define-derived-mode inferior-racket-mode comint-mode "Inferior Racket"
   "Major mode for interacting with Racket process."
   (setq comint-prompt-regexp "^[^>\n]*>+ *")
-  (racket-mode-variables)
+  (racket-mode-variables nil)
   (setq mode-line-process '(":%s"))
   (setq comint-input-filter (function racket-input-filter))
   (setq comint-get-old-input (function racket-get-old-input)))
