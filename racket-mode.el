@@ -427,6 +427,7 @@ http://www.gnu.org/licenses/ for details.")
     "call-with-exception-handler"
     "call-with-immediate-continuation-mark"
     "call-with-input-file"
+    "call-with-input-file*"
     "call-with-output-file"
     "call-with-parameterization"
     "call-with-semaphore"
