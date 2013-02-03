@@ -205,6 +205,9 @@ http://www.gnu.org/licenses/ for details.")
   (put 'splicing-syntax-parameterize 'scheme-indent-function 1)
   (put 'syntax-parse       'scheme-indent-function 1)
   (put 'with-syntax*       'scheme-indent-function 1)
+  (put 'dict-set           'scheme-indent-function 1)
+  (put 'dict-set*          'scheme-indent-function 1)
+  (put 'call-with-input-file* 'scheme-indent-function 1)
   )
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
