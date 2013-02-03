@@ -1753,25 +1753,14 @@ is run).
   (interactive (list (if current-prefix-arg
                          (read-string "Run Racket: " racket-program)
                        racket-program)))
-  (if (not (comint-check-proc "*racket*"))
-      (let ((cmdlist (split-string-and-unquote cmd)))
-        (set-buffer (apply 'make-comint "racket" (car cmdlist)
-                           (racket-start-file (car cmdlist)) (cdr cmdlist)))
-        (inferior-racket-mode)))
+  (unless (comint-check-proc "*racket*")
+    (let ((cmdlist (split-string-and-unquote cmd)))
+      (set-buffer (apply 'make-comint "racket" (car cmdlist)
+                         nil (cdr cmdlist)))
+      (inferior-racket-mode)))
   (setq racket-program cmd)
   (setq racket-buffer "*racket*")
   (pop-to-buffer-same-window "*racket*"))
-
-(defun racket-start-file (prog)
-  "Return the name of the start file corresponding to PROG.
-Search in the directories \"~\" and \"~/.emacs.d\", in this
-order.  Return nil if no start file found."
-  (let* ((progname (file-name-nondirectory prog))
-	 (start-file (concat "~/.emacs_" progname))
-	 (alt-start-file (concat user-emacs-directory "init_" progname ".scm")))
-    (if (file-exists-p start-file)
-        start-file
-      (and (file-exists-p alt-start-file) alt-start-file))))
 
 (defun racket-send-region (start end)
   "Send the current region to the inferior Racket process."
