@@ -61,7 +61,7 @@ http://www.gnu.org/licenses/ for details.")
   "Use `enter!` to evaluate the buffer's file. Temporarily changes current directory to that of the file so that relative module `require's work."
   (interactive)
   (racket-eval
-   (format "(parameterize ([current-directory \"%s\"]) (enter! \"%s\")) \n"
+   (format "(begin (require racket/enter) (parameterize ([current-directory \"%s\"]) (enter! \"%s\")))\n"
            (file-name-directory (buffer-file-name))
            (file-name-nondirectory (buffer-file-name)))))
 
