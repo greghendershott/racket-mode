@@ -48,7 +48,7 @@ http://www.gnu.org/licenses/ for details.")
     (set-buffer-modified-p t)           ;save buffer
     (save-buffer)                       ;
 
-    (other-window 1)
+    (other-window -1)
     (run-racket racket-program)
     (select-window w)
 
