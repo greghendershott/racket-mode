@@ -1,5 +1,9 @@
 #lang racket
 
+(for/fold ([str ""])
+          ([ss '("a" "b" "c")])
+  (string-append str ss))
+
 (require xml)
 (provide valid-bucket-name?)
 
