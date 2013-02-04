@@ -54,7 +54,7 @@ http://www.gnu.org/licenses/ for details.")
 
     (comint-send-string (racket-proc) str)
 
-    (pop-to-buffer "*racket*" t)
+    (pop-to-buffer (racket-proc) t)
     (select-window w)))
 
 (defun racket-run ()
