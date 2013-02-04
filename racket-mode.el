@@ -77,14 +77,14 @@ http://www.gnu.org/licenses/ for details.")
     (message nil)))
 
 (defun racket-run ()
-  "Do `racket <file>`."
+  "Do `racket <file>` in *Shell* buffer."
   (interactive)
   (racket-shell (concat racket-program
                         " "
                         (buffer-file-name))))
 
 (defun racket-run-test ()
-  "Do `raco test -x <file>`, to run <file>'s `test` submodule."
+  "Do `raco test -x <file>` in *Shell* buffer, to run <file>'s `test` submodule."
   (interactive)
   (racket-shell (concat (file-name-directory racket-program) "/" "raco"
                         " test -x "
@@ -1645,7 +1645,7 @@ http://www.gnu.org/licenses/ for details.")
     (set-keymap-parent smap lisp-mode-shared-map)
     (define-key smap [menu-bar scheme] (cons "Racket" map))
     (define-key map [insert-lambda]
-      '("Insert lambda λ" . racket-insert-lambda))
+      '("Insert λ" . racket-insert-lambda))
     (define-key map [indent-region]
       '("Indent Region" . indent-region))
     (define-key map [comment-dwim]
@@ -1660,9 +1660,9 @@ http://www.gnu.org/licenses/ for details.")
       '("Evaluate Last S-Expression" . racket-send-last-sexp))
     (define-key map [separator-2] '(menu-item "--"))
     (define-key map [racket-run-test]
-      '("Run `test' Submodule". racket-run-test))
+      '("Run Using `raco test' in *Shell* buffer". racket-run-test))
     (define-key map [racket-run]
-      '("Run Using `racket` in Shell" . racket-run))
+      '("Run Using `racket` in *Shell* buffer" . racket-run))
     (define-key map [racket-enter]
       '("Run DrRacket style (using enter!)" . racket-enter))
     smap)
