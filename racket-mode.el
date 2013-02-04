@@ -57,7 +57,7 @@ http://www.gnu.org/licenses/ for details.")
     (pop-to-buffer (racket-proc) t)
     (select-window w)))
 
-(defun racket-run ()
+(defun racket-enter ()
   "Use `enter!` to evaluate the buffer's file. Temporarily changes current directory to that of the file so that relative module `require's work."
   (interactive)
   (racket-eval
@@ -65,13 +65,30 @@ http://www.gnu.org/licenses/ for details.")
            (file-name-directory (buffer-file-name))
            (file-name-nondirectory (buffer-file-name)))))
 
+(defun racket-shell (cmd)
+  (let ((w (selected-window)))
+    (message (concat cmd "..."))
+    (other-window -1)
+    (shell)
+    (pop-to-buffer-same-window "*shell*")
+    (comint-send-string "*shell*" (concat cmd "\n"))
+    (select-window w)
+    (sit-for 3)
+    (message nil)))
+
+(defun racket-run ()
+  "Do `racket <file>`."
+  (interactive)
+  (racket-shell (concat racket-program
+                        " "
+                        (buffer-file-name))))
+
 (defun racket-run-test ()
   "Do `raco test -x <file>`, to run <file>'s `test` submodule."
   (interactive)
-  (racket-eval
-   (format "(begin (require racket/system racket/path) (parameterize ([current-directory \"%s\"]) (system* (build-path (path-only (find-system-path 'exec-file)) \"raco\") \"test\" \"-x\" \"%s\")))\n"
-           (file-name-directory (buffer-file-name))
-           (file-name-nondirectory (buffer-file-name)))))
+  (racket-shell (concat (file-name-directory racket-program) "/" "raco"
+                        " test -x "
+                        (buffer-file-name))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Enter = enter + indent
@@ -1645,7 +1662,9 @@ http://www.gnu.org/licenses/ for details.")
     (define-key map [racket-run-test]
       '("Run `test' Submodule". racket-run-test))
     (define-key map [racket-run]
-      '("Run" . racket-run))
+      '("Run Using `racket` in Shell" . racket-run))
+    (define-key map [racket-enter]
+      '("Run DrRacket style (using enter!)" . racket-enter))
     smap)
   "Keymap for Racket mode.
 All commands in `lisp-mode-shared-map' are inherited by this map.")
@@ -1653,16 +1672,17 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Keys
 
-(define-key racket-mode-map (kbd "<f5>")   'racket-run)
-(define-key racket-mode-map (kbd "C-<f5>") 'racket-run-test)
-(define-key racket-mode-map "\r"           'racket-newline)
-(define-key racket-mode-map ")"            'racket-insert-closing-paren)
-(define-key racket-mode-map "]"            'racket-insert-closing-bracket)
-(define-key racket-mode-map "}"            'racket-insert-closing-brace)
-(define-key racket-mode-map "\M-\C-y"      'racket-insert-lambda)
-(define-key racket-mode-map "\M-\C-x"      'racket-send-definition)
-(define-key racket-mode-map "\C-x\C-e"     'racket-send-last-sexp)
-(define-key racket-mode-map "\C-c\C-r"     'racket-send-region)
+(define-key racket-mode-map (kbd "<f5>")     'racket-enter)
+(define-key racket-mode-map (kbd "M-C-<f5>") 'racket-run)
+(define-key racket-mode-map (kbd "C-<f5>")   'racket-run-test)
+(define-key racket-mode-map "\r"             'racket-newline)
+(define-key racket-mode-map ")"              'racket-insert-closing-paren)
+(define-key racket-mode-map "]"              'racket-insert-closing-bracket)
+(define-key racket-mode-map "}"              'racket-insert-closing-brace)
+(define-key racket-mode-map "\M-\C-y"        'racket-insert-lambda)
+(define-key racket-mode-map "\M-\C-x"        'racket-send-definition)
+(define-key racket-mode-map "\C-x\C-e"       'racket-send-last-sexp)
+(define-key racket-mode-map "\C-c\C-r"       'racket-send-region)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Files
