@@ -38,6 +38,9 @@ http://www.gnu.org/licenses/ for details.")
 (defvar racket-program "racket"
   "Name of Racket program. May include path to it.")
 
+(defvar racket-program-flags "-i"
+  "Command line flags when running Racket.")
+
 (defconst racket-lambda-char (make-char 'greek-iso8859-7 107))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -45,8 +48,8 @@ http://www.gnu.org/licenses/ for details.")
 
 (defun racket-eval (str)
   (let ((w (selected-window)))
-    (set-buffer-modified-p t)           ;save buffer
-    (save-buffer)                       ;
+    (set-buffer-modified-p t)           ;force save buffer so that enter! ...
+    (save-buffer)                       ;...will re-evaluate
 
     (other-window -1)
     (run-racket racket-program)
@@ -58,15 +61,16 @@ http://www.gnu.org/licenses/ for details.")
     (select-window w)))
 
 (defun racket-enter ()
-  "Use `enter!` to evaluate the buffer's file. Temporarily changes current directory to that of the file so that relative module `require's work."
+  "Use `enter!` to evaluate the buffer's file. Changes current directory to that of the file so that relative module `require's work."
   (interactive)
   (racket-eval
-   (format "(begin (require racket/enter) (parameterize ([current-directory \"%s\"]) (enter! \"%s\")))\n"
+   (format "(begin (current-directory \"%s\") (enter! \"%s\"))\n"
            (file-name-directory (buffer-file-name))
            (file-name-nondirectory (buffer-file-name)))))
 
 (defun racket-shell (cmd)
   (let ((w (selected-window)))
+    (save-buffer)
     (message (concat cmd "..."))
     (other-window -1)
     (shell)
@@ -219,6 +223,7 @@ http://www.gnu.org/licenses/ for details.")
   (put 'match-let          'scheme-indent-function 1)
   (put 'match-let*         'scheme-indent-function 1)
   (put 'syntax-parse       'scheme-indent-function 1)
+  (put 'syntax-parameterize 'scheme-indent-function 1)
   (put 'splicing-syntax-parameterize 'scheme-indent-function 1)
   (put 'syntax-parse       'scheme-indent-function 1)
   (put 'with-syntax*       'scheme-indent-function 1)
@@ -1714,8 +1719,11 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 
 (define-derived-mode racket-mode scheme-mode
   "Racket"
-  "Major mode for editing Racket"
-  (racket-mode-variables t))
+  "Major mode for editing Racket.
+\\{racket-mode-map}"
+  (racket-mode-map t)
+  ;; ?? Run scheme-mode-hook so that things like Geiser minor mode work ??
+  )
 
 (provide 'racket-mode)
 
@@ -1769,18 +1777,18 @@ discards input when it starts up.
 Runs the hook `inferior-racket-mode-hook' \(after the `comint-mode-hook'
 is run).
 \(Type \\[describe-mode] in the process buffer for a list of commands.)"
-
-  (interactive (list (if current-prefix-arg
-                         (read-string "Run Racket: " racket-program)
-                       racket-program)))
-  (unless (comint-check-proc "*racket*")
-    (let ((cmdlist (split-string-and-unquote cmd)))
-      (set-buffer (apply 'make-comint "racket" (car cmdlist)
-                         nil (cdr cmdlist)))
-      (inferior-racket-mode)))
-  (setq racket-program cmd)
-  (setq racket-buffer "*racket*")
-  (pop-to-buffer-same-window "*racket*"))
+  (let ((default (concat racket-program " " racket-program-flags)))
+    (interactive (list (if current-prefix-arg
+                           (read-string "Run Racket: " default)
+                         default)))
+    (unless (comint-check-proc "*racket*")
+      (let ((cmdlist (split-string-and-unquote cmd)))
+        (set-buffer (apply 'make-comint "racket" (car cmdlist)
+                           nil (cdr cmdlist)))
+        (inferior-racket-mode)))
+    (setq racket-program cmd)
+    (setq racket-buffer "*racket*")
+    (pop-to-buffer-same-window "*racket*")))
 
 (defun racket-send-region (start end)
   "Send the current region to the inferior Racket process."
