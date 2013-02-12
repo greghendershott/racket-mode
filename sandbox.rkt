@@ -5,9 +5,9 @@
 
 ;; Unfortunately this supersedes XREPL and all its handy features. It
 ;; would be preferable to add this to XREPL. But I'm not sure how to
-;; juggle the sandbox box approach with what XREPL does, and, I'm not
-;; sure if this would be welcome in XREPL. So for now, do this as its
-;; own thing.
+;; juggle the sandbox approach with what XREPL does, and, I'm not sure
+;; if this would be welcome in XREPL. So for now, do this as its own
+;; thing.
 ;;
 ;; If it turns out to remain its own thing, I _may_ want to duplicate
 ;; _some_ XREPL functionality, such as the ,log command. In the case
