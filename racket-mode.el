@@ -36,10 +36,7 @@ http://www.gnu.org/licenses/ for details.")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (defvar racket-program "racket"
-  "Name of Racket program. May include path to it.")
-
-(defvar racket-program-flags "-i"
-  "Command line flags when running Racket.")
+  "Pathname of Racket program.")
 
 (defconst racket-lambda-char (make-char 'greek-iso8859-7 107))
 
@@ -52,7 +49,7 @@ http://www.gnu.org/licenses/ for details.")
     (save-buffer)                       ;...will re-evaluate
 
     (other-window -1)
-    (run-racket racket-program)
+    (run-racket)
     (select-window w)
 
     (comint-send-string (racket-proc) str)
@@ -60,13 +57,10 @@ http://www.gnu.org/licenses/ for details.")
     (pop-to-buffer (racket-proc) t)
     (select-window w)))
 
-(defun racket-enter ()
-  "Use `enter!` to evaluate the buffer's file. Changes current directory to that of the file so that relative module `require's work."
+(defun racket-run ()
+  "Save and evaluate the buffer in a fresh REPL like DrRacket."
   (interactive)
-  (racket-eval
-   (format "(begin (current-directory \"%s\") (enter! \"%s\"))\n"
-           (file-name-directory (buffer-file-name))
-           (file-name-nondirectory (buffer-file-name)))))
+  (racket-eval (format "(run! \"%s\")\n" (buffer-file-name))))
 
 (defun racket-shell (cmd)
   (let ((w (selected-window)))
@@ -80,14 +74,14 @@ http://www.gnu.org/licenses/ for details.")
     (sit-for 3)
     (message nil)))
 
-(defun racket-run ()
+(defun racket-racket ()
   "Do `racket <file>` in *Shell* buffer."
   (interactive)
   (racket-shell (concat racket-program
                         " "
                         (buffer-file-name))))
 
-(defun racket-run-test ()
+(defun racket-raco-test ()
   "Do `raco test -x <file>` in *Shell* buffer, to run <file>'s `test` submodule."
   (interactive)
   (racket-shell (concat (file-name-directory racket-program) "/" "raco"
@@ -1664,12 +1658,12 @@ http://www.gnu.org/licenses/ for details.")
     (define-key map [send-sexp]
       '("Evaluate Last S-Expression" . racket-send-last-sexp))
     (define-key map [separator-2] '(menu-item "--"))
-    (define-key map [racket-run-test]
-      '("Run Using `raco test' in *Shell* buffer". racket-run-test))
+    (define-key map [racket-raco-test]
+      '("Run Using `raco test' in *shell* buffer" . racket-raco-test))
+    (define-key map [racket-racket]
+      '("Run Using `racket' in *shell* buffer" . racket-racket))
     (define-key map [racket-run]
-      '("Run Using `racket` in *Shell* buffer" . racket-run))
-    (define-key map [racket-enter]
-      '("Run DrRacket style (using enter!)" . racket-enter))
+      '("Run DrRacket Style, Fresh REPL in *racket* buffer" . racket-run))
     smap)
   "Keymap for Racket mode.
 All commands in `lisp-mode-shared-map' are inherited by this map.")
@@ -1677,9 +1671,9 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Keys
 
-(define-key racket-mode-map (kbd "<f5>")     'racket-enter)
-(define-key racket-mode-map (kbd "M-C-<f5>") 'racket-run)
-(define-key racket-mode-map (kbd "C-<f5>")   'racket-run-test)
+(define-key racket-mode-map (kbd "<f5>")     'racket-run)
+(define-key racket-mode-map (kbd "M-C-<f5>") 'racket-racket)
+(define-key racket-mode-map (kbd "C-<f5>")   'racket-raco-test)
 (define-key racket-mode-map "\r"             'racket-newline)
 (define-key racket-mode-map ")"              'racket-insert-closing-paren)
 (define-key racket-mode-map "]"              'racket-insert-closing-bracket)
@@ -1721,7 +1715,7 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
   "Racket"
   "Major mode for editing Racket.
 \\{racket-mode-map}"
-  (racket-mode-map t)
+  (racket-mode-variables t)
   ;; ?? Run scheme-mode-hook so that things like Geiser minor mode work ??
   )
 
@@ -1735,7 +1729,7 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 
 ;; Move this to its own file?
 
-;; (require 'racket-mode)
+;; (require 'racket-mode)  ;if we move to its own file
 (require 'comint)
 
 (defun racket-proc ()
@@ -1766,29 +1760,21 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
       (backward-sexp)
       (buffer-substring (point) end))))
 
+(setq elisp-dir (file-name-directory load-file-name))
+(setq sandbox-rkt (expand-file-name "sandbox.rkt" elisp-dir))
+
 ;;;###autoload
-(defun run-racket (cmd)
+(defun run-racket ()
   "Run an inferior Racket process, input and output via buffer `*racket*'.
 If there is a process already running in `*racket*', switch to that buffer.
-With argument, allows you to edit the command line (default is value
-of `racket-program').
-Note that this may lose due to a timing error if the Racket processor
-discards input when it starts up.
 Runs the hook `inferior-racket-mode-hook' \(after the `comint-mode-hook'
-is run).
-\(Type \\[describe-mode] in the process buffer for a list of commands.)"
-  (let ((default (concat racket-program " " racket-program-flags)))
-    (interactive (list (if current-prefix-arg
-                           (read-string "Run Racket: " default)
-                         default)))
-    (unless (comint-check-proc "*racket*")
-      (let ((cmdlist (split-string-and-unquote cmd)))
-        (set-buffer (apply 'make-comint "racket" (car cmdlist)
-                           nil (cdr cmdlist)))
-        (inferior-racket-mode)))
-    (setq racket-program cmd)
-    (setq racket-buffer "*racket*")
-    (pop-to-buffer-same-window "*racket*")))
+is run)."
+  (interactive)
+  (unless (comint-check-proc "*racket*")
+    (set-buffer (make-comint "racket" racket-program nil sandbox-rkt))
+    (inferior-racket-mode))
+  (setq racket-buffer "*racket*")
+  (pop-to-buffer-same-window "*racket*"))
 
 (defun racket-send-region (start end)
   "Send the current region to the inferior Racket process."
