@@ -24,6 +24,7 @@
   (let loop ([path-str path-str])
     (define next (do-run path-str))
     (unless (eq? next 'exit)
+      (newline)
       (loop next))))
 
 ;; Takes a path-string? for a .rkt file, or #f meanining empty #lang
