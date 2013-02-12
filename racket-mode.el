@@ -52,9 +52,9 @@ http://www.gnu.org/licenses/ for details.")
     (run-racket)
     (select-window w)
 
-    (comint-send-string (racket-proc) str)
+    (comint-send-string (get-inferior-racket-buffer-process) str)
 
-    (pop-to-buffer (racket-proc) t)
+    (pop-to-buffer inferior-racket-buffer-name t)
     (select-window w)))
 
 (defun racket-run ()
@@ -75,14 +75,15 @@ http://www.gnu.org/licenses/ for details.")
     (message nil)))
 
 (defun racket-racket ()
-  "Do `racket <file>` in *Shell* buffer."
+  "Do `racket <file>` in *shell* buffer."
   (interactive)
   (racket-shell (concat racket-program
                         " "
                         (buffer-file-name))))
 
 (defun racket-raco-test ()
-  "Do `raco test -x <file>` in *Shell* buffer, to run <file>'s `test` submodule."
+  "Do `raco test -x <file>` in *shell* buffer.
+To run <file>'s `test` submodule."
   (interactive)
   (racket-shell (concat (file-name-directory racket-program) "/" "raco"
                         " test -x "
@@ -1732,8 +1733,9 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 ;; (require 'racket-mode)  ;if we move to its own file
 (require 'comint)
 
-(defun racket-proc ()
-  (get-buffer-process "*racket*"))
+(setq inferior-racket-buffer-name "*racket*")
+(defun get-inferior-racket-buffer-process ()
+  (get-buffer-process inferior-racket-buffer-name))
 
 (define-derived-mode inferior-racket-mode comint-mode "Inferior Racket"
   "Major mode for interacting with Racket process."
@@ -1760,6 +1762,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
       (backward-sexp)
       (buffer-substring (point) end))))
 
+;; Runtime path to this file and to sandbox.rkt.
 (setq elisp-dir (file-name-directory load-file-name))
 (setq sandbox-rkt (expand-file-name "sandbox.rkt" elisp-dir))
 
@@ -1770,17 +1773,17 @@ If there is a process already running in `*racket*', switch to that buffer.
 Runs the hook `inferior-racket-mode-hook' \(after the `comint-mode-hook'
 is run)."
   (interactive)
-  (unless (comint-check-proc "*racket*")
+  (unless (comint-check-proc inferior-racket-buffer-name)
     (set-buffer (make-comint "racket" racket-program nil sandbox-rkt))
     (inferior-racket-mode))
-  (setq racket-buffer "*racket*")
-  (pop-to-buffer-same-window "*racket*"))
+  (setq racket-buffer inferior-racket-buffer-name)
+  (pop-to-buffer-same-window inferior-racket-buffer-name))
 
 (defun racket-send-region (start end)
   "Send the current region to the inferior Racket process."
   (interactive "r")
-  (comint-send-region (racket-proc) start end)
-  (comint-send-string (racket-proc) "\n"))
+  (comint-send-region (get-inferior-racket-buffer-process) start end)
+  (comint-send-string (get-inferior-racket-buffer-process) "\n"))
 
 (defun racket-send-definition ()
   "Send the current definition to the inferior Racket process."
