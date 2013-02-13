@@ -17,7 +17,8 @@
 ;; to make the logger output go into a dedicated Emacs window, instead
 ;; of being mixed in with the REPL output.
 
-(require racket/sandbox racket/function)
+(provide (rename-out [run-file run!]))
+(require racket/sandbox)
 
 (define (run-file path-str)
   (display (banner))
@@ -27,12 +28,14 @@
       (newline)
       (loop next))))
 
+;; (or/c #f path-string?) -> (or/c f path-string? 'exit)
+;;
 ;; Takes a path-string? for a .rkt file, or #f meanining empty #lang
 ;; racket. Returns similar if REPL should be restarted on a new file,
 ;; else 'exit if we should simply exit.
-(define (do-run path-str) ;(or/c #f path-string?) -> (or/c f path-string? 'exit)
+(define (do-run path-str)
   (define (path-str->existing-file-path path-str) ;path-str? -> (or/c #f path?)
-    (with-handlers ([exn:fail? (const #f)])
+    (with-handlers ([exn:fail? (lambda (_) (eprintf "; ~a not found\n" path-str))])
       (define path (expand-user-path (string->path path-str)))
       (cond [(file-exists? path) path]
             [else (eprintf "; ~a not found\n" (path->string path)) #f])))
