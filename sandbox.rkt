@@ -11,8 +11,8 @@
 ;;
 ;; In case it turns out to remain its own thing, I did duplicate
 ;; _some_ XREPL functionality -- the ,log command. I also make it work
-;; (which is a pull request I did awhile ago that hasn't yet been
-;; accepted for XREPL).
+;; with loggers created by 5.3.2's `define-logger` (which is a pull
+;; request I did awhile ago that hasn't yet been accepted for XREPL).
 
 (provide (rename-out [run-file run!]))
 (require racket/sandbox racket/match)
@@ -62,7 +62,8 @@
        (parameterize ([current-eval (cond [path (make-module-evaluator path)]
                                           [else (make-evaluator 'racket)])])
          (with-handlers ([exn:fail:sandbox-terminated?
-                          (lambda (exn) (eprintf "; ~a\n" (exn-message exn)) 'exit)]
+                          (lambda (exn) (eprintf "; ~a\n" (exn-message exn))
+                             'exit)]
                          [box? (lambda (b) (unbox b))]) ;run another sandbox
            (read-eval-print-loop)))))))
 
@@ -85,7 +86,7 @@
     (define stx (read-syntax src in))
     ;; Check for special run commands
     (syntax-case stx (run! log!)
-      [(run!)                           ;empty module
+      [(run!)                           ;no module
        (raise (box #f))]
       [(run! path)                      ;"foo.rkt"
        (string? (syntax-e #'path))
