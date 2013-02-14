@@ -110,6 +110,9 @@
 (define current-log-receiver-thread (make-parameter #f))
 (define global-logger (current-logger))
 
+(define racket-log-file "/tmp/racket-log")
+(with-output-to-file racket-log-file #:exists 'truncate void)
+
 (define (log-display specs)
   (cond [(current-log-receiver-thread) => kill-thread])
   (unless (null? specs)
@@ -124,7 +127,7 @@
                (eprintf "; [~a] ~a\n" l m)
                (flush-output)
                ;; To /tmp/racket-log (can `tail -f' it)
-               (with-output-to-file "/tmp/racket-log" #:exists 'append
+               (with-output-to-file racket-log-file #:exists 'append
                                     (lambda ()
                                       (display (format "[~a] ~a\n" l m))))
                ])
