@@ -9,16 +9,13 @@
 ;; if this would be welcome in XREPL. So for now, do this as its own
 ;; thing.
 ;;
-;; If it turns out to remain its own thing, I _may_ want to duplicate
-;; _some_ XREPL functionality, such as the ,log command. In the case
-;; of `,log`, I could also update it to work with define-logger in
-;; Racket 5.3.2, which is a pull request I did awhile ago that hasn't
-;; yet been accepted for XREPL. Perhaps there is even some spiffy way
-;; to make the logger output go into a dedicated Emacs window, instead
-;; of being mixed in with the REPL output.
+;; In case it turns out to remain its own thing, I did duplicate
+;; _some_ XREPL functionality -- the ,log command. I also make it work
+;; (which is a pull request I did awhile ago that hasn't yet been
+;; accepted for XREPL).
 
 (provide (rename-out [run-file run!]))
-(require racket/sandbox)
+(require racket/sandbox racket/match)
 
 (define (run-file path-str)
   (display (banner))
@@ -87,7 +84,7 @@
                  [read-accept-lang #f])
     (define stx (read-syntax src in))
     ;; Check for special run commands
-    (syntax-case stx (run!)
+    (syntax-case stx (run! log!)
       [(run!)                           ;empty module
        (raise (box #f))]
       [(run! path)                      ;"foo.rkt"
@@ -96,6 +93,8 @@
       [(run! path)                      ;foo.rkt
        (symbol? (syntax-e #'path))
        (raise (box (symbol->string (syntax-e #'path))))]
+      [(log! specs ...)
+       (log-display (syntax->datum #'(specs ...)))]
       ;; The usual
       [_ stx])))
 
@@ -106,8 +105,32 @@
          [s (regexp-replace* #rx"\n" s "\n;")])
     (printf "; ~a\n" s)))
 
-;; ;; Example use:
-;; (run-file "/Users/greg/src/scheme/misc/hello.rkt"))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define current-log-receiver-thread (make-parameter #f))
+(define global-logger (current-logger))
+
+(define (log-display specs)
+  (cond [(current-log-receiver-thread) => kill-thread])
+  (unless (null? specs)
+    (let ([r (apply make-log-receiver (list* global-logger specs))])
+      (current-log-receiver-thread
+       (thread
+        (λ ()
+          (let loop ()
+            (match (sync r)
+              [(vector l m v name)
+               ;; To stderr
+               (eprintf "; [~a] ~a\n" l m)
+               (flush-output)
+               ;; To /tmp/racket-log (can `tail -f' it)
+               (with-output-to-file "/tmp/racket-log" #:exists 'append
+                                    (lambda ()
+                                      (display (format "[~a] ~a\n" l m))))
+               ])
+            (loop))))))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (module+ main
   (run-file #f))
