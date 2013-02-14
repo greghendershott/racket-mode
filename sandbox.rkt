@@ -62,9 +62,12 @@
        (parameterize ([current-eval (cond [path (make-module-evaluator path)]
                                           [else (make-evaluator 'racket)])])
          (with-handlers ([exn:fail:sandbox-terminated?
-                          (lambda (exn) (eprintf "; ~a\n" (exn-message exn))
+                          (lambda (exn)
+                            (eprintf "; ~a\n" (exn-message exn))
                              'exit)]
-                         [box? (lambda (b) (unbox b))]) ;run another sandbox
+                         [box? (lambda (b)   ;run another sandbox
+                                 (kill-evaluator (current-eval))
+                                 (unbox b))])
            (read-eval-print-loop)))))))
 
 (define (make-prompt-read path)
