@@ -48,7 +48,13 @@ http://www.gnu.org/licenses/ for details.")
     (set-buffer-modified-p t)           ;force save buffer so that enter! ...
     (save-buffer)                       ;...will re-evaluate
 
-    (other-window -1)
+    ;; If racket process already visible in a window use that, else
+    ;; use previous window.
+    (let ((rw (get-buffer-window inferior-racket-buffer-name)))
+      (if rw
+          (select-window rw)
+        (other-window -1)))
+
     (run-racket)
     (select-window w)
 
