@@ -171,7 +171,7 @@ To run <file>'s `test` submodule."
           (let-values . 1)
           (let/ec . 1)
           (mixin . 2)
-          (module . 'defun)
+          (module . 2)
           (module+ . 1)
           (module* . 1)
           (opt-lambda . 1)
