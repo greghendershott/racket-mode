@@ -45,8 +45,7 @@ http://www.gnu.org/licenses/ for details.")
 
 (defun racket-eval (str)
   (let ((w (selected-window)))
-    (set-buffer-modified-p t)           ;force save buffer so that enter! ...
-    (save-buffer)                       ;...will re-evaluate
+    (save-buffer)             ;sufficient for our run!, but not enter!
 
     ;; If racket process already visible in a window use that, else
     ;; use previous window.
