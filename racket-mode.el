@@ -87,6 +87,13 @@ http://www.gnu.org/licenses/ for details.")
                         " "
                         (buffer-file-name))))
 
+(defun racket-test ()
+  "Do (require (submod \".\" test)) in *racket* buffer."
+  (interactive)
+  (racket-run) ;start fresh, so (require) will have an effect
+  (racket-eval (concat "(begin (displayln \"Running tests...\")\n"
+                       "       (require (submod \".\" test)))\n")))
+
 (defun racket-raco-test ()
   "Do `raco test -x <file>` in *shell* buffer.
 To run <file>'s `test` submodule."
@@ -1678,6 +1685,8 @@ To run <file>'s `test` submodule."
     (define-key map [separator-2] '(menu-item "--"))
     (define-key map [racket-raco-test]
       '("Run Using `raco test' in *shell* buffer" . racket-raco-test))
+    (define-key map [racket-test]
+      '("Run Tests in *racket* buffer" . racket-test))
     (define-key map [racket-racket]
       '("Run Using `racket' in *shell* buffer" . racket-racket))
     (define-key map [racket-run]
@@ -1691,7 +1700,7 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 
 (define-key racket-mode-map (kbd "<f5>")     'racket-run)
 (define-key racket-mode-map (kbd "M-C-<f5>") 'racket-racket)
-(define-key racket-mode-map (kbd "C-<f5>")   'racket-raco-test)
+(define-key racket-mode-map (kbd "C-<f5>")   'racket-test)
 (define-key racket-mode-map "\r"             'racket-newline)
 (define-key racket-mode-map ")"              'racket-insert-closing-paren)
 (define-key racket-mode-map "]"              'racket-insert-closing-bracket)
