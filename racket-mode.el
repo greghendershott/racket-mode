@@ -1771,7 +1771,8 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
   (racket-mode-variables nil)
   (setq mode-line-process '(":%s"))
   (setq comint-input-filter (function racket-input-filter))
-  (setq comint-get-old-input (function racket-get-old-input)))
+  (setq comint-get-old-input (function racket-get-old-input))
+  (racket-mode-variables t))
 
 (defcustom inferior-racket-filter-regexp "\\`\\s *\\S ?\\S ?\\s *\\'"
   "Input matching this regexp are not saved on the history list.
