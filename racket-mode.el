@@ -76,7 +76,7 @@ http://www.gnu.org/licenses/ for details.")
         (other-window -1)))
     (message (concat cmd "..."))
     (shell)
-    (pop-to-buffer-same-window "*shell*")
+    (racket-pop-to-buffer-same-window "*shell*")
     (comint-send-string "*shell*" (concat cmd "\n"))
     (select-window w)
     (sit-for 3)
@@ -1806,7 +1806,7 @@ is run)."
     (set-buffer (make-comint "racket" racket-program nil sandbox-rkt))
     (inferior-racket-mode))
   (setq racket-buffer inferior-racket-buffer-name)
-  (pop-to-buffer-same-window inferior-racket-buffer-name))
+  (racket-pop-to-buffer-same-window inferior-racket-buffer-name))
 
 (defun racket-send-region (start end)
   "Send the current region to the inferior Racket process."
@@ -1827,3 +1827,15 @@ is run)."
   "Send the previous sexp to the inferior Racket process."
   (interactive)
   (racket-send-region (save-excursion (backward-sexp) (point)) (point)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; In case not Emacs 24.1, define equivalent of its
+;; `pop-to-buffer-same-window'.
+(defun racket-pop-to-buffer-same-window
+  (&optional buffer-or-name norecord label)
+  "Pop to buffer specified by BUFFER-OR-NAME in the selected window."
+  (if (fboundp 'pop-to-buffer-same-window)
+      (funcall
+       'pop-to-buffer-same-window buffer-or-name norecord)
+    (funcall 'switch-to-buffer buffer-or-name norecord)))
