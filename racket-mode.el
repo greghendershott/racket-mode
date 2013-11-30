@@ -1,5 +1,7 @@
 ;;; racket-mode.el --- Racket mode for Emacs
 
+;;; Commentary:
+
 ;; Goals:
 ;; - Focus on Racket (not various Schemes).
 ;; - Fontify all Racket keywords, builtins, and so on.
@@ -14,6 +16,8 @@
 ;; - The source code for Neil Van Dyke's Quack provided a model for
 ;;   many of the scheme-indent-function settings, smart paren closing,
 ;;   and pretty lambda.
+
+;;; Code:
 
 (defconst racket-mode-copyright
   "Copyright (c) 2013 by Greg Hendershott. Portions Copyright (c) Free Software Foundation and Copyright (c) 2002-2012 Neil Van Dyke.")
@@ -1839,3 +1843,5 @@ is run)."
       (funcall
        'pop-to-buffer-same-window buffer-or-name norecord)
     (funcall 'switch-to-buffer buffer-or-name norecord)))
+
+;;; racket-mode.el ends here
