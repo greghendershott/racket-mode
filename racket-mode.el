@@ -1,5 +1,8 @@
 ;;; racket-mode.el --- Racket mode for Emacs
 
+;; Author: Greg Hendershott
+;; URL: https://github.com/greghendershott/racket-mode
+
 ;;; Commentary:
 
 ;; Goals:
