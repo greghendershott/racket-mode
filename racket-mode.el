@@ -1793,9 +1793,10 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
       (backward-sexp)
       (buffer-substring (point) end))))
 
-;; Runtime path to this file and to sandbox.rkt.
-(setq elisp-dir (file-name-directory load-file-name))
-(setq sandbox-rkt (expand-file-name "sandbox.rkt" elisp-dir))
+(defvar racket-sandbox-rkt
+  (let ((elisp-dir (file-name-directory load-file-name)))
+    (expand-file-name "sandbox.rkt" elisp-dir))
+  "Path to sandbox.rkt")
 
 ;;;###autoload
 (defun run-racket ()
@@ -1805,7 +1806,7 @@ Runs the hook `inferior-racket-mode-hook' \(after the `comint-mode-hook'
 is run)."
   (interactive)
   (unless (comint-check-proc inferior-racket-buffer-name)
-    (set-buffer (make-comint "racket" racket-program nil sandbox-rkt))
+    (set-buffer (make-comint "racket" racket-program nil racket-sandbox-rkt))
     (inferior-racket-mode))
   (setq racket-buffer inferior-racket-buffer-name)
   (racket-pop-to-buffer-same-window inferior-racket-buffer-name))
