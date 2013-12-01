@@ -104,7 +104,7 @@ http://www.gnu.org/licenses/ for details.")
   "Do `raco test -x <file>` in *shell* buffer.
 To run <file>'s `test` submodule."
   (interactive)
-  (racket-shell (concat (file-name-directory racket-program) "/" "raco"
+  (racket-shell (concat (expand-file-name "raco" (file-name-directory racket-program))
                         " test -x "
                         (shell-quote-argument (buffer-file-name)))))
 
