@@ -91,7 +91,7 @@ http://www.gnu.org/licenses/ for details.")
   (interactive)
   (racket-shell (concat racket-program
                         " "
-                        (buffer-file-name))))
+                        (shell-quote-argument (buffer-file-name)))))
 
 (defun racket-test ()
   "Do (require (submod \".\" test)) in *racket* buffer."
@@ -106,7 +106,7 @@ To run <file>'s `test` submodule."
   (interactive)
   (racket-shell (concat (file-name-directory racket-program) "/" "raco"
                         " test -x "
-                        (buffer-file-name))))
+                        (shell-quote-argument (buffer-file-name)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Enter = enter + indent
