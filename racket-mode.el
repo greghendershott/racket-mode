@@ -1752,8 +1752,6 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
   ;; ?? Run scheme-mode-hook so that things like Geiser minor mode work ??
   )
 
-(provide 'racket-mode)
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Inferior Racket mode
@@ -1843,5 +1841,7 @@ is run)."
       (funcall
        'pop-to-buffer-same-window buffer-or-name norecord)
     (funcall 'switch-to-buffer buffer-or-name norecord)))
+
+(provide 'racket-mode)
 
 ;;; racket-mode.el ends here
