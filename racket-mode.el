@@ -1,5 +1,8 @@
 ;;; racket-mode.el --- Racket mode for Emacs
 
+;; Author: Greg Hendershott
+;; URL: https://github.com/greghendershott/racket-mode
+
 ;;; Commentary:
 
 ;; Goals:
@@ -91,7 +94,7 @@ http://www.gnu.org/licenses/ for details.")
   (interactive)
   (racket-shell (concat racket-program
                         " "
-                        (buffer-file-name))))
+                        (shell-quote-argument (buffer-file-name)))))
 
 (defun racket-test ()
   "Do (require (submod \".\" test)) in *racket* buffer."
@@ -104,9 +107,9 @@ http://www.gnu.org/licenses/ for details.")
   "Do `raco test -x <file>` in *shell* buffer.
 To run <file>'s `test` submodule."
   (interactive)
-  (racket-shell (concat (file-name-directory racket-program) "/" "raco"
+  (racket-shell (concat (expand-file-name "raco" (file-name-directory racket-program))
                         " test -x "
-                        (buffer-file-name))))
+                        (shell-quote-argument (buffer-file-name)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Enter = enter + indent
@@ -1752,8 +1755,6 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
   ;; ?? Run scheme-mode-hook so that things like Geiser minor mode work ??
   )
 
-(provide 'racket-mode)
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Inferior Racket mode
@@ -1795,9 +1796,10 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
       (backward-sexp)
       (buffer-substring (point) end))))
 
-;; Runtime path to this file and to sandbox.rkt.
-(setq elisp-dir (file-name-directory load-file-name))
-(setq sandbox-rkt (expand-file-name "sandbox.rkt" elisp-dir))
+(defvar racket-sandbox-rkt
+  (let ((elisp-dir (file-name-directory load-file-name)))
+    (expand-file-name "sandbox.rkt" elisp-dir))
+  "Path to sandbox.rkt")
 
 ;;;###autoload
 (defun run-racket ()
@@ -1807,7 +1809,7 @@ Runs the hook `inferior-racket-mode-hook' \(after the `comint-mode-hook'
 is run)."
   (interactive)
   (unless (comint-check-proc inferior-racket-buffer-name)
-    (set-buffer (make-comint "racket" racket-program nil sandbox-rkt))
+    (set-buffer (make-comint "racket" racket-program nil racket-sandbox-rkt))
     (inferior-racket-mode))
   (setq racket-buffer inferior-racket-buffer-name)
   (racket-pop-to-buffer-same-window inferior-racket-buffer-name))
@@ -1843,5 +1845,7 @@ is run)."
       (funcall
        'pop-to-buffer-same-window buffer-or-name norecord)
     (funcall 'switch-to-buffer buffer-or-name norecord)))
+
+(provide 'racket-mode)
 
 ;;; racket-mode.el ends here
