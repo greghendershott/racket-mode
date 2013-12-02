@@ -1722,6 +1722,7 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Files
 
+;;;###autoload
 (setq auto-mode-alist
       (append '(("\\.rkt\\'" . racket-mode)
                 ("\\.rktd\\'" . racket-mode))
