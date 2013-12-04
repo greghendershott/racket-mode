@@ -39,6 +39,7 @@
   (define path (and (string? path-str)
                     (not (equal? path-str ""))
                     (path-str->existing-file-path path-str)))
+  (define-values (load-dir _ __) (split-path (or path (current-directory))))
   (call-with-trusted-sandbox-configuration
    (lambda ()
      ;; Need to set some parameters so they're in effect _before_
@@ -55,6 +56,7 @@
                     [sandbox-propagate-exceptions #f]
                     [compile-enforce-module-constants #f]
                     [compile-context-preservation-enabled #t]
+                    [current-load-relative-directory load-dir]
                     [current-read-interaction read-interaction]
                     [current-prompt-read (make-prompt-read path)]
                     [error-display-handler -error-display-handler])
