@@ -25,6 +25,8 @@
       (newline)
       (loop next))))
 
+(struct exn:run-new-sandbox (path))
+
 ;; (or/c #f path-string?) -> (or/c f path-string? 'exit)
 ;;
 ;; Takes a path-string? for a .rkt file, or #f meanining empty #lang
@@ -69,9 +71,10 @@
                           (lambda (exn)
                             (eprintf "; ~a\n" (exn-message exn))
                              'exit)]
-                         [box? (lambda (b)   ;run another sandbox
-                                 (kill-evaluator (current-eval))
-                                 (unbox b))])
+                         [exn:run-new-sandbox?
+                          (lambda (b)   ;run another sandbox
+                            (kill-evaluator (current-eval))
+                            (exn:run-new-sandbox-path b))])
            (read-eval-print-loop)))))))
 
 (define (make-prompt-read path)
@@ -94,13 +97,13 @@
     ;; Check for special run commands
     (syntax-case stx (run! log!)
       [(run!)                           ;no module
-       (raise (box #f))]
+       (raise (exn:run-new-sandbox #f))]
       [(run! path)                      ;"foo.rkt"
        (string? (syntax-e #'path))
-       (raise (box (syntax-e #'path)))]
+       (raise (exn:run-new-sandbox (syntax-e #'path)))]
       [(run! path)                      ;foo.rkt
        (symbol? (syntax-e #'path))
-       (raise (box (symbol->string (syntax-e #'path))))]
+       (raise (exn:run-new-sandbox (symbol->string (syntax-e #'path))))]
       [(log! specs ...)
        (log-display (syntax->datum #'(specs ...)))]
       ;; The usual
