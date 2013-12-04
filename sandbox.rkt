@@ -39,7 +39,9 @@
   (define path (and (string? path-str)
                     (not (equal? path-str ""))
                     (path-str->existing-file-path path-str)))
-  (define-values (load-dir _ __) (split-path (or path (current-directory))))
+  (define load-dir (cond [path (define-values (base _ __) (split-path path))
+                               base]
+                         [else (current-directory)]))
   (call-with-trusted-sandbox-configuration
    (lambda ()
      ;; Need to set some parameters so they're in effect _before_
