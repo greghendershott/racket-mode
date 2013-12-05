@@ -259,13 +259,17 @@ To run <file>'s `test` submodule."
 
 (defconst racket-keyword-argument-face 'racket-keyword-argument-face)
 (defface racket-keyword-argument-face
-  '((t (:foreground "IndianRed")))
+  '((((background dark))
+     (:foreground "IndianRed"))
+    (((background light))
+     (:foreground "Red3")))
   "Face used for #:keywords."
   :group 'racket)
 
 (defconst racket-selfeval-face 'racket-selfeval-face)
 (defface racket-selfeval-face
-  '((t (:foreground "SeaGreen")))
+  '((t
+     (:foreground "SeaGreen")))
   "Face for self-evaluating expressions"
   :group 'racket)
 
