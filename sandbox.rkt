@@ -98,10 +98,10 @@
     (syntax-case stx (run! log!)
       [(run!)                           ;no module
        (raise (exn:run-new-sandbox #f))]
-      [(run! path)                      ;"foo.rkt"
+      [(run! path)                      ;"module.rkt"
        (string? (syntax-e #'path))
        (raise (exn:run-new-sandbox (syntax-e #'path)))]
-      [(run! path)                      ;foo.rkt
+      [(run! path)                      ;module
        (symbol? (syntax-e #'path))
        (raise (exn:run-new-sandbox (symbol->string (syntax-e #'path))))]
       [(log! specs ...)
