@@ -271,7 +271,8 @@ To run <file>'s `test` submodule."
 
 (defconst racket-paren-face 'racket-paren-face)
 (defface racket-paren-face
-  '((t (:foreground "HoneyDew4")))
+  (let ((fg (face-foreground 'default)))
+    `((t (:foreground ,fg))))
   "Face for parentheses () [] {}"
   :group 'racket)
 
