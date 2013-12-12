@@ -166,6 +166,46 @@ To run <file>'s `test` submodule."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Indentation
 
+(defun racket-indent-for-fold (state indent-point normal-indent)
+  ;; see http://community.schemewiki.org/?emacs-indentation
+  (let ((containing-sexp-start (elt state 1))
+        containing-sexp-point
+        containing-sexp-column
+        body-indent
+        clause-indent)
+    ;;Move to the start of containing sexp, calculate its
+    ;;indentation, store its point and move past the function
+    ;;symbol so that we can use 'parse-partial-sexp'.
+    ;;
+    ;;'lisp-indent-function' guarantees that there is at least
+    ;;one word or symbol character following open paren of
+    ;;containing sexp.
+    (forward-char 1)
+    (goto-char containing-sexp-start)
+    (setq containing-sexp-point (point))
+    (setq containing-sexp-column (current-column))
+    (setq body-indent (+ lisp-body-indent containing-sexp-column))
+    (forward-char 1)    ;Move past the open paren.
+    (forward-sexp 2)    ;Move to the next sexp, past its close paren
+    (backward-sexp 1)   ;Move to its start paren
+    (setq clause-indent (current-column))
+    (forward-sexp 1)    ;Move back past close paren
+    ;;Now go back to the beginning of the line holding
+    ;;the indentation point. Count the sexps on the way.
+    (parse-partial-sexp (point) indent-point 1 t)
+    (let ((n 1))
+      (while (and (< (point) indent-point)
+                  (condition-case ()
+                      (progn
+                        (setq n (+ 1 n))
+                        (forward-sexp 1)
+                        (parse-partial-sexp (point) indent-point 1 t))
+                    (error nil))))
+      ;;(debug body-indent clause-indent n)
+      (list (cond ((= 1 n) clause-indent)
+                  (t body-indent))
+            containing-sexp-point))))
+
 (defun racket-set-indentation ()
   (mapc (lambda (x)
           (put (car x) 'scheme-indent-function (cdr x)))
@@ -221,7 +261,7 @@ To run <file>'s `test` submodule."
           (for/lists . 1)
           (for/first . 1)
           (for/last . 1)
-          (for/fold . 2)
+          (for/fold . racket-indent-for-fold)
           (for/flvector . 1)
           (for/set . 1)
           (for/sum . 1)
@@ -236,7 +276,7 @@ To run <file>'s `test` submodule."
           (for*/lists . 1)
           (for*/first . 1)
           (for*/last . 1)
-          (for*/fold . 2)
+          (for*/fold . racket-indent-for-fold)
           (for*/flvector . 1)
           (for*/set . 1)
           (for*/sum . 1)
