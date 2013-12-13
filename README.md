@@ -17,7 +17,11 @@ inferior mode for running Racket.
   - All Racket keywords, built-ins, self-evals, and so on.
   - All variations of `define` for functions and variables.
 
-- Compatible with Emacs 23.4 and 24.2+.
+- Correct indentation of the `for/fold` and `for*/fold` forms.
+
+- Compatible with Emacs **24.2+**. (With earliest versions of Emacs,
+  font-lock will incorrectly highlight portions of things, e.g. the
+  "min" in "aluminum" will be highlighted as the Racket keyword `min`.
 
 ## Caveats
 
