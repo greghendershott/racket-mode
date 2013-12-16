@@ -48,19 +48,19 @@ One cluster of features is based on the idea of Emacs buttons in the
     - prints of #<path> objects
     - output from the `racket-find-definition` command (see below)
 
-- The command `racket-press-last-button` <key>C-c C-l</key> clicks
+- The command `racket-press-last-button` <kbd>C-c C-l</kbd> clicks
   the last button in the `*racket*` buffer, with the action taking
   place in the current window. (So you don't have to mouse over and
   click it.)
 
-- `racket-find-definition` <key>C-c C-d</key> tries to find the
-   definition of the symbol at point (or with a prefix, <key>C-u C-c
-   C-d</key>, as prompted). If found emits the file/location and
+- `racket-find-definition` <kbd>C-c C-d</kbd> tries to find the
+   definition of the symbol at point (or with a prefix, <kbd>C-u C-c
+   C-d</kbd>, as prompted). If found emits the file/location and
    function signature to the `*racket*` buffer. You can then use
-   `racket-press-last-button` <key>C-c C-l</key> to go there.
+   `racket-press-last-button` <kbd>C-c C-l</kbd> to go there.
 
-- racket-help <key>C-c C-h</key> uses `racket/help` to find the symbol
-  at point (or with a prefix, <key>C-u C-c C-h</key> as prompted). If
+- racket-help <kbd>C-c C-h</kbd> uses `racket/help` to find the symbol
+  at point (or with a prefix, <kbd>C-u C-c C-h</kbd> as prompted). If
   found, a web browser opens.
 
 - Errors are now displayed with context ("stack") information, and
@@ -68,7 +68,7 @@ One cluster of features is based on the idea of Emacs buttons in the
   want to jump to that location). The context is displayed in
   "reverse" order and the immediate error location is last, at the
   bottom. This is easier to parse visually, IMHO. Furthermore, it
-  makes it work well with <key>C-c C-l</key>, because the immediate
+  makes it work well with <kbd>C-c C-l</kbd>, because the immediate
   error will be the last button.
 
 
