@@ -1876,7 +1876,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
       (buffer-substring (point) end))))
 
 (defvar racket-sandbox-rkt
-  (let ((elisp-dir (file-name-directory load-file-name)))
+  (let ((elisp-dir (file-name-directory (or load-file-name (buffer-file-name)))))
     (expand-file-name "sandbox.rkt" elisp-dir))
   "Path to sandbox.rkt")
 
