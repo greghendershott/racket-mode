@@ -1822,6 +1822,7 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+;;;###autoload
 (define-derived-mode racket-mode scheme-mode
   "Racket"
   "Major mode for editing Racket.
