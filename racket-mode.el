@@ -50,44 +50,10 @@ http://www.gnu.org/licenses/ for details.")
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Like DrRacket's F5 (Run)
 
-(defun racket-eval (str)
-  (let ((w (selected-window)))
-    (save-buffer) ;sufficient our `run!` (wouldn't be for Racket's `enter!`)
-
-    ;; If racket process already visible in a window use that, else
-    ;; use previous window.
-    (let ((rw (get-buffer-window inferior-racket-buffer-name)))
-      (if rw
-          (select-window rw)
-        (other-window -1)))
-
-    (run-racket)
-    (select-window w)
-
-    (comint-send-string (get-inferior-racket-buffer-process) str)
-
-    (pop-to-buffer inferior-racket-buffer-name t)
-    (select-window w)))
-
 (defun racket-run ()
   "Save and evaluate the buffer in a fresh REPL like DrRacket."
   (interactive)
   (racket-eval (format "(run! \"%s\")\n" (buffer-file-name))))
-
-(defun racket-shell (cmd)
-  (let ((w (selected-window)))
-    (save-buffer)
-    (let ((rw (get-buffer-window "*shell*")))
-      (if rw
-          (select-window rw)
-        (other-window -1)))
-    (message (concat cmd "..."))
-    (shell)
-    (racket-pop-to-buffer-same-window "*shell*")
-    (comint-send-string "*shell*" (concat cmd "\n"))
-    (select-window w)
-    (sit-for 3)
-    (message nil)))
 
 (defun racket-racket ()
   "Do `racket <file>` in *shell* buffer."
@@ -110,6 +76,56 @@ To run <file>'s `test` submodule."
   (racket-shell (concat (expand-file-name "raco" (file-name-directory racket-program))
                         " test -x "
                         (shell-quote-argument (buffer-file-name)))))
+
+(defun racket-find-definition (&optional prefix)
+  "Find definition of symbol at point. (EXPERIMENTAL)
+
+Only works if you've Run the buffer so that its namespace is active."
+  (interactive "P")
+  (let ((sym (if prefix
+                 (read-from-minibuffer "Find definition of: "
+                                       (if (symbol-at-point)
+                                           (symbol-name (symbol-at-point))
+                                         ""))
+               (symbol-at-point))))
+    (if sym
+        (racket-eval (format "(def! %s)\n\n" sym))
+      (message "Nothing to find."))))
+
+(defun racket-help (&optional prefix)
+  "Find something in Racket's help."
+  (interactive "P")
+  (let ((sym (if prefix
+                 (read-from-minibuffer "Racket help: "
+                                       (if (symbol-at-point)
+                                           (symbol-name (symbol-at-point))
+                                         ""))
+               (symbol-at-point))))
+    (if sym
+        (racket-eval (format "(doc! %s)\n\n" sym))
+      (message "Nothing to find."))))
+
+;;----------------------------------------------------------------------------
+
+(defun racket-eval (str)
+  (run-racket)
+  (comint-send-string (get-inferior-racket-buffer-process) str)
+  (inferior-racket-show-and-move-to-end))
+
+(defun racket-shell (cmd)
+  (let ((w (selected-window)))
+    (save-buffer)
+    (let ((rw (get-buffer-window "*shell*")))
+      (if rw
+          (select-window rw)
+        (other-window -1)))
+    (message (concat cmd "..."))
+    (shell)
+    (racket-pop-to-buffer-same-window "*shell*")
+    (comint-send-string "*shell*" (concat cmd "\n"))
+    (select-window w)
+    (sit-for 3)
+    (message nil)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Enter = enter + indent
@@ -1722,13 +1738,25 @@ To run <file>'s `test` submodule."
 	(map (make-sparse-keymap "Racket")))
     (set-keymap-parent smap lisp-mode-shared-map)
     (define-key smap [menu-bar scheme] (cons "Racket" map))
+
+    (define-key map [racket-press-last-button]
+      '("Press Last Button" . racket-press-last-button))
+    (define-key map [racket-find-definition]
+      '("Symbol Definition" . racket-find-definition))
+    (define-key map [racket-help]
+      '("Symbol Help" . racket-help))
+
+    (define-key map [separator-1] '(menu-item "--"))
+
     (define-key map [insert-lambda]
       '("Insert λ" . racket-insert-lambda))
     (define-key map [indent-region]
       '("Indent Region" . indent-region))
     (define-key map [comment-dwim]
       '("Comment" . comment-dwim))
+
     (define-key map [separator-1] '(menu-item "--"))
+
     (define-key map [send-def]
       '("Evaluate Last Definition" . racket-send-definition))
     (define-key map [send-region]
@@ -1736,7 +1764,9 @@ To run <file>'s `test` submodule."
     (put 'racket-send-region 'menu-enable 'mark-active)
     (define-key map [send-sexp]
       '("Evaluate Last S-Expression" . racket-send-last-sexp))
+
     (define-key map [separator-2] '(menu-item "--"))
+
     (define-key map [racket-raco-test]
       '("Run Using `raco test' in *shell* buffer" . racket-raco-test))
     (define-key map [racket-test]
@@ -1763,6 +1793,9 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 (define-key racket-mode-map "\M-\C-x"        'racket-send-definition)
 (define-key racket-mode-map "\C-x\C-e"       'racket-send-last-sexp)
 (define-key racket-mode-map "\C-c\C-r"       'racket-send-region)
+(define-key racket-mode-map "\C-c\C-h"       'racket-help)
+(define-key racket-mode-map "\C-c\C-d"       'racket-find-definition)
+(define-key racket-mode-map "\C-c\C-l"       'racket-press-last-button)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Files
@@ -1822,6 +1855,9 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
   (racket-mode-variables nil)
   (setq mode-line-process '(":%s"))
   (setq comint-input-filter (function racket-input-filter))
+  ;; FIXME: This affects all comint. How to limit to our mode?
+  ;; Meanwhile I'm testing in racket-linkify-files.
+  (add-hook 'comint-output-filter-functions 'racket-linkify-files)
   (setq comint-get-old-input (function racket-get-old-input))
   (racket-mode-variables t))
 
@@ -1854,17 +1890,36 @@ If there is a process already running in `*racket*', switch to that buffer.
 Runs the hook `inferior-racket-mode-hook' \(after the `comint-mode-hook'
 is run)."
   (interactive)
-  (unless (comint-check-proc inferior-racket-buffer-name)
-    (set-buffer (make-comint "racket" racket-program nil racket-sandbox-rkt))
-    (inferior-racket-mode))
-  (setq racket-buffer inferior-racket-buffer-name)
-  (racket-pop-to-buffer-same-window inferior-racket-buffer-name))
+  (let ((w (selected-window)))
+    ;; If racket process already visible in a window use that, else
+    ;; use previous window.
+    (let ((rw (get-buffer-window inferior-racket-buffer-name)))
+      (if rw
+          (select-window rw)
+        (other-window -1)))
+
+    (unless (comint-check-proc inferior-racket-buffer-name)
+      (set-buffer (make-comint "racket" racket-program nil racket-sandbox-rkt))
+      (inferior-racket-mode))
+    (setq racket-buffer inferior-racket-buffer-name)
+
+    (racket-pop-to-buffer-same-window inferior-racket-buffer-name)
+    (select-window w)))
+
+(defun inferior-racket-show-and-move-to-end ()
+  (let ((w (selected-window)))
+    (pop-to-buffer inferior-racket-buffer-name t)
+    (select-window (get-buffer-window inferior-racket-buffer-name))
+    (with-current-buffer inferior-racket-buffer-name
+      (goto-char (point-max)))
+    (select-window w)))
 
 (defun racket-send-region (start end)
   "Send the current region to the inferior Racket process."
   (interactive "r")
   (comint-send-region (get-inferior-racket-buffer-process) start end)
-  (comint-send-string (get-inferior-racket-buffer-process) "\n"))
+  (comint-send-string (get-inferior-racket-buffer-process) "\n")
+  (inferior-racket-show-and-move-to-end))
 
 (defun racket-send-definition ()
   "Send the current definition to the inferior Racket process."
@@ -1873,12 +1928,98 @@ is run)."
    (end-of-defun)
    (let ((end (point)))
      (beginning-of-defun)
-     (racket-send-region (point) end))))
+     (racket-send-region (point) end)
+     (inferior-racket-show-and-move-to-end))))
 
 (defun racket-send-last-sexp ()
   "Send the previous sexp to the inferior Racket process."
   (interactive)
-  (racket-send-region (save-excursion (backward-sexp) (point)) (point)))
+  (racket-send-region (save-excursion (backward-sexp) (point)) (point))
+  (inferior-racket-show-and-move-to-end))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; linkify file:line:col output
+
+(defvar racket--linkify-regexp
+  (concat
+   "\\(?:"
+     ;;        1            2            3
+     "^;?[ ]*\\([^ :]+\\):\\([0-9]+\\):\\([0-9]+\\)" ;errs, defns
+   "\\)"
+   "\\|"
+   "\\(?:"
+     ;;                      4            5            6
+     "^location:   (#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" ;rackunit
+   "\\)"
+   "\\|"
+   "\\(?:"
+     ;;            7       8/9 are nil
+     "#<path:\\([^>]+\\)>" ;other path
+   "\\)"))
+
+(defun racket--match-string-no-props (a b c)
+  (or (match-string-no-properties a)
+      (match-string-no-properties b)
+      (match-string-no-properties c)))
+
+(defun racket--linkify-file ()
+  (racket--match-string-no-props 1 4 7))
+
+(defun racket--linkify-line ()
+  (string-to-number (or (racket--match-string-no-props 2 5 8) "1")))
+
+(defun racket--linkify-col ()
+  (string-to-number (or (racket--match-string-no-props 3 6 9) "0")))
+
+;; Extent of the entire `file:line:col` item is from start of `file`
+;; to end of `col`. Or in the case of `file` alone, it's obviously
+;; start/end of `file`.
+(defun racket--linkify-ext-beg ()
+  (or (match-beginning 1) (match-beginning 4) (match-beginning 7)))
+(defun racket--linkify-ext-end ()
+  (or (match-end 3) (match-end 6) (match-end 7)))
+
+(defun racket-linkify-files (str)
+  "Make a text button if the new output includes some
+file:line:col information."
+  (when (string-equal (buffer-name) inferior-racket-buffer-name) ;not comint generally
+    (save-excursion
+      (goto-char (point-max))
+      (while (re-search-backward racket--linkify-regexp
+                                 (- (point) (length str))
+                                 t)
+        (make-text-button (racket--linkify-ext-beg)
+                          (racket--linkify-ext-end)
+                          'file (racket--linkify-file)
+                          'line (racket--linkify-line)
+                          'col  (racket--linkify-col)
+                          'action #'racket-go-to-file-line-col
+                          'follow-link t)))))
+
+(defun racket-go-to-file-line-col (btn)
+  "Action for the button: Open the file and go to position."
+  (let ((file (button-get btn 'file))
+        (line (button-get btn 'line))
+        (col  (button-get btn 'col)))
+    (let* ((b (get-file-buffer file))
+           (w (and b (get-buffer-window b))))
+      (if w
+          (select-window w)
+        (find-file file)))
+    (goto-char (point-min))
+    (forward-line (1- line))
+    (forward-char col)))
+
+(defun racket-press-last-button ()
+  "Press the last button in the *racket* buffer. For example if
+button links to a file and position, then go to that file and
+position."
+  (interactive)
+  (with-current-buffer inferior-racket-buffer-name
+    (save-excursion
+      (goto-char (point-max))
+      (backward-button 1 nil nil)
+      (button-activate (button-at (point))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 

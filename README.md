@@ -31,6 +31,47 @@ smarter/wiser people are welcome.)
 
 Please report issues to the [GitHub project page](https://www.github.com/greghendershott/racket-mode).
 
+## Features
+
+See the `Racket` menu. Most of the commands should be obvious (if not,
+Issue it here and I'll doc better).
+
+One cluster of features is based on the idea of Emacs buttons in the
+`*racket*` buffer, plus a command to activate the last such button:
+
+- When `*racket*` buffer output includes text describing a file and
+  location, the text is automatically "linkified" -- turned into an
+  Emacs button. When clicked, the button opens the file at the
+  position. Examples of such text include:
+    - Racket error messages
+    - rackunit failure location messages
+    - prints of #<path> objects
+    - output from the `racket-find-definition` command (see below)
+
+- The command `racket-press-last-button` <key>C-c C-l</key> clicks
+  the last button in the `*racket*` buffer, with the action taking
+  place in the current window. (So you don't have to mouse over and
+  click it.)
+
+- `racket-find-definition` <key>C-c C-d</key> tries to find the
+   definition of the symbol at point (or with a prefix, <key>C-u C-c
+   C-d</key>, as prompted). If found emits the file/location and
+   function signature to the `*racket*` buffer. You can then use
+   `racket-press-last-button` <key>C-c C-l</key> to go there.
+
+- racket-help <key>C-c C-h</key> uses `racket/help` to find the symbol
+  at point (or with a prefix, <key>C-u C-c C-h</key> as prompted). If
+  found, a web browser opens.
+
+- Errors are now displayed with context ("stack") information, and
+  each file location in the "stack" is a navigable button (in case you
+  want to jump to that location). The context is displayed in
+  "reverse" order and the immediate error location is last, at the
+  bottom. This is easier to parse visually, IMHO. Furthermore, it
+  makes it work well with <key>C-c C-l</key>, because the immediate
+  error will be the last button.
+
+
 ## Background/Motivation
 
 I started this project accidentally, while trying to figure out a

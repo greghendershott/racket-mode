@@ -15,7 +15,7 @@
 ;; request I did awhile ago that hasn't yet been accepted for XREPL).
 
 (provide (rename-out [run-file run!]))
-(require racket/sandbox racket/match)
+(require racket/sandbox racket/match "defn.rkt")
 
 (define (run-file path-str)
   (display (banner))
@@ -90,31 +90,80 @@
                                    (loop))])
         ((current-read-interaction) (object-name in) in)))))
 
+;; From xrepl: "Makes it easy to use meta-tools without user-namespace
+;; contamination."
+(define (eval-sexpr-for-user form)
+  (eval (namespace-syntax-introduce (datum->syntax #f form))))
+
 (define (read-interaction src in)
   (parameterize ([read-accept-reader #t]
                  [read-accept-lang #f])
     (define stx (read-syntax src in))
-    ;; Check for special run commands
-    (syntax-case stx (run! log!)
-      [(run!)                           ;no module
+    ;; Check for special commands
+    (syntax-case stx (run! log! def! doc!)
+      [(run!)
        (raise (exn:run-new-sandbox #f))]
-      [(run! path)                      ;"module.rkt"
-       (string? (syntax-e #'path))
-       (raise (exn:run-new-sandbox (syntax-e #'path)))]
-      [(run! path)                      ;module
-       (symbol? (syntax-e #'path))
-       (raise (exn:run-new-sandbox (symbol->string (syntax-e #'path))))]
+      [(run! str) ;; "module.rkt"
+       (string? (syntax-e #'str))
+       (raise (exn:run-new-sandbox (syntax-e #'str)))]
+      [(run! sym) ;; module
+       (symbol? (syntax-e #'sym))
+       (raise (exn:run-new-sandbox (symbol->string (syntax-e #'sym))))]
       [(log! specs ...)
        (log-display (syntax->datum #'(specs ...)))]
+      [(def! sym)
+       (symbol? (syntax-e #'sym))
+       (call-in-sandbox-context ;; to use sandbox evaluator's namespace
+        (current-eval)
+        (lambda ()
+          (display-definition (symbol->string (syntax-e #'sym)))))]
+      [(doc! sym)
+       (symbol? (syntax-e #'sym))
+       (eval-sexpr-for-user `(begin
+                               (require racket/help)
+                               (help ,(namespace-syntax-introduce #'sym))))]
       ;; The usual
       [_ stx])))
 
-;; Prefix lines with #\; so they appear in comment font-lock
-(define (-error-display-handler s exn)
-  (let* ([s (regexp-replace* #rx"^\n+|\n+$" s "")]
-         [s (regexp-replace* #rx"\n\n+" s "\n")]
-         [s (regexp-replace* #rx"\n" s "\n;")])
-    (printf "; ~a\n" s)))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;; This is the reverse of the default error display handler. We show
+;; the context "stack" first, from its bottom to top, then the
+;; immediate error at the bottom. I prefer that: easier to scan
+;; visually from end of buffer. Also, this enables the "click last
+;; button" command to find the button for the immediate error's
+;; source.
+
+(define (-error-display-handler str exn)
+  (define context (continuation-mark-set->context (exn-continuation-marks exn)))
+  (eprintf "~a; ~a\n"
+           (if (exn:fail:user? exn) "" (context->string context))
+           (regexp-replace "\n" str "\n;")))
+
+(define (context->string xs)
+  (for/fold ([s ""])
+            ([x (in-list (reverse xs))])
+    (match-define (cons id src) x)
+    (string-append s
+                   (if (or src id) "; " "")
+                   (if src
+                       (let ([source (srcloc-source src)]
+                             [line (srcloc-line src)]
+                             [col  (srcloc-column src)])
+                         (if (and line col)
+                             (format "~a:~a:~a"
+                                     (if (path? source)
+                                         (path->string source)
+                                         source)
+                                     line
+                                     col)
+                             (format "~a" source)))
+                       "")
+                   (if (and src id) " " "")
+                   (if id
+                       (format "~a" id)
+                       "")
+                   (if (or src id) "\n" ""))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
