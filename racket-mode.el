@@ -82,28 +82,24 @@ To run <file>'s `test` submodule."
 
 Only works if you've Run the buffer so that its namespace is active."
   (interactive "P")
-  (let ((sym (if prefix
-                 (read-from-minibuffer "Find definition of: "
-                                       (if (symbol-at-point)
-                                           (symbol-name (symbol-at-point))
-                                         ""))
-               (symbol-at-point))))
-    (if sym
-        (racket-eval (format "(def! %s)\n\n" sym))
-      (message "Nothing to find."))))
+  (let ((sym (symbol-at-point-or-prompt prefix "Find definition of: ")))
+    (when sym
+      (racket-eval (format "(def! %s)\n\n" sym)))))
 
 (defun racket-help (&optional prefix)
   "Find something in Racket's help."
   (interactive "P")
-  (let ((sym (if prefix
-                 (read-from-minibuffer "Racket help: "
-                                       (if (symbol-at-point)
-                                           (symbol-name (symbol-at-point))
-                                         ""))
-               (symbol-at-point))))
-    (if sym
-        (racket-eval (format "(doc! %s)\n\n" sym))
-      (message "Nothing to find."))))
+  (let ((sym (symbol-at-point-or-prompt prefix "Racket help for: ")))
+    (when sym
+      (racket-eval (format "(doc! %s)\n\n" sym)))))
+
+(defun symbol-at-point-or-prompt (prefix prompt)
+  "Helper for functions that want symbol-at-point, or, to prompt
+when there is no symbol-at-point or prefix is true."
+  (let ((sap (symbol-at-point)))
+    (if (or prefix (not sap))
+        (read-from-minibuffer prompt (if sap (symbol-name sap) ""))
+      sap)))
 
 ;;----------------------------------------------------------------------------
 
