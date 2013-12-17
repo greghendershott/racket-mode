@@ -62,6 +62,10 @@ One cluster of features is based on the idea of Emacs buttons in the
   function signature to the `*racket*` buffer. You can then use
   **racket-press-last-button** <kbd>C-c C-l</kbd> to go to the
   location of the definition.
+  
+  > **NOTE**: This can only find symbols that are defined in the
+  > current namespace. So you may need to type <kbd>F5</kbd> to
+  > **Run** the current buffer, before this will work.
 
 - **racket-help** <kbd>C-c C-h</kbd> uses `racket/help` to find the
   symbol at point (or with a prefix, <kbd>C-u C-c C-h</kbd> as
