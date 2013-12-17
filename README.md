@@ -1,6 +1,6 @@
 # Racket mode for GNU Emacs
 
-This is a major mode for editing Racket source files, as well as an
+This is a major mode for editing [Racket] source files, as well as an
 inferior mode for running Racket.
 
 - Focus on Racket.
@@ -17,24 +17,26 @@ inferior mode for running Racket.
   - All Racket keywords, built-ins, self-evals, and so on.
   - All variations of `define` for functions and variables.
 
-- Correct indentation of the `for/fold` and `for*/fold` forms.
+- Correct indentation of Racket forms, including `for/fold` and
+  `for*/fold`.
 
-- Compatible with Emacs **24.2+**. (With earliest versions of Emacs,
+- Compatible with Emacs **24.2+**. (With earlier versions of Emacs,
   font-lock will incorrectly highlight portions of things, e.g. the
   "min" in "aluminum" will be highlighted as the Racket keyword `min`.
 
 ## Caveats
 
 This is alpha quality, i.e. version 0.1. My total experience writing
-Emacs modes consists of writing this mode. (Pull requests from
-smarter/wiser people are welcome.)
+Emacs modes consists of writing this mode.
 
-Please report issues to the [GitHub project page](https://www.github.com/greghendershott/racket-mode).
+Pull requests from smarter/wiser people are welcome.
+
+Please report issues [here][issues].
 
 ## Features
 
-See the `Racket` menu. Most of the commands should be obvious (if not,
-Issue it here and I'll doc better).
+See the `Racket` menu. Most of the commands should be obvious. (If
+not, [report it][issues] and I'll improve the documentation.)
 
 One cluster of features is based on the idea of Emacs buttons in the
 `*racket*` buffer, plus a command to activate the last such button:
@@ -43,25 +45,27 @@ One cluster of features is based on the idea of Emacs buttons in the
   location, the text is automatically "linkified" -- turned into an
   Emacs button. When clicked, the button opens the file at the
   position. Examples of such text include:
-    - Racket error messages
-    - rackunit failure location messages
-    - prints of #<path> objects
-    - output from the `racket-find-definition` command (see below)
+    - Racket error messages.
+    - `rackunit` test failure location messages.
+    - prints of `#<path>` objects.
+    - output from the **racket-find-definition** command (see below).
 
-- The command `racket-press-last-button` <kbd>C-c C-l</kbd> clicks
+- The command **racket-press-last-button** <kbd>C-c C-l</kbd> clicks
   the last button in the `*racket*` buffer, with the action taking
-  place in the current window. (So you don't have to mouse over and
-  click it.)
+  place in the current window. For example if you type <kbd>F5</kbd>
+  and there is an error, you can press <kbd>C-c C-l</kbd> to go to the
+  location of the error.
 
-- `racket-find-definition` <kbd>C-c C-d</kbd> tries to find the
-   definition of the symbol at point (or with a prefix, <kbd>C-u C-c
-   C-d</kbd>, as prompted). If found emits the file/location and
-   function signature to the `*racket*` buffer. You can then use
-   `racket-press-last-button` <kbd>C-c C-l</kbd> to go there.
+- **racket-find-definition** <kbd>C-c C-d</kbd> tries to find the
+  definition of the symbol at point (or with a prefix, <kbd>C-u C-c
+  C-d</kbd>, as prompted). If found, it displays the file/location and
+  function signature to the `*racket*` buffer. You can then use
+  **racket-press-last-button** <kbd>C-c C-l</kbd> to go to the
+  location of the definition.
 
-- racket-help <kbd>C-c C-h</kbd> uses `racket/help` to find the symbol
-  at point (or with a prefix, <kbd>C-u C-c C-h</kbd> as prompted). If
-  found, a web browser opens.
+- **racket-help** <kbd>C-c C-h</kbd> uses `racket/help` to find the
+  symbol at point (or with a prefix, <kbd>C-u C-c C-h</kbd> as
+  prompted). If found, a web browser opens.
 
 - Errors are now displayed with context ("stack") information, and
   each file location in the "stack" is a navigable button (in case you
@@ -107,3 +111,6 @@ to Racket.
 
 - The source code for Neil Van Dyke's Quack provided a model for
   many of the scheme-indent-function settings, and smart paren closing.
+
+[Racket]: http://www.racket-lang.org/
+[issues]: https://www.github.com/greghendershott/racket-mode/issues
