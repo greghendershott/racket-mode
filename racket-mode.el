@@ -53,6 +53,7 @@ http://www.gnu.org/licenses/ for details.")
 (defun racket-run ()
   "Save and evaluate the buffer in a fresh REPL like DrRacket."
   (interactive)
+  (save-buffer)
   (racket-eval (format "(run! \"%s\")\n" (buffer-file-name))))
 
 (defun racket-racket ()
