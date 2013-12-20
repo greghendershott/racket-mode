@@ -1,4 +1,4 @@
-;;; racket-mode.el --- Racket mode for Emacs
+;;; racket-mode.el --- Major mode for Racket language.
 
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
@@ -9,8 +9,9 @@
 ;; - Focus on Racket (not various Schemes).
 ;; - Fontify all Racket keywords, builtins, and so on.
 ;; - Fontify variations of define for functions and variables.
+;; - Indent Racket forms (even `for/fold` and `for*/fold`).
 ;; - Follow DrRacket concepts where applicable.
-;; - Compatible with Emacs 23.4 and 24+.
+;; - Compatible with Emacs 24.2+.
 ;;
 ;; Acknowledgements:
 ;;
