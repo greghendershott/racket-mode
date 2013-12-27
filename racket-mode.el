@@ -1733,7 +1733,7 @@ when there is no symbol-at-point or prefix is true."
 
 (defvar racket-mode-map
   (let ((smap (make-sparse-keymap))
-	(map (make-sparse-keymap "Racket")))
+        (map (make-sparse-keymap "Racket")))
     (set-keymap-parent smap lisp-mode-shared-map)
     (define-key smap [menu-bar scheme] (cons "Racket" map))
 
