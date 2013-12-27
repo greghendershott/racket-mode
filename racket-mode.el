@@ -180,6 +180,91 @@ when there is no symbol-at-point or prefix is true."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Indentation
 
+(defcustom racket-mode-rackjure-indent t
+  "Indent {} and [] as in Clojure"
+  :type 'boolean
+  :group 'racket)
+
+(defun racket-indent-function (indent-point state)
+  "Racket mode function for the value of the variable `lisp-indent-function'.
+This behaves like the function `lisp-indent-function', except that:
+
+i) it checks for a non-nil value of the property `racket-indent-function'
+rather than `lisp-indent-function'.
+
+ii) if that property specifies a function, it is called with three
+arguments (not two), the third argument being the default (i.e., current)
+indentation.
+
+The function `calculate-lisp-indent' calls this to determine
+if the arguments of a Lisp function call should be indented specially.
+
+INDENT-POINT is the position at which the line being indented begins.
+Point is located at the point to indent under (for default indentation);
+STATE is the `parse-partial-sexp' state for that position.
+
+If the current line is in a call to a Lisp function that has a non-nil
+property `racket-indent-function' it specifies how to indent.  The property
+value can be:
+
+* `defun', meaning indent `defun'-style
+  \(this is also the case if there is no property and the function
+  has a name that begins with \"def\", and three or more arguments);
+
+* an integer N, meaning indent the first N arguments specially
+  (like ordinary function arguments), and then indent any further
+  arguments like a body;
+
+* a function to call that returns the indentation (or nil).
+  `lisp-indent-function' calls this function with the same two arguments
+  that it itself received.
+
+This function returns either the indentation to use, or nil if the
+Lisp function does not specify a special indentation."
+  (let ((normal-indent (current-column)))
+    (goto-char (1+ (elt state 1)))
+    (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t)
+    (if (and (elt state 2)
+             (not (looking-at "\\sw\\|\\s_")))
+        ;; car of form doesn't seem to be a symbol
+        (progn
+          (when (not (> (save-excursion (forward-line 1) (point))
+                        calculate-lisp-indent-last-sexp))
+            (goto-char calculate-lisp-indent-last-sexp)
+            (beginning-of-line)
+            (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t)))
+          ;; Indent under the list or under the first sexp on the same
+          ;; line as calculate-lisp-indent-last-sexp.  Note that first
+          ;; thing on that line has to be complete sexp since we are
+          ;; inside the innermost containing sexp.
+          (backward-prefix-chars)
+          (current-column))
+      (let ((function (buffer-substring (point)
+                                        (progn (forward-sexp 1) (point))))
+            (open-pos (elt state 1))
+            (method nil))
+        (setq method (get (intern-soft function) 'racket-indent-function))
+        (cond ((or
+                ;; a quoted list or a vector literal
+                (and (member (char-after (1- open-pos)) '(?\' ?\#))
+                     (eq (char-after open-pos) ?\())
+                ;; #lang rackjure {}
+                (and racket-mode-rackjure-indent
+                    (eq (char-after open-pos) ?\{)))
+               ;; Indent all aligned with first item:
+               (goto-char open-pos)
+               (1+ (current-column)))
+              ((or (eq method 'defun)
+                   (and (null method)
+                        (> (length function) 3)
+                        (string-match "\\`def" function)))
+               (lisp-indent-defform state indent-point))
+              ((integerp method)
+               (lisp-indent-specform method state
+                                     indent-point normal-indent))
+              (method
+               (funcall method state indent-point normal-indent)))))))
+
 (defun racket-indent-for-fold (state indent-point normal-indent)
   ;; see http://community.schemewiki.org/?emacs-indentation
   (let ((containing-sexp-start (elt state 1))
@@ -222,7 +307,7 @@ when there is no symbol-at-point or prefix is true."
 
 (defun racket-set-indentation ()
   (mapc (lambda (x)
-          (put (car x) 'scheme-indent-function (cdr x)))
+          (put (car x) 'racket-indent-function (cdr x)))
         '((begin0 . 1)
           (c-declare . 0)
           (c-lambda . 2)
@@ -1814,14 +1899,14 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
     (setq font-lock-defaults `(,racket-font-lock-keywords)))
 
   ;; Indentation
+  (set (make-local-variable 'lisp-indent-function) 'racket-indent-function)
   (racket-set-indentation)
   (setq indent-tabs-mode nil)
 
   ;; Syntax table
   ;; Make # and | symbol constituents.
   (modify-syntax-entry ?# "_ p14bn" racket-mode-syntax-table)
-  (modify-syntax-entry ?| "_ 23bn"  racket-mode-syntax-table)
-  )
+  (modify-syntax-entry ?| "_ 23bn"  racket-mode-syntax-table))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
