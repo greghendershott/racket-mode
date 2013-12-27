@@ -1728,6 +1728,9 @@ Lisp function does not specify a special indentation."
     ("'\\sw+"                   . racket-selfeval-face)
     ("'|\\(\\sw\\| \\)+|"       . racket-selfeval-face)
 
+    ;; #rx #px
+    ("\\(#[pr]x\\)\"" (1 racket-selfeval-face))
+
     ;; literal char
     ("\\_<#\\\\\\([][-`~!@#$%&*()_+=^{}\;:'\"<>,.?/|\\\\]\\|\\sw+\\>\\)"
      . racket-selfeval-face)
