@@ -135,9 +135,11 @@
 ;; source.
 
 (define (-error-display-handler str exn)
-  (define context (continuation-mark-set->context (exn-continuation-marks exn)))
   (eprintf "~a; ~a\n"
-           (if (exn:fail:user? exn) "" (context->string context))
+           (if #t ;(exn:fail:user? exn)
+               ""
+               (context->string
+                (continuation-mark-set->context (exn-continuation-marks exn))))
            (regexp-replace "\n" str "\n;")))
 
 (define (context->string xs)
