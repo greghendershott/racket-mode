@@ -192,6 +192,3 @@
      ;; full path depends on OS and Racket version, so check tail:
      [(pregexp "^.+?/collects/net/url\\.rkt:\\d+:\\d+ defines `get-pure-port`\n$") #t]
      [x x])))
-
-(require net/url)
-(require racket/dict)
