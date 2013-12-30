@@ -33,8 +33,8 @@ This is a major mode for editing [Racket] source files, as well as an
     > NOTE: I have a `minor-mode` branch that implements a Minor mode
     > to add some features alongside Geiser, as opposed to a
     > stand-alone Major mode. But I'm not using it day-to-day. My
-    > gripe is not so much with Geiser -- which, again, is wondeful --
-    > but with the Racket `enter!` evaluation model that Geiser uses.
+    > gripe is not so much with Geiser -- which is wonderful -- but
+    > with the Racket `enter!` evaluation model that Geiser uses.
 
 - This is alpha quality, i.e. version 0.1. My total experience writing
   Emacs modes consists of writing this mode.
@@ -71,7 +71,7 @@ A few notes:
 
 - Various `*racket*` buffer output describing a file and position is
   automatically "linkified". To visit the file at the position, click
-  or use a [Compilation mode command] such as <kbd>C-x \`<kbd> (next
+  or use a [Compilation mode command] such as <kbd>C-x \`</kbd> (next
   error). Examples of such text include:
 
     - Racket error messages.
@@ -83,7 +83,7 @@ A few notes:
   definition of the symbol at point (or with a prefix, <kbd>C-u C-c
   C-d</kbd>, as prompted). If found, it displays the file/location and
   function signature in the `*racket*` buffer. You can then use a
-  [Compilation mode command] such as <kbd>C-x \`<kbd> to visit the
+  [Compilation mode command] such as <kbd>C-x \`</kbd> to visit the
   definition.
   
     > **NOTE**: Racket doesn't provide anything like MIT Scheme's `pp`
