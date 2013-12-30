@@ -68,8 +68,11 @@ http://www.gnu.org/licenses/ for details.")
   "Do (require (submod \".\" test)) in *racket* buffer."
   (interactive)
   (racket-run) ;start fresh, so (require) will have an effect
-  (racket-eval (concat "(begin (displayln \"Running tests...\")\n"
-                       "       (require (submod \".\" test)))\n")))
+  (racket-eval
+   "(begin
+ (displayln \"Running tests...\")
+ (require (submod \".\" test))
+ (flush-output (current-output-port)))\n"))
 
 (defun racket-raco-test ()
   "Do `raco test -x <file>` in *shell* buffer.
@@ -1825,8 +1828,6 @@ Lisp function does not specify a special indentation."
     (set-keymap-parent smap lisp-mode-shared-map)
     (define-key smap [menu-bar scheme] (cons "Racket" map))
 
-    (define-key map [racket-press-last-button]
-      '("Press Last Button" . racket-press-last-button))
     (define-key map [racket-find-definition]
       '("Symbol Definition" . racket-find-definition))
     (define-key map [racket-help]
@@ -1882,7 +1883,6 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 (define-key racket-mode-map (kbd "<f1>")     'racket-help)
 (define-key racket-mode-map "\C-c\C-h"       'racket-help)
 (define-key racket-mode-map "\C-c\C-d"       'racket-find-definition)
-(define-key racket-mode-map "\C-c\C-l"       'racket-press-last-button)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Files
@@ -1928,24 +1928,25 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; Move this to its own file?
-
-;; (require 'racket-mode)  ;if we move to its own file
 (require 'comint)
+(require 'compile)
 
 (setq inferior-racket-buffer-name "*racket*")
 (defun get-inferior-racket-buffer-process ()
   (get-buffer-process inferior-racket-buffer-name))
 
-(define-derived-mode inferior-racket-mode comint-mode "Inferior Racket"
+(define-derived-mode inferior-racket-mode comint-mode "Racket-REPL"
   "Major mode for interacting with Racket process."
   (setq comint-prompt-regexp "^[^>\n]*>+ *")
   (racket-mode-variables nil)
-  (setq mode-line-process '(":%s"))
+  ;;(setq mode-line-process '(":%s"))
+  (setq mode-line-process nil)
   (setq comint-input-filter (function racket-input-filter))
-  ;; FIXME: This affects all comint. How to limit to our mode?
-  ;; Meanwhile I'm testing in racket-linkify-files.
-  (add-hook 'comint-output-filter-functions 'racket-linkify-files)
+  (compilation-setup t)
+  (set (make-local-variable 'compilation-error-regexp-alist)
+       '(("^;?[ ]*\\([^ :]+\\):\\([0-9]+\\):\\([0-9]+\\)" 1 2 3) ;errs, defns
+         ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3) ;rackunit
+         ("#<path:\\([^>]+\\)>" 1 nil nil 0)))                   ;path struct
   (setq comint-get-old-input (function racket-get-old-input))
   (racket-mode-variables t))
 
@@ -2024,90 +2025,6 @@ is run)."
   (interactive)
   (racket-send-region (save-excursion (backward-sexp) (point)) (point))
   (inferior-racket-show-and-move-to-end))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; linkify file:line:col output
-
-(defvar racket--linkify-regexp
-  (concat
-   "\\(?:"
-     ;;        1            2            3
-     "^;?[ ]*\\([^ :]+\\):\\([0-9]+\\):\\([0-9]+\\)" ;errs, defns
-   "\\)"
-   "\\|"
-   "\\(?:"
-     ;;                      4            5            6
-     "^location:   (#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" ;rackunit
-   "\\)"
-   "\\|"
-   "\\(?:"
-     ;;            7       8/9 are nil
-     "#<path:\\([^>]+\\)>" ;other path
-   "\\)"))
-
-(defun racket--match-string-no-props (a b c)
-  (or (match-string-no-properties a)
-      (match-string-no-properties b)
-      (match-string-no-properties c)))
-
-(defun racket--linkify-file ()
-  (racket--match-string-no-props 1 4 7))
-
-(defun racket--linkify-line ()
-  (string-to-number (or (racket--match-string-no-props 2 5 8) "1")))
-
-(defun racket--linkify-col ()
-  (string-to-number (or (racket--match-string-no-props 3 6 9) "0")))
-
-;; Extent of the entire `file:line:col` item is from start of `file`
-;; to end of `col`. Or in the case of `file` alone, it's obviously
-;; start/end of `file`.
-(defun racket--linkify-ext-beg ()
-  (or (match-beginning 1) (match-beginning 4) (match-beginning 7)))
-(defun racket--linkify-ext-end ()
-  (or (match-end 3) (match-end 6) (match-end 7)))
-
-(defun racket-linkify-files (str)
-  "Make a text button if the new output includes some
-file:line:col information."
-  (when (string-equal (buffer-name) inferior-racket-buffer-name) ;not comint generally
-    (save-excursion
-      (goto-char (point-max))
-      (while (re-search-backward racket--linkify-regexp
-                                 (- (point) (length str))
-                                 t)
-        (make-text-button (racket--linkify-ext-beg)
-                          (racket--linkify-ext-end)
-                          'file (racket--linkify-file)
-                          'line (racket--linkify-line)
-                          'col  (racket--linkify-col)
-                          'action #'racket-go-to-file-line-col
-                          'follow-link t)))))
-
-(defun racket-go-to-file-line-col (btn)
-  "Action for the button: Open the file and go to position."
-  (let ((file (button-get btn 'file))
-        (line (button-get btn 'line))
-        (col  (button-get btn 'col)))
-    (let* ((b (get-file-buffer file))
-           (w (and b (get-buffer-window b))))
-      (if w
-          (select-window w)
-        (find-file file)))
-    (goto-char (point-min))
-    (forward-line (1- line))
-    (forward-char col)))
-
-(defun racket-press-last-button ()
-  "Press the last button in the *racket* buffer. For example if
-button links to a file and position, then go to that file and
-position."
-  (interactive)
-  (with-current-buffer inferior-racket-buffer-name
-    (save-excursion
-      (goto-char (point-max))
-      (backward-button 1 nil nil)
-      (button-activate (button-at (point))))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
