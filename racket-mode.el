@@ -1939,7 +1939,6 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
   "Major mode for interacting with Racket process."
   (setq comint-prompt-regexp "^[^>\n]*>+ *")
   (racket-mode-variables nil)
-  ;;(setq mode-line-process '(":%s"))
   (setq mode-line-process nil)
   (setq comint-input-filter (function racket-input-filter))
   (compilation-setup t)
