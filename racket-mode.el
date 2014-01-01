@@ -38,6 +38,10 @@ http://www.gnu.org/licenses/ for details.")
 (defconst racket-mode-version "0.1")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Things used by both racket-mode and racket-repl-mode
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (require 'lisp-mode)
 (require 'racket-keywords-and-builtins)
@@ -175,158 +179,6 @@ http://www.gnu.org/licenses/ for details.")
     (modify-syntax-entry ?\n " " st)
     (modify-syntax-entry ?#  "'" st)
     st))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Racket mode
-;;
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;###autoload
-(define-derived-mode racket-mode prog-mode
-  "Racket"
-  "Major mode for editing Racket.
-\\{racket-mode-map}"
-  (racket--variables-for-both-modes))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(defvar racket-program "racket"
-  "Pathname of Racket program.")
-
-(defconst racket-lambda-char (make-char 'greek-iso8859-7 107))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Like DrRacket's F5 (Run)
-
-(defun racket-run ()
-  "Save and evaluate the buffer in a fresh REPL like DrRacket."
-  (interactive)
-  (save-buffer)
-  (racket-eval (format "(run! \"%s\")\n" (buffer-file-name))))
-
-(defun racket-racket ()
-  "Do `racket <file>` in *shell* buffer."
-  (interactive)
-  (racket-shell (concat racket-program
-                        " "
-                        (shell-quote-argument (buffer-file-name)))))
-
-(defun racket-test ()
-  "Do (require (submod \".\" test)) in *racket* buffer."
-  (interactive)
-  (racket-run) ;start fresh, so (require) will have an effect
-  (racket-eval
-   "(begin
- (displayln \"Running tests...\")
- (require (submod \".\" test))
- (flush-output (current-output-port)))\n"))
-
-(defun racket-raco-test ()
-  "Do `raco test -x <file>` in *shell* buffer.
-To run <file>'s `test` submodule."
-  (interactive)
-  (racket-shell (concat (expand-file-name "raco" (file-name-directory racket-program))
-                        " test -x "
-                        (shell-quote-argument (buffer-file-name)))))
-
-(defun racket-find-definition (&optional prefix)
-  "Find definition of symbol at point. (EXPERIMENTAL)
-
-Only works if you've Run the buffer so that its namespace is active."
-  (interactive "P")
-  (let ((sym (symbol-at-point-or-prompt prefix "Find definition of: ")))
-    (when sym
-      (racket-eval (format "(def! %s)\n\n" sym)))))
-
-(defun racket-help (&optional prefix)
-  "Find something in Racket's help."
-  (interactive "P")
-  (let ((sym (symbol-at-point-or-prompt prefix "Racket help for: ")))
-    (when sym
-      (racket-eval (format "(doc! %s)\n\n" sym)))))
-
-(defun symbol-at-point-or-prompt (prefix prompt)
-  "Helper for functions that want symbol-at-point, or, to prompt
-when there is no symbol-at-point or prefix is true."
-  (let ((sap (symbol-at-point)))
-    (if (or prefix (not sap))
-        (read-from-minibuffer prompt (if sap (symbol-name sap) ""))
-      sap)))
-
-;;----------------------------------------------------------------------------
-
-(defun racket-eval (str)
-  (racket-repl)
-  (comint-send-string (get-racket-repl-buffer-process) str)
-  (racket--repl-show-and-move-to-end))
-
-(defun racket-shell (cmd)
-  (let ((w (selected-window)))
-    (save-buffer)
-    (let ((rw (get-buffer-window "*shell*")))
-      (if rw
-          (select-window rw)
-        (other-window -1)))
-    (message (concat cmd "..."))
-    (shell)
-    (racket-pop-to-buffer-same-window "*shell*")
-    (comint-send-string "*shell*" (concat cmd "\n"))
-    (select-window w)
-    (sit-for 3)
-    (message nil)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; cr = cr + indent
-
-(defun racket-cr ()
-  (interactive)
-  (newline)
-  (lisp-indent-line))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Insert lambda char (like DrRacket)
-
-(defun racket-insert-lambda ()
-  (interactive)
-  (insert-char racket-lambda-char 1))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Automatically insert matching \?) \?] or \?}
-
-(defvar racket-matching-parens
-  '(( ?\( . ?\) )
-    ( ?\[ . ?\] )
-    ( ?\{ . ?\} )))
-
-(defun racket-insert-closing (prefix char)
-  (insert char)
-  (unless prefix
-    (let ((open-pt (condition-case nil
-                       (scan-sexps (point) -1)
-                     (error (beep) nil))))
-      (when open-pt
-        (let* ((open-char
-                (aref (buffer-substring-no-properties open-pt (1+ open-pt)) 0))
-               (close-pair (assoc open-char racket-matching-parens)))
-          (when close-pair
-            (let ((close-char (cdr close-pair)))
-              (when (not (= close-char char))
-                (delete-backward-char 1)
-                (insert close-char))))))))
-  (when blink-paren-function (funcall blink-paren-function)))
-
-(defun racket-insert-closing-paren (&optional prefix)
-  (interactive "P")
-  (racket-insert-closing prefix ?\)))
-
-(defun racket-insert-closing-bracket (&optional prefix)
-  (interactive "P")
-  (racket-insert-closing prefix ?\]))
-
-(defun racket-insert-closing-brace (&optional prefix)
-  (interactive "P")
-  (racket-insert-closing prefix ?\}))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Indentation
@@ -700,6 +552,158 @@ Lisp function does not specify a special indentation."
     "Font lock keywords for Racket mode")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Insert lambda char (like DrRacket)
+
+(defconst racket-lambda-char (make-char 'greek-iso8859-7 107))
+
+(defun racket-insert-lambda ()
+  (interactive)
+  (insert-char racket-lambda-char 1))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; Automatically insert matching \?) \?] or \?}
+
+(defvar racket-matching-parens
+  '(( ?\( . ?\) )
+    ( ?\[ . ?\] )
+    ( ?\{ . ?\} )))
+
+(defun racket--insert-closing (prefix char)
+  (insert char)
+  (unless prefix
+    (let ((open-pt (condition-case nil
+                       (scan-sexps (point) -1)
+                     (error (beep) nil))))
+      (when open-pt
+        (let* ((open-char
+                (aref (buffer-substring-no-properties open-pt (1+ open-pt)) 0))
+               (close-pair (assoc open-char racket-matching-parens)))
+          (when close-pair
+            (let ((close-char (cdr close-pair)))
+              (when (not (= close-char char))
+                (delete-backward-char 1)
+                (insert close-char))))))))
+  (when blink-paren-function (funcall blink-paren-function)))
+
+(defun racket-insert-closing-paren (&optional prefix)
+  (interactive "P")
+  (racket--insert-closing prefix ?\)))
+
+(defun racket-insert-closing-bracket (&optional prefix)
+  (interactive "P")
+  (racket--insert-closing prefix ?\]))
+
+(defun racket-insert-closing-brace (&optional prefix)
+  (interactive "P")
+  (racket--insert-closing prefix ?\}))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;
+;; Racket mode
+;;
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;###autoload
+(define-derived-mode racket-mode prog-mode
+  "Racket"
+  "Major mode for editing Racket.
+\\{racket-mode-map}"
+  (racket--variables-for-both-modes))
+
+;;;###autoload
+(setq auto-mode-alist
+      (append '(("\\.rkt\\'" . racket-mode)
+                ("\\.rktd\\'" . racket-mode))
+              auto-mode-alist))
+
+(defun racket-run ()
+  "Save and evaluate the buffer in REPL, like DrRacket's Run."
+  (interactive)
+  (save-buffer)
+  (racket--eval (format "(run! \"%s\")\n" (buffer-file-name))))
+
+(defun racket-racket ()
+  "Do `racket <file>` in *shell* buffer."
+  (interactive)
+  (racket--shell (concat racket-program
+                         " "
+                         (shell-quote-argument (buffer-file-name)))))
+
+(defun racket-test ()
+  "Do (require (submod \".\" test)) in *racket* buffer."
+  (interactive)
+  (racket-run) ;start fresh, so (require) will have an effect
+  (racket--eval
+   "(begin
+ (displayln \"Running tests...\")
+ (require (submod \".\" test))
+ (flush-output (current-output-port)))\n"))
+
+(defun racket-raco-test ()
+  "Do `raco test -x <file>` in *shell* buffer.
+To run <file>'s `test` submodule."
+  (interactive)
+  (racket--shell (concat (expand-file-name
+                          "raco"
+                          (file-name-directory racket-program))
+                         " test -x "
+                         (shell-quote-argument (buffer-file-name)))))
+
+(defun racket-find-definition (&optional prefix)
+  "Find definition of symbol at point. (EXPERIMENTAL)
+
+Only works if you've Run the buffer so that its namespace is active."
+  (interactive "P")
+  (let ((sym (symbol-at-point-or-prompt prefix "Find definition of: ")))
+    (when sym
+      (racket--eval (format "(def! %s)\n\n" sym)))))
+
+(defun racket-help (&optional prefix)
+  "Find something in Racket's help."
+  (interactive "P")
+  (let ((sym (symbol-at-point-or-prompt prefix "Racket help for: ")))
+    (when sym
+      (racket--eval (format "(doc! %s)\n\n" sym)))))
+
+(defun symbol-at-point-or-prompt (prefix prompt)
+  "Helper for functions that want symbol-at-point, or, to prompt
+when there is no symbol-at-point or prefix is true."
+  (let ((sap (symbol-at-point)))
+    (if (or prefix (not sap))
+        (read-from-minibuffer prompt (if sap (symbol-name sap) ""))
+      sap)))
+
+;;----------------------------------------------------------------------------
+
+(defun racket--eval (str)
+  (racket-repl)
+  (comint-send-string (get-racket-repl-buffer-process) str)
+  (racket--repl-show-and-move-to-end))
+
+(defun racket--shell (cmd)
+  (let ((w (selected-window)))
+    (save-buffer)
+    (let ((rw (get-buffer-window "*shell*")))
+      (if rw
+          (select-window rw)
+        (other-window -1)))
+    (message (concat cmd "..."))
+    (shell)
+    (racket-pop-to-buffer-same-window "*shell*")
+    (comint-send-string "*shell*" (concat cmd "\n"))
+    (select-window w)
+    (sit-for 3)
+    (message nil)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; cr = cr + indent
+
+(defun racket-cr ()
+  (interactive)
+  (newline)
+  (lisp-indent-line))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Keymap
 
 (defvar racket-mode-map
@@ -747,9 +751,6 @@ Lisp function does not specify a special indentation."
   "Keymap for Racket mode.
 All commands in `lisp-mode-shared-map' are inherited by this map.")
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Keys
-
 (define-key racket-mode-map (kbd "<f5>")     'racket-run)
 (define-key racket-mode-map (kbd "M-C-<f5>") 'racket-racket)
 (define-key racket-mode-map (kbd "C-<f5>")   'racket-test)
@@ -765,14 +766,6 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
 (define-key racket-mode-map (kbd "<f1>")     'racket-help)
 (define-key racket-mode-map "\C-c\C-h"       'racket-help)
 (define-key racket-mode-map "\C-c\C-d"       'racket-find-definition)
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;###autoload
-(setq auto-mode-alist
-      (append '(("\\.rkt\\'" . racket-mode)
-                ("\\.rktd\\'" . racket-mode))
-              auto-mode-alist))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -848,9 +841,13 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
         (error (racket-cr))))))
 
 (defvar racket-sandbox-rkt
-  (let ((elisp-dir (file-name-directory (or load-file-name (buffer-file-name)))))
+  (let ((elisp-dir
+         (file-name-directory (or load-file-name (buffer-file-name)))))
     (expand-file-name "sandbox.rkt" elisp-dir))
   "Path to sandbox.rkt")
+
+(defvar racket-program "racket"
+  "Pathname of Racket program.")
 
 ;;;###autoload
 (defun racket-repl ()
@@ -872,15 +869,6 @@ is run)."
     (setq racket-buffer racket-repl-buffer-name)
 
     (racket-pop-to-buffer-same-window racket-repl-buffer-name)
-    (select-window w)))
-
-(defun racket--repl-show-and-move-to-end ()
-  "Make the Racket REPL visible, move point to end. Keep original window selected."
-  (let ((w (selected-window)))
-    (pop-to-buffer racket-repl-buffer-name t)
-    (select-window (get-buffer-window racket-repl-buffer-name))
-    (with-current-buffer racket-repl-buffer-name
-      (goto-char (point-max)))
     (select-window w)))
 
 (defun racket-send-region (start end)
@@ -905,6 +893,15 @@ is run)."
   (interactive)
   (racket-send-region (save-excursion (backward-sexp) (point)) (point))
   (racket--repl-show-and-move-to-end))
+
+(defun racket--repl-show-and-move-to-end ()
+  "Make the Racket REPL visible, move point to end. Keep original window selected."
+  (let ((w (selected-window)))
+    (pop-to-buffer racket-repl-buffer-name t)
+    (select-window (get-buffer-window racket-repl-buffer-name))
+    (with-current-buffer racket-repl-buffer-name
+      (goto-char (point-max)))
+    (select-window w)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Emacs version compatibility
