@@ -24,7 +24,7 @@
 ;;; Code:
 
 (defconst racket-mode-copyright
-  "Copyright (c) 2013 by Greg Hendershott. Portions Copyright (c) Free Software Foundation and Copyright (c) 2002-2012 Neil Van Dyke.")
+  "Copyright (c) 2013-2014 by Greg Hendershott. Portions Copyright (c) Free Software Foundation and Copyright (c) 2002-2012 Neil Van Dyke.")
 
 (defconst racket-mode-legal-notice
   "This is free software; you can redistribute it and/or modify it under the
@@ -35,7 +35,7 @@ without even the implied warranty of merchantability or fitness for a
 particular purpose.  See the GNU General Public License for more details.  See
 http://www.gnu.org/licenses/ for details.")
 
-(defconst racket-mode-version "0.1")
+(defconst racket-mode-version "0.2")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
