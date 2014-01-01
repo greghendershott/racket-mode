@@ -127,45 +127,9 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-;; This is the reverse of the default error display handler. We show
-;; the context "stack" first, from its bottom to top, then the
-;; immediate error at the bottom. I prefer that: easier to scan
-;; visually from end of buffer. Also, this enables the "click last
-;; button" command to find the button for the immediate error's
-;; source.
-
 (define (-error-display-handler str exn)
-  (eprintf "~a; ~a\n"
-           (if #t ;(exn:fail:user? exn)
-               ""
-               (context->string
-                (continuation-mark-set->context (exn-continuation-marks exn))))
-           (regexp-replace "\n" str "\n;")))
-
-(define (context->string xs)
-  (for/fold ([s ""])
-            ([x (in-list (reverse xs))])
-    (match-define (cons id src) x)
-    (string-append s
-                   (if (or src id) "; " "")
-                   (if src
-                       (let ([source (srcloc-source src)]
-                             [line (srcloc-line src)]
-                             [col  (srcloc-column src)])
-                         (if (and line col)
-                             (format "~a:~a:~a"
-                                     (if (path? source)
-                                         (path->string source)
-                                         source)
-                                     line
-                                     col)
-                             (format "~a" source)))
-                       "")
-                   (if (and src id) " " "")
-                   (if id
-                       (format "~a" id)
-                       "")
-                   (if (or src id) "\n" ""))))
+  (eprintf "; ~a\n"
+           (regexp-replace* "\n" str "\n; ")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
