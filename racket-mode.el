@@ -677,7 +677,7 @@ when there is no symbol-at-point or prefix is true."
 
 (defun racket--eval (str)
   (racket-repl)
-  (comint-send-string (get-racket-repl-buffer-process) str)
+  (comint-send-string (racket--get-repl-buffer-process) str)
   (racket--repl-show-and-move-to-end))
 
 (defun racket--shell (cmd)
@@ -792,9 +792,14 @@ All commands in `lisp-mode-shared-map' are inherited by this map.")
          ("#<path:\\([^>]+\\)>" 1 nil nil 0)))                   ;path struct
   (setq-local comint-get-old-input (function racket-get-old-input)))
 
-(setq racket-repl-buffer-name "*racket*")
-(defun get-racket-repl-buffer-process ()
-  (get-buffer-process racket-repl-buffer-name))
+(defconst racket--repl-buffer-name/raw
+  "Racket REPL"
+  "The base buffer name, NOT surrounded in *stars*")
+(defconst racket--repl-buffer-name
+  (concat "*" racket--repl-buffer-name/raw "*")
+  "The actual buffer name as created by comint-mode")
+(defun racket--get-repl-buffer-process ()
+  (get-buffer-process racket--repl-buffer-name))
 
 (defvar racket-repl-mode-map
   (make-sparse-keymap)
@@ -988,24 +993,26 @@ is run)."
   (let ((w (selected-window)))
     ;; If racket process already visible in a window use that, else
     ;; use previous window.
-    (let ((rw (get-buffer-window racket-repl-buffer-name)))
+    (let ((rw (get-buffer-window racket--repl-buffer-name)))
       (if rw
           (select-window rw)
         (other-window -1)))
 
-    (unless (comint-check-proc racket-repl-buffer-name)
-      (set-buffer (make-comint "racket" racket-program nil racket-sandbox-rkt))
+    (unless (comint-check-proc racket--repl-buffer-name)
+      (set-buffer (make-comint racket--repl-buffer-name/raw ;wihout *stars*
+                               racket-program
+                               nil
+                               racket-sandbox-rkt))
       (racket-repl-mode))
-    (setq racket-buffer racket-repl-buffer-name)
 
-    (racket-pop-to-buffer-same-window racket-repl-buffer-name)
+    (racket-pop-to-buffer-same-window racket--repl-buffer-name)
     (select-window w)))
 
 (defun racket-send-region (start end)
   "Send the current region to the Racket REPL."
   (interactive "r")
-  (comint-send-region (get-racket-repl-buffer-process) start end)
-  (comint-send-string (get-racket-repl-buffer-process) "\n")
+  (comint-send-region (racket--get-repl-buffer-process) start end)
+  (comint-send-string (racket--get-repl-buffer-process) "\n")
   (racket--repl-show-and-move-to-end))
 
 (defun racket-send-definition ()
@@ -1027,9 +1034,9 @@ is run)."
 (defun racket--repl-show-and-move-to-end ()
   "Make the Racket REPL visible, move point to end. Keep original window selected."
   (let ((w (selected-window)))
-    (pop-to-buffer racket-repl-buffer-name t)
-    (select-window (get-buffer-window racket-repl-buffer-name))
-    (with-current-buffer racket-repl-buffer-name
+    (pop-to-buffer racket--repl-buffer-name t)
+    (select-window (get-buffer-window racket--repl-buffer-name))
+    (with-current-buffer racket--repl-buffer-name
       (goto-char (point-max)))
     (select-window w)))
 
