@@ -603,6 +603,8 @@ Lisp function does not specify a special indentation."
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(require 'easymenu)
+
 ;;;###autoload
 (define-derived-mode racket-mode prog-mode
   "Racket"
@@ -707,65 +709,43 @@ when there is no symbol-at-point or prefix is true."
 ;; Keymap
 
 (defvar racket-mode-map
-  (let ((smap (make-sparse-keymap))
-        (map (make-sparse-keymap "Racket")))
-    (set-keymap-parent smap lisp-mode-shared-map)
-    (define-key smap [menu-bar scheme] (cons "Racket" map))
+  (let ((map (make-sparse-keymap)))
+    (define-key map (kbd "<f5>")     'racket-run)
+    (define-key map (kbd "M-C-<f5>") 'racket-racket)
+    (define-key map (kbd "C-<f5>")   'racket-test)
+    (define-key map (kbd "M-C-x")    'racket-send-definition)
+    (define-key map (kbd "C-x C-e")  'racket-send-last-sexp)
+    (define-key map (kbd "C-c C-r")  'racket-send-region)
+    (define-key map "\r"             'racket-cr)
+    (define-key map ")"              'racket-insert-closing-paren)
+    (define-key map "]"              'racket-insert-closing-bracket)
+    (define-key map "}"              'racket-insert-closing-brace)
+    (define-key map (kbd "M-C-y")    'racket-insert-lambda)
+    (define-key map (kbd "<f1>")     'racket-help)
+    (define-key map (kbd "C-c C-h")  'racket-help)
+    (define-key map (kbd "C-c C-d")  'racket-find-definition)
+    map)
+  "Keymap for Racket mode. Inherits from `lisp-mode-shared-map'.")
 
-    (define-key map [racket-find-definition]
-      '("Symbol Definition" . racket-find-definition))
-    (define-key map [racket-help]
-      '("Symbol Help" . racket-help))
-
-    (define-key map [separator-1] '(menu-item "--"))
-
-    (define-key map [insert-lambda]
-      '("Insert λ" . racket-insert-lambda))
-    (define-key map [indent-region]
-      '("Indent Region" . indent-region))
-    (define-key map [comment-dwim]
-      '("Comment" . comment-dwim))
-
-    (define-key map [separator-1] '(menu-item "--"))
-
-    (define-key map [send-def]
-      '("Evaluate Last Definition" . racket-send-definition))
-    (define-key map [send-region]
-      '("Evaluate Region" . racket-send-region))
-    (put 'racket-send-region 'menu-enable 'mark-active)
-    (define-key map [send-sexp]
-      '("Evaluate Last S-Expression" . racket-send-last-sexp))
-
-    (define-key map [separator-2] '(menu-item "--"))
-
-    (define-key map [racket-raco-test]
-      '("Run Using `raco test' in *shell* buffer" . racket-raco-test))
-    (define-key map [racket-test]
-      '("Run Tests in *racket* buffer" . racket-test))
-    (define-key map [racket-racket]
-      '("Run Using `racket' in *shell* buffer" . racket-racket))
-    (define-key map [racket-run]
-      '("Run DrRacket Style, Fresh REPL in *racket* buffer" . racket-run))
-
-    smap)
-  "Keymap for Racket mode.
-All commands in `lisp-mode-shared-map' are inherited by this map.")
-
-(define-key racket-mode-map (kbd "<f5>")     'racket-run)
-(define-key racket-mode-map (kbd "M-C-<f5>") 'racket-racket)
-(define-key racket-mode-map (kbd "C-<f5>")   'racket-test)
-(define-key racket-mode-map "\M-\C-x"        'racket-send-definition)
-(define-key racket-mode-map "\C-x\C-e"       'racket-send-last-sexp)
-(define-key racket-mode-map "\C-c\C-r"       'racket-send-region)
-
-(define-key racket-mode-map "\r"             'racket-cr)
-(define-key racket-mode-map ")"              'racket-insert-closing-paren)
-(define-key racket-mode-map "]"              'racket-insert-closing-bracket)
-(define-key racket-mode-map "}"              'racket-insert-closing-brace)
-(define-key racket-mode-map "\M-\C-y"        'racket-insert-lambda)
-(define-key racket-mode-map (kbd "<f1>")     'racket-help)
-(define-key racket-mode-map "\C-c\C-h"       'racket-help)
-(define-key racket-mode-map "\C-c\C-d"       'racket-find-definition)
+(easy-menu-define racket-mode-menu racket-mode-map
+  "Menu for Racket mode."
+  '("Racket"
+    ["Run" racket-run]
+    ["Run Tests" racket-test]
+    "---"
+    ["`racket' in *shell*" racket-racket]
+    ["`raco test' in *shell*" racket-raco-test]
+    "---"
+    ["Eval Region" racket-send-region]
+    ["Eval Definition" racket-send-definition]
+    ["Eval Last S-Expression" racket-send-last-sexp]
+    "---"
+    ["Comment" comment-dwim]
+    ["Insert λ" racket-insert-lambda]
+    ["Indent Region" indent-region]
+    "---"
+    ["Find Definition" racket-find-definition]
+    ["Help" racket-help]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
