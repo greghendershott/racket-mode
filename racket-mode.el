@@ -1057,9 +1057,10 @@ is run)."
     (funcall 'switch-to-buffer buffer-or-name norecord)))
 
 ;; In case not Emacs 24.3+, define equivalent of its `setq-local'.
-(unless (fboundp 'setq-local)
-  (defmacro setq-local (var val)
-    `(set (make-local-variable ',var) ,val)))
+(eval-and-compile
+  (unless (fboundp 'setq-local)
+    (defmacro setq-local (var val)
+      `(set (make-local-variable ',var) ,val))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
