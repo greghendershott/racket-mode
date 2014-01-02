@@ -310,7 +310,6 @@ Lisp function does not specify a special indentation."
                         (forward-sexp 1)
                         (parse-partial-sexp (point) indent-point 1 t))
                     (error nil))))
-      ;;(debug body-indent clause-indent n)
       (list (cond ((= 1 n) clause-indent)
                   (t body-indent))
             containing-sexp-point))))
