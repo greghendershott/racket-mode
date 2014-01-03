@@ -804,12 +804,11 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
 ;; clobbered with non-bold default face.
 ;;
 ;; So far, the least-pukey way I can figure out how to do this is to
-;; copy-paesta comint-send-input and modify that one tiny bit.
+;; copy-pasta comint-send-input and modify that one tiny bit.
 ;; Blech. If anyone reading this knows a better way, please let me
 ;; know!
 (defun racket--comint-send-input (&optional no-newline artificial)
   "Like comint-send-input but does NOT change the input text to use the comint-highlight-input face."
-  (interactive)
   ;; Note that the input string does not include its terminal newline.
   (let ((proc (get-buffer-process (current-buffer))))
     (if (not proc) (user-error "Current buffer has no process")
