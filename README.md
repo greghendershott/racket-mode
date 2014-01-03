@@ -121,6 +121,8 @@ A few notes:
       Racket's documentation. What **racket-help** <kbd>C-c C-h</kbd>
       uses.
 
+    - `,cd`, `,pwd`: Change and show [`current-directory`].
+
     - `,log` controls the log output level, overall, as well as for
       specific named loggers created with [`define-logger`].
 
@@ -182,3 +184,4 @@ from alpha to beta quality.
 [Compilation mode command]: http://www.gnu.org/software/emacs/manual/html_node/emacs/Compilation-Mode.html
 [`racket/help`]: http://docs.racket-lang.org/reference/Interactive_Help.html
 [`define-logger`]: http://docs.racket-lang.org/reference/logging.html#%28form._%28%28lib._racket%2Fprivate%2Fmore-scheme..rkt%29._define-logger%29%29
+[`current-directory`]: http://docs.racket-lang.org/reference/Filesystem.html#%28def._%28%28quote._~23~25kernel%29._current-directory%29%29

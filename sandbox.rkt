@@ -63,7 +63,7 @@
          [e (parameterize ([current-eval e])
               (with-handlers
                   ([exn:fail:sandbox-terminated? (lambda (exn)
-                                                   (display-error exn)
+                                                   (display-exn exn)
                                                    'exit)]
                    [exn:run-new-sandbox? (lambda (b)
                                            (kill-evaluator (current-eval))
@@ -100,7 +100,7 @@
   ;; making a plain evaluator. But if exn:fail? creating a plain
   ;; evaluator, return 'exit meaning give up.
   (with-handlers ([exn:fail? (lambda (exn)
-                               (display-error exn)
+                               (display-exn exn)
                                (cond [path #f]
                                      [else 'exit]))])
     (cond [path (make-module-evaluator path)]
@@ -116,7 +116,7 @@
       (flush-output (current-error-port))
       (flush-output (current-output-port))
       (with-handlers ([exn:fail? (lambda (exn)
-                                   (display-error exn)
+                                   (display-exn exn)
                                    (loop))])
         (define in ((current-get-interaction-input-port)))
         (define stx ((current-read-interaction) (object-name in) in))
@@ -136,8 +136,8 @@
                         (help ,(namespace-syntax-introduce
                                 (datum->syntax #f (read))))))]
              [(log) (log-display (map string->symbol (string-split (read-line))))]
-             [(pwd) (~a (current-directory))]
-             [(cd) (current-directory (~a (read)))])]
+             [(pwd) (display-commented (~v (current-directory)))]
+             [(cd) (cd (~a (read)))])]
           [_ stx])))))
 
 ;; From xrepl: "Makes it easy to use meta-tools without user-namespace
@@ -148,11 +148,15 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (our-error-display-handler str exn)
+  ;; Ignore "stack trace" from exn current-continuation-marks
+  (display-commented str))
+
+(define (display-exn exn)
+  (our-error-display-handler (exn-message exn) exn))
+
+(define (display-commented str)
   (eprintf "; ~a\n"
            (regexp-replace* "\n" str "\n; ")))
-
-(define (display-error exn)
-  (our-error-display-handler (exn-message exn) exn))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -227,6 +231,16 @@
            ",log <logger> default -- set logger to use the default, 'all other' level."
            ",log <level>          -- set the default level, for 'all other' loggers.\n")
          "\n; "))]))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (cd s)
+  (let ([old-wd (current-directory)])
+    (current-directory s)
+    (unless (directory-exists? (current-directory))
+      (display-commented (format "~v doesn't exist." (current-directory)))
+      (current-directory old-wd))
+    (display-commented (format "In ~v" (current-directory)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
