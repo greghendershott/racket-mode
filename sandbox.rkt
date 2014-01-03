@@ -19,7 +19,6 @@
          racket/format
          racket/string
          racket/list
-         racket/function
          "defn.rkt")
 
 (define (run-file path-str)
@@ -30,35 +29,25 @@
       (newline)
       (loop next))))
 
-(struct exn:run-new-sandbox (path)) ;path-string?
+(struct exn:run-new-sandbox (path)) ;(or/c #f path-string?)
 
-;; (or/c #f path-string?) -> (or/c f path-string? 'exit)
+;; do-run :: (or/c #f path-string?) -> (or/c #f path-string? 'exit)
 ;;
-;; Takes a path-string? for a .rkt file, or #f meanining empty #lang
-;; racket. Returns similar if REPL should be restarted on a new file,
-;; else 'exit if we should simply exit.
+;; Takes a path-string? for a .rkt file, or #f meaning top-level #lang
+;; racket.
+;;
+;; Returns similar path-string? or #f if REPL should be
+;; restarted, else 'exit if we should simply exit.
 (define (do-run path-str)
-  (define (path-str->existing-file-path path-str) ;path-str? -> (or/c #f path?)
-    (with-handlers ([exn:fail? (lambda (_) (eprintf "; ~a not found\n" path-str))])
-      (define path (expand-user-path (string->path path-str)))
-      (cond [(file-exists? path) path]
-            [else (eprintf "; ~a not found\n" (path->string path)) #f])))
-  (define path (and (string? path-str)
-                    (not (equal? path-str ""))
-                    (path-str->existing-file-path path-str)))
-  (define load-dir (cond [path (define-values (base _ __) (split-path path))
-                               (cond [(eq? base 'relative) (current-directory)]
-                                     [else base])]
-                         [else (current-directory)]))
+  (define-values (path load-dir) (path-string->path&load-dir path-str))
   (call-with-trusted-sandbox-configuration
    (lambda ()
      ;; Need to set some parameters so they're in effect _before_
-     ;; creating the sandboxed evaluator (which is why there's a
-     ;; nested `parameterize` below). Note that the
+     ;; creating the sandboxed evaluator. Note that using
      ;; `call-with-trusted-sandbox-configuration` above sets a number
-     ;; of parameters to be permissive (such as
-     ;; `sandbox-memory-limit`, `sandbox-eval-limits`, and
-     ;; `sandbox-security-guard`) so we don't need to set them here.
+     ;; of parameters to be permissive (e.g. `sandbox-memory-limit`,
+     ;; `sandbox-eval-limits`, and `sandbox-security-guard`) so we
+     ;; don't need to set them here.
      (parameterize ([current-namespace (make-empty-namespace)]
                     [sandbox-input (current-input-port)]
                     [sandbox-output (current-output-port)]
@@ -68,20 +57,55 @@
                     [compile-context-preservation-enabled #t]
                     [current-load-relative-directory load-dir]
                     [current-prompt-read (make-prompt-read path)]
-                    [error-display-handler -error-display-handler])
-       ;; Make a module evaluator, or plain evaluator ("top level") if
-       ;; path is #f. If exn:fail? creating module evaluator (e.g. it
-       ;; had some syntax error), return #f saying to try again making
-       ;; a plain evalutor.
-       (with-handlers ([exn:fail? (curry show-error #f)])
-         (parameterize ([current-eval (cond [path (make-module-evaluator path)]
-                                            [else (make-evaluator 'racket)])])
-           (with-handlers ([exn:fail:sandbox-terminated? (curry show-error 'exit)]
-                           [exn:run-new-sandbox? (lambda (b)
-                                                   (kill-evaluator (current-eval))
-                                                   ;; Return path to run next
-                                                   (exn:run-new-sandbox-path b))])
-             (read-eval-print-loop))))))))
+                    [error-display-handler our-error-display-handler])
+       (match (make-eval path)
+         [(and x (or #f 'exit)) x]
+         [e (parameterize ([current-eval e])
+              (with-handlers
+                  ([exn:fail:sandbox-terminated? (lambda (exn)
+                                                   (display-error exn)
+                                                   'exit)]
+                   [exn:run-new-sandbox? (lambda (b)
+                                           (kill-evaluator (current-eval))
+                                           (exn:run-new-sandbox-path b))])
+                (read-eval-print-loop)))])))))
+
+;; path-string? -> (values path? path?)
+(define (path-string->path&load-dir path-str)
+  (define path (and path-str
+                    (not (equal? path-str ""))
+                    (string? path-str)
+                    (path-str->existing-file-path path-str)))
+  (define load-dir (cond [path (define-values (base _ __) (split-path path))
+                               (cond [(eq? base 'relative) (current-directory)]
+                                     [else base])]
+                         [else (current-directory)]))
+  (values path load-dir))
+
+;; path-string? -> (or/c #f path?)
+(define (path-str->existing-file-path path-str)
+  (define (not-found s)
+    (eprintf "; ~a not found\n" s)
+    #f)
+  (with-handlers ([exn:fail? (lambda (_) (not-found path-str))])
+    (define path (expand-user-path (string->path path-str)))
+    (cond [(file-exists? path) path]
+          [else (not-found (path->string path))])))
+
+;; (or/c #f path-string?) -> (or/c #f 'exit evaluator?)
+(define (make-eval path)
+  ;; Make a module evaluator if non-#f path, else plain
+  ;; evaluator.  If exn:fail? creating a module evaluator --
+  ;; e.g. it had a syntax error -- return #f saying to try again
+  ;; making a plain evaluator. But if exn:fail? creating a plain
+  ;; evaluator, return 'exit meaning give up.
+  (with-handlers ([exn:fail? (lambda (exn)
+                               (display-error exn)
+                               (cond [path #f]
+                                     [else 'exit]))])
+    (cond [path (make-module-evaluator path)]
+          [else (make-evaluator 'racket)])))
+  
 
 (define (make-prompt-read path)
   (define-values (base name dir?) (cond [path (split-path path)]
@@ -92,8 +116,7 @@
       (flush-output (current-error-port))
       (flush-output (current-output-port))
       (with-handlers ([exn:fail? (lambda (exn)
-                                   ;; Don't exit on read error, just try again
-                                   (eprintf "; ~a\n" (exn-message exn))
+                                   (display-error exn)
                                    (loop))])
         (define in ((current-get-interaction-input-port)))
         (define stx ((current-read-interaction) (object-name in) in))
@@ -103,7 +126,7 @@
            (case (syntax-e #'cmd)
              [(run) (raise (exn:run-new-sandbox (~a (read))))]
              [(top) (raise (exn:run-new-sandbox #f))]
-             [(def) (call-in-sandbox-context ;use sandbox evaluator's namespace
+             [(def) (call-in-sandbox-context ;use sandbox eval's namespace
                      (current-eval)
                      (lambda ()
                        (display-definition (symbol->string (read)))))]
@@ -124,13 +147,12 @@
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define (-error-display-handler str exn)
+(define (our-error-display-handler str exn)
   (eprintf "; ~a\n"
            (regexp-replace* "\n" str "\n; ")))
 
-(define (show-error rtn exn)
-  (-error-display-handler (exn-message exn) exn)
-  rtn)
+(define (display-error exn)
+  (our-error-display-handler (exn-message exn) exn))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
