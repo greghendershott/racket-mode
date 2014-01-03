@@ -35,7 +35,7 @@ without even the implied warranty of merchantability or fitness for a
 particular purpose.  See the GNU General Public License for more details.  See
 http://www.gnu.org/licenses/ for details.")
 
-(defconst racket-mode-version "0.2")
+(defconst racket-mode-version "0.3")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;

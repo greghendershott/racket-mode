@@ -105,6 +105,36 @@ A few notes:
 - **racket-help** <kbd>C-c C-h</kbd> uses [`racket/help`] for the symbol
   at point (or with a prefix, <kbd>C-u C-c C-h</kbd> as prompted).
 
+- In the `*Racket REPL*` bufer you can issue some special
+  commands. Some of them are the foundation for Emacs commands. Others
+  are available only as a command in the REPL.
+
+    - `,top`: Leave the curent file/module and go to the top level.
+
+    - `,run <file>`: Run the file. What **racket-run** <kbd>F5</kbd>
+      uses. Either `"file.rkt"` or `file.rkt` works.
+
+    - `,def <symbol>`: Find definition of `<symbol>`. What
+      **racket-find-definition** <kbd>C-c C-d</kbd> uses.
+
+    - `,doc <symbol-or-string>`: Look for `<symbol-or-string>` in
+      Racket's documentation. What **racket-help** <kbd>C-c C-h</kbd>
+      uses.
+
+    - `,log` controls the log output level, overall, as well as for
+      specific named loggers created with [`define-logger`].
+
+        - `,log`: Show the current levels.
+
+        - `,log <logger> <level>`: Set a logger to show at least level
+          `none`, `fatal`, `error`, `warning`, `info`, or `debug`.
+
+        - `,log <logger> <level>`: Set a logger to use the default
+          level.
+
+        - `,log <level>`: Set the default level for all other loggers
+          not specified indvidually.
+
 ## Background/Motivation
 
 I started this project accidentally, while trying to figure out a
@@ -151,3 +181,4 @@ from alpha to beta quality.
 [issues]: https://www.github.com/greghendershott/racket-mode/issues
 [Compilation mode command]: http://www.gnu.org/software/emacs/manual/html_node/emacs/Compilation-Mode.html
 [`racket/help`]: http://docs.racket-lang.org/reference/Interactive_Help.html
+[`define-logger`]: http://docs.racket-lang.org/reference/logging.html#%28form._%28%28lib._racket%2Fprivate%2Fmore-scheme..rkt%29._define-logger%29%29
