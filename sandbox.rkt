@@ -19,6 +19,7 @@
          racket/format
          racket/string
          racket/list
+         racket/function
          "defn.rkt")
 
 (define (run-file path-str)
@@ -68,18 +69,19 @@
                     [current-load-relative-directory load-dir]
                     [current-prompt-read (make-prompt-read path)]
                     [error-display-handler -error-display-handler])
-       ;; Make a module evaluator (or plain evaluator if path is #f).
-       (parameterize ([current-eval (cond [path (make-module-evaluator path)]
-                                          [else (make-evaluator 'racket)])])
-         (with-handlers ([exn:fail:sandbox-terminated?
-                          (lambda (exn)
-                            (eprintf "; ~a\n" (exn-message exn))
-                            'exit)]
-                         [exn:run-new-sandbox?
-                          (lambda (b)       ;return path of new file to run
-                            (kill-evaluator (current-eval))
-                            (exn:run-new-sandbox-path b))])
-           (read-eval-print-loop)))))))
+       ;; Make a module evaluator, or plain evaluator ("top level") if
+       ;; path is #f. If exn:fail? creating module evaluator (e.g. it
+       ;; had some syntax error), return #f saying to try again making
+       ;; a plain evalutor.
+       (with-handlers ([exn:fail? (curry show-error #f)])
+         (parameterize ([current-eval (cond [path (make-module-evaluator path)]
+                                            [else (make-evaluator 'racket)])])
+           (with-handlers ([exn:fail:sandbox-terminated? (curry show-error 'exit)]
+                           [exn:run-new-sandbox? (lambda (b)
+                                                   (kill-evaluator (current-eval))
+                                                   ;; Return path to run next
+                                                   (exn:run-new-sandbox-path b))])
+             (read-eval-print-loop))))))))
 
 (define (make-prompt-read path)
   (define-values (base name dir?) (cond [path (split-path path)]
@@ -125,6 +127,10 @@
 (define (-error-display-handler str exn)
   (eprintf "; ~a\n"
            (regexp-replace* "\n" str "\n; ")))
+
+(define (show-error rtn exn)
+  (-error-display-handler (exn-message exn) exn)
+  rtn)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
