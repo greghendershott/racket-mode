@@ -606,19 +606,6 @@ handles those."
 
 (require 'easymenu)
 
-;;;###autoload
-(define-derived-mode racket-mode prog-mode
-  "Racket"
-  "Major mode for editing Racket.
-\\{racket-mode-map}"
-  (racket--variables-for-both-modes))
-
-;;;###autoload
-(setq auto-mode-alist
-      (append '(("\\.rkt\\'" . racket-mode)
-                ("\\.rktd\\'" . racket-mode))
-              auto-mode-alist))
-
 (defun racket-run ()
   "Save and evaluate the buffer in REPL, like DrRacket's Run."
   (interactive)
@@ -712,16 +699,17 @@ when there is no symbol-at-point or prefix is true."
 
 (defvar racket-mode-map
   (let ((map (make-sparse-keymap)))
+    (set-keymap-parent map lisp-mode-shared-map)
     (define-key map (kbd "<f5>")     'racket-run)
     (define-key map (kbd "M-C-<f5>") 'racket-racket)
     (define-key map (kbd "C-<f5>")   'racket-test)
     (define-key map (kbd "M-C-x")    'racket-send-definition)
     (define-key map (kbd "C-x C-e")  'racket-send-last-sexp)
     (define-key map (kbd "C-c C-r")  'racket-send-region)
-    (define-key map "\r"             'racket-cr)
-    (define-key map ")"              'racket-insert-closing-paren)
-    (define-key map "]"              'racket-insert-closing-bracket)
-    (define-key map "}"              'racket-insert-closing-brace)
+    (define-key map (kbd "RET")      'racket-cr)
+    (define-key map (kbd ")")        'racket-insert-closing-paren)
+    (define-key map (kbd "]")        'racket-insert-closing-bracket)
+    (define-key map (kbd "}")        'racket-insert-closing-brace)
     (define-key map (kbd "M-C-y")    'racket-insert-lambda)
     (define-key map (kbd "<f1>")     'racket-help)
     (define-key map (kbd "C-c C-h")  'racket-help)
@@ -746,8 +734,22 @@ when there is no symbol-at-point or prefix is true."
     ["Insert λ" racket-insert-lambda]
     ["Indent Region" indent-region]
     "---"
+    ["Next Error or Link" next-error]
     ["Find Definition" racket-find-definition]
     ["Help" racket-help]))
+
+;;;###autoload
+(define-derived-mode racket-mode prog-mode
+  "Racket"
+  "Major mode for editing Racket.
+\\{racket-mode-map}"
+  (racket--variables-for-both-modes))
+
+;;;###autoload
+(setq auto-mode-alist
+      (append '(("\\.rkt\\'" . racket-mode)
+                ("\\.rktd\\'" . racket-mode))
+              auto-mode-alist))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -757,22 +759,6 @@ when there is no symbol-at-point or prefix is true."
 
 (require 'comint)
 (require 'compile)
-
-(define-derived-mode racket-repl-mode comint-mode "Racket-REPL"
-  "Major mode for interacting with Racket process.
-\\{racket-repl-mode-map}"
-  (racket--variables-for-both-modes)
-  ;; (setq-local comint-prompt-regexp "^[^>\n]*>+ *")
-  ;; (setq-local comint-use-prompt-regexp t)
-  ;; (setq-local comint-prompt-read-only t)
-  (setq-local mode-line-process nil)
-  (setq-local comint-input-filter (function racket-input-filter))
-  (compilation-setup t)
-  (setq-local compilation-error-regexp-alist
-       '(("^;?[ ]*\\([^ :]+\\):\\([0-9]+\\):\\([0-9]+\\)" 1 2 3) ;errs, defns
-         ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3) ;rackunit
-         ("#<path:\\([^>]+\\)>" 1 nil nil 0)))                   ;path struct
-  (setq-local comint-get-old-input (function racket-get-old-input)))
 
 (defconst racket--repl-buffer-name/raw
   "Racket REPL"
@@ -1030,6 +1016,23 @@ Although they remain clickable, C-x ` next-error will ignore them."
     (with-current-buffer racket--repl-buffer-name
       (goto-char (point-max)))
     (select-window w)))
+
+(define-derived-mode racket-repl-mode comint-mode "Racket-REPL"
+  "Major mode for interacting with Racket process.
+\\{racket-repl-mode-map}"
+  (racket--variables-for-both-modes)
+  ;; (setq-local comint-prompt-regexp "^[^>\n]*>+ *")
+  ;; (setq-local comint-use-prompt-regexp t)
+  ;; (setq-local comint-prompt-read-only t)
+  (setq-local mode-line-process nil)
+  (setq-local comint-input-filter (function racket-input-filter))
+  (compilation-setup t)
+  (setq-local
+   compilation-error-regexp-alist
+   '(("^;?[ ]*\\([^ :]+\\):\\([0-9]+\\):\\([0-9]+\\)" 1 2 3) ;errs, defns
+     ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3) ;rackunit
+     ("#<path:\\([^>]+\\)>" 1 nil nil 0)))                   ;path struct
+  (setq-local comint-get-old-input (function racket-get-old-input)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
