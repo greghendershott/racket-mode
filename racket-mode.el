@@ -680,6 +680,7 @@ when there is no symbol-at-point or prefix is true."
 
 (defun racket--eval (str)
   (racket-repl)
+  (racket--repl-forget-errors)
   (comint-send-string (racket--get-repl-buffer-process) str)
   (racket--repl-show-and-move-to-end))
 
@@ -992,6 +993,7 @@ is run)."
 (defun racket-send-region (start end)
   "Send the current region to the Racket REPL."
   (interactive "r")
+  (racket--repl-forget-errors)
   (comint-send-region (racket--get-repl-buffer-process) start end)
   (comint-send-string (racket--get-repl-buffer-process) "\n")
   (racket--repl-show-and-move-to-end))
@@ -1003,14 +1005,22 @@ is run)."
    (end-of-defun)
    (let ((end (point)))
      (beginning-of-defun)
+     (racket--repl-forget-errors)
      (racket-send-region (point) end)
      (racket--repl-show-and-move-to-end))))
 
 (defun racket-send-last-sexp ()
   "Send the previous sexp to the Racket REPL."
   (interactive)
+  (racket--repl-forget-errors)
   (racket-send-region (save-excursion (backward-sexp) (point)) (point))
   (racket--repl-show-and-move-to-end))
+
+(defun racket--repl-forget-errors ()
+  "Forget existing compilation mode errors in the REPL.
+Although they remain clickable, C-x ` next-error will ignore them."
+  (with-current-buffer racket--repl-buffer-name
+    (compilation-forget-errors)))
 
 (defun racket--repl-show-and-move-to-end ()
   "Make the Racket REPL visible, move point to end. Keep original window selected."
