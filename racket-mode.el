@@ -623,7 +623,7 @@ handles those."
   "Save and evaluate the buffer in REPL, like DrRacket's Run."
   (interactive)
   (save-buffer)
-  (racket--eval (format "(run! \"%s\")\n" (buffer-file-name))))
+  (racket--eval (format ",run \"%s\"\n" (buffer-file-name))))
 
 (defun racket-racket ()
   "Do `racket <file>` in *shell* buffer."
@@ -659,14 +659,14 @@ Only works if you've Run the buffer so that its namespace is active."
   (interactive "P")
   (let ((sym (symbol-at-point-or-prompt prefix "Find definition of: ")))
     (when sym
-      (racket--eval (format "(def! %s)\n\n" sym)))))
+      (racket--eval (format ",def %s\n\n" sym)))))
 
 (defun racket-help (&optional prefix)
   "Find something in Racket's help."
   (interactive "P")
   (let ((sym (symbol-at-point-or-prompt prefix "Racket help for: ")))
     (when sym
-      (racket--eval (format "(doc! %s)\n\n" sym)))))
+      (racket--eval (format ",doc %s\n\n" sym)))))
 
 (defun symbol-at-point-or-prompt (prefix prompt)
   "Helper for functions that want symbol-at-point, or, to prompt
