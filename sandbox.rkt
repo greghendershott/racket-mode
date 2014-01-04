@@ -19,6 +19,7 @@
          racket/format
          racket/string
          racket/list
+         racket/help
          "defn.rkt")
 
 (define (run-file path-str)
@@ -128,22 +129,12 @@
              [(top) (raise (exn:run-new-sandbox #f))]
              [(def) (call-in-sandbox-context ;use sandbox eval's namespace
                      (current-eval)
-                     (lambda ()
-                       (display-definition (symbol->string (read)))))]
-             [(doc) (eval-sexpr-for-user
-                     `(begin
-                        (require racket/help)
-                        (help ,(namespace-syntax-introduce
-                                (datum->syntax #f (read))))))]
+                     (lambda () (display-definition (symbol->string (read)))))]
+             [(doc) (eval `(help ,(string-trim (read-line)))) (newline)]
              [(log) (log-display (map string->symbol (string-split (read-line))))]
              [(pwd) (display-commented (~v (current-directory)))]
              [(cd) (cd (~a (read)))])]
           [_ stx])))))
-
-;; From xrepl: "Makes it easy to use meta-tools without user-namespace
-;; contamination."
-(define (eval-sexpr-for-user form)
-  (eval (namespace-syntax-introduce (datum->syntax #f form))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
