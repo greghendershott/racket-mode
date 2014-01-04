@@ -723,8 +723,8 @@ when there is no symbol-at-point or prefix is true."
     ["Run" racket-run]
     ["Run Tests" racket-test]
     "---"
-    ["`racket' in *shell*" racket-racket]
-    ["`raco test' in *shell*" racket-raco-test]
+    ["Run `racket' in *shell*" racket-racket]
+    ["Run `raco test' in *shell*" racket-raco-test]
     "---"
     ["Eval Region" racket-send-region]
     ["Eval Definition" racket-send-definition]
@@ -734,9 +734,11 @@ when there is no symbol-at-point or prefix is true."
     ["Insert λ" racket-insert-lambda]
     ["Indent Region" indent-region]
     "---"
-    ["Next Error or Link" next-error]
     ["Find Definition" racket-find-definition]
-    ["Help" racket-help]))
+    ["Help" racket-help]
+    ["Next Error or Link" next-error]
+    "---"
+    ["Customize..." customize-mode]))
 
 ;;;###autoload
 (define-derived-mode racket-mode prog-mode
@@ -948,8 +950,10 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
     (expand-file-name "sandbox.rkt" elisp-dir))
   "Path to sandbox.rkt")
 
-(defvar racket-program "racket"
-  "Pathname of Racket program.")
+(defcustom racket-program "racket"
+  "/path/to/racket program."
+  :type '(file :must-match t)
+  :group 'racket)
 
 ;;;###autoload
 (defun racket-repl ()
