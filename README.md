@@ -52,6 +52,53 @@ major mode for a Racket REPL. The edit/run experience is similar to
 
 - Please report issues [here][issues].
 
+## Install
+
+You can install the `racket-mode` package from [MELPA].
+
+> Tip: To use MELPA in Emacs 24, add the following to your `.emacs` or
+> `.emacs.d/init.el`:
+>
+> ```elisp
+> (require 'package)
+> (add-to-list 'package-archives
+>   '("melpa" . "http://melpa.milkbox.net/packages/") t)
+> ```
+
+## Configure
+
+When a racket-mode window is active, type <kbd>M-x
+customize-mode</kbd> (or choose **Customize** from the **Racket**
+menu).
+
+Set **Racket Program** to be the pathname of the `racket` executable.
+
+That is the only required configuration.
+
+If you wish, you can customize the other settings here. For example,
+in addition to the usual font-lock faces, racket-mode defines a few
+special ones:
+
+- `racket-keyword-argument-face`: Used for Racket `#:keyword` arguments.
+
+- `racket-selfeval-face`: Used for numbers, symbols, strings.
+
+- `racket-paren-face`: Used for `( ) [ ] { }`. (I like to set these
+  "dim", e.g. light gray, so the parens are less prominent.)
+
+### Key bindings
+
+To customize things like key bindings, you can use `racket-mode-hook`
+in your `.emacs` or `.emacs.d/init.el`. For example, although
+<kbd>F5</kbd> is bound to the **racket-run** command, let's say you
+wanted <kbd>C-c r</kbd> to be an additional binding:
+
+```elisp
+(add-hook 'racket-mode-hook
+          '(lambda ()
+             (define-key racket-mode-map (kbd "C-c r") 'racket-run)))
+```
+
 ## Features
 
 See the `Racket` menu. Most of the commands should be
@@ -185,3 +232,4 @@ from alpha to beta quality.
 [`racket/help`]: http://docs.racket-lang.org/reference/Interactive_Help.html
 [`define-logger`]: http://docs.racket-lang.org/reference/logging.html#%28form._%28%28lib._racket%2Fprivate%2Fmore-scheme..rkt%29._define-logger%29%29
 [`current-directory`]: http://docs.racket-lang.org/reference/Filesystem.html#%28def._%28%28quote._~23~25kernel%29._current-directory%29%29
+[MELPA]: http://melpa.milkbox.net/#/getting-started
