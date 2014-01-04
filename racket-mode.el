@@ -20,6 +20,8 @@
 ;; - The source code for Neil Van Dyke's Quack provided a model for
 ;;   many of the scheme-indent-function settings, smart paren closing,
 ;;   and pretty lambda.
+;;
+;; Details: https://github.com/greghendershott/racket-mode
 
 ;;; Code:
 
@@ -191,9 +193,10 @@ http://www.gnu.org/licenses/ for details.")
 ;; Indentation
 
 (defcustom racket-mode-rackjure-indent t
-  "Indent {} and [] as in Clojure"
+  "Indent {} as in Clojure"
   :type 'boolean
-  :group 'racket)
+  :group 'racket
+  :safe 'booleanp)
 
 (defun racket-indent-function (indent-point state)
   "Racket mode function for the value of the variable `lisp-indent-function'.
@@ -440,21 +443,21 @@ handles those."
      (:foreground "IndianRed"))
     (((background light))
      (:foreground "Red3")))
-  "Face used for #:keywords."
+  "Face for #:keyword arguments."
   :group 'racket)
 
 (defconst racket-selfeval-face 'racket-selfeval-face)
 (defface racket-selfeval-face
   '((t
      (:foreground "SeaGreen")))
-  "Face for self-evaluating expressions"
+  "Face for self-evaluating expressions."
   :group 'racket)
 
 (defconst racket-paren-face 'racket-paren-face)
 (defface racket-paren-face
   (let ((fg (face-foreground 'default)))
     `((t (:foreground ,fg))))
-  "Face for parentheses () [] {}"
+  "Face for parentheses () [] {}."
   :group 'racket)
 
 (defvar racket-font-lock-keywords
@@ -959,7 +962,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   "Path to sandbox.rkt")
 
 (defcustom racket-program "racket"
-  "/path/to/racket program."
+  "/path/to/racket."
   :type '(file :must-match t)
   :group 'racket)
 
