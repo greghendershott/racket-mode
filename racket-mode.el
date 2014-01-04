@@ -46,6 +46,13 @@ http://www.gnu.org/licenses/ for details.")
 (require 'lisp-mode)
 (require 'racket-keywords-and-builtins)
 
+(defgroup racket nil
+  "A mode for Racket"
+  :prefix "racket-"
+  :group 'languages
+  :link '(url-link :tag "GitHub" "https://github.com/greghendershott/racket-mode")
+  :link '(emacs-commentary-link :tag "Commentary" "racket-mode"))
+
 (defun racket--variables-for-both-modes ()
   ;; Set many things explicitly. We wouldn't need to set most of these
   ;; if our editing major mode, `racket-mode`, were derived from
