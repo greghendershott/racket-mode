@@ -59,7 +59,7 @@ You can install the `racket-mode` package from [MELPA].
 > Tip: To use MELPA in Emacs 24, add the following to your `.emacs` or
 > `.emacs.d/init.el`:
 >
-> ```elisp
+> ```cl
 > (require 'package)
 > (add-to-list 'package-archives
 >   '("melpa" . "http://melpa.milkbox.net/packages/") t)
@@ -93,7 +93,7 @@ in your `.emacs` or `.emacs.d/init.el`. For example, although
 <kbd>F5</kbd> is bound to the **racket-run** command, let's say you
 wanted <kbd>C-c r</kbd> to be an additional binding:
 
-```elisp
+```cl
 (add-hook 'racket-mode-hook
           '(lambda ()
              (define-key racket-mode-map (kbd "C-c r") 'racket-run)))
