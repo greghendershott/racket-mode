@@ -562,7 +562,8 @@ handles those."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Insert lambda char (like DrRacket)
 
-(defconst racket-lambda-char (make-char 'greek-iso8859-7 107))
+(defconst racket-lambda-char (make-char 'greek-iso8859-7 107)
+  "Character inserted by `racket-insert-labmda'.")
 
 (defun racket-insert-lambda ()
   (interactive)
