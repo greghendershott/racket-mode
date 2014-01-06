@@ -258,10 +258,14 @@ Lisp function does not specify a special indentation."
             (method nil))
         (setq method (get (intern-soft function) 'racket-indent-function))
         (cond ((or
-                ;; a quoted list or a vector literal
-                (and (member (char-after (1- open-pos)) '(?\' ?\#))
+                ;; a vector literal:  #( ... )
+                (and (eq (char-after (- open-pos 1)) ?\#)
                      (eq (char-after open-pos) ?\())
-                ;; #lang rackjure {}
+                ;; a quoted list '( ... )  but NOT syntax #'( ... )
+                (and (not (eq (char-after (- open-pos 2)) ?\#))
+                     (eq (char-after (- open-pos 1)) ?\')
+                     (eq (char-after open-pos) ?\())
+                ;; #lang rackjure dict literal { ... }
                 (and racket-mode-rackjure-indent
                     (eq (char-after open-pos) ?\{)))
                ;; Indent all aligned with first item:
