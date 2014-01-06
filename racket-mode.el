@@ -1044,9 +1044,11 @@ Although they remain clickable, C-x ` next-error will ignore them."
   (compilation-setup t)
   (setq-local
    compilation-error-regexp-alist
-   '(("^;?[ ]*\\([^ :]+\\):\\([0-9]+\\):\\([0-9]+\\)" 1 2 3) ;errs, defns
-     ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3) ;rackunit
-     ("#<path:\\([^>]+\\)>" 1 nil nil 0)))                   ;path struct
+   '(("^;?[ ]*\\([^ :]+\\):\\([0-9]+\\):\\([0-9]+\\)" 1 2 3)   ;errs, defns
+     ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3)   ;rackunit
+     ("#<path:\\([^>]+\\)>" 1 nil nil 0)                       ;path struct
+     ;; profile. similar to errs,defns but at EOL and not starting ellided name
+     ("[ ]+\\([^. ]+[^ :]+\\):\\([0-9]+\\):\\([0-9]+\\)$" 1 2 3 0)))
   (setq-local comint-get-old-input (function racket-get-old-input)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
