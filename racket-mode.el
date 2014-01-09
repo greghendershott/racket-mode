@@ -404,7 +404,7 @@ handles those."
           (mixin 2)
           (module 2)
           (module+ 1)
-          (module* 1)
+          (module* 2)
           (opt-lambda 1)
           (parameterize 1)
           (parameterize-break 1)
