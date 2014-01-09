@@ -723,7 +723,7 @@ when there is no symbol-at-point or prefix is true."
   (save-excursion
     (goto-char (point-min))
     (let ((n 0))
-      (while (re-search-forward "^(module[+]? test" (point-max) t)
+      (while (re-search-forward "^(module[+*]? test" (point-max) t)
         (funcall f)
         (incf n)
         (goto-char (match-end 0)))
