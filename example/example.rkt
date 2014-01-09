@@ -1,11 +1,9 @@
 #lang racket
 
-(for/fold ([str ""])
-          ([ss '("a" "b" "c")])
-  (string-append str ss))
-
 (require xml)
 (provide valid-bucket-name?)
+
+;; Various def* forms are font-locked:
 
 (define (function foo)
   #t)
@@ -17,8 +15,34 @@
 
 (define-values (1st-var 2nd-var) (values 1 2))
 
-;; Following should be `lambda' not `lambda':
+;; for/fold is indented correctly:
+(for/fold ([str ""])
+          ([ss '("a" "b" "c")])
+  (string-append str ss))
+
+;; Auto-converts word `lambda` to `λ`:
 (lambda (x) #t)
+
+;; Or use M-C-y to insert to insert `λ` char.
+
+;; Smart indentation for quoted lists:
+'(1 2
+  3 4)
+
+;; Smart indentation for vector literals:
+#(1 2
+  3 4)
+
+;; Smart indentation for Rackjure dict literals:
+(module x rackjure
+  {'a 0
+   'b 2})
+
+;; Silly test submodule example that always fails (to test output).
+;; Try pressing C-f5. Then use C-x ` to go to the failing test loc.
+(module+ test
+  (require rackunit)
+  (check-true #f))
 
 ;; Single line comment
 
@@ -32,9 +56,6 @@ comment
 #;(sexpr comment)
 
 (define (a-function x #:keyword [y 0])
-  (define foo0 'symbol) ; ()
-  [define foo1 'symbol] ; []
-  {define foo2 'symbol} ; {}
   (and (append (car '(1 2 3))))
   (regexp-match? #rx"foobar" "foobar")
   (regexp-match? #px"foobar" "foobar")
@@ -184,10 +205,5 @@ comment
                (equal? c #\.)
                (equal? c #\-)
                (equal? c #\_))))]))
-
-;; Silly test submodule example that always fails (to test output).
-(module+ test
-  (require rackunit)
-  (check-true #f))
 
 (displayln "I'm running!")
