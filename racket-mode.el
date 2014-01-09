@@ -474,7 +474,7 @@ handles those."
        (3 font-lock-function-name-face nil t))
 
       ;; keyword argument
-      ("#:[^ ]+"                  . racket-keyword-argument-face)
+      ("#:[^ )]+"                 . racket-keyword-argument-face)
 
       ;; symbol
       ("'\\sw+"                   . racket-selfeval-face)
