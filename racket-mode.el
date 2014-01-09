@@ -1050,6 +1050,7 @@ Although they remain clickable, C-x ` next-error will ignore them."
   (setq-local
    compilation-error-regexp-alist
    '(("^;?[ ]*\\([^ :]+\\):\\([0-9]+\\):\\([0-9]+\\)" 1 2 3)   ;errs, defns
+     ("^;?[ ]*at:[ ]+\\([^ :]+\\):\\([0-9]+\\)[.]\\([0-9]+\\)$" 1 2 3) ;contract
      ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3)   ;rackunit
      ("#<path:\\([^>]+\\)>" 1 nil nil 0)                       ;path struct
      ;; profile. similar to errs,defns but at EOL and not starting ellided name
