@@ -622,6 +622,7 @@ handles those."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (require 'easymenu)
+(require 'hideshow)
 
 (defun racket-run ()
   "Save and evaluate the buffer in REPL, like DrRacket's Run."
@@ -712,6 +713,31 @@ when there is no symbol-at-point or prefix is true."
   (lisp-indent-line))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; code folding
+
+;;;###autoload
+(add-to-list 'hs-special-modes-alist
+             '(racket-mode "(" ")" ";" nil nil))
+
+(defun racket--for-all-tests (verb f)
+  (save-excursion
+    (goto-char (point-min))
+    (let ((n 0))
+      (while (re-search-forward "^(module[+]? test" (point-max) t)
+        (funcall f)
+        (incf n)
+        (goto-char (match-end 0)))
+      (message "%s %d test submodules" verb n))))
+
+(defun racket-fold-all-tests ()
+  (interactive)
+  (racket--for-all-tests "Folded" 'hs-hide-block))
+
+(defun racket-unfold-all-tests ()
+  (interactive)
+  (racket--for-all-tests "Unfolded" 'hs-show-block))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Keymap
 
 (defvar racket-mode-map
@@ -731,6 +757,8 @@ when there is no symbol-at-point or prefix is true."
     (define-key map (kbd "<f1>")     'racket-help)
     (define-key map (kbd "C-c C-h")  'racket-help)
     (define-key map (kbd "C-c C-d")  'racket-find-definition)
+    (define-key map (kbd "C-c C-f")  'racket-fold-all-tests)
+    (define-key map (kbd "C-c C-U")  'racket-unfold-all-tests)
     map)
   "Keymap for Racket mode. Inherits from `lisp-mode-shared-map'.")
 
@@ -751,6 +779,9 @@ when there is no symbol-at-point or prefix is true."
     ["Insert λ" racket-insert-lambda]
     ["Indent Region" indent-region]
     "---"
+    ["Fold All Tests" racket-fold-all-tests]
+    ["Unfold All Tests" racket-unfold-all-tests]
+    "---"
     ["Find Definition" racket-find-definition]
     ["Help" racket-help]
     ["Next Error or Link" next-error]
@@ -762,7 +793,8 @@ when there is no symbol-at-point or prefix is true."
   "Racket"
   "Major mode for editing Racket.
 \\{racket-mode-map}"
-  (racket--variables-for-both-modes))
+  (racket--variables-for-both-modes)
+  (hs-minor-mode t))
 
 ;;;###autoload
 (setq auto-mode-alist
