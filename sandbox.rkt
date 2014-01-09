@@ -130,7 +130,10 @@
              [(def) (call-in-sandbox-context ;use sandbox eval's namespace
                      (current-eval)
                      (lambda () (display-definition (symbol->string (read)))))]
-             [(doc) (eval `(help ,(string-trim (read-line)))) (newline)]
+             [(doc) (eval `(begin
+                             (require racket/help)
+                             (help ,(string-trim (read-line)))
+                             (newline)))]
              [(log) (log-display (map string->symbol (string-split (read-line))))]
              [(pwd) (display-commented (~v (current-directory)))]
              [(cd) (cd (~a (read)))])]
