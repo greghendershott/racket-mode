@@ -261,9 +261,10 @@ Lisp function does not specify a special indentation."
                 ;; a vector literal:  #( ... )
                 (and (eq (char-after (- open-pos 1)) ?\#)
                      (eq (char-after open-pos) ?\())
-                ;; a quoted list '( ... )  but NOT syntax #'( ... )
+                ;; a quoted '( ... ) or quasiquoted `( ...) list --
+                ;; but NOT syntax #'( ... )
                 (and (not (eq (char-after (- open-pos 2)) ?\#))
-                     (eq (char-after (- open-pos 1)) ?\')
+                     (memq (char-after (- open-pos 1)) '(?\' ?\`))
                      (eq (char-after open-pos) ?\())
                 ;; #lang rackjure dict literal { ... }
                 (and racket-mode-rackjure-indent
