@@ -1010,23 +1010,19 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
 Runs the hook `racket-repl-mode-hook' \(after the `comint-mode-hook'
 is run)."
   (interactive)
-  (let ((w (selected-window)))
-    ;; If racket process already visible in a window use that, else
-    ;; use previous window.
+  (let ((original-window (selected-window)))
+    ;; If REPL process already visible in a window, use that window.
     (let ((rw (get-buffer-window racket--repl-buffer-name)))
       (if rw
           (select-window rw)
-        (other-window -1)))
-
+        (other-window 1)))
     (unless (comint-check-proc racket--repl-buffer-name)
-      (set-buffer (make-comint racket--repl-buffer-name/raw ;wihout *stars*
+      (set-buffer (make-comint racket--repl-buffer-name/raw ;w/o *stars*
                                racket-program
                                nil
                                racket-sandbox-rkt))
       (racket-repl-mode))
-
-    (racket-pop-to-buffer-same-window racket--repl-buffer-name)
-    (select-window w)))
+    (select-window original-window)))
 
 (defun racket-send-region (start end)
   "Send the current region to the Racket REPL."
