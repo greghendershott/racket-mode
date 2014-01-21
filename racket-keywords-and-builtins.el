@@ -22,8 +22,12 @@
     "case"
     "case-lambda"
     "cond"
+    "def"     ;cheating: not actually in Racket
+    "defn"    ;cheating: not actually in Racket
+    "defn-"   ;cheating: not actually in Racket
     "define"
     "define/contract"
+    "define/with-syntax"
     "define-for-syntax"
     "define-logger"
     "define-struct"

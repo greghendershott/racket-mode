@@ -350,10 +350,12 @@ handles those."
           (class* 'defun)
           (compound-unit/sig 0)
           (delay 0)
+          (def 1)                    ;cheating: not actually in Racket
           (dict-set 1)
           (dict-set* 1)
           (do 2)
           (dynamic-wind 0)
+          (fn 1)                     ;cheating: not actually in Racket
           (for 1)
           (for/list 1)
           (for/vector 1)
@@ -496,10 +498,12 @@ handles those."
 
       ;; define -- vars
       ("(\\(define[ ]+\\([^ (]+\\)\\)" 2 font-lock-variable-name-face)
+      ("(\\(def[ ]+\\([^ (]+\\)\\)"    2 font-lock-variable-name-face)
       ("(\\(define-values[ ]*(\\([^(]+\\))\\)" 2 font-lock-variable-name-face)
 
-      ;; defineXxx -- functions
+      ;; define -- functions
       ("(\\(define[^ ]*[ ]*([ ]*\\([^ ]+\\)\\)" 2 font-lock-function-name-face)
+      ("(\\(defn-?[^ ]*[ ]*([ ]*\\([^ ]+\\)\\)" 2 font-lock-function-name-face)
 
       ;; pretty lambda
       ("[[(]\\(case-\\|match-\\|opt-\\)?\\(lambda\\)\\>"
@@ -744,48 +748,62 @@ when there is no symbol-at-point or prefix is true."
 (defvar racket-mode-map
   (let ((map (make-sparse-keymap)))
     (set-keymap-parent map lisp-mode-shared-map)
-    (define-key map (kbd "<f5>")     'racket-run)
-    (define-key map (kbd "M-C-<f5>") 'racket-racket)
-    (define-key map (kbd "C-<f5>")   'racket-test)
-    (define-key map (kbd "M-C-x")    'racket-send-definition)
-    (define-key map (kbd "C-x C-e")  'racket-send-last-sexp)
-    (define-key map (kbd "C-c C-r")  'racket-send-region)
-    (define-key map (kbd "RET")      'racket-cr)
-    (define-key map (kbd ")")        'racket-insert-closing-paren)
-    (define-key map (kbd "]")        'racket-insert-closing-bracket)
-    (define-key map (kbd "}")        'racket-insert-closing-brace)
-    (define-key map (kbd "M-C-y")    'racket-insert-lambda)
-    (define-key map (kbd "<f1>")     'racket-help)
-    (define-key map (kbd "C-c C-h")  'racket-help)
-    (define-key map (kbd "C-c C-d")  'racket-find-definition)
-    (define-key map (kbd "C-c C-f")  'racket-fold-all-tests)
-    (define-key map (kbd "C-c C-U")  'racket-unfold-all-tests)
+    (mapc (lambda (x)
+            (define-key map (kbd (car x)) (cadr x)))
+          '(("<f5>"      racket-run)
+            ("M-C-<f5>"  racket-racket)
+            ("C-<f5>"    racket-test)
+            ("M-C-x"     racket-send-definition)
+            ("C-x C-e"   racket-send-last-sexp)
+            ("C-c C-r"   racket-send-region)
+            ("C-c C-e x" racket-expand-definition)
+            ("C-c C-e e" racket-expand-last-sexp)
+            ("C-c C-e r" racket-expand-region)
+            ("C-c C-e a" racket-expand-again)
+            ("RET"       racket-cr)
+            (")"         racket-insert-closing-paren)
+            ("]"         racket-insert-closing-bracket)
+            ("}"         racket-insert-closing-brace)
+            ("M-C-y"     racket-insert-lambda)
+            ("<f1>"      racket-help)
+            ("C-c C-h"   racket-help)
+            ("C-c C-d"   racket-find-definition)
+            ("C-c C-f"   racket-fold-all-tests)
+            ("C-c C-U"   racket-unfold-all-tests)))
     map)
   "Keymap for Racket mode. Inherits from `lisp-mode-shared-map'.")
 
 (easy-menu-define racket-mode-menu racket-mode-map
   "Menu for Racket mode."
   '("Racket"
-    ["Run" racket-run]
-    ["Run Tests" racket-test]
-    "---"
-    ["Run `racket' in *shell*" racket-racket]
-    ["Run `raco test' in *shell*" racket-raco-test]
-    "---"
-    ["Eval Region" racket-send-region]
-    ["Eval Definition" racket-send-definition]
-    ["Eval Last S-Expression" racket-send-last-sexp]
+    ("Run"
+     ["in REPL" racket-run]
+     ["via `racket`" racket-racket])
+    ("Tests"
+     ["in REPL" racket-test]
+     ["via `raco test`" racket-raco-test]
+     "---"
+     ["Fold All" racket-fold-all-tests]
+     ["Unfold All" racket-unfold-all-tests])
+    ("Eval"
+     ["Region" racket-send-region :active (region-active-p)]
+     ["Definition" racket-send-definition]
+     ["Last S-Expression" racket-send-last-sexp])
+    ("Macro Expand"
+     ["Region" racket-expand-region  :active (region-active-p)]
+     ["Definition" racket-expand-definition]
+     ["Last S-Expression" racket-expand-last-sexp]
+     "---"
+     ["Again" racket-expand-again])
     "---"
     ["Comment" comment-dwim]
     ["Insert λ" racket-insert-lambda]
     ["Indent Region" indent-region]
     "---"
-    ["Fold All Tests" racket-fold-all-tests]
-    ["Unfold All Tests" racket-unfold-all-tests]
-    "---"
     ["Find Definition" racket-find-definition]
     ["Help" racket-help]
     ["Next Error or Link" next-error]
+    ["Previous Error" previous-error]
     "---"
     ["Customize..." customize-mode]))
 
@@ -1051,14 +1069,59 @@ is run)."
   (racket-send-region (save-excursion (backward-sexp) (point)) (point))
   (racket--repl-show-and-move-to-end))
 
+(defun racket-expand-region (start end &optional prefix)
+  "Like `racket-send-region', but macro expand.
+
+With C-u prefix, expands fully.
+
+Otherwise, expands once. You may use `racket-expand-again'."
+  (interactive "rP")
+  (racket--repl-send-expand-command prefix)
+  (racket-send-region start end))
+
+(defun racket-expand-definition (&optional prefix)
+  "Like `racket-send-definition', but macro expand.
+
+With C-u prefix, expands fully.
+
+Otherwise, expands once. You may use `racket-expand-again'."
+  (interactive "P")
+  (racket--repl-send-expand-command prefix)
+  (racket-send-definition))
+
+(defun racket-expand-last-sexp (&optional prefix)
+  "Like `racket-send-last-sexp', but macro expand.
+
+With C-u prefix, expands fully.
+
+Otherwise, expands once. You may use `racket-expand-again'."
+  (interactive "P")
+  (racket--repl-send-expand-command prefix)
+  (racket-send-last-sexp))
+
+(defun racket--repl-send-expand-command (prefix)
+  (comint-send-string (racket--get-repl-buffer-process)
+                      (if prefix ",exp!" ",exp ")))
+
+(defun racket-expand-again ()
+  "Macro expand again the previous expansion done by one of:
+- `racket-expand-region'
+- `racket-expand-definition'
+- `racket-expand-last-sexp'
+- `racket-expand-again'"
+  (interactive)
+  (comint-send-string (racket--get-repl-buffer-process) ",exp+\n"))
+
 (defun racket--repl-forget-errors ()
   "Forget existing compilation mode errors in the REPL.
-Although they remain clickable, C-x ` next-error will ignore them."
+Although they remain clickable, `next-error' and `previous-error'
+will ignore them."
   (with-current-buffer racket--repl-buffer-name
     (compilation-forget-errors)))
 
 (defun racket--repl-show-and-move-to-end ()
-  "Make the Racket REPL visible, move point to end. Keep original window selected."
+  "Make the Racket REPL visible, and move point to end.
+Keep original window selected."
   (let ((w (selected-window)))
     (pop-to-buffer racket--repl-buffer-name t)
     (select-window (get-buffer-window racket--repl-buffer-name))

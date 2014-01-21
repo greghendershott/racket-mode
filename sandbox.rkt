@@ -14,12 +14,14 @@
 ;; with loggers created by 5.3.2's `define-logger` (which is a pull
 ;; request I did awhile ago that hasn't yet been accepted for XREPL).
 
-(require racket/sandbox
+(require (for-syntax racket/base
+                     syntax/parse)
+         racket/sandbox
          racket/match
          racket/format
          racket/string
          racket/list
-         racket/help
+         racket/pretty
          "defn.rkt")
 
 (define (run-file path-str)
@@ -30,7 +32,7 @@
       (newline)
       (loop next))))
 
-(struct exn:run-new-sandbox (path)) ;(or/c #f path-string?)
+(struct run-new-sandbox (path)) ;(or/c #f path-string?)
 
 ;; do-run :: (or/c #f path-string?) -> (or/c #f path-string? 'exit)
 ;;
@@ -66,9 +68,9 @@
                   ([exn:fail:sandbox-terminated? (lambda (exn)
                                                    (display-exn exn)
                                                    'exit)]
-                   [exn:run-new-sandbox? (lambda (b)
-                                           (kill-evaluator (current-eval))
-                                           (exn:run-new-sandbox-path b))])
+                   [run-new-sandbox? (lambda (b)
+                                       (kill-evaluator (current-eval))
+                                       (run-new-sandbox-path b))])
                 (read-eval-print-loop)))])))))
 
 ;; path-string? -> (values path? path?)
@@ -93,6 +95,12 @@
     (cond [(file-exists? path) path]
           [else (not-found (path->string path))])))
 
+;; Eval something in sandbox evaluator namespace
+(define-syntax (with-sandbox stx)
+  (syntax-parse stx
+    [(_ e:expr ...+)
+     #'(call-in-sandbox-context (current-eval) (lambda () e ...))]))
+
 ;; (or/c #f path-string?) -> (or/c #f 'exit evaluator?)
 (define (make-eval path)
   ;; Make a module evaluator if non-#f path, else plain
@@ -106,7 +114,6 @@
                                      [else 'exit]))])
     (cond [path (make-module-evaluator path)]
           [else (make-evaluator 'racket)])))
-  
 
 (define (make-prompt-read path)
   (define-values (base name dir?) (cond [path (split-path path)]
@@ -125,25 +132,49 @@
           [(uq cmd)
            (eq? 'unquote (syntax-e #'uq))
            (case (syntax-e #'cmd)
-             [(run) (raise (exn:run-new-sandbox (~a (read))))]
-             [(top) (raise (exn:run-new-sandbox #f))]
-             [(def) (call-in-sandbox-context ;use sandbox eval's namespace
-                     (current-eval)
-                     (lambda () (display-definition (symbol->string (read)))))]
-             [(doc) (eval `(begin
-                             (require racket/help)
-                             (help ,(string-trim (read-line)))
-                             (newline)))]
+             [(run) (raise (run-new-sandbox (~a (read))))]
+             [(top) (raise (run-new-sandbox #f))]
+             [(def) (def (read))]
+             [(doc) (doc (read-line))]
+             [(exp) (exp)]
+             [(exp+) (exp+)]
+             [(exp!) (exp!)]
              [(log) (log-display (map string->symbol (string-split (read-line))))]
              [(pwd) (display-commented (~v (current-directory)))]
-             [(cd) (cd (~a (read)))])]
+             [(cd) (cd (~a (read)))]
+             [else stx])]
           [_ stx])))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (our-error-display-handler str exn)
-  ;; Ignore "stack trace" from exn current-continuation-marks
-  (display-commented str))
+  (display-commented str)
+  (unless (exn:fail:user? exn)
+    (display-commented "Context:")
+    (display-commented (context->string
+                        (continuation-mark-set->context
+                         (exn-continuation-marks exn))))))
+
+(define (context->string xs)
+  (string-join (map context-item->string xs)
+               "\n"))
+
+(define (context-item->string ci)
+  (match-define (cons id src) ci)
+  (string-append (if (or src id) " " "")
+                 (if src (srcloc->string src) "")
+                 (if (and src id) " " "")
+                 (if id (format "~a" id) "")))
+
+(define (srcloc->string src)
+  (let* ([source (srcloc-source src)]
+         [source (if (path? source)
+                     (path->string source)
+                     source)]
+         [line (srcloc-line src)]
+         [col  (srcloc-column src)])
+    (cond [(and line col) (format "~a:~a:~a" source line col)]
+          [else (format "~a" source)])))
 
 (define (display-exn exn)
   (our-error-display-handler (exn-message exn) exn))
@@ -157,6 +188,7 @@
 (define current-log-receiver-thread (make-parameter #f))
 (define global-logger (current-logger))
 (define other-level 'fatal)
+
 ;; Default a couple specific loggers one notch above their "noisy"
 ;; level. That way, if someone sets "all other" loggers to e.g. debug,
 ;; these won't get noisy. They need to be specifically cranked up.
@@ -227,6 +259,42 @@
          "\n; "))]))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define last-stx #f)
+
+(define (exp)
+  (set! last-stx (with-sandbox (expand-once (read))))
+  (pp-stx last-stx))
+
+(define (exp+)
+  (when last-stx
+    (define this-stx (with-sandbox (expand-once last-stx)))
+    (cond [(equal? (syntax->datum last-stx) (syntax->datum this-stx))
+           (display-commented "Already fully expanded.")
+           (set! last-stx #f)]
+          [else
+           (pp-stx this-stx)
+           (set! last-stx this-stx)])))
+
+(define (exp!)
+  (set! last-stx #f)
+  (with-sandbox (pp-stx (expand (read)))))
+
+(define (pp-stx stx)
+  (newline)
+  (pretty-print (syntax->datum stx)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+(define (def sym)
+  (with-sandbox
+   (display-definition (symbol->string sym))))
+
+(define (doc str)
+  (eval `(begin
+          (require racket/help)
+          (help ,(string-trim str))
+          (newline))))
 
 (define (cd s)
   (let ([old-wd (current-directory)])
