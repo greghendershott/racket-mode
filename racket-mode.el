@@ -297,13 +297,13 @@ Lisp function does not specify a special indentation."
         containing-sexp-column
         body-indent
         clause-indent)
-    ;;Move to the start of containing sexp, calculate its
-    ;;indentation, store its point and move past the function
-    ;;symbol so that we can use 'parse-partial-sexp'.
+    ;; Move to the start of containing sexp, calculate its
+    ;; indentation, store its point and move past the function symbol
+    ;; so that we can use 'parse-partial-sexp'.
     ;;
-    ;;'lisp-indent-function' guarantees that there is at least
-    ;;one word or symbol character following open paren of
-    ;;containing sexp.
+    ;; 'lisp-indent-function' guarantees that there is at least one
+    ;; word or symbol character following open paren of containing
+    ;; sexp.
     (forward-char 1)
     (goto-char containing-sexp-start)
     (setq containing-sexp-point (point))
@@ -314,8 +314,8 @@ Lisp function does not specify a special indentation."
     (backward-sexp 1)   ;Move to its start paren
     (setq clause-indent (current-column))
     (forward-sexp 1)    ;Move back past close paren
-    ;;Now go back to the beginning of the line holding
-    ;;the indentation point. Count the sexps on the way.
+    ;; Now go back to the beginning of the line holding
+    ;; the indentation point. Count the sexps on the way.
     (parse-partial-sexp (point) indent-point 1 t)
     (let ((n 1))
       (while (and (< (point) indent-point)
