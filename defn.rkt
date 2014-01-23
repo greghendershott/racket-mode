@@ -81,7 +81,7 @@
        [_ (values #f #f)])]
     [_ (values #f #f)]))
 
-;; When module soure is 'sym or '(sym sym1 ...) treat it as "sym.rkt"
+;; When module source is 'sym or '(sym sym1 ...) treat it as "sym.rkt"
 ;; in the current-load-relative-directory.
 (define (sym->path sym)
   (build-path (current-load-relative-directory) (format "~a.rkt" sym)))
