@@ -471,9 +471,9 @@ handles those."
   (eval-when-compile
     `(
       ;; #lang
-      ("\\(\\(#lang\\)[ ]+\\([^ \n]+\\)\\)"
+      ("\\(\\(#lang\\)[ ]+\\([^\n]+\\)\\)"
        (2 font-lock-keyword-face nil t)
-       (3 font-lock-function-name-face nil t))
+       (3 font-lock-variable-name-face nil t))
 
       ;; keyword argument
       ("#:[^ )]+"                 . racket-keyword-argument-face)
@@ -503,6 +503,16 @@ handles those."
       ;; define -- functions
       ("(\\(define[^ ]*[ ]*([ ]*\\([^ ]+\\)\\)" 2 font-lock-function-name-face)
       ("(\\(defn-?[^ ]*[ ]*([ ]*\\([^ ]+\\)\\)" 2 font-lock-function-name-face)
+
+      ;; module and module*
+      ("(\\(module[*]?\\)[ ]+\\([^ ]+\\)[ ]+\\([^ ]+\\)"
+       (1 font-lock-keyword-face nil t)
+       (2 font-lock-function-name-face nil t)
+       (3 font-lock-variable-name-face nil t))
+      ;; module+
+      ("(\\(module[+]\\)[ ]+\\([^ ]+\\)"
+       (1 font-lock-keyword-face nil t)
+       (2 font-lock-function-name-face nil t))
 
       ;; pretty lambda
       ("[[(]\\(case-\\|match-\\|opt-\\)?\\(lambda\\)\\>"
