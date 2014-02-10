@@ -22,6 +22,7 @@
          racket/string
          racket/list
          racket/pretty
+         racket/runtime-path
          "defn.rkt")
 
 (define (run-file path-str)
@@ -148,16 +149,41 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (our-error-display-handler str exn)
-  (display-commented str)
-  (unless (exn:fail:user? exn)
-    (display-commented "Context:")
-    (display-commented (context->string
-                        (continuation-mark-set->context
-                         (exn-continuation-marks exn))))))
+  (unless (equal? "Check failure" (exn-message exn)) ;rackunit check fails
+    (display-commented str)
+    (unless (exn:fail:user? exn)
+      (display-context exn))))
+
+(define (display-context exn)
+  (define ctx (continuation-mark-set->context (exn-continuation-marks exn)))
+  (match (context->string ctx)
+    ["" (void)]
+    [s (display-commented "Context:")
+       (display-commented s)]))
 
 (define (context->string xs)
-  (string-join (map context-item->string xs)
+  (string-join (for/list ([x xs]
+                          [n 10]
+                          #:break (system-context? x))
+                 (context-item->string x))
                "\n"))
+
+;; Is the context item's source this sandbox.rkt file, or, a "system"
+;; module like racket/sandbox that is N/A to the user's code?
+(define-runtime-path sandbox.rkt ".")
+(define-runtime-module-path racket/sandbox-mp racket/sandbox)
+(define-runtime-module-path contract-blame-mp racket/contract/private/blame)
+(define-runtime-module-path more-scheme-mp racket/private/more-scheme)
+(define (system-context? ci)
+  (match-define (cons id src) ci)
+  (and src
+       (let ([src (srcloc-source src)])
+         (and (path? src)
+              (or (equal? src sandbox.rkt)
+                  (for/or ([mod-path (list racket/sandbox-mp
+                                           contract-blame-mp
+                                           more-scheme-mp)])
+                    (equal? src (resolved-module-path-name mod-path))))))))
 
 (define (context-item->string ci)
   (match-define (cons id src) ci)
