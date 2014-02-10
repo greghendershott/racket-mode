@@ -152,6 +152,16 @@ A few notes:
 - **racket-help** <kbd>C-c C-h</kbd> uses [`racket/help`] for the symbol
   at point (or with a prefix, <kbd>C-u C-c C-h</kbd> as prompted).
 
+- **racket-cycle-paren-shapes** <kbd>C-c C-p</kbd> cycles the shape of
+  the current s-expression among `()`, `[]`, and `{}`.
+
+- **racket-fold-all-tests** <kbd>C-c C-f</kbd> uses hide/show mode to
+  hide all `test` submodules. **racket-unfold-all-tests** <kbd>C-c
+  C-u</kbd> shows them all agian. This is handy if you like to
+  interleave function definitions and `(module+ test ...)` tests, but
+  sometimes want to "hide the clutter". In addition, see the
+  **Hide/Show** menu for more-selective operations.
+
 - In the `*Racket REPL*` bufer you can issue some special
   commands. Some of them are the foundation for Emacs commands. Others
   are available only as a command in the REPL.
