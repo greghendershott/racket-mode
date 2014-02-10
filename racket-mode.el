@@ -628,6 +628,25 @@ Note that `def*` and `with-*` aren't listed here because
   (interactive "P")
   (racket--insert-closing prefix ?\}))
 
+(defun racket-cycle-paren-shapes ()
+  "In an s-expression, move to the opening, and cycle the shape among () [] {}"
+  (interactive)
+  (save-excursion
+    (unless (looking-at-p "[([{]")
+      (backward-up-list))
+    (let ((pt (point))
+          (new (cond ((looking-at-p "(")   (cons "[" "]"))
+                     ((looking-at-p "\\[") (cons "{" "}"))
+                     ((looking-at-p "{")   (cons "(" ")"))
+                     (t (beep) nil))))
+      (when new
+        (forward-sexp)
+        (backward-delete-char 1)
+        (insert (cdr new))
+        (goto-char pt)
+        (delete-char 1)
+        (insert (car new))))))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Racket mode
@@ -754,10 +773,10 @@ when there is no symbol-at-point or prefix is true."
 ;; Keymap
 
 (defvar racket-mode-map
-  (let ((map (make-sparse-keymap)))
-    (set-keymap-parent map lisp-mode-shared-map)
+  (let ((m (make-sparse-keymap)))
+    (set-keymap-parent m lisp-mode-shared-map)
     (mapc (lambda (x)
-            (define-key map (kbd (car x)) (cadr x)))
+            (define-key m (kbd (car x)) (cadr x)))
           '(("<f5>"      racket-run)
             ("M-C-<f5>"  racket-racket)
             ("C-<f5>"    racket-test)
@@ -772,13 +791,14 @@ when there is no symbol-at-point or prefix is true."
             (")"         racket-insert-closing-paren)
             ("]"         racket-insert-closing-bracket)
             ("}"         racket-insert-closing-brace)
+            ("C-c C-p"   racket-cycle-paren-shapes)
             ("M-C-y"     racket-insert-lambda)
             ("<f1>"      racket-help)
             ("C-c C-h"   racket-help)
             ("C-c C-d"   racket-find-definition)
             ("C-c C-f"   racket-fold-all-tests)
             ("C-c C-U"   racket-unfold-all-tests)))
-    map)
+    m)
   "Keymap for Racket mode. Inherits from `lisp-mode-shared-map'.")
 
 (easy-menu-define racket-mode-menu racket-mode-map
@@ -807,6 +827,7 @@ when there is no symbol-at-point or prefix is true."
     ["Comment" comment-dwim]
     ["Insert λ" racket-insert-lambda]
     ["Indent Region" indent-region]
+    ["Cycle Paren Shapes" racket-cycle-paren-shapes]
     "---"
     ["Find Definition" racket-find-definition]
     ["Help" racket-help]
@@ -855,6 +876,7 @@ when there is no symbol-at-point or prefix is true."
             (")"       racket-insert-closing-paren)
             ("]"       racket-insert-closing-bracket)
             ("}"       racket-insert-closing-brace)
+            ("C-c C-p" racket-cycle-paren-shapes)
             ("M-C-y"   racket-insert-lambda)
             ("<f1>"    racket-help)
             ("C-c C-h" racket-help)
