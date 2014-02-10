@@ -277,6 +277,11 @@ Lisp function does not specify a special indentation."
                         (> (length function) 3)
                         (string-match "\\`def" function)))
                (lisp-indent-defform state indent-point))
+              ((and (null method)
+                    (> (length function) 5)
+                    (string-match "\\`with-" function))
+               (lisp-indent-specform 1 state
+                                     indent-point normal-indent))
               ((integerp method)
                (lisp-indent-specform method state
                                      indent-point normal-indent))
@@ -331,8 +336,9 @@ Lisp function does not specify a special indentation."
 
 (defun racket--set-indentation ()
   "Set indentation for various Racket forms.
-Note that defines aren't listed here because `racket-indent-function'
-handles those."
+
+Note that `def*` and `with-*` aren't listed here because
+`racket-indent-function' handles those."
   (mapc (lambda (x)
           (put (car x) 'racket-indent-function (cadr x)))
         '((begin 0)
@@ -431,16 +437,7 @@ handles those."
           (unless 1)
           (when 1)
           (while 1)
-          (with-handlers 1)
-          (with-method 1)
-          (with-float 1)
-          (with-fixed 1)
-          (with-input-from-file 1)
-          (with-input-from-port 1)
-          (with-syntax 0)
-          (with-syntax* 0)
-          (with-output-to-file 1)
-          (with-output-to-port 1)
+          ;; `with-` forms given 1 automatically by our indent function
           )))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
