@@ -848,16 +848,20 @@ when there is no symbol-at-point or prefix is true."
   (get-buffer-process racket--repl-buffer-name))
 
 (defvar racket-repl-mode-map
-  (make-sparse-keymap)
+  (let ((m (make-sparse-keymap)))
+    (mapc (lambda (x)
+            (define-key m (kbd (car x)) (cadr x)))
+          '(("RET"     racket-repl-cr)
+            (")"       racket-insert-closing-paren)
+            ("]"       racket-insert-closing-bracket)
+            ("}"       racket-insert-closing-brace)
+            ("M-C-y"   racket-insert-lambda)
+            ("<f1>"    racket-help)
+            ("C-c C-h" racket-help)
+            ("C-c C-d" racket-find-definition)))
+    m)
   "Keymap for Racket REPL mode.")
-(define-key racket-repl-mode-map "\r"  'racket-repl-cr)
-(define-key racket-repl-mode-map ")"   'racket-insert-closing-paren)
-(define-key racket-repl-mode-map "]"   'racket-insert-closing-bracket)
-(define-key racket-repl-mode-map "}"   'racket-insert-closing-brace)
-(define-key racket-repl-mode-map "\M-\C-y"    'racket-insert-lambda)
-(define-key racket-repl-mode-map (kbd "<f1>") 'racket-help)
-(define-key racket-repl-mode-map "\C-c\C-h"   'racket-help)
-(define-key racket-repl-mode-map "\C-c\C-d"   'racket-find-definition)
+
 
 (defcustom racket-repl-filter-regexp "\\`\\s *\\S ?\\S ?\\s *\\'"
   "Input matching this regexp are not saved on the history list.
