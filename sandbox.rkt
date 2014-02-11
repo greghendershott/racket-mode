@@ -173,16 +173,18 @@
 (define-runtime-module-path racket/sandbox-mp racket/sandbox)
 (define-runtime-module-path contract-blame-mp racket/contract/private/blame)
 (define-runtime-module-path more-scheme-mp racket/private/more-scheme)
+(define-runtime-module-path typed/racket-mp typed/racket)
 (define (system-context? ci)
   (match-define (cons id src) ci)
-  (and src
-       (let ([src (srcloc-source src)])
-         (and (path? src)
-              (or (equal? src sandbox.rkt)
-                  (for/or ([mod-path (list racket/sandbox-mp
-                                           contract-blame-mp
-                                           more-scheme-mp)])
-                    (equal? src (resolved-module-path-name mod-path))))))))
+  (or (not src)
+      (let ([src (srcloc-source src)])
+        (and (path? src)
+             (or (equal? src sandbox.rkt)
+                 (for/or ([mod-path (list racket/sandbox-mp
+                                          contract-blame-mp
+                                          more-scheme-mp
+                                          typed/racket-mp)])
+                   (equal? src (resolved-module-path-name mod-path))))))))
 
 (define (context-item->string ci)
   (match-define (cons id src) ci)
