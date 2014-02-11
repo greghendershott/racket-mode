@@ -72,7 +72,7 @@
                    [run-new-sandbox? (lambda (b)
                                        (kill-evaluator (current-eval))
                                        (run-new-sandbox-path b))])
-                (read-eval-print-loop)))])))))
+                (our-read-eval-print-loop)))])))))
 
 ;; path-string? -> (values path? path?)
 (define (path-string->path&load-dir path-str)
@@ -144,6 +144,35 @@
              [(cd) (cd (~a (read)))]
              [else stx])]
           [_ stx])))))
+
+;; This is almost exactly like Racket's read-eval-print-loop except it
+;; does NOT cons #%top-interaction to the read form. Because the
+;; racket/sandbox evaluator will do that. (If we did it twice, we'd
+;; get double output, e.g. from Typed Racket printing the types
+;; twice.)
+(define (our-read-eval-print-loop)
+  (let repl-loop ()
+    ;; This prompt catches all error escapes, including from read and print.
+    (call-with-continuation-prompt
+     ;; 1. proc
+     (lambda ()
+       (let ([v ((current-prompt-read))])
+         (unless (eof-object? v)
+           (call-with-values
+               (lambda ()
+                 ;; This prompt catches escapes during evaluation.
+                 ;; Unlike the outer prompt, the handler prints
+                 ;; the results.
+                 (call-with-continuation-prompt
+                  (lambda ()
+                    ((current-eval) v)))) ;just plain v, no #%top-interaction
+             (lambda results (for-each (current-print) results)))
+           ;; Abort to loop. (Calling `repl-loop' directory would not be a tail call.)
+           (abort-current-continuation (default-continuation-prompt-tag)))))
+     ;; 2. prompt-tag
+     (default-continuation-prompt-tag)
+     ;; 3. handler
+     (lambda args (repl-loop)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
