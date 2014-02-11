@@ -907,15 +907,18 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
       (buffer-substring (point) end))))
 
 ;; I don't want comint-mode clobbering our font-lock with
-;; comint-highlight-input face. Changing that face not to be bold
-;; isn't enough: The original fonts would still get clobbered, just
-;; clobbered with non-bold default face.
+;; comint-highlight-input face. (Changing that *face* not to be bold
+;; isn't enough).
 ;;
 ;; So far, the least-pukey way I can figure out how to do this is to
-;; copy-pasta comint-send-input and modify that one tiny bit.
-;; Blech. If anyone reading this knows a better way, please let me
-;; know!
-(defun racket--comint-send-input (&optional no-newline artificial)
+;; copy-pasta much of comint-send-input, and modify the one tiny
+;; offending bit.  Blech. If anyone reading this knows a better way,
+;; please let me know!
+;;
+;; Meanwhile I have slimmed down the copy -- deleted the `no-newline`
+;; and `artificial` args we don't use, and the code that could only
+;; execute if they were non-nil.
+(defun racket--comint-send-input (&optional)
   "Like comint-send-input but does NOT change the input text to use the comint-highlight-input face."
   ;; Note that the input string does not include its terminal newline.
   (let ((proc (get-buffer-process (current-buffer))))
@@ -946,23 +949,15 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
                           (insert input)
                           (delete-region pmark start)
                           copy))))
-
-        (unless no-newline
-          (insert ?\n))
-
+        (insert ?\n)
         (comint-add-to-input-history history)
-
         (run-hook-with-args 'comint-input-filter-functions
-                            (if no-newline input
-                              (concat input "\n")))
-
+                            (concat input "\n"))
         (let ((beg (marker-position pmark))
-              (end (if no-newline (point) (1- (point))))
+              (end (1- (point)))
               (inhibit-modification-hooks t))
           (when (> end beg)
-            ;; ;; The following is what we don't want -- what we're
-            ;; ;; copying the entire rest of this function, just to
-            ;; ;; omit. Sigh.
+            ;;;; The bit from comint-send-input that we DON'T want:
             ;; (add-text-properties beg end
             ;;                      '(front-sticky t
             ;;                        font-lock-face comint-highlight-input))
@@ -976,15 +971,13 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
                beg end
                '(mouse-face highlight
                  help-echo "mouse-2: insert after prompt as new input"))))
-          (unless (or no-newline comint-use-prompt-regexp)
+          (unless comint-use-prompt-regexp
             ;; Cover the terminating newline
             (add-text-properties end (1+ end)
                                  '(rear-nonsticky t
                                    field boundary
                                    inhibit-line-move-field-capture t))))
-
         (comint-snapshot-last-prompt)
-
         (setq comint-save-input-ring-index comint-input-ring-index)
         (setq comint-input-ring-index nil)
         ;; Update the markers before we send the input
@@ -994,44 +987,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
         (set-marker (process-mark proc) (point))
         ;; clear the "accumulation" marker
         (set-marker comint-accum-marker nil)
-        (let ((comint-input-sender-no-newline no-newline))
-          (funcall comint-input-sender proc input))
-
-        ;; Optionally delete echoed input (after checking it).
-        (when (and comint-process-echoes (not artificial))
-          (let ((echo-len (- comint-last-input-end
-                             comint-last-input-start)))
-            ;; Wait for all input to be echoed:
-            (while (and (> (+ comint-last-input-end echo-len)
-                           (point-max))
-                        (accept-process-output proc)
-                        (zerop
-                         (compare-buffer-substrings
-                          nil comint-last-input-start
-                          (- (point-max) echo-len)
-                          ;; Above difference is equivalent to
-                          ;; (+ comint-last-input-start
-                          ;;    (- (point-max) comint-last-input-end))
-                          nil comint-last-input-end (point-max)))))
-            (if (and
-                 (<= (+ comint-last-input-end echo-len)
-                     (point-max))
-                 (zerop
-                  (compare-buffer-substrings
-                   nil comint-last-input-start comint-last-input-end
-                   nil comint-last-input-end
-                   (+ comint-last-input-end echo-len))))
-                ;; Certain parts of the text to be deleted may have
-                ;; been mistaken for prompts.  We have to prevent
-                ;; problems when `comint-prompt-read-only' is non-nil.
-                (let ((inhibit-read-only t))
-                  (delete-region comint-last-input-end
-                                 (+ comint-last-input-end echo-len))
-                  (when comint-prompt-read-only
-                    (save-excursion
-                      (goto-char comint-last-input-end)
-                      (comint-update-fence)))))))
-
+        (funcall comint-input-sender proc input)
         ;; This used to call comint-output-filter-functions,
         ;; but that scrolled the buffer in undesirable ways.
         (run-hook-with-args 'comint-output-filter-functions "")))))
