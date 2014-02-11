@@ -123,7 +123,6 @@
     (let loop ()
       (display name) (display "> ")
       (flush-output (current-error-port))
-      (flush-output (current-output-port))
       (with-handlers ([exn:fail? (lambda (exn)
                                    (display-exn exn)
                                    (loop))])
