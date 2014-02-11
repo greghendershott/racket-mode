@@ -703,7 +703,11 @@ Only works if you've Run the buffer so that its namespace is active."
   (interactive "P")
   (let ((sym (symbol-at-point-or-prompt prefix "Racket help for: ")))
     (when sym
-      (racket--eval (format ",doc %s\n\n" sym)))))
+      (shell-command (concat (expand-file-name
+                              "raco"
+                              (file-name-directory racket-program))
+                             " doc "
+                             (shell-quote-argument (format "%s" sym)))))))
 
 (defun symbol-at-point-or-prompt (prefix prompt)
   "Helper for functions that want symbol-at-point, or, to prompt
