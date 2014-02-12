@@ -196,26 +196,26 @@
                  (context-item->string x))
                "\n"))
 
-;; Is the context item's source this sandbox.rkt file, or, a "system"
-;; module like racket/sandbox that is N/A to the user's code?
 (define-runtime-path sandbox.rkt ".")
-(define-runtime-module-path racket/sandbox-mp racket/sandbox)
-(define-runtime-module-path contract-blame-mp racket/contract/private/blame)
-(define-runtime-module-path more-scheme-mp racket/private/more-scheme)
-(define-runtime-module-path typed/racket-mp0 typed/racket)
-(define-runtime-module-path typed/racket-mp1 typed-racket/typecheck/tc-toplevel)
 (define (system-context? ci)
   (match-define (cons id src) ci)
   (or (not src)
       (let ([src (srcloc-source src)])
         (and (path? src)
              (or (equal? src sandbox.rkt)
-                 (for/or ([mod-path (list racket/sandbox-mp
-                                          contract-blame-mp
-                                          more-scheme-mp
-                                          typed/racket-mp0
-                                          typed/racket-mp1)])
-                   (equal? src (resolved-module-path-name mod-path))))))))
+                 (under-system-path? src))))))
+
+ (define excluded-collections
+  '("typed/racket" "racket/sandbox" "racket/contract" "racket/private"))
+(define (under-system-path? path)
+  (define-values (dir base _) (split-path path))
+  (not (not (for/or ([collection (in-list excluded-collections)])
+              (collection-file-path base collection #:fail (lambda _ #f))))))
+
+(module+ test
+  (require rackunit)
+  (check-true (under-system-path?
+   (string->path "/Applications/Racket_v5.93/share/pkgs/typed-racket-lib/typed-racket/tc-setup.rkt"))))
 
 (define (context-item->string ci)
   (match-define (cons id src) ci)
