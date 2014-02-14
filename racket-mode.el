@@ -1041,10 +1041,11 @@ is run)."
 (defun racket-send-region (start end)
   "Send the current region to the Racket REPL."
   (interactive "r")
-  (racket--repl-forget-errors)
-  (comint-send-region (racket--get-repl-buffer-process) start end)
-  (comint-send-string (racket--get-repl-buffer-process) "\n")
-  (racket--repl-show-and-move-to-end))
+  (when (and start end)
+    (racket--repl-forget-errors)
+    (comint-send-region (racket--get-repl-buffer-process) start end)
+    (comint-send-string (racket--get-repl-buffer-process) "\n")
+    (racket--repl-show-and-move-to-end)))
 
 (defun racket-send-definition ()
   "Send the current definition to the Racket REPL."
