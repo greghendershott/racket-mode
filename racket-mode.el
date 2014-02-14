@@ -1016,7 +1016,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
 (defcustom raco-program "raco"
   "/path/to/raco."
   :type '(file :must-match t)
-  :group 'raco)
+  :group 'racket)
 
 ;;;###autoload
 (defun racket-repl ()
