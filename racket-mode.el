@@ -683,9 +683,7 @@ Note that `def*` and `with-*` aren't listed here because
   "Do `raco test -x <file>` in *shell* buffer.
 To run <file>'s `test` submodule."
   (interactive)
-  (racket--shell (concat (expand-file-name
-                          "raco"
-                          (file-name-directory racket-program))
+  (racket--shell (concat raco-program
                          " test -x "
                          (shell-quote-argument (buffer-file-name)))))
 
@@ -703,9 +701,7 @@ Only works if you've Run the buffer so that its namespace is active."
   (interactive "P")
   (let ((sym (symbol-at-point-or-prompt prefix "Racket help for: ")))
     (when sym
-      (shell-command (concat (expand-file-name
-                              "raco"
-                              (file-name-directory racket-program))
+      (shell-command (concat raco-program
                              " doc "
                              (shell-quote-argument (format "%s" sym)))))))
 
@@ -1014,6 +1010,11 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
 
 (defcustom racket-program "racket"
   "/path/to/racket."
+  :type '(file :must-match t)
+  :group 'racket)
+
+(defcustom raco-program "raco"
+  "/path/to/raco."
   :type '(file :must-match t)
   :group 'racket)
 
