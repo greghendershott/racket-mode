@@ -1038,13 +1038,23 @@ is run)."
       (racket-repl-mode))
     (select-window original-window)))
 
+(defun racket--send-region-to-repl (start end)
+  "Internal function to send the region to the Racket REPL.
+Calls `racket--repl-forget-errors' beforehand and
+`racket--repl-show-and-move-to-end' afterwars."
+  (when (and start end)
+    (racket--repl-forget-errors)
+    (comint-send-region (racket--get-repl-buffer-process) start end)
+    (comint-send-string (racket--get-repl-buffer-process) "\n")
+    (racket--repl-show-and-move-to-end)))
+
 (defun racket-send-region (start end)
-  "Send the current region to the Racket REPL."
+  "Send the current region (if any) to the Racket REPL."
   (interactive "r")
-  (racket--repl-forget-errors)
-  (comint-send-region (racket--get-repl-buffer-process) start end)
-  (comint-send-string (racket--get-repl-buffer-process) "\n")
-  (racket--repl-show-and-move-to-end))
+  (if (region-active-p)
+      (racket--send-region-to-repl start end)
+    (beep)
+    (message "No region.")))
 
 (defun racket-send-definition ()
   "Send the current definition to the Racket REPL."
@@ -1053,16 +1063,13 @@ is run)."
    (end-of-defun)
    (let ((end (point)))
      (beginning-of-defun)
-     (racket--repl-forget-errors)
-     (racket-send-region (point) end)
-     (racket--repl-show-and-move-to-end))))
+     (racket--send-region-to-repl (point) end))))
 
 (defun racket-send-last-sexp ()
   "Send the previous sexp to the Racket REPL."
   (interactive)
-  (racket--repl-forget-errors)
-  (racket-send-region (save-excursion (backward-sexp) (point)) (point))
-  (racket--repl-show-and-move-to-end))
+  (racket--send-region-to-repl (save-excursion (backward-sexp) (point))
+                               (point)))
 
 (defun racket-expand-region (start end &optional prefix)
   "Like `racket-send-region', but macro expand.
@@ -1071,8 +1078,12 @@ With C-u prefix, expands fully.
 
 Otherwise, expands once. You may use `racket-expand-again'."
   (interactive "rP")
-  (racket--repl-send-expand-command prefix)
-  (racket-send-region start end))
+  (if (region-active-p)
+      (progn
+        (racket--repl-send-expand-command prefix)
+        (racket--send-region-to-repl start end))
+    (beep)
+    (message "No region.")))
 
 (defun racket-expand-definition (&optional prefix)
   "Like `racket-send-definition', but macro expand.
