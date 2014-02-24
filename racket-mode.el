@@ -245,18 +245,16 @@ Lisp function does not specify a special indentation."
                         calculate-lisp-indent-last-sexp))
             (goto-char calculate-lisp-indent-last-sexp)
             (beginning-of-line)
-            (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t)))
+            (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t))
           ;; Indent under the list or under the first sexp on the same
           ;; line as calculate-lisp-indent-last-sexp.  Note that first
           ;; thing on that line has to be complete sexp since we are
           ;; inside the innermost containing sexp.
           (backward-prefix-chars)
           (current-column))
-      (let ((function (buffer-substring (point)
-                                        (progn (forward-sexp 1) (point))))
-            (open-pos (elt state 1))
-            (method nil))
-        (setq method (get (intern-soft function) 'racket-indent-function))
+      (let* ((function (buffer-substring (point) (progn (forward-sexp 1) (point))))
+             (open-pos (elt state 1))
+             (method (get (intern-soft function) 'racket-indent-function)))
         (cond ((or
                 ;; a vector literal:  #( ... )
                 (and (eq (char-after (- open-pos 1)) ?\#)
@@ -268,7 +266,7 @@ Lisp function does not specify a special indentation."
                      (eq (char-after open-pos) ?\())
                 ;; #lang rackjure dict literal { ... }
                 (and racket-mode-rackjure-indent
-                    (eq (char-after open-pos) ?\{)))
+                     (eq (char-after open-pos) ?\{)))
                ;; Indent all aligned with first item:
                (goto-char open-pos)
                (1+ (current-column)))
@@ -286,7 +284,7 @@ Lisp function does not specify a special indentation."
                (lisp-indent-specform method state
                                      indent-point normal-indent))
               (method
-               (funcall method state indent-point normal-indent))))))
+               (funcall method state indent-point normal-indent)))))))
 
 ;; copied from scheme-let-indent
 (defun racket--indent-let (state indent-point normal-indent)
