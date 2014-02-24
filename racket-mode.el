@@ -272,7 +272,7 @@ Lisp function does not specify a special indentation."
                (1+ (current-column)))
               ((or (eq method 'defun)
                    (and (null method)
-                        (> (length function) 3)
+                        (>= (length function) 3)
                         (string-match "\\`def" function)))
                (lisp-indent-defform state indent-point))
               ((and (null method)
