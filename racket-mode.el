@@ -336,9 +336,17 @@ Lisp function does not specify a special indentation."
   "Set indentation for various Racket forms.
 
 Note that `def*` and `with-*` aren't listed here because
-`racket-indent-function' handles those."
+`racket-indent-function' handles those.
+
+Note that indentation is set for the symbol alone, and also
+with : appended, for Typed Racket. For example both `let` and
+`let:`. Although this is overzealous in the sense that Typed
+Racket does not define its own variant of all of these, it
+doesn't hurt to do so."
   (mapc (lambda (x)
-          (put (car x) 'racket-indent-function (cadr x)))
+          (put (car x) 'racket-indent-function (cadr x))
+          (let ((typed (intern-soft (format "%s:" (car x)))))
+            (put typed 'racket-indent-function (cadr x))))
         '((begin 0)
           (begin-for-syntax 0)
           (begin0 1)
