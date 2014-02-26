@@ -345,7 +345,7 @@ Racket does not define its own variant of all of these, it
 doesn't hurt to do so."
   (mapc (lambda (x)
           (put (car x) 'racket-indent-function (cadr x))
-          (let ((typed (intern-soft (format "%s:" (car x)))))
+          (let ((typed (intern (format "%s:" (car x)))))
             (put typed 'racket-indent-function (cadr x))))
         '((begin 0)
           (begin-for-syntax 0)
