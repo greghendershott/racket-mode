@@ -500,14 +500,12 @@ doesn't hurt to do so."
       (,(regexp-opt racket-builtins 'symbols) . font-lock-builtin-face)
       (,(regexp-opt racket-keywords 'symbols) . font-lock-keyword-face)
 
-      ;; define -- vars
-      ("(\\(define[ ]+\\([^ (]+\\)\\)" 2 font-lock-variable-name-face)
-      ("(\\(def[ ]+\\([^ (]+\\)\\)"    2 font-lock-variable-name-face)
+      ;; def* -- variables
+      ("(\\(def[^ ]*[ ]+\\([^( ]+\\)\\)"       2 font-lock-variable-name-face)
       ("(\\(define-values[ ]*(\\([^(]+\\))\\)" 2 font-lock-variable-name-face)
 
-      ;; define -- functions
-      ("(\\(define[^ ]*[ ]*([ ]*\\([^ ]+\\)\\)" 2 font-lock-function-name-face)
-      ("(\\(defn-?[^ ]*[ ]*([ ]*\\([^ ]+\\)\\)" 2 font-lock-function-name-face)
+      ;; def* -- functions
+      ("(\\(def[^ ]*[ ]*(\\([^ )]+\\)\\)" 2 font-lock-function-name-face)
 
       ;; module and module*
       ("(\\(module[*]?\\)[ ]+\\([^ ]+\\)[ ]+\\([^ ]+\\)"
