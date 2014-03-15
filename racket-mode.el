@@ -88,7 +88,7 @@ http://www.gnu.org/licenses/ for details.")
   (setq-local indent-tabs-mode nil)
   (setq-local font-lock-defaults
               `(,racket-font-lock-keywords     ;keywords
-                nil                            ;keywords-omly?
+                nil                            ;keywords-only?
                 nil                            ;case-fold?
                 (("+-*/.<>=!?$%_&~^:" . "w")   ;syntax-alist
                  (?#. "w 14"))
