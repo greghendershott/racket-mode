@@ -920,7 +920,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
 ;; Meanwhile I have slimmed down the copy -- deleted the `no-newline`
 ;; and `artificial` args we don't use, and the code that could only
 ;; execute if they were non-nil.
-(defun racket--comint-send-input (&optional)
+(defun racket--comint-send-input ()
   "Like comint-send-input but does NOT change the input text to use the comint-highlight-input face."
   ;; Note that the input string does not include its terminal newline.
   (let ((proc (get-buffer-process (current-buffer))))
