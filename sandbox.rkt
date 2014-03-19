@@ -23,6 +23,7 @@
          racket/list
          racket/pretty
          racket/runtime-path
+         syntax/srcloc
          "defn.rkt")
 
 (define (run-file path-str)
@@ -179,8 +180,22 @@
 (define (our-error-display-handler str exn)
   (unless (equal? "Check failure" (exn-message exn)) ;rackunit check fails
     (display-commented str)
+    (display-srclocs exn)
     (unless (exn:fail:user? exn)
       (display-context exn))))
+
+(define (display-srclocs exn)
+  (when (exn:srclocs? exn)
+    (let* ([srclocs ((exn:srclocs-accessor exn) exn)]
+           ;; Some exns' first srcloc is already in exn-message; skip it
+           [srclocs (cond [(or (exn:fail:read? exn)
+                               (exn:fail:syntax? exn)
+                               (exn:fail:contract:variable? exn))
+                           (cdr srclocs)]
+                          [else srclocs])])
+      (for ([srcloc srclocs])
+        (display "; ")
+        (displayln (source-location->string srcloc))))))
 
 (define (display-context exn)
   (define ctx (continuation-mark-set->context (exn-continuation-marks exn)))
@@ -220,19 +235,9 @@
 (define (context-item->string ci)
   (match-define (cons id src) ci)
   (string-append (if (or src id) " " "")
-                 (if src (srcloc->string src) "")
+                 (if src (source-location->string src) "")
                  (if (and src id) " " "")
                  (if id (format "~a" id) "")))
-
-(define (srcloc->string src)
-  (let* ([source (srcloc-source src)]
-         [source (if (path? source)
-                     (path->string source)
-                     source)]
-         [line (srcloc-line src)]
-         [col  (srcloc-column src)])
-    (cond [(and line col) (format "~a:~a:~a" source line col)]
-          [else (format "~a" source)])))
 
 (define (display-exn exn)
   (our-error-display-handler (exn-message exn) exn))
