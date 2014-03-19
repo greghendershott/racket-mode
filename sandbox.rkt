@@ -194,8 +194,7 @@
                            (cdr srclocs)]
                           [else srclocs])])
       (for ([srcloc srclocs])
-        (display "; ")
-        (displayln (source-location->string srcloc))))))
+        (display-commented (source-location->string srcloc))))))
 
 (define (display-context exn)
   (define ctx (continuation-mark-set->context (exn-continuation-marks exn)))
