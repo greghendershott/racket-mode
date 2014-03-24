@@ -354,6 +354,7 @@ doesn't hurt to do so."
           (c-lambda 2)
           (call-with-input-file 1)
           (call-with-input-file* 1)
+          (call-with-semaphore 1)
           (call-with-output-file 1)
           (call-with-values 1)
           (case 1)
