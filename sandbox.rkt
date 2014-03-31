@@ -75,7 +75,7 @@
                                        (run-new-sandbox-path b))])
                 (our-read-eval-print-loop)))])))))
 
-;; path-string? -> (values path? path?)
+;; path-string? -> (values (or/c #f path?) path?)
 (define (path-string->path&load-dir path-str)
   (define path (and path-str
                     (not (equal? path-str ""))
@@ -168,7 +168,7 @@
                   (lambda ()
                     ((current-eval) v)))) ;just plain v, no #%top-interaction
              (lambda results (for-each (current-print) results)))
-           ;; Abort to loop. (Calling `repl-loop' directory would not be a tail call.)
+           ;; Abort to loop. Calling `repl-loop' directly wouldn't be tail call.
            (abort-current-continuation (default-continuation-prompt-tag)))))
      ;; 2. prompt-tag
      (default-continuation-prompt-tag)
