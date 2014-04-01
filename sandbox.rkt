@@ -53,7 +53,7 @@
      ;; of parameters to be permissive (e.g. `sandbox-memory-limit`,
      ;; `sandbox-eval-limits`, and `sandbox-security-guard`) so we
      ;; don't need to set them here.
-     (parameterize ([current-namespace (make-empty-namespace)]
+     (parameterize ([current-namespace (make-base-empty-namespace)]
                     [sandbox-input (current-input-port)]
                     [sandbox-output (current-output-port)]
                     [sandbox-error-output (current-error-port)]
@@ -137,7 +137,7 @@
              [(top) (raise (run-new-sandbox #f))]
              [(def) (def (read))]
              [(doc) (doc (read-line))]
-             [(exp) (exp)]
+             [(exp) (exp1)]
              [(exp+) (exp+)]
              [(exp!) (exp!)]
              [(log) (log-display (map string->symbol (string-split (read-line))))]
@@ -324,7 +324,7 @@
 
 (define last-stx #f)
 
-(define (exp)
+(define (exp1)
   (set! last-stx (with-sandbox (expand-once (read))))
   (pp-stx last-stx))
 
