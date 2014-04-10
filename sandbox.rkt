@@ -117,6 +117,15 @@
     (cond [path (make-module-evaluator path)]
           [else (make-evaluator 'racket)])))
 
+(define orig-resolver (current-module-name-resolver))
+(current-module-name-resolver
+ (case-lambda
+   [(rmp ns) (orig-resolver rmp ns)]
+   [(mp rmp stx load?)
+    (when (and (eq? mp 'racket/gui/base) load?)
+      (error 'racket-mode-repl "Not compatible with racket/gui/base."))
+   (orig-resolver mp rmp stx load?)]))
+
 (define (make-prompt-read path)
   (define-values (base name dir?) (cond [path (split-path path)]
                                         [else (values "" "" #f)]))
