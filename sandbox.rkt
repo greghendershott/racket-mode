@@ -14,7 +14,6 @@
          racket/pretty
          racket/runtime-path
          syntax/srcloc
-         racket/gui/base
          "defn.rkt")
 
 (module+ main
@@ -30,27 +29,41 @@
   (define-values (path load-dir) (path-string->path&load-dir path-str))
   (define main-cust (current-custodian))
   (define user-cust (make-custodian (current-custodian)))
+  (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
   (parameterize*
       ([current-custodian user-cust]
-       [current-namespace (make-gui-namespace)]
-       [current-eventspace (make-eventspace)] ;after current-eventspace
+       [current-namespace ((txt/gui make-base-namespace make-gui-namespace))]
+       [current-eventspace ((txt/gui void make-eventspace))]
        [compile-enforce-module-constants #f]
        [compile-context-preservation-enabled #t]
        [current-load-relative-directory load-dir])
-    (queue-callback
-     ;; Called on (eventspace-handler-thread (current-eventspace))
-     (lambda ()
-       (when (and path (module-path? path))
-         (dynamic-require path 0)
-         (current-namespace (module->namespace path)))
-       (parameterize
-           ([current-prompt-read (make-prompt-read path)]
-            [error-display-handler our-error-display-handler])
-         (read-eval-print-loop)))))
+    (define (repl-thunk)
+      (when (and path (module-path? path))
+        (dynamic-require path 0)
+        (current-namespace (module->namespace path)))
+      (parameterize
+          ([current-prompt-read (make-prompt-read path)]
+           [error-display-handler our-error-display-handler])
+        (read-eval-print-loop)))
+    ((txt/gui thread queue-callback) repl-thunk))
+  ;; Wait for message to run again
   (define next (channel-get rerun-ch))
   (custodian-shutdown-all user-cust)
   (newline)
   (run next))
+
+;; This is #f until racket/gui/base is required the first time
+(define root-eventspace #f)
+
+(define (repl-gui-available?)
+  #t #;(not (not root-eventspace)))
+
+(define-syntax txt/gui
+  (syntax-rules ()
+    [(_ txtval guisym)
+     (if (repl-gui-available?)
+         (dynamic-require 'racket/gui/base 'guisym)
+         txtval)]))
 
 ;; path-string? -> (values (or/c #f path?) path?)
 (define (path-string->path&load-dir path-str)
