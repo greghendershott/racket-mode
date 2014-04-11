@@ -18,23 +18,20 @@
          "imports-gui.rkt")
 
 (module+ main
+  (display (banner))
   (run #f))
-
-;; Using this channel, the REPL user thread can put (or/c #f
-;; path-string?) to the main thread, which will call
-;; (custodian-shutdown-all user-cust) to free resources inluding the
-;; REPL user thread, then run a new REPL.
-(define rerun-ch (make-channel))
 
 (define main-cust (current-custodian))
 
 ;; (or/c #f path-string?)
 (define (run path-str)
+  (printf "run ~a\n" path-str)
   (define-values (path load-dir) (path-string->path&load-dir path-str))
   (when (and path (imports-gui? path))
     (require-racket/gui/base))
   (define user-cust (make-custodian (current-custodian)))
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
+  (define ch (make-channel))
   (parameterize*
       ([current-custodian user-cust]
        [current-namespace ((txt/gui make-base-namespace make-gui-namespace))]
@@ -53,13 +50,19 @@
           ([current-prompt-read (make-prompt-read path)]
            [error-display-handler our-error-display-handler]
            [current-module-name-resolver repl-module-name-resolver])
-        (read-eval-print-loop)))
+        (with-handlers ([void (lambda (x) (channel-put ch x))])
+          (read-eval-print-loop))))
     ((txt/gui thread queue-callback) repl-thunk))
   ;; Wait for message to run again
-  (define next (channel-get rerun-ch))
+  (define msg (channel-get ch))
   (custodian-shutdown-all user-cust)
   (newline)
-  (run next))
+  (match msg
+    [(rerun p) (run p)]
+    [(load-gui) (require-racket/gui/base) (run path-str)]))
+
+(struct rerun (path)) ;(or/c #f path-string?)
+(struct load-gui ())
 
 ;; This is #f until racket/gui/base is required the first time
 (define root-eventspace #f)
@@ -97,7 +100,7 @@
       [(mp rmp stx load?)
        (unless root-eventspace
          (when (and (eq? mp 'racket/gui/base) load?)
-           (error 'racket-repl-prompt "Must require racket/gui/base in file.")))
+           (raise (load-gui))))
        (orig-resolver mp rmp stx load?)])))
 
 ;; path-string? -> (values (or/c #f path?) path?)
@@ -138,8 +141,8 @@
           [(uq cmd)
            (eq? 'unquote (syntax-e #'uq))
            (case (syntax-e #'cmd)
-             [(run) (channel-put rerun-ch (~a (read)))] ;doesn't return
-             [(top) (channel-put rerun-ch #f)]          ;doesn't return
+             [(run) (raise (rerun (~a (read))))]
+             [(top) (raise (rerun #f))]
              [(def) (def (read))]
              [(doc) (doc (read-line))]
              [(exp) (exp1)]
@@ -148,7 +151,6 @@
              [(log) (log-display (map string->symbol (string-split (read-line))))]
              [(pwd) (display-commented (~v (current-directory)))]
              [(cd) (cd (~a (read)))]
-             [(ex) eof]
              [else stx])]
           [_ stx])))))
 
