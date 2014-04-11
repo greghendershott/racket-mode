@@ -14,7 +14,8 @@
          racket/pretty
          racket/runtime-path
          syntax/srcloc
-         "defn.rkt")
+         "defn.rkt"
+         "imports-gui.rkt")
 
 (module+ main
   (run #f))
@@ -24,10 +25,13 @@
 ;; program resources, and run a new REPL.
 (define rerun-ch (make-channel))
 
+(define main-cust (current-custodian))
+
 ;; (or/c #f path-string?)
 (define (run path-str)
   (define-values (path load-dir) (path-string->path&load-dir path-str))
-  (define main-cust (current-custodian))
+  (when (and path (imports-gui? path))
+    (require-racket/gui/base))
   (define user-cust (make-custodian (current-custodian)))
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
   (parameterize*
@@ -56,7 +60,18 @@
 (define root-eventspace #f)
 
 (define (repl-gui-available?)
-  #t #;(not (not root-eventspace)))
+  (not (not root-eventspace)))
+
+(define (require-racket/gui/base)
+  (unless root-eventspace
+    (displayln "on-demand one-time instantiation of racket/gui/base")
+    (parameterize ([current-custodian main-cust])
+      (define current-eventspace (dynamic-require 'racket/gui/base
+                                                  'current-eventspace))
+      (define make-eventspace    (dynamic-require 'racket/gui/base
+                                                  'make-eventspace))
+      (set! root-eventspace (make-eventspace))
+      (current-eventspace root-eventspace))))
 
 (define-syntax txt/gui
   (syntax-rules ()
@@ -64,6 +79,17 @@
      (if (repl-gui-available?)
          (dynamic-require 'racket/gui/base 'guisym)
          txtval)]))
+
+;; (define orig-resolver (current-module-name-resolver))
+;; (current-module-name-resolver
+;;  (case-lambda
+;;    [(rmp ns)
+;;     (orig-resolver rmp ns)]
+;;    [(mp rmp stx load?)
+;;     (unless root-eventspace
+;;       (when (and (eq? mp 'racket/gui/base) load?)
+;;         (error 'to-do "on-demand r/g/b")))
+;;     (orig-resolver mp rmp stx load?)]))
 
 ;; path-string? -> (values (or/c #f path?) path?)
 (define (path-string->path&load-dir path-str)
