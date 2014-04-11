@@ -53,8 +53,7 @@
      ;; of parameters to be permissive (e.g. `sandbox-memory-limit`,
      ;; `sandbox-eval-limits`, and `sandbox-security-guard`) so we
      ;; don't need to set them here.
-     (parameterize ([current-namespace (make-base-empty-namespace)]
-                    [sandbox-input (current-input-port)]
+     (parameterize ([sandbox-input (current-input-port)]
                     [sandbox-output (current-output-port)]
                     [sandbox-error-output (current-error-port)]
                     [sandbox-propagate-exceptions #f]
