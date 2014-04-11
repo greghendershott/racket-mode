@@ -20,9 +20,10 @@
 (module+ main
   (run #f))
 
-;; The REPL user thread can put (or/c #f path-string?) to this
-;; channel. The main thread will then custodian-shutdown-all the user
-;; program resources, and run a new REPL.
+;; Using this channel, the REPL user thread can put (or/c #f
+;; path-string?) to the main thread, which will call
+;; (custodian-shutdown-all user-cust) to free resources inluding the
+;; REPL user thread, then run a new REPL.
 (define rerun-ch (make-channel))
 
 (define main-cust (current-custodian))
@@ -41,13 +42,17 @@
        [compile-enforce-module-constants #f]
        [compile-context-preservation-enabled #t]
        [current-load-relative-directory load-dir])
+    ;; This will be called from another thread -- either a plain
+    ;; thread when racket/gui/base is not (yet) instantiated, or, from
+    ;; (event-handler-thread (current-eventspace)).
     (define (repl-thunk)
       (when (and path (module-path? path))
         (dynamic-require path 0)
         (current-namespace (module->namespace path)))
       (parameterize
           ([current-prompt-read (make-prompt-read path)]
-           [error-display-handler our-error-display-handler])
+           [error-display-handler our-error-display-handler]
+           [current-module-name-resolver repl-module-name-resolver])
         (read-eval-print-loop)))
     ((txt/gui thread queue-callback) repl-thunk))
   ;; Wait for message to run again
@@ -73,6 +78,7 @@
       (set! root-eventspace (make-eventspace))
       (current-eventspace root-eventspace))))
 
+;; Like mz/mr from racket/sandbox.
 (define-syntax txt/gui
   (syntax-rules ()
     [(_ txtval guisym)
@@ -80,16 +86,19 @@
          (dynamic-require 'racket/gui/base 'guisym)
          txtval)]))
 
-;; (define orig-resolver (current-module-name-resolver))
-;; (current-module-name-resolver
-;;  (case-lambda
-;;    [(rmp ns)
-;;     (orig-resolver rmp ns)]
-;;    [(mp rmp stx load?)
-;;     (unless root-eventspace
-;;       (when (and (eq? mp 'racket/gui/base) load?)
-;;         (error 'to-do "on-demand r/g/b")))
-;;     (orig-resolver mp rmp stx load?)]))
+;; This just to catch (require racket/gui/base) -- directly or
+;; transitively -- at the REPL prompt. Currently we don't handle that,
+;; so error.
+(define repl-module-name-resolver
+  (let ([orig-resolver (current-module-name-resolver)])
+    (case-lambda
+      [(rmp ns)
+       (orig-resolver rmp ns)]
+      [(mp rmp stx load?)
+       (unless root-eventspace
+         (when (and (eq? mp 'racket/gui/base) load?)
+           (error 'racket-repl-prompt "Must require racket/gui/base in file.")))
+       (orig-resolver mp rmp stx load?)])))
 
 ;; path-string? -> (values (or/c #f path?) path?)
 (define (path-string->path&load-dir path-str)
@@ -129,8 +138,8 @@
           [(uq cmd)
            (eq? 'unquote (syntax-e #'uq))
            (case (syntax-e #'cmd)
-             [(run) (channel-put rerun-ch (~a (read)))]
-             [(top) (channel-put rerun-ch #f)]
+             [(run) (channel-put rerun-ch (~a (read)))] ;doesn't return
+             [(top) (channel-put rerun-ch #f)]          ;doesn't return
              [(def) (def (read))]
              [(doc) (doc (read-line))]
              [(exp) (exp1)]
@@ -146,11 +155,12 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (our-error-display-handler str exn)
-  (unless (equal? "Check failure" (exn-message exn)) ;rackunit check fails
-    (display-commented str)
-    (display-srclocs exn)
-    (unless (exn:fail:user? exn)
-      (display-context exn))))
+  (when (exn? exn)
+    (unless (equal? "Check failure" (exn-message exn)) ;rackunit check fails
+      (display-commented str)
+      (display-srclocs exn)
+      (unless (exn:fail:user? exn)
+        (display-context exn)))))
 
 (define (display-srclocs exn)
   (when (exn:srclocs? exn)
