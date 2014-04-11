@@ -14,8 +14,7 @@
          racket/pretty
          racket/runtime-path
          syntax/srcloc
-         "defn.rkt"
-         "imports-gui.rkt")
+         "defn.rkt")
 
 (module+ main
   (display (banner))
@@ -27,8 +26,6 @@
 (define (run path-str)
   (printf "run ~a\n" path-str)
   (define-values (path load-dir) (path-string->path&load-dir path-str))
-  (when (and path (imports-gui? path))
-    (require-racket/gui/base))
   (define user-cust (make-custodian (current-custodian)))
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
   (define ch (make-channel))
@@ -39,18 +36,19 @@
        [compile-enforce-module-constants #f]
        [compile-context-preservation-enabled #t]
        [current-load-relative-directory load-dir])
-    ;; This will be called from another thread -- either a plain
+    ;; repl-thunk will be called from another thread -- either a plain
     ;; thread when racket/gui/base is not (yet) instantiated, or, from
     ;; (event-handler-thread (current-eventspace)).
     (define (repl-thunk)
-      (when (and path (module-path? path))
-        (dynamic-require path 0)
-        (current-namespace (module->namespace path)))
-      (parameterize
-          ([current-prompt-read (make-prompt-read path)]
-           [error-display-handler our-error-display-handler]
-           [current-module-name-resolver repl-module-name-resolver])
-        (with-handlers ([void (lambda (x) (channel-put ch x))])
+      (with-handlers ([rerun?    (lambda (x) (channel-put ch x))]
+                      [load-gui? (lambda (x) (channel-put ch x))])
+        (when (and path (module-path? path))
+          (parameterize ([current-module-name-resolver repl-module-name-resolver])
+            (dynamic-require path 0))
+          (current-namespace (module->namespace path)))
+        (parameterize ([current-prompt-read (make-prompt-read path)]
+                       [error-display-handler our-error-display-handler]
+                       [current-module-name-resolver repl-module-name-resolver])
           (read-eval-print-loop))))
     ((txt/gui thread queue-callback) repl-thunk))
   ;; Wait for message to run again
@@ -89,9 +87,6 @@
          (dynamic-require 'racket/gui/base 'guisym)
          txtval)]))
 
-;; This just to catch (require racket/gui/base) -- directly or
-;; transitively -- at the REPL prompt. Currently we don't handle that,
-;; so error.
 (define repl-module-name-resolver
   (let ([orig-resolver (current-module-name-resolver)])
     (case-lambda
@@ -100,6 +95,7 @@
       [(mp rmp stx load?)
        (unless root-eventspace
          (when (and (eq? mp 'racket/gui/base) load?)
+           (displayln "raise")
            (raise (load-gui))))
        (orig-resolver mp rmp stx load?)])))
 
