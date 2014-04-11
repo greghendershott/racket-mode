@@ -1,22 +1,12 @@
 #lang racket/base
 
-;; Provide `,run` -- which unlike XREPL's `,enter` -- is closer to
-;; DrRacket's Run (F5) command: It completely resets the REPL.
-
-;; Unfortunately this supersedes XREPL and all its handy features. It
-;; would be preferable to add this to XREPL. But I'm not sure how to
-;; juggle the sandbox approach with what XREPL does, and, I'm not sure
-;; if this would be welcome in XREPL. So for now, do this as its own
-;; thing.
+;; In this version, always require racket/gui/base
+;; Just to get it working pumping main message loop.
 ;;
-;; In case it turns out to remain its own thing, I did duplicate
-;; _some_ XREPL functionality -- the ,log command. I also make it work
-;; with loggers created by 5.3.2's `define-logger` (which is a pull
-;; request I did awhile ago that hasn't yet been accepted for XREPL).
+;; From there, work back to on-demand load of r/g/b, if possible.
 
 (require (for-syntax racket/base
                      syntax/parse)
-         racket/sandbox
          racket/match
          racket/format
          racket/string
@@ -24,55 +14,43 @@
          racket/pretty
          racket/runtime-path
          syntax/srcloc
+         racket/gui/base
          "defn.rkt")
 
-(define (run-file path-str)
-  (display (banner))
-  (let loop ([path-str path-str])
-    (define next (do-run path-str))
-    (unless (eq? next 'exit)
-      (newline)
-      (loop next))))
+(module+ main
+  (run #f))
 
-(struct run-new-sandbox (path)) ;(or/c #f path-string?)
+;; The REPL user thread can put (or/c #f path-string?) to this
+;; channel. The main thread will then custodian-shutdown-all the user
+;; program resources, and run a new REPL.
+(define rerun-ch (make-channel))
 
-;; do-run :: (or/c #f path-string?) -> (or/c #f path-string? 'exit)
-;;
-;; Takes a path-string? for a .rkt file, or #f meaning top-level #lang
-;; racket.
-;;
-;; Returns similar path-string? or #f if REPL should be
-;; restarted, else 'exit if we should simply exit.
-(define (do-run path-str)
+;; (or/c #f path-string?)
+(define (run path-str)
   (define-values (path load-dir) (path-string->path&load-dir path-str))
-  (call-with-trusted-sandbox-configuration
-   (lambda ()
-     ;; Need to set some parameters so they're in effect _before_
-     ;; creating the sandboxed evaluator. Note that using
-     ;; `call-with-trusted-sandbox-configuration` above sets a number
-     ;; of parameters to be permissive (e.g. `sandbox-memory-limit`,
-     ;; `sandbox-eval-limits`, and `sandbox-security-guard`) so we
-     ;; don't need to set them here.
-     (parameterize ([sandbox-input (current-input-port)]
-                    [sandbox-output (current-output-port)]
-                    [sandbox-error-output (current-error-port)]
-                    [sandbox-propagate-exceptions #f]
-                    [compile-enforce-module-constants #f]
-                    [compile-context-preservation-enabled #t]
-                    [current-load-relative-directory load-dir]
-                    [current-prompt-read (make-prompt-read path)]
-                    [error-display-handler our-error-display-handler])
-       (match (make-eval path)
-         [(and x (or #f 'exit)) x]
-         [e (parameterize ([current-eval e])
-              (with-handlers
-                  ([exn:fail:sandbox-terminated? (lambda (exn)
-                                                   (display-exn exn)
-                                                   'exit)]
-                   [run-new-sandbox? (lambda (b)
-                                       (kill-evaluator (current-eval))
-                                       (run-new-sandbox-path b))])
-                (our-read-eval-print-loop)))])))))
+  (define main-cust (current-custodian))
+  (define user-cust (make-custodian (current-custodian)))
+  (parameterize*
+      ([current-custodian user-cust]
+       [current-namespace (make-gui-namespace)]
+       [current-eventspace (make-eventspace)] ;after current-eventspace
+       [compile-enforce-module-constants #f]
+       [compile-context-preservation-enabled #t]
+       [current-load-relative-directory load-dir])
+    (queue-callback
+     ;; Called on (eventspace-handler-thread (current-eventspace))
+     (lambda ()
+       (when (and path (module-path? path))
+         (dynamic-require path 0)
+         (current-namespace (module->namespace path)))
+       (parameterize
+           ([current-prompt-read (make-prompt-read path)]
+            [error-display-handler our-error-display-handler])
+         (read-eval-print-loop)))))
+  (define next (channel-get rerun-ch))
+  (custodian-shutdown-all user-cust)
+  (newline)
+  (run next))
 
 ;; path-string? -> (values (or/c #f path?) path?)
 (define (path-string->path&load-dir path-str)
@@ -96,35 +74,6 @@
     (cond [(file-exists? path) path]
           [else (not-found (path->string path))])))
 
-;; Eval something in sandbox evaluator namespace
-(define-syntax (with-sandbox stx)
-  (syntax-parse stx
-    [(_ e:expr ...+)
-     #'(call-in-sandbox-context (current-eval) (lambda () e ...))]))
-
-;; (or/c #f path-string?) -> (or/c #f 'exit evaluator?)
-(define (make-eval path)
-  ;; Make a module evaluator if non-#f path, else plain
-  ;; evaluator.  If exn:fail? creating a module evaluator --
-  ;; e.g. it had a syntax error -- return #f saying to try again
-  ;; making a plain evaluator. But if exn:fail? creating a plain
-  ;; evaluator, return 'exit meaning give up.
-  (with-handlers ([exn:fail? (lambda (exn)
-                               (display-exn exn)
-                               (cond [path #f]
-                                     [else 'exit]))])
-    (cond [path (make-module-evaluator path)]
-          [else (make-evaluator 'racket)])))
-
-(define orig-resolver (current-module-name-resolver))
-(current-module-name-resolver
- (case-lambda
-   [(rmp ns) (orig-resolver rmp ns)]
-   [(mp rmp stx load?)
-    (when (and (eq? mp 'racket/gui/base) load?)
-      (error 'racket-mode-repl "Not compatible with racket/gui/base."))
-   (orig-resolver mp rmp stx load?)]))
-
 (define (make-prompt-read path)
   (define-values (base name dir?) (cond [path (split-path path)]
                                         [else (values "" "" #f)]))
@@ -141,8 +90,8 @@
           [(uq cmd)
            (eq? 'unquote (syntax-e #'uq))
            (case (syntax-e #'cmd)
-             [(run) (raise (run-new-sandbox (~a (read))))]
-             [(top) (raise (run-new-sandbox #f))]
+             [(run) (channel-put rerun-ch (~a (read)))]
+             [(top) (channel-put rerun-ch #f)]
              [(def) (def (read))]
              [(doc) (doc (read-line))]
              [(exp) (exp1)]
@@ -151,37 +100,9 @@
              [(log) (log-display (map string->symbol (string-split (read-line))))]
              [(pwd) (display-commented (~v (current-directory)))]
              [(cd) (cd (~a (read)))]
+             [(ex) eof]
              [else stx])]
           [_ stx])))))
-
-;; This is almost exactly like Racket's read-eval-print-loop except it
-;; does NOT cons #%top-interaction to the read form. Because the
-;; racket/sandbox evaluator will do that. (If we did it twice, we'd
-;; get double output, e.g. from Typed Racket printing the types
-;; twice.)
-(define (our-read-eval-print-loop)
-  (let repl-loop ()
-    ;; This prompt catches all error escapes, including from read and print.
-    (call-with-continuation-prompt
-     ;; 1. proc
-     (lambda ()
-       (let ([v ((current-prompt-read))])
-         (unless (eof-object? v)
-           (call-with-values
-               (lambda ()
-                 ;; This prompt catches escapes during evaluation.
-                 ;; Unlike the outer prompt, the handler prints
-                 ;; the results.
-                 (call-with-continuation-prompt
-                  (lambda ()
-                    ((current-eval) v)))) ;just plain v, no #%top-interaction
-             (lambda results (for-each (current-print) results)))
-           ;; Abort to loop. Calling `repl-loop' directly wouldn't be tail call.
-           (abort-current-continuation (default-continuation-prompt-tag)))))
-     ;; 2. prompt-tag
-     (default-continuation-prompt-tag)
-     ;; 3. handler
-     (lambda args (repl-loop)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -333,12 +254,12 @@
 (define last-stx #f)
 
 (define (exp1)
-  (set! last-stx (with-sandbox (expand-once (read))))
+  (set! last-stx (expand-once (read)))
   (pp-stx last-stx))
 
 (define (exp+)
   (when last-stx
-    (define this-stx (with-sandbox (expand-once last-stx)))
+    (define this-stx (expand-once last-stx))
     (cond [(equal? (syntax->datum last-stx) (syntax->datum this-stx))
            (display-commented "Already fully expanded.")
            (set! last-stx #f)]
@@ -348,7 +269,7 @@
 
 (define (exp!)
   (set! last-stx #f)
-  (with-sandbox (pp-stx (expand (read)))))
+  (pp-stx (expand (read))))
 
 (define (pp-stx stx)
   (newline)
@@ -357,8 +278,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
 (define (def sym)
-  (with-sandbox
-   (display-definition (symbol->string sym))))
+  (display-definition (symbol->string sym)))
 
 (define (doc str)
   (eval `(begin
@@ -373,8 +293,3 @@
       (display-commented (format "~v doesn't exist." (current-directory)))
       (current-directory old-wd))
     (display-commented (format "In ~v" (current-directory)))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-(module+ main
-  (run-file #f))
