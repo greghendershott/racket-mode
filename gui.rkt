@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require "error.rkt")
+(require "util.rkt")
 
 (provide gui-required?
          require-gui

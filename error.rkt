@@ -3,11 +3,11 @@
 (require racket/match
          racket/runtime-path
          racket/string
-         syntax/srcloc)
+         syntax/srcloc
+         "util.rkt")
 
 (provide our-error-display-handler
-         display-exn
-         display-commented)
+         display-exn)
 
 (define (our-error-display-handler str exn)
   (when (exn? exn)
@@ -73,8 +73,3 @@
 
 (define (display-exn exn)
   (our-error-display-handler (exn-message exn) exn))
-
-(define (display-commented str)
-  (eprintf "; ~a\n"
-           (regexp-replace* "\n" str "\n; ")))
-
