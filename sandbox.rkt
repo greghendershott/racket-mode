@@ -1,7 +1,6 @@
 #lang racket/base
 
-(require (for-syntax racket/base
-                     syntax/parse)
+(require (for-syntax syntax/parse)
          racket/match
          racket/format
          racket/string
@@ -42,8 +41,8 @@
                        [error-display-handler our-error-display-handler]
                        [current-module-name-resolver repl-module-name-resolver])
           (read-eval-print-loop))))
-    ;; Run repl-thunk on a plain thread, or, on the user eventspace
-    ;; thread via queue-callback.
+    ;; Main thread: Run repl-thunk on a plain thread, or, on the user
+    ;; eventspace thread via queue-callback.
     ((txt/gui thread queue-callback) repl-thunk))
   ;; Main thread: Wait for message from REPL thread.
   (define msg (channel-get ch))
