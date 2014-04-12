@@ -32,15 +32,25 @@
     ;; (event-handler-thread (current-eventspace)).
     (define (repl-thunk)
       (with-handlers ([rerun?    (lambda (x) (channel-put ch x))]
-                      [load-gui? (lambda (x) (channel-put ch x))])
+                      [load-gui? (lambda (x) (channel-put ch x))]
+                      ;; exn:fail during module load: Restart blank
+                      [exn:fail? (lambda (exn)
+                                   (display-exn exn)
+                                   (channel-put ch (rerun #f)))])
         (when (and path (module-path? path))
           (parameterize ([current-module-name-resolver repl-module-name-resolver])
-            (dynamic-require path 0))
-          (current-namespace (module->namespace path)))
+            (dynamic-require path 0)
+            (current-namespace (module->namespace path))))
         (parameterize ([current-prompt-read (make-prompt-read path)]
                        [error-display-handler our-error-display-handler]
                        [current-module-name-resolver repl-module-name-resolver])
-          (read-eval-print-loop))))
+          ;; exn:fail during read-eval-print-loop: just keep going
+          ;; Note: I'm a little confused because read-eval-print-loop
+          ;; source seems to set a continuation prompt that should
+          ;; catch this...but I seem to need the with-handlers here.
+          (let repl ()
+            (with-handlers ([exn:fail? (lambda (exn) (display-exn exn) (repl))])
+              (read-eval-print-loop))))))
     ;; Main thread: Run repl-thunk on a plain thread, or, on the user
     ;; eventspace thread via queue-callback.
     ((txt/gui thread queue-callback) repl-thunk))
