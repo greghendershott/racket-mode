@@ -1,10 +1,5 @@
 #lang racket/base
 
-;; In this version, always require racket/gui/base
-;; Just to get it working pumping main message loop.
-;;
-;; From there, work back to on-demand load of r/g/b, if possible.
-
 (require (for-syntax racket/base
                      syntax/parse)
          racket/match
@@ -20,11 +15,8 @@
   (display (banner))
   (run #f))
 
-(define main-cust (current-custodian))
-
 ;; (or/c #f path-string?)
 (define (run path-str)
-  (printf "run ~a\n" path-str)
   (define-values (path load-dir) (path-string->path&load-dir path-str))
   (define user-cust (make-custodian (current-custodian)))
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
@@ -50,34 +42,35 @@
                        [error-display-handler our-error-display-handler]
                        [current-module-name-resolver repl-module-name-resolver])
           (read-eval-print-loop))))
+    ;; Run repl-thunk on a plain thread, or, on the user eventspace
+    ;; thread via queue-callback.
     ((txt/gui thread queue-callback) repl-thunk))
-  ;; Wait for message to run again
+  ;; Main thread: Wait for message from REPL thread.
   (define msg (channel-get ch))
   (custodian-shutdown-all user-cust)
   (newline)
   (match msg
-    [(rerun p) (run p)]
+    [(rerun p)  (run p)]
     [(load-gui) (require-racket/gui/base) (run path-str)]))
 
 (struct rerun (path)) ;(or/c #f path-string?)
 (struct load-gui ())
 
-;; This is #f until racket/gui/base is required the first time
-(define root-eventspace #f)
+(define root-eventspace #f) ;#f until racket/gui/base required first time
 
 (define (repl-gui-available?)
   (not (not root-eventspace)))
 
+;; This must be called from the main thread, under the main custodian!
 (define (require-racket/gui/base)
   (unless root-eventspace
-    (displayln "on-demand one-time instantiation of racket/gui/base")
-    (parameterize ([current-custodian main-cust])
-      (define current-eventspace (dynamic-require 'racket/gui/base
-                                                  'current-eventspace))
-      (define make-eventspace    (dynamic-require 'racket/gui/base
-                                                  'make-eventspace))
-      (set! root-eventspace (make-eventspace))
-      (current-eventspace root-eventspace))))
+    (display-commented "on-demand one-time instantiation of racket/gui/base")
+    (define current-eventspace (dynamic-require 'racket/gui/base
+                                                'current-eventspace))
+    (define make-eventspace    (dynamic-require 'racket/gui/base
+                                                'make-eventspace))
+    (set! root-eventspace (make-eventspace))
+    (current-eventspace root-eventspace)))
 
 ;; Like mz/mr from racket/sandbox.
 (define-syntax txt/gui
@@ -95,7 +88,6 @@
       [(mp rmp stx load?)
        (unless root-eventspace
          (when (and (eq? mp 'racket/gui/base) load?)
-           (displayln "raise")
            (raise (load-gui))))
        (orig-resolver mp rmp stx load?)])))
 
