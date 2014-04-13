@@ -31,11 +31,10 @@
     ;; thread when racket/gui/base is not (yet) instantiated, or, from
     ;; (event-handler-thread (current-eventspace)).
     (define (repl-thunk)
-      (with-handlers ([rerun?    (lambda (x) (channel-put ch x))]
-                      [load-gui? (lambda (x) (channel-put ch x))]
-                      ;; exn:fail during module load: Restart blank
+      (with-handlers ([msg?      (lambda (x) (channel-put ch x))]
                       [exn:fail? (lambda (exn)
                                    (display-exn exn)
+                                   ;; exn:fail during module load => re-run
                                    (channel-put ch (rerun #f)))])
         (when (and path (module-path? path))
           (parameterize ([current-module-name-resolver repl-module-name-resolver])
@@ -44,10 +43,7 @@
         (parameterize ([current-prompt-read (make-prompt-read path)]
                        [error-display-handler our-error-display-handler]
                        [current-module-name-resolver repl-module-name-resolver])
-          ;; exn:fail during read-eval-print-loop: just keep going
-          ;; Note: I'm a little confused because read-eval-print-loop
-          ;; source seems to set a continuation prompt that should
-          ;; catch this...but I seem to need the with-handlers here.
+          ;; exn:fail during read-eval-print-loop => more r-e-p-l
           (let repl ()
             (with-handlers ([exn:fail? (lambda (exn) (display-exn exn) (repl))])
               (read-eval-print-loop))))))
@@ -62,8 +58,10 @@
     [(rerun p)  (run p)]
     [(load-gui) (require-gui) (run path-str)]))
 
-(struct rerun (path)) ;(or/c #f path-string?)
-(struct load-gui ())
+;; Messages via the channel from the repl thread to the main thread.
+(struct msg ())
+(struct rerun msg (path)) ;(or/c #f path-string?)
+(struct load-gui msg ())
 
 (define repl-module-name-resolver
   (let ([orig-resolver (current-module-name-resolver)])
