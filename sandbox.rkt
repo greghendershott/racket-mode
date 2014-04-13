@@ -17,12 +17,18 @@
 ;; (or/c #f path-string?)
 (define (run path-str)
   (define-values (path load-dir) (path-string->path&load-dir path-str))
-  (define user-cust (make-custodian (current-custodian)))
+  ;; Custodian for the user REPL.
+  (define user-cust (make-custodian))
+  ;; If racket/gui/base isn't loaded, the current-eventspace parameter
+  ;; doesn't exist, so make a "dummy" parameter of that name.
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
   (parameterize*
       ([current-custodian user-cust]
+       ;; Use parameterize* so that this value...
        [current-namespace ((txt/gui make-base-namespace make-gui-namespace))]
+       ;; ...is in effect when setting this:
        [current-eventspace ((txt/gui void make-eventspace))]
+       [error-display-handler our-error-display-handler]
        [compile-enforce-module-constants #f]
        [compile-context-preservation-enabled #t]
        [current-load-relative-directory load-dir])
@@ -30,21 +36,20 @@
     ;; thread when racket/gui/base is not (yet) instantiated, or, from
     ;; (event-handler-thread (current-eventspace)).
     (define (repl-thunk)
-      (with-handlers ([;; exn:fail during module load => re-run
-                       exn:fail? (λ (exn)
-                                   (display-exn exn)
-                                   (channel-put ch (rerun #f)))])
-        (when (and path (module-path? path))
-          (parameterize ([current-module-name-resolver repl-module-name-resolver])
-            (dynamic-require path 0)
-            (current-namespace (module->namespace path))))
-        (parameterize ([current-prompt-read (make-prompt-read path)]
-                       [error-display-handler our-error-display-handler]
-                       [current-module-name-resolver repl-module-name-resolver])
-          ;; exn:fail during read-eval-print-loop => more cowbell
-          (let repl ()
-            (with-handlers ([exn:fail? (λ (exn) (display-exn exn) (repl))])
-              (read-eval-print-loop))))))
+      ;; 1. If module, require it and enter its namespace
+      (when (and path (module-path? path))
+        (parameterize ([current-module-name-resolver repl-module-name-resolver])
+          ;; exn:fail during module load => re-run
+          (with-handlers ([exn:fail? (λ (x) (display-exn x) (put/stop (rerun #f)))])
+            (dynamic-require path 0))
+          (current-namespace (module->namespace path))))
+      ;; 2. read-eval-print-loop
+      (parameterize ([current-prompt-read (make-prompt-read path)]
+                     [current-module-name-resolver repl-module-name-resolver])
+        ;; exn:fail during read-eval-print-loop => more cowbell
+        (let repl ()
+          (with-handlers ([exn:fail? (λ (exn) (display-exn exn) (repl))])
+            (read-eval-print-loop)))))
     ;; Main thread: Run repl-thunk on a plain thread, or, on the user
     ;; eventspace thread via queue-callback.
     ((txt/gui thread queue-callback) repl-thunk))
@@ -62,11 +67,11 @@
 (struct load-gui ())
 
 ;; To be called from REPL thread. Puts message for the main thread
-;; to the channel, and does a break-thread (i.e. exit the thread with
-;; a return value).
-(define (put/break v) ;; any/c -> any
+;; to the channel, and blocks itself; main thread will kill the child thread.
+;; Net effect: "Exit the thread with a return value".
+(define (put/stop v) ;; any/c -> any
   (channel-put ch v)
-  (break-thread (current-thread)))
+  (sync never-evt))
 
 (define repl-module-name-resolver
   (let ([orig-resolver (current-module-name-resolver)])
@@ -76,7 +81,7 @@
       [(mp rmp stx load?)
        (when (and (eq? mp 'racket/gui/base) load?)
          (unless (gui-required?)
-           (put/break (load-gui))))
+           (put/stop (load-gui))))
        (orig-resolver mp rmp stx load?)])))
 
 ;; path-string? -> (values (or/c #f path?) path?)
@@ -117,8 +122,8 @@
           [(uq cmd)
            (eq? 'unquote (syntax-e #'uq))
            (case (syntax-e #'cmd)
-             [(run) (put/break (rerun (~a (read))))]
-             [(top) (put/break (rerun #f))]
+             [(run) (put/stop (rerun (~a (read))))]
+             [(top) (put/stop (rerun #f))]
              [(def) (def (read))]
              [(doc) (doc (read-line))]
              [(exp) (exp1)]
