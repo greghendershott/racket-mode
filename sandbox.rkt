@@ -56,19 +56,16 @@
     [(rerun p)  (run p)]
     [(load-gui) (require-gui) (run path-str)]))
 
-
-(define ch (make-channel))
-
 ;; Messages via the channel from the repl thread to the main thread.
-(struct msg ())
-(struct rerun msg (path)) ;(or/c #f path-string?)
-(struct load-gui msg ())
+(define ch (make-channel))
+(struct rerun (path)) ;(or/c #f path-string?)
+(struct load-gui ())
 
 ;; To be called from REPL thread. Puts message for the main thread
 ;; to the channel, and does a break-thread (i.e. exit the thread with
 ;; a return value).
-(define (put/break msg) ;; msg? -> any
-  (channel-put ch msg)
+(define (put/break v) ;; any/c -> any
+  (channel-put ch v)
   (break-thread (current-thread)))
 
 (define repl-module-name-resolver
