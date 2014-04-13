@@ -667,7 +667,7 @@ doesn't hurt to do so."
   "Save and evaluate the buffer in REPL, like DrRacket's Run."
   (interactive)
   (save-buffer)
-  (racket--eval (format ",run \"%s\"\n" (buffer-file-name))))
+  (racket--eval (format ",run %s\n" (buffer-file-name))))
 
 (defun racket-racket ()
   "Do `racket <file>` in *shell* buffer."
