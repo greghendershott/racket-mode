@@ -66,13 +66,14 @@
 (struct rerun (path)) ;(or/c #f path-string?)
 (struct load-gui ())
 
-;; To be called from REPL thread. Puts message for the main thread
-;; to the channel, and blocks itself; main thread will kill the child thread.
-;; Net effect: "Exit the thread with a return value".
+;; To be called from REPL thread. Puts message for the main thread to
+;; the channel, and blocks itself; main thread will kill the REPL
+;; thread. Net effect: "Exit the thread with a return value".
 (define (put/stop v) ;; any/c -> any
   (channel-put ch v)
   (sync never-evt))
 
+;; Catch attempt to load racket/gui/base for the first time.
 (define repl-module-name-resolver
   (let ([orig-resolver (current-module-name-resolver)])
     (case-lambda
