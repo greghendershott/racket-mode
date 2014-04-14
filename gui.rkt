@@ -14,7 +14,7 @@
 ;; This must be called from the main thread, under the main custodian!
 (define (require-gui)
   (when (gui-required?)
-    (error 'reuire-gui "Already required"))
+    (error 'require-gui "Already required"))
   (display-commented "on-demand one-time instantiation of racket/gui/base")
   (define current-eventspace (gui-dyn-req 'current-eventspace))
   (define make-eventspace    (gui-dyn-req 'make-eventspace))
