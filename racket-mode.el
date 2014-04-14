@@ -52,7 +52,7 @@ http://www.gnu.org/licenses/ for details.")
   "A mode for Racket"
   :prefix "racket-"
   :group 'languages
-  :link '(url-link :tag "GitHub" "https://github.com/greghendershott/racket-mode")
+  :link '(url-link :tag "README on GitHub" "https://github.com/greghendershott/racket-mode/blob/master/README.md")
   :link '(emacs-commentary-link :tag "Commentary" "racket-mode"))
 
 (defun racket--variables-for-both-modes ()
@@ -193,7 +193,8 @@ http://www.gnu.org/licenses/ for details.")
 ;; Indentation
 
 (defcustom racket-mode-rackjure-indent t
-  "Indent {} as in Clojure"
+  "Indent {} for #lang rackjure dictionaries?"
+  :tag "{} indentation style"
   :type 'boolean
   :group 'racket
   :safe 'booleanp)
@@ -459,13 +460,15 @@ doesn't hurt to do so."
     (((background light))
      (:foreground "Red3")))
   "Face for #:keyword arguments."
+  :tag "Keyword argument face"
   :group 'racket)
 
 (defconst racket-selfeval-face 'racket-selfeval-face)
 (defface racket-selfeval-face
   '((t
      (:foreground "SeaGreen")))
-  "Face for self-evaluating expressions."
+  "Face for self-evaluating expressions like numbers, symbols, strings."
+  :tag "Self-eval face"
   :group 'racket)
 
 (defconst racket-paren-face 'racket-paren-face)
@@ -473,6 +476,7 @@ doesn't hurt to do so."
   (let ((fg (face-foreground 'default)))
     `((t (:foreground ,fg))))
   "Face for parentheses () [] {}."
+  :tag "Paren face"
   :group 'racket)
 
 (defconst racket-font-lock-keywords
@@ -895,6 +899,7 @@ when there is no symbol-at-point or prefix is true."
 (defcustom racket-repl-filter-regexp "\\`\\s *\\S ?\\S ?\\s *\\'"
   "Input matching this regexp are not saved on the history list.
 Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
+  :tag "History filter regexp"
   :type 'regexp
   :group 'racket)
 
@@ -1016,12 +1021,14 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   "Path to sandbox.rkt")
 
 (defcustom racket-program "racket"
-  "/path/to/racket."
+  "Pathname of the racket executable."
+  :tag "/path/to/racket"
   :type '(file :must-match t)
   :group 'racket)
 
 (defcustom raco-program "raco"
-  "/path/to/raco."
+  "Pathname of the raco executable."
+  :tag "/path/to/raco"
   :type '(file :must-match t)
   :group 'racket)
 
