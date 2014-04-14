@@ -9,10 +9,10 @@ major mode for a Racket REPL. The edit/run experience is similar to
   - Omit stuff for various current and historical Schemes that's N/A
     for Racket.
 
-- Use DrRacket concepts where applicable.
+- Use [DrRacket] concepts where applicable.
   - A simple and obvious way to "run" a file: _Run_ <kbd>F5</kbd>.
   - Allow interaction in the REPL, but the effect is wiped on the next
-    _Run_ (in contrast to using `enter!`).
+    _Run_ (in contrast to using [`enter!`]).
   - A simple way to run unit tests (to run the `test` submodule).
 
 - More thorough syntax highlighting ("font-lock"):
@@ -41,8 +41,8 @@ major mode for a Racket REPL. The edit/run experience is similar to
     > model that Geiser uses.
 
 - Although I dogfood this -- use it constantly to code Racket -- it is
-  alpha, or at best beta, quality. My total experience writing Emacs
-  modes consists of writing this mode.
+  beta, quality. My total experience writing Emacs modes consists of
+  writing this mode.
 
 - Someone else proposed adding this to MELPA. Although I didn't
   object, and I've accepted pull requests to facilitate that, I wasn't
@@ -71,9 +71,11 @@ When a racket-mode window is active, type <kbd>M-x
 customize-mode</kbd> (or choose **Customize** from the **Racket**
 menu).
 
-Set **Racket Program** to be the pathname of the `racket` executable.
+- Set **Racket Program** to be the pathname of the `racket` executable.
 
-That is the only required configuration.
+- Set **Raco Program** to be the pathname of the `raco` executable.
+
+That's the only required configuration.
 
 If you wish, you can customize the other settings here. For example,
 in addition to the usual font-lock faces, racket-mode defines a few
@@ -110,12 +112,11 @@ A few notes:
 - Assume you have `foo.rkt` as your current buffer. **racket-run**
   <kbd>F5</kbd> evaluates `foo.rkt`.  After which, you can use the
   `*Racket REPL*` buffer to inspect or experiment with the
-  result. However when you use <kbd>F5</kbd> again, `foo.rkt` is
-  evaluated from scratch -- the custodian releases resources like
-  threads and the evaluation environment is reset to the contents of
-  `foo.rkt`. In other words, like [DrRacket], this provides the
-  predictability of a "static" baseline, plus some interactive
-  exploration.
+  result. When you use <kbd>F5</kbd> again, `foo.rkt` is evaluated
+  from scratch -- the custodian releases resources like threads and
+  the evaluation environment is reset to the contents of `foo.rkt`. In
+  other words, like [DrRacket], this provides the predictability of a
+  "static" baseline, plus some interactive exploration.
 
 - **racket-test** <kbd>C-F5</kbd> runs the `test` submodule
   (consisting of one or more `(module+ test ...)` forms in the current
@@ -162,7 +163,7 @@ A few notes:
   sometimes want to "hide the clutter". In addition, see the
   **Hide/Show** menu for more-selective operations.
 
-- In the `*Racket REPL*` bufer you can issue some special
+- In the `*Racket REPL*` buffer you can issue some special
   commands. Some of them are the foundation for Emacs commands. Others
   are available only as a command in the REPL.
 
@@ -235,6 +236,7 @@ from alpha to beta quality.
 
 [Racket]: http://www.racket-lang.org/
 [DrRacket]: http://docs.racket-lang.org/drracket/
+[`enter!`]: http://docs.racket-lang.org/reference/interactive.html
 [Geiser]: http://www.nongnu.org/geiser/
 [Quack]: http://www.neilvandyke.org/quack/
 [issues]: https://www.github.com/greghendershott/racket-mode/issues
