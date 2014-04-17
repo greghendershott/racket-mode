@@ -11,6 +11,9 @@
          "util.rkt")
 
 (module+ main
+  ;; Emacs on Windows comint-mode needs buffering disabled
+  (when (eq? (system-type 'os) 'windows)
+    (file-stream-buffer-mode (current-output-port) 'none))
   (display (banner))
   (run #f))
 
