@@ -19,7 +19,11 @@
 
 ;; (or/c #f path-string?)
 (define (run path-str)
-  (define-values (path load-dir) (path-string->path&load-dir path-str))
+  (define-values (path dir) (path-string->path&dir path-str))
+  ;; Always set current-directory etc. to match the source file.
+  (current-directory dir)
+  (current-directory-for-user dir)
+  (current-load-relative-directory dir)
   ;; Custodian for the user REPL.
   (define user-cust (make-custodian))
   ;; If racket/gui/base isn't loaded, the current-eventspace parameter
@@ -33,8 +37,7 @@
        [current-eventspace ((txt/gui void make-eventspace))]
        [error-display-handler our-error-display-handler]
        [compile-enforce-module-constants #f]
-       [compile-context-preservation-enabled #t]
-       [current-load-relative-directory load-dir])
+       [compile-context-preservation-enabled #t])
     ;; repl-thunk will be called from another thread -- either a plain
     ;; thread when racket/gui/base is not (yet) instantiated, or, from
     ;; (event-handler-thread (current-eventspace)).
@@ -89,16 +92,16 @@
        (orig-resolver mp rmp stx load?)])))
 
 ;; path-string? -> (values (or/c #f path?) path?)
-(define (path-string->path&load-dir path-str)
+(define (path-string->path&dir path-str)
   (define path (and path-str
                     (not (equal? path-str ""))
                     (string? path-str)
                     (path-str->existing-file-path path-str)))
-  (define load-dir (cond [path (define-values (base _ __) (split-path path))
-                               (cond [(eq? base 'relative) (current-directory)]
-                                     [else base])]
-                         [else (current-directory)]))
-  (values path load-dir))
+  (define dir (cond [path (define-values (base _ __) (split-path path))
+                          (cond [(eq? base 'relative) (current-directory)]
+                                [else base])]
+                    [else (current-directory)]))
+  (values path dir))
 
 ;; path-string? -> (or/c #f path?)
 (define (path-str->existing-file-path path-str)
