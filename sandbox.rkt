@@ -47,8 +47,26 @@
         (parameterize ([current-module-name-resolver repl-module-name-resolver])
           ;; exn:fail during module load => re-run
           (with-handlers ([exn:fail? (λ (x) (display-exn x) (put/stop (rerun #f)))])
-            (dynamic-require path 0))
-          (current-namespace (module->namespace path))))
+            ;; Load language-info (if any) and do configure-runtime.
+            ;; Important for langs like Typed Racket.
+            (define info (module->language-info path #t))
+            (when info
+              (define get-info ((dynamic-require (vector-ref info 0)
+                                                 (vector-ref info 1))
+                                (vector-ref info 2)))
+              (define configs (get-info 'configure-runtime '()))
+              (for ([config (in-list configs)])
+                ((dynamic-require (vector-ref config 0)
+                                  (vector-ref config 1))
+                 (vector-ref config 2)))
+              (define cr-submod `(submod ,path configure-runtime))
+              (when (module-declared? cr-submod)
+                (dynamic-require cr-submod #f)))
+            (namespace-require path)
+            (current-namespace (module->namespace path))
+            ;; Check that the lang defines #%top-interaction
+            (unless (memq '#%top-interaction (namespace-mapped-symbols))
+              (error 'run "lang doesn't support a REPL (no #%top-interaction)")))))
       ;; 2. read-eval-print-loop
       (parameterize ([current-prompt-read (make-prompt-read path)]
                      [current-module-name-resolver repl-module-name-resolver])
