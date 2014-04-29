@@ -43,7 +43,7 @@
                  (context-item->string x))
                "\n"))
 
-(define-runtime-path sandbox.rkt ".")
+(define-runtime-path sandbox.rkt "sandbox.rkt")
 (define (system-context? ci)
   (match-define (cons id src) ci)
   (or (not src)
