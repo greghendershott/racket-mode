@@ -20,11 +20,11 @@
 (define (display-srclocs exn)
   (when (exn:srclocs? exn)
     (let* ([srclocs ((exn:srclocs-accessor exn) exn)]
-           ;; Some exns' first srcloc is already in exn-message; skip it
            [srclocs (cond [(or (exn:fail:read? exn)
-                               (exn:fail:syntax? exn)
                                (exn:fail:contract:variable? exn))
-                           (cdr srclocs)]
+                           (cdr srclocs)] ;1st one already in exn-message
+                          [(exn:fail:syntax? exn)
+                           '()] ;all in exn-message, e.g. Typed Racket
                           [else srclocs])])
       (for ([srcloc srclocs])
         (display-commented (source-location->string srcloc))))))
