@@ -54,7 +54,7 @@
 
 (define (under-system-path? path)
   (define excluded-collections
-    '("typed/racket" "racket/sandbox" "racket/contract" "racket/private"))
+    '("typed/racket" "racket/contract" "racket/private"))
   (define-values (dir base _) (split-path path))
   (not (not (for/or ([collection (in-list excluded-collections)])
               (collection-file-path base collection #:fail (lambda _ #f))))))
