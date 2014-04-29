@@ -20,10 +20,13 @@
 ;; (or/c #f path-string?)
 (define (run path-str)
   (define-values (path dir) (path-string->path&dir path-str))
-  ;; Always set current-directory etc. to match the source file.
+  ;; Always set current-directory and current-load-relative-directory
+  ;; to match the source file.
   (current-directory dir)
-  (current-directory-for-user dir)
   (current-load-relative-directory dir)
+  ;; But set current-directory-for-user so that srcloc->string always
+  ;; provides full pathnames. 'pref-dir is least-worst way AFAIK.
+  (current-directory-for-user (find-system-path 'pref-dir))
   ;; Custodian for the user REPL.
   (define user-cust (make-custodian))
   ;; If racket/gui/base isn't loaded, the current-eventspace parameter
