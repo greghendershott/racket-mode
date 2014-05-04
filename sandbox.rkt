@@ -45,48 +45,54 @@
     ;; thread when racket/gui/base is not (yet) instantiated, or, from
     ;; (event-handler-thread (current-eventspace)).
     (define (repl-thunk)
-      ;; 1. If module, require it and enter its namespace
+      ;; 1. If module, load its lang info, require, and enter its namespace.
       (when (and path (module-path? path))
         (parameterize ([current-module-name-resolver repl-module-name-resolver])
-          ;; exn:fail during module load => re-run
-          (with-handlers ([exn:fail? (λ (x) (display-exn x) (put/stop (rerun #f)))])
-            ;; Load language-info (if any) and do configure-runtime.
-            ;; Important for langs like Typed Racket.
-            (define info (module->language-info path #t))
-            (when info
-              (define get-info ((dynamic-require (vector-ref info 0)
-                                                 (vector-ref info 1))
-                                (vector-ref info 2)))
-              (define configs (get-info 'configure-runtime '()))
-              (for ([config (in-list configs)])
-                ((dynamic-require (vector-ref config 0)
-                                  (vector-ref config 1))
-                 (vector-ref config 2)))
-              (define cr-submod `(submod ,path configure-runtime))
-              (when (module-declared? cr-submod)
-                (dynamic-require cr-submod #f)))
+          ;; exn:fail? during module load => re-run with "empty" module
+          (with-handlers ([exn? (λ (x) (display-exn x) (put/stop (rerun #f)))])
+            (maybe-load-language-info path)
             (namespace-require path)
             (current-namespace (module->namespace path))
-            ;; Check that the lang defines #%top-interaction
-            (unless (memq '#%top-interaction (namespace-mapped-symbols))
-              (error 'run "lang doesn't support a REPL (no #%top-interaction)")))))
+            (check-top-interaction))))
       ;; 2. read-eval-print-loop
       (parameterize ([current-prompt-read (make-prompt-read path)]
                      [current-module-name-resolver repl-module-name-resolver])
-        ;; exn:fail during read-eval-print-loop => more cowbell
-        (let repl ()
-          (with-handlers ([exn:fail? (λ (exn) (display-exn exn) (repl))])
-            (read-eval-print-loop)))))
+        ;; Note that read-eval-print-loop catches all non-break exceptions.
+        (read-eval-print-loop)))
     ;; Main thread: Run repl-thunk on a plain thread, or, on the user
     ;; eventspace thread via queue-callback.
     ((txt/gui thread queue-callback) repl-thunk))
-  ;; Main thread: Wait for message from REPL thread.
-  (define msg (channel-get ch))
+  ;; Main thread: Wait for message from REPL thread. Catch breaks.
+  (define msg (with-handlers ([exn:break? (lambda (exn) (display-exn exn) 'break)])
+                (channel-get ch)))
   (custodian-shutdown-all user-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match msg
+    ['break     (run #f)]
     [(rerun p)  (run p)]
     [(load-gui) (require-gui) (run path-str)]))
+
+(define (maybe-load-language-info path)
+  ;; Load language-info (if any) and do configure-runtime.
+  ;; Important for langs like Typed Racket.
+  (define info (module->language-info path #t))
+  (when info
+    (define get-info ((dynamic-require (vector-ref info 0)
+                                       (vector-ref info 1))
+                      (vector-ref info 2)))
+    (define configs (get-info 'configure-runtime '()))
+    (for ([config (in-list configs)])
+      ((dynamic-require (vector-ref config 0)
+                        (vector-ref config 1))
+       (vector-ref config 2)))
+    (define cr-submod `(submod ,path configure-runtime))
+    (when (module-declared? cr-submod)
+      (dynamic-require cr-submod #f))))
+
+(define (check-top-interaction)
+  ;; Check that the lang defines #%top-interaction
+  (unless (memq '#%top-interaction (namespace-mapped-symbols))
+    (error 'repl "The module's language provides no `#%top-interaction' and\ncannot be used in a REPL.")))
 
 ;; Messages via the channel from the repl thread to the main thread.
 (define ch (make-channel))
