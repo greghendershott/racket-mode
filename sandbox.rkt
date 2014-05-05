@@ -144,27 +144,23 @@
   (define-values (base name dir?) (cond [path (split-path path)]
                                         [else (values "" "" #f)]))
   (λ ()
-    (let loop ()
-      (display name) (display "> ")
-      (flush-output (current-error-port))
-      (with-handlers ([exn:fail? (λ (exn)
-                                   (display-exn exn)
-                                   (loop))])
-        (define in ((current-get-interaction-input-port)))
-        (define stx ((current-read-interaction) (object-name in) in))
-        (syntax-case stx ()
-          [(uq cmd)
-           (eq? 'unquote (syntax-e #'uq))
-           (case (syntax-e #'cmd)
-             [(run) (put/stop (rerun (~a (read))))]
-             [(top) (put/stop (rerun #f))]
-             [(def) (def (read))]
-             [(doc) (doc (read-line))]
-             [(exp) (exp1)]
-             [(exp+) (exp+)]
-             [(exp!) (exp!)]
-             [(log) (log-display (map string->symbol (string-split (read-line))))]
-             [(pwd) (display-commented (~v (current-directory)))]
-             [(cd) (cd (~a (read)))]
-             [else stx])]
-          [_ stx])))))
+    (flush-output (current-error-port))
+    (display name) (display "> ")
+    (define in ((current-get-interaction-input-port)))
+    (define stx ((current-read-interaction) (object-name in) in))
+    (syntax-case stx ()
+      [(uq cmd)
+       (eq? 'unquote (syntax-e #'uq))
+       (case (syntax-e #'cmd)
+         [(run) (put/stop (rerun (~a (read))))]
+         [(top) (put/stop (rerun #f))]
+         [(def) (def (read))]
+         [(doc) (doc (read-line))]
+         [(exp) (exp1)]
+         [(exp+) (exp+)]
+         [(exp!) (exp!)]
+         [(log) (log-display (map string->symbol (string-split (read-line))))]
+         [(pwd) (display-commented (~v (current-directory)))]
+         [(cd) (cd (~a (read)))]
+         [else stx])]
+      [_ stx])))
