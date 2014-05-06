@@ -49,4 +49,6 @@
 
 (define (pp-stx stx)
   (newline)
-  (pretty-print (syntax->datum stx)))
+  (pretty-print (syntax->datum stx)
+                (current-output-port)
+                1))
