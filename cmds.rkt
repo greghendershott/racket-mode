@@ -29,8 +29,8 @@
 
 (define last-stx #f)
 
-(define (exp1)
-  (set! last-stx (expand-once (read)))
+(define (exp1 stx)
+  (set! last-stx (expand-once stx))
   (pp-stx last-stx))
 
 (define (exp+)
@@ -43,9 +43,9 @@
            (pp-stx this-stx)
            (set! last-stx this-stx)])))
 
-(define (exp!)
+(define (exp! stx)
   (set! last-stx #f)
-  (pp-stx (expand (read))))
+  (pp-stx (expand stx)))
 
 (define (pp-stx stx)
   (newline)

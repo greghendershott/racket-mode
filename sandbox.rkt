@@ -156,11 +156,26 @@
          [(top) (put/stop (rerun #f))]
          [(def) (def (read))]
          [(doc) (doc (read-line))]
-         [(exp) (exp1)]
+         [(exp) (exp1 (read))]
          [(exp+) (exp+)]
-         [(exp!) (exp!)]
+         [(exp!) (exp! (read))]
          [(log) (log-display (map string->symbol (string-split (read-line))))]
          [(pwd) (display-commented (~v (current-directory)))]
          [(cd) (cd (~a (read)))]
-         [else stx])]
+         [else (usage)])]
       [_ stx])))
+
+(define (usage)
+  (displayln
+   "Commands:
+,run </path/to/file.rkt>
+,top
+,def <identifier>
+,doc <string>
+,exp <stx>
+,exp+
+,exp! <stx>
+,pwd
+,cd <path>
+,log <opts> ...")
+  (void))
