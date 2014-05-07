@@ -15,7 +15,8 @@
   (when (eq? (system-type 'os) 'windows)
     (file-stream-buffer-mode (current-output-port) 'none))
   (display (banner))
-  (run #f))
+  (parameterize ([error-display-handler our-error-display-handler])
+    (run #f)))
 
 ;; (or/c #f path-string?)
 (define (run path-str)
@@ -38,7 +39,6 @@
        [current-namespace ((txt/gui make-base-namespace make-gui-namespace))]
        ;; ...is in effect when setting this:
        [current-eventspace ((txt/gui void make-eventspace))]
-       [error-display-handler our-error-display-handler]
        [compile-enforce-module-constants #f]
        [compile-context-preservation-enabled #t])
     ;; repl-thunk will be called from another thread -- either a plain
