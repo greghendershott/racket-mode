@@ -1161,12 +1161,11 @@ Keep original window selected."
   (compilation-setup t)
   (setq-local
    compilation-error-regexp-alist
-   '(("^;?[ ]*\\([^ :]+\\):\\([0-9]+\\)[:.]\\([0-9]+\\)" 1 2 3)   ;errs, defns
+   '(("^;?\\([^ :]+\\):\\([0-9]+\\)[:.]\\([0-9]+\\)" 1 2 3)    ;errs, defns
      ("^;?[ ]*at:[ ]+\\([^ :]+\\):\\([0-9]+\\)[.]\\([0-9]+\\)$" 1 2 3) ;contract
      ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3)   ;rackunit
      ("#<path:\\([^>]+\\)>" 1 nil nil 0)                       ;path struct
-     ;; profile. similar to errs,defns but at EOL and not starting ellided name
-     ("[ ]+\\([^. ]+[^ :]+\\):\\([0-9]+\\):\\([0-9]+\\)$" 1 2 3 0)))
+     ))
   (setq-local comint-get-old-input (function racket-get-old-input)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
