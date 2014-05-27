@@ -25,9 +25,8 @@
   ;; to match the source file.
   (current-directory dir)
   (current-load-relative-directory dir)
-  ;; But set current-directory-for-user so that srcloc->string always
-  ;; provides full pathnames. 'pref-dir is least-worst way AFAIK.
-  (current-directory-for-user (find-system-path 'pref-dir))
+  ;; Make src-loc->string provide full pathnames
+  (show-full-path-in-errors)
   ;; Custodian for the user REPL.
   (define user-cust (make-custodian))
   ;; If racket/gui/base isn't loaded, the current-eventspace parameter
