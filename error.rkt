@@ -5,6 +5,7 @@
          racket/string
          racket/path
          racket/list
+         setup/collects
          "util.rkt")
 
 (provide display-exn
@@ -64,32 +65,13 @@
              (or (equal? src sandbox.rkt)
                  (under-system-path? src))))))
 
-(define excluded-collection-paths
-  (for/list ([x '(["typed" "racket.rkt"]
-                  ["typed-racket" "core.rkt"]
-                  ["racket/contract" "base.rkt"]
-                  ["racket/private" "base.rkt"])])
-    (match-define (list coll file) x)
-    (apply build-path
-           (drop-right (explode-path (collection-file-path file coll))
-                       1))))
-
 (define (under-system-path? path)
-  (define-values (dir base _) (split-path path))
-  (for/or ([cp (in-list excluded-collection-paths)])
-    (under? path cp)))
-
-(define (under? path parent)
-  (define as (explode-path (simplify-path path)))
-  (define bs (explode-path (simplify-path parent)))
-  (and (> (length as) (length bs))
-       (for/and ([a as]
-                 [b bs])
-         (equal? a b))))
-
-(module+ test
-  (check-true  (under? "/a/b/c/d/e" "/a/b"))
-  (check-false (under? "/a/b/c/d/e" "/x/y")))
+  (match (path->collects-relative path)
+    [`(collects #"mred" ,_ ...) #t]
+    [`(collects #"racket" #"contract" ,_ ...) #t]
+    [`(collects #"racket" #"private" ,_ ...) #t]
+    [`(collects #"typed-racket" ,_ ...) #t]
+    [_ #f]))
 
 (define (context-item->string ci)
   (match-define (cons id src) ci)
