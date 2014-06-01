@@ -83,10 +83,13 @@
 ;; Don't use Racket's source-location->string. Don't want the
 ;; setup/path-to-relative behavior that replaces full pathnames with
 ;; <collects>, <pkgs> etc. Want full pathnames for Emacs'
-;; compilation-mode.
+;; compilation-mode. HOWEVER note that <collects> or <pkgs> might be
+;; baked into exn-message string already; we handle that in
+;; `fully-qualify-error-path`. Here we handle only strings we create
+;; ourselves, such as for the Context "stack trace".
 (define (source-location->string x)
   (match-define (srcloc src line col pos span) x)
-  (format "~a:~a:~a" src line col))
+  (format "~a:~a:~a" src (or line "1") (or col "1")))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -117,7 +120,9 @@
               (list _ base ext line col more))
      (define curdir (path->string (current-directory)))
      (string-append curdir base "." ext ":" line ":" col ":" more)]
-    [_ s]))
+    [s (regexp-replace* #rx"<collects>"
+                        s
+                        (path->string (find-collects-dir)))]))
 
 (module+ test
   (require rackunit)
