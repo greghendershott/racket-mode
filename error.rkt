@@ -5,7 +5,6 @@
          racket/string
          racket/path
          racket/list
-         setup/collects
          "util.rkt")
 
 (provide display-exn
@@ -64,6 +63,31 @@
         (and (path? src)
              (or (equal? src sandbox.rkt)
                  (under-system-path? src))))))
+
+;; Compatability with Racket < 6.0.
+(define (pre-6.0-find-collects-dir)
+  (apply build-path
+         (reverse (cdr (reverse (explode-path (collection-path "racket")))))))
+(define find-collects-dir
+  (with-handlers ([exn:fail? (λ _ pre-6.0-find-collects-dir)])
+    (dynamic-require 'setup/dirs 'find-collects-dir)))
+
+;; Compatability with Racket < 6.0. (This is only the subset of
+;; path->collects-relative functionality we actually need here.)
+(define (pre-6.0-path->collects-relative path)
+  (define cs (explode-path (find-collects-dir)))
+  (define ps (explode-path (simplify-path path)))
+  (cond [(> (length ps) (length cs))
+         (define-values (as bs) (split-at ps (length cs)))
+         (cond [(equal? as cs)
+                (cons 'collects (map (compose string->bytes/utf-8
+                                              path-element->string)
+                                     bs))]
+               [else path])]
+        [else path]))
+(define path->collects-relative
+  (with-handlers ([exn:fail? (lambda _ pre-6.0-path->collects-relative)])
+    (dynamic-require 'setup/collects 'path->collects-relative)))
 
 (define (under-system-path? path)
   (match (path->collects-relative path)
