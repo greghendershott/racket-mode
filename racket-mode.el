@@ -495,6 +495,13 @@ doesn't hurt to do so."
   :tag "Paren face"
   :group 'racket)
 
+(defcustom racket-mode-pretty-lambda t
+  "Display lambda keywords using λ."
+  :tag "Pretty lambda"
+  :type 'boolean
+  :group 'racket
+  :safe 'booleanp)
+
 (defconst racket-font-lock-keywords
   (eval-when-compile
     `(
@@ -543,10 +550,13 @@ doesn't hurt to do so."
       ;; pretty lambda
       ("[[(]\\(case-\\|match-\\|opt-\\)?\\(lambda\\)\\>"
        2
-       (progn (compose-region (match-beginning 2)
-                              (match-end       2)
-                              racket-lambda-char)
-              nil))
+       (if racket-mode-pretty-lambda
+           (progn (compose-region (match-beginning 2)
+                                  (match-end       2)
+                                  racket-lambda-char)
+                  nil)
+         font-lock-keyword-face)
+       nil t)
 
       ;; #t #f
       (,(regexp-opt '("#t" "#f") 'symbols) . racket-selfeval-face)
@@ -876,6 +886,10 @@ when there is no symbol-at-point or prefix is true."
       (append '(("\\.rkt\\'" . racket-mode)
                 ("\\.rktd\\'" . racket-mode))
               auto-mode-alist))
+
+;;;###autoload
+(add-to-list 'align-lisp-modes
+             'racket-mode)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
