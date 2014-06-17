@@ -887,10 +887,6 @@ when there is no symbol-at-point or prefix is true."
                 ("\\.rktd\\'" . racket-mode))
               auto-mode-alist))
 
-;;;###autoload
-(add-to-list 'align-lisp-modes
-             'racket-mode)
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
 ;; Racket REPL mode
