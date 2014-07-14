@@ -1192,11 +1192,48 @@ Keep original window selected."
       (goto-char (point-max)))
     (select-window w)))
 
+(defun racket--eval/buffer (expression)
+  "Eval `expression' in the *Racket REPL* buffer, but redirect the
+resulting output to a temporary output buffer, and return that
+buffer's name."
+  (let ((output-buffer "*Racket REPL Redirected Output*"))
+    (with-current-buffer (get-buffer-create output-buffer)
+      (erase-buffer)
+      (comint-redirect-send-command-to-process expression
+                                               output-buffer
+                                               (racket--get-repl-buffer-process)
+                                               nil ;echo?
+                                               t)  ;no-display?
+      ;; Wait for the process to complete
+      (set-buffer (process-buffer (racket--get-repl-buffer-process)))
+      (while (null comint-redirect-completed)
+        (accept-process-output nil 1))
+      output-buffer)))
+
+(defun racket--eval/string (expression)
+  "Eval `expression' in the *Racket REPL* buffer, but redirect the
+resulting output to a temporary output buffer, and return that
+output as a string."
+  (let ((output-buffer (racket--eval/buffer expression)))
+    ;; Collect the output
+    (set-buffer output-buffer)
+    (goto-char (point-min))
+    ;; Skip past the expression, if it was echoed
+    (and (looking-at expression)
+         (forward-line))
+    (buffer-substring (point) (point-max))))
+
+(defun racket--eval/sexpr (expression)
+  "Eval `expression' in the *Racket REPL* buffer, but redirect the
+resulting output to a temporary output buffer, and return that
+output as a sexpr."
+  (read (racket--eval/string expression)))
+
 (define-derived-mode racket-repl-mode comint-mode "Racket-REPL"
   "Major mode for interacting with Racket process.
 \\{racket-repl-mode-map}"
   (racket--variables-for-both-modes)
-  ;; (setq-local comint-prompt-regexp "^[^>\n]*>+ *")
+  (setq-local comint-prompt-regexp "^[^>\n]*> +")
   ;; (setq-local comint-use-prompt-regexp t)
   ;; (setq-local comint-prompt-read-only t)
   (setq-local mode-line-process nil)
