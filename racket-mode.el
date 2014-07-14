@@ -874,7 +874,7 @@ when there is no symbol-at-point or prefix is true."
     ["Customize..." customize-mode]))
 
 (defvar racket-imenu-generic-expression
-      '((nil
+  '((nil
 	 "^(define\\s-+(?\\(\\sw+\\)" 1)
  	("struct"
  	 "^(struct\\s-+\\(\\sw+\\)" 1)
@@ -884,7 +884,8 @@ when there is no symbol-at-point or prefix is true."
 
 (defun racket--variables-imenu ()
   (set (make-local-variable 'imenu-case-fold-search) t)
-  (setq imenu-generic-expression racket-imenu-generic-expression)
+  (set (make-local-variable 'imenu-generic-expression)
+       racket-imenu-generic-expression)
   (set (make-local-variable 'imenu-syntax-alist)
        '(("+-*/.<>=?!$%_&~^:" . "w"))))
 
