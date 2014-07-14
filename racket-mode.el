@@ -873,12 +873,28 @@ when there is no symbol-at-point or prefix is true."
     "---"
     ["Customize..." customize-mode]))
 
+(defvar racket-imenu-generic-expression
+      '((nil
+	 "^(define\\s-+(?\\(\\sw+\\)" 1)
+ 	("struct"
+ 	 "^(struct\\s-+\\(\\sw+\\)" 1)
+	("syntax"
+	 "^(define-syntax\\s-+(?\\(\\sw+\\)" 1))
+  "Imenu generic expression for racket mode.  See `imenu-generic-expression'.")
+
+(defun racket--variables-imenu ()
+  (set (make-local-variable 'imenu-case-fold-search) t)
+  (setq imenu-generic-expression racket-imenu-generic-expression)
+  (set (make-local-variable 'imenu-syntax-alist)
+       '(("+-*/.<>=?!$%_&~^:" . "w"))))
+
 ;;;###autoload
 (define-derived-mode racket-mode prog-mode
   "Racket"
   "Major mode for editing Racket.
 \\{racket-mode-map}"
   (racket--variables-for-both-modes)
+  (racket--variables-imenu)
   (hs-minor-mode t))
 
 ;;;###autoload
