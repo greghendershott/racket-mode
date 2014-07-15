@@ -725,24 +725,27 @@ To run <file>'s `test` submodule."
                          (shell-quote-argument (buffer-file-name)))))
 
 (defun racket-find-definition (&optional prefix)
-  "Find definition of symbol at point. (EXPERIMENTAL)
+  "Find definition of symbol at point.
 
 Only works if you've Run the buffer so that its namespace is active."
   (interactive "P")
   (let ((sym (symbol-at-point-or-prompt prefix "Find definition of: ")))
     (when sym
-      (let ((result (racket--eval/sexpr (format ",def %s\n\n" sym))))
-        (cond ((and (listp result) (= (length result) 3))
-               (let ((path (nth 0 result))
-                     (line (nth 1 result))
-                     (col (nth 2 result)))
-                 (find-file path)
-                 (goto-line line)
-                 (forward-char col)))
-              ((eq result 'kernel)
-               (message "`%s' defined in #%%kernel -- source not available."
-                        sym))
-              (t (message "Cannot find definition of `%s'." sym)))))))
+      (racket--do-find-def sym))))
+
+(defun racket--do-find-def (sym)
+  (let ((result (racket--eval/sexpr (format ",def %s\n\n" sym))))
+    (cond ((and (listp result) (= (length result) 3))
+           (racket--push-loc)
+           (destructuring-bind (path line col) result
+             (find-file path)
+             (goto-line line)
+             (forward-char col)))
+          ((eq result 'kernel)
+           (message "`%s' defined in #%%kernel -- source not available." sym))
+          ((y-or-n-p "Not found. Run current buffer and try again? ")
+           (racket--eval/buffer (format ",run %s\n" (buffer-file-name)))
+           (racket--do-find-def sym)))))
 
 (defun racket-help (&optional prefix)
   "Find something in Racket's help."
@@ -760,6 +763,23 @@ when there is no symbol-at-point or prefix is true."
     (if (or prefix (not sap))
         (read-from-minibuffer prompt (if sap (symbol-name sap) ""))
       sap)))
+
+;;----------------------------------------------------------------------------
+
+(set racket--loc-stack '())
+
+(defun racket--push-loc ()
+  (push (cons (buffer-file-name) (point))
+        racket--loc-stack))
+
+(defun racket-pop-loc ()
+  "Return from the previous Find Definition."
+  (interactive)
+  (if racket--loc-stack
+      (destructuring-bind (path . pt) (pop racket--loc-stack)
+        (find-file path)
+        (goto-char pt))
+    (message "Stack empty.")))
 
 ;;----------------------------------------------------------------------------
 
@@ -843,6 +863,8 @@ when there is no symbol-at-point or prefix is true."
             ("M-C-y"     racket-insert-lambda)
             ("<f1>"      racket-help)
             ("C-c C-h"   racket-help)
+            ("M-."       racket-find-definition)
+            ("M-,"       racket-pop-loc)
             ("C-c C-d"   racket-find-definition)
             ("C-c C-f"   racket-fold-all-tests)
             ("C-c C-U"   racket-unfold-all-tests)))
@@ -878,6 +900,7 @@ when there is no symbol-at-point or prefix is true."
     ["Cycle Paren Shapes" racket-cycle-paren-shapes]
     "---"
     ["Find Definition" racket-find-definition]
+    ["Pop Symbol Stack" racket-pop-loc]
     ["Help" racket-help]
     ["Next Error or Link" next-error]
     ["Previous Error" previous-error]
@@ -945,7 +968,8 @@ when there is no symbol-at-point or prefix is true."
             ("M-C-y"   racket-insert-lambda)
             ("<f1>"    racket-help)
             ("C-c C-h" racket-help)
-            ("C-c C-d" racket-find-definition)))
+            ("C-c C-d" racket-find-definition)
+            ("M-."     racket-find-definition)))
     m)
   "Keymap for Racket REPL mode.")
 
@@ -1226,13 +1250,12 @@ buffer's name."
 resulting output to a temporary output buffer, and return that
 output as a string."
   (let ((output-buffer (racket--eval/buffer expression)))
-    ;; Collect the output
-    (set-buffer output-buffer)
-    (goto-char (point-min))
-    ;; Skip past the expression, if it was echoed
-    (and (looking-at expression)
-         (forward-line))
-    (buffer-substring (point) (point-max))))
+    (with-current-buffer output-buffer
+      (goto-char (point-min))
+      ;; Skip past the expression, if it was echoed
+      (and (looking-at expression)
+           (forward-line))
+      (buffer-substring (point) (point-max)))))
 
 (defun racket--eval/sexpr (expression)
   "Eval `expression' in the *Racket REPL* buffer, but redirect the
