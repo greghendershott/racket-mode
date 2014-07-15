@@ -8,8 +8,8 @@
 
 (provide
  (contract-out
-  [find-definition (-> string? #:expand? boolean? (or/c #f syntax?))]
-  [find-provision (-> string? (or/c #f syntax?))]
+  [find-definition (-> string? #:expand? boolean? (or/c #f syntax? 'kernel))]
+  [find-provision (-> string? (or/c #f syntax? 'kernel))]
   [display-definition (-> string? void?)]
   [display-provision (-> string? void?)]))
 
