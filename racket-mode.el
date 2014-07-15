@@ -731,7 +731,18 @@ Only works if you've Run the buffer so that its namespace is active."
   (interactive "P")
   (let ((sym (symbol-at-point-or-prompt prefix "Find definition of: ")))
     (when sym
-      (racket--eval (format ",def %s\n\n" sym)))))
+      (let ((result (racket--eval/sexpr (format ",def %s\n\n" sym))))
+        (cond ((and (listp result) (= (length result) 3))
+               (let ((path (nth 0 result))
+                     (line (nth 1 result))
+                     (col (nth 2 result)))
+                 (find-file path)
+                 (goto-line line)
+                 (forward-char col)))
+              ((eq result 'kernel)
+               (message "`%s' defined in #%%kernel -- source not available."
+                        sym))
+              (t (message "Cannot find definition of `%s'." sym)))))))
 
 (defun racket-help (&optional prefix)
   "Find something in Racket's help."
@@ -1227,7 +1238,7 @@ output as a string."
   "Eval `expression' in the *Racket REPL* buffer, but redirect the
 resulting output to a temporary output buffer, and return that
 output as a sexpr."
-  (read (racket--eval/string expression)))
+  (eval (read (racket--eval/string expression))))
 
 (define-derived-mode racket-repl-mode comint-mode "Racket-REPL"
   "Major mode for interacting with Racket process.

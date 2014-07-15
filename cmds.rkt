@@ -2,14 +2,26 @@
 
 (require racket/string
          racket/pretty
-         racket/lazy-require
+         racket/match
+         racket/format
          "defn.rkt"
          "util.rkt")
 
 (provide (all-defined-out))
 
 (define (def sym)
-  (display-definition (symbol->string sym)))
+  ;; Print Emacs Lisp values
+  (match (find-definition (symbol->string sym) #:expand? #t)
+    [(? syntax? stx) (cond [(and (syntax-source stx)
+                                 (syntax-line stx)
+                                 (syntax-column stx))
+                            (print (list (path->string (syntax-source stx))
+                                         (syntax-line stx)
+                                         (syntax-column stx)))]
+                           [else (display "nil")])]
+    ['kernel (print 'kernel)]
+    [#f (display "nil")])
+  (newline))
 
 (define (doc str)
   (eval `(begin
