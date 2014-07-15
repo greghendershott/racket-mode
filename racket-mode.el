@@ -875,11 +875,11 @@ when there is no symbol-at-point or prefix is true."
 
 (defvar racket-imenu-generic-expression
   '((nil
-	 "^(define\\s-+(?\\(\\sw+\\)" 1)
- 	("struct"
- 	 "^(struct\\s-+\\(\\sw+\\)" 1)
-	("syntax"
-	 "^(define-syntax\\s-+(?\\(\\sw+\\)" 1))
+     "^(define\\s-+(?\\(\\sw+\\)" 1)
+    ("Struct"
+     "^(struct\\s-+\\(\\sw+\\)" 1)
+    ("Syntax"
+     "^(define-syntax\\s-+(?\\(\\sw+\\)" 1))
   "Imenu generic expression for racket mode.  See `imenu-generic-expression'.")
 
 (defun racket--variables-imenu ()
