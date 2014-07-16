@@ -8,29 +8,35 @@
 
 (provide
  (contract-out
-  [find-definition (-> string? #:expand? boolean? (or/c #f syntax? 'kernel))]
-  [find-provision (-> string? (or/c #f syntax? 'kernel))]
+  [find-definition
+   (-> string?
+       (or/c #f 'kernel (list/c path-string? natural-number/c natural-number/c)))]
+  [find-provision
+   (-> string?
+       (or/c #f 'kernel (list/c path-string? natural-number/c natural-number/c)))]
   [display-definition (-> string? void?)]
   [display-provision (-> string? void?)]))
 
-;; Return a syntax object (or #f) of the definition of `str`.
-;; For significance of #:expand?, see definition-in-stx.
-(define (find-definition str #:expand? expand?) ;; string? -> (or/c #f syntax? 'kernel)
-  (find-x str definition-in-stx #:expand? expand?))
+;; Try to find the definition of `str`
+(define (find-definition str)
+  (find-x str definition-in-stx #:expand? #t))
 
-;; Return a syntax object (or #f) of the provide of `str`.
-(define (find-provision str) ;; string? -> (or/c #f syntax? 'kernel)
+;; Try to find the provide of `str`.
+(define (find-provision str)
   (find-x str provision-in-stx #:expand? #f))
 
-;; string? (symbol? syntax? -> syntax?) boolean? -> (or/c #f syntax? 'kernel)
-(define (find-x str f #:expand? expand?)
-  (define-values (id where)
-    (source (namespace-symbol->identifier (string->symbol str))))
+(define/contract (find-x str f #:expand? expand?)
+  (-> string? (-> symbol? syntax? syntax?) #:expand? boolean?
+      (or/c #f 'kernel (list/c path-string? natural-number/c natural-number/c)))
+  (define-values (id where) (source str))
   (and id
        (match where
          ['kernel 'kernel]
-         [path? (f id (file->syntax where #:expand? expand?))]
-         [#f #f])))
+         [path? (define stx (f id (file->syntax where #:expand? expand?)))
+                (list (path->string (or (syntax-source stx) where))
+                      (or (syntax-line stx) 1)
+                      (or (syntax-column stx) 0))]
+         [_ #f])))
 
 ;; Display definition location, and if possible, some of the original
 ;; unexpanded definition syntax (to show e.g. function arguments names).
@@ -65,10 +71,20 @@
           (syntax-line stx)
           (syntax-column stx)))
 
+;; Wrapper for source* which also accepts string? or symbol?
+(define/contract (source v)
+  (-> (or/c string? symbol? identifier?)
+      (values (or/c symbol? #f) (or/c path? #f 'kernel)))
+  (cond [(string? v)     (source (string->symbol v))]
+        [(symbol? v)     (source (namespace-symbol->identifier v))]
+        [(identifier? v) (source* v)]))
+
 ;; Return the source where an identifier binding is defined, as well
 ;; as the id used in the source (which is not necessarily the same,
 ;; e.g. `(provide (rename-out ...`).
-(define (source id) ;; identifier? -> (values (or/c symbol? #f) (or/c path? #f 'kernel))
+(define/contract (source* id)
+  (-> identifier?
+      (values (or/c symbol? #f) (or/c path? #f 'kernel)))
   (match (identifier-binding id)
     [(list source-mpi source-id
            nominal-source-mpi nominal-source-id
@@ -114,7 +130,9 @@
 ;; e.g. `(define (f x) x)` instead of `(define-values (f) (lambda (x) x))`.
 (define (definition-in-stx sym stx) ;;symbol? syntax? -> syntax?
   (define (eq-sym? stx)
-    (eq? sym (syntax-e stx)))
+    (if (eq? sym (syntax-e stx))
+        stx
+        #f))
   (syntax-case* stx
                 (module #%module-begin define-values define-syntaxes
                         define define/contract
@@ -125,26 +143,26 @@
     [(define          (s . _) . _)  (eq-sym? #'s) stx]
     [(define/contract (s . _) . _)  (eq-sym? #'s) stx]
     [(define s . _)                 (eq-sym? #'s) stx]
-    [(define-values (ss ...) . _)   (ormap eq-sym? (syntax->list #'(ss ...))) stx]
+    [(define-values (ss ...) . _)   (ormap eq-sym? (syntax->list #'(ss ...)))
+                                    (ormap eq-sym? (syntax->list #'(ss ...)))]
     [(define-syntax (s .  _) . _)   (eq-sym? #'s) stx]
     [(define-syntax s . _)          (eq-sym? #'s) stx]
-    [(define-syntaxes (ss ...) . _) (ormap eq-sym? (syntax->list #'(ss ...))) stx]
+    [(define-syntaxes (ss ...) . _) (ormap eq-sym? (syntax->list #'(ss ...)))
+                                    (ormap eq-sym? (syntax->list #'(ss ...)))]
     [(define-struct s . _)          (eq-sym? #'s) stx]
     [(define-struct (s _) . _)      (eq-sym? #'s) stx]
     [(struct s . _)                 (eq-sym? #'s) stx]
     [(struct (s _) . _)             (eq-sym? #'s) stx]
     [_ #f]))
 
-;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
-(define (syntax-e=? a b)
-  (equal? (syntax-e a) (syntax-e b)))
-
 ;; Given a symbol? and syntax?, return syntax? corresponding to the
 ;; provision. Note that we do NOT want stx to be run through `expand`
 ;; because we want the original contract definitions (if any).
 (define (provision-in-stx sym stx) ;;symbol? syntax? -> syntax?
   (define (eq-sym? stx)
-    (eq? sym (syntax-e stx)))
+    (if (eq? sym (syntax-e stx))
+        stx
+        #f))
   (syntax-case* stx
                 (module #%module-begin #%provde provide provide/contract)
                 syntax-e=?
@@ -173,6 +191,10 @@
      (ormap eq-sym? (syntax->list #'ss))
      (ormap eq-sym? (syntax->list #'ss))]
     [_ #f]))
+
+;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
+(define (syntax-e=? a b)
+  (equal? (syntax-e a) (syntax-e b)))
 
 (module+ test
   (require rackunit)

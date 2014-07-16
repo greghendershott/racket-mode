@@ -11,14 +11,8 @@
 
 (define (def sym)
   ;; Print Emacs Lisp values
-  (match (find-definition (symbol->string sym) #:expand? #t)
-    [(? syntax? stx) (cond [(and (syntax-source stx)
-                                 (syntax-line stx)
-                                 (syntax-column stx))
-                            (print (list (path->string (syntax-source stx))
-                                         (syntax-line stx)
-                                         (syntax-column stx)))]
-                           [else (display "nil")])]
+  (match (find-definition (symbol->string sym))
+    [(? list? xs) (print xs)]
     ['kernel (print 'kernel)]
     [#f (display "nil")])
   (newline))
