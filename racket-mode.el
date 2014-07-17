@@ -766,7 +766,7 @@ when there is no symbol-at-point or prefix is true."
 
 ;;----------------------------------------------------------------------------
 
-(set racket--loc-stack '())
+(defvar racket--loc-stack '())
 
 (defun racket--push-loc ()
   (push (cons (buffer-file-name) (point))
