@@ -99,7 +99,8 @@ http://www.gnu.org/licenses/ for details.")
                 (font-lock-syntactic-face-function
                  . racket-font-lock-syntactic-face-function)
                 (parse-sexp-lookup-properties . t)
-                (font-lock-extra-managed-props syntax-table))))
+                (font-lock-extra-managed-props syntax-table)))
+  (setq-local completion-at-point-functions '(racket-complete-at-point)))
 
 (defvar racket-mode-syntax-table
   (let ((st (make-syntax-table))
@@ -840,6 +841,112 @@ when there is no symbol-at-point or prefix is true."
   (racket--for-all-tests "Unfolded" 'hs-show-block))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; completions
+
+;; (make-variable-buffer-local
+;;  (defvar racket--namespace-symbols nil))
+;;
+;; (defun racket--refresh-namespace-symbols ()
+;;   (setq
+;;    racket--namespace-symbols
+;;    (racket--eval/sexpr
+;;     (format "%S"
+;;             `(sort (map symbol->string (namespace-mapped-symbols))
+;;                    string<=?)))))
+;;
+;; (defun racket--complete-prefix (prefix)
+;;   (all-completions prefix racket--namespace-symbols))
+
+(defun racket--complete-prefix (prefix)
+  (racket--eval/sexpr
+   (format "%S"
+           `(let ([rx (regexp ,(concat "^" prefix))])
+              (filter-map (lambda (sym)
+                            (define str (symbol->string sym))
+                            (cond [(regexp-match? rx str) str]
+                                  [else false]))
+                          (namespace-mapped-symbols))))))
+           ;; `(let ([rx (regexp ,(concat "^" prefix))])
+           ;;    (sort (filter-map (lambda (sym)
+           ;;                        (define str (symbol->string sym))
+           ;;                        (cond [(regexp-match? rx str) str]
+           ;;                        [else false]))
+           ;;                      (namespace-mapped-symbols))
+           ;;          string<=?)))))
+
+(defun racket--complete-prefix-begin ()
+  (save-excursion (skip-syntax-backward "^-()>")
+                  (point)))
+
+(defun racket--complete-prefix-end ()
+  (unless (or (eq beg (point-max))
+              (member (char-syntax (char-after beg)) '(?\" ?\( ?\))))
+    (let ((pos (point)))
+      (condition-case nil
+          (save-excursion
+            (goto-char beg)
+            (forward-sexp 1)
+            (when (>= (point) pos)
+              (point)))
+        (scan-error pos)))))
+
+(defun racket-complete-at-point (&optional prediate)
+  (with-syntax-table racket-mode-syntax-table ;probably don't need this??
+    (let* ((beg (racket--complete-prefix-begin))
+           (end (racket--complete-prefix-end))
+           (prefix (and (> end beg) (buffer-substring-no-properties beg end)))
+           ;; (prefix (and prefix
+           ;;              (if (string-match "\\([^-]+\\)-" prefix)
+           ;;                  (match-string 1 prefix)
+           ;;                prefix)))
+           (cmps (and prefix (racket--complete-prefix prefix))))
+      ;;(debug prefix beg end cmps)
+      (and cmps (list beg end cmps)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; company mode
+
+(eval-after-load "company"
+  '(progn
+     (defun racket-company-backend (command &optional arg &rest ignore)
+       (interactive (list 'interactive))
+       (case command
+         ('interactive (company-begin-backend 'racket-company-backend))
+         ('prefix (racket--company-prefix))
+         ('candidates (racket--company-candidates
+                       (substring-no-properties arg)))
+         ('meta (format "This value is named %s" arg))))
+     (defun racket--do-company-setup (enable)
+       (set (make-local-variable 'company-default-lighter) " co")
+       (set (make-local-variable 'company-echo-delay) 0.01)
+       (set (make-local-variable 'company-backends)
+            (and enable '(racket-company-backend)))
+       (company-mode (if enable 1 -1)))))
+
+(defun racket--company-setup (enable)
+  (when (fboundp 'racket--do-company-setup)
+    (racket--do-company-setup enable)))
+
+(make-variable-buffer-local
+ (defvar racket--company-completions nil))
+
+(defun racket--company-prefix ()
+  (if (nth 8 (syntax-ppss))
+      'stop
+    (let* ((prefix (and (looking-at-p "\\_>")
+                        (racket--get-repl-buffer-process)
+                        (buffer-substring-no-properties
+                         (racket--complete-prefix-begin)
+                         (point))))
+           (cmps (and prefix (racket--complete-prefix prefix))))
+      (setq racket--company-completions (cons prefix cmps))
+      prefix)))
+
+(defun racket--company-candidates (prefix)
+  (and (equal prefix (car racket--company-completions))
+       (cdr racket--company-completions)))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Keymap
 
 (defvar racket-mode-map
@@ -932,6 +1039,7 @@ when there is no symbol-at-point or prefix is true."
 \\{racket-mode-map}"
   (racket--variables-for-both-modes)
   (racket--variables-imenu)
+  (racket--company-setup t)
   (hs-minor-mode t))
 
 ;;;###autoload
@@ -1245,19 +1353,22 @@ Keep original window selected."
   "Eval `expression' in the *Racket REPL* buffer, but redirect the
 resulting output to a temporary output buffer, and return that
 buffer's name."
-  (let ((output-buffer "*Racket REPL Redirected Output*"))
-    (with-current-buffer (get-buffer-create output-buffer)
-      (erase-buffer)
-      (comint-redirect-send-command-to-process expression
-                                               output-buffer
-                                               (racket--get-repl-buffer-process)
-                                               nil ;echo?
-                                               t)  ;no-display?
-      ;; Wait for the process to complete
-      (set-buffer (process-buffer (racket--get-repl-buffer-process)))
-      (while (null comint-redirect-completed)
-        (accept-process-output nil 1))
-      output-buffer)))
+  (cond ((racket--get-repl-buffer-process)
+         (let ((output-buffer "*Racket REPL Redirected Output*"))
+           (with-current-buffer (get-buffer-create output-buffer)
+             (erase-buffer)
+             (comint-redirect-send-command-to-process
+              expression
+              output-buffer
+              (racket--get-repl-buffer-process)
+              nil ;echo?
+              t)  ;no-display?
+             ;; Wait for the process to complete
+             (set-buffer (process-buffer (racket--get-repl-buffer-process)))
+             (while (null comint-redirect-completed)
+               (accept-process-output nil 1))
+             output-buffer)))
+        (t (message "Need to start REPL"))))
 
 (defun racket--eval/string (expression)
   "Eval `expression' in the *Racket REPL* buffer, but redirect the
