@@ -1211,6 +1211,18 @@ Otherwise, expands once. You may use `racket-expand-again'."
   (interactive)
   (comint-send-string (racket--get-repl-buffer-process) ",exp+\n"))
 
+(defun racket-gui-macro-stepper ()
+  "Run the GUI macro stepper from DrRacket on the current buffer.
+
+EXPERIMENTAL. May be changed or removed."
+  (interactive)
+  (save-buffer)
+  (racket--eval
+   (format "%S\n"
+           `(begin
+             (require macro-debugger/stepper)
+             (expand-module/step (string->path ,(buffer-file-name)))))))
+
 (defun racket--repl-forget-errors ()
   "Forget existing compilation mode errors in the REPL.
 Although they remain clickable, `next-error' and `previous-error'
