@@ -712,10 +712,11 @@ doesn't hurt to do so."
   (interactive)
   (racket-run) ;start fresh, so (require) will have an effect
   (racket--eval
-   "(begin
- (displayln \"Running tests...\")
- (require (submod \".\" test))
- (flush-output (current-output-port)))\n"))
+   (format "%S\n"
+           `(begin
+             (displayln "Running tests...")
+             (require (submod "." test))
+             (flush-output (current-output-port))))))
 
 (defun racket-raco-test ()
   "Do `raco test -x <file>` in *shell* buffer.
