@@ -45,6 +45,7 @@ http://www.gnu.org/licenses/ for details.")
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
+(require 'cl-lib)
 (require 'lisp-mode)
 (require 'racket-keywords-and-builtins)
 
@@ -737,7 +738,7 @@ Only works if you've Run the buffer so that its namespace is active."
   (let ((result (racket--eval/sexpr (format ",def %s\n\n" sym))))
     (cond ((and (listp result) (= (length result) 3))
            (racket--push-loc)
-           (destructuring-bind (path line col) result
+           (cl-destructuring-bind (path line col) result
              (find-file path)
              (goto-line line)
              (forward-char col)))
@@ -776,7 +777,7 @@ when there is no symbol-at-point or prefix is true."
   "Return from the previous Find Definition."
   (interactive)
   (if racket--loc-stack
-      (destructuring-bind (path . pt) (pop racket--loc-stack)
+      (cl-destructuring-bind (path . pt) (pop racket--loc-stack)
         (find-file path)
         (goto-char pt))
     (message "Stack empty.")))
