@@ -699,6 +699,7 @@ doesn't hurt to do so."
   "Save and evaluate the buffer in REPL, like DrRacket's Run."
   (interactive)
   (save-buffer)
+  (racket--invalidate-completion-cache)
   (racket--eval (format ",run %s\n" (buffer-file-name))))
 
 (defun racket-racket ()
@@ -843,42 +844,38 @@ when there is no symbol-at-point or prefix is true."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; completions
 
-;; (make-variable-buffer-local
-;;  (defvar racket--namespace-symbols nil))
-;;
-;; (defun racket--refresh-namespace-symbols ()
-;;   (setq
-;;    racket--namespace-symbols
-;;    (racket--eval/sexpr
-;;     (format "%S"
-;;             `(sort (map symbol->string (namespace-mapped-symbols))
-;;                    string<=?)))))
-;;
-;; (defun racket--complete-prefix (prefix)
-;;   (all-completions prefix racket--namespace-symbols))
+(make-variable-buffer-local
+ (defvar racket--namespace-symbols nil))
+
+(defun racket--invalidate-completion-cache ()
+  (setq racket--namespace-symbols nil))
+
+(defun racket--get-namespace-symbols ()
+  (unless racket--namespace-symbols
+    (setq racket--namespace-symbols
+          (racket--eval/sexpr
+           (format "%S"
+                   `(map symbol->string (namespace-mapped-symbols))))))
+  racket--namespace-symbols)
 
 (defun racket--complete-prefix (prefix)
-  (racket--eval/sexpr
-   (format "%S"
-           `(let ([rx (regexp ,(concat "^" prefix))])
-              (filter-map (lambda (sym)
-                            (define str (symbol->string sym))
-                            (cond [(regexp-match? rx str) str]
-                                  [else false]))
-                          (namespace-mapped-symbols))))))
-           ;; `(let ([rx (regexp ,(concat "^" prefix))])
-           ;;    (sort (filter-map (lambda (sym)
-           ;;                        (define str (symbol->string sym))
-           ;;                        (cond [(regexp-match? rx str) str]
-           ;;                        [else false]))
-           ;;                      (namespace-mapped-symbols))
-           ;;          string<=?)))))
+  (all-completions prefix (racket--get-namespace-symbols)))
+
+;; (defun racket--complete-prefix (prefix)
+;;   (racket--eval/sexpr
+;;    (format "%S"
+;;            `(let ([rx (regexp ,(concat "^" prefix))])
+;;               (filter-map (lambda (sym)
+;;                             (define str (symbol->string sym))
+;;                             (cond [(regexp-match? rx str) str]
+;;                                   [else false]))
+;;                           (namespace-mapped-symbols))))))
 
 (defun racket--complete-prefix-begin ()
   (save-excursion (skip-syntax-backward "^-()>")
                   (point)))
 
-(defun racket--complete-prefix-end ()
+(defun racket--complete-prefix-end (beg)
   (unless (or (eq beg (point-max))
               (member (char-syntax (char-after beg)) '(?\" ?\( ?\))))
     (let ((pos (point)))
@@ -890,17 +887,16 @@ when there is no symbol-at-point or prefix is true."
               (point)))
         (scan-error pos)))))
 
-(defun racket-complete-at-point (&optional prediate)
+(defun racket-complete-at-point (&optional predicate)
   (with-syntax-table racket-mode-syntax-table ;probably don't need this??
     (let* ((beg (racket--complete-prefix-begin))
-           (end (racket--complete-prefix-end))
+           (end (or (racket--complete-prefix-end beg) beg))
            (prefix (and (> end beg) (buffer-substring-no-properties beg end)))
            ;; (prefix (and prefix
            ;;              (if (string-match "\\([^-]+\\)-" prefix)
            ;;                  (match-string 1 prefix)
            ;;                prefix)))
            (cmps (and prefix (racket--complete-prefix prefix))))
-      ;;(debug prefix beg end cmps)
       (and cmps (list beg end cmps)))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
