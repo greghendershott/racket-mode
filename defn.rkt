@@ -180,11 +180,9 @@
                                         (provide/contract [foo x] [bar y])))))
                 '(foo x))
   (check-equal? 'kernel (find-definition "display"))
-  (check-regexp-match "/racket/private/misc.rkt$" 
+  (check-regexp-match "/racket/private/misc\\.rkt$"
                       (first (find-definition "displayln")))
-  ;; Racket 6.0 (only) thinks display and displayln are provided by
-  ;; init.rkt not base.rkt, IFF we're in a test submodule.
-  (check-regexp-match "/racket/(?:base|init)\\.rkt$"
+  (check-regexp-match "/racket/base\\.rkt$"
                       (first (find-provision "display")))
-  (check-regexp-match "/racket/(?:base|init)\\.rkt$"
+  (check-regexp-match "/racket/base\\.rkt$"
                       (first (find-provision "displayln"))))
