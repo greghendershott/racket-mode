@@ -18,5 +18,10 @@ clean:
 
 compile: clean racket-font-lock.elc racket-indent.elc racket-keywords-and-builtins.elc racket-mode.elc
 
-test:
+test: test-racket test-elisp
+
+test-racket:
 	raco test -x ./*.rkt  # not example/example.rkt
+
+test-elisp:
+	$(BATCHEMACS) -l ert -l racket-tests.el -f ert-run-tests-batch-and-exit
