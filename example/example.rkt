@@ -38,11 +38,11 @@
   {'a 0
    'b 2})
 
-;; Silly test submodule example that always fails (to test output).
-;; Try pressing C-f5. Then use C-x ` to go to the failing test loc.
+;; Silly test submodule example.
+;; Try using C-c C-f to Fold (hide) it, and C-c C-u to Unfold it.
 (module+ test
   (require rackunit)
-  (check-true #f))
+  (check-true #t))
 
 ;; Single line comment
 

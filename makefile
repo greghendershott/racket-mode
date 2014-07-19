@@ -18,3 +18,5 @@ clean:
 
 compile: clean racket-font-lock.elc racket-indent.elc racket-keywords-and-builtins.elc racket-mode.elc
 
+test:
+	raco test -x ./*.rkt  # not example/example.rkt
