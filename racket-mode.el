@@ -371,15 +371,15 @@ when there is no symbol-at-point or prefix is true."
 (defvar racket--loc-stack '())
 
 (defun racket--push-loc ()
-  (push (cons (buffer-file-name) (point))
+  (push (cons (current-buffer) (point))
         racket--loc-stack))
 
 (defun racket-pop-loc ()
   "Return from the previous Find Definition."
   (interactive)
   (if racket--loc-stack
-      (cl-destructuring-bind (path . pt) (pop racket--loc-stack)
-        (find-file path)
+      (cl-destructuring-bind (buffer . pt) (pop racket--loc-stack)
+        (racket-pop-to-buffer-same-window buffer)
         (goto-char pt))
     (message "Stack empty.")))
 
@@ -676,7 +676,6 @@ when there is no symbol-at-point or prefix is true."
             ("M-."     racket-find-definition)))
     m)
   "Keymap for Racket REPL mode.")
-
 
 (defcustom racket-repl-filter-regexp "\\`\\s *\\S ?\\S ?\\s *\\'"
   "Input matching this regexp are not saved on the history list.
