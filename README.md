@@ -102,38 +102,38 @@ documentation.)
 A few notes:
 
 - Assume you have `foo.rkt` as your current buffer. **racket-run**
-  <kbd>F5</kbd> evaluates `foo.rkt`.  After which, you can use the
-  `*Racket REPL*` buffer to inspect or experiment with the
-  result. When you use <kbd>F5</kbd> again, `foo.rkt` is evaluated
-  from scratch -- the custodian releases resources like threads and
-  the evaluation environment is reset to the contents of `foo.rkt`. In
-  other words, like [DrRacket], this provides the predictability of a
-  "static" baseline, plus some interactive exploration.
+  <kbd>F5</kbd> runs it. After which, you can use the `*Racket REPL*`
+  buffer to inspect or experiment with the result. When you use
+  <kbd>F5</kbd> again, `foo.rkt` is evaluated from scratch -- the
+  custodian releases resources like threads and the evaluation
+  environment is reset to the contents of `foo.rkt`. In other words,
+  like [DrRacket], this provides the predictability of a "static"
+  baseline, plus some interactive exploration.
 
 - **racket-test** <kbd>C-F5</kbd> runs the `test` submodule
   (consisting of one or more `(module+ test ...)` forms in the current
   buffer).
 
-    - **racket-fold-all-tests** <kbd>C-c C-f</kbd> uses hide/show mode
-      to hide all `test` submodules. **racket-unfold-all-tests**
+    - **racket-fold-all-tests** <kbd>C-c C-f</kbd> uses `hideshow`
+      mode to hide all `test` submodules. **racket-unfold-all-tests**
       <kbd>C-c C-u</kbd> shows them all again. This is handy if you
       like to interleave function definitions and `(module+ test ...)`
       tests, but sometimes want to "hide the clutter". In addition,
       see the **Hide/Show** menu for more-selective operations.
 
 - Output in the `*Racket REPL*` buffer that describes a file and
-  position is automatically "linkified". To visit the file at the
-  position, click or use a [Compilation mode command] such as <kbd>C-x
-  \`</kbd> (next error). Examples of such text include:
+  position is automatically "linkified". To visit, move point there
+  and press <kdb>Return</kbd>, mouse click, or use a
+  [Compilation mode command] such as <kbd>C-x \`</kbd> (next error).
+  Examples of such text include:
 
     - Racket error messages.
     - `rackunit` test failure location messages.
     - `print`s of `#<path>` objects.
 
-- **racket-find-definition** <kbd>M-.</kbd> tries to find the
-  definition of the symbol at point (or with a <kbd>C-u</kbd> prefix,
-  <kbd>C-u M-.</kbd>, prompts for the symbol). If found, it visits the
-  definition site in the current window. Use <kbd>M-,</kbd> to return.
+- **racket-find-definition** <kbd>M-.</kbd> visits the definition of
+  the symbol at point (or with a <kbd>C-u</kbd> prefix, <kbd>C-u
+  M-.</kbd>, prompts for the symbol). Use <kbd>M-,</kbd> to return.
   
     > **NOTE**: This only finds symbols are defined in the current
     > namespace. (Use <kbd>F5</kbd> to **Run** the current buffer,
@@ -151,7 +151,7 @@ A few notes:
 - **Completion**: racket-mode supports both Emacs 24.3+
   `completion-at-point` (<kbd>C-M-i</kbd>) and [`company-mode`].
 
-    > **NOTE**: This only finds symbols in he current namespace. (Use
+    > **NOTE**: This only finds symbols in the current namespace. (Use
     > <kbd>F5</kbd> to **Run** the current buffer, first.)
 
 - In the `*Racket REPL*` buffer you can issue some special
@@ -162,9 +162,6 @@ A few notes:
 
     - `,run <file>`: Run the file. What **racket-run** <kbd>F5</kbd>
       uses. Either `"file.rkt"` or `file.rkt` works.
-
-    - `,def <symbol>`: Find definition of `<symbol>`. What
-      **racket-find-definition** <kbd>C-c C-d</kbd> uses.
 
     - `,doc <symbol-or-string>`: Look for `<symbol-or-string>` in
       Racket's documentation. What **racket-help** <kbd>C-c C-h</kbd>
