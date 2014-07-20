@@ -328,9 +328,10 @@ To run <file>'s `test` submodule."
 (defun racket-find-definition (&optional prefix)
   "Find definition of symbol at point.
 
-Only works if you've Run the buffer so that its namespace is active."
+Only works if you've `racket-run' the buffer so that its
+namespace is active."
   (interactive "P")
-  (let ((sym (symbol-at-point-or-prompt prefix "Find definition of: ")))
+  (let ((sym (racket--symbol-at-point-or-prompt prefix "Find definition of: ")))
     (when sym
       (racket--do-find-def sym))))
 
@@ -352,13 +353,13 @@ Only works if you've Run the buffer so that its namespace is active."
 (defun racket-help (&optional prefix)
   "Find something in Racket's help."
   (interactive "P")
-  (let ((sym (symbol-at-point-or-prompt prefix "Racket help for: ")))
+  (let ((sym (racket--symbol-at-point-or-prompt prefix "Racket help for: ")))
     (when sym
       (shell-command (concat raco-program
                              " doc "
                              (shell-quote-argument (format "%s" sym)))))))
 
-(defun symbol-at-point-or-prompt (prefix prompt)
+(defun racket--symbol-at-point-or-prompt (prefix prompt)
   "Helper for functions that want symbol-at-point, or, to prompt
 when there is no symbol-at-point or prefix is true."
   (let ((sap (symbol-at-point)))
@@ -375,7 +376,7 @@ when there is no symbol-at-point or prefix is true."
         racket--loc-stack))
 
 (defun racket-pop-loc ()
-  "Return from the previous Find Definition."
+  "Return from the previous `racket-find-definition'."
   (interactive)
   (if racket--loc-stack
       (cl-destructuring-bind (buffer . pt) (pop racket--loc-stack)
@@ -410,6 +411,7 @@ when there is no symbol-at-point or prefix is true."
 ;; cr = cr + indent
 
 (defun racket-cr ()
+  "Insert a newline and indent."
   (interactive)
   (newline)
   (lisp-indent-line))
@@ -432,10 +434,12 @@ when there is no symbol-at-point or prefix is true."
       (message "%s %d test submodules" verb n))))
 
 (defun racket-fold-all-tests ()
+  "Fold (hide) all test submodules."
   (interactive)
   (racket--for-all-tests "Folded" 'hs-hide-block))
 
 (defun racket-unfold-all-tests ()
+  "Unfold (show) all test submodules."
   (interactive)
   (racket--for-all-tests "Unfolded" 'hs-show-block))
 
@@ -708,7 +712,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
 ;; and `artificial` args we don't use, and the code that could only
 ;; execute if they were non-nil.
 (defun racket--comint-send-input ()
-  "Like comint-send-input but does NOT change the input text to use the comint-highlight-input face."
+  "Like `comint-send-input` but doesn't use face `comint-highlight-input'."
   ;; Note that the input string does not include its terminal newline.
   (let ((proc (get-buffer-process (current-buffer))))
     (if (not proc) (user-error "Current buffer has no process")
@@ -782,7 +786,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
         (run-hook-with-args 'comint-output-filter-functions "")))))
 
 (defun racket-repl-cr ()
-  "If complete sexpr, do comint cr. Else just newline and indent."
+  "If complete sexpr, eval. Else do `racket-cr'."
   (interactive)
   (let ((proc (get-buffer-process (current-buffer))))
     (if (not proc)
@@ -902,7 +906,7 @@ Otherwise, expands once. You may use `racket-expand-again'."
   (comint-send-string (racket--get-repl-buffer-process) ",exp+\n"))
 
 (defun racket-gui-macro-stepper ()
-  "Run the GUI macro stepper from DrRacket on the current buffer.
+  "Run the DrRacket GUI macro stepper on the current buffer.
 
 EXPERIMENTAL. May be changed or removed."
   (interactive)
@@ -931,7 +935,7 @@ Keep original window selected."
     (select-window w)))
 
 (defun racket--eval/buffer (expression)
-  "Eval `expression' in the *Racket REPL* buffer, but redirect the
+  "Eval EXPRESSION in the *Racket REPL* buffer, but redirect the
 resulting output to a temporary output buffer, and return that
 buffer's name."
   (cond ((racket--get-repl-buffer-process)
@@ -952,7 +956,7 @@ buffer's name."
         (t (message "Need to start REPL"))))
 
 (defun racket--eval/string (expression)
-  "Eval `expression' in the *Racket REPL* buffer, but redirect the
+  "Eval EXPRESSION in the *Racket REPL* buffer, but redirect the
 resulting output to a temporary output buffer, and return that
 output as a string."
   (let ((output-buffer (racket--eval/buffer expression)))
@@ -964,13 +968,13 @@ output as a string."
       (buffer-substring (point) (point-max)))))
 
 (defun racket--eval/sexpr (expression)
-  "Eval `expression' in the *Racket REPL* buffer, but redirect the
+  "Eval EXPRESSION in the *Racket REPL* buffer, but redirect the
 resulting output to a temporary output buffer, and return that
 output as a sexpr."
   (eval (read (racket--eval/string expression))))
 
 (define-derived-mode racket-repl-mode comint-mode "Racket-REPL"
-  "Major mode for interacting with Racket process.
+  "Major mode for Racket REPL.
 \\{racket-repl-mode-map}"
   (racket--variables-for-both-modes)
   (setq-local comint-prompt-regexp "^[^>\n]*> +")
