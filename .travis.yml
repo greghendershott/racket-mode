@@ -1,8 +1,8 @@
 language: c
 
 env:
- - RACKET_VERSION=6.0.1
- - RACKET_VERSION=HEAD
+    - RACKET_VERSION=6.0.1
+    - RACKET_VERSION=HEAD
 
 before_install:
     ## Racket
