@@ -1,6 +1,7 @@
 ;;; racket-indent.el
 
 ;; Copyright (c) 2013-2014 by Greg Hendershott.
+;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
@@ -22,8 +23,9 @@
   :group 'racket
   :safe 'booleanp)
 
-(defvar calculate-racket-indent-last-sexp)
+(defvar calculate-lisp-indent-last-sexp)
 
+;; Copied from lisp-mode but heavily modified
 (defun racket-indent-function (indent-point state)
   "Racket mode function for the value of the variable `lisp-indent-function'.
 This behaves like the function `lisp-indent-function', except that:
@@ -62,18 +64,18 @@ This function returns either the indentation to use, or nil if the
 Lisp function does not specify a special indentation."
   (let ((normal-indent (current-column)))
     (goto-char (1+ (elt state 1)))
-    (parse-partial-sexp (point) calculate-racket-indent-last-sexp 0 t)
+    (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t)
     (if (and (elt state 2)
              (not (looking-at "\\sw\\|\\s_")))
         ;; car of form doesn't seem to be a symbol
         (progn
           (when (not (> (save-excursion (forward-line 1) (point))
-                        calculate-racket-indent-last-sexp))
-            (goto-char calculate-racket-indent-last-sexp)
+                        calculate-lisp-indent-last-sexp))
+            (goto-char calculate-lisp-indent-last-sexp)
             (beginning-of-line)
-            (parse-partial-sexp (point) calculate-racket-indent-last-sexp 0 t))
+            (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t))
           ;; Indent under the list or under the first sexp on the same
-          ;; line as calculate-racket-indent-last-sexp.  Note that first
+          ;; line as calculate-lisp-indent-last-sexp.  Note that first
           ;; thing on that line has to be complete sexp since we are
           ;; inside the innermost containing sexp.
           (backward-prefix-chars)
