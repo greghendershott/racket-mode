@@ -58,7 +58,8 @@
 
 (define (mod v rel)
   (define (mod* mod rel)
-    (define path (resolve-module-path mod rel))
+    (define path (with-handlers ([exn:fail? (λ _ #f)])
+                   (resolve-module-path mod rel)))
     (and path
          (file-exists? path)
          (list (path->string path) 1 0)))
