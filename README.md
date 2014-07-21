@@ -131,7 +131,7 @@ A few notes:
     - `rackunit` test failure location messages.
     - `print`s of `#<path>` objects.
 
-- **racket-find-definition** <kbd>M-.</kbd> visits the definition of
+- **racket-visit-definition** <kbd>M-.</kbd> visits the definition of
   the symbol at point (or with a <kbd>C-u</kbd> prefix, <kbd>C-u
   M-.</kbd>, prompts for the symbol). Use <kbd>M-,</kbd> to return.
   
@@ -142,8 +142,12 @@ A few notes:
     > **NOTE**: If the definition is from Racket's `#%kernel` module,
     > it will tell you so but won't visit the definition site.
 
-- **racket-help** <kbd>C-c C-h</kbd> uses [`racket/help`] for the symbol
-  at point (or with a prefix, <kbd>C-u C-c C-h</kbd> as prompted).
+- **racket-visit-module** <kbd>C-M-.</kbd> visits the module at point
+  inside a `require` form. Use <kbd>M-,</kbd> to return.
+
+- **racket-doc** <kbd>C-c C-d</kbd> uses [`racket/help`] for the
+  symbol at point (or with a prefix, <kbd>C-u C-c C-d</kbd> as
+  prompted).
 
 - **racket-cycle-paren-shapes** <kbd>C-c C-p</kbd> cycles the shape of
   the current s-expression among `()`, `[]`, and `{}`.

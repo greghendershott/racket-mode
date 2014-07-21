@@ -7,7 +7,6 @@
          "cmds.rkt"
          "error.rkt"
          "gui.rkt"
-         "logger.rkt"
          "util.rkt")
 
 (module+ main
@@ -19,8 +18,8 @@
     (run #f)))
 
 ;; (or/c #f path-string?)
-(define (run path-str)
-  (define-values (path dir) (path-string->path&dir path-str))
+(define (run maybe-path-str)
+  (define-values (path dir) (path-string->path&dir maybe-path-str))
   ;; Always set current-directory and current-load-relative-directory
   ;; to match the source file.
   (current-directory dir)
@@ -54,7 +53,7 @@
             (current-namespace (module->namespace path))
             (check-top-interaction))))
       ;; 2. read-eval-print-loop
-      (parameterize ([current-prompt-read (make-prompt-read path)]
+      (parameterize ([current-prompt-read (make-prompt-read path put/stop rerun)]
                      [current-module-name-resolver repl-module-name-resolver])
         ;; Note that read-eval-print-loop catches all non-break exceptions.
         (read-eval-print-loop)))
@@ -69,7 +68,7 @@
   (match msg
     ['break     (run #f)]
     [(rerun p)  (run p)]
-    [(load-gui) (require-gui) (run path-str)]))
+    [(load-gui) (require-gui) (run maybe-path-str)]))
 
 (define (maybe-load-language-info path)
   ;; Load language-info (if any) and do configure-runtime.
@@ -140,43 +139,3 @@
     (define path (expand-user-path (string->path path-str)))
     (cond [(file-exists? path) path]
           [else (not-found (path->string path))])))
-
-(define (make-prompt-read path)
-  (define-values (base name dir?) (cond [path (split-path path)]
-                                        [else (values "" "" #f)]))
-  (λ ()
-    (flush-output (current-error-port))
-    (display name) (display "> ")
-    (define in ((current-get-interaction-input-port)))
-    (define stx ((current-read-interaction) (object-name in) in))
-    (syntax-case stx ()
-      [(uq cmd)
-       (eq? 'unquote (syntax-e #'uq))
-       (case (syntax-e #'cmd)
-         [(run) (put/stop (rerun (~a (read))))]
-         [(top) (put/stop (rerun #f))]
-         [(def) (def (read))]
-         [(doc) (doc (read-line))]
-         [(exp) (exp1 (read))]
-         [(exp+) (exp+)]
-         [(exp!) (exp! (read))]
-         [(log) (log-display (map string->symbol (string-split (read-line))))]
-         [(pwd) (display-commented (~v (current-directory)))]
-         [(cd) (cd (~a (read)))]
-         [else (usage)])]
-      [_ stx])))
-
-(define (usage)
-  (displayln
-   "Commands:
-,run </path/to/file.rkt>
-,top
-,def <identifier>
-,doc <string>
-,exp <stx>
-,exp+
-,exp! <stx>
-,pwd
-,cd <path>
-,log <opts> ...")
-  (void))

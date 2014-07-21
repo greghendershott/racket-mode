@@ -49,7 +49,7 @@ without even the implied warranty of merchantability or fitness for a
 particular purpose.  See the GNU General Public License for more details.  See
 http://www.gnu.org/licenses/ for details.")
 
-(defconst racket-mode-version "0.3")
+(defconst racket-mode-version "0.4")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -325,18 +325,19 @@ To run <file>'s `test` submodule."
                          " test -x "
                          (shell-quote-argument (buffer-file-name)))))
 
-(defun racket-find-definition (&optional prefix)
-  "Find definition of symbol at point.
+(defun racket-visit-definition (&optional prefix)
+  "Visit definition of symbol at point.
 
 Only works if you've `racket-run' the buffer so that its
 namespace is active."
   (interactive "P")
-  (let ((sym (racket--symbol-at-point-or-prompt prefix "Find definition of: ")))
+  (let ((sym (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")))
     (when sym
-      (racket--do-find-def sym))))
+      (racket--do-visit-def-or-mod "def" sym))))
 
-(defun racket--do-find-def (sym)
-  (let ((result (racket--eval/sexpr (format ",def %s\n\n" sym))))
+(defun racket--do-visit-def-or-mod (cmd sym)
+  "CMD must be \"def\" or \"mod\". SYM must be `symbolp`."
+  (let ((result (racket--eval/sexpr (format ",%s %s\n\n" cmd sym))))
     (cond ((and (listp result) (= (length result) 3))
            (racket--push-loc)
            (cl-destructuring-bind (path line col) result
@@ -348,10 +349,23 @@ namespace is active."
            (message "`%s' defined in #%%kernel -- source not available." sym))
           ((y-or-n-p "Not found. Run current buffer and try again? ")
            (racket--eval/buffer (format ",run %s\n" (buffer-file-name)))
-           (racket--do-find-def sym)))))
+           (racket--do-visit-def-or-mod cmd sym)))))
 
-(defun racket-help (&optional prefix)
-  "Find something in Racket's help."
+(defun racket-visit-module (&optional prefix)
+  "Visit definition of module at point, e.g. net/url or \"file.rkt\".
+
+Only works if you've `racket-run' the buffer so that its
+namespace is active."
+  (interactive "P")
+  (let* ((v (thing-at-point 'filename)) ;matches both net/url and "file.rkt"
+         (v (and v (substring-no-properties v)))
+         (v (if (or prefix (not v))
+                (read-from-minibuffer "Visit module: " (or v ""))
+              v)))
+    (racket--do-visit-def-or-mod "mod" v)))
+
+(defun racket-doc (&optional prefix)
+  "Find something in Racket's documentation."
   (interactive "P")
   (let ((sym (racket--symbol-at-point-or-prompt prefix "Racket help for: ")))
     (when sym
@@ -375,8 +389,8 @@ when there is no symbol-at-point or prefix is true."
   (push (cons (current-buffer) (point))
         racket--loc-stack))
 
-(defun racket-pop-loc ()
-  "Return from the previous `racket-find-definition'."
+(defun racket-unvisit ()
+  "Return from previous `racket-visit-definition' or `racket-visit-module'."
   (interactive)
   (if racket--loc-stack
       (cl-destructuring-bind (buffer . pt) (pop racket--loc-stack)
@@ -568,11 +582,10 @@ when there is no symbol-at-point or prefix is true."
             ("}"         racket-insert-closing-brace)
             ("C-c C-p"   racket-cycle-paren-shapes)
             ("M-C-y"     racket-insert-lambda)
-            ("<f1>"      racket-help)
-            ("C-c C-h"   racket-help)
-            ("M-."       racket-find-definition)
-            ("M-,"       racket-pop-loc)
-            ("C-c C-d"   racket-find-definition)
+            ("C-c C-d"   racket-doc)
+            ("M-."       racket-visit-definition)
+            ("M-C-."     racket-visit-module)
+            ("M-,"       racket-unvisit)
             ("C-c C-f"   racket-fold-all-tests)
             ("C-c C-U"   racket-unfold-all-tests)))
     m)
@@ -606,12 +619,14 @@ when there is no symbol-at-point or prefix is true."
     ["Indent Region" indent-region]
     ["Cycle Paren Shapes" racket-cycle-paren-shapes]
     "---"
-    ["Find Definition" racket-find-definition]
-    ["Pop Symbol Stack" racket-pop-loc]
-    ["Help" racket-help]
+    ["Visit Definition" racket-visit-definition]
+    ["Visit Module" racket-visit-module]
+    ["Return from Visit" racket-unvisit]
+    "---"
     ["Next Error or Link" next-error]
     ["Previous Error" previous-error]
     "---"
+    ["Racket documentation" racket-doc]
     ["Customize..." customize-mode]))
 
 (defvar racket-imenu-generic-expression
@@ -674,10 +689,9 @@ when there is no symbol-at-point or prefix is true."
             ("}"       racket-insert-closing-brace)
             ("C-c C-p" racket-cycle-paren-shapes)
             ("M-C-y"   racket-insert-lambda)
-            ("<f1>"    racket-help)
-            ("C-c C-h" racket-help)
-            ("C-c C-d" racket-find-definition)
-            ("M-."     racket-find-definition)))
+            ("C-c C-d" racket-doc)
+            ("M-."     racket-visit-definition)
+            ("C-M-."   racket-visit-module)))
     m)
   "Keymap for Racket REPL mode.")
 
@@ -914,8 +928,16 @@ EXPERIMENTAL. May be changed or removed."
   (racket--eval
    (format "%S\n"
            `(begin
-             (require macro-debugger/stepper)
-             (expand-module/step (string->path ,(buffer-file-name)))))))
+             (require macro-debugger/stepper racket/port)
+             ,(if (region-active-p)
+                  `(expand/step
+                    (with-input-from-string ,(buffer-substring-no-properties
+                                              (region-beginning)
+                                              (region-end))
+                                            read-syntax))
+                `(expand-module/step
+                  (string->path
+                   ,(substring-no-properties (buffer-file-name)))))))))
 
 (defun racket--repl-forget-errors ()
   "Forget existing compilation mode errors in the REPL.

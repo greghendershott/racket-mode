@@ -4,18 +4,77 @@
          racket/pretty
          racket/match
          racket/format
+         syntax/modresolve
          "defn.rkt"
+         "logger.rkt"
          "util.rkt")
 
-(provide (all-defined-out))
+(provide make-prompt-read)
+
+(define (make-prompt-read path put/stop rerun)
+  (define-values (base name dir?) (cond [path (split-path path)]
+                                        [else (values "" "" #f)]))
+  (λ ()
+    (flush-output (current-error-port))
+    (display name) (display "> ")
+    (define in ((current-get-interaction-input-port)))
+    (define stx ((current-read-interaction) (object-name in) in))
+    (syntax-case stx ()
+      [(uq cmd)
+       (eq? 'unquote (syntax-e #'uq))
+       (case (syntax-e #'cmd)
+         [(run) (put/stop (rerun (~a (read))))]
+         [(top) (put/stop (rerun #f))]
+         [(def) (def (read))]
+         [(doc) (doc (read-line))]
+         [(mod) (mod (read) path)]
+         [(exp) (exp1 (read))]
+         [(exp+) (exp+)]
+         [(exp!) (exp! (read))]
+         [(log) (log-display (map string->symbol (string-split (read-line))))]
+         [(pwd) (display-commented (~v (current-directory)))]
+         [(cd) (cd (~a (read)))]
+         [else (usage)])]
+      [_ stx])))
+
+(define (usage)
+  (displayln
+   "Commands:
+,run </path/to/file.rkt>
+,top
+,def <identifier>
+,mod <module-path>
+,doc <string>
+,exp <stx>
+,exp+
+,exp! <stx>
+,pwd
+,cd <path>
+,log <opts> ...")
+  (void))
 
 (define (def sym)
-  ;; Print Emacs Lisp values
-  (match (find-definition (symbol->string sym))
-    [(? list? xs) (print xs)]
-    ['kernel (print 'kernel)]
-    [#f (display "nil")])
+  (elisp-println (find-definition (symbol->string sym))))
+
+(define (mod v rel)
+  (define (mod* mod rel)
+    (define path (resolve-module-path mod rel))
+    (and path
+         (file-exists? path)
+         (list (path->string path) 1 0)))
+  (elisp-println (cond [(module-path? v) (mod* v rel)]
+                       [(symbol? v)      (mod* (symbol->string v) rel)]
+                       [else             #f])))
+
+(define (elisp-println v)
+  (elisp-print v)
   (newline))
+
+(define (elisp-print v)
+  (match v
+    [#f (display "nil")]
+    [#t (display "t")]
+    [v (print v)]))
 
 (define (doc str)
   (eval `(begin
