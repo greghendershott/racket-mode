@@ -920,9 +920,14 @@ Otherwise, expands once. You may use `racket-expand-again'."
   (comint-send-string (racket--get-repl-buffer-process) ",exp+\n"))
 
 (defun racket-gui-macro-stepper ()
-  "Run the DrRacket GUI macro stepper on the current buffer.
+  "Run the DrRacket GUI macro stepper.
 
-EXPERIMENTAL. May be changed or removed."
+Runs on the active region, if any, else the entire buffer.
+
+EXPERIMENTAL: May be changed or removed.
+
+BUGGY: The first-ever invocation might not display a GUI window.
+If so, try again."
   (interactive)
   (save-buffer)
   (racket--eval
