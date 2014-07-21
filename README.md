@@ -32,16 +32,8 @@ major mode for a Racket REPL. The edit/run experience is similar to
 - If you've used other Lisps and Schemes before, you may prefer
   [Geiser], which is very sophisticated.
 
-    > NOTE: I have an experimental
-    > [`minor-mode` branch](https://github.com/greghendershott/racket-mode/tree/minor-mode)
-    > that implements a Minor mode to add some features alongside
-    > Geiser, as opposed to a stand-alone Major mode. But I'm not
-    > using it day-to-day. My gripe is not so much with Geiser --
-    > which is wonderful -- but with the Racket `enter!` evaluation
-    > model that Geiser uses.
-
 - Although I dogfood this -- use it constantly to code Racket -- it is
-  beta, quality. My total experience writing Emacs modes consists of
+  beta quality. My total experience writing Emacs modes consists of
   writing this mode.
 
 - Someone else proposed adding this to MELPA. Although I didn't
@@ -110,70 +102,70 @@ documentation.)
 A few notes:
 
 - Assume you have `foo.rkt` as your current buffer. **racket-run**
-  <kbd>F5</kbd> evaluates `foo.rkt`.  After which, you can use the
-  `*Racket REPL*` buffer to inspect or experiment with the
-  result. When you use <kbd>F5</kbd> again, `foo.rkt` is evaluated
-  from scratch -- the custodian releases resources like threads and
-  the evaluation environment is reset to the contents of `foo.rkt`. In
-  other words, like [DrRacket], this provides the predictability of a
-  "static" baseline, plus some interactive exploration.
+  <kbd>F5</kbd> runs it. After which, you can use the `*Racket REPL*`
+  buffer to inspect or experiment with the result. When you use
+  <kbd>F5</kbd> again, `foo.rkt` is evaluated from scratch -- the
+  custodian releases resources like threads and the evaluation
+  environment is reset to the contents of `foo.rkt`. In other words,
+  like [DrRacket], this provides the predictability of a "static"
+  baseline, plus some interactive exploration.
 
 - **racket-test** <kbd>C-F5</kbd> runs the `test` submodule
   (consisting of one or more `(module+ test ...)` forms in the current
   buffer).
 
+    - **racket-fold-all-tests** <kbd>C-c C-f</kbd> uses `hideshow`
+      mode to hide all `test` submodules. **racket-unfold-all-tests**
+      <kbd>C-c C-u</kbd> shows them all again. This is handy if you
+      like to interleave function definitions and `(module+ test ...)`
+      tests, but sometimes want to "hide the clutter". In addition,
+      see the **Hide/Show** menu for more-selective operations.
+
 - Output in the `*Racket REPL*` buffer that describes a file and
-  position is automatically "linkified". To visit the file at the
-  position, click or use a [Compilation mode command] such as <kbd>C-x
-  \`</kbd> (next error). Examples of such text include:
+  position is automatically "linkified". To visit, move point there
+  and press <kdb>Return</kbd>, mouse click, or use a
+  [Compilation mode command] such as <kbd>C-x \`</kbd> (next error).
+  Examples of such text include:
 
     - Racket error messages.
     - `rackunit` test failure location messages.
     - `print`s of `#<path>` objects.
-    - output from the **racket-find-definition** command (see below).
 
-- **racket-find-definition** <kbd>C-c C-d</kbd> tries to find the
-  definition of the symbol at point (or with a prefix, <kbd>C-u C-c
-  C-d</kbd>, as prompted). If found, it displays the file/location and
-  function signature in the `*Racket REPL*` buffer. You can then use a
-  [Compilation mode command] such as <kbd>C-x \`</kbd> to visit the
-  definition.
+- **racket-visit-definition** <kbd>M-.</kbd> visits the definition of
+  the symbol at point (or with a <kbd>C-u</kbd> prefix, <kbd>C-u
+  M-.</kbd>, prompts for the symbol). Use <kbd>M-,</kbd> to return.
   
-    > **NOTE**: Racket doesn't provide anything like MIT Scheme's `pp`
-    > or `pa` commands. This is something we hack ourselves -- see
-    > defn.rkt -- and it's not perfect.
-    >
-    > This only finds symbols are defined in...
-    >
-    > 1. The current namespace. (Use <kbd>F5</kbd> to **Run** the
-    > current buffer, first.)
-    >
-    > 2. Modules other than Racket `#%kernel`.
+    > **NOTE**: This only finds symbols are defined in the current
+    > namespace. (Use <kbd>F5</kbd> to **Run** the current buffer,
+    > first.)
 
-- **racket-help** <kbd>C-c C-h</kbd> uses [`racket/help`] for the symbol
-  at point (or with a prefix, <kbd>C-u C-c C-h</kbd> as prompted).
+    > **NOTE**: If the definition is from Racket's `#%kernel` module,
+    > it will tell you so but won't visit the definition site.
+
+- **racket-visit-module** <kbd>C-M-.</kbd> visits the module at point
+  inside a `require` form. Use <kbd>M-,</kbd> to return.
+
+- **racket-doc** <kbd>C-c C-d</kbd> uses [`racket/help`] for the
+  symbol at point (or with a prefix, <kbd>C-u C-c C-d</kbd> as
+  prompted).
 
 - **racket-cycle-paren-shapes** <kbd>C-c C-p</kbd> cycles the shape of
   the current s-expression among `()`, `[]`, and `{}`.
 
-- **racket-fold-all-tests** <kbd>C-c C-f</kbd> uses hide/show mode to
-  hide all `test` submodules. **racket-unfold-all-tests** <kbd>C-c
-  C-u</kbd> shows them all agian. This is handy if you like to
-  interleave function definitions and `(module+ test ...)` tests, but
-  sometimes want to "hide the clutter". In addition, see the
-  **Hide/Show** menu for more-selective operations.
+- **Completion**: racket-mode supports both Emacs 24.3+
+  `completion-at-point` (<kbd>C-M-i</kbd>) and [`company-mode`].
+
+    > **NOTE**: This only finds symbols in the current namespace. (Use
+    > <kbd>F5</kbd> to **Run** the current buffer, first.)
 
 - In the `*Racket REPL*` buffer you can issue some special
   commands. Some of them are the foundation for Emacs commands. Others
   are available only as a command in the REPL.
 
-    - `,top`: Leave the curent file/module and go to the top level.
+    - `,top`: Leave the current file/module and go to the top level.
 
     - `,run <file>`: Run the file. What **racket-run** <kbd>F5</kbd>
       uses. Either `"file.rkt"` or `file.rkt` works.
-
-    - `,def <symbol>`: Find definition of `<symbol>`. What
-      **racket-find-definition** <kbd>C-c C-d</kbd> uses.
 
     - `,doc <symbol-or-string>`: Look for `<symbol-or-string>` in
       Racket's documentation. What **racket-help** <kbd>C-c C-h</kbd>
@@ -193,7 +185,7 @@ A few notes:
           level.
 
         - `,log <level>`: Set the default level for all other loggers
-          not specified indvidually.
+          not specified individually.
 
 ## Background/Motivation
 
@@ -222,7 +214,7 @@ focus on Racket might be helpful, especially for other folks
 transitioning from using DrRacket.
 
 Update, Jan 2014: After I had used this for a long time, putting up
-with its quriks, someone put it on MELPA. That nudged me to take
+with its quirks, someone put it on MELPA. That nudged me to take
 another look, learn more about Elisp and Emacs modes, and improve
 it. Although I still feel like an amateur, it has probably improved
 from alpha to beta quality.
@@ -231,8 +223,12 @@ from alpha to beta quality.
 
 - The existing Emacs Scheme mode and Inferior Scheme mode.
 
-- The source code for Neil Van Dyke's Quack provided a model for many
-  of the `scheme-indent-function` settings and smart paren closing.
+- The source code of [Quack] by Neil Van Dyke provided a model for
+  many of the `scheme-indent-function` settings and smart paren
+  closing.
+
+- The source code of [Geiser] by Jose A. Ortega Ruiz helped me
+  understand how to support completions.
 
 [Racket]: http://www.racket-lang.org/
 [DrRacket]: http://docs.racket-lang.org/drracket/
@@ -245,3 +241,4 @@ from alpha to beta quality.
 [`define-logger`]: http://docs.racket-lang.org/reference/logging.html#%28form._%28%28lib._racket%2Fprivate%2Fmore-scheme..rkt%29._define-logger%29%29
 [`current-directory`]: http://docs.racket-lang.org/reference/Filesystem.html#%28def._%28%28quote._~23~25kernel%29._current-directory%29%29
 [MELPA]: http://melpa.milkbox.net/#/getting-started
+[`company-mode`]: https://github.com/company-mode/company-mode

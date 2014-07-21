@@ -8,76 +8,64 @@
 
 (provide
  (contract-out
-  [find-definition (-> string? #:expand? boolean? (or/c #f syntax?))]
-  [find-provision (-> string? (or/c #f syntax?))]
-  [display-definition (-> string? void?)]
-  [display-provision (-> string? void?)]))
+  [find-definition
+   (-> string?
+       (or/c #f 'kernel (list/c path-string? natural-number/c natural-number/c)))]
+  [find-provision
+   (-> string?
+       (or/c #f 'kernel (list/c path-string? natural-number/c natural-number/c)))]))
 
-;; Return a syntax object (or #f) of the definition of `str`.
-;; For significance of #:expand?, see definition-in-stx.
-(define (find-definition str #:expand? expand?) ;; string? -> (or/c #f syntax? 'kernel)
-  (find-x str definition-in-stx #:expand? expand?))
+;; Try to find the definition of `str`
+(define (find-definition str)
+  (find-x str 'define definition-in-stx #:expand? #t))
 
-;; Return a syntax object (or #f) of the provide of `str`.
-(define (find-provision str) ;; string? -> (or/c #f syntax? 'kernel)
-  (find-x str provision-in-stx #:expand? #f))
+;; Try to find the provide of `str`.
+(define (find-provision str)
+  (find-x str 'provide provision-in-stx #:expand? #f))
 
-;; string? (symbol? syntax? -> syntax?) boolean? -> (or/c #f syntax? 'kernel)
-(define (find-x str f #:expand? expand?)
-  (define-values (id where)
-    (source (namespace-symbol->identifier (string->symbol str))))
+(define/contract (find-x str which f #:expand? expand?)
+  (-> string?
+      (or/c 'define 'provide)
+      (-> symbol? syntax? (or/c #f syntax?))
+      #:expand? boolean?
+      (or/c #f 'kernel (list/c path-string? natural-number/c natural-number/c)))
+  (define-values (id where) (source str which))
   (and id
        (match where
          ['kernel 'kernel]
-         [path? (f id (file->syntax where #:expand? expand?))]
-         [#f #f])))
-
-;; Display definition location, and if possible, some of the original
-;; unexpanded definition syntax (to show e.g. function arguments names).
-(define (display-definition str) ;; string? -> void?
-  (define stx-expanded (find-definition str #:expand? #t))
-  (define datum-unexpanded (and stx-expanded
-                                (let ([stx (find-definition str #:expand? #f)])
-                                  (and stx (syntax? stx)
-                                       (syntax->datum stx)))))
-  (match* (stx-expanded datum-unexpanded)
-    [(#f _)                 (printf "; No definition found for ~a\n" str)]
-    [('kernel _)            (printf "; The Racket #%kernel defines ~a\n" str)]
-    [(stx (list x y _ ...)) (printf "\n; ~a: (~a ~a ...\n"
-                                    (source-loc-str stx) x y)]
-    [(stx _)                (printf "\n; ~a defines ~a\n"
-                                    (source-loc-str stx) str)]))
-
-(define (display-provision str) ;; string? -> void?
-  (match (find-provision str)
-    [#f (printf "; No provide found for ~a\n" str)]
-    ['kernel (printf "; The Racket #%kernel provides ~a\n" str)]
-    [stx (printf "\n; ~a provides ~a\n"
-                 (source-loc-str stx)
-                 (commented (pretty-format (syntax->datum stx))))]))
-  
-(define (commented str)
-  (regexp-replace* "\n" str "\n;"))
-
-(define (source-loc-str stx)
-  (format "~a:~a:~a"
-          (syntax-source stx)
-          (syntax-line stx)
-          (syntax-column stx)))
+         [path? (match (f id (file->syntax where #:expand? expand?))
+                  [(? syntax? stx)
+                   (list (path->string (or (syntax-source stx) where))
+                         (or (syntax-line stx) 1)
+                         (or (syntax-column stx) 0))]
+                  [_
+                   (list (path->string where) 1 0)])]
+         [_ #f])))
 
 ;; Return the source where an identifier binding is defined, as well
 ;; as the id used in the source (which is not necessarily the same,
 ;; e.g. `(provide (rename-out ...`).
-(define (source id) ;; identifier? -> (values (or/c symbol? #f) (or/c path? #f 'kernel))
+(define/contract (source v which)
+  (-> (or/c string? symbol? identifier?)
+      (or/c 'define 'provide)
+      (values (or/c symbol? #f) (or/c path? #f 'kernel)))
+  (define sym->id namespace-symbol->identifier)
+  (define id (cond [(string? v)     (sym->id (string->symbol v))]
+                   [(symbol? v)     (sym->id v)]
+                   [(identifier? v) v]))
   (match (identifier-binding id)
     [(list source-mpi source-id
            nominal-source-mpi nominal-source-id
            source-phase import-phase nominal-export-phase)
-     (match (resolved-module-path-name (module-path-index-resolve source-mpi))
-       [(? path-string? path)        (values nominal-source-id path)]
-       ['#%kernel                    (values nominal-source-id 'kernel)]
-       [(? symbol? sym)              (values nominal-source-id (sym->path sym))]
-       [(list (? symbol? sym) _ ...) (values nominal-source-id (sym->path sym))]
+     (define-values (use-mpi use-id)
+       (case which
+         ['define  (values source-mpi         source-id )]
+         ['provide (values nominal-source-mpi nominal-source-id)]))
+     (match (resolved-module-path-name (module-path-index-resolve use-mpi))
+       [(? path-string? path)        (values use-id path)]
+       ['#%kernel                    (values use-id 'kernel)]
+       [(? symbol? sym)              (values use-id (sym->path sym))]
+       [(list (? symbol? sym) _ ...) (values use-id (sym->path sym))]
        [_ (values #f #f)])]
     [_ (values #f #f)]))
 
@@ -114,7 +102,9 @@
 ;; e.g. `(define (f x) x)` instead of `(define-values (f) (lambda (x) x))`.
 (define (definition-in-stx sym stx) ;;symbol? syntax? -> syntax?
   (define (eq-sym? stx)
-    (eq? sym (syntax-e stx)))
+    (if (eq? sym (syntax-e stx))
+        stx
+        #f))
   (syntax-case* stx
                 (module #%module-begin define-values define-syntaxes
                         define define/contract
@@ -125,26 +115,26 @@
     [(define          (s . _) . _)  (eq-sym? #'s) stx]
     [(define/contract (s . _) . _)  (eq-sym? #'s) stx]
     [(define s . _)                 (eq-sym? #'s) stx]
-    [(define-values (ss ...) . _)   (ormap eq-sym? (syntax->list #'(ss ...))) stx]
+    [(define-values (ss ...) . _)   (ormap eq-sym? (syntax->list #'(ss ...)))
+                                    (ormap eq-sym? (syntax->list #'(ss ...)))]
     [(define-syntax (s .  _) . _)   (eq-sym? #'s) stx]
     [(define-syntax s . _)          (eq-sym? #'s) stx]
-    [(define-syntaxes (ss ...) . _) (ormap eq-sym? (syntax->list #'(ss ...))) stx]
+    [(define-syntaxes (ss ...) . _) (ormap eq-sym? (syntax->list #'(ss ...)))
+                                    (ormap eq-sym? (syntax->list #'(ss ...)))]
     [(define-struct s . _)          (eq-sym? #'s) stx]
     [(define-struct (s _) . _)      (eq-sym? #'s) stx]
     [(struct s . _)                 (eq-sym? #'s) stx]
     [(struct (s _) . _)             (eq-sym? #'s) stx]
     [_ #f]))
 
-;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
-(define (syntax-e=? a b)
-  (equal? (syntax-e a) (syntax-e b)))
-
 ;; Given a symbol? and syntax?, return syntax? corresponding to the
 ;; provision. Note that we do NOT want stx to be run through `expand`
 ;; because we want the original contract definitions (if any).
 (define (provision-in-stx sym stx) ;;symbol? syntax? -> syntax?
   (define (eq-sym? stx)
-    (eq? sym (syntax-e stx)))
+    (if (eq? sym (syntax-e stx))
+        stx
+        #f))
   (syntax-case* stx
                 (module #%module-begin #%provde provide provide/contract)
                 syntax-e=?
@@ -174,21 +164,25 @@
      (ormap eq-sym? (syntax->list #'ss))]
     [_ #f]))
 
+;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
+(define (syntax-e=? a b)
+  (equal? (syntax-e a) (syntax-e b)))
+
 (module+ test
-  (require rackunit)
-  (check-equal?
-   (syntax->datum
-    (provision-in-stx
-     'foo
-     #'(module a b
-         (#%module-begin
-          (define x 1)
-          (provide baz)
-          (provide/contract [foo x] [bar y])))))
-    '(foo x))
-  (require net/url racket/port)
-  (check-true
-   (match (with-output-to-string (thunk (display-definition "get-pure-port")))
-     ;; full path depends on OS and Racket version, so check tail:
-     [(pregexp "^.+?/collects/net/url\\.rkt:\\d+:\\d+ defines `get-pure-port`\n$") #t]
-     [x x])))
+  (require rackunit
+           racket/list)
+  (check-equal? (syntax->datum
+                 (provision-in-stx 'foo
+                                   #'(module a b
+                                       (#%module-begin
+                                        (define x 1)
+                                        (provide baz)
+                                        (provide/contract [foo x] [bar y])))))
+                '(foo x))
+  (check-equal? 'kernel (find-definition "display"))
+  (check-regexp-match "/racket/private/misc\\.rkt$"
+                      (first (find-definition "displayln")))
+  (check-regexp-match "/racket/base\\.rkt$"
+                      (first (find-provision "display")))
+  (check-regexp-match "/racket/base\\.rkt$"
+                      (first (find-provision "displayln"))))

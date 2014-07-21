@@ -1,7 +1,19 @@
 ;;; racket-mode.el --- Major mode for Racket language.
 
+;; Copyright (c) 2013-2014 by Greg Hendershott.
+
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
+
+;; License:
+;; This is free software; you can redistribute it and/or modify it
+;; under the terms of the GNU General Public License as published by
+;; the Free Software Foundation; either version 2, or (at your option)
+;; any later version. This is distributed in the hope that it will be
+;; useful, but without any warranty; without even the implied warranty
+;; of merchantability or fitness for a particular purpose. See the GNU
+;; General Public License for more details. See
+;; http://www.gnu.org/licenses/ for details.
 
 ;;; Commentary:
 
@@ -37,7 +49,7 @@ without even the implied warranty of merchantability or fitness for a
 particular purpose.  See the GNU General Public License for more details.  See
 http://www.gnu.org/licenses/ for details.")
 
-(defconst racket-mode-version "0.3")
+(defconst racket-mode-version "0.4")
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
@@ -45,8 +57,11 @@ http://www.gnu.org/licenses/ for details.")
 ;;
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require 'lisp-mode)
+(require 'cl-lib)
 (require 'racket-keywords-and-builtins)
+(require 'racket-font-lock)
+(require 'racket-indent)
+(require 'comint)
 
 (defgroup racket nil
   "A mode for Racket"
@@ -55,50 +70,17 @@ http://www.gnu.org/licenses/ for details.")
   :link '(url-link :tag "README on GitHub" "https://github.com/greghendershott/racket-mode/blob/master/README.md")
   :link '(emacs-commentary-link :tag "Commentary" "racket-mode"))
 
-(defun racket--variables-for-both-modes ()
-  ;; Set many things explicitly. We wouldn't need to set most of these
-  ;; if our editing major mode, `racket-mode`, were derived from
-  ;; `scheme-mode` instead of from `prog-mode`. So why do it this way?
-  ;; Because of our `racket-repl-mode`. That needs to derive from
-  ;; `comint-mode`, therefore it needs to set them explicitly. Setting them
-  ;; all here ensures consistency. And in that case, racket-mode need not
-  ;; derive from scheme-mode, it can derive from just prog-mode.
-  (set-syntax-table racket-mode-syntax-table)
-  (setq-local local-abbrev-table racket-mode-abbrev-table)
-  (setq-local paragraph-start (concat "$\\|" page-delimiter))
-  (setq-local paragraph-separate paragraph-start)
-  (setq-local paragraph-ignore-fill-prefix t)
-  (setq-local fill-paragraph-function 'lisp-fill-paragraph)
-  (setq-local adaptive-fill-mode nil)
-  (setq-local indent-line-function 'lisp-indent-line)
-  (setq-local parse-sexp-ignore-comments t)
-  (setq-local outline-regexp ";;; \\|(....")
-  (setq-local comment-start ";")
-  (setq-local comment-add 1)            ;default to `;;' in comment-region
-  ;; Look within the line for a ; following an even number of backslashes
-  ;; after either a non-backslash or the line beginning:
-  (setq-local comment-start-skip
-              "\\(\\(^\\|[^\\\\\n]\\)\\(\\\\\\\\\\)*\\)\\(;+\\|#|\\) *")
-  ;; Font lock mode uses this only when it KNOWS a comment is starting:
-  (setq-local font-lock-comment-start-skip ";+ *")
-  (setq-local comment-column 40)
-  (setq-local parse-sexp-ignore-comments t)
-  (setq-local lisp-indent-function 'racket-indent-function)
-  (racket--set-indentation)
-  (setq-local indent-tabs-mode nil)
-  (setq-local font-lock-defaults
-              `(,racket-font-lock-keywords     ;keywords
-                nil                            ;keywords-only?
-                nil                            ;case-fold?
-                (("+-*/.<>=!?$%_&~^:" . "w")   ;syntax-alist
-                 (?#. "w 14"))
-                beginning-of-defun             ;syntax-begin
-                ;; Additional variables:
-                (font-lock-mark-block-function . mark-defun)
-                (font-lock-syntactic-face-function
-                 . racket-font-lock-syntactic-face-function)
-                (parse-sexp-lookup-properties . t)
-                (font-lock-extra-managed-props syntax-table))))
+(defcustom racket-program "racket"
+  "Pathname of the racket executable."
+  :tag "/path/to/racket"
+  :type '(file :must-match t)
+  :group 'racket)
+
+(defcustom raco-program "raco"
+  "Pathname of the raco executable."
+  :tag "/path/to/raco"
+  :type '(file :must-match t)
+  :group 'racket)
 
 (defvar racket-mode-syntax-table
   (let ((st (make-syntax-table))
@@ -159,6 +141,13 @@ http://www.gnu.org/licenses/ for details.")
 (defvar racket-mode-abbrev-table nil)
 (define-abbrev-table 'racket-mode-abbrev-table ())
 
+(defconst racket-sexp-comment-syntax-table
+  (let ((st (make-syntax-table racket-mode-syntax-table)))
+    (modify-syntax-entry ?\; "." st)
+    (modify-syntax-entry ?\n " " st)
+    (modify-syntax-entry ?#  "'" st)
+    st))
+
 (defun racket-font-lock-syntactic-face-function (state)
   (when (and (null (nth 3 state))
              (eq (char-after (nth 8 state)) ?#)
@@ -182,441 +171,51 @@ http://www.gnu.org/licenses/ for details.")
   ;; Choose the face to use.
   (lisp-font-lock-syntactic-face-function state))
 
-(defconst racket-sexp-comment-syntax-table
-  (let ((st (make-syntax-table racket-mode-syntax-table)))
-    (modify-syntax-entry ?\; "." st)
-    (modify-syntax-entry ?\n " " st)
-    (modify-syntax-entry ?#  "'" st)
-    st))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Indentation
-
-(defcustom racket-mode-rackjure-indent t
-  "Indent {} for #lang rackjure dictionaries?"
-  :tag "{} indentation style"
-  :type 'boolean
-  :group 'racket
-  :safe 'booleanp)
-
-(defun racket-indent-function (indent-point state)
-  "Racket mode function for the value of the variable `lisp-indent-function'.
-This behaves like the function `lisp-indent-function', except that:
-
-i) it checks for a non-nil value of the property `racket-indent-function'
-rather than `lisp-indent-function'.
-
-ii) if that property specifies a function, it is called with three
-arguments (not two), the third argument being the default (i.e., current)
-indentation.
-
-The function `calculate-lisp-indent' calls this to determine
-if the arguments of a Lisp function call should be indented specially.
-
-INDENT-POINT is the position at which the line being indented begins.
-Point is located at the point to indent under (for default indentation);
-STATE is the `parse-partial-sexp' state for that position.
-
-If the current line is in a call to a Lisp function that has a non-nil
-property `racket-indent-function' it specifies how to indent.  The property
-value can be:
-
-* `defun', meaning indent `defun'-style
-  \(this is also the case if there is no property and the function
-  has a name that begins with \"def\", and three or more arguments);
-
-* an integer N, meaning indent the first N arguments specially
-  (like ordinary function arguments), and then indent any further
-  arguments like a body;
-
-* a function to call that returns the indentation (or nil).
-  `lisp-indent-function' calls this function with the same two arguments
-  that it itself received.
-
-This function returns either the indentation to use, or nil if the
-Lisp function does not specify a special indentation."
-  (let ((normal-indent (current-column)))
-    (goto-char (1+ (elt state 1)))
-    (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t)
-    (if (and (elt state 2)
-             (not (looking-at "\\sw\\|\\s_")))
-        ;; car of form doesn't seem to be a symbol
-        (progn
-          (when (not (> (save-excursion (forward-line 1) (point))
-                        calculate-lisp-indent-last-sexp))
-            (goto-char calculate-lisp-indent-last-sexp)
-            (beginning-of-line)
-            (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t))
-          ;; Indent under the list or under the first sexp on the same
-          ;; line as calculate-lisp-indent-last-sexp.  Note that first
-          ;; thing on that line has to be complete sexp since we are
-          ;; inside the innermost containing sexp.
-          (backward-prefix-chars)
-          (current-column))
-      (let* ((function (buffer-substring (point) (progn (forward-sexp 1) (point))))
-             (open-pos (elt state 1))
-             (method (get (intern-soft function) 'racket-indent-function)))
-        (cond ((or
-                ;; a vector literal:  #( ... )
-                (and (eq (char-after (- open-pos 1)) ?\#)
-                     (eq (char-after open-pos) ?\())
-                ;; a quoted '( ... ) or quasiquoted `( ...) list --
-                ;; but NOT syntax #'( ... )
-                (and (not (eq (char-after (- open-pos 2)) ?\#))
-                     (memq (char-after (- open-pos 1)) '(?\' ?\`))
-                     (eq (char-after open-pos) ?\())
-                ;; #lang rackjure dict literal { ... }
-                (and racket-mode-rackjure-indent
-                     (eq (char-after open-pos) ?\{)))
-               ;; Indent all aligned with first item:
-               (goto-char open-pos)
-               (1+ (current-column)))
-              ((or (eq method 'defun)
-                   (and (null method)
-                        (>= (length function) 3)
-                        (string-match "\\`def" function)))
-               (lisp-indent-defform state indent-point))
-              ((and (null method)
-                    (> (length function) 5)
-                    (string-match "\\`with-" function))
-               (lisp-indent-specform 1 state
-                                     indent-point normal-indent))
-              ((integerp method)
-               (lisp-indent-specform method state
-                                     indent-point normal-indent))
-              (method
-               (funcall method state indent-point normal-indent)))))))
-
-(defun racket--conditional-indent (looking-at-string true false)
-  (skip-chars-forward " \t")
-  (let ((n (if (looking-at looking-at-string) true false)))
-    (lisp-indent-specform n state indent-point normal-indent)))
-
-(defun racket--indent-let (state indent-point normal-indent)
-  ;; check for named let
-  (racket--conditional-indent "[-a-zA-Z0-9+*/?!@$%^&_:~]" 2 1))
-
-(defun racket--indent-for (state indent-point normal-indent)
-  "Indent function for all for/ and for*/ forms EXCEPT
-for/fold and for*/fold."
-  ;; check for maybe-type-ann e.g. (for/list : T ([x xs]) x)
-  (racket--conditional-indent ":" 3 1))
-
-(defun racket--indent-for/fold (state indent-point normal-indent)
-  "Indent function for for/fold and for*/fold."
-  ;; check for maybe-type-ann e.g. (for/fold : T ([n 0]) ([x xs]) x)
-  (skip-chars-forward " \t")
-  (if (looking-at ":")
-      (lisp-indent-specform 4 state indent-point normal-indent)
-    (racket--indent-for/fold-untyped state indent-point normal-indent)))
-
-(defun racket--indent-for/fold-untyped (state indent-point normal-indent)
-  ;; see http://community.schemewiki.org/?emacs-indentation
-  (let ((containing-sexp-start (elt state 1))
-        containing-sexp-point
-        containing-sexp-column
-        body-indent
-        clause-indent)
-    ;; Move to the start of containing sexp, calculate its
-    ;; indentation, store its point and move past the function symbol
-    ;; so that we can use 'parse-partial-sexp'.
-    ;;
-    ;; 'lisp-indent-function' guarantees that there is at least one
-    ;; word or symbol character following open paren of containing
-    ;; sexp.
-    (forward-char 1)
-    (goto-char containing-sexp-start)
-    (setq containing-sexp-point (point))
-    (setq containing-sexp-column (current-column))
-    (setq body-indent (+ lisp-body-indent containing-sexp-column))
-    (forward-char 1)    ;Move past the open paren.
-    (forward-sexp 2)    ;Move to the next sexp, past its close paren
-    (backward-sexp 1)   ;Move to its start paren
-    (setq clause-indent (current-column))
-    (forward-sexp 1)    ;Move back past close paren
-    ;; Now go back to the beginning of the line holding
-    ;; the indentation point. Count the sexps on the way.
-    (parse-partial-sexp (point) indent-point 1 t)
-    (let ((n 1))
-      (while (and (< (point) indent-point)
-                  (condition-case ()
-                      (progn
-                        (setq n (+ 1 n))
-                        (forward-sexp 1)
-                        (parse-partial-sexp (point) indent-point 1 t))
-                    (error nil))))
-      (list (cond ((= 1 n) clause-indent)
-                  (t body-indent))
-            containing-sexp-point))))
-
-(defun racket--set-indentation ()
-  "Set indentation for various Racket forms.
-
-Note that `def*` and `with-*` aren't listed here because
-`racket-indent-function' handles those.
-
-Note that indentation is set for the symbol alone, and also
-with : appended, for Typed Racket. For example both `let` and
-`let:`. Although this is overzealous in the sense that Typed
-Racket does not define its own variant of all of these, it
-doesn't hurt to do so."
-  (mapc (lambda (x)
-          (put (car x) 'racket-indent-function (cadr x))
-          (let ((typed (intern (format "%s:" (car x)))))
-            (put typed 'racket-indent-function (cadr x))))
-        '((begin 0)
-          (begin-for-syntax 0)
-          (begin0 1)
-          (c-declare 0)
-          (c-lambda 2)
-          (call-with-input-file 1)
-          (call-with-input-file* 1)
-          (call-with-semaphore 1)
-          (call-with-output-file 1)
-          (call-with-values 1)
-          (case 1)
-          (case-lambda 0)
-          (catch 1)
-          (class defun)
-          (class* defun)
-          (compound-unit/sig 0)
-          (delay 0)
-          (def 1)                    ;cheating: not actually in Racket
-          (dict-set 1)
-          (dict-set* 1)
-          (do 2)
-          (dynamic-wind 0)
-          (fn 1)                     ;cheating: not actually in Racket
-          (for 1)
-          (for/list racket--indent-for)
-          (for/vector racket--indent-for)
-          (for/hash racket--indent-for)
-          (for/hasheq racket--indent-for)
-          (for/hasheqv racket--indent-for)
-          (for/and racket--indent-for)
-          (for/or racket--indent-for)
-          (for/lists racket--indent-for)
-          (for/first racket--indent-for)
-          (for/last racket--indent-for)
-          (for/fold racket--indent-for/fold)
-          (for/flvector racket--indent-for)
-          (for/set racket--indent-for)
-          (for/sum racket--indent-for)
-          (for* 1)
-          (for*/list racket--indent-for)
-          (for*/vector racket--indent-for)
-          (for*/hash racket--indent-for)
-          (for*/hasheq racket--indent-for)
-          (for*/hasheqv racket--indent-for)
-          (for*/and racket--indent-for)
-          (for*/or racket--indent-for)
-          (for*/lists racket--indent-for)
-          (for*/first racket--indent-for)
-          (for*/last racket--indent-for)
-          (for*/fold racket--indent-for/fold)
-          (for*/flvector racket--indent-for)
-          (for*/set racket--indent-for)
-          (for*/sum racket--indent-for)
-          (instantiate 2)
-          (interface 1)
-          (λ 1)
-          (lambda 1)
-          (lambda/kw 1)
-          (let racket--indent-let)
-          (let* 1)
-          (letrec 1)
-          (let-values 1)
-          (let*-values 1)
-          (let+ 1)
-          (let-values 1)
-          (let-syntax 1)
-          (letrec-syntax 1)
-          (let/ec 1)
-          (match 1)
-          (match* 1)
-          (match-let 1)
-          (match-let* 1)
-          (mixin 2)
-          (module 2)
-          (module+ 1)
-          (module* 2)
-          (opt-lambda 1)
-          (parameterize 1)
-          (parameterize-break 1)
-          (parameterize* 1)
-          (quasisyntax/loc 1)
-          (receive 2)
-          (require/typed 1)
-          (send* 1)
-          (sigaction 1)
-          (splicing-syntax-parameterize 1)
-          (struct 1)
-          (syntax-case 2)
-          (syntax-rules 1)
-          (syntax-parse 1)
-          (syntax-parser 0)
-          (syntax-parameterize 1)
-          (syntax/loc 1)
-          (syntax-parse 1)
-          (unit defun)
-          (unit/sig 2)
-          (unless 1)
-          (when 1)
-          (while 1)
-          ;; `with-` forms given 1 automatically by our indent function
-          )))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Font-lock
-
-(defconst racket-keyword-argument-face 'racket-keyword-argument-face)
-(defface racket-keyword-argument-face
-  '((((background dark))
-     (:foreground "IndianRed"))
-    (((background light))
-     (:foreground "Red3")))
-  "Face for #:keyword arguments."
-  :tag "Keyword argument face"
-  :group 'racket)
-
-(defconst racket-selfeval-face 'racket-selfeval-face)
-(defface racket-selfeval-face
-  '((t
-     (:foreground "SeaGreen")))
-  "Face for self-evaluating expressions like numbers, symbols, strings."
-  :tag "Self-eval face"
-  :group 'racket)
-
-(defconst racket-paren-face 'racket-paren-face)
-(defface racket-paren-face
-  (let ((fg (face-foreground 'default)))
-    `((t (:foreground ,fg))))
-  "Face for parentheses () [] {}."
-  :tag "Paren face"
-  :group 'racket)
-
-(defcustom racket-mode-pretty-lambda t
-  "Display lambda keywords using λ."
-  :tag "Pretty lambda"
-  :type 'boolean
-  :group 'racket
-  :safe 'booleanp)
-
-(defconst racket-font-lock-keywords
-  (eval-when-compile
-    `(
-      ;; #lang
-      ("\\(\\(#lang\\)[ ]+\\([^\n]+\\)\\)"
-       (2 font-lock-keyword-face nil t)
-       (3 font-lock-variable-name-face nil t))
-
-      ;; keyword argument
-      ("#:[^ )]+"                 . racket-keyword-argument-face)
-
-      ;; symbol
-      ("'\\sw+"                   . racket-selfeval-face)
-      ("'|\\(\\sw\\| \\)+|"       . racket-selfeval-face)
-
-      ;; #rx #px
-      ("\\(#[pr]x\\)\"" (1 racket-selfeval-face))
-
-      ;; literal char
-      ("\\_<#\\\\\\([][-`~!@#$%&*()_+=^{}\;:'\"<>,.?/|\\\\]\\|\\sw+\\>\\)"
-       . racket-selfeval-face)
-
-      ;; paren
-      ("[][(){}]"                 . racket-paren-face)
-
-      (,(regexp-opt racket-builtins 'symbols) . font-lock-builtin-face)
-      (,(regexp-opt racket-keywords 'symbols) . font-lock-keyword-face)
-
-      ;; def* -- variables
-      ("(\\(def[^ ]*[ ]+\\([^( ]+\\)\\)"       2 font-lock-variable-name-face)
-      ("(\\(define-values[ ]*(\\([^(]+\\))\\)" 2 font-lock-variable-name-face)
-
-      ;; def* -- functions
-      ("(\\(def[^ ]*[ ]*(\\([^ )]+\\)\\)" 2 font-lock-function-name-face)
-
-      ;; module and module*
-      ("(\\(module[*]?\\)[ ]+\\([^ ]+\\)[ ]+\\([^ ]+\\)"
-       (1 font-lock-keyword-face nil t)
-       (2 font-lock-function-name-face nil t)
-       (3 font-lock-variable-name-face nil t))
-      ;; module+
-      ("(\\(module[+]\\)[ ]+\\([^ ]+\\)"
-       (1 font-lock-keyword-face nil t)
-       (2 font-lock-function-name-face nil t))
-
-      ;; pretty lambda
-      ("[[(]\\(case-\\|match-\\|opt-\\)?\\(lambda\\)\\>"
-       2
-       (if racket-mode-pretty-lambda
-           (progn (compose-region (match-beginning 2)
-                                  (match-end       2)
-                                  racket-lambda-char)
-                  nil)
-         font-lock-keyword-face)
-       nil t)
-
-      ;; #t #f
-      (,(regexp-opt '("#t" "#f") 'symbols) . racket-selfeval-face)
-
-      ;; From my Pygments lexer (maybe can simplify b/c unlike Pygments
-      ;; we're not lexing for types like int vs. float).
-      ;;
-      ;; Numeric literals including Racket reader hash prefixes.
-      ;; Caveat: None of these regexps attempt to exclude identifiers
-      ;; that start with a number, such as a variable named
-      ;; "100-Continue".
-
-      ;; #d (or no hash prefix)
-      ("\\_<\\(#d\\)?[-+]?[0-9]+\\.[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<\\(#d\\)?[0-9]+e[-+]?[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<\\(#d\\)?[-+]?[0-9]+/[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<\\(#d\\)?[-+]?[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#d[^ ]*\\_>". font-lock-warning-face)
-
-      ;; #x
-      ("\\_<#x[-+]?[0-9a-fA-F]+\\.[0-9a-fA-F]+\\_>" . racket-selfeval-face)
-      ;; the exponent variation (e.g. #x1e1) is N/A
-      ("\\_<#x[-+]?[0-9a-fA-F]+/[0-9a-fA-F]+\\_>" . racket-selfeval-face)
-      ("\\_<#x[-+]?[0-9a-fA-F]+\\_>" . racket-selfeval-face)
-      ("\\_<#x[^ ]*\\_>" . font-lock-warning-face)
-
-      ;; #b
-      ("\\_<#b[-+]?[01]+\\.[01]+\\_>" . racket-selfeval-face)
-      ("\\_<#b[01]+e[-+]?[01]+\\_>" . racket-selfeval-face)
-      ("\\_<#b[-+]?[01]/[01]+\\_>" . racket-selfeval-face)
-      ("\\_<#b[-+]?[01]+\\_>" . racket-selfeval-face)
-      ("\\_<#b[^ ]*\\_>" . font-lock-warnng-face)
-
-      ;; #e
-      ("\\_<#e[-+]?[0-9]+\\.[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#e[0-9]+e[-+]?[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#e[-+]?[0-9]+/[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#e[-+]?[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#e[^ ]*\\_>" . font-lock-warning-face)
-
-      ;; #i
-      ("\\_<#i[-+]?[0-9]+\\.[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#i[0-9]+e[-+]?[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#i[-+]?[0-9]+/[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#i[-+]?[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#i[^ ]*\\_>" . font-lock-warning-face)
-
-      ;; #o
-      ("\\_<#o[-+]?[0-7]+\\.[0-7]+\\_>" . racket-selfeval-face)
-      ("\\_<#o[0-7]+e[-+]?[0-7]+\\_>" . racket-selfeval-face)
-      ("\\_<#o[-+]?[0-7]+/[0-7]+\\_>" . racket-selfeval-face)
-      ("\\_<#o[-+]?[0-7]+\\_>" . racket-selfeval-face)
-      ("\\_<#o[^ ]*\\_>" . font-lock-warning-face)
-
-      ;; numeric constants
-      (,(regexp-opt '("+inf.0" "-inf.0" "+nan.0") 'symbols)
-       . racket-selfeval-face)
-
-      ))
-    "Font lock keywords for Racket mode")
+(defun racket--variables-for-both-modes ()
+  ;; Set many things explicitly. We wouldn't need to set most of these
+  ;; if our editing major mode, `racket-mode`, were derived from
+  ;; `scheme-mode` instead of from `prog-mode`. So why do it this way?
+  ;; Because of our `racket-repl-mode`. That needs to derive from
+  ;; `comint-mode`, therefore it needs to set them explicitly. Setting them
+  ;; all here ensures consistency. And in that case, racket-mode need not
+  ;; derive from scheme-mode, it can derive from just prog-mode.
+  (set-syntax-table racket-mode-syntax-table)
+  (setq-local local-abbrev-table racket-mode-abbrev-table)
+  (setq-local paragraph-start (concat "$\\|" page-delimiter))
+  (setq-local paragraph-separate paragraph-start)
+  (setq-local paragraph-ignore-fill-prefix t)
+  (setq-local fill-paragraph-function 'lisp-fill-paragraph)
+  (setq-local adaptive-fill-mode nil)
+  (setq-local indent-line-function 'lisp-indent-line)
+  (setq-local parse-sexp-ignore-comments t)
+  (setq-local outline-regexp ";;; \\|(....")
+  (setq-local comment-start ";")
+  (setq-local comment-add 1)            ;default to `;;' in comment-region
+  ;; Look within the line for a ; following an even number of backslashes
+  ;; after either a non-backslash or the line beginning:
+  (setq-local comment-start-skip
+              "\\(\\(^\\|[^\\\\\n]\\)\\(\\\\\\\\\\)*\\)\\(;+\\|#|\\) *")
+  ;; Font lock mode uses this only when it KNOWS a comment is starting:
+  (setq-local font-lock-comment-start-skip ";+ *")
+  (setq-local comment-column 40)
+  (setq-local parse-sexp-ignore-comments t)
+  (setq-local lisp-indent-function 'racket-indent-function)
+  (racket--set-indentation)
+  (setq-local indent-tabs-mode nil)
+  (setq-local font-lock-defaults
+              `(,racket-font-lock-keywords     ;keywords
+                nil                            ;keywords-only?
+                nil                            ;case-fold?
+                (("+-*/.<>=!?$%_&~^:" . "w")   ;syntax-alist
+                 (?#. "w 14"))
+                beginning-of-defun             ;syntax-begin
+                ;; Additional variables:
+                (font-lock-mark-block-function . mark-defun)
+                (font-lock-syntactic-face-function
+                 . racket-font-lock-syntactic-face-function)
+                (parse-sexp-lookup-properties . t)
+                (font-lock-extra-managed-props syntax-table)))
+  (setq-local completion-at-point-functions '(racket-complete-at-point)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Insert lambda char (like DrRacket)
@@ -649,7 +248,7 @@ doesn't hurt to do so."
           (when close-pair
             (let ((close-char (cdr close-pair)))
               (when (not (= close-char char))
-                (delete-backward-char 1)
+                (call-interactively 'delete-backward-char)
                 (insert close-char))))))))
   (when blink-paren-function (funcall blink-paren-function)))
 
@@ -697,6 +296,7 @@ doesn't hurt to do so."
   "Save and evaluate the buffer in REPL, like DrRacket's Run."
   (interactive)
   (save-buffer)
+  (racket--invalidate-completion-cache)
   (racket--eval (format ",run %s\n" (buffer-file-name))))
 
 (defun racket-racket ()
@@ -711,10 +311,11 @@ doesn't hurt to do so."
   (interactive)
   (racket-run) ;start fresh, so (require) will have an effect
   (racket--eval
-   "(begin
- (displayln \"Running tests...\")
- (require (submod \".\" test))
- (flush-output (current-output-port)))\n"))
+   (format "%S\n"
+           `(begin
+             (displayln "Running tests...")
+             (require (submod "." test))
+             (flush-output (current-output-port))))))
 
 (defun racket-raco-test ()
   "Do `raco test -x <file>` in *shell* buffer.
@@ -724,31 +325,78 @@ To run <file>'s `test` submodule."
                          " test -x "
                          (shell-quote-argument (buffer-file-name)))))
 
-(defun racket-find-definition (&optional prefix)
-  "Find definition of symbol at point. (EXPERIMENTAL)
+(defun racket-visit-definition (&optional prefix)
+  "Visit definition of symbol at point.
 
-Only works if you've Run the buffer so that its namespace is active."
+Only works if you've `racket-run' the buffer so that its
+namespace is active."
   (interactive "P")
-  (let ((sym (symbol-at-point-or-prompt prefix "Find definition of: ")))
+  (let ((sym (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")))
     (when sym
-      (racket--eval (format ",def %s\n\n" sym)))))
+      (racket--do-visit-def-or-mod "def" sym))))
 
-(defun racket-help (&optional prefix)
-  "Find something in Racket's help."
+(defun racket--do-visit-def-or-mod (cmd sym)
+  "CMD must be \"def\" or \"mod\". SYM must be `symbolp`."
+  (let ((result (racket--eval/sexpr (format ",%s %s\n\n" cmd sym))))
+    (cond ((and (listp result) (= (length result) 3))
+           (racket--push-loc)
+           (cl-destructuring-bind (path line col) result
+             (find-file path)
+             (goto-char (point-min))
+             (forward-line (1- line))
+             (forward-char col)))
+          ((eq result 'kernel)
+           (message "`%s' defined in #%%kernel -- source not available." sym))
+          ((y-or-n-p "Not found. Run current buffer and try again? ")
+           (racket--eval/buffer (format ",run %s\n" (buffer-file-name)))
+           (racket--do-visit-def-or-mod cmd sym)))))
+
+(defun racket-visit-module (&optional prefix)
+  "Visit definition of module at point, e.g. net/url or \"file.rkt\".
+
+Only works if you've `racket-run' the buffer so that its
+namespace is active."
   (interactive "P")
-  (let ((sym (symbol-at-point-or-prompt prefix "Racket help for: ")))
+  (let* ((v (thing-at-point 'filename)) ;matches both net/url and "file.rkt"
+         (v (and v (substring-no-properties v)))
+         (v (if (or prefix (not v))
+                (read-from-minibuffer "Visit module: " (or v ""))
+              v)))
+    (racket--do-visit-def-or-mod "mod" v)))
+
+(defun racket-doc (&optional prefix)
+  "Find something in Racket's documentation."
+  (interactive "P")
+  (let ((sym (racket--symbol-at-point-or-prompt prefix "Racket help for: ")))
     (when sym
       (shell-command (concat raco-program
                              " doc "
                              (shell-quote-argument (format "%s" sym)))))))
 
-(defun symbol-at-point-or-prompt (prefix prompt)
+(defun racket--symbol-at-point-or-prompt (prefix prompt)
   "Helper for functions that want symbol-at-point, or, to prompt
 when there is no symbol-at-point or prefix is true."
   (let ((sap (symbol-at-point)))
     (if (or prefix (not sap))
         (read-from-minibuffer prompt (if sap (symbol-name sap) ""))
       sap)))
+
+;;----------------------------------------------------------------------------
+
+(defvar racket--loc-stack '())
+
+(defun racket--push-loc ()
+  (push (cons (current-buffer) (point))
+        racket--loc-stack))
+
+(defun racket-unvisit ()
+  "Return from previous `racket-visit-definition' or `racket-visit-module'."
+  (interactive)
+  (if racket--loc-stack
+      (cl-destructuring-bind (buffer . pt) (pop racket--loc-stack)
+        (racket-pop-to-buffer-same-window buffer)
+        (goto-char pt))
+    (message "Stack empty.")))
 
 ;;----------------------------------------------------------------------------
 
@@ -777,6 +425,7 @@ when there is no symbol-at-point or prefix is true."
 ;; cr = cr + indent
 
 (defun racket-cr ()
+  "Insert a newline and indent."
   (interactive)
   (newline)
   (lisp-indent-line))
@@ -794,17 +443,120 @@ when there is no symbol-at-point or prefix is true."
     (let ((n 0))
       (while (re-search-forward "^(module[+*]? test" (point-max) t)
         (funcall f)
-        (incf n)
+        (cl-incf n)
         (goto-char (match-end 0)))
       (message "%s %d test submodules" verb n))))
 
 (defun racket-fold-all-tests ()
+  "Fold (hide) all test submodules."
   (interactive)
   (racket--for-all-tests "Folded" 'hs-hide-block))
 
 (defun racket-unfold-all-tests ()
+  "Unfold (show) all test submodules."
   (interactive)
   (racket--for-all-tests "Unfolded" 'hs-show-block))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; completions
+
+(make-variable-buffer-local
+ (defvar racket--namespace-symbols nil))
+
+(defun racket--invalidate-completion-cache ()
+  (setq racket--namespace-symbols nil))
+
+(defun racket--get-namespace-symbols ()
+  (unless racket--namespace-symbols
+    (setq racket--namespace-symbols
+          (racket--eval/sexpr
+           (format "%S"
+                   `(map symbol->string (namespace-mapped-symbols))))))
+  racket--namespace-symbols)
+
+(defun racket--complete-prefix (prefix)
+  (all-completions prefix (racket--get-namespace-symbols)))
+
+;; (defun racket--complete-prefix (prefix)
+;;   (racket--eval/sexpr
+;;    (format "%S"
+;;            `(let ([rx (regexp ,(concat "^" prefix))])
+;;               (filter-map (lambda (sym)
+;;                             (define str (symbol->string sym))
+;;                             (cond [(regexp-match? rx str) str]
+;;                                   [else false]))
+;;                           (namespace-mapped-symbols))))))
+
+(defun racket--complete-prefix-begin ()
+  (save-excursion (skip-syntax-backward "^-()>")
+                  (point)))
+
+(defun racket--complete-prefix-end (beg)
+  (unless (or (eq beg (point-max))
+              (member (char-syntax (char-after beg)) '(?\" ?\( ?\))))
+    (let ((pos (point)))
+      (condition-case nil
+          (save-excursion
+            (goto-char beg)
+            (forward-sexp 1)
+            (when (>= (point) pos)
+              (point)))
+        (scan-error pos)))))
+
+(defun racket-complete-at-point (&optional predicate)
+  (with-syntax-table racket-mode-syntax-table ;probably don't need this??
+    (let* ((beg (racket--complete-prefix-begin))
+           (end (or (racket--complete-prefix-end beg) beg))
+           (prefix (and (> end beg) (buffer-substring-no-properties beg end)))
+           ;; (prefix (and prefix
+           ;;              (if (string-match "\\([^-]+\\)-" prefix)
+           ;;                  (match-string 1 prefix)
+           ;;                prefix)))
+           (cmps (and prefix (racket--complete-prefix prefix))))
+      (and cmps (list beg end cmps)))))
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; company mode
+
+(eval-after-load "company"
+  '(progn
+     (defun racket-company-backend (command &optional arg &rest ignore)
+       (interactive (list 'interactive))
+       (case command
+         ('interactive (company-begin-backend 'racket-company-backend))
+         ('prefix (racket--company-prefix))
+         ('candidates (racket--company-candidates
+                       (substring-no-properties arg)))
+         ('meta (format "This value is named %s" arg))))
+     (defun racket--do-company-setup (enable)
+       (set (make-local-variable 'company-default-lighter) " co")
+       (set (make-local-variable 'company-echo-delay) 0.01)
+       (set (make-local-variable 'company-backends)
+            (and enable '(racket-company-backend)))
+       (company-mode (if enable 1 -1)))))
+
+(defun racket--company-setup (enable)
+  (when (fboundp 'racket--do-company-setup)
+    (racket--do-company-setup enable)))
+
+(make-variable-buffer-local
+ (defvar racket--company-completions nil))
+
+(defun racket--company-prefix ()
+  (if (nth 8 (syntax-ppss))
+      'stop
+    (let* ((prefix (and (looking-at-p "\\_>")
+                        (racket--get-repl-buffer-process)
+                        (buffer-substring-no-properties
+                         (racket--complete-prefix-begin)
+                         (point))))
+           (cmps (and prefix (racket--complete-prefix prefix))))
+      (setq racket--company-completions (cons prefix cmps))
+      prefix)))
+
+(defun racket--company-candidates (prefix)
+  (and (equal prefix (car racket--company-completions))
+       (cdr racket--company-completions)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Keymap
@@ -830,9 +582,10 @@ when there is no symbol-at-point or prefix is true."
             ("}"         racket-insert-closing-brace)
             ("C-c C-p"   racket-cycle-paren-shapes)
             ("M-C-y"     racket-insert-lambda)
-            ("<f1>"      racket-help)
-            ("C-c C-h"   racket-help)
-            ("C-c C-d"   racket-find-definition)
+            ("C-c C-d"   racket-doc)
+            ("M-."       racket-visit-definition)
+            ("M-C-."     racket-visit-module)
+            ("M-,"       racket-unvisit)
             ("C-c C-f"   racket-fold-all-tests)
             ("C-c C-U"   racket-unfold-all-tests)))
     m)
@@ -866,11 +619,14 @@ when there is no symbol-at-point or prefix is true."
     ["Indent Region" indent-region]
     ["Cycle Paren Shapes" racket-cycle-paren-shapes]
     "---"
-    ["Find Definition" racket-find-definition]
-    ["Help" racket-help]
+    ["Visit Definition" racket-visit-definition]
+    ["Visit Module" racket-visit-module]
+    ["Return from Visit" racket-unvisit]
+    "---"
     ["Next Error or Link" next-error]
     ["Previous Error" previous-error]
     "---"
+    ["Racket documentation" racket-doc]
     ["Customize..." customize-mode]))
 
 (defvar racket-imenu-generic-expression
@@ -896,6 +652,7 @@ when there is no symbol-at-point or prefix is true."
 \\{racket-mode-map}"
   (racket--variables-for-both-modes)
   (racket--variables-imenu)
+  (racket--company-setup t)
   (hs-minor-mode t))
 
 ;;;###autoload
@@ -932,12 +689,11 @@ when there is no symbol-at-point or prefix is true."
             ("}"       racket-insert-closing-brace)
             ("C-c C-p" racket-cycle-paren-shapes)
             ("M-C-y"   racket-insert-lambda)
-            ("<f1>"    racket-help)
-            ("C-c C-h" racket-help)
-            ("C-c C-d" racket-find-definition)))
+            ("C-c C-d" racket-doc)
+            ("M-."     racket-visit-definition)
+            ("C-M-."   racket-visit-module)))
     m)
   "Keymap for Racket REPL mode.")
-
 
 (defcustom racket-repl-filter-regexp "\\`\\s *\\S ?\\S ?\\s *\\'"
   "Input matching this regexp are not saved on the history list.
@@ -970,7 +726,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
 ;; and `artificial` args we don't use, and the code that could only
 ;; execute if they were non-nil.
 (defun racket--comint-send-input ()
-  "Like comint-send-input but does NOT change the input text to use the comint-highlight-input face."
+  "Like `comint-send-input` but doesn't use face `comint-highlight-input'."
   ;; Note that the input string does not include its terminal newline.
   (let ((proc (get-buffer-process (current-buffer))))
     (if (not proc) (user-error "Current buffer has no process")
@@ -1044,7 +800,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
         (run-hook-with-args 'comint-output-filter-functions "")))))
 
 (defun racket-repl-cr ()
-  "If complete sexpr, do comint cr. Else just newline and indent."
+  "If complete sexpr, eval. Else do `racket-cr'."
   (interactive)
   (let ((proc (get-buffer-process (current-buffer))))
     (if (not proc)
@@ -1062,18 +818,6 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
          (file-name-directory (or load-file-name (buffer-file-name)))))
     (expand-file-name "sandbox.rkt" elisp-dir))
   "Path to sandbox.rkt")
-
-(defcustom racket-program "racket"
-  "Pathname of the racket executable."
-  :tag "/path/to/racket"
-  :type '(file :must-match t)
-  :group 'racket)
-
-(defcustom raco-program "raco"
-  "Pathname of the raco executable."
-  :tag "/path/to/raco"
-  :type '(file :must-match t)
-  :group 'racket)
 
 ;;;###autoload
 (defun racket-repl ()
@@ -1175,6 +919,26 @@ Otherwise, expands once. You may use `racket-expand-again'."
   (interactive)
   (comint-send-string (racket--get-repl-buffer-process) ",exp+\n"))
 
+(defun racket-gui-macro-stepper ()
+  "Run the DrRacket GUI macro stepper on the current buffer.
+
+EXPERIMENTAL. May be changed or removed."
+  (interactive)
+  (save-buffer)
+  (racket--eval
+   (format "%S\n"
+           `(begin
+             (require macro-debugger/stepper racket/port)
+             ,(if (region-active-p)
+                  `(expand/step
+                    (with-input-from-string ,(buffer-substring-no-properties
+                                              (region-beginning)
+                                              (region-end))
+                                            read-syntax))
+                `(expand-module/step
+                  (string->path
+                   ,(substring-no-properties (buffer-file-name)))))))))
+
 (defun racket--repl-forget-errors ()
   "Forget existing compilation mode errors in the REPL.
 Although they remain clickable, `next-error' and `previous-error'
@@ -1192,11 +956,50 @@ Keep original window selected."
       (goto-char (point-max)))
     (select-window w)))
 
+(defun racket--eval/buffer (expression)
+  "Eval EXPRESSION in the *Racket REPL* buffer, but redirect the
+resulting output to a temporary output buffer, and return that
+buffer's name."
+  (cond ((racket--get-repl-buffer-process)
+         (let ((output-buffer "*Racket REPL Redirected Output*"))
+           (with-current-buffer (get-buffer-create output-buffer)
+             (erase-buffer)
+             (comint-redirect-send-command-to-process
+              expression
+              output-buffer
+              (racket--get-repl-buffer-process)
+              nil ;echo?
+              t)  ;no-display?
+             ;; Wait for the process to complete
+             (set-buffer (process-buffer (racket--get-repl-buffer-process)))
+             (while (null comint-redirect-completed)
+               (accept-process-output nil 1))
+             output-buffer)))
+        (t (message "Need to start REPL"))))
+
+(defun racket--eval/string (expression)
+  "Eval EXPRESSION in the *Racket REPL* buffer, but redirect the
+resulting output to a temporary output buffer, and return that
+output as a string."
+  (let ((output-buffer (racket--eval/buffer expression)))
+    (with-current-buffer output-buffer
+      (goto-char (point-min))
+      ;; Skip past the expression, if it was echoed
+      (and (looking-at expression)
+           (forward-line))
+      (buffer-substring (point) (point-max)))))
+
+(defun racket--eval/sexpr (expression)
+  "Eval EXPRESSION in the *Racket REPL* buffer, but redirect the
+resulting output to a temporary output buffer, and return that
+output as a sexpr."
+  (eval (read (racket--eval/string expression))))
+
 (define-derived-mode racket-repl-mode comint-mode "Racket-REPL"
-  "Major mode for interacting with Racket process.
+  "Major mode for Racket REPL.
 \\{racket-repl-mode-map}"
   (racket--variables-for-both-modes)
-  ;; (setq-local comint-prompt-regexp "^[^>\n]*>+ *")
+  (setq-local comint-prompt-regexp "^[^>\n]*> +")
   ;; (setq-local comint-use-prompt-regexp t)
   ;; (setq-local comint-prompt-read-only t)
   (setq-local mode-line-process nil)
