@@ -4,7 +4,8 @@
          racket/match
          racket/function
          racket/pretty
-         racket/contract)
+         racket/contract
+         racket/list)
 
 (provide
  (contract-out
@@ -29,26 +30,33 @@
       (-> symbol? syntax? (or/c #f syntax?))
       #:expand? boolean?
       (or/c #f 'kernel (list/c path-string? natural-number/c natural-number/c)))
-  (define-values (id where) (source str which))
-  (and id
+  (define-values (ids where) (source str which))
+  (and ids
        (match where
          ['kernel 'kernel]
-         [path? (match (f id (file->syntax where #:expand? expand?))
-                  [(? syntax? stx)
-                   (list (path->string (or (syntax-source stx) where))
-                         (or (syntax-line stx) 1)
-                         (or (syntax-column stx) 0))]
-                  [_
-                   (list (path->string where) 1 0)])]
+         [path? (define file-stx (file->syntax where #:expand? expand?))
+                (or (for/or ([id (in-list ids)])
+                      (match (f id file-stx)
+                        [(? syntax? stx)
+                         (list (path->string (or (syntax-source stx) where))
+                               (or (syntax-line stx) 1)
+                               (or (syntax-column stx) 0))]
+                        [_ #f]))
+                    (list (path->string where) 1 0))]
          [_ #f])))
 
-;; Return the source where an identifier binding is defined, as well
-;; as the id used in the source (which is not necessarily the same,
-;; e.g. `(provide (rename-out ...`).
+;; Return the source where an identifier binding is defined or
+;; provided, as well as a list of potential ids used in the source.
+;; Unfortunately it's possible that none of the ids are used in the
+;; definition: `identifier-binding` doesn't report the definition id
+;; in the case of (provide (contract-out rename old new contract)),
+;; i.e. a contract-out and a rename-out, both. It reports just the id
+;; for the contract wrapper, and the id used for `new`, the rename.
+;; But not `old`.
 (define/contract (source v which)
   (-> (or/c string? symbol? identifier?)
       (or/c 'define 'provide)
-      (values (or/c symbol? #f) (or/c path? #f 'kernel)))
+      (values (or/c (listof symbol?) #f) (or/c path? #f 'kernel)))
   (define sym->id namespace-symbol->identifier)
   (define id (cond [(string? v)     (sym->id (string->symbol v))]
                    [(symbol? v)     (sym->id v)]
@@ -57,15 +65,15 @@
     [(list source-mpi source-id
            nominal-source-mpi nominal-source-id
            source-phase import-phase nominal-export-phase)
-     (define-values (use-mpi use-id)
-       (case which
-         ['define  (values source-mpi         source-id )]
-         ['provide (values nominal-source-mpi nominal-source-id)]))
+     (define try-ids (remove-duplicates (list source-id nominal-source-id)))
+     (define use-mpi (case which
+                       ['define source-mpi]
+                       ['provide nominal-source-mpi]))
      (match (resolved-module-path-name (module-path-index-resolve use-mpi))
-       [(? path-string? path)        (values use-id path)]
-       ['#%kernel                    (values use-id 'kernel)]
-       [(? symbol? sym)              (values use-id (sym->path sym))]
-       [(list (? symbol? sym) _ ...) (values use-id (sym->path sym))]
+       [(? path-string? path)        (values try-ids path)]
+       ['#%kernel                    (values try-ids 'kernel)]
+       [(? symbol? sym)              (values try-ids (sym->path sym))]
+       [(list (? symbol? sym) _ ...) (values try-ids (sym->path sym))]
        [_ (values #f #f)])]
     [_ (values #f #f)]))
 
