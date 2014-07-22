@@ -92,17 +92,18 @@
   (unless (memq '#%top-interaction (namespace-mapped-symbols))
     (error 'repl "The module's language provides no `#%top-interaction' and\ncannot be used in a REPL.")))
 
-;; Messages via the channel from the repl thread to the main thread.
+;; Messages via a channel from the repl thread to the main thread.
 (define ch (make-channel))
-(struct rerun (path)) ;(or/c #f path-string?)
-(struct load-gui ())
+(struct msg ())
+(struct rerun    msg (path)) ;(or/c #f path-string?)
+(struct load-gui msg ())
 
 ;; To be called from REPL thread. Puts message for the main thread to
 ;; the channel, and blocks itself; main thread will kill the REPL
 ;; thread. Net effect: "Exit the thread with a return value".
-(define (put/stop v) ;; any/c -> any
+(define (put/stop v) ;; msg? -> void?
   (channel-put ch v)
-  (sync never-evt))
+  (void (sync never-evt)))
 
 ;; Catch attempt to load racket/gui/base for the first time.
 (define repl-module-name-resolver
