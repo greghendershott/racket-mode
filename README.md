@@ -219,17 +219,9 @@ another look, learn more about Elisp and Emacs modes, and improve
 it. Although I still feel like an amateur, it has probably improved
 from alpha to beta quality.
 
-## Acknowledgments
+Please see the [Acknowledgments].
 
-- The existing Emacs Scheme mode and Inferior Scheme mode.
-
-- The source code of [Quack] by Neil Van Dyke provided a model for
-  many of the `scheme-indent-function` settings and smart paren
-  closing.
-
-- The source code of [Geiser] by Jose A. Ortega Ruiz helped me
-  understand how to support completions.
-
+[Acknowledgments]: https://github.com/greghendershott/racket-mode/blob/master/THANKS.md
 [Racket]: http://www.racket-lang.org/
 [DrRacket]: http://docs.racket-lang.org/drracket/
 [`enter!`]: http://docs.racket-lang.org/reference/interactive.html

@@ -25,19 +25,6 @@
 ;; - Follow DrRacket concepts where applicable.
 ;; - Compatible with Emacs 24.2+.
 ;;
-;; Acknowledgements:
-;;
-;; - Obviously the existing Emacs Scheme mode and Inferior Scheme mode.
-;;
-;; - The source code for for Quack by Neil Van Dyke provided a model
-;;   for many of the scheme-indent-function settings, smart paren
-;;   closing, and pretty lambda.
-;;
-;; - The source code for Geiser by Jose A. Ortega Ruiz helped me
-;;   understand how to support completions and especially
-;;   company-mode.
-
-;;
 ;; Details: https://github.com/greghendershott/racket-mode
 
 ;;; Code:
