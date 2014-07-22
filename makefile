@@ -16,7 +16,7 @@ clean:
 %.elc : %.el
 	$(BYTECOMP) $<
 
-compile: clean racket-font-lock.elc racket-indent.elc racket-keywords-and-builtins.elc racket-mode.elc
+compile: clean racket-common.elc racket-complete.el racket-edit.elc racket-emacs-compat.el racket-eval.elc racket-font-lock.elc racket-indent.elc racket-keywords-and-builtins.elc racket-mode.elc racket-repl.elc
 
 test: test-racket test-elisp
 
