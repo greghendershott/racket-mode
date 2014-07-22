@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require racket/string
+         racket/contract
          racket/pretty
          racket/match
          racket/format
@@ -23,6 +24,7 @@
       [(uq cmd)
        (eq? 'unquote (syntax-e #'uq))
        (case (syntax-e #'cmd)
+         [(contract) (get-contract (read))]
          [(run) (put/stop (rerun (~a (read))))]
          [(top) (put/stop (rerun #f))]
          [(def) (def (read))]
@@ -40,6 +42,7 @@
 (define (usage)
   (displayln
    "Commands:
+,contract <identifier>
 ,run </path/to/file.rkt>
 ,top
 ,def <identifier>
@@ -52,6 +55,17 @@
 ,cd <path>
 ,log <opts> ...")
   (void))
+
+(define (get-contract sym)
+  (elisp-println
+   (match ((current-eval) (cons '#%top-interaction
+                          `(if (has-contract? ,sym)
+                            (contract-name (value-contract ,sym))
+                            #f)))
+     [(list-rest '-> lst) 
+      ;;FIXME: it seems the elisp code truncate to "> "
+      lst]
+     [lst lst])))
 
 (define (def sym)
   (elisp-println (find-definition (symbol->string sym))))
