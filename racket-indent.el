@@ -282,6 +282,7 @@ doesn't hurt to do so."
           (splicing-syntax-parameterize 1)
           (struct 1)
           (syntax-case 2)
+          (syntax-case* 3)
           (syntax-rules 1)
           (syntax-parse 1)
           (syntax-parser 0)
