@@ -11,52 +11,59 @@
  (contract-out
   [find-definition
    (-> string?
-       (or/c #f 'kernel (list/c path-string? natural-number/c natural-number/c)))]
-  [find-provision
-   (-> string?
-       (or/c #f 'kernel (list/c path-string? natural-number/c natural-number/c)))]))
+       (or/c #f 'kernel (list/c path-string?
+                                natural-number/c
+                                natural-number/c)))]))
 
-;; Try to find the definition of `str`
+;; Try to find the definition of `str`, returning a list with the file
+;; name, line and column, or #f if not found.
 (define (find-definition str)
-  (find-x str 'define definition-in-stx #:expand? #t))
+  (define (result stx where)
+    (list (path->string (or (syntax-source stx) where))
+          (or (syntax-line stx) 1)
+          (or (syntax-column stx) 0)))
+  (define src (identifier-binding* str))
+  (and src
+       (match-let ([(list id where nom-id nom-where) src])
+         (match where
+           ['kernel 'kernel]
+           [path?
+            ;; We have a source file. When possible, we want to find
+            ;; the line and column within that file, too.
+            (or
+             ;; First look for a possible renaming/contracting provide
+             ;; involving `nom-id`. Because in that case the `id` that
+             ;; `identifier-binding` gave us likely isn't used in the
+             ;; definition. `renaming-provide-in-stx` will return
+             ;; syntax for that actual id, which it gets from
+             ;; examining the provide form. Use _that_ to search for
+             ;; the definition form.
+             (let ([file-stx (file->syntax where #:expand? #f)])
+               (match (renaming-provide-in-stx nom-id file-stx)
+                 [(? syntax? stx)
+                  (let ([file-stx (file->syntax where #:expand? #t)])
+                    (match (define-in-stx (syntax-e stx) file-stx)
+                      [(? syntax? stx) (result stx where)]
+                      [_ #f]))]
+                 [_ #f]))
+             ;; The main case: Look for a definition form.
+             (let ([file-stx (file->syntax where #:expand? #t)])
+               (match (define-in-stx id file-stx)
+                 [(? syntax? stx) (result stx where)]
+                 [_ #f]))
+             ;; If we can't find within the file, return file:1:0
+             (list (path->string where) 1 0))]
+           [_ #f]))))
 
-;; Try to find the provide of `str`.
-(define (find-provision str)
-  (find-x str 'provide provision-in-stx #:expand? #f))
-
-(define/contract (find-x str which f #:expand? expand?)
-  (-> string?
-      (or/c 'define 'provide)
-      (-> symbol? syntax? (or/c #f syntax?))
-      #:expand? boolean?
-      (or/c #f 'kernel (list/c path-string? natural-number/c natural-number/c)))
-  (define-values (ids where) (source str which))
-  (and ids
-       (match where
-         ['kernel 'kernel]
-         [path? (define file-stx (file->syntax where #:expand? expand?))
-                (or (for/or ([id (in-list ids)])
-                      (match (f id file-stx)
-                        [(? syntax? stx)
-                         (list (path->string (or (syntax-source stx) where))
-                               (or (syntax-line stx) 1)
-                               (or (syntax-column stx) 0))]
-                        [_ #f]))
-                    (list (path->string where) 1 0))]
-         [_ #f])))
-
-;; Return the source where an identifier binding is defined or
-;; provided, as well as a list of potential ids used in the source.
-;; Unfortunately it's possible that none of the ids are used in the
-;; definition: `identifier-binding` doesn't report the definition id
-;; in the case of (provide (contract-out rename old new contract)),
-;; i.e. a contract-out and a rename-out, both. It reports just the id
-;; for the contract wrapper, and the id used for `new`, the rename.
-;; But not `old`.
-(define/contract (source v which)
+;; A wrapper for identifier-binding. Keep in mind that unfortunately
+;; it can't report the definition id in the case of a contract-out and
+;; a rename-out, both. Ex: For `(provide (contract-out rename orig new
+;; contract))` it reports (1) the id for the contract-wrapper, and (2)
+;; `new`, but NOT (3) `orig`.
+(define/contract (identifier-binding* v)
   (-> (or/c string? symbol? identifier?)
-      (or/c 'define 'provide)
-      (values (or/c (listof symbol?) #f) (or/c path? #f 'kernel)))
+      (or/c #f (list/c symbol? (or/c path? 'kernel #f)
+                       symbol? (or/c path? 'kernel #f))))
   (define sym->id namespace-symbol->identifier)
   (define id (cond [(string? v)     (sym->id (string->symbol v))]
                    [(symbol? v)     (sym->id v)]
@@ -65,17 +72,16 @@
     [(list source-mpi source-id
            nominal-source-mpi nominal-source-id
            source-phase import-phase nominal-export-phase)
-     (define try-ids (remove-duplicates (list source-id nominal-source-id)))
-     (define use-mpi (case which
-                       ['define source-mpi]
-                       ['provide nominal-source-mpi]))
-     (match (resolved-module-path-name (module-path-index-resolve use-mpi))
-       [(? path-string? path)        (values try-ids path)]
-       ['#%kernel                    (values try-ids 'kernel)]
-       [(? symbol? sym)              (values try-ids (sym->path sym))]
-       [(list (? symbol? sym) _ ...) (values try-ids (sym->path sym))]
-       [_ (values #f #f)])]
-    [_ (values #f #f)]))
+     (define (mpi->path mpi)
+       (match (resolved-module-path-name (module-path-index-resolve mpi))
+         [(? path-string? path)        path]
+         ['#%kernel                    'kernel]
+         [(? symbol? sym)              (sym->path sym)]
+         [(list (? symbol? sym) _ ...) (sym->path sym)]
+         [_                            #f]))
+     (list source-id         (mpi->path source-mpi)
+           nominal-source-id (mpi->path nominal-source-mpi))]
+    [_ #f]))
 
 ;; When module source is 'sym or '(sym sym1 ...) treat it as "sym.rkt"
 ;; in the current-load-relative-directory.
@@ -108,7 +114,7 @@
 ;; If `stx` is not run through expand, we will miss some things,
 ;; however the syntax will be closer to what a human expects --
 ;; e.g. `(define (f x) x)` instead of `(define-values (f) (lambda (x) x))`.
-(define (definition-in-stx sym stx) ;;symbol? syntax? -> syntax?
+(define (define-in-stx sym stx) ;;symbol? syntax? -> syntax?
   (define (eq-sym? stx)
     (if (eq? sym (syntax-e stx))
         stx
@@ -118,8 +124,9 @@
                         define define/contract
                         define-syntax struct define-struct)
                 syntax-e=?
-    [(module _ _ (#%module-begin . stxs)) (for/or ([stx (syntax->list #'stxs)])
-                                            (definition-in-stx sym stx))]
+    [(module _ _ (#%module-begin . stxs))
+     (ormap (λ (stx) (define-in-stx sym stx))
+            (syntax->list #'stxs))]
     [(define          (s . _) . _)  (eq-sym? #'s) stx]
     [(define/contract (s . _) . _)  (eq-sym? #'s) stx]
     [(define s . _)                 (eq-sym? #'s) stx]
@@ -136,18 +143,21 @@
     [_ #f]))
 
 ;; Given a symbol? and syntax?, return syntax? corresponding to the
-;; provision. Note that we do NOT want stx to be run through `expand`
-;; because we want the original contract definitions (if any).
-(define (provision-in-stx sym stx) ;;symbol? syntax? -> syntax?
+;; contracted provide. Note that we do NOT want stx to be run through
+;; `expand` because we want the original contract definitions (if
+;; any). ** This is currently not used. If we ever add a
+;; `find-provision` function, it would use this.
+(define (contracting-provide-in-stx sym stx) ;;symbol? syntax? -> syntax?
   (define (eq-sym? stx)
     (if (eq? sym (syntax-e stx))
         stx
         #f))
   (syntax-case* stx
-                (module #%module-begin #%provde provide provide/contract)
+                (module #%module-begin provide provide/contract)
                 syntax-e=?
-    [(module _ _ (#%module-begin . ss)) (ormap (curry provision-in-stx sym)
-                                               (syntax->list #'ss))]
+    [(module _ _ (#%module-begin . ss))
+     (ormap (λ (stx) (contracting-provide-in-stx sym stx))
+            (syntax->list #'ss))]
     [(provide/contract . stxs)
      (for/or ([stx (syntax->list #'stxs)])
        (syntax-case stx ()
@@ -164,12 +174,45 @@
               [(rename _ s _)       (eq-sym? #'s) stx]
               [(s _)                (eq-sym? #'s) stx]
               [_ #f]))]
-         ;; Only care about contracts
+         ;; Only care about contracting provides.
          ;; [s (eq-sym? #'s) stx]
          [_ #f]))]
-    [(#%provide . ss)
-     (ormap eq-sym? (syntax->list #'ss))
-     (ormap eq-sym? (syntax->list #'ss))]
+    [_ #f]))
+
+;; Find sym in a contracting and/or renaming provide, and return the
+;; syntax for the ORIGINAL identifier (before being contracted and/or
+;; renamed).
+(define (renaming-provide-in-stx sym stx) ;;symbol? syntax? -> syntax?
+  (define (eq-sym? stx)
+    (if (eq? sym (syntax-e stx))
+        stx
+        #f))
+  (syntax-case* stx
+                (module #%module-begin provide provide/contract)
+                syntax-e=?
+    [(module _ _ (#%module-begin . ss))
+     (ormap (λ (stx) (renaming-provide-in-stx sym stx))
+            (syntax->list #'ss))]
+    [(provide/contract . stxs)
+     (for/or ([stx (syntax->list #'stxs)])
+       (syntax-case stx ()
+         [(s _) (eq-sym? #'s)]
+         [_ #f]))]
+    [(provide . stxs)
+     (for/or ([stx (syntax->list #'stxs)])
+       (syntax-case* stx (contract-out rename-out) syntax-e=?
+         [(contract-out . stxs)
+          (for/or ([stx (syntax->list #'stxs)])
+            (syntax-case* stx (rename) syntax-e=?
+              [(rename orig s _) (eq-sym? #'s) #'orig]
+              [(s _)             (eq-sym? #'s) #'s]
+              [_ #f]))]
+         [(rename-out . stxs)
+          (for/or ([stx (syntax->list #'stxs)])
+            (syntax-case* stx () syntax-e=?
+              [(orig s) (eq-sym? #'s) #'orig]
+              [_ #f]))]
+         [_ #f]))]
     [_ #f]))
 
 ;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
@@ -178,19 +221,8 @@
 
 (module+ test
   (require rackunit
-           racket/list)
-  (check-equal? (syntax->datum
-                 (provision-in-stx 'foo
-                                   #'(module a b
-                                       (#%module-begin
-                                        (define x 1)
-                                        (provide baz)
-                                        (provide/contract [foo x] [bar y])))))
-                '(foo x))
+           racket/list
+           net/url)
   (check-equal? 'kernel (find-definition "display"))
   (check-regexp-match "/racket/private/misc\\.rkt$"
-                      (first (find-definition "displayln")))
-  (check-regexp-match "/racket/base\\.rkt$"
-                      (first (find-provision "display")))
-  (check-regexp-match "/racket/base\\.rkt$"
-                      (first (find-provision "displayln"))))
+                      (first (find-definition "displayln"))))
