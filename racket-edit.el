@@ -82,6 +82,14 @@ namespace is active."
            (racket--eval/buffer (format ",run %s\n" (buffer-file-name)))
            (racket--do-visit-def-or-mod cmd sym)))))
 
+(defun racket--get-def-file+line (sym)
+  "For use by company-mode 'location option."
+  (let ((result (racket--eval/sexpr (format ",def %s\n\n" sym))))
+    (cond ((and (listp result) (= (length result) 3))
+           (cl-destructuring-bind (path line col) result
+             (cons path line)))
+          (t nil))))
+
 (defun racket-visit-module (&optional prefix)
   "Visit definition of module at point, e.g. net/url or \"file.rkt\".
 

@@ -176,7 +176,8 @@
                  . racket-font-lock-syntactic-face-function)
                 (parse-sexp-lookup-properties . t)
                 (font-lock-extra-managed-props syntax-table)))
-  (setq-local completion-at-point-functions '(racket-complete-at-point)))
+  (setq-local completion-at-point-functions '(racket-complete-at-point))
+  (setq-local eldoc-documentation-function 'racket-eldoc-function))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Insert lambda char (like DrRacket)

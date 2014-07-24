@@ -4,6 +4,8 @@
          racket/pretty
          racket/match
          racket/format
+         racket/contract
+         racket/port
          syntax/modresolve
          "defn.rkt"
          "logger.rkt"
@@ -28,6 +30,7 @@
          [(def) (def (read))]
          [(doc) (doc (read-line))]
          [(mod) (mod (read) path)]
+         [(type) (type (read))]
          [(exp) (exp1 (read))]
          [(exp+) (exp+)]
          [(exp!) (exp! (read))]
@@ -44,6 +47,7 @@
 ,top
 ,def <identifier>
 ,mod <module-path>
+,type <identifier>
 ,doc <string>
 ,exp <stx>
 ,exp+
@@ -66,6 +70,26 @@
   (elisp-println (cond [(module-path? v) (mod* v rel)]
                        [(symbol? v)      (mod* (symbol->string v) rel)]
                        [else             #f])))
+
+(define (type v)
+  ;; TO-DO: At 3, would it be too slow to use defn.rkt to find the
+  ;; definition site and extract the argument list?
+  (elisp-println
+   (with-handlers ([exn:fail? (λ _ #f)]) ;3. Else nil
+     (with-handlers ([exn:fail?
+                      (λ _
+                        (parameterize ([error-display-handler (λ _ (void))])
+                          ((current-eval) ;2. Try contract
+                           (cons '#%top-interaction
+                                 `(if (has-contract? ,v)
+                                   (~a (contract-name (value-contract ,v)))
+                                   nil)))))])
+       (with-output-to-string
+           (λ ()
+             ((current-eval) ;1. Try Typed Racket's :print-type.
+              (cons '#%top-interaction
+                      `(:print-type ,v)))))))))
+
 
 (define (elisp-println v)
   (elisp-print v)

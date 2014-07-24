@@ -67,6 +67,13 @@ See `racket--invalidate-completion-cache' and
 
 ;;; company-mode
 
+;; Note: This works best when global-company-mode is already active,
+;; before racket-mode starts. That way racket--company-setup will
+;; actually run racket--do-company-setup and all will be configured.
+;;
+;; It does not always work when you open a racket-mode buffer, and
+;; only then choose M-x company-mode to toggle it on.
+
 (eval-after-load "company"
   '(progn
      (defun racket-company-backend (command &optional arg &rest ignore)
@@ -76,7 +83,8 @@ See `racket--invalidate-completion-cache' and
          ('prefix (racket--company-prefix))
          ('candidates (racket--company-candidates
                        (substring-no-properties arg)))
-         ('meta (format "This value is named %s" arg))))
+         ('location (racket--get-def-file+line arg))
+         ('meta (racket-get-type arg))))
      (defun racket--do-company-setup (enable)
        (set (make-local-variable 'company-default-lighter) " co")
        (set (make-local-variable 'company-echo-delay) 0.01)
@@ -106,6 +114,32 @@ See `racket--invalidate-completion-cache' and
 (defun racket--company-candidates (prefix)
   (and (equal prefix (car racket--company-completions))
        (cdr racket--company-completions)))
+
+;;; eldoc
+
+(defvar racket--eldoc-cache (make-hash-table :test 'equal)
+  "Used to speed up eldoc.")
+
+(defun racket-invalidate-eldoc-cache ()
+  (setq racket--eldoc-cache (make-hash-table :test 'equal)))
+
+(defun racket-get-type (sym)
+  (let ((v (gethash sym racket--eldoc-cache)))
+    (or v
+        (let ((v (racket--eval/sexpr (concat ",type " sym))))
+          (puthash sym v racket--eldoc-cache)
+          v))))
+
+(defun racket-eldoc-function ()
+  (and (> (point) (point-min))
+       (save-excursion
+         (and (eq ?\s (char-syntax (char-before (point))))
+              (condition-case nil
+                  (let* ((beg (progn (backward-sexp) (point)))
+                         (end (progn (forward-sexp) (point)))
+                         (sym (buffer-substring-no-properties beg end)))
+                    (racket-get-type sym))
+                (scan-error nil))))))
 
 (provide 'racket-complete)
 
