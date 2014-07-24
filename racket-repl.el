@@ -256,7 +256,16 @@ Keep original window selected."
      ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3)   ;rackunit
      ("#<path:\\([^>]+\\)>" 1 nil nil 0)                       ;path struct
      ))
-  (setq-local comint-get-old-input (function racket--get-old-input)))
+  (setq-local comint-get-old-input (function racket--get-old-input))
+  ;; The following is needed to make e.g. λ work when pasted into the
+  ;; comint-buffer, both directly by the user and via the racket--eval
+  ;; functions. This seems like a global Emacs-wide setting, so I'm
+  ;; not 100% confident I should do this here. But if I don't, and
+  ;; e.g. people use eldoc within (λ () ...), the Racket reader will
+  ;; hang because it gets ",type <eof>" not ",type λ<eof>". Even when
+  ;; people paste manually or via C-x C-r, although it doesn't hang,
+  ;; the resulting error message is not very clear.
+  (set-terminal-coding-system 'utf-8))
 
 (provide 'racket-repl)
 
