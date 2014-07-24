@@ -1,3 +1,13 @@
+# Contributors
+
+Thanks to the following contributors:
+
+- [@antoineB](https://github.com/antoineB)
+- [@zenspider](https://github.com/zenspider)
+- [@mswift42](https://github.com/mswift42)
+- [@yasuyk](https://github.com/yasuyk)
+- [@](https://github.com/purcell)
+
 # Acknowledgements
 
 - The existing Emacs Scheme mode and Inferior Scheme mode.
