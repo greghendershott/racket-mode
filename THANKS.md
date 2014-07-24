@@ -6,7 +6,7 @@ Thanks to the following contributors:
 - [@zenspider](https://github.com/zenspider)
 - [@mswift42](https://github.com/mswift42)
 - [@yasuyk](https://github.com/yasuyk)
-- [@](https://github.com/purcell)
+- [@purcell](https://github.com/purcell)
 
 # Acknowledgements
 
