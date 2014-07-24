@@ -72,10 +72,10 @@
                        [else             #f])))
 
 (define (type v)
-  ;; TO-DO: At 3, would it be too slow to use defn.rkt to find the
-  ;; definition site and extract the argument list?
   (elisp-println
-   (with-handlers ([exn:fail? (λ _ #f)]) ;3. Else nil
+   (with-handlers ([exn:fail? (λ _  ;3. Try sig
+                                (define x (find-signature (symbol->string v)))
+                                (and x (~a x)))])
      (with-handlers ([exn:fail?
                       (λ _
                         (parameterize ([error-display-handler (λ _ (void))])

@@ -13,23 +13,60 @@
    (-> string?
        (or/c #f 'kernel (list/c path-string?
                                 natural-number/c
-                                natural-number/c)))]))
+                                natural-number/c)))]
+  [find-signature
+   (-> string?
+       (or/c #f list?))]))
 
 ;; Try to find the definition of `str`, returning a list with the file
 ;; name, line and column, or #f if not found.
 (define (find-definition str)
-  (define (result stx where)
-    (list (path->string (or (syntax-source stx) where))
-          (or (syntax-line stx) 1)
-          (or (syntax-column stx) 0)))
-  (define src (identifier-binding* str))
+  (define src (source str))
   (and src
-       (match-let ([(list id where nom-id nom-where) src])
+       (match-let ([(list id where) src])
          (match where
            ['kernel 'kernel]
            [path?
             ;; We have a source file. When possible, we want to find
             ;; the line and column within that file, too.
+            (or
+             ;; The main case: Look for a definition form.
+             (let ([file-stx (file->syntax where #:expand? #t)])
+               (match (define-in-stx id file-stx)
+                 [(? syntax? stx) (list (path->string
+                                         (or (syntax-source stx) where))
+                                        (or (syntax-line stx) 1)
+                                        (or (syntax-column stx) 0))]
+                 [_ #f]))
+             ;; If we can't find within the file, return file:1:0
+             (list (path->string where) 1 0))]
+           [_ #f]))))
+
+;; Try to find the definition of `str`, returning its signature.
+(define (find-signature str)
+  (define src (source str))
+  (and src
+       (match-let ([(list id where) src])
+         (match where
+           ['kernel #f]
+           [path?
+            (or (let ([file-stx (file->syntax where #:expand? #f)])
+                  (match (signature-in-stx id file-stx)
+                    [(? syntax? stx) (syntax->datum stx)]
+                    [_ #f])))]
+           [_ #f]))))
+
+;; Use `identifier-binding*' but don't trust its results. Check for a
+;; renaming/contracting provide of the `nominal-source-id`.
+(define/contract (source str)
+  (-> string?
+      (or/c #f (list/c symbol? (or/c path? 'kernel #f))))
+  (define src (identifier-binding* str))
+  (and src
+       (match-let ([(list id where nom-id nom-where) src])
+         (match where
+           ['kernel (list id 'kernel)]
+           [path?
             (or
              ;; First look for a possible renaming/contracting provide
              ;; involving `nom-id`. Because in that case the `id` that
@@ -40,19 +77,9 @@
              ;; the definition form.
              (let ([file-stx (file->syntax where #:expand? #f)])
                (match (renaming-provide-in-stx nom-id file-stx)
-                 [(? syntax? stx)
-                  (let ([file-stx (file->syntax where #:expand? #t)])
-                    (match (define-in-stx (syntax-e stx) file-stx)
-                      [(? syntax? stx) (result stx where)]
-                      [_ #f]))]
+                 [(? syntax? stx) (list (syntax-e stx) where)]
                  [_ #f]))
-             ;; The main case: Look for a definition form.
-             (let ([file-stx (file->syntax where #:expand? #t)])
-               (match (define-in-stx id file-stx)
-                 [(? syntax? stx) (result stx where)]
-                 [_ #f]))
-             ;; If we can't find within the file, return file:1:0
-             (list (path->string where) 1 0))]
+             (list id where))]
            [_ #f]))))
 
 ;; A wrapper for identifier-binding. Keep in mind that unfortunately
@@ -140,6 +167,23 @@
     [(define-struct (s _) . _)      (eq-sym? #'s) stx]
     [(struct s . _)                 (eq-sym? #'s) stx]
     [(struct (s _) . _)             (eq-sym? #'s) stx]
+    [_ #f]))
+
+(define (signature-in-stx sym stx) ;;symbol? syntax? -> (or/c #f list?)
+  (define (eq-sym? stx)
+    (if (eq? sym (syntax-e stx))
+        stx
+        #f))
+  (syntax-case* stx
+                (module #%module-begin define-values define-syntaxes
+                        define define/contract
+                        define-syntax struct define-struct)
+                syntax-e=?
+    [(module _ _ (#%module-begin . stxs))
+     (ormap (λ (stx) (signature-in-stx sym stx))
+            (syntax->list #'stxs))]
+    [(define          (s . as) . _) (eq-sym? #'s) #'(s . as)]
+    [(define/contract (s . as) . _) (eq-sym? #'s) #'(s . as)]
     [_ #f]))
 
 ;; Given a symbol? and syntax?, return syntax? corresponding to the
