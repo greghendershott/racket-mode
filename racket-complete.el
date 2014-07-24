@@ -115,31 +115,44 @@ See `racket--invalidate-completion-cache' and
   (and (equal prefix (car racket--company-completions))
        (cdr racket--company-completions)))
 
+;;; types (i.e. TR types, contracts, and/or function signatures)
+
+(defvar racket--type-cache (make-hash-table :test 'eq)
+  "Memoize ,type commands in Racket REPL.
+ `racket-run' should call `racket-invalidate-type-cache'.")
+
+(defun racket-invalidate-type-cache ()
+  (setq racket--type-cache (make-hash-table :test 'eq)))
+
+(defun racket-get-type (str)
+  (let* ((sym (intern str))
+         ;; Since nil can be value in hash-table, supply a default...
+         (v (gethash sym racket--type-cache 'not-found)))
+    ;; ...and therefore this test:
+    (if (not (eq v 'not-found))
+        v
+      (let ((v (racket--eval/sexpr (concat ",type " str))))
+        (puthash sym v racket--type-cache)
+        v))))
+
 ;;; eldoc
-
-(defvar racket--eldoc-cache (make-hash-table :test 'equal)
-  "Used to speed up eldoc.")
-
-(defun racket-invalidate-eldoc-cache ()
-  (setq racket--eldoc-cache (make-hash-table :test 'equal)))
-
-(defun racket-get-type (sym)
-  (let ((v (gethash sym racket--eldoc-cache)))
-    (or v
-        (let ((v (racket--eval/sexpr (concat ",type " sym))))
-          (puthash sym v racket--eldoc-cache)
-          v))))
 
 (defun racket-eldoc-function ()
   (and (> (point) (point-min))
        (save-excursion
-         (and (eq ?\s (char-syntax (char-before (point))))
-              (condition-case nil
-                  (let* ((beg (progn (backward-sexp) (point)))
-                         (end (progn (forward-sexp) (point)))
-                         (sym (buffer-substring-no-properties beg end)))
-                    (racket-get-type sym))
-                (scan-error nil))))))
+         (condition-case nil
+             (let* ((beg (progn
+                           (backward-up-list) (forward-char 1) (point)))
+                    (beg (and (looking-at "[^0-9#'`,]") beg))
+                    (end (and beg (progn (forward-sexp) (point))))
+                    (end (and end
+                              (char-after (point))
+                              (eq ?\s (char-syntax (char-after (point))))
+                              end))
+                    (sym (and beg end (buffer-substring-no-properties beg end)))
+                    (str (and sym (racket-get-type sym))))
+               str)
+           (scan-error nil))))))
 
 (provide 'racket-complete)
 
