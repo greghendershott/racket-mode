@@ -97,9 +97,9 @@
 
 (define (elisp-print v)
   (match v
-    [#f (display "nil")]
-    [#t (display "t")]
-    [v (print v)]))
+    [(or #f (list)) (display "nil")]
+    [#t             (display "t")]
+    [v              (print v)]))
 
 (define (doc str)
   (eval `(begin
