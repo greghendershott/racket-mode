@@ -121,7 +121,7 @@ See `racket--invalidate-completion-cache' and
   "Memoize ,type commands in Racket REPL.
  `racket-run' should call `racket-invalidate-type-cache'.")
 
-(defun racket-invalidate-type-cache ()
+(defun racket--invalidate-type-cache ()
   (setq racket--type-cache (make-hash-table :test 'eq)))
 
 (defun racket-get-type (str)
@@ -152,7 +152,7 @@ See `racket--invalidate-completion-cache' and
                     (sym (and beg end (buffer-substring-no-properties beg end)))
                     (str (and sym (racket-get-type sym))))
                str)
-           (scan-error nil))))))
+           (scan-error nil)))))
 
 (provide 'racket-complete)
 

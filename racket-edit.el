@@ -28,6 +28,7 @@
   (interactive)
   (save-buffer)
   (racket--invalidate-completion-cache)
+  (racket--invalidate-type-cache)
   (racket--eval (format ",run %s\n" (buffer-file-name))))
 
 (defun racket-racket ()
