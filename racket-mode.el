@@ -46,6 +46,7 @@ http://www.gnu.org/licenses/ for details.")
 (require 'racket-edit)
 (require 'racket-repl)
 (require 'easymenu)
+(require 'thingatpt)
 
 (defvar racket-mode-map
   (let ((m (make-sparse-keymap)))
@@ -131,6 +132,20 @@ http://www.gnu.org/licenses/ for details.")
   (set (make-local-variable 'imenu-syntax-alist)
        '(("+-*/.<>=?!$%_&~^:" . "w"))))
 
+(defvar racket--eldoc-cache (make-hash-table :test 'equal)
+  "Used to speed up eldoc.")
+
+(defun racket--eldoc-function ()
+  (when (thing-at-point-looking-at "(\\([^0-9`',#@\n (\"][^\n ]+\\)[\n ]*")
+    (let ((maison (match-string-no-properties 1)))
+      (let ((value (gethash maison racket--eldoc-cache 't)))
+        (if (not (equal value 't))
+            value
+            (let ((computed (racket--eval/sexpr (concat ",contract " (match-string-no-properties 1)))))
+              (puthash maison computed racket--eldoc-cache)
+              (when computed
+                computed)))))))
+
 ;;;###autoload
 (define-derived-mode racket-mode prog-mode
   "Racket"
@@ -139,6 +154,8 @@ http://www.gnu.org/licenses/ for details.")
   (racket--variables-for-both-modes)
   (racket--variables-imenu)
   (racket--company-setup t)
+  (set (make-local-variable 'eldoc-documentation-function)
+       'racket--eldoc-function)
   (hs-minor-mode t))
 
 ;;;###autoload
