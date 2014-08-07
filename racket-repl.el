@@ -163,11 +163,11 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
             (racket--comint-send-input))
         (error (racket-cr))))))
 
-(defvar racket-sandbox-rkt
+(defvar racket-run-rkt
   (let ((elisp-dir
          (file-name-directory (or load-file-name (buffer-file-name)))))
-    (expand-file-name "sandbox.rkt" elisp-dir))
-  "Path to sandbox.rkt")
+    (expand-file-name "run.rkt" elisp-dir))
+  "Path to run.rkt")
 
 ;;;###autoload
 (defun racket-repl ()
@@ -185,7 +185,7 @@ is run)."
       (set-buffer (make-comint racket--repl-buffer-name/raw ;w/o *stars*
                                racket-program
                                nil
-                               racket-sandbox-rkt))
+                               racket-run-rkt))
       (racket-repl-mode))
     (select-window original-window)))
 
