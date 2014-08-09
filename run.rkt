@@ -17,7 +17,7 @@
   (parameterize ([error-display-handler our-error-display-handler])
     (run #f)))
 
-;; (or/c #f path-string?)
+;; run: (or/c #f path-string?) -> any
 (define (run maybe-path-str)
   (define-values (path dir) (path-string->path&dir maybe-path-str))
   ;; Always set current-directory and current-load-relative-directory
