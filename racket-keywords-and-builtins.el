@@ -399,6 +399,7 @@
     "datum-intern-literal"
     "default-continuation-prompt-tag"
     "define-generics"
+    "define/match"
     "delete-directory"
     "delete-file"
     "denominator"
