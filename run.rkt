@@ -100,7 +100,7 @@
 
 ;; To be called from REPL thread. Puts message for the main thread to
 ;; the channel, and blocks itself; main thread will kill the REPL
-;; thread. Net effect: "Exit the thread with a return value".
+;; thread. Effectively "exit the thread with a return value".
 (define (put/stop v) ;; msg? -> void?
   (channel-put ch v)
   (void (sync never-evt)))
