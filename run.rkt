@@ -111,8 +111,8 @@
     (case-lambda
       [(rmp ns)
        (orig-resolver rmp ns)]
-      [(x y z)
-       (orig-resolver x y z)]
+      [(mp rmp stx)
+       (repl-module-name-resolver mp rmp stx #t)]
       [(mp rmp stx load?)
        (when (and (eq? mp 'racket/gui/base) load?)
          (unless (gui-required?)
