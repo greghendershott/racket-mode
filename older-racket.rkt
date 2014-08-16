@@ -2,7 +2,7 @@
 
 (require racket/list
          racket/function
-         racket/path)
+         racket/path) ;explode-path NOT in racket/base prior to 6.0
 
 ;; A few functions we need that were added in Racket 6.0. This lets us
 ;; run on Racket 5.3.5 (perhaps earlier, but I haven't tested).
