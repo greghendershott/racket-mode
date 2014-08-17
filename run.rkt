@@ -1,13 +1,9 @@
 #lang racket/base
 
-(require (for-syntax syntax/parse)
-         racket/match
-         racket/string
-         racket/format
+(require racket/match
          "cmds.rkt"
          "error.rkt"
-         "gui.rkt"
-         "util.rkt")
+         "gui.rkt")
 
 (module+ main
   ;; Emacs on Windows comint-mode needs buffering disabled

@@ -1,11 +1,9 @@
 #lang racket/base
 
-(require syntax/modread
-         racket/match
+(require racket/contract
          racket/function
-         racket/pretty
-         racket/contract
-         racket/list)
+         racket/match
+         syntax/modread)
 
 (provide
  (contract-out
