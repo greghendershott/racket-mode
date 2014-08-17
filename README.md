@@ -157,7 +157,7 @@ A few notes:
 
 - **racket-base-requires** changes a file that uses `#lang racket` to
   use `#lang racket/base` instead, adding explicit module requires as
-  needed. It also does what **racket-tidy-requires** does.
+  needed. Also effectively does **racket-tidy-requires**.
 
 - **Completion**: racket-mode supports both Emacs 24.3+
   `completion-at-point` (<kbd>C-M-i</kbd>) and [`company-mode`].
