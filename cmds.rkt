@@ -155,6 +155,14 @@
 ;;; requires
 
 ;; requires/trim : path-string? (listof require-sexpr) -> require-sexpr
+;;
+;; Note: Why pass in a list of the existing require forms -- why not
+;; just use the "keep" list from show-requres? Because the keep list
+;; only states the module name, not the original form. Therefore if
+;; the original require has a subform like `(only-in mod f)` (or
+;; rename-in, except-in, &c), we won't know how to preserve that
+;; unless we're given it. That's why our strategy must be to look for
+;; things to drop, as opposed to things to keep.
 (define (requires/trim path-str reqs)
   (let* ([reqs (combine-requires reqs)]
          [sr (show-requires* path-str)]
