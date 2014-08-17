@@ -2,13 +2,13 @@ EMACS=$(shell if [ -z "`which emacs`" ]; then echo "Emacs executable not found";
 
 BATCHEMACS=${EMACS} --batch --no-site-file -q -eval '(add-to-list (quote load-path) "${PWD}/")'
 
-EL=$(ls *.el)
-
-ELC=$(EL:.el=.elc)
-
 BYTECOMP = $(BATCHEMACS) -eval '(progn (require (quote bytecomp)) (setq byte-compile-warnings t) (setq byte-compile-error-on-warn t))' -f batch-byte-compile
 
 default:
+	@echo Try \'make help\'
+
+help:
+	@echo "Targets: clean, compile, test, test-racket, test-elisp"
 
 clean:
 	-rm *.elc
@@ -16,7 +16,17 @@ clean:
 %.elc : %.el
 	$(BYTECOMP) $<
 
-compile: clean racket-common.elc racket-complete.el racket-edit.elc racket-emacs-compat.el racket-eval.elc racket-font-lock.elc racket-indent.elc racket-keywords-and-builtins.elc racket-mode.elc racket-repl.elc
+compile: clean \
+	racket-common.elc \
+	racket-complete.elc \
+	racket-edit.elc \
+	racket-emacs-compat.elc \
+	racket-eval.elc \
+	racket-font-lock.elc \
+	racket-indent.elc \
+	racket-keywords-and-builtins.elc \
+	racket-mode.elc \
+	racket-repl.elc
 
 test: test-racket test-elisp
 
