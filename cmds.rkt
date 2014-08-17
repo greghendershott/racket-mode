@@ -296,7 +296,7 @@
   (check-equal? (group-requires
                  (combine-requires
                   '((require c b a)
-                    (require (for-meta 4 m31 m30))
+                    (require (for-meta 4 m41 m40))
                     (require (for-meta -4 m-41 m-40))
                     (require (for-label l1 l0))
                     (require (for-template t1 t0))
@@ -308,7 +308,7 @@
                   (for-template t0 t1)
                   (for-label l0 l1)
                   (for-meta -4 m-40 m-41)
-                  (for-meta 4 m30 m31)
+                  (for-meta 4 m40 m41)
                   a b c
                   (only-in mod oi)
                   "a.rkt" "b.rkt" "c.rkt")))
