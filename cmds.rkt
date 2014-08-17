@@ -1,6 +1,8 @@
 #lang racket/base
 
-(require macro-debugger/analysis/check-requires
+(require (for-syntax racket/base
+                     syntax/parse)
+         macro-debugger/analysis/check-requires
          racket/contract
          racket/format
          racket/function
@@ -80,25 +82,38 @@
                        [(symbol? v)      (mod* (symbol->string v) rel)]
                        [else             #f])))
 
+;; Some try/catch syntax. Because `with-handlers` can be
+;; exceptionally bass-ackwards when nested (pun intended).
+(define-syntax (try stx)
+  (define-splicing-syntax-class catch-clause
+    (pattern (~seq #:catch pred:expr id:id e:expr ...+)
+             #:with handler #'[pred (lambda (id) e ...)]))
+  (syntax-parse stx
+    [(_ body:expr ...+ catch:catch-clause ...+)
+     #'(with-handlers (catch.handler ...)
+         body ...)]))
+
 (define (type v)
   (elisp-println
-   (with-handlers ([exn:fail? (λ _  ;3. Try sig
-                                (define x (find-signature (symbol->string v)))
-                                (and x (~a x)))])
-     (with-handlers ([exn:fail?
-                      (λ _
-                        (parameterize ([error-display-handler (λ _ (void))])
-                          ((current-eval) ;2. Try contract
-                           (cons '#%top-interaction
-                                 `(if (has-contract? ,v)
-                                   (~a (contract-name (value-contract ,v)))
-                                   nil)))))])
-       (match (with-output-to-string
-                  (λ ()
-                    ((current-eval) ;1. Try Typed Racket type
-                     (cons '#%top-interaction v))))
-         [(pregexp "^- : (.*) \\.\\.\\..*\n" (list _ t)) t]
-         [(pregexp "^- : (.*)\n$" (list _ t)) t])))))
+   ;; 1. Try using Typed Racket's REPL simplified type.
+   (try (match (with-output-to-string
+                   (λ ()
+                     ((current-eval)
+                      (cons '#%top-interaction v))))
+          [(pregexp "^- : (.*) \\.\\.\\..*\n" (list _ t)) t]
+          [(pregexp "^- : (.*)\n$"            (list _ t)) t])
+        #:catch exn:fail? _
+        ;; 2. Try to find a contract.
+        (try (parameterize ([error-display-handler (λ _ (void))])
+               ((current-eval)
+                (cons '#%top-interaction
+                      `(if (has-contract? ,v)
+                        (~a (contract-name (value-contract ,v)))
+                        (error)))))
+             #:catch exn:fail? _
+             ;; 3. Try to find a signature in the source code.
+             (define x (find-signature (symbol->string v)))
+             (and x (~a x))))))
 
 (define (elisp-println v)
   (elisp-print v)
