@@ -55,6 +55,9 @@ output as a string."
       ;; Skip past the expression, if it was echoed
       (and (looking-at expression)
            (forward-line))
+      ;; Skip past the Typed Racket type display, if any
+      (and (looking-at "^- : ")
+           (forward-line))
       (buffer-substring (point) (point-max)))))
 
 (defun racket--eval/sexpr (expression)
