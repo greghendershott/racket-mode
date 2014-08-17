@@ -169,13 +169,13 @@ A few notes:
   commands. Some of them are the foundation for Emacs commands. Others
   are available only as a command in the REPL.
 
-    - `,top`: Leave the current file/module and go to the top level.
+    - `,top`: Reset the REPL to "no file" (i.e. a base namespace).
 
     - `,run <file>`: Run the file. What **racket-run** <kbd>F5</kbd>
-      uses. Either `"file.rkt"` or `file.rkt` works.
+      uses. Either `"file.rkt"` is `file.rkt` OK.
 
     - `,doc <symbol-or-string>`: Look for `<symbol-or-string>` in
-      Racket's documentation. What **racket-help** <kbd>C-c C-h</kbd>
+      Racket's documentation. What **racket-doc** <kbd>C-c C-d</kbd>
       uses.
 
     - `,cd`, `,pwd`: Change and show [`current-directory`].
