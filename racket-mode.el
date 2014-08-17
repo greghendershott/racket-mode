@@ -112,6 +112,9 @@ http://www.gnu.org/licenses/ for details.")
     ["Next Error or Link" next-error]
     ["Previous Error" previous-error]
     "---"
+    ["Tidy Requires" racket-tidy-requires]
+    ["Use #lang racket/base" racket-base-requires]
+    "---"
     ["Racket documentation" racket-doc]
     ["Customize..." customize-mode]))
 

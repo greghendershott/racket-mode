@@ -237,6 +237,130 @@ If so, try again."
                   (string->path
                    ,(substring-no-properties (buffer-file-name)))))))))
 
+;;; requires
+
+(defun racket-tidy-requires ()
+  "Make a single top-level `require` and delete unused modules.
+
+All top-level `require` forms are combined into a single form.
+Within that form:
+
+- Unused modules are deleted.
+
+- A single subform is used for each phase level, sorted in this
+  order: for-syntax, for-template, for-label, for-meta, and
+  plain (phase 0).
+
+  - Within each level subform, the modules are sorted:
+
+    - Collection path modules -- sorted alphabetically.
+
+    - Subforms such as `only-in`.
+
+    - Quoted relative requires -- sorted alphabetically.
+
+At most one module is listed per line.
+
+Also see `racket-base-requires'.
+
+Note: This only works for requires at the top level of a source
+file using `#lang`. It does *not* work for `require`s inside
+`module` forms."
+  (interactive)
+  (when (buffer-modified-p) (save-buffer))
+  (let* ((result (racket--kill-top-level-requires))
+         (beg (nth 0 result))
+         (reqs (nth 1 result))
+         (new (and beg reqs
+                   (racket--eval/string
+                    (format ",requires/trim \"%s\" %S"
+                            (substring-no-properties (buffer-file-name))
+                            reqs)))))
+    (when new
+      (goto-char beg)
+      (insert (concat (read new) "\n")))))
+
+(defun racket-base-requires ()
+  "Change from `#lang racket` to `#lang racket/base`.
+
+Adds explicit requires for modules that are provided by `racket`
+but not by `racket/base`.
+
+This is a recommended optimization for Racket applications. By
+avoiding loading all of `racket`, it can reduce load time and
+memory footprint.
+
+Like `racket-tidy-requires', this also removes unneeded modules
+and tidies everything into a single, sorted require form.
+
+CAVEAT: Currently this only helps change `#lang racket` to
+`#lang racket/base`. It does *not* help with other similar conversions,
+such as changing `#lang typed/racket` to `#lang typed/racket/base`."
+  (interactive)
+  (when (racket--buffer-start-re "^#lang.*? racket/base$")
+    (error "Already using #lang racket/base. Nothing to change."))
+  (unless (racket--buffer-start-re "^#lang.*? racket$")
+    (error "File does not use use #lang racket. Cannot change."))
+  (when (buffer-modified-p) (save-buffer))
+  (let* ((result (racket--kill-top-level-requires))
+         (beg (nth 0 result))
+         (reqs (nth 1 result))
+         (new (and beg reqs
+                   (racket--eval/string
+                    (format ",requires/base \"%s\" %S"
+                            (substring-no-properties (buffer-file-name))
+                            reqs)))))
+    (when new
+      (goto-char beg)
+      (insert (concat (read new) "\n")))
+    (goto-char (point-min))
+    (re-search-forward "^#lang.*? racket$")
+    (insert "/base")))
+
+(defun racket--buffer-start-re (re)
+  (save-excursion
+    (condition-case ()
+        (progn
+          (goto-char (point-min))
+          (re-search-forward re)
+          t)
+      (error nil))))
+
+(defun racket--kill-top-level-requires ()
+  "Delete all top-level `require`s. Return list with two results:
+
+The first element is point where the first require was found, or
+nil.
+
+The second element is a list of require s-expressions found.
+
+Note: This only works for requires at the top level of a source
+file using `#lang`. It does *not* work for `require`s inside
+`module` forms.
+
+Note: It might work better to shift this work into Racket code,
+and have it return a list of file offsets and replacements. Doing
+so would make it easier to match require forms syntactically
+instead of textually, and handle module and submodule forms."
+  (save-excursion
+    (goto-char (point-min))
+    (let ((first-beg nil)
+          (requires nil))
+      (while (condition-case ()
+                 (progn
+                   (re-search-forward "^(require")
+                   (let* ((beg (progn (backward-up-list) (point)))
+                          (end (progn (forward-sexp)     (point)))
+                          (str (buffer-substring-no-properties beg end))
+                          (sexpr (read str)))
+                     (unless first-beg (setq first-beg beg))
+                     (setq requires (cons sexpr requires))
+                     (kill-sexp -1)
+                     (delete-blank-lines))
+                   t)
+               (error nil)))
+      (list first-beg requires))))
+
 (provide 'racket-edit)
 
 ;; racket-edit.el ends here

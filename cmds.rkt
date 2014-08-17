@@ -1,17 +1,24 @@
 #lang racket/base
 
-(require racket/string
-         racket/pretty
-         racket/match
-         racket/format
+(require macro-debugger/analysis/check-requires
          racket/contract
+         racket/format
+         racket/function
+         racket/list
+         racket/match
          racket/port
+         racket/pretty
+         racket/set
+         racket/string
          syntax/modresolve
          "defn.rkt"
          "logger.rkt"
          "util.rkt")
 
 (provide make-prompt-read)
+
+(module+ test
+  (require rackunit))
 
 (define (make-prompt-read path put/stop rerun)
   (define-values (base name dir?) (cond [path (split-path path)]
@@ -37,6 +44,8 @@
          [(log) (log-display (map string->symbol (string-split (read-line))))]
          [(pwd) (display-commented (~v (current-directory)))]
          [(cd) (cd (~a (read)))]
+         [(requires/trim) (requires/trim (read) (read))]
+         [(requires/base) (requires/base (read) (read))]
          [else (usage)])]
       [_ stx])))
 
@@ -142,3 +151,208 @@
   (pretty-print (syntax->datum stx)
                 (current-output-port)
                 1))
+
+;;; requires
+
+;; requires/trim : path-string? (listof require-sexpr) -> require-sexpr
+(define (requires/trim path-str reqs)
+  (let* ([reqs (combine-requires reqs)]
+         [sr (show-requires* path-str)]
+         [drops (filter-map (λ (x)
+                              (match x
+                                [(list 'drop mod lvl) (list mod lvl)]
+                                [_ #f]))
+                            sr)]
+         [reqs (filter-map (λ (req)
+                             (cond [(member req drops) #f]
+                                   [else req]))
+                           reqs)]
+         [reqs (group-requires reqs)])
+    (require-pretty-format reqs)))
+
+;; Use `bypass` to help convert from `#lang racket` to `#lang
+;; racket/base` plus explicit requires.
+;;
+;; Note: Currently this is hardcoded to `#lang racket`, only.
+(define (requires/base path-str reqs)
+  (let* ([reqs (combine-requires reqs)]
+         [sr (show-requires* path-str)]
+         [drops (filter-map (λ (x)
+                              (match x
+                                [(list 'drop mod lvl) (list mod lvl)]
+                                [_ #f]))
+                            sr)]
+         [adds (append*
+                (filter-map (λ (x)
+                              (match x
+                                [(list 'bypass 'racket 0
+                                       (list (list mod lvl _) ...))
+                                 (filter (λ (x)
+                                           (match x
+                                             [(list 'racket/base 0) #f]
+                                             [_ #t]))
+                                         (map list mod lvl))]
+                                [_ #f]))
+                            sr))]
+         [reqs (filter-map (λ (req)
+                             (cond [(member req drops) #f]
+                                   [else req]))
+                           reqs)]
+         [reqs (append reqs adds)]
+         [reqs (group-requires reqs)])
+    (require-pretty-format reqs)))
+
+;; show-requires* : Like show-requires but accepts a path-string? that
+;; need not already be a module path.
+(define (show-requires* path-str)
+  (define-values (base name dir?) (split-path (string->path path-str)))
+  (parameterize ([current-load-relative-directory base]
+                 [current-directory base])
+    (show-requires name)))
+
+(define (combine-requires reqs)
+  (remove-duplicates
+   (append* (for/list ([req reqs])
+              (match req
+                [(list* 'require vs)
+                 (append*
+                  (for/list ([v vs])
+                    ;; Use (list mod level), like `show-requires` uses.
+                    (match v
+                      [(list* 'for-meta level vs) (map (curryr list level) vs)]
+                      [(list* 'for-syntax vs)     (map (curryr list 1) vs)]
+                      [(list* 'for-template vs)   (map (curryr list -1) vs)]
+                      [(list* 'for-label vs)      (map (curryr list #f) vs)]
+                      [v                          (list (list v 0))])))])))))
+
+(module+ test
+  (require rackunit)
+  (check-equal?
+   (combine-requires '((require a b c)
+                       (require d e)
+                       (require a f)
+                       (require (for-syntax s t u) (for-label l0 l1 l2))
+                       (require (for-meta 1 m1a m1b)
+                                (for-meta 2 m2a m2b))))
+   '((a 0) (b 0) (c 0) (d 0) (e 0) (f 0)
+     (s 1) (t 1) (u 1)
+     (l0 #f) (l1 #f) (l2 #f)
+     (m1a 1) (m1b 1) (m2a 2) (m2b 2))))
+
+;; Given a list of requires -- each in the (list module level) form
+;; used by `show-requires` -- group them by level and convert them to
+;; a Racket `require` form. Also, sort the subforms by phase level:
+;; for-syntax, for-template, for-label, for-meta, and plain (0).
+;; Within each such group, sort them first by module paths then
+;; relative requires. Within each such group, sort alphabetically.
+;;
+;; Note: Does *not* attempt to sort things *within* require subforms
+;; such as except-in, only-in and so on. Such forms are only sorted in
+;; between module paths and relative requires.
+(define (group-requires reqs)
+  ;; Put the requires into a hash of sets.
+  (define ht (make-hasheq)) ;(hash/c <level> (set <mod>))
+  (for ([req reqs]) (match req
+                      [(list mod lvl) (hash-update! ht lvl
+                                                    (lambda (s) (set-add s mod))
+                                                    (set mod))]))
+  (define (mod-set->mod-list mod-set)
+    (sort (set->list mod-set) mod<?))
+  (define (for-level level k)
+    (define mods (hash-ref ht level #f))
+    (cond [mods (k (mod-set->mod-list mods))]
+          [else '()]))
+  (define (preface . pres)
+    (λ (mods) `((,@pres ,@mods))))
+  (define (meta-levels)
+    (sort (for/list ([x (hash-keys ht)] #:when (not (member x '(-1 0 1 #f)))) x)
+          <))
+  `(require
+    ,@(for-level  1 (preface 'for-syntax))
+    ,@(for-level -1 (preface 'for-template))
+    ,@(for-level #f (preface 'for-label))
+    ,@(append* (for/list ([level (in-list (meta-levels))])
+                 (for-level level (preface 'for-meta level))))
+    ,@(for-level 0 values)))
+
+(define (mod<? a b)
+  (or (and (symbol? a) (not (symbol? b)))
+      (and (list? a) (not (list? b)))
+      (and (not (string? a)) (string? a))
+      (and (string? a) (string? b)
+           (string<? a b))
+      (and (symbol? a) (symbol? b)
+           (string<? (symbol->string a) (symbol->string b)))))
+
+(module+ test
+  (check-equal? (group-requires
+                 (combine-requires
+                  '((require c b a)
+                    (require (for-meta 4 m31 m30))
+                    (require (for-meta -4 m-41 m-40))
+                    (require (for-label l1 l0))
+                    (require (for-template t1 t0))
+                    (require (for-syntax s1 s0))
+                    (require "a.rkt" "b.rkt" "c.rkt"
+                             (only-in mod oi)))))
+                '(require
+                  (for-syntax s0 s1)
+                  (for-template t0 t1)
+                  (for-label l0 l1)
+                  (for-meta -4 m-40 m-41)
+                  (for-meta 4 m30 m31)
+                  a b c
+                  (only-in mod oi)
+                  "a.rkt" "b.rkt" "c.rkt")))
+
+
+;; require-pretty-format : list? -> string?
+(define (require-pretty-format x)
+  (define out (open-output-string))
+  (parameterize ([current-output-port out])
+    (require-pretty-print x))
+  (get-output-string out))
+
+(module+ test
+  (check-equal? (require-pretty-format '(require a b (for-syntax c d)))
+                "(require a\n         b\n         (for-syntax c\n                     d))\n"))
+
+;; Pretty print a require form with one module per line and with
+;; indentation for the `for-X` subforms. Example:
+;;
+;; (require (for-syntax racket/base
+;;                      syntax/parse)
+;;          (for-meta 3 racket/a
+;;                      racket/b)
+;;          racket/format
+;;          racket/string
+;;          "a.rkt"
+;;          "b.rkt")
+;;
+;; Note: Does *not* attempt to format things *within* require subforms
+;; such as except-in, only-in and so on. Each such form is put on its
+;; own line, but might run >80 chars.
+(define (require-pretty-print x [indent 0])
+  (match x
+    [(list 'require) (void)]
+    [(list* (and pre (or 'require 'for-syntax 'for-template 'for-label))
+            this more)
+     (printf "~a(~s ~s" (make-string indent #\space)pre this)
+     (define new-indent (+ indent
+                           (+ 2 (string-length (symbol->string pre)))))
+     (for ([x more])
+       (newline)
+       (require-pretty-print x new-indent))
+     (display ")")
+     (when (eq? pre 'require)
+       (newline))]
+    [(list* (and pre 'for-meta)
+            level this more)
+     (printf "~a(~s ~s ~s" (make-string indent #\space) pre level this)
+     (define new-indent (+ indent
+                           (+ 2 (string-length (format "~s ~s" pre level)))))
+     (for ([x more])
+       (newline)
+       (require-pretty-print x new-indent))
+     (display ")")]
+    [this (printf "~a~s" (make-string indent #\space) this)]))
