@@ -93,12 +93,12 @@
                                  `(if (has-contract? ,v)
                                    (~a (contract-name (value-contract ,v)))
                                    nil)))))])
-       (with-output-to-string
-           (λ ()
-             ((current-eval) ;1. Try Typed Racket's :print-type.
-              (cons '#%top-interaction
-                      `(:print-type ,v)))))))))
-
+       (match (with-output-to-string
+                  (λ ()
+                    ((current-eval) ;1. Try Typed Racket type
+                     (cons '#%top-interaction v))))
+         [(pregexp "^- : (.*) \\.\\.\\..*\n" (list _ t)) t]
+         [(pregexp "^- : (.*)\n$" (list _ t)) t])))))
 
 (define (elisp-println v)
   (elisp-print v)
