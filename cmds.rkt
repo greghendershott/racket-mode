@@ -337,8 +337,8 @@
   (get-output-string out))
 
 (module+ test
-  (check-equal? (require-pretty-format '(require a b (for-syntax c d)))
-                "(require a\n         b\n         (for-syntax c\n                     d))\n"))
+  (check-equal? (require-pretty-format '(require (for-syntax c d) a b))
+                "(require (for-syntax c\n                     d)\n         a\n         b)\n"))
 
 ;; Pretty print a require form with one module per line and with
 ;; indentation for the `for-X` subforms. Example:
@@ -358,17 +358,23 @@
 (define (require-pretty-print x [indent 0])
   (match x
     [(list 'require) (void)]
-    [(list* (and pre (or 'require 'for-syntax 'for-template 'for-label))
+    [(list* 'require this more)
+     (display "(require ")
+     (define new-indent (+ 2 (string-length "require")))
+     (require-pretty-print this new-indent)
+     (for ([x more])
+       (newline)
+       (require-pretty-print x new-indent))
+     (displayln ")")]
+    [(list* (and pre (or 'for-syntax 'for-template 'for-label))
             this more)
-     (printf "~a(~s ~s" (make-string indent #\space)pre this)
+     (printf "(~s ~s" pre this)
      (define new-indent (+ indent
                            (+ 2 (string-length (symbol->string pre)))))
      (for ([x more])
        (newline)
        (require-pretty-print x new-indent))
-     (display ")")
-     (when (eq? pre 'require)
-       (newline))]
+     (display ")")]
     [(list* (and pre 'for-meta)
             level this more)
      (printf "~a(~s ~s ~s" (make-string indent #\space) pre level this)
