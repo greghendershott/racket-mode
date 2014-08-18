@@ -337,8 +337,15 @@
   (get-output-string out))
 
 (module+ test
-  (check-equal? (require-pretty-format '(require (for-syntax c d) a b))
-                "(require (for-syntax c\n                     d)\n         a\n         b)\n"))
+  (check-equal? (require-pretty-format
+                 '(require a))
+                "(require a)\n")
+  (check-equal? (require-pretty-format
+                 '(require a b))
+                "(require a\n         b)\n")
+  (check-equal? (require-pretty-format
+                 '(require (for-syntax a b) (for-meta 2 c d) e f))
+                "(require (for-syntax a\n                     b)\n         (for-meta 2 c\n                     d)\n         e\n         f)\n"))
 
 ;; Pretty print a require form with one module per line and with
 ;; indentation for the `for-X` subforms. Example:
@@ -355,33 +362,33 @@
 ;; Note: Does *not* attempt to format things *within* require subforms
 ;; such as except-in, only-in and so on. Each such form is put on its
 ;; own line, but might run >80 chars.
-(define (require-pretty-print x [indent 0])
-  (match x
-    [(list 'require) (void)]
-    [(list* 'require this more)
-     (display "(require ")
-     (define new-indent (+ 2 (string-length "require")))
-     (require-pretty-print this new-indent)
-     (for ([x more])
-       (newline)
-       (require-pretty-print x new-indent))
-     (displayln ")")]
-    [(list* (and pre (or 'for-syntax 'for-template 'for-label))
-            this more)
-     (printf "(~s ~s" pre this)
-     (define new-indent (+ indent
-                           (+ 2 (string-length (symbol->string pre)))))
-     (for ([x more])
-       (newline)
-       (require-pretty-print x new-indent))
-     (display ")")]
-    [(list* (and pre 'for-meta)
-            level this more)
-     (printf "~a(~s ~s ~s" (make-string indent #\space) pre level this)
-     (define new-indent (+ indent
-                           (+ 2 (string-length (format "~s ~s" pre level)))))
-     (for ([x more])
-       (newline)
-       (require-pretty-print x new-indent))
-     (display ")")]
-    [this (printf "~a~s" (make-string indent #\space) this)]))
+(define (require-pretty-print x)
+  (define (prn x first? indent)
+    (define (indent-string)
+      (if first? "" (make-string indent #\space)))
+    (match x
+      [(list 'require) (void)]
+      [(list* (and pre (or 'require 'for-syntax 'for-template 'for-label))
+              this more)
+       (define new-indent (+ indent
+                             (+ 2 (string-length (symbol->string pre)))))
+       (printf "~a(~s " (indent-string) pre)
+       (prn this #t new-indent)
+       (for ([x more])
+         (newline)
+         (prn x #f new-indent))
+       (display ")")
+       (when (eq? pre 'require)
+         (newline))]
+      [(list* (and pre 'for-meta)
+              level this more)
+       (define new-indent (+ indent
+                             (+ 2 (string-length (format "~s ~s" pre level)))))
+       (printf "~a(~s ~s " (indent-string) pre level)
+       (prn this #t new-indent)
+       (for ([x more])
+         (newline)
+         (prn x #f new-indent))
+       (display ")")]
+      [this (printf "~a~s" (indent-string) this)]))
+  (prn x #t 0))
