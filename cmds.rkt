@@ -366,29 +366,24 @@
   (define (prn x first? indent)
     (define (indent-string)
       (if first? "" (make-string indent #\space)))
+    (define (prn-form pre this more)
+      (define new-indent (+ indent (+ 2 (string-length pre))))
+       (printf "~a(~a " (indent-string) pre)
+       (prn this #t new-indent)
+       (for ([x more])
+         (newline)
+         (prn x #f new-indent))
+       (display ")"))
     (match x
-      [(list 'require) (void)]
+      [(list 'require)
+       (void)]
       [(list* (and pre (or 'require 'for-syntax 'for-template 'for-label))
               this more)
-       (define new-indent (+ indent
-                             (+ 2 (string-length (symbol->string pre)))))
-       (printf "~a(~s " (indent-string) pre)
-       (prn this #t new-indent)
-       (for ([x more])
-         (newline)
-         (prn x #f new-indent))
-       (display ")")
+       (prn-form (format "~s" pre) this more)
        (when (eq? pre 'require)
          (newline))]
-      [(list* (and pre 'for-meta)
-              level this more)
-       (define new-indent (+ indent
-                             (+ 2 (string-length (format "~s ~s" pre level)))))
-       (printf "~a(~s ~s " (indent-string) pre level)
-       (prn this #t new-indent)
-       (for ([x more])
-         (newline)
-         (prn x #f new-indent))
-       (display ")")]
-      [this (printf "~a~s" (indent-string) this)]))
+      [(list* 'for-meta level this more)
+       (prn-form (format "for-meta ~a" level) this more)]
+      [this
+       (printf "~a~s" (indent-string) this)]))
   (prn x #t 0))
