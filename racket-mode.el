@@ -113,6 +113,7 @@ http://www.gnu.org/licenses/ for details.")
     ["Previous Error" previous-error]
     "---"
     ["Tidy Requires" racket-tidy-requires]
+    ["Trim Requires" racket-trim-requires]
     ["Use #lang racket/base" racket-base-requires]
     "---"
     ["Racket documentation" racket-doc]

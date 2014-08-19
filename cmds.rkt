@@ -46,6 +46,7 @@
          [(log) (log-display (map string->symbol (string-split (read-line))))]
          [(pwd) (display-commented (~v (current-directory)))]
          [(cd) (cd (~a (read)))]
+         [(requires/tidy) (requires/tidy (read))]
          [(requires/trim) (requires/trim (read) (read))]
          [(requires/base) (requires/base (read) (read))]
          [else (usage)])]
@@ -168,6 +169,12 @@
                 1))
 
 ;;; requires
+
+;; requires/tidy : (listof require-sexpr) -> require-sexpr
+(define (requires/tidy reqs)
+  (let* ([reqs (combine-requires reqs)]
+         [reqs (group-requires reqs)])
+    (require-pretty-format reqs)))
 
 ;; requires/trim : path-string? (listof require-sexpr) -> require-sexpr
 ;;

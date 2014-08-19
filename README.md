@@ -153,11 +153,14 @@ A few notes:
   the current s-expression among `()`, `[]`, and `{}`.
 
 - **racket-tidy-requires** makes a single top-level `require` form,
-  deleting unused modules, and sorting the subforms and modules.
+  with modules sorted, one per line.
 
-- **racket-base-requires** changes a file that uses `#lang racket` to
-  use `#lang racket/base` instead, adding explicit module requires as
-  needed. Also effectively does **racket-tidy-requires**.
+- **racket-trim-requires** does **racket-tidy-requires** and also
+  deletes any unused modules.
+
+- **racket-base-requires** does **racket-trim-require**, and also
+  changes a file that uses `#lang racket` to use `#lang racket/base`
+  instead, adding explicit module requires as needed.
 
 - **Completion**: racket-mode supports both Emacs 24.3+
   `completion-at-point` (<kbd>C-M-i</kbd>) and [`company-mode`].

@@ -240,12 +240,10 @@ If so, try again."
 ;;; requires
 
 (defun racket-tidy-requires ()
-  "Make a single top-level `require` and delete unused modules.
+  "Make a single top-level `require`, modules sorted, one per line.
 
 All top-level `require` forms are combined into a single form.
 Within that form:
-
-- Unused modules are deleted.
 
 - A single subform is used for each phase level, sorted in this
   order: for-syntax, for-template, for-label, for-meta, and
@@ -261,11 +259,30 @@ Within that form:
 
 At most one module is listed per line.
 
-Also see `racket-base-requires'.
+Note: This only works for requires at the top level of a source
+file using `#lang`. It does *not* work for `require`s inside
+`module` forms.
+
+See also: `racket-trim-requires' and `racket-base-requires'."
+  (interactive)
+  (let* ((result (racket--kill-top-level-requires))
+         (beg (nth 0 result))
+         (reqs (nth 1 result))
+         (new (and beg reqs
+                   (racket--eval/string
+                    (format ",requires/tidy %S" reqs)))))
+    (when new
+      (goto-char beg)
+      (insert (concat (read new) "\n")))))
+
+(defun racket-trim-requires ()
+  "Like `racket-tidy-requires' but also deletes unused modules.
 
 Note: This only works for requires at the top level of a source
 file using `#lang`. It does *not* work for `require`s inside
-`module` forms."
+`module` forms.
+
+See also: `racket-base-requires'."
   (interactive)
   (when (buffer-modified-p) (save-buffer))
   (let* ((result (racket--kill-top-level-requires))
@@ -286,14 +303,14 @@ file using `#lang`. It does *not* work for `require`s inside
 Adds explicit requires for modules that are provided by `racket`
 but not by `racket/base`.
 
-This is a recommended optimization for Racket applications. By
-avoiding loading all of `racket`, it can reduce load time and
-memory footprint.
+This is a recommended optimization for Racket applications.
+Avoiding loading all of `racket` can reduce load time and memory
+footprint.
 
-Like `racket-tidy-requires', this also removes unneeded modules
-and tidies everything into a single, sorted require form.
+Also, as does `racket-trim-requires', this removes unneeded
+modules and tidies everything into a single, sorted require form.
 
-CAVEAT: Currently this only helps change `#lang racket` to
+Note: Currently this only helps change `#lang racket` to
 `#lang racket/base`. It does *not* help with other similar conversions,
 such as changing `#lang typed/racket` to `#lang typed/racket/base`."
   (interactive)
