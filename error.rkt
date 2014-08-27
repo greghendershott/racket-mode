@@ -65,10 +65,10 @@
 
 (define (under-system-path? path)
   (match (path->collects-relative path)
-    [`(collects #"mred" ,_ ...) #t]
-    [`(collects #"racket" #"contract" ,_ ...) #t]
-    [`(collects #"racket" #"private" ,_ ...) #t]
-    [`(collects #"typed-racket" ,_ ...) #t]
+    [`(collects #"mred" . ,_) #t]
+    [`(collects #"racket" #"contract" . ,_) #t]
+    [`(collects #"racket" #"private" . ,_) #t]
+    [`(collects #"typed-racket" . ,_) #t]
     [_ #f]))
 
 (define (context-item->string ci)
