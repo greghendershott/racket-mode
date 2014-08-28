@@ -251,6 +251,14 @@
   (newline)
   (lisp-indent-line))
 
+
+(defun racket-backward-up-list ()
+  "Like `backward-up-list' but works when point is in a string literal."
+  (interactive)
+  (while (in-string-p)
+    (backward-char))
+  (backward-up-list))
+
 (provide 'racket-common)
 
 ;; racket-common.el ends here

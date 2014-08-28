@@ -34,6 +34,7 @@
     (mapc (lambda (x)
             (define-key m (kbd (car x)) (cadr x)))
           '(("RET"     racket-repl-cr)
+            ("M-C-u"   racket-backward-up-list)
             (")"       racket-insert-closing-paren)
             ("]"       racket-insert-closing-bracket)
             ("}"       racket-insert-closing-brace)
