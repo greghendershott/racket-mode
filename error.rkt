@@ -78,9 +78,9 @@
                  (if (and src id) " " "")
                  (if id (format "~a" id) "")))
 
-;; Don't use Racket's source-location->string. Don't want the
-;; setup/path-to-relative behavior that replaces full pathnames with
-;; <collects>, <pkgs> etc. Want full pathnames for Emacs'
+;; Don't use source-location->string from syntax/srcloc. Don't want
+;; the setup/path-to-relative behavior that replaces full pathnames
+;; with <collects>, <pkgs> etc. Instead want full pathnames for Emacs'
 ;; compilation-mode. HOWEVER note that <collects> or <pkgs> might be
 ;; baked into exn-message string already; we handle that in
 ;; `fully-qualify-error-path`. Here we handle only strings we create
