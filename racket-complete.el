@@ -67,12 +67,12 @@ See `racket--invalidate-completion-cache' and
 
 ;;; company-mode
 
-;; Note: This works best when global-company-mode is already active,
-;; before racket-mode starts. That way racket--company-setup will
-;; actually run racket--do-company-setup and all will be configured.
-;;
-;; It does not always work when you open a racket-mode buffer, and
-;; only then choose M-x company-mode to toggle it on.
+(defcustom racket-use-company-mode t
+  "Enable company-mode for racket-mode edit buffers?"
+  :tag "Use company-mode?"
+  :type 'boolean
+  :group 'racket
+  :safe 'booleanp)
 
 (eval-after-load "company"
   '(progn
@@ -85,16 +85,14 @@ See `racket--invalidate-completion-cache' and
                        (substring-no-properties arg)))
          ('location (racket--get-def-file+line arg))
          ('meta (racket-get-type arg))))
-     (defun racket--do-company-setup (enable)
-       (set (make-local-variable 'company-default-lighter) " co")
+     (defun racket--do-company-setup ()
        (set (make-local-variable 'company-echo-delay) 0.01)
-       (set (make-local-variable 'company-backends)
-            (and enable '(racket-company-backend)))
-       (company-mode (if enable 1 -1)))))
+       (set (make-local-variable 'company-backends) '(racket-company-backend))
+       (company-mode (if racket-use-company-mode 1 -1)))))
 
-(defun racket--company-setup (enable)
+(defun racket--company-setup ()
   (when (fboundp 'racket--do-company-setup)
-    (racket--do-company-setup enable)))
+    (racket--do-company-setup)))
 
 (make-variable-buffer-local
  (defvar racket--company-completions nil))
