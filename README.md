@@ -158,7 +158,7 @@ A few notes:
 - **racket-trim-requires** does **racket-tidy-requires** and also
   deletes any unused modules.
 
-- **racket-base-requires** does **racket-trim-require**, and also
+- **racket-base-requires** does **racket-trim-requires**, and also
   changes a file that uses `#lang racket` to use `#lang racket/base`
   instead, adding explicit module requires as needed.
 
