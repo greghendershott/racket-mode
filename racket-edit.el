@@ -106,11 +106,24 @@ namespace is active."
     (racket--do-visit-def-or-mod "mod" v)))
 
 (defun racket-doc (&optional prefix)
-  "Find something in Racket's documentation."
+  "View documentation of the identifier or string at point.
+
+If point is an identifier required in the current namespace that
+has help, opens the web browser directly at that help
+topic. (i.e. Uses the identifier variant of racket/help.)
+
+Otherwise, opens the 'search for a term' page, where you can
+choose among multiple possibilities. (i.e. Uses the string
+variant of racket/help.)
+
+With a C-u prefix, prompts for the identifier or quoted string,
+instead of looking at point."
   (interactive "P")
   (let ((sym (racket--symbol-at-point-or-prompt prefix "Racket help for: ")))
     (when sym
-      (racket--eval/buffer (format ",doc %s" sym)))))
+      (unless (string-match-p "^Sending to web browser..."
+                              (racket--eval/string (format ",doc %s" sym)))
+        (racket--eval/buffer (format ",doc \"%s\"" sym)))))) ;quoted
 
 (defun racket--symbol-at-point-or-prompt (prefix prompt)
   "Helper for functions that want symbol-at-point, or, to prompt
