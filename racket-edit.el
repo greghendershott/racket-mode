@@ -151,29 +151,25 @@ when there is no symbol-at-point or prefix is true."
             (erase-buffer)
             (insert (assoc-default 'bluebox xs #'eq))
             (insert "\n\n")
-            (let ((doc-uri (assoc-default 'doc-uri xs #'eq))
-                  ;; Emacs `browse-url' by default uses "open" on
-                  ;; OSX but open doesn't handle anchors in `file:`
-                  ;; URLs. Sigh. Instead use racket/help on the
-                  ;; original sym. (IOW we're using 'doc-uri simply
-                  ;; as a boolean, here, and ignoring the value of
-                  ;; it, doc-path, and doc-anchor. Someday we might
-                  ;; use those if we try to insert the HTML docs,
-                  ;; here, using 24.4's eww mode, or whatever.)
-                  (cmd (format
-                        "%S\n"
-                        `(begin
-                          (local-require racket/help)
-                          (help ,sym)))))
+            (let ((doc-uri (assoc-default 'doc-uri xs #'eq)))
+              ;; Emacs `browse-url' by default uses "open" on OSX but
+              ;; open doesn't handle anchors in `file:` URLs. Sigh.
+              ;; Instead use racket/help on the original sym. (IOW
+              ;; we're using 'doc-uri simply as a boolean, here, and
+              ;; ignoring the value of it, doc-path, and doc-anchor.
+              ;; Someday we might use those if we try to insert the
+              ;; HTML docs, here, using 24.4's eww mode, or whatever.)
               (when doc-uri
-                (insert-text-button "Documentation"
-                                    'action
-                                    `(lambda (btn)
-                                       (racket--eval/buffer ,cmd)))))
+                (insert-text-button
+                 "Documentation"
+                 'action
+                 `(lambda (btn)
+                    (racket--eval/buffer
+                     ,(substring-no-properties (format ",doc %s\n" sym)))))))
             (let ((src-path (assoc-default 'src-path xs #'eq)))
               (insert "   ")
               (if (equal src-path "#%kernel")
-                  (insert "Defined in #%kernel")
+                  (insert "#%kernel")
                 (insert-text-button
                  "Definition"
                  'action

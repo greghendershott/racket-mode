@@ -37,8 +37,8 @@
          [(run) (put/stop (rerun (~a (read))))]
          [(top) (put/stop (rerun #f))]
          [(def) (def (read))]
-         [(doc) (doc (read-line))]
-         [(describe) (describe (namespace-syntax-introduce (read-syntax)))]
+         [(doc) (doc (read-syntax))]
+         [(describe) (describe (read-syntax))]
          [(mod) (mod (read) path)]
          [(type) (type (read))]
          [(exp) (exp1 (read))]
@@ -60,7 +60,7 @@
 ,top
 ,def <identifier>
 ,type <identifier>
-,doc <string>
+,doc <identifier>|<string>
 ,exp <stx>
 ,exp+
 ,exp! <stx>
@@ -147,7 +147,8 @@
 (define (describe stx)
   (elisp-println (describe* stx)))
 
-(define (describe* stx)
+(define (describe* _stx)
+  (define stx (namespace-syntax-introduce _stx))
   (define (mpi->name mpi)
     (match (resolved-module-path-name (module-path-index-resolve mpi))
       [(? path? p) (path->string p)]
@@ -218,11 +219,13 @@
 
 ;;; misc
 
-(define (doc str)
-  (eval `(begin
-          (require racket/help)
-          (help ,(string-trim str))
-          (newline))))
+(define (doc stx)
+  (eval
+   (namespace-syntax-introduce
+    (datum->syntax #f
+                   `(begin
+                     (local-require racket/help)
+                     (help ,stx))))))
 
 (define (cd s)
   (let ([old-wd (current-directory)])
