@@ -143,46 +143,55 @@ when there is no symbol-at-point or prefix is true."
   (interactive "P")
   (let ((sym (racket--symbol-at-point-or-prompt prefix "Describe: ")))
     (when sym
-      (let ((xs (racket--eval/sexpr (format ",describe %s" sym))))
-        (when xs
-          (with-current-buffer (get-buffer-create "*Racket Describe*")
-            (racket-describe-mode)
-            (read-only-mode -1)
-            (erase-buffer)
-            (insert (assoc-default 'bluebox xs #'eq))
-            (insert "\n\n")
-            (let ((doc-uri (assoc-default 'doc-uri xs #'eq)))
-              ;; Emacs `browse-url' by default uses "open" on OSX but
-              ;; open doesn't handle anchors in `file:` URLs. Sigh.
-              ;; Instead use racket/help on the original sym. (IOW
-              ;; we're using 'doc-uri simply as a boolean, here, and
-              ;; ignoring the value of it, doc-path, and doc-anchor.
-              ;; Someday we might use those if we try to insert the
-              ;; HTML docs, here, using 24.4's eww mode, or whatever.)
-              (when doc-uri
-                (insert-text-button
-                 "Documentation"
-                 'action
-                 `(lambda (btn)
-                    (racket--eval/buffer
-                     ,(substring-no-properties (format ",doc %s\n" sym)))))))
-            (let ((src-path (assoc-default 'src-path xs #'eq)))
-              (insert "   ")
-              (if (equal src-path "#%kernel")
-                  (insert "#%kernel")
-                (insert-text-button
-                 "Definition"
-                 'action
-                 `(lambda (btn)
-                    (racket--do-visit-def-or-mod
-                     "def"
-                     ,(substring-no-properties (format "%s" sym)))))))
-            (insert "          [q]uit")
-            (read-only-mode 1)
-            (display-buffer (current-buffer) t)
-            (pop-to-buffer (current-buffer))
-            (racket-describe--next-button)
-            (message "Type TAB to move to links, 'q' to restore previous window")))))))
+      (racket--do-describe sym t))))
+
+(defun racket--do-describe (sym pop-to)
+  "A helper for `racket-describe' and `racket-company-backend'.
+
+POP-TO should be t for the former, nil for the latter."
+  (let ((xs (racket--eval/sexpr (format ",describe %s" sym))))
+    (when xs
+      (with-current-buffer (get-buffer-create "*Racket Describe*")
+        (racket-describe-mode)
+        (read-only-mode -1)
+        (erase-buffer)
+        (insert (assoc-default 'bluebox xs #'eq))
+        (when pop-to
+          (insert "\n\n")
+          (let ((doc-uri (assoc-default 'doc-uri xs #'eq)))
+            ;; Emacs `browse-url' by default uses "open" on OSX but
+            ;; open doesn't handle anchors in `file:` URLs. Sigh.
+            ;; Instead use racket/help on the original sym. (IOW
+            ;; we're using 'doc-uri simply as a boolean, here, and
+            ;; ignoring the value of it, doc-path, and doc-anchor.
+            ;; Someday we might use those if we try to insert the
+            ;; HTML docs, here, using 24.4's eww mode, or whatever.)
+            (when doc-uri
+              (insert-text-button
+               "Documentation"
+               'action
+               `(lambda (btn)
+                  (racket--eval/buffer
+                   ,(substring-no-properties (format ",doc %s\n" sym)))))))
+          (let ((src-path (assoc-default 'src-path xs #'eq)))
+            (insert "   ")
+            (if (equal src-path "#%kernel")
+                (insert "#%kernel")
+              (insert-text-button
+               "Definition"
+               'action
+               `(lambda (btn)
+                  (racket--do-visit-def-or-mod
+                   "def"
+                   ,(substring-no-properties (format "%s" sym)))))))
+          (insert "          [q]uit"))
+        (read-only-mode 1)
+        (display-buffer (current-buffer) t)
+        (when pop-to
+          (pop-to-buffer (current-buffer))
+          (racket-describe--next-button)
+          (message "Type TAB to move to links, 'q' to restore previous window"))
+        (current-buffer)))))
 
 (defvar racket-describe-mode-map
   (let ((m (make-sparse-keymap)))
