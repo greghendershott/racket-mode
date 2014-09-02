@@ -169,7 +169,7 @@
                 nil                            ;keywords-only?
                 nil                            ;case-fold?
                 (("+-*/.<>=!?$%_&~^:" . "w")   ;syntax-alist
-                 (?#. "w 14"))
+                 (?# . "w 14"))
                 beginning-of-defun             ;syntax-begin
                 ;; Additional variables:
                 (font-lock-mark-block-function . mark-defun)
