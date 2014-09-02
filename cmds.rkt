@@ -38,6 +38,7 @@
          [(top) (put/stop (rerun #f))]
          [(def) (def (read))]
          [(doc) (doc (read-line))]
+         [(describe) (describe (namespace-syntax-introduce (read-syntax)))]
          [(mod) (mod (read) path)]
          [(type) (type (read))]
          [(exp) (exp1 (read))]
@@ -58,7 +59,6 @@
 ,run </path/to/file.rkt>
 ,top
 ,def <identifier>
-,mod <module-path>
 ,type <identifier>
 ,doc <string>
 ,exp <stx>
@@ -94,37 +94,129 @@
      #'(with-handlers (catch.handler ...)
          body ...)]))
 
-(define (type v)
-  (elisp-println
-   ;; 1. Try using Typed Racket's REPL simplified type.
-   (try (match (with-output-to-string
-                   (λ ()
-                     ((current-eval)
-                      (cons '#%top-interaction v))))
-          [(pregexp "^- : (.*) \\.\\.\\..*\n" (list _ t)) t]
-          [(pregexp "^- : (.*)\n$"            (list _ t)) t])
-        #:catch exn:fail? _
-        ;; 2. Try to find a contract.
-        (try (parameterize ([error-display-handler (λ _ (void))])
-               ((current-eval)
-                (cons '#%top-interaction
-                      `(if (has-contract? ,v)
-                        (~a (contract-name (value-contract ,v)))
-                        (error)))))
-             #:catch exn:fail? _
-             ;; 3. Try to find a signature in the source code.
-             (define x (find-signature (symbol->string v)))
-             (and x (~a x))))))
+(define (type v) ;; the ,type command.  rename this??
+  (elisp-println (type-or-sig v)))
+
+(define (type-or-sig v)
+  (or (type-or-contract v)
+      (sig v)))
+
+(define (sig v) ;symbol? -> (or/c #f string?)
+  (define x (find-signature (symbol->string v)))
+  (~a (or x v)))
+
+(define (type-or-contract v) ;any/c -> (or/c #f string?)
+  ;; 1. Try using Typed Racket's REPL simplified type.
+  (try (match (with-output-to-string
+                  (λ ()
+                    ((current-eval)
+                     (cons '#%top-interaction v))))
+         [(pregexp "^- : (.*) \\.\\.\\..*\n" (list _ t)) t]
+         [(pregexp "^- : (.*)\n$"            (list _ t)) t])
+       #:catch exn:fail? _
+       ;; 2. Try to find a contract.
+       (try (parameterize ([error-display-handler (λ _ (void))])
+              ((current-eval)
+               (cons '#%top-interaction
+                     `(if (has-contract? ,v)
+                       (~a (contract-name (value-contract ,v)))
+                       (error)))))
+            #:catch exn:fail? _
+            #f)))
+
+;;; describe
+
+;; There are two ways to get a "bluebox":
+;;
+;; 1. Walk the source code (as in my bluebox collection). Advantage:
+;; Works for any function written in Racket (even if not documented or
+;; provided).
+;;
+;; 2. Get the bluebox out of the installed documentation (if any).
+;; Advantage: Works for functions defined in #%kernel.
+;;
+;; As a result we may need to try both approaches.
+
+(require scribble/xref
+         setup/xref)
+
+(define fetch-bluebox-strs ;added ~6.01
+  (with-handlers ([exn:fail? (λ _ (λ _ #f))])
+    (dynamic-require 'scribble/blueboxes 'fetch-blueboxes-strs)))
+
+(define (describe stx)
+  (elisp-println (describe* stx)))
+
+(define (describe* stx)
+  (define (mpi->name mpi)
+    (match (resolved-module-path-name (module-path-index-resolve mpi))
+      [(? path? p) (path->string p)]
+      [v (format "~a" v)]))
+  (match (and (identifier? stx) (identifier-binding stx 0))
+    [(and bind
+          (list src-mod src-id
+                nominal-src-mod nominal-src-id
+                src-phase import-phase nominal-export-phase))
+     (let*-values
+         ([(tag)
+           (and bind
+                (xref-binding->definition-tag (load-collections-xref) bind 0))]
+          [(path anchor)
+           (if tag
+               (xref-tag->path+anchor (load-collections-xref) tag)
+               (values #f #f))]
+          [(uri) (and path anchor
+                      (string-append "file://"
+                                     (path->string path)
+                                     "#"
+                                     anchor))]
+          [(lines) (and tag (fetch-bluebox-strs tag))]
+          [(lines) (and lines
+                        (map (λ (s) (regexp-replace* #rx" " s " "))
+                             lines))]
+          [(kind) (and lines (car lines))]
+          [(bluebox) (and lines (string-join (cdr lines) "\n"))]
+          ;; If we didn't find a bluebox in the installed
+          ;; documentation, show the sig and (maybe) type-or-contract.
+          [(kind) (or kind "")]
+          [(bluebox) (or bluebox
+                         (string-append
+                          (sig (syntax->datum stx))
+                          "\n"
+                          (or (type-or-contract stx) "")))])
+       (list (cons 'src-id (format "~a" src-id))
+             (cons 'src-path (mpi->name src-mod))
+             (cons 'nom-src-id (format "~a" nominal-src-id))
+             (cons 'nom-src-path (mpi->name nominal-src-mod))
+             (cons 'kind kind)
+             (cons 'bluebox bluebox)
+             (cons 'doc-path (if path (path->string path) ""))
+             (cons 'doc-anchor anchor)
+             (cons 'doc-uri uri)))]
+    [_ #f]))
+
+;;; print elisp values
 
 (define (elisp-println v)
   (elisp-print v)
   (newline))
 
 (define (elisp-print v)
+  (print (->elisp v)))
+
+(define (->elisp v)
   (match v
-    [(or #f (list)) (display "nil")]
-    [#t             (display "t")]
-    [v              (print v)]))
+    [(or #f (list)) 'nil]
+    [#t             't]
+    [(? list? xs)   (map ->elisp xs)]
+    [(cons x y)     (cons (->elisp x) (->elisp y))]
+    [v              v]))
+
+(module+ test
+  (check-equal? (with-output-to-string (λ () (elisp-print '(1 t nil 3))))
+                "'(1 t nil 3)"))
+
+;;; misc
 
 (define (doc str)
   (eval `(begin

@@ -76,7 +76,8 @@ namespace is active."
              (find-file path)
              (goto-char (point-min))
              (forward-line (1- line))
-             (forward-char col)))
+             (forward-char col))
+           (message "Type M-, to return"))
           ((eq result 'kernel)
            (message "`%s' defined in #%%kernel -- source not available." sym))
           ((y-or-n-p "Not found. Run current buffer and try again? ")
@@ -135,6 +136,83 @@ when there is no symbol-at-point or prefix is true."
         (racket-pop-to-buffer-same-window buffer)
         (goto-char pt))
     (message "Stack empty.")))
+
+;;; racket-describe-mode
+
+(defun racket-describe (&optional prefix)
+  (interactive "P")
+  (let ((sym (racket--symbol-at-point-or-prompt prefix "Describe: ")))
+    (when sym
+      (let ((xs (racket--eval/sexpr (format ",describe %s" sym))))
+        (when xs
+          (with-current-buffer (get-buffer-create "*Racket Describe*")
+            (racket-describe-mode)
+            (read-only-mode -1)
+            (erase-buffer)
+            (insert (assoc-default 'bluebox xs #'eq))
+            (insert "\n\n")
+            (let ((doc-uri (assoc-default 'doc-uri xs #'eq))
+                  ;; Emacs `browse-url' by default uses "open" on
+                  ;; OSX but open doesn't handle anchors in `file:`
+                  ;; URLs. Sigh. Instead use racket/help on the
+                  ;; original sym. (IOW we're using 'doc-uri simply
+                  ;; as a boolean, here, and ignoring the value of
+                  ;; it, doc-path, and doc-anchor. Someday we might
+                  ;; use those if we try to insert the HTML docs,
+                  ;; here, using 24.4's eww mode, or whatever.)
+                  (cmd (format
+                        "%S\n"
+                        `(begin
+                          (local-require racket/help)
+                          (help ,sym)))))
+              (when doc-uri
+                (insert-text-button "Documentation"
+                                    'action
+                                    `(lambda (btn)
+                                       (racket--eval/buffer ,cmd)))))
+            (let ((src-path (assoc-default 'src-path xs #'eq)))
+              (insert "   ")
+              (if (equal src-path "#%kernel")
+                  (insert "Defined in #%kernel")
+                (insert-text-button
+                 "Definition"
+                 'action
+                 `(lambda (btn)
+                    (racket--do-visit-def-or-mod
+                     "def"
+                     ,(substring-no-properties (format "%s" sym)))))))
+            (insert "          [q]uit")
+            (read-only-mode 1)
+            (display-buffer (current-buffer) t)
+            (pop-to-buffer (current-buffer))
+            (racket-describe--next-button)
+            (message "Type TAB to move to links, 'q' to restore previous window")))))))
+
+(defvar racket-describe-mode-map
+  (let ((m (make-sparse-keymap)))
+    (set-keymap-parent m nil)
+    (mapc (lambda (x)
+            (define-key m (kbd (car x)) (cadr x)))
+          '(("q"       quit-window)
+            ("<tab>"   racket-describe--next-button)
+            ("S-<tab>" racket-describe--prev-button)))
+    m)
+  "Keymap for Racket Describe mode.")
+
+;;;###autoload
+(define-derived-mode racket-describe-mode fundamental-mode
+  "RacketDescribe"
+  "Major mode for describing Racket functions.
+\\{racket-describe-mode-map}"
+  )
+
+(defun racket-describe--next-button ()
+  (interactive)
+  (forward-button 1 t t))
+
+(defun racket-describe--prev-button ()
+  (interactive)
+  (forward-button -1 t t))
 
 ;;; code folding
 
