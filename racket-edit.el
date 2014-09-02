@@ -110,9 +110,7 @@ namespace is active."
   (interactive "P")
   (let ((sym (racket--symbol-at-point-or-prompt prefix "Racket help for: ")))
     (when sym
-      (shell-command (concat raco-program
-                             " doc "
-                             (shell-quote-argument (format "%s" sym)))))))
+      (racket--eval/buffer (format ",doc %s" sym)))))
 
 (defun racket--symbol-at-point-or-prompt (prefix prompt)
   "Helper for functions that want symbol-at-point, or, to prompt
