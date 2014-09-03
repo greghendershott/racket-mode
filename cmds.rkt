@@ -1,8 +1,6 @@
 #lang racket/base
 
-(require (for-syntax racket/base
-                     syntax/parse)
-         macro-debugger/analysis/check-requires
+(require macro-debugger/analysis/check-requires
          racket/contract
          racket/format
          racket/function
@@ -13,9 +11,11 @@
          racket/set
          racket/string
          syntax/modresolve
+         "try-catch.rkt"
          "defn.rkt"
          "logger.rkt"
-         "util.rkt")
+         "util.rkt"
+         "scribble.rkt")
 
 (provide make-prompt-read)
 
@@ -83,17 +83,6 @@
                        [(symbol? v)      (mod* (symbol->string v) rel)]
                        [else             #f])))
 
-;; Some try/catch syntax. Because `with-handlers` can be
-;; exceptionally bass-ackwards when nested (pun intended).
-(define-syntax (try stx)
-  (define-splicing-syntax-class catch-clause
-    (pattern (~seq #:catch pred:expr id:id e:expr ...+)
-             #:with handler #'[pred (lambda (id) e ...)]))
-  (syntax-parse stx
-    [(_ body:expr ...+ catch:catch-clause ...+)
-     #'(with-handlers (catch.handler ...)
-         body ...)]))
-
 (define (type v) ;; the ,type command.  rename this??
   (elisp-println (type-or-sig v)))
 
@@ -124,6 +113,11 @@
             #:catch exn:fail? _
             #f)))
 
+(define (sig-and/or-type stx)
+  (define s (sig (syntax->datum stx)))
+  (define t (type-or-contract stx))
+  (string-append s (if t (string-append "\n" t) "")))
+
 ;;; describe
 
 ;; There are two ways to get a "bluebox":
@@ -137,64 +131,14 @@
 ;;
 ;; As a result we may need to try both approaches.
 
-(require scribble/xref
-         setup/xref)
-
-(define fetch-bluebox-strs ;added ~6.01
-  (with-handlers ([exn:fail? (λ _ (λ _ #f))])
-    (dynamic-require 'scribble/blueboxes 'fetch-blueboxes-strs)))
-
 (define (describe stx)
-  (elisp-println (describe* stx)))
+  (displayln (describe* stx)) ;; NOT elisp-println; direct buffer output
+  (flush-output (current-output-port)))
 
 (define (describe* _stx)
   (define stx (namespace-syntax-introduce _stx))
-  (define (mpi->name mpi)
-    (match (resolved-module-path-name (module-path-index-resolve mpi))
-      [(? path? p) (path->string p)]
-      [v (format "~a" v)]))
-  (match (and (identifier? stx) (identifier-binding stx 0))
-    [(and bind
-          (list src-mod src-id
-                nominal-src-mod nominal-src-id
-                src-phase import-phase nominal-export-phase))
-     (let*-values
-         ([(tag)
-           (and bind
-                (xref-binding->definition-tag (load-collections-xref) bind 0))]
-          [(path anchor)
-           (if tag
-               (xref-tag->path+anchor (load-collections-xref) tag)
-               (values #f #f))]
-          [(uri) (and path anchor
-                      (string-append "file://"
-                                     (path->string path)
-                                     "#"
-                                     anchor))]
-          [(lines) (and tag (fetch-bluebox-strs tag))]
-          [(lines) (and lines
-                        (map (λ (s) (regexp-replace* #rx" " s " "))
-                             lines))]
-          [(kind) (and lines (car lines))]
-          [(bluebox) (and lines (string-join (cdr lines) "\n"))]
-          ;; If we didn't find a bluebox in the installed
-          ;; documentation, show the sig and (maybe) type-or-contract.
-          [(kind) (or kind "")]
-          [(bluebox) (or bluebox
-                         (string-append
-                          (sig (syntax->datum stx))
-                          "\n"
-                          (or (type-or-contract stx) "")))])
-       (list (cons 'src-id (format "~a" src-id))
-             (cons 'src-path (mpi->name src-mod))
-             (cons 'nom-src-id (format "~a" nominal-src-id))
-             (cons 'nom-src-path (mpi->name nominal-src-mod))
-             (cons 'kind kind)
-             (cons 'bluebox bluebox)
-             (cons 'doc-path (if path (path->string path) ""))
-             (cons 'doc-anchor anchor)
-             (cons 'doc-uri uri)))]
-    [_ #f]))
+  (or (scribble-doc/text stx)
+      (sig-and/or-type stx)))
 
 ;;; print elisp values
 
