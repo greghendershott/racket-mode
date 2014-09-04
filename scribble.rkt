@@ -55,6 +55,12 @@
     [_ #f]))
 
 (define (intrapara-anchor x)
+  (define (walk xs)
+    (for/or ([x (in-list xs)])
+      (match x
+        [`(a ((name ,anchor)) ,_ ...) anchor]
+        [`(,tag ,attrs ,es ...) (walk es)]
+        [_ #f])))
   (match x
     [`(div ((class "SIntrapara"))
        (blockquote
@@ -74,13 +80,12 @@
               (div
                ((class "RBackgroundLabelInner"))
                (p () ,_ ...)))
-             (p
-              ((class "RForeground"))
-              (span ((class "RktPn")) "(")
-              (a ((name ,anchor)))
-              ,_ ...))))
+             ;; That should be enough to say we're in a help item.
+             ;; From here on out, there can be some variation, so just
+             ;; look recursively for the first anchor.
+             ,es ...)))
           ,_ ...))))
-     anchor]
+     (walk es)]
     [_ #f]))
 
 (define (html-file->xexpr pathstr)
