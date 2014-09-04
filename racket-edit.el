@@ -168,19 +168,19 @@ Returns the buffer in which the description was written."
     (read-only-mode -1)
     (erase-buffer)
     (let ((buf (racket--eval/buffer (format ",describe %s" sym)))
-          (tmp "†")) ;#x2020 is unlikely character (hopefully)
+          (spc (string #x2020))) ;unlikely character (hopefully)
       ;; Emacs shr renderer removes leading &nbsp; from <td> elements
       ;; -- which messes up the indentation of s-expressions including
-      ;; contracts. So replace &nbsp with `tmp' in the source HTML,
-      ;; and replace `tmp' with " " after shr-insert-document outputs.
+      ;; contracts. So replace &nbsp with `spc' in the source HTML,
+      ;; and replace `spc' with " " after shr-insert-document outputs.
       (shr-insert-document
        (with-current-buffer buf
          (goto-char (point-min))
          (while (re-search-forward "&nbsp;" nil t)
-           (replace-match tmp t t))
+           (replace-match spc t t))
          (libxml-parse-html-region (point-min) (point-max))))
       (goto-char (point-min))
-      (while (re-search-forward tmp nil t)
+      (while (re-search-forward spc nil t)
         (replace-match " " t t)))
     (goto-char (point-max))
     (when pop-to
