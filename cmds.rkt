@@ -138,7 +138,8 @@
 
 (define (describe stx)
   (displayln (describe* stx)) ;; NOT elisp-println; direct buffer output
-  (flush-output (current-output-port)))
+  (flush-output (current-output-port))
+  (void)) ;(void) avoids Typed Racket type annotation line
 
 (define (describe* _stx)
   (define stx (namespace-syntax-introduce _stx))

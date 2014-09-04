@@ -164,10 +164,11 @@ added) and nil for the latter.
 
 Returns the buffer in which the description was written."
   (with-current-buffer (get-buffer-create "*Racket Describe*")
+    (racket-describe-mode)
     (read-only-mode -1)
     (erase-buffer)
     (let ((buf (racket--eval/buffer (format ",describe %s" sym)))
-          (tmp "†")) ;unlikely character (hopefully?)
+          (tmp "†")) ;#x2020 is unlikely character (hopefully)
       ;; Emacs shr renderer removes leading &nbsp; from <td> elements
       ;; -- which messes up the indentation of s-expressions including
       ;; contracts. So replace &nbsp with `tmp' in the source HTML,
@@ -199,7 +200,6 @@ Returns the buffer in which the description was written."
            ,(substring-no-properties (format ",doc %s\n" sym)))))
       (insert "          [q]uit"))
     (read-only-mode 1)
-    (racket-describe-mode)
     (goto-char (point-min))
     (display-buffer (current-buffer) t)
     (when pop-to
@@ -222,8 +222,7 @@ Returns the buffer in which the description was written."
 (define-derived-mode racket-describe-mode fundamental-mode
   "RacketDescribe"
   "Major mode for describing Racket functions.
-\\{racket-describe-mode-map}"
-  )
+\\{racket-describe-mode-map}")
 
 (defun racket-describe--next-button ()
   (interactive)
