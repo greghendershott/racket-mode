@@ -1,21 +1,25 @@
 #lang racket/base
 
-(require racket/match
-         racket/string
-         racket/file
-         (only-in html read-html-as-xml)
-         (only-in xml xml->xexpr element))
+(require racket/file
+         racket/match
+         scribble/xref
+         setup/xref
+         (only-in xml xml->xexpr element xexpr->string)
+         (only-in html read-html-as-xml))
 
-(require scribble/xref
-         setup/xref)
+(provide scribble-doc/text
+         scribble-doc/html)
 
-(provide scribble-doc/text)
-
-;;; Extract Scribble documentation as plain text
+;;; Extract Scribble documentation as plain text or as modified HTML
+;;; suitable for Emacs' shr renderer.
 
 (define (scribble-doc/text stx)
   (define xexpr (scribble-doc/xexpr stx))
   (and xexpr (xexpr->text xexpr)))
+
+(define (scribble-doc/html stx)
+  (define xexpr (scribble-doc/xexpr stx))
+  (and xexpr (xexpr->string (xexpr->html xexpr))))
 
 (define (scribble-doc/xexpr stx)
   (define-values (path anchor) (binding->path+anchor stx))
@@ -51,15 +55,15 @@
                                   [(cons (? intrapara-anchor) _) (list)] ;stop
                                   [(cons this more) (cons this (get more))])))]
                   [else (loop more)])])))
-     `(span () ,@xs)]
+     `(div () ,@xs)]
     [_ #f]))
 
 (define (intrapara-anchor x)
-  (define (walk xs)
+  (define (anchor xs)
     (for/or ([x (in-list xs)])
       (match x
         [`(a ((name ,anchor)) ,_ ...) anchor]
-        [`(,tag ,attrs ,es ...) (walk es)]
+        [`(,tag ,attrs ,es ...) (anchor es)]
         [_ #f])))
   (match x
     [`(div ((class "SIntrapara"))
@@ -85,7 +89,7 @@
              ;; look recursively for the first anchor.
              ,es ...)))
           ,_ ...))))
-     (walk es)]
+     (anchor es)]
     [_ #f]))
 
 (define (html-file->xexpr pathstr)
@@ -137,14 +141,44 @@
     ;;[else (error 'translate-symbol "Don't know how to translate ~s" x)]
     [else "<??>"]))
 
-;; (displayln
-;; (scribble-doc/text (string->path "/Users/greg/src/plt/racket/racket/doc/reference/Writing.html")
-;;                      "(def._((quote._~23~25kernel)._display))"))
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(require racket/pretty)
+;; This is a big ole pile of poo, attempting to simplify and massage
+;; the HTML so that Emacs shr renders it in the least-worst way.
+(define (xexpr->html x)
+  (match x
+    ;; Emacs shr renderer removes leading spaces and nbsp from <td>
+    ;; elements -- which messes up the alignment of s-expressions
+    ;; including contracts. But actually, the best place to address
+    ;; that is up in Elisp, not here: Replace nbsp in the HTML with
+    ;; some temporary character, then replace that character in the
+    ;; shr output.
 
-;;(pretty-print (scribble-doc/xexpr #'display))
-;;(displayln (scribble-doc/text #'display))
-
-;; (pretty-print (scribble-doc/xexpr #'match-define))
-;; (displayln (scribble-doc/text #'match-define))
+    ;; Bold RktValDef, which is the name of the thing.
+    [`(a ([class ,(pregexp "RktValDef")] ,_ ...) ,xs ...)
+     `(b () ,@(map xexpr->html xs))]
+    ;; Kill links. Due the problem with "open" and file: links on OSX,
+    ;; these won't work.
+    [`(a ,_ ,xs ...)
+     `(span () ,@(map xexpr->html xs))]
+    ;; Kill "see also" notes, since they're N/A w/o links.
+    [`(div ([class "SIntrapara"])
+       (blockquote ([class "refpara"]) ,_ ...))
+     `(span ())]
+    ;; Delete some things that produce unwanted blank lines and/or
+    ;; indents in simple rendering engines like Emacs' shr.
+    [`(blockquote ([class ,(or "SVInsetFlow" "SubFlow")]) ,xs ...)
+     `(div () ,@(map xexpr->html xs))]
+    [`(p ([class "RForeground"]) ,xs ...)
+     `(div () ,@(map xexpr->html xs))]
+    ;; The HTML for the "kind" (e.g. procedure or syntax or parameter)
+    ;; comes before the rest of the bluebox. Simple HTML renderers
+    ;; like shr don't handle this well. Kill it.
+    [`(div ([class "RBackgroundLabel SIEHidden"]) ,xs ...)
+     ""]
+    ;; Let's italicize all RktXXX classes.
+    [`(span ([class ,(pregexp "^Rkt")]) ,xs ...)
+     `(i () ,@(map xexpr->html xs))]
+    [`(,tag ,attrs ,xs ...)
+     `(,tag ,attrs ,@(map xexpr->html xs))]
+    [x x]))

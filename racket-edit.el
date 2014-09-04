@@ -159,14 +159,30 @@ when there is no symbol-at-point or prefix is true."
 (defun racket--do-describe (sym pop-to)
   "A helper for `racket-describe' and `racket-company-backend'.
 
-POP-TO should be t for the former, nil for the latter."
+POP-TO should be t for the former (in which case some buttons are
+added) and nil for the latter.
+
+Returns the buffer in which the description was written."
   (with-current-buffer (get-buffer-create "*Racket Describe*")
     (read-only-mode -1)
     (erase-buffer)
-    (insert (racket--eval/string (format ",describe %s" sym)))
-    (racket-describe-mode)
+    (let ((buf (racket--eval/buffer (format ",describe %s" sym)))
+          (tmp "†")) ;unlikely character (hopefully?)
+      ;; Emacs shr renderer removes leading &nbsp; from <td> elements
+      ;; -- which messes up the indentation of s-expressions including
+      ;; contracts. So replace &nbsp with `tmp' in the source HTML,
+      ;; and replace `tmp' with " " after shr-insert-document outputs.
+      (shr-insert-document
+       (with-current-buffer buf
+         (goto-char (point-min))
+         (while (re-search-forward "&nbsp;" nil t)
+           (replace-match tmp t t))
+         (libxml-parse-html-region (point-min) (point-max))))
+      (goto-char (point-min))
+      (while (re-search-forward tmp nil t)
+        (replace-match " " t t)))
+    (goto-char (point-max))
     (when pop-to
-      (insert "\n\n")
       (insert-text-button
        "Definition"
        'action
@@ -183,11 +199,11 @@ POP-TO should be t for the former, nil for the latter."
            ,(substring-no-properties (format ",doc %s\n" sym)))))
       (insert "          [q]uit"))
     (read-only-mode 1)
+    (racket-describe-mode)
     (goto-char (point-min))
     (display-buffer (current-buffer) t)
     (when pop-to
       (pop-to-buffer (current-buffer))
-      ;;(racket-describe--next-button)
       (message "Type TAB to move to links, 'q' to restore previous window"))
     (current-buffer)))
 

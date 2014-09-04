@@ -11,11 +11,12 @@
          racket/set
          racket/string
          syntax/modresolve
-         "try-catch.rkt"
+         (only-in xml xexpr->string)
          "defn.rkt"
          "logger.rkt"
-         "util.rkt"
-         "scribble.rkt")
+         "scribble.rkt"
+         "try-catch.rkt"
+         "util.rkt")
 
 (provide make-prompt-read)
 
@@ -116,7 +117,11 @@
 (define (sig-and/or-type stx)
   (define s (sig (syntax->datum stx)))
   (define t (type-or-contract stx))
-  (string-append s (if t (string-append "\n" t) "")))
+  (xexpr->string
+   `(div ()
+     (p () ,s)
+     ,@(if t `((pre () ,t)) `())
+     (br ()))))
 
 ;;; describe
 
@@ -137,7 +142,7 @@
 
 (define (describe* _stx)
   (define stx (namespace-syntax-introduce _stx))
-  (or (scribble-doc/text stx)
+  (or (scribble-doc/html stx)
       (sig-and/or-type stx)))
 
 ;;; print elisp values
