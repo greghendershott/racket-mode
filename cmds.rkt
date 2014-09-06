@@ -2,6 +2,7 @@
 
 (require macro-debugger/analysis/check-requires
          racket/contract
+         racket/file
          racket/format
          racket/function
          racket/list
@@ -129,13 +130,17 @@
 ;; If a symbol has installed documentation, display it.
 ;;
 ;; Otherwise, walk the source to find the signature of its definition
-;;(because the argument names have explanatory value), and also look
-;;for Typed Racket type or a contract, if any.
+;; (because the argument names have explanatory value), and also look
+;; for Typed Racket type or a contract, if any.
+
+;; Keep reusing one temporary file.
+(define describe-html-path (make-temporary-file "racket-mode-describe-~a"))
 
 (define (describe stx)
-  (displayln (describe* stx)) ;; NOT elisp-println; direct buffer output
-  (flush-output (current-output-port))
-  (void)) ;(void) avoids Typed Racket type annotation line
+  (with-output-to-file describe-html-path #:mode 'text #:exists 'replace
+    (λ () (display (describe* stx))))
+  (elisp-println (path->string describe-html-path))
+  (void)) ;(void) prevents Typed Racket type annotation line
 
 (define (describe* _stx)
   (define stx (namespace-syntax-introduce _stx))

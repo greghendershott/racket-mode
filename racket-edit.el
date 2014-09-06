@@ -167,14 +167,15 @@ Returns the buffer in which the description was written."
     (racket-describe-mode)
     (read-only-mode -1)
     (erase-buffer)
-    (let ((buf (racket--eval/buffer (format ",describe %s" sym)))
+    (let ((file (racket--eval/sexpr (format ",describe %s" sym)))
           (spc (string #x2020))) ;unlikely character (hopefully)
       ;; Emacs shr renderer removes leading &nbsp; from <td> elements
       ;; -- which messes up the indentation of s-expressions including
       ;; contracts. So replace &nbsp with `spc' in the source HTML,
       ;; and replace `spc' with " " after shr-insert-document outputs.
       (shr-insert-document
-       (with-current-buffer buf
+       (with-temp-buffer
+         (insert-file-contents file)
          (goto-char (point-min))
          (while (re-search-forward "&nbsp;" nil t)
            (replace-match spc t t))
