@@ -93,7 +93,8 @@
 
 (define (sig v) ;symbol? -> (or/c #f string?)
   (define x (find-signature (symbol->string v)))
-  (~a (or x v)))
+  (cond [x (~a x)]
+        [else (format "`~a` is not defined. Do you need to Run the file?" v)]))
 
 (define (type-or-contract v) ;any/c -> (or/c #f string?)
   ;; 1. Try using Typed Racket's REPL simplified type.
@@ -125,16 +126,11 @@
 
 ;;; describe
 
-;; There are two ways to get a "bluebox":
+;; If a symbol has installed documentation, display it.
 ;;
-;; 1. Walk the source code (as in my bluebox collection). Advantage:
-;; Works for any function written in Racket (even if not documented or
-;; provided).
-;;
-;; 2. Get the bluebox out of the installed documentation (if any).
-;; Advantage: Works for functions defined in #%kernel.
-;;
-;; As a result we may need to try both approaches.
+;; Otherwise, walk the source to find the signature of its definition
+;;(because the argument names have explanatory value), and also look
+;;for Typed Racket type or a contract, if any.
 
 (define (describe stx)
   (displayln (describe* stx)) ;; NOT elisp-println; direct buffer output
