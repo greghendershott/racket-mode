@@ -39,7 +39,6 @@
             (")"       racket-insert-closing-paren)
             ("]"       racket-insert-closing-bracket)
             ("}"       racket-insert-closing-brace)
-            ("C-c C-p" racket-cycle-paren-shapes)
             ("M-C-y"   racket-insert-lambda)
             ("C-c C-d" racket-doc)
             ("M-."     racket-visit-definition)
