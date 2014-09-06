@@ -7,21 +7,20 @@
          (only-in xml xml->xexpr element xexpr->string)
          (only-in html read-html-as-xml))
 
-(provide scribble-doc/text
-         scribble-doc/html)
+(provide scribble-doc/html)
 
 ;;; Extract Scribble documentation as plain text or as modified HTML
 ;;; suitable for Emacs' shr renderer.
 
-(define (scribble-doc/text stx)
-  (define xexpr (scribble-doc/xexpr stx))
-  (and xexpr (xexpr->text xexpr)))
-
 (define (scribble-doc/html stx)
   (define xexpr (scribble-doc/xexpr stx))
-  (and xexpr (xexpr->string (xexpr->html xexpr))))
+  (and xexpr (xexpr->string xexpr)))
 
 (define (scribble-doc/xexpr stx)
+  (define xexpr (scribble-doc/xexpr-raw stx))
+  (and xexpr (massage-xexpr xexpr)))
+
+(define (scribble-doc/xexpr-raw stx)
   (define-values (path anchor) (binding->path+anchor stx))
   (and path anchor (scribble-get-xexpr path anchor)))
 
@@ -97,88 +96,57 @@
    (element #f #f 'x '()
            (read-html-as-xml (open-input-string (file->string pathstr))))))
 
-;; FIXME: Not sure the newline strategy is correct here, wrt nested
-;; elements. e.g. (td () (p () ___)) should probably be 1 not 2
-;; newlines.
-(define (xexpr->text x)
-  (define o (open-output-string))
-  (let loop ([x x]
-             [pars '()])
-    (match x
-      [`(div ([class "SIntrapara"]) ;ignore "see also" boxes
-         (blockquote ([class "refpara"]) ,_ ...))
-       (void)]
-      [`(div ([class "SIntrapara"]) ,xs ...)
-       (for ([x xs]) (loop x (cons 'div pars)))
-       (newline o)
-       (newline o)]
-      [(list 'p _ xs ...)
-       (for ([x xs]) (loop x (cons 'p pars)))
-       (newline o)
-       (unless (memq 'td pars) (newline o))]
-      [(list (and tag (or 'tr 'th 'br)) _ xs ...)
-       (for ([x xs]) (loop x (cons tag pars)))
-       (newline o)]
-      [(list tag _ xs ...) (for ([x xs]) (loop x (cons tag pars)))]
-      [(? string?) (display x o)]
-      [(? char?) (display x o)]
-      [(? symbol?) (display (translate-symbol x) o)]
-      ;;[_ (error 'xexpr->text "Unexpected value: ~s" x)]
-      [x "<??????????>"]))
-  (get-output-string o))
-
-(define (translate-symbol x)
-  (case x
-    [(nbsp) " "]
-    [(rarr) "->"]
-    [(larr) "<-"]
-    [(rsquo) "'"]
-    [(ldquo) "``"]
-    [(rdquo) "''"]
-    [(ndash) "-"]
-    [(mdash) "--"]
-    [(amp) "&"]
-    ;;[else (error 'translate-symbol "Don't know how to translate ~s" x)]
-    [else "<??>"]))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
 ;; This is a big ole pile of poo, attempting to simplify and massage
 ;; the HTML so that Emacs shr renders it in the least-worst way.
-(define (xexpr->html x)
-  (match x
-    ;; Emacs shr renderer removes leading spaces and nbsp from <td>
-    ;; elements -- which messes up the alignment of s-expressions
-    ;; including contracts. But actually, the best place to address
-    ;; that is up in Elisp, not here: Replace nbsp in the HTML with
-    ;; some temporary character, then replace that character in the
-    ;; shr output.
-
-    ;; Bold RktValDef, which is the name of the thing.
-    [`(a ([class ,(pregexp "RktValDef")] ,_ ...) ,xs ...)
-     `(b () ,@(map xexpr->html xs))]
-    ;; Kill links. Due the problem with "open" and file: links on OSX,
-    ;; these won't work.
-    [`(a ,_ ,xs ...)
-     `(span () ,@(map xexpr->html xs))]
-    ;; Kill "see also" notes, since they're N/A w/o links.
-    [`(div ([class "SIntrapara"])
-       (blockquote ([class "refpara"]) ,_ ...))
-     `(span ())]
-    ;; Delete some things that produce unwanted blank lines and/or
-    ;; indents in simple rendering engines like Emacs' shr.
-    [`(blockquote ([class ,(or "SVInsetFlow" "SubFlow")]) ,xs ...)
-     `(div () ,@(map xexpr->html xs))]
-    [`(p ([class "RForeground"]) ,xs ...)
-     `(div () ,@(map xexpr->html xs))]
-    ;; The HTML for the "kind" (e.g. procedure or syntax or parameter)
-    ;; comes before the rest of the bluebox. Simple HTML renderers
-    ;; like shr don't handle this well. Kill it.
-    [`(div ([class "RBackgroundLabel SIEHidden"]) ,xs ...)
-     ""]
-    ;; Let's italicize all RktXXX classes.
-    [`(span ([class ,(pregexp "^Rkt")]) ,xs ...)
-     `(i () ,@(map xexpr->html xs))]
-    [`(,tag ,attrs ,xs ...)
-     `(,tag ,attrs ,@(map xexpr->html xs))]
-    [x x]))
+;;
+;; Note: Emacs shr renderer removes leading spaces and nbsp from <td>
+;; elements -- which messes up the alignment of s-expressions
+;; including contracts. But actually, the best place to address that
+;; is up in Elisp, not here -- replace nbsp in the HTML with some
+;; temporary character, then replace that character in the shr output.
+(define (massage-xexpr x)
+  (define kind-xexprs '())
+  (define provide-xexprs '())
+  (define (walk x)
+    (match x
+      ;; The "Provided by" title/tooltip. Store it to prepend.
+      [`(span ([title ,(and s (pregexp "^Provided from:"))]) ,xs ...)
+       (set! provide-xexprs (list s))
+       `(span () ,@(map walk xs))]
+      ;; The HTML for the "kind" (e.g. procedure or syntax or
+      ;; parameter) comes before the rest of the bluebox. Simple HTML
+      ;; renderers like shr don't handle this well. Store it to
+      ;; prepend.
+      [`(div ([class "RBackgroundLabel SIEHidden"])
+         (div ([class "RBackgroundLabelInner"]) (p () ,xs ...)))
+       (set! kind-xexprs xs)
+       ""]
+      ;; Bold RktValDef, which is the name of the thing.
+      [`(a ([class ,(pregexp "RktValDef|RktStxDef")] ,_ ...) ,xs ...)
+       `(b () ,@(map walk xs))]
+      ;; Kill links. Due the problem with "open" and file: links on OSX,
+      ;; these won't work.
+      [`(a ,_ ,xs ...)
+       `(span () ,@(map walk xs))]
+      ;; Kill "see also" notes, since they're N/A w/o links.
+      [`(div ([class "SIntrapara"])
+         (blockquote ([class "refpara"]) ,_ ...))
+       `(span ())]
+      ;; Delete some things that produce unwanted blank lines and/or
+      ;; indents in simple rendering engines like Emacs' shr.
+      [`(blockquote ([class ,(or "SVInsetFlow" "SubFlow")]) ,xs ...)
+       `(span () ,@(map walk xs))]
+      [`(p ([class "RForeground"]) ,xs ...)
+       `(div () ,@(map walk xs))]
+      ;; Let's italicize all RktXXX classes.
+      [`(span ([class ,(pregexp "^Rkt(?!Pn)")]) ,xs ...)
+       `(i () ,@(map walk xs))]
+      ;; Misc: Leave as-is.
+      [`(,tag ,attrs ,xs ...)
+       `(,tag ,attrs ,@(map walk xs))]
+      [x x]))
+  (match (walk x)
+    [`(div () ,xs ...)
+     `(div ()
+       (div () ,@provide-xexprs (br ()) (i () ,@kind-xexprs))
+       ,@xs)]))
