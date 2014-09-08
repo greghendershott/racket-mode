@@ -12,8 +12,8 @@
 (module+ test
   (require rackunit))
 
-;;; Extract Scribble documentation as plain text or as modified HTML
-;;; suitable for Emacs' shr renderer.
+;;; Extract Scribble documentation as modified HTML suitable for
+;;; Emacs' shr renderer.
 
 (define (scribble-doc/html stx)
   (define xexpr (scribble-doc/xexpr stx))
