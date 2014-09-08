@@ -9,6 +9,9 @@
 
 (provide scribble-doc/html)
 
+(module+ test
+  (require rackunit))
+
 ;;; Extract Scribble documentation as plain text or as modified HTML
 ;;; suitable for Emacs' shr renderer.
 
@@ -46,7 +49,7 @@
          (match es
            [(list) (list)]
            [(cons this more)
-            (cond [(equal? anchor (intrapara-anchor this))
+            (cond [(intrapara-anchor this anchor)
                    ;; Accumulate until another intrapara with an anchor
                    (cons this (let get ([es more])
                                 (match es
@@ -54,14 +57,20 @@
                                   [(cons (? intrapara-anchor) _) (list)] ;stop
                                   [(cons this more) (cons this (get more))])))]
                   [else (loop more)])])))
-     `(div () ,@xs)]
+     (match xs
+       [(list) #f]
+       [_ `(div () ,@xs)])]
     [_ #f]))
 
-(define (intrapara-anchor x)
+;; intrapara-anchor : xexpr? (or/c #f string?) -> (or/c #f string?)
+;; When `name` is #f, return the first anchor having any name.
+;; Otherwise, return the first anchor having `name`.
+(define (intrapara-anchor x [name #f])
   (define (anchor xs)
     (for/or ([x (in-list xs)])
       (match x
-        [`(a ((name ,anchor)) ,_ ...) anchor]
+        [`(a ((name ,a)) ,_ ...) (cond [name (equal? name a)]
+                                       [else a])]
         [`(,tag ,attrs ,es ...) (anchor es)]
         [_ #f])))
   (match x
@@ -69,27 +78,22 @@
        (blockquote
         ((class "SVInsetFlow"))
         (table
-         ((cellpadding "0") (cellspacing "0") (class "boxed RBoxed"))
-         (tbody
-          ()
-          (tr
-           ()
-           (td
-            ()
-            (blockquote
-             ((class "SubFlow"))
-             (div
-              ((class "RBackgroundLabel SIEHidden"))
-              (div
-               ((class "RBackgroundLabelInner"))
-               (p () ,_ ...)))
-             ;; That should be enough to say we're in a help item.
-             ;; From here on out, there can be some variation, so just
-             ;; look recursively for the first anchor.
-             ,es ...)))
-          ,_ ...))))
+         ,(list-no-order `(class "boxed RBoxed") _ ...)
+         ,es ...)))
+     ;; That's likely sufficient to say we're in HTML resulting from a
+     ;; Scribble defXXX form. From here on out, there can be some
+     ;; variation, so just look recursively for anchors within `es'.
      (anchor es)]
     [_ #f]))
+
+(module+ test
+  ;; Examples
+  (check-not-false (scribble-doc/xexpr #'print))        ;procedure
+  (check-not-false (scribble-doc/xexpr #'match))        ;syntax
+  (check-not-false (scribble-doc/xexpr #'current-eval)) ;parameter
+  (check-not-false (scribble-doc/xexpr #'xref-binding->definition-tag))
+  (check-not-false (scribble-doc/xexpr #'lambda)) ;deftogether 1of2
+  (check-not-false (scribble-doc/xexpr #'λ)))     ;deftogether 2of2
 
 (define (html-file->xexpr pathstr)
   (xml->xexpr
@@ -148,5 +152,8 @@
   (match (walk x)
     [`(div () ,xs ...)
      `(div ()
-       (div () ,@provide-xexprs (br ()) (i () ,@kind-xexprs))
+       (span ([style "color: #C0C0C0"])
+             (i () ,@kind-xexprs)
+             'nbsp
+             ,@provide-xexprs)
        ,@xs)]))
