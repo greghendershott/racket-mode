@@ -42,8 +42,8 @@
              (body ,_
                    (div ([class "tocset"]) . ,_)
                    (div ([class "maincolumn"])
-                        (div ([class "main"]) ,es ...))
-                   ,_ ...)))
+                        (div ([class "main"]) . ,es))
+                   . ,_)))
      (define xs
        (let loop ([es es])
          (match es
@@ -69,9 +69,9 @@
   (define (anchor xs)
     (for/or ([x (in-list xs)])
       (match x
-        [`(a ((name ,a)) ,_ ...) (cond [name (equal? name a)]
-                                       [else a])]
-        [`(,tag ,attrs ,es ...) (anchor es)]
+        [`(a ((name ,a)) . ,_) (cond [name (equal? name a)]
+                                     [else a])]
+        [`(,tag ,attrs . ,es) (anchor es)]
         [_ #f])))
   (match x
     [`(div ((class "SIntrapara"))
@@ -79,7 +79,7 @@
         ((class "SVInsetFlow"))
         (table
          ,(list-no-order `(class "boxed RBoxed") _ ...)
-         ,es ...)))
+         . ,es)))
      ;; That's likely sufficient to say we're in HTML resulting from a
      ;; Scribble defXXX form. From here on out, there can be some
      ;; variation, so just look recursively for anchors within `es'.
@@ -114,7 +114,7 @@
   (define (walk x)
     (match x
       ;; The "Provided by" title/tooltip. Store it to prepend.
-      [`(span ([title ,(and s (pregexp "^Provided from:"))]) ,xs ...)
+      [`(span ([title ,(and s (pregexp "^Provided from:"))]) . ,xs)
        (set! provide-xexprs (list s))
        `(span () ,@(map walk xs))]
       ;; The HTML for the "kind" (e.g. procedure or syntax or
@@ -122,35 +122,35 @@
       ;; renderers like shr don't handle this well. Store it to
       ;; prepend.
       [`(div ([class "RBackgroundLabel SIEHidden"])
-         (div ([class "RBackgroundLabelInner"]) (p () ,xs ...)))
+         (div ([class "RBackgroundLabelInner"]) (p () . ,xs)))
        (set! kind-xexprs xs)
        ""]
       ;; Bold RktValDef, which is the name of the thing.
-      [`(a ([class ,(pregexp "RktValDef|RktStxDef")] ,_ ...) ,xs ...)
+      [`(a ([class ,(pregexp "RktValDef|RktStxDef")] . ,_) . ,xs)
        `(b () ,@(map walk xs))]
       ;; Kill links. Due the problem with "open" and file: links on OSX,
       ;; these won't work.
-      [`(a ,_ ,xs ...)
+      [`(a ,_ . ,xs)
        `(span () ,@(map walk xs))]
       ;; Kill "see also" notes, since they're N/A w/o links.
       [`(div ([class "SIntrapara"])
-         (blockquote ([class "refpara"]) ,_ ...))
+         (blockquote ([class "refpara"]) . ,_))
        `(span ())]
       ;; Delete some things that produce unwanted blank lines and/or
       ;; indents in simple rendering engines like Emacs' shr.
-      [`(blockquote ([class ,(or "SVInsetFlow" "SubFlow")]) ,xs ...)
+      [`(blockquote ([class ,(or "SVInsetFlow" "SubFlow")]) . ,xs)
        `(span () ,@(map walk xs))]
-      [`(p ([class "RForeground"]) ,xs ...)
+      [`(p ([class "RForeground"]) . ,xs)
        `(div () ,@(map walk xs))]
       ;; Let's italicize all RktXXX classes.
-      [`(span ([class ,(pregexp "^Rkt(?!Pn)")]) ,xs ...)
+      [`(span ([class ,(pregexp "^Rkt(?!Pn)")]) . ,xs)
        `(i () ,@(map walk xs))]
       ;; Misc: Leave as-is.
-      [`(,tag ,attrs ,xs ...)
+      [`(,tag ,attrs . ,xs)
        `(,tag ,attrs ,@(map walk xs))]
       [x x]))
   (match (walk x)
-    [`(div () ,xs ...)
+    [`(div () . ,xs)
      `(div ()
        (span ([style "color: #C0C0C0"])
              (i () ,@kind-xexprs)
