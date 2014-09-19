@@ -329,7 +329,7 @@ With prefix arg, open the N-th last shown image in the system's image viewer."
   ;; comint-prompt-regexp is important to get exactly right for
   ;; comint-redirect-send-command-to-process as used by
   ;; racket--eval/buffer and friends.
-  (setq-local comint-prompt-regexp "^[^<>#\"' \n]*> *")
+  (setq-local comint-prompt-regexp "^[^<>#\"' \n]*> +")
   ;; (setq-local comint-use-prompt-regexp t)
   ;; (setq-local comint-prompt-read-only t)
   (setq-local mode-line-process nil)
