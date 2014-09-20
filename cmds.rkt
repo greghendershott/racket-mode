@@ -90,12 +90,13 @@
 
 (define (type-or-sig v)
   (or (type-or-contract v)
-      (sig v)))
+      (sig v)
+      ""))
 
 (define (sig v) ;symbol? -> (or/c #f string?)
   (define x (find-signature (symbol->string v)))
   (cond [x (~a x)]
-        [else (format "`~a` is not defined. Do you need to Run the file?" v)]))
+        [else #f]))
 
 (define (type-or-contract v) ;any/c -> (or/c #f string?)
   ;; 1. Try using Typed Racket's REPL simplified type.
@@ -117,7 +118,8 @@
             #f)))
 
 (define (sig-and/or-type stx)
-  (define s (sig (syntax->datum stx)))
+  (define dat (syntax->datum stx))
+  (define s (or (sig dat) (~a dat)))
   (define t (type-or-contract stx))
   (xexpr->string
    `(div ()
@@ -225,7 +227,7 @@
 ;; requires/trim : path-string? (listof require-sexpr) -> require-sexpr
 ;;
 ;; Note: Why pass in a list of the existing require forms -- why not
-;; just use the "keep" list from show-requres? Because the keep list
+;; just use the "keep" list from show-requires? Because the keep list
 ;; only states the module name, not the original form. Therefore if
 ;; the original require has a subform like `(only-in mod f)` (or
 ;; rename-in, except-in, &c), we won't know how to preserve that
