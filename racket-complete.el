@@ -78,7 +78,7 @@ See `racket--invalidate-completion-cache' and
   '(progn
      (defun racket-company-backend (command &optional arg &rest ignore)
        (interactive (list 'interactive))
-       (case command
+       (cl-case command
          ('interactive (company-begin-backend 'racket-company-backend))
          ('prefix (racket--company-prefix))
          ('candidates (racket--company-candidates
