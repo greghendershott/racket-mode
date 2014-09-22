@@ -55,7 +55,7 @@
            [_ #f]))))
 
 ;; Use `identifier-binding*' but don't trust its results. Check for a
-;; renaming/contracting provide of the `nominal-source-id`.
+;; couple special cases.
 (define/contract (source str)
   (-> string?
       (or/c #f (list/c symbol? (or/c path? 'kernel #f))))
@@ -65,6 +65,7 @@
          (match where
            ['kernel (list id 'kernel)]
            [path?
+            (define file-stx (file->syntax where #:expand? #f))
             (or
              ;; First look for a possible renaming/contracting provide
              ;; involving `nom-id`. Because in that case the `id` that
@@ -73,10 +74,17 @@
              ;; syntax for that actual id, which it gets from
              ;; examining the provide form. Use _that_ to search for
              ;; the definition form.
-             (let ([file-stx (file->syntax where #:expand? #f)])
-               (match (renaming-provide-in-stx nom-id file-stx)
-                 [(? syntax? stx) (list (syntax-e stx) where)]
-                 [_ #f]))
+             (match (renaming-provide-in-stx nom-id file-stx)
+               [(? syntax? stx) (list (syntax-e stx) where)]
+               [_ #f])
+             ;; Look for the case where the definition is actually
+             ;; nom-id not id. This can happen e.g. with Typed Racket
+             ;; definitions. Check for this using `define-in-stx` on
+             ;; NON-expanded stx.
+             (match (define-in-stx nom-id file-stx)
+               [(? syntax? stx) (list nom-id nom-where)]
+               [_ #f])
+             ;; Otherwise accept what identifier-binding* said.
              (list id where))]
            [_ #f]))))
 
