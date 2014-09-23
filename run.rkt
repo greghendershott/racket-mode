@@ -1,9 +1,12 @@
 #lang racket/base
 
 (require racket/match
+         racket/runtime-path
          "cmds.rkt"
          "error.rkt"
          "gui.rkt")
+
+(define-runtime-path image.rkt "image.rkt")
 
 (module+ main
   ;; Emacs on Windows comint-mode needs buffering disabled
@@ -39,6 +42,10 @@
     ;; thread when racket/gui/base is not (yet) instantiated, or, from
     ;; (event-handler-thread (current-eventspace)).
     (define (repl-thunk)
+      ;; 0. Set current-print. Note: The dynamic-require here seems to be
+      ;; necessary otherwise file/convertible's convertible? returns #f.
+      ;; Which seeems to be a namespace issue that I don't understand.
+      (current-print (dynamic-require image.rkt 'current-print/images))
       ;; 1. If module, load its lang info, require, and enter its namespace.
       (when (and path (module-path? path))
         (parameterize ([current-module-name-resolver repl-module-name-resolver])

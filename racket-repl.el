@@ -2,6 +2,7 @@
 
 ;; Copyright (c) 2013-2014 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
+;; Image portions Copyright (C) 2012 Jose Antonio Ortega Ruiz.
 
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
@@ -53,7 +54,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   :type 'regexp
   :group 'racket)
 
-(defun racket--input-filter (str)
+(defun racket-repl--input-filter (str)
   "Don't save anything matching `racket-repl-filter-regexp'."
   (not (string-match racket-repl-filter-regexp str)))
 
@@ -240,6 +241,83 @@ Keep original window selected."
       (goto-char (point-max)))
     (select-window w)))
 
+;;; Inline images in REPL
+
+(defcustom racket-repl--inline-images t
+  "Whether to display inline images in the REPL."
+  :type 'boolean
+  :group 'racket)
+
+(defcustom racket--system-image-viewer "display"
+  "Which system image viewer program to invoke upon M-x
+ `racket-view-last-image'."
+  :type 'string
+  :group 'racket)
+
+(defcustom racket--image-cache-keep-last 10
+  "How many images to keep in the image cache."
+  :type 'integer
+  :group 'racket)
+
+(defvar racket-image-cache-dir nil)
+
+(defun racket-repl--list-image-cache ()
+  "List all the images in the image cache."
+  (and racket-image-cache-dir
+       (file-directory-p racket-image-cache-dir)
+       (let ((files (directory-files-and-attributes
+                     racket-image-cache-dir t "racket-image-[0-9]*.png")))
+         (mapcar 'car
+                 (sort files (lambda (a b)
+                               (< (float-time (nth 6 a))
+                                  (float-time (nth 6 b)))))))))
+
+(defun racket-repl--clean-image-cache ()
+  "Clean all except for the last `racket--image-cache-keep-last'
+images in 'racket-image-cache-dir'."
+  (interactive)
+  (dolist (file (butlast (racket-repl--list-image-cache)
+                         racket--image-cache-keep-last))
+    (delete-file file)))
+
+(defun racket-repl--replace-images ()
+  "Replace all image patterns with actual images"
+  (with-silent-modifications
+    (save-excursion
+      (goto-char (point-min))
+      (while (re-search-forward "#<Image: \\([-+./_0-9a-zA-Z]+\\)>" nil t)
+        ;; can't pass a filename to create-image because emacs might
+        ;; not display it before it gets deleted (race condition)
+        (let* ((file (match-string 1))
+               (begin (match-beginning 0))
+               (end (match-end 0)))
+          (delete-region begin end)
+          (if (and racket-repl--inline-images (display-images-p))
+              (put-image (create-image file) begin "[image]")
+            (progn
+              (goto-char begin)
+              (insert "[image] ; use M-x racket-view-last-image to view")))
+          (setq racket-image-cache-dir (file-name-directory file))
+          (racket-repl--clean-image-cache))))))
+
+(defun racket-view-last-image (n)
+  "Open the last displayed image in the system's image viewer.
+
+With prefix arg, open the N-th last shown image in the system's image viewer."
+  (interactive "p")
+  (let ((images (reverse (racket-repl--list-image-cache))))
+    (if (>= (length images) n)
+        (start-process "Racket image view"
+                       nil
+                       racket--system-image-viewer
+                       (nth (- n 1) images))
+      (error "There aren't %d recent images" n))))
+
+(defun racket-repl--output-filter (txt)
+  (racket-repl--replace-images))
+
+;;; racket-repl-mode
+
 (define-derived-mode racket-repl-mode comint-mode "Racket-REPL"
   "Major mode for Racket REPL.
 \\{racket-repl-mode-map}"
@@ -248,7 +326,8 @@ Keep original window selected."
   ;; (setq-local comint-use-prompt-regexp t)
   ;; (setq-local comint-prompt-read-only t)
   (setq-local mode-line-process nil)
-  (setq-local comint-input-filter (function racket--input-filter))
+  (setq-local comint-input-filter (function racket-repl--input-filter))
+  (add-hook 'comint-output-filter-functions 'racket-repl--output-filter nil t)
   (compilation-setup t)
   (setq-local
    compilation-error-regexp-alist
