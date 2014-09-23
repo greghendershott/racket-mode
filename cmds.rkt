@@ -1,9 +1,8 @@
 #lang racket/base
 
-(require (for-syntax racket/base
-                     syntax/parse)
-         macro-debugger/analysis/check-requires
+(require macro-debugger/analysis/check-requires
          racket/contract
+         racket/file
          racket/format
          racket/function
          racket/list
@@ -13,8 +12,11 @@
          racket/set
          racket/string
          syntax/modresolve
+         (only-in xml xexpr->string)
          "defn.rkt"
          "logger.rkt"
+         "scribble.rkt"
+         "try-catch.rkt"
          "util.rkt")
 
 (provide make-prompt-read)
@@ -37,7 +39,8 @@
          [(run) (put/stop (rerun (~a (read))))]
          [(top) (put/stop (rerun #f))]
          [(def) (def (read))]
-         [(doc) (doc (read-line))]
+         [(doc) (doc (read-syntax))]
+         [(describe) (describe (read-syntax))]
          [(mod) (mod (read) path)]
          [(type) (type (read))]
          [(exp) (exp1 (read))]
@@ -58,9 +61,8 @@
 ,run </path/to/file.rkt>
 ,top
 ,def <identifier>
-,mod <module-path>
 ,type <identifier>
-,doc <string>
+,doc <identifier>|<string>
 ,exp <stx>
 ,exp+
 ,exp! <stx>
@@ -83,54 +85,100 @@
                        [(symbol? v)      (mod* (symbol->string v) rel)]
                        [else             #f])))
 
-;; Some try/catch syntax. Because `with-handlers` can be
-;; exceptionally bass-ackwards when nested (pun intended).
-(define-syntax (try stx)
-  (define-splicing-syntax-class catch-clause
-    (pattern (~seq #:catch pred:expr id:id e:expr ...+)
-             #:with handler #'[pred (lambda (id) e ...)]))
-  (syntax-parse stx
-    [(_ body:expr ...+ catch:catch-clause ...+)
-     #'(with-handlers (catch.handler ...)
-         body ...)]))
+(define (type v) ;; the ,type command.  rename this??
+  (elisp-println (type-or-sig v)))
 
-(define (type v)
-  (elisp-println
-   ;; 1. Try using Typed Racket's REPL simplified type.
-   (try (match (with-output-to-string
-                   (λ ()
-                     ((current-eval)
-                      (cons '#%top-interaction v))))
-          [(pregexp "^- : (.*) \\.\\.\\..*\n" (list _ t)) t]
-          [(pregexp "^- : (.*)\n$"            (list _ t)) t])
-        #:catch exn:fail? _
-        ;; 2. Try to find a contract.
-        (try (parameterize ([error-display-handler (λ _ (void))])
-               ((current-eval)
-                (cons '#%top-interaction
-                      `(if (has-contract? ,v)
-                        (~a (contract-name (value-contract ,v)))
-                        (error)))))
-             #:catch exn:fail? _
-             ;; 3. Try to find a signature in the source code.
-             (define x (find-signature (symbol->string v)))
-             (and x (~a x))))))
+(define (type-or-sig v)
+  (or (type-or-contract v)
+      (sig v)
+      ""))
+
+(define (sig v) ;symbol? -> (or/c #f string?)
+  (define x (find-signature (symbol->string v)))
+  (cond [x (~a x)]
+        [else #f]))
+
+(define (type-or-contract v) ;any/c -> (or/c #f string?)
+  ;; 1. Try using Typed Racket's REPL simplified type.
+  (try (match (with-output-to-string
+                  (λ ()
+                    ((current-eval)
+                     (cons '#%top-interaction v))))
+         [(pregexp "^- : (.*) \\.\\.\\..*\n" (list _ t)) t]
+         [(pregexp "^- : (.*)\n$"            (list _ t)) t])
+       #:catch exn:fail? _
+       ;; 2. Try to find a contract.
+       (try (parameterize ([error-display-handler (λ _ (void))])
+              ((current-eval)
+               (cons '#%top-interaction
+                     `(if (has-contract? ,v)
+                       (~a (contract-name (value-contract ,v)))
+                       (error)))))
+            #:catch exn:fail? _
+            #f)))
+
+(define (sig-and/or-type stx)
+  (define dat (syntax->datum stx))
+  (define s (or (sig dat) (~a dat)))
+  (define t (type-or-contract stx))
+  (xexpr->string
+   `(div ()
+     (p () ,s)
+     ,@(if t `((pre () ,t)) `())
+     (br ()))))
+
+;;; describe
+
+;; If a symbol has installed documentation, display it.
+;;
+;; Otherwise, walk the source to find the signature of its definition
+;; (because the argument names have explanatory value), and also look
+;; for Typed Racket type or a contract, if any.
+
+;; Keep reusing one temporary file.
+(define describe-html-path (make-temporary-file "racket-mode-describe-~a"))
+
+(define (describe stx)
+  (with-output-to-file describe-html-path #:mode 'text #:exists 'replace
+    (λ () (display (describe* stx))))
+  (elisp-println (path->string describe-html-path))
+  (void)) ;(void) prevents Typed Racket type annotation line
+
+(define (describe* _stx)
+  (define stx (namespace-syntax-introduce _stx))
+  (or (scribble-doc/html stx)
+      (sig-and/or-type stx)))
+
+;;; print elisp values
 
 (define (elisp-println v)
   (elisp-print v)
   (newline))
 
 (define (elisp-print v)
-  (match v
-    [(or #f (list)) (display "nil")]
-    [#t             (display "t")]
-    [v              (print v)]))
+  (print (->elisp v)))
 
-(define (doc str)
-  (eval `(begin
-          (require racket/help)
-          (help ,(string-trim str))
-          (newline))))
+(define (->elisp v)
+  (match v
+    [(or #f (list)) 'nil]
+    [#t             't]
+    [(? list? xs)   (map ->elisp xs)]
+    [(cons x y)     (cons (->elisp x) (->elisp y))]
+    [v              v]))
+
+(module+ test
+  (check-equal? (with-output-to-string (λ () (elisp-print '(1 t nil 3))))
+                "'(1 t nil 3)"))
+
+;;; misc
+
+(define (doc stx)
+  (eval
+   (namespace-syntax-introduce
+    (datum->syntax #f
+                   `(begin
+                     (local-require racket/help)
+                     (help ,stx))))))
 
 (define (cd s)
   (let ([old-wd (current-directory)])
@@ -179,7 +227,7 @@
 ;; requires/trim : path-string? (listof require-sexpr) -> require-sexpr
 ;;
 ;; Note: Why pass in a list of the existing require forms -- why not
-;; just use the "keep" list from show-requres? Because the keep list
+;; just use the "keep" list from show-requires? Because the keep list
 ;; only states the module name, not the original form. Therefore if
 ;; the original require has a subform like `(only-in mod f)` (or
 ;; rename-in, except-in, &c), we won't know how to preserve that

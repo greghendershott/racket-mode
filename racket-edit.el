@@ -76,7 +76,8 @@ namespace is active."
              (find-file path)
              (goto-char (point-min))
              (forward-line (1- line))
-             (forward-char col)))
+             (forward-char col))
+           (message "Type M-, to return"))
           ((eq result 'kernel)
            (message "`%s' defined in #%%kernel -- source not available." sym))
           ((y-or-n-p "Not found. Run current buffer and try again? ")
@@ -105,13 +106,24 @@ namespace is active."
     (racket--do-visit-def-or-mod "mod" v)))
 
 (defun racket-doc (&optional prefix)
-  "Find something in Racket's documentation."
+  "View documentation of the identifier or string at point.
+
+If point is an identifier required in the current namespace that
+has help, opens the web browser directly at that help
+topic. (i.e. Uses the identifier variant of racket/help.)
+
+Otherwise, opens the 'search for a term' page, where you can
+choose among multiple possibilities. (i.e. Uses the string
+variant of racket/help.)
+
+With a C-u prefix, prompts for the identifier or quoted string,
+instead of looking at point."
   (interactive "P")
   (let ((sym (racket--symbol-at-point-or-prompt prefix "Racket help for: ")))
     (when sym
-      (shell-command (concat raco-program
-                             " doc "
-                             (shell-quote-argument (format "%s" sym)))))))
+      (unless (string-match-p "^Sending to web browser..."
+                              (racket--eval/string (format ",doc %s" sym)))
+        (racket--eval/buffer (format ",doc \"%s\"" sym)))))) ;quoted
 
 (defun racket--symbol-at-point-or-prompt (prefix prompt)
   "Helper for functions that want symbol-at-point, or, to prompt
@@ -135,6 +147,91 @@ when there is no symbol-at-point or prefix is true."
         (racket-pop-to-buffer-same-window buffer)
         (goto-char pt))
     (message "Stack empty.")))
+
+;;; racket-describe-mode
+
+(defun racket-describe (&optional prefix)
+  (interactive "P")
+  (let ((sym (racket--symbol-at-point-or-prompt prefix "Describe: ")))
+    (when sym
+      (racket--do-describe sym t))))
+
+(defun racket--do-describe (sym pop-to)
+  "A helper for `racket-describe' and `racket-company-backend'.
+
+POP-TO should be t for the former (in which case some buttons are
+added) and nil for the latter.
+
+Returns the buffer in which the description was written."
+  (with-current-buffer (get-buffer-create "*Racket Describe*")
+    (racket-describe-mode)
+    (read-only-mode -1)
+    (erase-buffer)
+    (let ((file (racket--eval/sexpr (format ",describe %s" sym)))
+          (spc (string #x2020))) ;unlikely character (hopefully)
+      ;; Emacs shr renderer removes leading &nbsp; from <td> elements
+      ;; -- which messes up the indentation of s-expressions including
+      ;; contracts. So replace &nbsp with `spc' in the source HTML,
+      ;; and replace `spc' with " " after shr-insert-document outputs.
+      (shr-insert-document
+       (with-temp-buffer
+         (insert-file-contents file)
+         (goto-char (point-min))
+         (while (re-search-forward "&nbsp;" nil t)
+           (replace-match spc t t))
+         (libxml-parse-html-region (point-min) (point-max))))
+      (goto-char (point-min))
+      (while (re-search-forward spc nil t)
+        (replace-match " " t t)))
+    (goto-char (point-max))
+    (when pop-to
+      (insert-text-button
+       "Definition"
+       'action
+       `(lambda (btn)
+          (racket--do-visit-def-or-mod
+           "def"
+           ,(substring-no-properties (format "%s" sym)))))
+      (insert "   ")
+      (insert-text-button
+       "Documentation in Browser"
+       'action
+       `(lambda (btn)
+          (racket--eval/buffer
+           ,(substring-no-properties (format ",doc %s\n" sym)))))
+      (insert "          [q]uit"))
+    (read-only-mode 1)
+    (goto-char (point-min))
+    (display-buffer (current-buffer) t)
+    (when pop-to
+      (pop-to-buffer (current-buffer))
+      (message "Type TAB to move to links, 'q' to restore previous window"))
+    (current-buffer)))
+
+(defvar racket-describe-mode-map
+  (let ((m (make-sparse-keymap)))
+    (set-keymap-parent m nil)
+    (mapc (lambda (x)
+            (define-key m (kbd (car x)) (cadr x)))
+          '(("q"       quit-window)
+            ("<tab>"   racket-describe--next-button)
+            ("S-<tab>" racket-describe--prev-button)))
+    m)
+  "Keymap for Racket Describe mode.")
+
+;;;###autoload
+(define-derived-mode racket-describe-mode fundamental-mode
+  "RacketDescribe"
+  "Major mode for describing Racket functions.
+\\{racket-describe-mode-map}")
+
+(defun racket-describe--next-button ()
+  (interactive)
+  (forward-button 1 t t))
+
+(defun racket-describe--prev-button ()
+  (interactive)
+  (forward-button -1 t t))
 
 ;;; code folding
 

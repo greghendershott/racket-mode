@@ -39,7 +39,6 @@
             (")"       racket-insert-closing-paren)
             ("]"       racket-insert-closing-bracket)
             ("}"       racket-insert-closing-brace)
-            ("C-c C-p" racket-cycle-paren-shapes)
             ("M-C-y"   racket-insert-lambda)
             ("C-c C-d" racket-doc)
             ("M-."     racket-visit-definition)
@@ -174,7 +173,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
 ;;;###autoload
 (defun racket-repl ()
   "Run a Racket REPL in a comint buffer.
-Runs the hook `racket-repl-mode-hook' \(after the `comint-mode-hook'
+Runs the hook `racket-repl-mode-hook' (after the `comint-mode-hook'
 is run)."
   (interactive)
   (let ((original-window (selected-window)))
@@ -188,6 +187,11 @@ is run)."
                                racket-program
                                nil
                                racket-run-rkt))
+      ;; The following is needed to make e.g. λ work when pasted into the
+      ;; comint-buffer, both directly by the user and via the racket--eval
+      ;; functions.
+      (set-process-coding-system (get-buffer-process racket--repl-buffer-name)
+                                 'utf-8 'utf-8)
       (racket-repl-mode))
     (select-window original-window)))
 
@@ -322,7 +326,10 @@ With prefix arg, open the N-th last shown image in the system's image viewer."
   "Major mode for Racket REPL.
 \\{racket-repl-mode-map}"
   (racket--variables-for-both-modes)
-  (setq-local comint-prompt-regexp "^[^<>#\"\n]*> +")
+  ;; comint-prompt-regexp is important to get exactly right for
+  ;; comint-redirect-send-command-to-process as used by
+  ;; racket--eval/buffer and friends.
+  (setq-local comint-prompt-regexp "^[^<>#\"' \n]*> +")
   ;; (setq-local comint-use-prompt-regexp t)
   ;; (setq-local comint-prompt-read-only t)
   (setq-local mode-line-process nil)
@@ -336,16 +343,7 @@ With prefix arg, open the N-th last shown image in the system's image viewer."
      ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3)   ;rackunit
      ("#<path:\\([^>]+\\)>" 1 nil nil 0)                       ;path struct
      ))
-  (setq-local comint-get-old-input (function racket--get-old-input))
-  ;; The following is needed to make e.g. λ work when pasted into the
-  ;; comint-buffer, both directly by the user and via the racket--eval
-  ;; functions. This seems like a global Emacs-wide setting, so I'm
-  ;; not 100% confident I should do this here. But if I don't, and
-  ;; e.g. people use eldoc within (λ () ...), the Racket reader will
-  ;; hang because it gets ",type <eof>" not ",type λ<eof>". Even when
-  ;; people paste manually or via C-x C-r, although it doesn't hang,
-  ;; the resulting error message is not very clear.
-  (set-terminal-coding-system 'utf-8))
+  (setq-local comint-get-old-input (function racket--get-old-input)))
 
 (provide 'racket-repl)
 

@@ -14,7 +14,7 @@
                                 natural-number/c)))]
   [find-signature
    (-> string?
-       (or/c #f list?))]))
+       (or/c #f pair?))]))
 
 ;; Try to find the definition of `str`, returning a list with the file
 ;; name, line and column, or #f if not found.

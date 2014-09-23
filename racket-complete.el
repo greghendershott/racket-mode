@@ -84,7 +84,8 @@ See `racket--invalidate-completion-cache' and
          ('candidates (racket--company-candidates
                        (substring-no-properties arg)))
          ('location (racket--get-def-file+line arg))
-         ('meta (racket-get-type arg))))
+         ('meta (racket-get-type arg))
+         ('doc-buffer (racket--do-describe arg nil))))
      (defun racket--do-company-setup ()
        (set (make-local-variable 'company-echo-delay) 0.01)
        (set (make-local-variable 'company-backends) '(racket-company-backend))

@@ -70,6 +70,7 @@ http://www.gnu.org/licenses/ for details.")
             ("C-c C-p"   racket-cycle-paren-shapes)
             ("M-C-y"     racket-insert-lambda)
             ("C-c C-d"   racket-doc)
+            ("C-c C-."   racket-describe)
             ("M-."       racket-visit-definition)
             ("M-C-."     racket-visit-module)
             ("M-,"       racket-unvisit)
@@ -118,6 +119,7 @@ http://www.gnu.org/licenses/ for details.")
     ["Use #lang racket/base" racket-base-requires]
     "---"
     ["Racket documentation" racket-doc]
+    ["Describe" racket-describe]
     ["Customize..." customize-mode]))
 
 (defvar racket-imenu-generic-expression

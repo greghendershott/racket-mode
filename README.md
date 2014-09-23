@@ -149,6 +149,27 @@ A few notes:
   symbol at point (or with a prefix, <kbd>C-u C-c C-d</kbd> as
   prompted).
 
+- **racket-describe** <kbd>C-c C-.</kbd> describes the function at
+  point in a `*Racket Describe*` buffer. The intent is to give a quick
+  reminder or introduction to a function, regardless of whether it has
+  installed documentation -- and to do so within Emacs (without
+  switching to a web browser window). This buffer is also displayed
+  when you use company-mode and press <kbd>C-h</kbd> in the pop up
+  completion list.
+
+  - If the function has installed Racket documentation, then a
+    simplified version of the HTML is presented in the buffer,
+    including the "blue box", documentation prose, and examples.
+
+  - Otherwise, the function's signature -- e.g. `(name arg-1-name
+    arg-2-name)` is displayed. If the function has a Typed Racket
+    type or a contract, then that is also displayed.
+
+  You can quit the buffer by pressing <kbd>q</kbd>. Also, at the
+  bottom of the buffer are Emacs buttons (which you may navigate among
+  using <kbd>TAB</kbd> for visiting the definition or opening the full
+  browser documentation (if any).
+
 - **racket-cycle-paren-shapes** <kbd>C-c C-p</kbd> cycles the shape of
   the current s-expression among `()`, `[]`, and `{}`.
 
