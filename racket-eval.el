@@ -43,7 +43,7 @@ buffer's name."
              (while (null comint-redirect-completed)
                (accept-process-output nil 1))
              output-buffer)))
-        (t (message "Need to start REPL"))))
+        (t (error "Use <F5> to start the Racket REPL, then try again"))))
 
 (defun racket--eval/string (expression)
   "Eval EXPRESSION in the *Racket REPL* buffer, but redirect the
