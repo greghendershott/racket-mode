@@ -41,6 +41,7 @@
             ("}"       racket-insert-closing-brace)
             ("M-C-y"   racket-insert-lambda)
             ("C-c C-d" racket-doc)
+            ("C-c C-." racket-describe)
             ("M-."     racket-visit-definition)
             ("C-M-."   racket-visit-module)))
     m)
