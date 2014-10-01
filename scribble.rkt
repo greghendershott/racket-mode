@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require racket/file
-	 racket/list
+         racket/list
          racket/match
          scribble/xref
          setup/xref
@@ -9,10 +9,10 @@
          (only-in html read-html-as-xml))
 
 (provide scribble-doc/html
-	 scribble-decl-list)
+         scribble-decl-list)
 
 (define (scribble-decl-list)
-  (define xref (fix-load-collections-xref))
+  (define xref (load-collections-xref))
   (map entry-words (xref-index xref)))
 
 (module+ test
@@ -33,16 +33,8 @@
   (define-values (path anchor) (binding->path+anchor stx))
   (and path anchor (scribble-get-xexpr path anchor)))
 
-(define fix-xref #f)
-
-(define (fix-load-collections-xref)
-  (when (not fix-xref)
-    (set! fix-xref (load-collections-xref))
-    (void (xref-index fix-xref)))
-  fix-xref)
-
 (define (binding->path+anchor stx)
-  (define xref (fix-load-collections-xref))
+  (define xref (load-collections-xref))
   (define tag (and (identifier? stx)
                    (xref-binding->definition-tag xref stx 0)))
   (cond [tag (xref-tag->path+anchor xref tag)]
