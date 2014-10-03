@@ -375,6 +375,9 @@ See also: `racket-trim-requires' and `racket-base-requires'."
 (defun racket-trim-requires ()
   "Like `racket-tidy-requires' but also deletes unused modules.
 
+Note: This only works when the source file can be evaluated with
+no errors.
+
 Note: This only works for requires at the top level of a source
 file using `#lang`. It does *not* work for `require`s inside
 `module` forms.
@@ -389,10 +392,14 @@ See also: `racket-base-requires'."
                    (racket--eval/string
                     (format ",requires/trim \"%s\" %S"
                             (substring-no-properties (buffer-file-name))
-                            reqs)))))
+                            reqs))))
+         (new (and new
+                   (condition-case () (read new)
+                     (error (revert-buffer t t t) ;restore original requires
+                            (error "Can't do, source file has error"))))))
     (when new
       (goto-char beg)
-      (insert (concat (read new) "\n")))))
+      (insert (concat new "\n")))))
 
 (defun racket-base-requires ()
   "Change from `#lang racket` to `#lang racket/base`.
@@ -406,6 +413,9 @@ footprint.
 
 Also, as does `racket-trim-requires', this removes unneeded
 modules and tidies everything into a single, sorted require form.
+
+Note: This only works when the source file can be evaluated with
+no errors.
 
 Note: Currently this only helps change `#lang racket` to
 `#lang racket/base`. It does *not* help with other similar conversions,
@@ -423,10 +433,14 @@ such as changing `#lang typed/racket` to `#lang typed/racket/base`."
                    (racket--eval/string
                     (format ",requires/base \"%s\" %S"
                             (substring-no-properties (buffer-file-name))
-                            reqs)))))
+                            reqs))))
+         (new (and new
+                   (condition-case () (read new)
+                     (error (revert-buffer t t t) ;restore original requires
+                            (error "Can't do, source file has error"))))))
     (when new
       (goto-char beg)
-      (insert (concat (read new) "\n")))
+      (insert (concat new "\n")))
     (goto-char (point-min))
     (re-search-forward "^#lang.*? racket$")
     (insert "/base")))
