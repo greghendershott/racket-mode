@@ -60,8 +60,12 @@ To run <file>'s `test` submodule."
 (defun racket-visit-definition (&optional prefix)
   "Visit definition of symbol at point.
 
-Only works if you've `racket-run' the buffer so that its
-namespace is active."
+Note: Only works if you've `racket-run' the buffer so that its
+namespace is active.
+
+Note: Only visits the definition of module level identifiers (i.e.
+things for which Racket's `identifier-binding` function returns a
+list, as opposed to 'lexical)."
   (interactive "P")
   (let ((sym (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")))
     (when sym

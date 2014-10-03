@@ -142,6 +142,11 @@ A few notes:
     > **NOTE**: If the definition is from Racket's `#%kernel` module,
     > it will tell you so but won't visit the definition site.
 
+    > **NOTE**: Only visits the definition of module level identifiers
+    > -- specifically, things for which Racket's
+    > [`identifier-binding`] function returns a `list`, as opposed to
+    > `'lexical`.
+
 - **racket-visit-module** <kbd>C-M-.</kbd> visits the module at point
   inside a `require` form. Use <kbd>M-,</kbd> to return.
 
@@ -265,3 +270,4 @@ Please see the [Acknowledgments].
 [`current-directory`]: http://docs.racket-lang.org/reference/Filesystem.html#%28def._%28%28quote._~23~25kernel%29._current-directory%29%29
 [MELPA]: http://melpa.milkbox.net/#/getting-started
 [`company-mode`]: https://github.com/company-mode/company-mode
+[`identifier-binding`]: http://docs.racket-lang.org/reference/stxcmp.html#%28def._%28%28quote._~23~25kernel%29._identifier-binding%29%29
