@@ -29,14 +29,14 @@
   (save-buffer)
   (racket--invalidate-completion-cache)
   (racket--invalidate-type-cache)
-  (racket--eval (format ",run %s\n" (buffer-file-name))))
+  (racket--eval (format ",run %s\n" (racket--quoted-buffer-file-name))))
 
 (defun racket-racket ()
   "Do `racket <file>` in *shell* buffer."
   (interactive)
   (racket--shell (concat racket-program
                          " "
-                         (shell-quote-argument (buffer-file-name)))))
+                         (racket--quoted-buffer-file-name))))
 
 (defun racket-test ()
   "Do (require (submod \".\" test)) in *racket* buffer."
@@ -55,7 +55,7 @@ To run <file>'s `test` submodule."
   (interactive)
   (racket--shell (concat raco-program
                          " test -x "
-                         (shell-quote-argument (buffer-file-name)))))
+                         (racket--quoted-buffer-file-name))))
 
 (defun racket-visit-definition (&optional prefix)
   "Visit definition of symbol at point.
@@ -85,7 +85,8 @@ list, as opposed to 'lexical)."
           ((eq result 'kernel)
            (message "`%s' defined in #%%kernel -- source not available." sym))
           ((y-or-n-p "Not found. Run current buffer and try again? ")
-           (racket--eval/buffer (format ",run %s\n" (buffer-file-name)))
+           (racket--eval/buffer (format ",run %s\n"
+                                        (racket--quoted-buffer-file-name)))
            (racket--do-visit-def-or-mod cmd sym)))))
 
 (defun racket--get-def-file+line (sym)
@@ -152,6 +153,7 @@ when there is no symbol-at-point or prefix is true."
         (goto-char pt))
     (message "Stack empty.")))
 
+
 ;;; racket-describe-mode
 
 (defun racket-describe (&optional prefix)
@@ -237,6 +239,7 @@ Returns the buffer in which the description was written."
   (interactive)
   (forward-button -1 t t))
 
+
 ;;; code folding
 
 ;;;###autoload
@@ -263,7 +266,7 @@ Returns the buffer in which the description was written."
   (interactive)
   (racket--for-all-tests "Unfolded" 'hs-show-block))
 
-
+
 ;;; macro expansion
 
 (defun racket-expand-region (start end &optional prefix)
@@ -338,6 +341,7 @@ If so, try again."
                   (string->path
                    ,(substring-no-properties (buffer-file-name)))))))))
 
+
 ;;; requires
 
 (defun racket-tidy-requires ()
@@ -494,5 +498,16 @@ instead of textually, and handle module and submodule forms."
       (list first-beg requires))))
 
 (provide 'racket-edit)
+
+
+;;; misc
+
+(defun racket--quoted-buffer-file-name ()
+  "`shell-quote-argument' ∘ `buffer-file-name'
+
+Generally this should be used instead of plain
+`buffer-file-name'. For example this will handle path names
+containing spaces by escaping them."
+  (shell-quote-argument (buffer-file-name)))
 
 ;; racket-edit.el ends here

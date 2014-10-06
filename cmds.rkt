@@ -29,7 +29,7 @@
                                         [else (values "" "" #f)]))
   (λ ()
     (flush-output (current-error-port))
-    (display name) (display "> ")
+    (display #\u227a) (display name) (display #\u227b) (display #\space)
     (define in ((current-get-interaction-input-port)))
     (define stx ((current-read-interaction) (object-name in) in))
     (syntax-case stx ()

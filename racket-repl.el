@@ -329,8 +329,16 @@ With prefix arg, open the N-th last shown image in the system's image viewer."
   (racket--variables-for-both-modes)
   ;; comint-prompt-regexp is important to get exactly right for
   ;; comint-redirect-send-command-to-process as used by
-  ;; racket--eval/buffer and friends.
-  (setq-local comint-prompt-regexp "^[^<>#\"' \n]*> +")
+  ;; racket--eval/buffer and friends. Bad things happen if this regexp
+  ;; accidentally matches process output other than the prompt. After
+  ;; fighting with this for awhile, it occurred to me to use "≺file≻"
+  ;; (instead of "file>"). Much less likely to occur in process
+  ;; output. Also it lets the regexp become simpler and more reliably
+  ;; handle things such as file names with spaces in them. Also when
+  ;; process output doesn't end with a newline (e.g. `display` not
+  ;; `displayln`) the opening ≺ helps the user visually delimit the
+  ;; output from the following prompt.
+  (setq-local comint-prompt-regexp "^≺.*?≻ +")
   ;; (setq-local comint-use-prompt-regexp t)
   ;; (setq-local comint-prompt-read-only t)
   (setq-local mode-line-process nil)
