@@ -43,7 +43,7 @@
   :tag "Paren face"
   :group 'racket)
 
-(defcustom racket-mode-pretty-lambda t
+(defcustom racket-mode-pretty-lambda nil
   "Display lambda keywords using λ."
   :tag "Pretty lambda"
   :type 'boolean
