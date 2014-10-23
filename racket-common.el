@@ -142,6 +142,7 @@
   ;; all here ensures consistency. And in that case, racket-mode need not
   ;; derive from scheme-mode, it can derive from just prog-mode.
   (set-syntax-table racket-mode-syntax-table)
+  (setq-local multibyte-syntax-as-symbol t)
   (setq-local local-abbrev-table racket-mode-abbrev-table)
   (setq-local paragraph-start (concat "$\\|" page-delimiter))
   (setq-local paragraph-separate paragraph-start)
