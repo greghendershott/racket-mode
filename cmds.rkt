@@ -28,32 +28,36 @@
   (define-values (base name dir?) (cond [path (split-path path)]
                                         [else (values "" "" #f)]))
   (λ ()
-    (flush-output (current-error-port))
-    (display #\u227a) (display name) (display #\u227b) (display #\space)
-    (define in ((current-get-interaction-input-port)))
-    (define stx ((current-read-interaction) (object-name in) in))
-    (syntax-case stx ()
-      [(uq cmd)
-       (eq? 'unquote (syntax-e #'uq))
-       (case (syntax-e #'cmd)
-         [(run) (put/stop (rerun (~a (read))))]
-         [(top) (put/stop (rerun #f))]
-         [(def) (def (read))]
-         [(doc) (doc (read-syntax))]
-         [(describe) (describe (read-syntax))]
-         [(mod) (mod (read) path)]
-         [(type) (type (read))]
-         [(exp) (exp1 (read))]
-         [(exp+) (exp+)]
-         [(exp!) (exp! (read))]
-         [(log) (log-display (map string->symbol (string-split (read-line))))]
-         [(pwd) (display-commented (~v (current-directory)))]
-         [(cd) (cd (~a (read)))]
-         [(requires/tidy) (requires/tidy (read))]
-         [(requires/trim) (requires/trim (read) (read))]
-         [(requires/base) (requires/base (read) (read))]
-         [else (usage)])]
-      [_ stx])))
+    (let ([;; Elisp prints '() as 'nil. Reverse that. (Assumption:
+           ;; Although Elisp code puns nil/() also to mean "false",
+           ;; our Elisp code won't do that.)
+           read (λ () (match (read) ['nil '()] [x x]))])
+      (flush-output (current-error-port))
+      (display #\u227a) (display name) (display #\u227b) (display #\space)
+      (define in ((current-get-interaction-input-port)))
+      (define stx ((current-read-interaction) (object-name in) in))
+      (syntax-case stx ()
+        [(uq cmd)
+         (eq? 'unquote (syntax-e #'uq))
+         (case (syntax-e #'cmd)
+           [(run) (put/stop (rerun (~a (read))))]
+           [(top) (put/stop (rerun #f))]
+           [(def) (def (read))]
+           [(doc) (doc (read-syntax))]
+           [(describe) (describe (read-syntax))]
+           [(mod) (mod (read) path)]
+           [(type) (type (read))]
+           [(exp) (exp1 (read))]
+           [(exp+) (exp+)]
+           [(exp!) (exp! (read))]
+           [(log) (log-display (map string->symbol (string-split (read-line))))]
+           [(pwd) (display-commented (~v (current-directory)))]
+           [(cd) (cd (~a (read)))]
+           [(requires/tidy) (requires/tidy (read))]
+           [(requires/trim) (requires/trim (read) (read))]
+           [(requires/base) (requires/base (read) (read))]
+           [else (usage)])]
+        [_ stx]))))
 
 (define (usage)
   (displayln

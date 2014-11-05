@@ -435,13 +435,14 @@ such as changing `#lang typed/racket` to `#lang typed/racket/base`."
     (error "File does not use use #lang racket. Cannot change."))
   (when (buffer-modified-p) (save-buffer))
   (let* ((result (racket--kill-top-level-requires))
-         (beg (nth 0 result))
+         (beg (or (nth 0 result)
+                  (save-excursion
+                    (goto-char 0) (forward-line 1) (insert "\n") (point))))
          (reqs (nth 1 result))
-         (new (and beg reqs
-                   (racket--eval/string
-                    (format ",requires/base \"%s\" %S"
-                            (substring-no-properties (buffer-file-name))
-                            reqs))))
+         (new (racket--eval/string
+               (format ",requires/base \"%s\" %S"
+                       (substring-no-properties (buffer-file-name))
+                       reqs)))
          (new (and new
                    (condition-case () (read new)
                      (error (revert-buffer t t t) ;restore original requires
