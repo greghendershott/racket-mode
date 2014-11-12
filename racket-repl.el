@@ -297,11 +297,11 @@ images in 'racket-image-cache-dir'."
                (begin (match-beginning 0))
                (end (match-end 0)))
           (delete-region begin end)
+          (goto-char begin)
           (if (and racket-repl--inline-images (display-images-p))
-              (put-image (create-image file) begin "[image]")
-            (progn
-              (goto-char begin)
-              (insert "[image] ; use M-x racket-view-last-image to view")))
+              (insert-image (create-image file) "[image]")
+            (goto-char begin)
+            (insert "[image] ; use M-x racket-view-last-image to view"))
           (setq racket-image-cache-dir (file-name-directory file))
           (racket-repl--clean-image-cache))))))
 
