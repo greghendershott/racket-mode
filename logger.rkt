@@ -15,7 +15,7 @@
 ;; level. That way, if someone sets "all other" loggers to e.g. debug,
 ;; these won't get noisy. They need to be specifically cranked up.
 (define logger-levels (make-hasheq '([cm-accomplice . warning]
-                                     [gc . info])))
+                                     [GC . info])))
 
 (define racket-log-file (build-path (find-system-path 'temp-dir) "racket-log"))
 (with-output-to-file racket-log-file #:exists 'truncate void)
