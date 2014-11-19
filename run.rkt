@@ -16,8 +16,8 @@
   (parameterize ([error-display-handler our-error-display-handler])
     (run #f)))
 
-;; run: (or/c #f path-string?) -> any
-(define (run maybe-path-str)
+;; run: (or/c #f path-string?) (or/c #f natural?) -> any
+(define (run maybe-path-str [mem-limit #f])
   (define-values (path dir) (path-string->path&dir maybe-path-str))
   ;; Always set current-directory and current-load-relative-directory
   ;; to match the source file.
@@ -27,6 +27,11 @@
   (show-full-path-in-errors)
   ;; Custodian for the user REPL.
   (define user-cust (make-custodian))
+  (define user-cust-box (make-custodian-box user-cust #t))
+  (when mem-limit
+    (custodian-limit-memory user-cust
+                            (inexact->exact (round (* 1024 1024 mem-limit)))
+                            user-cust))
   ;; If racket/gui/base isn't loaded, the current-eventspace parameter
   ;; doesn't exist, so make a "dummy" parameter of that name.
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
@@ -50,7 +55,9 @@
       (when (and path (module-path? path))
         (parameterize ([current-module-name-resolver repl-module-name-resolver])
           ;; exn:fail? during module load => re-run with "empty" module
-          (with-handlers ([exn? (λ (x) (display-exn x) (put/stop (rerun #f)))])
+          (with-handlers ([exn? (λ (x)
+                                  (display-exn x)
+                                  (put/stop (rerun #f mem-limit)))])
             (maybe-load-language-info path)
             (namespace-require path)
             (current-namespace (module->namespace path))
@@ -63,15 +70,22 @@
     ;; Main thread: Run repl-thunk on a plain thread, or, on the user
     ;; eventspace thread via queue-callback.
     ((txt/gui thread queue-callback) repl-thunk))
-  ;; Main thread: Wait for message from REPL thread. Catch breaks.
-  (define msg (with-handlers ([exn:break? (lambda (exn) (display-exn exn) 'break)])
-                (channel-get ch)))
-  (custodian-shutdown-all user-cust)
+  ;; Main thread: Wait for message from REPL thread channel, or, user
+  ;; custodian box event. Also catch breaks.
+  (define msg
+    (with-handlers ([exn:break? (λ (exn) (display-exn exn) 'break)])
+      (match (sync ch user-cust-box)
+        [(? custodian-box?)
+         (printf "Exceeded the ~a MB memory limit you set." mem-limit)
+         'break]
+        [msg
+         (custodian-shutdown-all user-cust)
+         msg])))
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match msg
-    ['break     (run #f)]
-    [(rerun p)  (run p)]
-    [(load-gui) (require-gui) (run maybe-path-str)]))
+    ['break      (run #f mem-limit)]
+    [(rerun p m) (run p m)]
+    [(load-gui)  (require-gui) (run maybe-path-str)]))
 
 (define (maybe-load-language-info path)
   ;; Load language-info (if any) and do configure-runtime.
@@ -98,7 +112,7 @@
 ;; Messages via a channel from the repl thread to the main thread.
 (define ch (make-channel))
 (struct msg ())
-(struct rerun    msg (path)) ;(or/c #f path-string?)
+(struct rerun    msg (path mem)) ;(or/c #f path-string?) (or/c #f nat?)
 (struct load-gui msg ())
 
 ;; To be called from REPL thread. Puts message for the main thread to

@@ -40,8 +40,8 @@
         [(uq cmd)
          (eq? 'unquote (syntax-e #'uq))
          (case (syntax-e #'cmd)
-           [(run) (put/stop (rerun (~a (read))))]
-           [(top) (put/stop (rerun #f))]
+           [(run) (put/stop (rerun (~a (read)) (read)))]
+           [(top) (put/stop (rerun #f (read)))]
            [(def) (def (read))]
            [(doc) (doc (read-syntax))]
            [(describe) (describe (read-syntax))]
@@ -62,8 +62,8 @@
 (define (usage)
   (displayln
    "Commands:
-,run </path/to/file.rkt>
-,top
+,run </path/to/file.rkt> <mem-limit>
+,top <mem-limit>
 ,def <identifier>
 ,type <identifier>
 ,doc <identifier>|<string>
