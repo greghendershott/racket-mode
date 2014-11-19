@@ -76,7 +76,7 @@
     (with-handlers ([exn:break? (λ (exn) (display-exn exn) 'break)])
       (match (sync ch user-cust-box)
         [(? custodian-box?)
-         (printf "Exceeded the ~a MB memory limit you set." mem-limit)
+         (printf "Exceeded the ~a MB memory limit you set.\n" mem-limit)
          'break]
         [msg
          (custodian-shutdown-all user-cust)
