@@ -40,8 +40,8 @@
         [(uq cmd)
          (eq? 'unquote (syntax-e #'uq))
          (case (syntax-e #'cmd)
-           [(run) (put/stop (rerun (~a (read)) (read)))]
-           [(top) (put/stop (rerun #f (read)))]
+           [(run) (run put/stop rerun)]
+           [(top) (top put/stop rerun)]
            [(def) (def (read))]
            [(doc) (doc (read-syntax))]
            [(describe) (describe (read-syntax))]
@@ -59,11 +59,41 @@
            [else (usage)])]
         [_ stx]))))
 
+;; Parameter-like interface, but we don't care about thread-local
+;; stuff. We do care about calling collect-garbage IFF the new limit
+;; is less than the old one or less than the current actual usage.
+(define current-mem
+  (let ([old #f])
+    (case-lambda
+      [() old]
+      [(new)
+       (and old new
+            (or (< new old)
+                (< (* new 1024 1024) (current-memory-use)))
+            (collect-garbage))
+       (set! old new)])))
+
+(define (run put/stop rerun)
+  (match (map ~a (string-split (read-line)))
+    [(list path mem) (let ([n (string->number mem)])
+                       (cond [n (current-mem n) (put/stop (rerun path n))]
+                             [else (usage)]))]
+    [(list path)     (put/stop (rerun path (current-mem)))]
+    [_ (usage)]))
+
+(define (top put/stop rerun)
+  (match (string-split (read-line))
+    [(list mem) (let ([n (string->number mem)])
+                  (cond [n (current-mem n) (put/stop (rerun #f n))]
+                        [else (usage)]))]
+    [(list)     (put/stop (rerun #f (current-mem)))]
+    [_ (usage)]))
+
 (define (usage)
   (displayln
    "Commands:
-,run </path/to/file.rkt> <mem-limit>
-,top <mem-limit>
+,run </path/to/file.rkt> [<memory-limit-MB>]
+,top [<memory-limit-MB>]
 ,def <identifier>
 ,type <identifier>
 ,doc <identifier>|<string>
