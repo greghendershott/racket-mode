@@ -23,7 +23,7 @@
 (require 'racket-eval)
 (require 'hideshow)
 
-(defcustom racket-memory-limit 4096
+(defcustom racket-memory-limit 2048
   "Terminate the Racket process if memory use exceeds this value in MB.
 Changes to this value take effect upon the next `racket-run'.
 
