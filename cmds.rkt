@@ -74,20 +74,26 @@
        (set! old new)])))
 
 (define (run put/stop rerun)
-  (match (map ~a (string-split (read-line)))
-    [(list path mem) (let ([n (string->number mem)])
-                       (cond [n (current-mem n) (put/stop (rerun path n))]
-                             [else (usage)]))]
-    [(list path)     (put/stop (rerun path (current-mem)))]
-    [_ (usage)]))
+  ;; Note: Use ~a on path to allow both `,run "/path/file.rkt"` and
+  ;; `run /path/file.rkt`.
+  (match (reads)
+    [(list path mem) (cond [(number? mem)
+                            (current-mem mem) (put/stop (rerun (~a path) mem))]
+                           [else (usage)])]
+    [(list path)     (put/stop (rerun (~a path) (current-mem)))]
+    [_               (usage)]))
 
 (define (top put/stop rerun)
-  (match (string-split (read-line))
-    [(list mem) (let ([n (string->number mem)])
-                  (cond [n (current-mem n) (put/stop (rerun #f n))]
-                        [else (usage)]))]
+  (match (reads)
+    [(list mem) (cond [(number? mem)
+                       (current-mem mem) (put/stop (rerun #f mem))]
+                      [else (usage)])]
     [(list)     (put/stop (rerun #f (current-mem)))]
-    [_ (usage)]))
+    [_          (usage)]))
+
+(define (reads)
+  (map (λ (s) (with-input-from-string s read))
+       (string-split (read-line))))
 
 (define (usage)
   (displayln
