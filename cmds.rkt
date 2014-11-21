@@ -76,7 +76,7 @@
 (define (run put/stop rerun)
   ;; Note: Use ~a on path to allow both `,run "/path/file.rkt"` and
   ;; `run /path/file.rkt`.
-  (match (reads)
+  (match (read-line->reads)
     [(list path mem) (cond [(number? mem)
                             (current-mem mem) (put/stop (rerun (~a path) mem))]
                            [else (usage)])]
@@ -84,16 +84,23 @@
     [_               (usage)]))
 
 (define (top put/stop rerun)
-  (match (reads)
+  (match (read-line->reads)
     [(list mem) (cond [(number? mem)
                        (current-mem mem) (put/stop (rerun #f mem))]
                       [else (usage)])]
     [(list)     (put/stop (rerun #f (current-mem)))]
     [_          (usage)]))
 
+(define (read-line->reads)
+  (reads-from-string (read-line)))
+
+(define (reads-from-string s)
+  (with-input-from-string s reads))
+
 (define (reads)
-  (map (λ (s) (with-input-from-string s read))
-       (string-split (read-line))))
+  (match (read)
+    [(? eof-object?) (list)]
+    [x               (cons x (reads))]))
 
 (define (usage)
   (displayln
