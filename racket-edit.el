@@ -23,13 +23,27 @@
 (require 'racket-eval)
 (require 'hideshow)
 
+(defcustom racket-memory-limit 2048
+  "Terminate the Racket process if memory use exceeds this value in MB.
+Changes to this value take effect upon the next `racket-run'.
+
+Caveat: This uses Racket's custodian-limit-memory, which doesn't
+enforce the limit exactly. Instead, the program will be
+terminated upon the first garbage collection where memory exceeds
+the limit (maybe by a significant amount)."
+  :tag "Memory limit"
+  :type 'integer
+  :group 'racket)
+
 (defun racket-run ()
   "Save and evaluate the buffer in REPL, like DrRacket's Run."
   (interactive)
   (save-buffer)
   (racket--invalidate-completion-cache)
   (racket--invalidate-type-cache)
-  (racket--eval (format ",run %s\n" (racket--quoted-buffer-file-name))))
+  (racket--eval (format ",run %s %s\n"
+                        (racket--quoted-buffer-file-name)
+                        racket-memory-limit)))
 
 (defun racket-racket ()
   "Do `racket <file>` in *shell* buffer."

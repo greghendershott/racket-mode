@@ -40,8 +40,8 @@
         [(uq cmd)
          (eq? 'unquote (syntax-e #'uq))
          (case (syntax-e #'cmd)
-           [(run) (put/stop (rerun (~a (read))))]
-           [(top) (put/stop (rerun #f))]
+           [(run) (run put/stop rerun)]
+           [(top) (top put/stop rerun)]
            [(def) (def (read))]
            [(doc) (doc (read-syntax))]
            [(describe) (describe (read-syntax))]
@@ -59,11 +59,54 @@
            [else (usage)])]
         [_ stx]))))
 
+;; Parameter-like interface, but we don't care about thread-local
+;; stuff. We do care about calling collect-garbage IFF the new limit
+;; is less than the old one or less than the current actual usage.
+(define current-mem
+  (let ([old #f])
+    (case-lambda
+      [() old]
+      [(new)
+       (and old new
+            (or (< new old)
+                (< (* new 1024 1024) (current-memory-use)))
+            (collect-garbage))
+       (set! old new)])))
+
+(define (run put/stop rerun)
+  ;; Note: Use ~a on path to allow both `,run "/path/file.rkt"` and
+  ;; `run /path/file.rkt`.
+  (match (read-line->reads)
+    [(list path mem) (cond [(number? mem)
+                            (current-mem mem) (put/stop (rerun (~a path) mem))]
+                           [else (usage)])]
+    [(list path)     (put/stop (rerun (~a path) (current-mem)))]
+    [_               (usage)]))
+
+(define (top put/stop rerun)
+  (match (read-line->reads)
+    [(list mem) (cond [(number? mem)
+                       (current-mem mem) (put/stop (rerun #f mem))]
+                      [else (usage)])]
+    [(list)     (put/stop (rerun #f (current-mem)))]
+    [_          (usage)]))
+
+(define (read-line->reads)
+  (reads-from-string (read-line)))
+
+(define (reads-from-string s)
+  (with-input-from-string s reads))
+
+(define (reads)
+  (match (read)
+    [(? eof-object?) (list)]
+    [x               (cons x (reads))]))
+
 (define (usage)
   (displayln
    "Commands:
-,run </path/to/file.rkt>
-,top
+,run </path/to/file.rkt> [<memory-limit-MB>]
+,top [<memory-limit-MB>]
 ,def <identifier>
 ,type <identifier>
 ,doc <identifier>|<string>
