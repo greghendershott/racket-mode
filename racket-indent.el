@@ -82,7 +82,8 @@ Lisp function does not specify a special indentation."
           (current-column))
       (let* ((function (buffer-substring (point) (progn (forward-sexp 1) (point))))
              (open-pos (elt state 1))
-             (method (get (intern-soft function) 'racket-indent-function)))
+             (method (or (get (intern-soft function) 'racket-indent-function)
+                         (get (intern-soft function) 'scheme-indent-function))))
         (cond ((or
                 ;; a vector literal:  #( ... )
                 (and (eq (char-after (- open-pos 1)) ?\#)
