@@ -223,6 +223,49 @@ A few notes:
         - `,log <level>`: Set the default level for all other loggers
           not specified individually.
 
+## Indentation
+
+racket-mode includes indentation settings for many Racket built-in
+functions and forms. To customize these further, you can use Elisp to
+`(put <symbol> 'racket-indent-function <n>)`, where `<symbol>` is the
+name of the Racket form (e.g. `'test-case`) and `n` is an integer. The
+meaning of `n` is the same as for `lisp-indent-function` and
+`scheme-indent-function`: Indent the first `n` arguments specially
+(like ordinary function arguments), and then indent any further
+arguments like a body.
+
+For example in your `.emacs` file you could use:
+
+```cl
+(put 'test-case 'racket-indent-function 1)
+```
+
+to change the indent of `test-case` from this:
+
+```racket
+(test-case foo
+           blah
+           blah)
+```
+
+to this:
+
+```racket
+(test-case foo
+  blah
+  blah)
+```
+
+Also:
+
+* racket-mode uses a special indentation for forms starting with "def"
+  and "with".
+
+* racket-mode first looks for a property on `racket-indent-function`;
+  if none is found, it checks `scheme-indent-function`. That way you
+  can use custom indents you may have already defined for use with
+  scheme-mode.
+
 ## Background/Motivation
 
 I started this project accidentally, while trying to figure out a
