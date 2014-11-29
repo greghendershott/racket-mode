@@ -133,6 +133,18 @@
   ;; Choose the face to use.
   (lisp-font-lock-syntactic-face-function state))
 
+(defconst racket-syntax-propertize-function
+  (syntax-propertize-rules
+   ;; Treat #px"" and #rx"" as single sexpr for navigation and indent.
+   ((rx (group (or "#px" "#rx"))
+        (group "\"")
+        (group (zero-or-more (not (any "\""))))
+        (group "\""))
+    (1 "'")
+    (2 "\"")
+    (3 (ignore))
+    (4 "\""))))
+
 (defun racket--variables-for-both-modes ()
   ;; Set many things explicitly. We wouldn't need to set most of these
   ;; if our editing major mode, `racket-mode`, were derived from
@@ -181,18 +193,6 @@
                 (font-lock-extra-managed-props syntax-table)))
   (setq-local completion-at-point-functions '(racket-complete-at-point))
   (setq-local eldoc-documentation-function 'racket-eldoc-function))
-
-(defconst racket-syntax-propertize-function
-  (syntax-propertize-rules
-   ;; Treat #px"" and #rx"" as single sexpr for navigation and indent.
-   ((rx (group (or "#px" "#rx"))
-        (group "\"")
-        (group (zero-or-more (not (any "\""))))
-        (group "\""))
-    (1 "'")
-    (2 "\"")
-    (3 (ignore))
-    (4 "\""))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Insert lambda char (like DrRacket)
