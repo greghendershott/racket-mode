@@ -401,24 +401,31 @@
     ,@(for-level 0 values)))
 
 (define (mod<? a b)
-  (or (and (symbol? a) (not (symbol? b)))
-      (and (list? a) (not (list? b)))
-      (and (not (string? a)) (string? a))
-      (and (string? a) (string? b)
-           (string<? a b))
-      (and (symbol? a) (symbol? b)
-           (string<? (symbol->string a) (symbol->string b)))))
+  (define (key x)
+    (match x
+      [(list 'only-in m _ ...) m]
+      [x                       x]))
+  (let ([a (key a)]
+        [b (key b)])
+    (or (and (symbol? a) (not (symbol? b)))
+        (and (list? a) (not (list? b)))
+        (and (not (string? a)) (string? a))
+        (and (string? a) (string? b)
+             (string<? a b))
+        (and (symbol? a) (symbol? b)
+             (string<? (symbol->string a) (symbol->string b))))))
 
 (module+ test
   (check-equal? (group-requires
                  (combine-requires
-                  '((require c b a)
+                  '((require z c b a)
                     (require (for-meta 4 m41 m40))
                     (require (for-meta -4 m-41 m-40))
                     (require (for-label l1 l0))
                     (require (for-template t1 t0))
                     (require (for-syntax s1 s0))
-                    (require "a.rkt" "b.rkt" "c.rkt"
+                    (require "a.rkt" "b.rkt" "c.rkt" "z.rkt"
+                             (only-in "mod.rkt" oi)
                              (only-in mod oi)))))
                 '(require
                   (for-syntax s0 s1)
@@ -426,10 +433,8 @@
                   (for-label l0 l1)
                   (for-meta -4 m-40 m-41)
                   (for-meta 4 m40 m41)
-                  a b c
-                  (only-in mod oi)
-                  "a.rkt" "b.rkt" "c.rkt")))
-
+                  a b c (only-in mod oi) z
+                  "a.rkt" "b.rkt" "c.rkt" (only-in "mod.rkt" oi) "z.rkt")))
 
 ;; require-pretty-format : list? -> string?
 (define (require-pretty-format x)
