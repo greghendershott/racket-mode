@@ -271,13 +271,11 @@
 
 (module+ test
   (require racket/list
+           racket/runtime-path
            rackunit)
-  ;; These tests fail in Racket 6.0. I noticed this when expanding the
-  ;; Travis CI test matrix, and pushed the commit directly to master.
-  ;; For now I'm just disabling the tests for <=6.0 on master, while I
-  ;; explore this on a topic branch (as I probably ought to have done
-  ;; in the first place.)
-  (when (string>? (version) "6.0")
-    (check-equal? 'kernel (find-definition "display"))
-    (check-regexp-match "/racket/private/misc\\.rkt$"
-                        (first (find-definition "displayln")))))
+  (define-runtime-path defn.rkt "defn.rkt")
+  (when (string<=? (version) "6.0")
+    (current-namespace (module->namespace defn.rkt)))
+  (check-equal? (find-definition "display") 'kernel)
+  (check-match (find-definition "displayln")
+               (list* (pregexp "/racket/private/misc\\.rkt$") _)))
