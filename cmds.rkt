@@ -400,21 +400,6 @@
                  (for-level level (preface 'for-meta level))))
     ,@(for-level 0 values)))
 
-(define (mod<? a b)
-  (define (key x)
-    (match x
-      [(list 'only-in m _ ...) m]
-      [x                       x]))
-  (let ([a (key a)]
-        [b (key b)])
-    (or (and (symbol? a) (not (symbol? b)))
-        (and (list? a) (not (list? b)))
-        (and (not (string? a)) (string? a))
-        (and (string? a) (string? b)
-             (string<? a b))
-        (and (symbol? a) (symbol? b)
-             (string<? (symbol->string a) (symbol->string b))))))
-
 (module+ test
   (check-equal? (group-requires
                  (combine-requires
@@ -435,6 +420,38 @@
                   (for-meta 4 m40 m41)
                   a b c (only-in mod oi) z
                   "a.rkt" "b.rkt" "c.rkt" (only-in "mod.rkt" oi) "z.rkt")))
+
+(define (mod<? a b)
+  (define (key x)
+    (match x
+      [(list 'only-in   m _ ...)     (key m)]
+      [(list 'except-in m _ ...)     (key m)]
+      [(list 'prefix-in _ m)         (key m)]
+      [(list 'relative-in _ m _ ...) (key m)]
+      [m                             m]))
+  (let ([a (key a)]
+        [b (key b)])
+    (or (and (symbol? a) (not (symbol? b)))
+        (and (list? a) (not (list? b)))
+        (and (not (string? a)) (string? a))
+        (and (string? a) (string? b)
+             (string<? a b))
+        (and (symbol? a) (symbol? b)
+             (string<? (symbol->string a) (symbol->string b))))))
+
+(module+ test
+  (check-true (mod<? 'a 'b))
+  (check-false (mod<? 'b 'a))
+  (check-true (mod<? 'a '(only-in b)))
+  (check-true (mod<? '(only-in a) 'b))
+  (check-true (mod<? 'a '(except-in b)))
+  (check-true (mod<? '(except-in a) 'b))
+  (check-true (mod<? 'a '(prefix-in p 'b)))
+  (check-true (mod<? '(prefix-in p 'a) 'b))
+  (check-true (mod<? 'a '(relative-in p 'b)))
+  (check-true (mod<? '(relative-in p 'a) 'b))
+  (check-true (mod<? 'a '(prefix-in p (only-in b))))
+  (check-true (mod<? '(prefix-in p (only-in a)) 'b)))
 
 ;; require-pretty-format : list? -> string?
 (define (require-pretty-format x)
