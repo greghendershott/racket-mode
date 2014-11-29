@@ -245,12 +245,12 @@
   "In an s-expression, move to the opening, and cycle the shape among () [] {}"
   (interactive)
   (save-excursion
-    (unless (looking-at-p "[([{]")
+    (unless (looking-at-p (rx (any "([{")))
       (backward-up-list))
     (let ((pt (point))
-          (new (cond ((looking-at-p "(")   (cons "[" "]"))
-                     ((looking-at-p "\\[") (cons "{" "}"))
-                     ((looking-at-p "{")   (cons "(" ")"))
+          (new (cond ((looking-at-p (rx "(")) (cons "[" "]"))
+                     ((looking-at-p (rx "[")) (cons "{" "}"))
+                     ((looking-at-p (rx "{")) (cons "(" ")"))
                      (t (beep) nil))))
       (when new
         (forward-sexp)
