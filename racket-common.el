@@ -142,6 +142,7 @@
   ;; all here ensures consistency. And in that case, racket-mode need not
   ;; derive from scheme-mode, it can derive from just prog-mode.
   (set-syntax-table racket-mode-syntax-table)
+  (setq-local syntax-propertize-function racket-syntax-propertize-function)
   (setq-local multibyte-syntax-as-symbol t)
   (setq-local local-abbrev-table racket-mode-abbrev-table)
   (setq-local paragraph-start (concat "$\\|" page-delimiter))
@@ -180,6 +181,18 @@
                 (font-lock-extra-managed-props syntax-table)))
   (setq-local completion-at-point-functions '(racket-complete-at-point))
   (setq-local eldoc-documentation-function 'racket-eldoc-function))
+
+(defconst racket-syntax-propertize-function
+  (syntax-propertize-rules
+   ;; Treat #px"" and #rx"" as single sexpr for navigation and indent.
+   ((rx (group (or "#px" "#rx"))
+        (group "\"")
+        (group (zero-or-more (not (any "\""))))
+        (group "\""))
+    (1 "'")
+    (2 "\"")
+    (3 (ignore))
+    (4 "\""))))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Insert lambda char (like DrRacket)
