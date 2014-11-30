@@ -5,7 +5,8 @@
          racket/format
          racket/string)
 
-(provide log-display)
+(provide start-log-receiver
+         log-display)
 
 (define current-log-receiver-thread (make-parameter #f))
 (define global-logger (current-logger))
@@ -21,7 +22,10 @@
 (with-output-to-file racket-log-file #:exists 'truncate void)
 
 (define (update-log-receiver)
-  (show-logger-levels) ;handy to show after setting
+  (show-logger-levels)
+  (start-log-receiver))
+
+(define (start-log-receiver)
   (cond [(current-log-receiver-thread) => kill-thread])
   (let* ([args (append (list global-logger)
                        (flatten (for/list ([(k v) logger-levels])

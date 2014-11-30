@@ -4,7 +4,8 @@
          racket/runtime-path
          "cmds.rkt"
          "error.rkt"
-         "gui.rkt")
+         "gui.rkt"
+         "logger.rkt")
 
 (define-runtime-path image.rkt "image.rkt")
 
@@ -51,7 +52,9 @@
       ;; necessary otherwise file/convertible's convertible? returns #f.
       ;; Which seeems to be a namespace issue that I don't understand.
       (current-print (dynamic-require image.rkt 'current-print/images))
-      ;; 1. If module, load its lang info, require, and enter its namespace.
+      ;; 1. Start logger display thread.
+      (start-log-receiver)
+      ;; 2. If module, load its lang info, require, and enter its namespace.
       (when (and path (module-path? path))
         (parameterize ([current-module-name-resolver repl-module-name-resolver])
           ;; exn:fail? during module load => re-run with "empty" module
@@ -62,7 +65,7 @@
             (namespace-require path)
             (current-namespace (module->namespace path))
             (check-top-interaction))))
-      ;; 2. read-eval-print-loop
+      ;; 3. read-eval-print-loop
       (parameterize ([current-prompt-read (make-prompt-read path put/stop rerun)]
                      [current-module-name-resolver repl-module-name-resolver])
         ;; Note that read-eval-print-loop catches all non-break exceptions.
