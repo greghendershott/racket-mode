@@ -24,10 +24,7 @@ major mode for a Racket REPL. The edit/run experience is similar to
 - Correct indentation of Racket forms, including `for/fold` and
   `for*/fold`.
 
-- Compatible with Emacs **24.2+**. (With earlier versions of Emacs,
-  font-lock will incorrectly highlight portions of things, e.g. the
-  "min" in "aluminum" will be highlighted as the Racket keyword
-  `min`.)
+- Compatible with Emacs **24.3+**.
 
 ## Caveats
 

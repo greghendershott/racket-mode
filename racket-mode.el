@@ -3,7 +3,7 @@
 ;; Copyright (c) 2013-2014 by Greg Hendershott.
 
 ;; Package: racket-mode
-;; Package-Requires: ((cl-lib "0.3"))
+;; Package-Requires: ((emacs "24.3"))
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
 
@@ -25,7 +25,7 @@
 ;; - Fontify variations of define for functions and variables.
 ;; - Indent Racket forms (even `for/fold` and `for*/fold`).
 ;; - Follow DrRacket concepts where applicable.
-;; - Compatible with Emacs 24.2+.
+;; - Compatible with Emacs 24.3+.
 ;;
 ;; Details: https://github.com/greghendershott/racket-mode
 
