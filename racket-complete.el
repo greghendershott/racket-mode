@@ -16,6 +16,7 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'cl-lib)
 (require 'racket-eval)
 
 (make-variable-buffer-local

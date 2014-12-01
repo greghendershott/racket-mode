@@ -18,7 +18,6 @@
 
 ;; Things used by both racket-mode and racket-repl-mode
 
-(require 'cl-lib)
 (require 'thingatpt)
 (require 'racket-emacs-compat)
 (require 'racket-keywords-and-builtins)

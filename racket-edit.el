@@ -18,6 +18,7 @@
 
 ;; racket-mode per se, i.e. the .rkt file buffers
 
+(require 'cl-lib)
 (require 'racket-common)
 (require 'racket-complete)
 (require 'racket-eval)
