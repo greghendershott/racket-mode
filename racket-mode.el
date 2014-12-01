@@ -2,6 +2,8 @@
 
 ;; Copyright (c) 2013-2014 by Greg Hendershott.
 
+;; Package: racket-mode
+;; Package-Requires: ((cl-lib "0.3"))
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
 
