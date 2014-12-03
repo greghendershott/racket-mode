@@ -298,6 +298,32 @@ doesn't hurt to do so."
           ;; `with-` forms given 1 automatically by our indent function
           )))
 
+(defun racket-indent-line (&optional whole-exp)
+  "Indent current line as Racket code.
+
+This behaves like `lisp-indent-line', except that whole-line
+comments are treated the same regardless of whether they start
+with single or double semicolons."
+  (interactive)
+  (let ((indent (calculate-lisp-indent))
+	(pos (- (point-max) (point)))
+	(beg (progn (beginning-of-line) (point))))
+    (skip-chars-forward " \t")
+    (if (or (null indent) (looking-at "\\s<\\s<\\s<"))
+	;; Don't alter indentation of a ;;; comment line
+	;; or a line that starts in a string.
+        ;; FIXME: inconsistency: comment-indent moves ;;; to column 0.
+	(goto-char (- (point-max) pos))
+      (when (listp indent)
+        (setq indent (car indent)))
+      (unless (zerop (- indent (current-column)))
+        (delete-region beg (point))
+        (indent-to indent))
+      ;; If initial point was within line's indentation,
+      ;; position after the indentation.  Else stay at same point in text.
+      (when (> (- (point-max) pos) (point))
+        (goto-char (- (point-max) pos))))))
+
 (provide 'racket-indent)
 
 ;; racket-indent.el ends here

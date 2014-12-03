@@ -161,7 +161,7 @@
   (setq-local paragraph-ignore-fill-prefix t)
   (setq-local fill-paragraph-function 'lisp-fill-paragraph)
   (setq-local adaptive-fill-mode nil)
-  (setq-local indent-line-function 'lisp-indent-line)
+  (setq-local indent-line-function 'racket-indent-line)
   (setq-local parse-sexp-ignore-comments t)
   (setq-local outline-regexp ";;; \\|(....")
   (setq-local comment-start ";")
