@@ -75,6 +75,7 @@
       ;; paren
       ("[][(){}]"                 . racket-paren-face)
 
+      (,(regexp-opt racket-type-list 'symbols) . font-lock-type-face)
       (,(regexp-opt racket-builtins 'symbols) . font-lock-builtin-face)
       (,(regexp-opt racket-keywords 'symbols) . font-lock-keyword-face)
 
