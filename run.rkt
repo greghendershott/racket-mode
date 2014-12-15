@@ -81,9 +81,8 @@
         [(? custodian-box?)
          (printf "Exceeded the ~a MB memory limit you set.\n" mem-limit)
          'break]
-        [msg
-         (custodian-shutdown-all user-cust)
-         msg])))
+        [msg msg])))
+  (custodian-shutdown-all user-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match msg
     ['break      (run #f mem-limit)]
