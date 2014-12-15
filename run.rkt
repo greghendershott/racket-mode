@@ -5,7 +5,8 @@
          "cmds.rkt"
          "error.rkt"
          "gui.rkt"
-         "logger.rkt")
+         "logger.rkt"
+         "util.rkt")
 
 (define-runtime-path image.rkt "image.rkt")
 
@@ -79,7 +80,8 @@
     (with-handlers ([exn:break? (λ (exn) (display-exn exn) 'break)])
       (match (sync ch user-cust-box)
         [(? custodian-box?)
-         (printf "Exceeded the ~a MB memory limit you set.\n" mem-limit)
+         (display-commented
+          (format "Exceeded the ~a MB memory limit you set.\n" mem-limit))
          'break]
         [msg msg])))
   (custodian-shutdown-all user-cust)
