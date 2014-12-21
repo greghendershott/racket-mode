@@ -116,9 +116,9 @@ Lisp function does not specify a special indentation."
                (funcall method state indent-point normal-indent)))))))
 
 (defun racket--conditional-indent (state indent-point normal-indent
-                                   looking-at-string true false)
+                                   looking-at-regexp true false)
   (skip-chars-forward " \t")
-  (let ((n (if (looking-at looking-at-string) true false)))
+  (let ((n (if (looking-at looking-at-regexp) true false)))
     (lisp-indent-specform n state indent-point normal-indent)))
 
 (defun racket--indent-let (state indent-point normal-indent)
@@ -129,9 +129,11 @@ Lisp function does not specify a special indentation."
 (defun racket--indent-for (state indent-point normal-indent)
   "Indent function for all for/ and for*/ forms EXCEPT
 for/fold and for*/fold."
-  ;; check for maybe-type-ann e.g. (for/list : T ([x xs]) x)
+  ;; check for either of:
+  ;; - maybe-type-ann e.g. (for/list : T ([x xs]) x)
+  ;; - for/vector optional length, (for/vector #:length ([x xs]) x)
   (racket--conditional-indent state indent-point normal-indent
-                              ":" 3 1))
+                              "[:#]" 3 1))
 
 (defun racket--indent-for/fold (state indent-point normal-indent)
   "Indent function for for/fold and for*/fold."
