@@ -506,8 +506,6 @@ instead of textually, and handle module and submodule forms."
                (error nil)))
       (list first-beg requires))))
 
-(provide 'racket-edit)
-
 
 ;;; misc
 
@@ -518,5 +516,8 @@ Generally this should be used instead of plain
 `buffer-file-name'. For example this will handle path names
 containing spaces by escaping them."
   (shell-quote-argument (buffer-file-name)))
+
+
+(provide 'racket-edit)
 
 ;; racket-edit.el ends here
