@@ -26,7 +26,8 @@ compile: clean \
 	racket-indent.elc \
 	racket-keywords-and-builtins.elc \
 	racket-mode.elc \
-	racket-repl.elc
+	racket-repl.elc \
+	racket-util.elc
 
 test: test-racket test-elisp
 

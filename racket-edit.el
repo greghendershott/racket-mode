@@ -22,6 +22,7 @@
 (require 'racket-common)
 (require 'racket-complete)
 (require 'racket-eval)
+(require 'racket-util)
 (require 'hideshow)
 
 (defcustom racket-memory-limit 2048
@@ -144,14 +145,6 @@ instead of looking at point."
       (unless (string-match-p "^Sending to web browser..."
                               (racket--eval/string (format ",doc %s" sym)))
         (racket--eval/buffer (format ",doc \"%s\"" sym)))))) ;quoted
-
-(defun racket--symbol-at-point-or-prompt (prefix prompt)
-  "Helper for functions that want symbol-at-point, or, to prompt
-when there is no symbol-at-point or prefix is true."
-  (let ((sap (symbol-at-point)))
-    (if (or prefix (not sap))
-        (read-from-minibuffer prompt (if sap (symbol-name sap) ""))
-      sap)))
 
 (defvar racket--loc-stack '())
 
