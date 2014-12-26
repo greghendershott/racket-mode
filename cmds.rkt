@@ -57,7 +57,6 @@
            [(requires/trim) (requires/trim (read) (read))]
            [(requires/base) (requires/base (read) (read))]
            [(find-collection) (find-collection (read))]
-           [(open-require) (open-require (read) base)]
            [else (usage)])]
         [_ stx]))))
 
@@ -525,21 +524,3 @@
     [f  (map path->string (f str))]))
 
 (define find-collection (compose elisp-println do-find-collection))
-
-;;; open-require
-
-(define do-open-require
-  (let* ([not-impl (λ _ '())]
-         [f not-impl])
-    (λ (what dir) ;(-> (or/c 'begin 'end string?) path? (listof path?))
-      (match what
-        ['begin (match (with-handlers ([exn:fail? (λ _ #f)])
-                         (and ;<-- un-comment to exercise fallback path
-                          (dynamic-require 'drracket/find-module-path-completions
-                                           'find-module-path-completions)))
-                  [#f   (set! f not-impl)   #f]
-                  [fmpc (set! f (fmpc dir)) #t])]
-        ['end   (set! f not-impl) #t]
-        [str    (map (compose path->string cadr) (f str))]))))
-
-(define open-require (compose elisp-println do-open-require))

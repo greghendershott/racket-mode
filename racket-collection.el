@@ -19,6 +19,8 @@
 (require 'racket-util)
 (require 'racket-eval)
 (require 'ido)
+(require 'tq)
+(require 'racket-common) ;for `racket-program'
 
 
 ;;; racket-find-collection
@@ -43,7 +45,7 @@ installed. To install it, in `shell' enter:
 Tip: This works best with `ido-enable-flex-matching' set to t.
 Also handy is the `flx-ido' package from MELPA.
 
-See also: `racket-visit-module'."
+See also: `racket-visit-module' and `racket-open-require-path'."
   (interactive "P")
   (let* ((coll  (racket--symbol-at-point-or-prompt prefix "Collection name: "))
          (paths (racket--eval/sexpr (format ",find-collection \"%s\"\n" coll))))
@@ -97,24 +99,17 @@ See also: `racket-visit-module'."
 ;;    "Enter Subsellection" button.
 ;;   - on a file will exit and open the file.
 ;;
-;; Can use
-;;   `(run-with-timer seconds nil 'some-function (current-buffer))`
-;; to run some-function that does
-;;   `(buffer-substring-no-properties (minibuffer-prompt-end) first-\n-pos)`
-;; retrieve the what the user has typed so far.
-;; Then if changed, use Racket ,open-require to get new list of
-;; candidates, and replace everything after eoinput with them.
-;
-;; Can do (catch 'ido (read-from-minibuffer ...)) and that way the ENTER
-;; keymap command can (throw 'ido result) to escape.
-;;
-;; See also:
-;; ido-tidy, a pre-command-hook
-;; ido-exhibit, a post-command-hook
-;;
 ;; Remember that typing a letter triggers `self-insert-command'.
 ;; Therefore the pre and post command hooks will run then, too.
+;;
+;; Early version of this used racket--eval/sexpr. Couldn't keep up
+;; with typing. Instead: run dedicated Racket process and more direct
+;; pipe style; the process does a read-line and responds with each
+;; choice on its own line, terminated by a blank like (like HTTP
+;; headers).
 
+(defvar racket--orp/tq nil
+  "tq queue")
 (defvar racket--orp/active nil ;;FIXME: Use minibuffer-exit-hook instead?
   "Is `racket-open-require-path' using the minibuffer?")
 (defvar racket--orp/input ""
@@ -123,41 +118,78 @@ See also: `racket-visit-module'."
   "The current user matches. Unless user C-g's this persists, as with DrR.")
 (defvar racket--orp/match-index 0
   "The index of the current match selected by the user.")
-(defvar racket--orp/input-timer nil
-  "The `run-with-timer' ID.")
-(defvar racket--orp/input-timer-amount 0.25
-  "The delay after user typing ends, before fetching new matches.")
 (defvar racket--orp/max-height 10
   "The maximum height of the minibuffer.")
 (defvar racket--orp/keymap
   (let ((map (make-sparse-keymap)))
-    (define-key map (kbd "RET") 'racket--orp/on-enter)
-    (define-key map (kbd "C-j") 'racket--orp/on-enter)
-    (define-key map (kbd "C-g") 'racket--orp/on-quit)
+    (define-key map (kbd "RET") 'racket--orp/enter)
+    (define-key map (kbd "C-j") 'racket--orp/enter)
+    (define-key map (kbd "C-g") 'racket--orp/quit)
     (define-key map (kbd "C-n") 'racket--orp/next)
+    (define-key map (kbd "<up>") 'racket--orp/next)
     (define-key map (kbd "C-p") 'racket--orp/prev)
+    (define-key map (kbd "<down>") 'racket--orp/next)
+    ;; nops FIXME better way to handle this?
+    (define-key map (kbd "SPC") 'racket--orp/nop)
+    (define-key map (kbd "TAB") 'racket--orp/nop)
+    (define-key map (kbd "C-v") 'racket--orp/nop)
+    (define-key map (kbd "M-v") 'racket--orp/nop)
+    (define-key map (kbd "M-<") 'racket--orp/nop)
+    (define-key map (kbd "M->") 'racket--orp/nop)
     map))
+
+(defvar racket-find-module-path-completions-rkt
+  (expand-file-name "find-module-path-completions.rkt"
+                    (file-name-directory (or load-file-name (buffer-file-name))))
+  "Path to find-module-path-completions.rkt")
+
+(defun racket--orp/begin ()
+  (let ((proc (start-process "racket-find-module-path-completions-process"
+                             "*racket-find-module-path-completions*"
+                             racket-program
+                             racket-find-module-path-completions-rkt)))
+    (setq racket--orp/tq (tq-create proc))))
+
+(defun racket--orp/request-tx-matches (input)
+  "Request matches from the Racket process; delivered to `racket--orp/rx-matches'."
+  (when racket--orp/tq
+    (tq-enqueue racket--orp/tq
+                (concat input "\n")
+                ".*\n\n"
+                (current-buffer)
+                'racket--orp/rx-matches)))
+
+(defun racket--orp/rx-matches (buffer answer)
+  "Completion proc; receives answer to request by `racket--orp/request-tx-matches'."
+  (when racket--orp/active
+    (setq racket--orp/matches (split-string answer "\n" t))
+    (setq racket--orp/match-index 0)
+    (with-current-buffer buffer
+      (racket--orp/draw-matches))))
+
+(defun racket--orp/end ()
+  (when racket--orp/tq
+    (tq-close racket--orp/tq)
+    (setq racket--orp/tq nil)))
 
 (defun racket-open-require-path ()
   "Like Dr Racket's Open Require Path.
 
-Type characters that are part of a module path name. When you
-pause typing, a list of choices will appear. Type more (or delete
-chars) to refine the search.
+Type (or delete) characters that are part of a module path name.
+\"Fuzzy\" matches appear. For example try typing \"t/t/r\".
 
 - C-n and C-p move among the choices. The current choice is at
-  the top and marked with \"->\".
-- RET on a file opens it.
-- RET on a directory adds its contents to the choices.
+  the top, marked with \"->\".
+- RET opens a file.
+- RET adds a directory's contents to the choices.
 - C-g aborts."
   (interactive)
-  (unless (racket--eval/sexpr ",open-require begin\n")
-    (error "Your version of Racket doesn't provide find-module-completion-path"))
+  (racket--orp/begin)
   (setq racket--orp/active t)
   (setq racket--orp/match-index 0)
   ;; We do NOT initialize `racket--orp/input' or `racket--orp/matches'
   ;; here. Like DrR, we remember from last time invoked. We DO
-  ;; initialize them in racket--orp/on-quit, if user pressed C-g.
+  ;; initialize them in racket--orp/quit i.e. user presses C-g.
   (add-hook 'minibuffer-setup-hook 'racket--orp/minibuffer-setup)
   (condition-case ()
       (progn
@@ -169,7 +201,7 @@ chars) to refine the search.
     (error (setq racket--orp/input "")
            (setq racket--orp/matches nil)))
   (setq racket--orp/active nil)
-  (racket--eval/sexpr ",open-require end\n"))
+  (racket--orp/end))
 
 (defun racket--orp/minibuffer-setup ()
   (add-hook 'pre-command-hook  'racket--orp/pre-command  nil t)
@@ -192,36 +224,22 @@ candidates or (point-max)."
                                   (racket--orp/eoinput)))
 
 (defun racket--orp/pre-command ()
-  (when racket--orp/input-timer
-    (cancel-timer racket--orp/input-timer)
-    (setq racket--orp/input-timer nil)))
+  nil)
 
 (defun racket--orp/post-command ()
-  "Checks if input has changed; if so, sets a timer to update later.
-Intended to allow faster typing; update only after pauses."
+  "Checks if input has changed and updates matches"
   (when racket--orp/active
     (let ((input (racket--orp/get-user-input)))
       (when (not (string-equal input racket--orp/input))
-        (setq racket--orp/input-timer
-              (run-with-timer racket--orp/input-timer-amount
-                              nil
-                              'racket--orp/on-input-changed
-                              (current-buffer)))))))
+        (racket--orp/on-input-changed input)))))
 
-(defun racket--orp/on-input-changed (buffer)
-  (setq racket--orp/input-timer nil)
-  (when (and (buffer-live-p buffer)
-             racket--orp/active)
-    (with-current-buffer buffer
-      (let ((input (racket--orp/get-user-input)))
-        (when (not (string-equal input racket--orp/input))
-          (let ((matches (cond ((string-equal input "") nil)
-                               (t (racket--eval/sexpr
-                                   (format ",open-require \"%s\"\n" input))))))
-            (setq racket--orp/input input)
-            (setq racket--orp/match-index 0)
-            (setq racket--orp/matches matches)
-            (racket--orp/draw-matches)))))))
+(defun racket--orp/on-input-changed (input)
+  (setq racket--orp/input input)
+  (cond ((string-equal input "") ;"" => huge list; ignore like DrR
+         (setq racket--orp/match-index 0)
+         (setq racket--orp/matches nil)
+         (racket--orp/draw-matches))
+        (t (racket--orp/request-tx-matches input))))
 
 (defun racket--orp/draw-matches ()
   (save-excursion
@@ -240,39 +258,41 @@ Intended to allow faster typing; update only after pauses."
       (when (< racket--orp/max-height len)
         (insert "\n   ...")))))
 
-(defun racket--orp/on-enter ()
+(defun racket--orp/enter ()
+  "On a dir, adds its contents to choices. On a file, opens the file."
   (interactive)
   (when racket--orp/active
-    ;; Check for input changed (timer hasn't fired yet).
-    (let ((input (racket--orp/get-user-input)))
-      (if (not (string-equal input racket--orp/input))
-          (progn (racket--trace "on-enter" 'input-changed)
-                 (racket--orp/on-input-changed (current-buffer)))
-        (let ((match (and racket--orp/matches
-                          (elt racket--orp/matches racket--orp/match-index))))
-          (cond (;; Pressing RET on a directory inserts its contents,
-                 ;; just like "Enter subcollection" button in DrR.
-                 (and match (file-directory-p match))
-                 (racket--trace "on-enter" 'add-subdir)
-                 (setq racket--orp/matches
-                       (delete-dups ;if they RET same item more than once
-                        (sort (append racket--orp/matches
-                                      (directory-files match t "[^.]+$"))
-                              #'string-lessp)))
-                 (racket--orp/draw-matches))
-                (t ;; Pressing ENTER on a file exits (selects it).
-                 (racket--trace "on-enter" 'exit-minibuffer)
-                 (exit-minibuffer))))))))
+    (let ((match (and racket--orp/matches
+                      (elt racket--orp/matches racket--orp/match-index))))
+      (cond (;; Pressing RET on a directory inserts its contents, like
+             ;; "Enter subcollection" button in DrR.
+             (and match (file-directory-p match))
+             (racket--trace "enter" 'add-subdir)
+             (setq racket--orp/matches
+                   (delete-dups ;if they RET same item more than once
+                    (sort (append racket--orp/matches
+                                  (directory-files match t "[^.]+$"))
+                          #'string-lessp)))
+             (racket--orp/draw-matches))
+            (;; Pressing ENTER on a file selects it. We exit the
+             ;; minibuffer; our main function treats non-nil
+             ;; racket--orp/matches and racket--orp/match-index as a
+             ;; choice (as opposed to quitting w/o a choice.
+             t
+             (racket--trace "enter" 'exit-minibuffer)
+             (exit-minibuffer))))))
 
-(defun racket--orp/on-quit ()
+(defun racket--orp/quit ()
+  "Our replacement for `keyboard-quit'."
   (interactive)
   (when racket--orp/active
-    (racket--trace "on-quit")
+    (racket--trace "quit")
     (setq racket--orp/input "")
     (setq racket--orp/matches nil)
     (exit-minibuffer)))
 
 (defun racket--orp/next ()
+  "Select the next match."
   (interactive)
   (when racket--orp/active
     (setq racket--orp/match-index (1+ racket--orp/match-index))
@@ -281,12 +301,18 @@ Intended to allow faster typing; update only after pauses."
     (racket--orp/draw-matches)))
 
 (defun racket--orp/prev ()
+  "Select the previous match."
   (interactive)
   (when racket--orp/active
     (setq racket--orp/match-index (1- racket--orp/match-index))
     (when (< racket--orp/match-index 0)
       (setq racket--orp/match-index (max 0 (1- (length racket--orp/matches)))))
     (racket--orp/draw-matches)))
+
+(defun racket--orp/nop ()
+  "A do-nothing command target."
+  (interactive)
+  nil)
 
 (provide 'racket-collection)
 
