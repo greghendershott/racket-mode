@@ -18,6 +18,7 @@ clean:
 
 compile: clean \
 	racket-common.elc \
+	racket-collection.elc \
 	racket-complete.elc \
 	racket-edit.elc \
 	racket-emacs-compat.elc \

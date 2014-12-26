@@ -117,7 +117,9 @@ list, as opposed to 'lexical)."
   "Visit definition of module at point, e.g. net/url or \"file.rkt\".
 
 Only works if you've `racket-run' the buffer so that its
-namespace is active."
+namespace is active.
+
+See also: `racket-find-collection'."
   (interactive "P")
   (let* ((v (thing-at-point 'filename)) ;matches both net/url and "file.rkt"
          (v (and v (substring-no-properties v)))

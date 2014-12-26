@@ -25,12 +25,12 @@
   (require rackunit))
 
 (define (make-prompt-read path put/stop rerun)
-  (define-values (base name dir?) (cond [path (split-path path)]
-                                        [else (values "" "" #f)]))
+  (define-values (base name _) (cond [path (split-path path)]
+                                     [else (values (current-directory) "" #f)]))
   (λ ()
     (let ([;; Elisp prints '() as 'nil. Reverse that. (Assumption:
            ;; Although Elisp code puns nil/() also to mean "false",
-           ;; our Elisp code won't do that.)
+           ;; _our_ Elisp code _won't_ do that.)
            read (λ () (match (read) ['nil '()] [x x]))])
       (flush-output (current-error-port))
       (display #\u227a) (display name) (display #\u227b) (display #\space)
@@ -56,6 +56,8 @@
            [(requires/tidy) (requires/tidy (read))]
            [(requires/trim) (requires/trim (read) (read))]
            [(requires/base) (requires/base (read) (read))]
+           [(find-collection) (find-collection (read))]
+           [(open-require) (open-require (read) base)]
            [else (usage)])]
         [_ stx]))))
 
@@ -330,7 +332,7 @@
 ;; show-requires* : Like show-requires but accepts a path-string? that
 ;; need not already be a module path.
 (define (show-requires* path-str)
-  (define-values (base name dir?) (split-path (string->path path-str)))
+  (define-values (base name _) (split-path (string->path path-str)))
   (parameterize ([current-load-relative-directory base]
                  [current-directory base])
     (show-requires name)))
@@ -511,3 +513,33 @@
       [this
        (printf "~a~s" (indent-string) this)]))
   (prn x #t 0))
+
+;;; find-collection
+
+(define (do-find-collection str)
+  (match (with-handlers ([exn:fail? (λ _ #f)])
+           (and ;;#f ;<-- un-comment to exercise fallback path
+            (dynamic-require 'find-collection/find-collection
+                             'find-collection-dir)))
+    [#f 'find-collection-not-installed]
+    [f  (map path->string (f str))]))
+
+(define find-collection (compose elisp-println do-find-collection))
+
+;;; open-require
+
+(define do-open-require
+  (let* ([not-impl (λ _ '())]
+         [f not-impl])
+    (λ (what dir) ;(-> (or/c 'begin 'end string?) path? (listof path?))
+      (match what
+        ['begin (match (with-handlers ([exn:fail? (λ _ #f)])
+                         (and ;<-- un-comment to exercise fallback path
+                          (dynamic-require 'drracket/find-module-path-completions
+                                           'find-module-path-completions)))
+                  [#f   (set! f not-impl)   #f]
+                  [fmpc (set! f (fmpc dir)) #t])]
+        ['end   (set! f not-impl) #t]
+        [str    (map (compose path->string cadr) (f str))]))))
+
+(define open-require (compose elisp-println do-open-require))
