@@ -31,5 +31,5 @@
                  ;; of racket suddenly decides it can "convert" strings
                  ;; to picts)
                  (printf "#<Image: ~a>\n" (save-temporary-image png-bytes)))]
-           [else (print value)
+           [else (pretty-print value)
                  (newline)]))))
