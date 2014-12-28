@@ -66,15 +66,15 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
       (buffer-substring (point) end))))
 
 ;; I don't want comint-mode clobbering our font-lock with
-;; comint-highlight-input face. (Changing that *face* not to be bold
-;; isn't enough).
+;; comint-highlight-input face. Changing that _face_ to be non-bold
+;; isn't sufficient, it simply clobbers everything non-bold.
 ;;
 ;; So far, the least-pukey way I can figure out how to do this is to
 ;; copy-pasta much of comint-send-input, and modify the one tiny
 ;; offending bit.  Blech. If anyone reading this knows a better way,
 ;; please let me know!
 ;;
-;; Meanwhile I have slimmed down the copy -- deleted the `no-newline`
+;; Update: I went on to slim down the copy -- deleted the `no-newline`
 ;; and `artificial` args we don't use, and the code that could only
 ;; execute if they were non-nil.
 (defun racket--comint-send-input ()
@@ -172,17 +172,25 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   "Path to run.rkt")
 
 ;;;###autoload
-(defun racket-repl ()
+(defun racket-repl (&optional wait-for-prompt-p)
   "Run a Racket REPL in a comint buffer.
+
+Does not cause the REPL window to be shown. Does not change the
+selected window.
+
+When WAIT-FOR-PROMPT-P is not nil, calls
+`racket--repl-wait-for-ready-prompt'.
+
 Runs the hook `racket-repl-mode-hook' (after the `comint-mode-hook'
 is run)."
   (interactive)
   (let ((original-window (selected-window)))
-    ;; If REPL process already visible in a window, use that window.
+    ;; If REPL buffer already visible in a window, use that window.
     (let ((rw (get-buffer-window racket--repl-buffer-name)))
       (if rw
           (select-window rw)
         (other-window 1)))
+    ;; If REPL buffer doesn't have a live process, start one.
     (unless (comint-check-proc racket--repl-buffer-name)
       (set-buffer (make-comint racket--repl-buffer-name/raw ;w/o *stars*
                                racket-program
@@ -193,14 +201,49 @@ is run)."
       ;; functions.
       (set-process-coding-system (get-buffer-process racket--repl-buffer-name)
                                  'utf-8 'utf-8)
-      (racket-repl-mode))
+      (racket-repl-mode)
+      (when wait-for-prompt-p
+        (racket--repl-wait-for-ready-prompt)))
     (select-window original-window)))
+
+(defcustom racket--reply-wait-for-ready-prompt-timeout 3
+  "Timeout waiting for ready prompt when starting a new Racket process."
+  :tag "New REPL ready prompt timeout (seconds)"
+  :type 'number
+  :group 'racket)
+
+(defun racket--repl-wait-for-ready-prompt ()
+  "Repeatedly call `racket--repl-has-ready-prompt' until it returns t or `racket--reply-wait-for-ready-prompt-timeout' seconds have elapsed."
+  (let* ((try-interval 0.5)
+         (tries (/ racket--reply-wait-for-ready-prompt-timeout
+                   try-interval)))
+    (while (and (not (racket--repl-has-ready-prompt-p))
+                (> tries 0))
+      (sit-for try-interval nil)
+      (setq tries (1- tries))))
+  (if (racket--repl-has-ready-prompt-p)
+      t
+    (error "Timeout waiting for Racket REPL prompt")))
+
+(defun racket--repl-has-ready-prompt-p ()
+  "Is the REPL process alive and is the Racket prompt the very last thing in the buffer?"
+  (and (comint-check-proc racket--repl-buffer-name)
+       (with-current-buffer racket--repl-buffer-name
+         (save-excursion
+           (goto-char (point-max))
+           (and (re-search-backward "\n" nil t)
+                (re-search-forward comint-prompt-regexp nil t)
+                (= (point) (point-max)))))))
+
+;;;
 
 (defun racket--send-region-to-repl (start end)
   "Internal function to send the region to the Racket REPL.
-Calls `racket--repl-forget-errors' beforehand and
-`racket--repl-show-and-move-to-end' afterwars."
+Before sending the region, calls `racket-repl' and
+`racket--repl-forget-errors'. Afterwards calls
+`racket--repl-show-and-move-to-end'."
   (when (and start end)
+    (racket-repl)
     (racket--repl-forget-errors)
     (comint-send-region (racket--get-repl-buffer-process) start end)
     (comint-send-string (racket--get-repl-buffer-process) "\n")

@@ -15,6 +15,7 @@
   (when (eq? (system-type 'os) 'windows)
     (file-stream-buffer-mode (current-output-port) 'none))
   (display (banner))
+  (flush-output)
   (parameterize ([error-display-handler our-error-display-handler])
     (run #f)))
 

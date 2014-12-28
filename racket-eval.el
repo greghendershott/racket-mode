@@ -18,37 +18,35 @@
 
 (require 'racket-repl)
 
-(defun racket--eval (str)
-  (racket-repl)
+(defun racket--eval (expression)
+  "Eval EXPRESSION in the *Racket REPL* buffer, allow Racket output to be displayed, and show the window. Intended for us by things like ,run command."
+  (racket-repl t)
   (racket--repl-forget-errors)
-  (comint-send-string (racket--get-repl-buffer-process) str)
+  (comint-send-string (racket--get-repl-buffer-process) expression)
   (racket--repl-show-and-move-to-end))
 
 (defun racket--eval/buffer (expression)
   "Eval EXPRESSION in the *Racket REPL* buffer, but redirect the
-resulting output to a temporary output buffer, and return that
-buffer's name."
-  (cond ((racket--get-repl-buffer-process)
-         (let ((output-buffer "*Racket REPL Redirected Output*"))
-           (with-current-buffer (get-buffer-create output-buffer)
-             (erase-buffer)
-             (comint-redirect-send-command-to-process
-              expression
-              output-buffer
-              (racket--get-repl-buffer-process)
-              nil ;echo?
-              t)  ;no-display?
-             ;; Wait for the process to complete
-             (set-buffer (process-buffer (racket--get-repl-buffer-process)))
-             (while (null comint-redirect-completed)
-               (accept-process-output nil 1))
-             output-buffer)))
-        (t (error "Use <F5> to start the Racket REPL, then try again"))))
+resulting output to a *Racket REPL Redirected Output* buffer, and
+return that buffer's name."
+  (racket-repl t)
+  (let ((output-buffer "*Racket REPL Redirected Output*"))
+    (with-current-buffer (get-buffer-create output-buffer)
+      (erase-buffer)
+      (comint-redirect-send-command-to-process
+       expression
+       output-buffer
+       (racket--get-repl-buffer-process)
+       nil ;echo?
+       t)  ;no-display?
+      ;; Wait for the process to complete
+      (set-buffer (process-buffer (racket--get-repl-buffer-process)))
+      (while (null comint-redirect-completed)
+        (accept-process-output nil 1))
+      output-buffer)))
 
 (defun racket--eval/string (expression)
-  "Eval EXPRESSION in the *Racket REPL* buffer, but redirect the
-resulting output to a temporary output buffer, and return that
-output as a string."
+  "Call `racket--eval/buffer' and return the output as a string."
   (let ((output-buffer (racket--eval/buffer expression)))
     (with-current-buffer output-buffer
       (goto-char (point-min))
@@ -61,9 +59,7 @@ output as a string."
       (buffer-substring (point) (point-max)))))
 
 (defun racket--eval/sexpr (expression)
-  "Eval EXPRESSION in the *Racket REPL* buffer, but redirect the
-resulting output to a temporary output buffer, and return that
-output as a sexpr."
+  "Call `racket--eval/string' and `read' the result to return a sexpr."
   (eval (read (racket--eval/string expression))))
 
 (defun racket--shell (cmd)
