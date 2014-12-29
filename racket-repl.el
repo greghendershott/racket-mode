@@ -165,68 +165,67 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
             (racket--comint-send-input))
         (error (racket-cr))))))
 
-(defvar racket-run-rkt
-  (let ((elisp-dir
-         (file-name-directory (or load-file-name (buffer-file-name)))))
-    (expand-file-name "run.rkt" elisp-dir))
+(defvar racket--run.rkt
+  (expand-file-name "run.rkt"
+                    (file-name-directory (or load-file-name (buffer-file-name))))
   "Path to run.rkt")
 
 ;;;###autoload
-(defun racket-repl (&optional wait-for-prompt-p)
+(defun racket-repl ()
   "Run a Racket REPL in a comint buffer.
 
-Does not cause the REPL window to be shown. Does not change the
-selected window.
+When starting Racket, `racket--repl-wait-for-prompt'.
 
-When WAIT-FOR-PROMPT-P is not nil, calls
-`racket--repl-wait-for-ready-prompt'.
+The selected window remains the same.
 
-Runs the hook `racket-repl-mode-hook' (after the `comint-mode-hook'
-is run)."
+Does not necessarily cause the REPL buffer to be shown in a window.
+
+Runs `comint-mode-hook' and `racket-repl-mode-hook'."
   (interactive)
   (let ((original-window (selected-window)))
-    ;; If REPL buffer already visible in a window, use that window.
+    ;; What window to use? If REPL buffer already visible in a window,
+    ;; keep using that. Otherwise (other-window -1).
     (let ((rw (get-buffer-window racket--repl-buffer-name)))
       (if rw
           (select-window rw)
         (other-window 1)))
     ;; If REPL buffer doesn't have a live process, start one.
     (unless (comint-check-proc racket--repl-buffer-name)
+      (message "Starting Racket...")
       (set-buffer (make-comint racket--repl-buffer-name/raw ;w/o *stars*
                                racket-program
                                nil
-                               racket-run-rkt))
+                               racket--run.rkt))
       ;; The following is needed to make e.g. λ work when pasted into the
       ;; comint-buffer, both directly by the user and via the racket--eval
       ;; functions.
       (set-process-coding-system (get-buffer-process racket--repl-buffer-name)
                                  'utf-8 'utf-8)
       (racket-repl-mode)
-      (when wait-for-prompt-p
-        (racket--repl-wait-for-ready-prompt)))
+      (racket--repl-wait-for-prompt)
+      (message ""))
     (select-window original-window)))
 
-(defcustom racket--reply-wait-for-ready-prompt-timeout 3
-  "Timeout waiting for ready prompt when starting a new Racket process."
-  :tag "New REPL ready prompt timeout (seconds)"
+(defcustom racket--wait-for-prompt-timeout 30
+  "When REPL starts Racket process, how long to wait for Racket prompt."
+  :tag "REPL startup timeout (seconds):"
   :type 'number
   :group 'racket)
 
-(defun racket--repl-wait-for-ready-prompt ()
-  "Repeatedly call `racket--repl-has-ready-prompt' until it returns t or `racket--reply-wait-for-ready-prompt-timeout' seconds have elapsed."
-  (let* ((try-interval 0.5)
-         (tries (/ racket--reply-wait-for-ready-prompt-timeout
-                   try-interval)))
-    (while (and (not (racket--repl-has-ready-prompt-p))
-                (> tries 0))
-      (sit-for try-interval nil)
-      (setq tries (1- tries))))
-  (if (racket--repl-has-ready-prompt-p)
-      t
+(defun racket--repl-wait-for-prompt ()
+  "Wait up to `racket--wait-for-prompt-timeout' seconds for
+`racket--repl-has-prompt-p' to be t."
+  (message "Waiting for Racket prompt...")
+  (let ((deadline (+ (float-time) racket--wait-for-prompt-timeout)))
+    (while (and (not (racket--repl-has-prompt-p))
+                (< (float-time) deadline))
+      (accept-process-output (get-buffer-process racket--repl-buffer-name)
+                             (- deadline (float-time)))))
+  (unless (racket--repl-has-prompt-p)
     (error "Timeout waiting for Racket REPL prompt")))
 
-(defun racket--repl-has-ready-prompt-p ()
-  "Is the REPL process alive and is the Racket prompt the very last thing in the buffer?"
+(defun racket--repl-has-prompt-p ()
+  "Is the REPL process alive and is the Racket prompt the last thing in the buffer?"
   (and (comint-check-proc racket--repl-buffer-name)
        (with-current-buffer racket--repl-buffer-name
          (save-excursion

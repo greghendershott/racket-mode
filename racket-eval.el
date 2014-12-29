@@ -19,8 +19,8 @@
 (require 'racket-repl)
 
 (defun racket--eval (expression)
-  "Eval EXPRESSION in the *Racket REPL* buffer, allow Racket output to be displayed, and show the window. Intended for us by things like ,run command."
-  (racket-repl t)
+  "Eval EXPRESSION in the *Racket REPL* buffer, allow Racket output to be displayed, and show the window. Intended for use by things like ,run command."
+  (racket-repl)
   (racket--repl-forget-errors)
   (comint-send-string (racket--get-repl-buffer-process) expression)
   (racket--repl-show-and-move-to-end))
@@ -29,7 +29,7 @@
   "Eval EXPRESSION in the *Racket REPL* buffer, but redirect the
 resulting output to a *Racket REPL Redirected Output* buffer, and
 return that buffer's name."
-  (racket-repl t)
+  (racket-repl)
   (let ((output-buffer "*Racket REPL Redirected Output*"))
     (with-current-buffer (get-buffer-create output-buffer)
       (erase-buffer)
