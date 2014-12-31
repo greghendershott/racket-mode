@@ -301,7 +301,7 @@ Keep original window selected."
   :type 'string
   :group 'racket)
 
-(defcustom racket--image-cache-keep-last 10
+(defcustom racket--image-cache-keep-last 100
   "How many images to keep in the image cache."
   :type 'integer
   :group 'racket)

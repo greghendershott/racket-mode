@@ -49,8 +49,10 @@
     ;; thread when racket/gui/base is not (yet) instantiated, or, from
     ;; (event-handler-thread (current-eventspace)).
     (define (repl-thunk)
-      ;; 0. Set current-print.
+      ;; 0. Set current-print and pretty-print hooks.
       (current-print (make-print-handler pretty-print?))
+      (pretty-print-print-hook (make-pretty-print-print-hook))
+      (pretty-print-size-hook (make-pretty-print-size-hook))
       ;; 1. Start logger display thread.
       (start-log-receiver)
       ;; 2. If module, load its lang info, require, and enter its namespace.
@@ -160,15 +162,32 @@
     (cond [(file-exists? path) path]
           [else (not-found (path->string path))])))
 
-;; make-print-handler
+;; Note: The `dynamic-require`s seem to be necessary otherwise
+;; file/convertible's convertible? always returns #f. Which seeems to
+;; be a namespace issue that I don't understand.
 (define-runtime-path image.rkt "image.rkt")
+
 (define (make-print-handler pretty-print?)
-  ;; Note: The dynamic-require here seems to be necessary otherwise
-  ;; file/convertible's convertible? always returns #f. Which seeems
-  ;; to be a namespace issue that I don't understand.
-  (let ([maybe-convert-image (dynamic-require image.rkt 'maybe-convert-image)])
-    (λ (v) ;; any/c -> void?
+  (cond [pretty-print? pretty-print-handler]
+        [else (make-plain-print-handler)]))
+
+(define (make-plain-print-handler)
+  (let ([convert (dynamic-require image.rkt 'convert-image)])
+    (λ (v)
       (void (unless (void? v)
-              (let ([v (maybe-convert-image v)])
-                (cond [pretty-print? (pretty-print v)]
-                      [else          (print v) (newline)])))))))
+              (print (convert v))
+              (newline))))))
+
+(define (make-pretty-print-size-hook [orig (pretty-print-print-hook)])
+  (let ([convert? (dynamic-require image.rkt 'convert-image?)]
+        [width (floor (/ (pretty-print-columns) 4))]) ;magic number? yep.
+    (λ (value display? port)
+      (cond [(convert? value) width]
+            [else (orig value display? port)]))))
+
+(define (make-pretty-print-print-hook [orig (pretty-print-size-hook)])
+  (let ([convert? (dynamic-require image.rkt 'convert-image?)]
+        [convert  (dynamic-require image.rkt 'convert-image)])
+    (λ (value display? port)
+      (cond [(convert? value) (print (convert value) port)]
+            [else (orig value display? port)]))))
