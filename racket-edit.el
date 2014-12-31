@@ -37,15 +37,22 @@ the limit (maybe by a significant amount)."
   :type 'integer
   :group 'racket)
 
+(defcustom racket-pretty-print-p t
+  "Use pretty-print instead of print in REPL."
+  :tag "Pretty print?"
+  :type 'boolean
+  :group 'racket)
+
 (defun racket-run ()
   "Save and evaluate the buffer in REPL, like DrRacket's Run."
   (interactive)
   (save-buffer)
   (racket--invalidate-completion-cache)
   (racket--invalidate-type-cache)
-  (racket--eval (format ",run %s %s\n"
+  (racket--eval (format ",run %s %s %s\n"
                         (racket--quoted-buffer-file-name)
-                        racket-memory-limit)))
+                        racket-memory-limit
+                        racket-pretty-print-p)))
 
 (defun racket-racket ()
   "Do `racket <file>` in *shell* buffer."

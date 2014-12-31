@@ -2,13 +2,12 @@
 
 (require racket/match
          racket/runtime-path
+         racket/pretty
          "cmds.rkt"
          "error.rkt"
          "gui.rkt"
          "logger.rkt"
          "util.rkt")
-
-(define-runtime-path image.rkt "image.rkt")
 
 (module+ main
   ;; Emacs on Windows comint-mode needs buffering disabled
@@ -19,8 +18,8 @@
   (parameterize ([error-display-handler our-error-display-handler])
     (run #f)))
 
-;; run: (or/c #f path-string?) (or/c #f natural?) -> any
-(define (run maybe-path-str [mem-limit #f])
+;; run: (or/c #f path-string?) (or/c #f natural?) boolean? -> any
+(define (run maybe-path-str [mem-limit #f] [pretty-print? #t])
   (define-values (path dir) (path-string->path&dir maybe-path-str))
   ;; Always set current-directory and current-load-relative-directory
   ;; to match the source file.
@@ -50,10 +49,8 @@
     ;; thread when racket/gui/base is not (yet) instantiated, or, from
     ;; (event-handler-thread (current-eventspace)).
     (define (repl-thunk)
-      ;; 0. Set current-print. Note: The dynamic-require here seems to be
-      ;; necessary otherwise file/convertible's convertible? returns #f.
-      ;; Which seeems to be a namespace issue that I don't understand.
-      (current-print (dynamic-require image.rkt 'current-print/images))
+      ;; 0. Set current-print.
+      (current-print (make-print-handler pretty-print?))
       ;; 1. Start logger display thread.
       (start-log-receiver)
       ;; 2. If module, load its lang info, require, and enter its namespace.
@@ -62,7 +59,7 @@
           ;; exn:fail? during module load => re-run with "empty" module
           (with-handlers ([exn? (λ (x)
                                   (display-exn x)
-                                  (put/stop (rerun #f mem-limit)))])
+                                  (put/stop (rerun #f mem-limit #t)))])
             (maybe-load-language-info path)
             (namespace-require path)
             (current-namespace (module->namespace path))
@@ -88,9 +85,9 @@
   (custodian-shutdown-all user-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match msg
-    ['break      (run #f mem-limit)]
-    [(rerun p m) (run p m)]
-    [(load-gui)  (require-gui) (run maybe-path-str)]))
+    ['break               (run #f mem-limit)]
+    [(rerun path mem pp?) (run path mem pp?)]
+    [(load-gui)           (require-gui) (run maybe-path-str)]))
 
 (define (maybe-load-language-info path)
   ;; Load language-info (if any) and do configure-runtime.
@@ -117,7 +114,7 @@
 ;; Messages via a channel from the repl thread to the main thread.
 (define ch (make-channel))
 (struct msg ())
-(struct rerun    msg (path mem)) ;(or/c #f path-string?) (or/c #f nat?)
+(struct rerun    msg (path mem pp?)) ;(or/c #f path-string?) (or/c #f nat?) boolean?
 (struct load-gui msg ())
 
 ;; To be called from REPL thread. Puts message for the main thread to
@@ -162,3 +159,16 @@
     (define path (expand-user-path (string->path path-str)))
     (cond [(file-exists? path) path]
           [else (not-found (path->string path))])))
+
+;; make-print-handler
+(define-runtime-path image.rkt "image.rkt")
+(define (make-print-handler pretty-print?)
+  ;; Note: The dynamic-require here seems to be necessary otherwise
+  ;; file/convertible's convertible? always returns #f. Which seeems
+  ;; to be a namespace issue that I don't understand.
+  (let ([maybe-convert-image (dynamic-require image.rkt 'maybe-convert-image)])
+    (λ (v) ;; any/c -> void?
+      (void (unless (void? v)
+              (let ([v (maybe-convert-image v)])
+                (cond [pretty-print? (pretty-print v)]
+                      [else          (print v) (newline)])))))))

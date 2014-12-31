@@ -60,6 +60,24 @@
            [else (usage)])]
         [_ stx]))))
 
+(define (usage)
+  (displayln
+   "Commands:
+,run </path/to/file.rkt> [<memory-limit-MB> [<pretty-print?>]]
+,top [<memory-limit-MB>]
+,def <identifier>
+,type <identifier>
+,doc <identifier>|<string>
+,exp <stx>
+,exp+
+,exp! <stx>
+,pwd
+,cd <path>
+,log <opts> ...")
+  (void))
+
+;;; run and top
+
 ;; Parameter-like interface, but we don't care about thread-local
 ;; stuff. We do care about calling collect-garbage IFF the new limit
 ;; is less than the old one or less than the current actual usage.
@@ -74,23 +92,41 @@
             (collect-garbage))
        (set! old new)])))
 
+(define current-pp? (make-parameter #t))
+
 (define (run put/stop rerun)
   ;; Note: Use ~a on path to allow both `,run "/path/file.rkt"` and
   ;; `run /path/file.rkt`.
+  (define (go path)
+    (put/stop (rerun (~a path) (current-mem) (current-pp?))))
   (match (read-line->reads)
-    [(list path mem) (cond [(number? mem)
-                            (current-mem mem) (put/stop (rerun (~a path) mem))]
-                           [else (usage)])]
-    [(list path)     (put/stop (rerun (~a path) (current-mem)))]
-    [_               (usage)]))
+    [(list path mem pp?) (cond [(and (number? mem) (boolean? pp?))
+                                (current-mem mem)
+                                (current-pp? pp?)
+                                (go path)]
+                               [else (usage)])]
+    [(list path mem)     (cond [(number? mem)
+                                (current-mem mem)
+                                (go path)]
+                               [else (usage)])]
+    [(list path)         (go path)]
+    [_                   (usage)]))
 
 (define (top put/stop rerun)
+  (define (go)
+    (put/stop (rerun #f (current-mem) (current-pp?))))
   (match (read-line->reads)
-    [(list mem) (cond [(number? mem)
-                       (current-mem mem) (put/stop (rerun #f mem))]
-                      [else (usage)])]
-    [(list)     (put/stop (rerun #f (current-mem)))]
-    [_          (usage)]))
+    [(list mem pp?) (cond [(and (number? mem) (boolean? pp?))
+                           (current-mem mem)
+                           (current-pp? pp?)
+                           (go)]
+                          [else (usage)])]
+    [(list mem)     (cond [(number? mem)
+                           (current-mem mem)
+                           (go)]
+                          [else (usage)])]
+    [(list)         (go)]
+    [_              (usage)]))
 
 (define (read-line->reads)
   (reads-from-string (read-line)))
@@ -101,23 +137,11 @@
 (define (reads)
   (match (read)
     [(? eof-object?) (list)]
+    ['t              (cons #t (reads))] ;in case from elisp
+    ['nil            (cons #f (reads))] ;in case from elisp
     [x               (cons x (reads))]))
 
-(define (usage)
-  (displayln
-   "Commands:
-,run </path/to/file.rkt> [<memory-limit-MB>]
-,top [<memory-limit-MB>]
-,def <identifier>
-,type <identifier>
-,doc <identifier>|<string>
-,exp <stx>
-,exp+
-,exp! <stx>
-,pwd
-,cd <path>
-,log <opts> ...")
-  (void))
+;;; misc other commands
 
 (define (def sym)
   (elisp-println (find-definition (symbol->string sym))))

@@ -4,9 +4,9 @@
 
 (require file/convertible
          racket/file
-         racket/pretty)
+         racket/vector)
 
-(provide current-print/images)
+(provide maybe-convert-image)
 
 ;; save-temporary-image : bytes? -> path?
 ;;
@@ -17,19 +17,14 @@
     (λ () (display png-bytes)))
   filename)
 
-;; current-print/images : any/c -> void?
+;; maybe-convert-image : any/c -> any/c
 ;;
-;; A replacement for current-print that intercepts PNG image values
-;; and writes them to a temporary file, printing #<Image: filename>.
-(define (current-print/images value)
-  (void
-   (unless (void? value)
-     (cond [(and (convertible? value)
-                 (convert value 'png-bytes))
-            => (lambda (png-bytes)
-                 ;; (The above could be problematic if a future version
-                 ;; of racket suddenly decides it can "convert" strings
-                 ;; to picts)
-                 (printf "#<Image: ~a>\n" (save-temporary-image png-bytes)))]
-           [else (print value)
-                 (newline)]))))
+;; Replace PNG image values, writing them to a temporary file, and replace
+;; with a string "#<Image: filename>".
+(define (maybe-convert-image v)
+  (define (png? v)
+    (and (convertible? v) (convert v 'png-bytes)))
+  (cond [(png? v)    => (λ (b) (format "#<Image: ~a>" (save-temporary-image b)))]
+        ;; [(list? v)   (map        maybe-convert-image v)]
+        ;; [(vector? v) (vector-map maybe-convert-image v)]
+        [else        v]))
