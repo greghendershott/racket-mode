@@ -1016,6 +1016,7 @@
     "semaphore-wait"
     "semaphore-wait/enable-break"
     "semaphore?"
+    "set"
     "set!-transformer-procedure"
     "set!-transformer?"
     "set-box!"
