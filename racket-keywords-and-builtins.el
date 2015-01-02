@@ -16,14 +16,16 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (defvar racket-type-list
-  ;; this is following the order presented in the typed/racket doc "Type Reference"
+  ;; In order from "Type Reference".
   '(;; basic
     "Any"
     "Nothing"
     ;; numeric types
-    "Number" "Complex"
+    "Number"
+    "Complex"
     "Integer"
-    "Float" "Flonum"
+    "Float"
+    "Flonum"
     "Single-Flonum"
     "Inexact-Real"
     "Exact-Real"
@@ -157,6 +159,7 @@
     "Pseudo-Random-Generator"
     "Path-String"
     ;; containers
+    "Pair"
     "Pairof"
     "Listof"
     "List"
@@ -206,7 +209,7 @@
     "Bot"
     "Procedure"
     "U"
-    ; "case->" it IS listed, but is better as a keyword
+    ;; "case->" it IS listed, but is better as a keyword
     "All"
     "Values"
     "Rec"
@@ -1439,9 +1442,6 @@
     "system-type"
     "tan"
     "take"
-    "tar"
-    "tar->output"
-    "tar-gzip"
     "tcp-abandon-port"
     "tcp-accept"
     "tcp-accept-evt"
