@@ -7,7 +7,7 @@
   (with-current-buffer (get-buffer "*Racket REPL*")
     (should (racket-tests/match "^Welcome to Racket v[0-9.]+\n≺≻ "))
     (insert "(exit)")
-    (racket-repl-cr)
+    (racket-repl-eval-or-newline-and-indent)
     (dotimes (_ 1) (accept-process-output nil 1))
     (should (racket-tests/match "Process Racket REPL finished\n$"))
     (kill-buffer "*Racket REPL*")))

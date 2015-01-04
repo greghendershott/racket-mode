@@ -259,8 +259,8 @@
         (delete-char 1)
         (insert (car new))))))
 
-(defun racket-cr ()
-  "Insert a newline and indent."
+(defun racket-newline-and-indent ()
+  "Do `newline' and `lisp-indent-for-line'."
   (interactive)
   (newline)
   (lisp-indent-line))

@@ -34,7 +34,7 @@
   (let ((m (make-sparse-keymap)))
     (mapc (lambda (x)
             (define-key m (kbd (car x)) (cadr x)))
-          '(("RET"     racket-repl-cr)
+          '(("RET"     racket-repl-eval-or-newline-and-indent)
             ("TAB"     racket-indent-or-complete)
             ("M-C-u"   racket-backward-up-list)
             (")"       racket-insert-closing-paren)
@@ -152,8 +152,8 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
         ;; but that scrolled the buffer in undesirable ways.
         (run-hook-with-args 'comint-output-filter-functions "")))))
 
-(defun racket-repl-cr ()
-  "If complete sexpr, eval. Else do `racket-cr'."
+(defun racket-repl-eval-or-newline-and-indent ()
+  "If complete sexpr, eval in Racket. Else do `racket-newline-and-indent'."
   (interactive)
   (let ((proc (get-buffer-process (current-buffer))))
     (if (not proc)
@@ -164,7 +164,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
               (goto-char (process-mark proc))
               (forward-list)) ;will error unless complete sexpr
             (racket--comint-send-input))
-        (error (racket-cr))))))
+        (error (racket-newline-and-indent))))))
 
 (defvar racket--run.rkt
   (expand-file-name "run.rkt"
