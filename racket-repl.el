@@ -20,6 +20,7 @@
 (require 'racket-common)
 (require 'comint)
 (require 'compile)
+(require 'easymenu)
 
 (defconst racket--repl-buffer-name/raw
   "Racket REPL"
@@ -47,6 +48,20 @@
             ("C-M-."   racket-visit-module)))
     m)
   "Keymap for Racket REPL mode.")
+
+(easy-menu-define racket-repl-mode-menu racket-repl-mode-map
+  "Menu for Racket REPL mode."
+  '("Racket"
+    ["Insert λ" racket-insert-lambda]
+    ["Indent Region" indent-region]
+    ["Cycle Paren Shapes" racket-cycle-paren-shapes]
+    "---"
+    ["Visit Definition" racket-visit-definition]
+    ["Visit Module" racket-visit-module]
+    ["Return from Visit" racket-unvisit]
+    "---"
+    ["Racket Documentation" racket-doc]
+    ["Describe" racket-describe]))
 
 (defcustom racket-repl-filter-regexp "\\`\\s *\\S ?\\S ?\\s *\\'"
   "Input matching this regexp are not saved on the history list.
@@ -209,7 +224,7 @@ Runs `comint-mode-hook' and `racket-repl-mode-hook'."
 
 (defcustom racket--wait-for-prompt-timeout 30
   "When REPL starts Racket process, how long to wait for Racket prompt."
-  :tag "REPL startup timeout (seconds):"
+  :tag "REPL startup timeout (seconds)"
   :type 'number
   :group 'racket)
 
@@ -293,17 +308,20 @@ Keep original window selected."
 
 (defcustom racket-repl--inline-images t
   "Whether to display inline images in the REPL."
+  :tag "Display inline images"
   :type 'boolean
   :group 'racket)
 
 (defcustom racket--system-image-viewer "display"
   "Which system image viewer program to invoke upon M-x
  `racket-view-last-image'."
+  :tag "System image viewer"
   :type 'string
   :group 'racket)
 
 (defcustom racket--image-cache-keep-last 100
   "How many images to keep in the image cache."
+  :tag "Image cache size"
   :type 'integer
   :group 'racket)
 

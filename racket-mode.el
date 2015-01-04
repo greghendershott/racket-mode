@@ -47,6 +47,7 @@ http://www.gnu.org/licenses/ for details.")
 
 (require 'racket-edit)
 (require 'racket-repl)
+(require 'racket-collection)
 (require 'easymenu)
 
 (defvar racket-mode-map
@@ -54,31 +55,32 @@ http://www.gnu.org/licenses/ for details.")
     (set-keymap-parent m lisp-mode-shared-map)
     (mapc (lambda (x)
             (define-key m (kbd (car x)) (cadr x)))
-          '(("<f5>"      racket-run)
-            ("M-C-<f5>"  racket-racket)
-            ("C-<f5>"    racket-test)
-            ("M-C-x"     racket-send-definition)
-            ("C-x C-e"   racket-send-last-sexp)
-            ("C-c C-r"   racket-send-region)
-            ("C-c C-e x" racket-expand-definition)
-            ("C-c C-e e" racket-expand-last-sexp)
-            ("C-c C-e r" racket-expand-region)
-            ("C-c C-e a" racket-expand-again)
-            ("RET"       racket-newline-and-indent)
-            ("TAB"       racket-indent-or-complete)
-            ("M-C-u"     racket-backward-up-list)
-            (")"         racket-insert-closing-paren)
-            ("]"         racket-insert-closing-bracket)
-            ("}"         racket-insert-closing-brace)
-            ("C-c C-p"   racket-cycle-paren-shapes)
-            ("M-C-y"     racket-insert-lambda)
-            ("C-c C-d"   racket-doc)
-            ("C-c C-."   racket-describe)
-            ("M-."       racket-visit-definition)
-            ("M-C-."     racket-visit-module)
-            ("M-,"       racket-unvisit)
-            ("C-c C-f"   racket-fold-all-tests)
-            ("C-c C-U"   racket-unfold-all-tests)))
+          '(("<f5>"        racket-run)
+            ("M-C-<f5>"    racket-racket)
+            ("C-<f5>"      racket-test)
+            ("M-C-x"       racket-send-definition)
+            ("C-x C-e"     racket-send-last-sexp)
+            ("C-c C-r"     racket-send-region)
+            ("C-c C-e x"   racket-expand-definition)
+            ("C-c C-e e"   racket-expand-last-sexp)
+            ("C-c C-e r"   racket-expand-region)
+            ("C-c C-e a"   racket-expand-again)
+            ("C-c C-x C-f" racket-open-require-path)
+            ("RET"         racket-newline-and-indent)
+            ("TAB"         racket-indent-or-complete)
+            ("M-C-u"       racket-backward-up-list)
+            (")"           racket-insert-closing-paren)
+            ("]"           racket-insert-closing-bracket)
+            ("}"           racket-insert-closing-brace)
+            ("C-c C-p"     racket-cycle-paren-shapes)
+            ("M-C-y"       racket-insert-lambda)
+            ("C-c C-d"     racket-doc)
+            ("C-c C-."     racket-describe)
+            ("M-."         racket-visit-definition)
+            ("M-C-."       racket-visit-module)
+            ("M-,"         racket-unvisit)
+            ("C-c C-f"     racket-fold-all-tests)
+            ("C-c C-U"     racket-unfold-all-tests)))
     m)
   "Keymap for Racket mode. Inherits from `lisp-mode-shared-map'.")
 
@@ -114,6 +116,9 @@ http://www.gnu.org/licenses/ for details.")
     ["Visit Module" racket-visit-module]
     ["Return from Visit" racket-unvisit]
     "---"
+    ["Open Require Path" racket-open-require-path]
+    ["Find Collection" racket-find-collection]
+    "---"
     ["Next Error or Link" next-error]
     ["Previous Error" previous-error]
     "---"
@@ -121,7 +126,7 @@ http://www.gnu.org/licenses/ for details.")
     ["Trim Requires" racket-trim-requires]
     ["Use #lang racket/base" racket-base-requires]
     "---"
-    ["Racket documentation" racket-doc]
+    ["Racket Documentation" racket-doc]
     ["Describe" racket-describe]
     ["Customize..." customize-mode]))
 
