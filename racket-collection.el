@@ -178,11 +178,16 @@ See also: `racket-visit-module' and `racket-open-require-path'."
 Type (or delete) characters that are part of a module path name.
 \"Fuzzy\" matches appear. For example try typing \"t/t/r\".
 
-- C-n and C-p move among the choices. The current choice is at
-  the top, marked with \"->\".
-- RET opens a file.
-- RET adds a directory's contents to the choices.
-- C-g aborts."
+Choices are displayed in a vertical list. The current choice is
+at the top, marked with \"->\".
+
+- C-n and C-p move among the choices.
+- RET on a directory adds its contents to the choices.
+- RET on a file exits doing `find-file'.
+- C-g aborts.
+
+Note: This requires Racket 6.1.1.6 or newer. Otherwise it won't
+error, it will just never return any matches."
   (interactive)
   (racket--orp/begin)
   (setq racket--orp/active t)
@@ -193,7 +198,7 @@ Type (or delete) characters that are part of a module path name.
   (add-hook 'minibuffer-setup-hook 'racket--orp/minibuffer-setup)
   (condition-case ()
       (progn
-        (read-from-minibuffer "Prompt: "
+        (read-from-minibuffer "Open require path: "
                               racket--orp/input
                               racket--orp/keymap)
         (when racket--orp/matches
