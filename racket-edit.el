@@ -19,29 +19,12 @@
 ;; racket-mode per se, i.e. the .rkt file buffers
 
 (require 'cl-lib)
+(require 'racket-custom)
 (require 'racket-common)
 (require 'racket-complete)
 (require 'racket-eval)
 (require 'racket-util)
 (require 'hideshow)
-
-(defcustom racket-memory-limit 2048
-  "Terminate the Racket process if memory use exceeds this value in MB.
-Changes to this value take effect upon the next `racket-run'.
-
-Caveat: This uses Racket's custodian-limit-memory, which doesn't
-enforce the limit exactly. Instead, the program will be
-terminated upon the first garbage collection where memory exceeds
-the limit (maybe by a significant amount)."
-  :tag "Memory limit"
-  :type 'integer
-  :group 'racket)
-
-(defcustom racket-pretty-print-p t
-  "Use pretty-print instead of print in REPL."
-  :tag "Pretty print?"
-  :type 'boolean
-  :group 'racket)
 
 (defun racket-run ()
   "Save and evaluate the buffer in REPL, like DrRacket's Run."
@@ -52,12 +35,12 @@ the limit (maybe by a significant amount)."
   (racket--eval (format ",run %s %s %s\n"
                         (racket--quoted-buffer-file-name)
                         racket-memory-limit
-                        racket-pretty-print-p)))
+                        racket-pretty-print)))
 
 (defun racket-racket ()
   "Do `racket <file>` in *shell* buffer."
   (interactive)
-  (racket--shell (concat racket-program
+  (racket--shell (concat racket-racket-program
                          " "
                          (racket--quoted-buffer-file-name))))
 
@@ -76,7 +59,7 @@ the limit (maybe by a significant amount)."
   "Do `raco test -x <file>` in *shell* buffer.
 To run <file>'s `test` submodule."
   (interactive)
-  (racket--shell (concat raco-program
+  (racket--shell (concat racket-raco-program
                          " test -x "
                          (racket--quoted-buffer-file-name))))
 

@@ -20,7 +20,7 @@
 (require 'racket-eval)
 (require 'ido)
 (require 'tq)
-(require 'racket-common) ;for `racket-program'
+(require 'racket-custom) ;for `racket-racket-program'
 
 
 ;;; racket-find-collection
@@ -146,7 +146,7 @@ See also: `racket-visit-module' and `racket-open-require-path'."
 (defun racket--orp/begin ()
   (let ((proc (start-process "racket-find-module-path-completions-process"
                              "*racket-find-module-path-completions*"
-                             racket-program
+                             racket-racket-program
                              racket-find-module-path-completions-rkt)))
     (setq racket--orp/tq (tq-create proc))))
 

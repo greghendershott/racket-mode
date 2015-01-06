@@ -16,12 +16,7 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
-(defcustom racket-mode-rackjure-indent t
-  "Indent {} for #lang rackjure dictionaries?"
-  :tag "{} indentation style"
-  :type 'boolean
-  :group 'racket
-  :safe 'booleanp)
+(require 'racket-custom)
 
 (defvar calculate-lisp-indent-last-sexp)
 
@@ -94,7 +89,7 @@ Lisp function does not specify a special indentation."
                      (memq (char-after (- open-pos 1)) '(?\' ?\`))
                      (eq (char-after open-pos) ?\())
                 ;; #lang rackjure dict literal { ... }
-                (and racket-mode-rackjure-indent
+                (and racket-rackjure-indent
                      (eq (char-after open-pos) ?\{)))
                ;; Indent all aligned with first item:
                (goto-char open-pos)

@@ -19,29 +19,11 @@
 ;; Things used by both racket-mode and racket-repl-mode
 
 (require 'thingatpt)
+(require 'racket-custom)
 (require 'racket-emacs-compat)
 (require 'racket-keywords-and-builtins)
 (require 'racket-font-lock)
 (require 'racket-indent)
-
-(defgroup racket nil
-  "A mode for Racket"
-  :prefix "racket-"
-  :group 'languages
-  :link '(url-link :tag "README on GitHub" "https://github.com/greghendershott/racket-mode/blob/master/README.md")
-  :link '(emacs-commentary-link :tag "Commentary" "racket-mode"))
-
-(defcustom racket-program "racket"
-  "Pathname of the racket executable."
-  :tag "/path/to/racket"
-  :type '(file :must-match t)
-  :group 'racket)
-
-(defcustom raco-program "raco"
-  "Pathname of the raco executable."
-  :tag "/path/to/raco"
-  :type '(file :must-match t)
-  :group 'racket)
 
 (defvar racket-mode-syntax-table
   (let ((st (make-syntax-table))
