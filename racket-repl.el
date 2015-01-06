@@ -17,6 +17,7 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'racket-custom)
 (require 'racket-common)
 (require 'comint)
 (require 'compile)
@@ -63,16 +64,9 @@
     ["Racket Documentation" racket-doc]
     ["Describe" racket-describe]))
 
-(defcustom racket-repl-filter-regexp "\\`\\s *\\S ?\\S ?\\s *\\'"
-  "Input matching this regexp are not saved on the history list.
-Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
-  :tag "History filter regexp"
-  :type 'regexp
-  :group 'racket)
-
 (defun racket-repl--input-filter (str)
-  "Don't save anything matching `racket-repl-filter-regexp'."
-  (not (string-match racket-repl-filter-regexp str)))
+  "Don't save anything matching `racket-history-filter-regexp'."
+  (not (string-match racket-history-filter-regexp str)))
 
 (defun racket--get-old-input ()
   "Snarf the sexp ending at point."
@@ -209,7 +203,7 @@ Runs `comint-mode-hook' and `racket-repl-mode-hook'."
     (unless (comint-check-proc racket--repl-buffer-name)
       (message "Starting Racket...")
       (set-buffer (make-comint racket--repl-buffer-name/raw ;w/o *stars*
-                               racket-program
+                               racket-racket-program
                                nil
                                racket--run.rkt))
       ;; The following is needed to make e.g. λ work when pasted into the
@@ -222,17 +216,11 @@ Runs `comint-mode-hook' and `racket-repl-mode-hook'."
       (message ""))
     (select-window original-window)))
 
-(defcustom racket--wait-for-prompt-timeout 30
-  "When REPL starts Racket process, how long to wait for Racket prompt."
-  :tag "REPL startup timeout (seconds)"
-  :type 'number
-  :group 'racket)
-
 (defun racket--repl-wait-for-prompt ()
-  "Wait up to `racket--wait-for-prompt-timeout' seconds for
+  "Wait up to `racket-wait-for-prompt-timeout' seconds for
 `racket--repl-has-prompt-p' to be t."
   (message "Waiting for Racket prompt...")
-  (let ((deadline (+ (float-time) racket--wait-for-prompt-timeout)))
+  (let ((deadline (+ (float-time) racket-wait-for-prompt-timeout)))
     (while (and (not (racket--repl-has-prompt-p))
                 (< (float-time) deadline))
       (accept-process-output (get-buffer-process racket--repl-buffer-name)
@@ -306,25 +294,6 @@ Keep original window selected."
 
 ;;; Inline images in REPL
 
-(defcustom racket-repl--inline-images t
-  "Whether to display inline images in the REPL."
-  :tag "Display inline images"
-  :type 'boolean
-  :group 'racket)
-
-(defcustom racket--system-image-viewer "display"
-  "Which system image viewer program to invoke upon M-x
- `racket-view-last-image'."
-  :tag "System image viewer"
-  :type 'string
-  :group 'racket)
-
-(defcustom racket--image-cache-keep-last 100
-  "How many images to keep in the image cache."
-  :tag "Image cache size"
-  :type 'integer
-  :group 'racket)
-
 (defvar racket-image-cache-dir nil)
 
 (defun racket-repl--list-image-cache ()
@@ -339,11 +308,11 @@ Keep original window selected."
                                   (float-time (nth 6 b)))))))))
 
 (defun racket-repl--clean-image-cache ()
-  "Clean all except for the last `racket--image-cache-keep-last'
+  "Clean all except for the last `racket-images-keep-last'
 images in 'racket-image-cache-dir'."
   (interactive)
   (dolist (file (butlast (racket-repl--list-image-cache)
-                         racket--image-cache-keep-last))
+                         racket-images-keep-last))
     (delete-file file)))
 
 (defun racket-repl--replace-images ()
@@ -359,7 +328,7 @@ images in 'racket-image-cache-dir'."
                (end (match-end 0)))
           (delete-region begin end)
           (goto-char begin)
-          (if (and racket-repl--inline-images (display-images-p))
+          (if (and racket-images-inline (display-images-p))
               (insert-image (create-image file) "[image]")
             (goto-char begin)
             (insert "[image] ; use M-x racket-view-last-image to view"))
@@ -367,15 +336,15 @@ images in 'racket-image-cache-dir'."
           (racket-repl--clean-image-cache))))))
 
 (defun racket-view-last-image (n)
-  "Open the last displayed image in the system's image viewer.
+  "Open the last displayed image using `racket-images-system-viewer'.
 
-With prefix arg, open the N-th last shown image in the system's image viewer."
+With prefix arg, open the N-th last shown image."
   (interactive "p")
   (let ((images (reverse (racket-repl--list-image-cache))))
     (if (>= (length images) n)
         (start-process "Racket image view"
                        nil
-                       racket--system-image-viewer
+                       racket-images-system-viewer
                        (nth (- n 1) images))
       (error "There aren't %d recent images" n))))
 

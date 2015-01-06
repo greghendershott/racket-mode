@@ -17,6 +17,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'cl-lib)
+(require 'racket-custom)
 (require 'racket-eval)
 
 (make-variable-buffer-local
@@ -67,13 +68,6 @@ See `racket--invalidate-completion-cache' and
       (and cmps (list beg end cmps)))))
 
 ;;; company-mode
-
-(defcustom racket-use-company-mode t
-  "Enable company-mode for racket-mode edit buffers?"
-  :tag "Use company-mode?"
-  :type 'boolean
-  :group 'racket
-  :safe 'booleanp)
 
 (eval-after-load "company"
   '(progn

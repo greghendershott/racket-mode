@@ -15,40 +15,8 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'racket-custom)
 (require 'racket-keywords-and-builtins)
-
-(defconst racket-keyword-argument-face 'racket-keyword-argument-face)
-(defface racket-keyword-argument-face
-  '((((background dark))
-     (:foreground "IndianRed"))
-    (((background light))
-     (:foreground "Red3")))
-  "Face for #:keyword arguments."
-  :tag "Keyword argument face"
-  :group 'racket)
-
-(defconst racket-selfeval-face 'racket-selfeval-face)
-(defface racket-selfeval-face
-  '((t
-     (:foreground "SeaGreen")))
-  "Face for self-evaluating expressions like numbers, symbols, strings."
-  :tag "Self-eval face"
-  :group 'racket)
-
-(defconst racket-paren-face 'racket-paren-face)
-(defface racket-paren-face
-  (let ((fg (face-foreground 'default)))
-    `((t (:foreground ,fg))))
-  "Face for parentheses () [] {}."
-  :tag "Paren face"
-  :group 'racket)
-
-(defcustom racket-mode-pretty-lambda nil
-  "Display lambda keywords using λ."
-  :tag "Pretty lambda"
-  :type 'boolean
-  :group 'racket
-  :safe 'booleanp)
 
 (defconst racket-font-lock-keywords
   (eval-when-compile
@@ -99,7 +67,7 @@
       ;; pretty lambda
       ("[[(]\\(case-\\|match-\\|opt-\\)?\\(lambda\\)\\>"
        2
-       (if racket-mode-pretty-lambda
+       (if racket-pretty-lambda
            (progn (compose-region (match-beginning 2)
                                   (match-end       2)
                                   racket-lambda-char)
