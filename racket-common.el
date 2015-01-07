@@ -265,8 +265,11 @@ preference in Dr. Racket."
   "Is point at the top level of a cond-like form?"
   (racket--smart-open-bracket-helper 0 0 (rx (seq "("
                                                   (or "cond"
-                                                      "syntax-rules")
-                                                  " "))))
+                                                      "syntax-rules"
+                                                      "match-lambda"
+                                                      "match-lambda*"
+                                                      "match-lambda**")
+                                                  (or space line-end)))))
 
 (defun racket--case-like-clause ()
   (racket--smart-open-bracket-helper 2 0 (rx (seq "("
@@ -274,13 +277,13 @@ preference in Dr. Racket."
                                                       "match"
                                                       "match*"
                                                       "syntax-parse")
-                                                  " "))))
+                                                  (or space line-end)))))
 
 (defun racket--syntax-case-clause ()
   (racket--smart-open-bracket-helper 3 0 (rx (seq "("
                                                   (or "syntax-case"
                                                       "syntax-case*")
-                                                  " "))))
+                                                  (or space line-end)))))
 
 (defun racket--let-like-binding ()
   "Is point at the top of the bindings of a let-like form?
@@ -344,7 +347,7 @@ Also handles accumulator bindings for for/fold."
                                                       "with-handlers*"
                                                       "with-syntax"
                                                       "with-syntax*")
-                                                  " "))))
+                                                  (or space line-end)))))
 
 (defun racket--for/fold-binding ()
   "Is point at the top of the bindings subform of a for/fold form?
@@ -353,7 +356,7 @@ Note: `racket--let-like-binding' handles the first,
 accumulators subform."
   (racket--smart-open-bracket-helper 0 2 (rx (seq (or "for/fold"
                                                       "for*/fold")
-                                                  " "))))
+                                                  (or space line-end)))))
 
 (defun racket--smart-open-bracket-helper (pre-backward-sexps
                                           post-backward-sexps
