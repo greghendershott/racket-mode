@@ -265,10 +265,10 @@ preference in Dr. Racket."
   "Is point at the top level of a cond-like form?"
   (racket--smart-open-bracket-helper 0 0 (rx (seq "("
                                                   (or "cond"
-                                                      "syntax-rules"
                                                       "match-lambda"
                                                       "match-lambda*"
-                                                      "match-lambda**")
+                                                      "match-lambda**"
+                                                      "syntax-rules")
                                                   (or space line-end)))))
 
 (defun racket--case-like-clause ()
@@ -442,7 +442,7 @@ the line). If not, call `completion-at-point'."
       (completion-at-point))))
 
 (defun racket-backward-up-list ()
-  "Like `backward-up-list' but works when point is in a string literal."
+  "Like `backward-up-list' but also works when point is in a string literal."
   (interactive)
   (while (in-string-p)
     (backward-char))
