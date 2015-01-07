@@ -229,37 +229,73 @@
 
 By default, inserts a '('. Inserts a '[' in the following cases:
 
-  - `let`-like bindings, including forms with `let` in the name
-    as well as things like `parameterize`, `with-handlers`, and
+  - `let`-like bindings -- forms with `let` in the name as well
+    as things like `parameterize`, `with-handlers`, and
     `with-syntax`.
 
   - `case`, `cond`, `match`, `syntax-case`, `syntax-parse`, and
     `syntax-rules` clauses.
 
-  - `for`-like bindings, including `for/fold` accumulators.
+  - `for`-like bindings and `for/fold` accumulators.
 
 To force insert '[', use `quoted-insert': \\[quoted-insert] [.
 
 When the previous s-expression in a sequence is a compound
-expression, uses the same kind parenthesis, brace, or bracket as
-before.
+expression, uses the same kind of delimiter.
 
 Combined with `racket-insert-closing-bracket', this means that
 you can press the unshifted '[' and ']' keys to get whatever
-delimiters follow the Racket conventions for these forms.
+delimiters follow the Racket conventions for these forms. (When
+`paredit-mode' is active, you need not even press ']'; this
+command calls `paredit-open-round' or `paredit-open-square' to
+work as usual.)
 
 To disable: Customize `racket-smart-open-bracket-enable'. This is
 like the 'Automatically adjust opening square brackets'
 preference in Dr. Racket."
   (interactive)
-  (insert (or (and (not racket-smart-open-bracket-enable) "[")
-              (racket--cond-like-clause)
-              (racket--case-like-clause)
-              (racket--syntax-case-clause)
-              (racket--let-like-binding)
-              (racket--for/fold-binding)
-              (racket--previous-sexp-open)
-              "(")))
+  (let ((ch (or (and (not racket-smart-open-bracket-enable) "[")
+                (racket--cond-like-clause)
+                (racket--case-like-clause)
+                (racket--syntax-case-clause)
+                (racket--let-like-binding)
+                (racket--for/fold-binding)
+                (racket--previous-sexp-open)
+                "(")))
+    (if (fboundp 'racket--paredit-aware-open)
+        (racket--paredit-aware-open ch)
+      (insert ch))))
+
+(eval-after-load 'paredit
+  '(progn
+     (add-hook 'paredit-mode-hook 'racket--paredit-mode-hook)
+
+     (defun racket--paredit-mode-hook ()
+       "Binds '[' in `paredit-mode-map' to `racket--paredit-open-square'.
+Note that this seems to affect ALL major modes using the minor
+`paredit-mode'! Therefore the test for `racket-mode' being active
+is done *in* `racket--paredit-open-square'. (Is there a better
+way to implement all this correctly??)."
+       (define-key paredit-mode-map (kbd "[") 'racket--paredit-open-square))
+
+     (defun racket--paredit-open-square ()
+       "If racket-mode `racket-smart-open-bracket' else `paredit-open-square'."
+       (interactive)
+       (if (eq major-mode 'racket-mode)
+           (racket-smart-open-bracket)
+         (paredit-open-square)))
+
+     (defun racket--paredit-aware-open (ch)
+       "A paredit-aware helper for `racket-smart-open-bracket-enable'.
+When `paredit-mode' active, use its functions instead of
+`insert'. Note that this is not defined unless paredit is
+loaded, so check for its existing using `fboundp'."
+       (let ((paredit-active (and (boundp 'paredit-mode) paredit-mode)))
+         (cond ((not paredit-active) (insert ch))
+               ((equal ch "(")       (paredit-open-round))
+               ((equal ch "[")       (paredit-open-square))
+               ((equal ch "{")       (paredit-open-curly))
+               (t                    (insert ch)))))))
 
 (defun racket--cond-like-clause ()
   "Is point at the top level of a cond-like form?"
