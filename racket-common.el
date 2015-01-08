@@ -268,25 +268,34 @@ preference in Dr. Racket."
 
 (eval-after-load 'paredit
   '(progn
-     (add-hook 'paredit-mode-hook 'racket--paredit-mode-hook)
+     (defvar racket--paredit-original-open-bracket-binding
+       (lookup-key paredit-mode-map (kbd "["))
+       "The previous `paredit-mode-map' binding for [. We don't
+assume it's `paredit-open-square', in case someone else is doing
+this, too.")
 
-     (defun racket--paredit-mode-hook ()
-       "Binds '[' in `paredit-mode-map' to `racket--paredit-open-square'.
-Note that this seems to affect ALL major modes using the minor
-`paredit-mode'! Therefore the test for `racket-mode' being active
-is done *in* `racket--paredit-open-square'. (Is there a better
-way to implement all this correctly??)."
-       (define-key paredit-mode-map (kbd "[") 'racket--paredit-open-square))
+     (add-hook 'paredit-mode-hook
+               (lambda ()
+                 (define-key paredit-mode-map
+                   (kbd "[") 'racket--paredit-open-square)))
 
      (defun racket--paredit-open-square ()
-       "If racket-mode `racket-smart-open-bracket' else `paredit-open-square'."
+       "`racket-smart-open-bracket' or original `paredit-mode-map' binding.
+
+To be compatible with `paredit-mode', `racket-smart-open-bracket'
+must intercept [ and decide whether to call `paredit-open-round'
+or `paredit-open-square'. To do so it must modify
+`paredit-mode-map', which affects all major modes. Therefore we
+check whether the current buffer's major mode is `racket-mode'.
+If not we call `racket--paredit-original-open-bracket-binding'."
        (interactive)
        (if (eq major-mode 'racket-mode)
            (racket-smart-open-bracket)
-         (paredit-open-square)))
+         (funcall racket--paredit-original-open-bracket-binding)))
 
      (defun racket--paredit-aware-open (ch)
        "A paredit-aware helper for `racket-smart-open-bracket'.
+
 When `paredit-mode' is active, use its functions (such as
 `paredit-open-round') instead of directly `insert'ing. Note: This
 this isn't defined unless paredit is loaded, so check for its
