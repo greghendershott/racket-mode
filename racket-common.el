@@ -286,10 +286,11 @@ way to implement all this correctly??)."
          (paredit-open-square)))
 
      (defun racket--paredit-aware-open (ch)
-       "A paredit-aware helper for `racket-smart-open-bracket-enable'.
-When `paredit-mode' active, use its functions instead of
-`insert'. Note that this is not defined unless paredit is
-loaded, so check for its existing using `fboundp'."
+       "A paredit-aware helper for `racket-smart-open-bracket'.
+When `paredit-mode' is active, use its functions (such as
+`paredit-open-round') instead of directly `insert'ing. Note: This
+this isn't defined unless paredit is loaded, so check for its
+existence using `fboundp'."
        (let ((paredit-active (and (boundp 'paredit-mode) paredit-mode)))
          (cond ((not paredit-active) (insert ch))
                ((equal ch "(")       (paredit-open-round))
