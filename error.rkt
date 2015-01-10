@@ -1,6 +1,8 @@
 #lang racket/base
 
-(require racket/match
+(require (for-syntax racket/base
+                     syntax/parse)
+         racket/match
          racket/runtime-path
          racket/string
          "util.rkt"
@@ -22,7 +24,8 @@
       (display-commented (fully-qualify-error-path str))
       (display-srclocs exn)
       (unless (exn:fail:user? exn)
-        (display-context exn)))))
+        (display-context exn))
+      (maybe-suggest-packages exn))))
 
 (define (display-srclocs exn)
   (when (exn:srclocs? exn)
@@ -126,3 +129,27 @@
   (check-equal?
    (fully-qualify-error-path "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
    "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f"))
+
+(define-syntax (with-dynamic-requires stx)
+  (syntax-parse stx
+    [(_ ([lib:id id:id] ...+) body:expr ...+)
+     #'(let ([id (dynamic-require 'lib 'id)] ...)
+         body ...)]))
+
+(define maybe-suggest-packages
+  (with-handlers ([exn:fail? void])
+    (with-dynamic-requires ([racket/base exn:missing-module?]
+                            [racket/base exn:missing-module-accessor]
+                            [pkg/lib pkg-catalog-suggestions-for-module])
+      (λ (exn)
+        (when (exn:missing-module? exn)
+          (define mod ((exn:missing-module-accessor exn) exn))
+          (match (pkg-catalog-suggestions-for-module mod)
+            [(list) void]
+            [(list p)
+             (display-commented (format "Maybe `raco pkg install ~a`?"
+                                        p))]
+            [(? list? ps)
+             (display-commented (format "Maybe `raco pkg install` one of ~a?"
+                                        (string-join ps ", ")))]
+            [_ void]))))))
