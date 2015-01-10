@@ -24,6 +24,7 @@
 (require 'racket-keywords-and-builtins)
 (require 'racket-font-lock)
 (require 'racket-indent)
+(require 'cl-lib)
 
 (defvar racket-mode-syntax-table
   (let ((st (make-syntax-table))
@@ -224,6 +225,121 @@
 
 ;;; Smart open bracket
 
+(defconst racket--smart-open-bracket-data
+  (eval-when-compile
+    `(;; cond-like
+      (0 0 ,(rx (seq "("
+                     (or "cond"
+                         "match-lambda"
+                         "match-lambda*"
+                         "match-lambda**")
+                     (or space line-end))))
+      ;; case-like
+      (2 0 ,(rx (seq "("
+                     (or "case"
+                         "match"
+                         "match*"
+                         "syntax-parse"
+                         "syntax-rules")
+                     (or space line-end))))
+      ;; syntax-case
+      (3 0 ,(rx (seq "("
+                     (or "syntax-case")
+                     (or space line-end))))
+      ;; syntax-case*
+      (4 0 ,(rx (seq "("
+                     (or "syntax-case*")
+                     (or space line-end))))
+      ;; let-like
+      ;;
+      ;; In addition to the obvious suspects with 'let' in the name,
+      ;; handles forms like 'parameterize', 'with-handlers', 'for',
+      ;; and 'for/fold' accumulator bindings.
+      (0 1 ,(rx (seq (or "for"
+                         "for/list"
+                         "for/vector"
+                         "for/hash"
+                         "for/hasheq"
+                         "for/hasheqv"
+                         "for/and"
+                         "for/or"
+                         "for/lists"
+                         "for/first"
+                         "for/last"
+                         "for/fold"
+                         "for/flvector"
+                         "for/extflvector"
+                         "for/set"
+                         "for/sum"
+                         "for/product"
+                         "for*"
+                         "for*/list"
+                         "for*/vector"
+                         "for*/hash"
+                         "for*/hasheq"
+                         "for*/hasheqv"
+                         "for*/and"
+                         "for*/or"
+                         "for*/lists"
+                         "for*/first"
+                         "for*/last"
+                         "for*/fold"
+                         "for*/flvector"
+                         "for*/extflvector"
+                         "for*/set"
+                         "for*/sum"
+                         "for*/product"
+                         "fluid-let"
+                         "let"
+                         "let*"
+                         "let*-values"
+                         "let-struct"
+                         "let-syntax"
+                         "let-syntaxes"
+                         "let-values"
+                         "let/cc"
+                         "let/ec"
+                         "letrec"
+                         "letrec-syntax"
+                         "letrec-syntaxes"
+                         "letrec-syntaxes+values"
+                         "letrec-values"
+                         "parameterize"
+                         "parameterize*"
+                         "with-handlers"
+                         "with-handlers*"
+                         "with-syntax"
+                         "with-syntax*")
+                     (or space line-end))))
+      ;; for/fold bindings
+      ;;
+      ;; Note: Previous item handles the first, accumulators subform.
+      (0 2 ,(rx (seq (or "for/fold"
+                         "for*/fold")
+                     (or space line-end)))))
+    "A list of lists. Each sub list is arguments to supply to
+  `racket--smart-open-bracket-helper'."))
+
+(defun racket--smart-open-bracket-helper (pre-backward-sexps
+                                          post-backward-sexps
+                                          regexp)
+"Is point is a subform (of a known form REGEXP) that should open with '['.
+
+Returns \"[\" or nil."
+  (and (save-excursion
+         (condition-case ()
+             (progn (backward-sexp pre-backward-sexps) t)
+           (error nil)))
+       (save-excursion
+         (condition-case ()
+             (let ((pt (point)))
+               (racket-backward-up-list) ;works even in strings
+               (backward-sexp post-backward-sexps)
+               (when (or (racket--in-string-or-comment (point) pt)
+                         (looking-at-p regexp))
+                 "["))
+           (error nil)))))
+
 (defun racket-smart-open-bracket ()
   "Automatically insert a '(' or a '[' as appropriate.
 
@@ -255,16 +371,30 @@ like the 'Automatically adjust opening square brackets'
 preference in Dr. Racket."
   (interactive)
   (let ((ch (or (and (not racket-smart-open-bracket-enable) "[")
-                (racket--cond-like-clause)
-                (racket--case-like-clause)
-                (racket--syntax-case-clause)
-                (racket--let-like-binding)
-                (racket--for/fold-binding)
+                (cl-some (lambda (xs)
+                           (apply #'racket--smart-open-bracket-helper xs))
+                         racket--smart-open-bracket-data)
                 (racket--previous-sexp-open)
                 "(")))
     (if (fboundp 'racket--paredit-aware-open)
         (racket--paredit-aware-open ch)
       (insert ch))))
+
+(defun racket--in-string-or-comment (from to)
+  "See if point is in a string or comment, without moving point."
+  (save-excursion
+    (let ((parse (parse-partial-sexp from to)))
+      (or (elt parse 3)
+          (elt parse 4)))))
+
+(defun racket--previous-sexp-open ()
+  (save-excursion
+    (condition-case ()
+        (progn
+          (backward-sexp)
+          (let ((ch (buffer-substring-no-properties (point) (1+ (point)))))
+            (when (member ch '("(" "[" "{")) ch)))
+      (error nil))))
 
 (eval-after-load 'paredit
   '(progn
@@ -306,141 +436,6 @@ existence using `fboundp'."
                ((equal ch "[")       (paredit-open-square))
                ((equal ch "{")       (paredit-open-curly))
                (t                    (insert ch)))))))
-
-(defun racket--cond-like-clause ()
-  "Is point at the top level of a cond-like form?"
-  (racket--smart-open-bracket-helper 0 0 (rx (seq "("
-                                                  (or "cond"
-                                                      "match-lambda"
-                                                      "match-lambda*"
-                                                      "match-lambda**"
-                                                      "syntax-rules")
-                                                  (or space line-end)))))
-
-(defun racket--case-like-clause ()
-  (racket--smart-open-bracket-helper 2 0 (rx (seq "("
-                                                  (or "case"
-                                                      "match"
-                                                      "match*"
-                                                      "syntax-parse")
-                                                  (or space line-end)))))
-
-(defun racket--syntax-case-clause ()
-  (racket--smart-open-bracket-helper 3 0 (rx (seq "("
-                                                  (or "syntax-case"
-                                                      "syntax-case*")
-                                                  (or space line-end)))))
-
-(defun racket--let-like-binding ()
-  "Is point at the top of the bindings of a let-like form?
-
-In addition to the obvious suspects with 'let' in the name,
-handles forms like 'parameterize' and 'with-handlers'.
-
-Also handles accumulator bindings for for/fold."
-  (racket--smart-open-bracket-helper 0 1 (rx (seq (or "for"
-                                                      "for/list"
-                                                      "for/vector"
-                                                      "for/hash"
-                                                      "for/hasheq"
-                                                      "for/hasheqv"
-                                                      "for/and"
-                                                      "for/or"
-                                                      "for/lists"
-                                                      "for/first"
-                                                      "for/last"
-                                                      "for/fold"
-                                                      "for/flvector"
-                                                      "for/extflvector"
-                                                      "for/set"
-                                                      "for/sum"
-                                                      "for/product"
-                                                      "for*"
-                                                      "for*/list"
-                                                      "for*/vector"
-                                                      "for*/hash"
-                                                      "for*/hasheq"
-                                                      "for*/hasheqv"
-                                                      "for*/and"
-                                                      "for*/or"
-                                                      "for*/lists"
-                                                      "for*/first"
-                                                      "for*/last"
-                                                      "for*/fold"
-                                                      "for*/flvector"
-                                                      "for*/extflvector"
-                                                      "for*/set"
-                                                      "for*/sum"
-                                                      "for*/product"
-                                                      "fluid-let"
-                                                      "let"
-                                                      "let*"
-                                                      "let*-values"
-                                                      "let-struct"
-                                                      "let-syntax"
-                                                      "let-syntaxes"
-                                                      "let-values"
-                                                      "let/cc"
-                                                      "let/ec"
-                                                      "letrec"
-                                                      "letrec-syntax"
-                                                      "letrec-syntaxes"
-                                                      "letrec-syntaxes+values"
-                                                      "letrec-values"
-                                                      "parameterize"
-                                                      "parameterize*"
-                                                      "with-handlers"
-                                                      "with-handlers*"
-                                                      "with-syntax"
-                                                      "with-syntax*")
-                                                  (or space line-end)))))
-
-(defun racket--for/fold-binding ()
-  "Is point at the top of the bindings subform of a for/fold form?
-
-Note: `racket--let-like-binding' handles the first,
-accumulators subform."
-  (racket--smart-open-bracket-helper 0 2 (rx (seq (or "for/fold"
-                                                      "for*/fold")
-                                                  (or space line-end)))))
-
-(defun racket--smart-open-bracket-helper (pre-backward-sexps
-                                          post-backward-sexps
-                                          regexp)
-"A DRY helper for the various smart open bracket functions."
-  (and (save-excursion
-         (condition-case ()
-             (progn (backward-sexp pre-backward-sexps) t)
-           (error nil)))
-       (save-excursion
-         (condition-case ()
-             (let ((pt (point)))
-               (racket-backward-up-list) ;works even in strings
-               (backward-sexp post-backward-sexps)
-               (cond ((racket--in-string-or-comment (point) pt) "[")
-                     ((looking-at-p regexp) "[")
-                     (t nil)))
-           (error nil)))))
-
-(defun racket--in-string-or-comment (from to)
-  "See if point is in a string or comment, without moving point."
-  (save-excursion
-    (let ((parse (parse-partial-sexp from to)))
-      (or (elt parse 3)
-          (elt parse 4)))))
-
-(defun racket--previous-sexp-open ()
-  (save-excursion
-    (condition-case ()
-        (progn
-          (backward-sexp)
-          (let ((ch (buffer-substring-no-properties (point) (1+ (point)))))
-            (if (or (equal ch "(")
-                    (equal ch "[")
-                    (equal ch "{"))
-                ch
-              nil)))
-      (error nil))))
 
 ;;; Cycle paren shapes
 
