@@ -24,6 +24,7 @@
 (require 'racket-keywords-and-builtins)
 (require 'racket-font-lock)
 (require 'racket-indent)
+(require 'cl-lib)
 
 (defvar racket-mode-syntax-table
   (let ((st (make-syntax-table))
@@ -175,8 +176,8 @@
   (setq-local completion-at-point-functions '(racket-complete-at-point))
   (setq-local eldoc-documentation-function 'racket-eldoc-function))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Insert lambda char (like DrRacket)
+
+;;; Insert lambda char (like DrRacket)
 
 (defconst racket-lambda-char (make-char 'greek-iso8859-7 107)
   "Character inserted by `racket-insert-labmda'.")
@@ -185,8 +186,8 @@
   (interactive)
   (insert-char racket-lambda-char 1))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Automatically insert matching \?) \?] or \?}
+
+;;; Automatically insert matching \?) \?] or \?}
 
 (defvar racket-matching-parens
   '(( ?\( . ?\) )
@@ -222,6 +223,222 @@
   (interactive "P")
   (racket--insert-closing prefix ?\}))
 
+;;; Smart open bracket
+
+(defconst racket--smart-open-bracket-data
+  (eval-when-compile
+    `(;; cond-like
+      (0 0 ,(rx (seq "("
+                     (or "cond"
+                         "match-lambda"
+                         "match-lambda*"
+                         "match-lambda**")
+                     (or space line-end))))
+      ;; case-like
+      (2 0 ,(rx (seq "("
+                     (or "case"
+                         "match"
+                         "match*"
+                         "syntax-parse"
+                         "syntax-rules")
+                     (or space line-end))))
+      ;; syntax-case
+      (3 0 ,(rx (seq "("
+                     (or "syntax-case")
+                     (or space line-end))))
+      ;; syntax-case*
+      (4 0 ,(rx (seq "("
+                     (or "syntax-case*")
+                     (or space line-end))))
+      ;; let-like
+      ;;
+      ;; In addition to the obvious suspects with 'let' in the name,
+      ;; handles forms like 'parameterize', 'with-handlers', 'for',
+      ;; and 'for/fold' accumulator bindings.
+      (0 1 ,(rx (seq (or "for"
+                         "for/list"
+                         "for/vector"
+                         "for/hash"
+                         "for/hasheq"
+                         "for/hasheqv"
+                         "for/and"
+                         "for/or"
+                         "for/lists"
+                         "for/first"
+                         "for/last"
+                         "for/fold"
+                         "for/flvector"
+                         "for/extflvector"
+                         "for/set"
+                         "for/sum"
+                         "for/product"
+                         "for*"
+                         "for*/list"
+                         "for*/vector"
+                         "for*/hash"
+                         "for*/hasheq"
+                         "for*/hasheqv"
+                         "for*/and"
+                         "for*/or"
+                         "for*/lists"
+                         "for*/first"
+                         "for*/last"
+                         "for*/fold"
+                         "for*/flvector"
+                         "for*/extflvector"
+                         "for*/set"
+                         "for*/sum"
+                         "for*/product"
+                         "fluid-let"
+                         "let"
+                         "let*"
+                         "let*-values"
+                         "let-struct"
+                         "let-syntax"
+                         "let-syntaxes"
+                         "let-values"
+                         "let/cc"
+                         "let/ec"
+                         "letrec"
+                         "letrec-syntax"
+                         "letrec-syntaxes"
+                         "letrec-syntaxes+values"
+                         "letrec-values"
+                         "parameterize"
+                         "parameterize*"
+                         "with-handlers"
+                         "with-handlers*"
+                         "with-syntax"
+                         "with-syntax*")
+                     (or space line-end))))
+      ;; for/fold bindings
+      ;;
+      ;; Note: Previous item handles the first, accumulators subform.
+      (0 2 ,(rx (seq (or "for/fold"
+                         "for*/fold")
+                     (or space line-end)))))
+    "A list of lists. Each sub list is arguments to supply to
+  `racket--smart-open-bracket-helper'."))
+
+(defun racket--smart-open-bracket-helper (pre-backward-sexps
+                                          post-backward-sexps
+                                          regexp)
+"Is point is a subform (of a known form REGEXP) that should open with '['.
+
+Returns \"[\" or nil."
+  (and (save-excursion
+         (condition-case ()
+             (progn (backward-sexp pre-backward-sexps) t)
+           (error nil)))
+       (save-excursion
+         (condition-case ()
+             (let ((pt (point)))
+               (racket-backward-up-list) ;works even in strings
+               (backward-sexp post-backward-sexps)
+               (when (or (racket--in-string-or-comment (point) pt)
+                         (looking-at-p regexp))
+                 "["))
+           (error nil)))))
+
+(defun racket-smart-open-bracket ()
+  "Automatically insert a '(' or a '[' as appropriate.
+
+By default, inserts a '('. Inserts a '[' in the following cases:
+
+  - `let`-like bindings -- forms with `let` in the name as well
+    as things like `parameterize`, `with-handlers`, and
+    `with-syntax`.
+
+  - `case`, `cond`, `match`, `syntax-case`, `syntax-parse`, and
+    `syntax-rules` clauses.
+
+  - `for`-like bindings and `for/fold` accumulators.
+
+To force insert '[', use `quoted-insert': \\[quoted-insert] [.
+
+When the previous s-expression in a sequence is a compound
+expression, uses the same kind of delimiter.
+
+Combined with `racket-insert-closing-bracket', this means that
+you can press the unshifted '[' and ']' keys to get whatever
+delimiters follow the Racket conventions for these forms. (When
+`paredit-mode' is active, you need not even press ']'; this
+command calls `paredit-open-round' or `paredit-open-square' to
+work as usual.)
+
+To disable: Customize `racket-smart-open-bracket-enable'. This is
+like the 'Automatically adjust opening square brackets'
+preference in Dr. Racket."
+  (interactive)
+  (let ((ch (or (and (not racket-smart-open-bracket-enable) "[")
+                (cl-some (lambda (xs)
+                           (apply #'racket--smart-open-bracket-helper xs))
+                         racket--smart-open-bracket-data)
+                (racket--previous-sexp-open)
+                "(")))
+    (if (fboundp 'racket--paredit-aware-open)
+        (racket--paredit-aware-open ch)
+      (insert ch))))
+
+(defun racket--in-string-or-comment (from to)
+  "See if point is in a string or comment, without moving point."
+  (save-excursion
+    (let ((parse (parse-partial-sexp from to)))
+      (or (elt parse 3)
+          (elt parse 4)))))
+
+(defun racket--previous-sexp-open ()
+  (save-excursion
+    (condition-case ()
+        (progn
+          (backward-sexp)
+          (let ((ch (buffer-substring-no-properties (point) (1+ (point)))))
+            (when (member ch '("(" "[" "{")) ch)))
+      (error nil))))
+
+(eval-after-load 'paredit
+  '(progn
+     (defvar racket--paredit-original-open-bracket-binding
+       (lookup-key paredit-mode-map (kbd "["))
+       "The previous `paredit-mode-map' binding for [. We don't
+assume it's `paredit-open-square', in case someone else is doing
+this, too.")
+
+     (add-hook 'paredit-mode-hook
+               (lambda ()
+                 (define-key paredit-mode-map
+                   (kbd "[") 'racket--paredit-open-square)))
+
+     (defun racket--paredit-open-square ()
+       "`racket-smart-open-bracket' or original `paredit-mode-map' binding.
+
+To be compatible with `paredit-mode', `racket-smart-open-bracket'
+must intercept [ and decide whether to call `paredit-open-round'
+or `paredit-open-square'. To do so it must modify
+`paredit-mode-map', which affects all major modes. Therefore we
+check whether the current buffer's major mode is `racket-mode'.
+If not we call `racket--paredit-original-open-bracket-binding'."
+       (interactive)
+       (if (eq major-mode 'racket-mode)
+           (racket-smart-open-bracket)
+         (funcall racket--paredit-original-open-bracket-binding)))
+
+     (defun racket--paredit-aware-open (ch)
+       "A paredit-aware helper for `racket-smart-open-bracket'.
+
+When `paredit-mode' is active, use its functions (such as
+`paredit-open-round') instead of directly `insert'ing. Note: This
+this isn't defined unless paredit is loaded, so check for its
+existence using `fboundp'."
+       (let ((paredit-active (and (boundp 'paredit-mode) paredit-mode)))
+         (cond ((not paredit-active) (insert ch))
+               ((equal ch "(")       (paredit-open-round))
+               ((equal ch "[")       (paredit-open-square))
+               ((equal ch "{")       (paredit-open-curly))
+               (t                    (insert ch)))))))
+
+;;; Cycle paren shapes
+
 (defun racket-cycle-paren-shapes ()
   "In an s-expression, move to the opening, and cycle the shape among () [] {}"
   (interactive)
@@ -240,6 +457,8 @@
         (goto-char pt)
         (delete-char 1)
         (insert (car new))))))
+
+;;; Misc
 
 (defun racket-newline-and-indent ()
   "Do `newline' and `lisp-indent-for-line'."
@@ -264,7 +483,7 @@ the line). If not, call `completion-at-point'."
       (completion-at-point))))
 
 (defun racket-backward-up-list ()
-  "Like `backward-up-list' but works when point is in a string literal."
+  "Like `backward-up-list' but also works when point is in a string literal."
   (interactive)
   (while (in-string-p)
     (backward-char))

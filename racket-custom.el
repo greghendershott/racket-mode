@@ -125,6 +125,12 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   :safe 'booleanp
   :group 'racket-other)
 
+(defcustom racket-smart-open-bracket-enable nil
+  "Use `racket-smart-open-bracket' when '[' is pressed?"
+  :tag "Smart Open Bracket Enable"
+  :type 'boolean
+  :group 'racket-other)
+
 (defcustom racket-use-company-mode t
   "Enable company-mode for racket-mode edit buffers?"
   :tag "Use Company Mode"

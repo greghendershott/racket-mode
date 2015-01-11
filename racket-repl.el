@@ -39,6 +39,7 @@
           '(("RET"     racket-repl-eval-or-newline-and-indent)
             ("TAB"     racket-indent-or-complete)
             ("M-C-u"   racket-backward-up-list)
+            ("["       racket-smart-open-bracket)
             (")"       racket-insert-closing-paren)
             ("]"       racket-insert-closing-bracket)
             ("}"       racket-insert-closing-brace)
