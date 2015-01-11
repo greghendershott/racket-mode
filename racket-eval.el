@@ -71,7 +71,7 @@ return that buffer's name."
         (other-window -1)))
     (message (concat cmd "..."))
     (shell)
-    (racket-pop-to-buffer-same-window "*shell*")
+    (pop-to-buffer-same-window "*shell*")
     (comint-send-string "*shell*" (concat cmd "\n"))
     (select-window w)
     (sit-for 3)

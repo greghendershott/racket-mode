@@ -149,7 +149,7 @@ instead of looking at point."
   (interactive)
   (if racket--loc-stack
       (cl-destructuring-bind (buffer . pt) (pop racket--loc-stack)
-        (racket-pop-to-buffer-same-window buffer)
+        (pop-to-buffer-same-window buffer)
         (goto-char pt))
     (message "Stack empty.")))
 

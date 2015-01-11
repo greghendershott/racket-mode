@@ -20,7 +20,6 @@
 
 (require 'thingatpt)
 (require 'racket-custom)
-(require 'racket-emacs-compat)
 (require 'racket-keywords-and-builtins)
 (require 'racket-font-lock)
 (require 'racket-indent)

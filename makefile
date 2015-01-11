@@ -21,7 +21,6 @@ compile: clean \
 	racket-collection.elc \
 	racket-complete.elc \
 	racket-edit.elc \
-	racket-emacs-compat.elc \
 	racket-eval.elc \
 	racket-font-lock.elc \
 	racket-indent.elc \
