@@ -188,10 +188,33 @@ A few notes:
   instead, adding explicit module requires as needed.
 
 - **Completion**: racket-mode supports both Emacs 24.3+
-  `completion-at-point` (<kbd>C-M-i</kbd>) and [`company-mode`].
+  `completion-at-point` (<kbd>C-M-i</kbd>) and [`company-mode`]. In
+  addition, <kbd>TAB</kbd> is bound to `racket-indent-or-complete`,
+  which tries `indent-for-tab-command`, and if no indentation changed,
+  then tries `completion-at-point`.
 
     > **NOTE**: This only finds symbols in the current namespace. (Use
     > <kbd>F5</kbd> to **Run** the current buffer, first.)
+
+- **racket-open-require-path** works similarly to Dr. Racket's Open
+  Require Path command. Type characters at the prompt to interactively
+  search for module paths and filenames.
+
+- **racket-find-collection** uses `raco fc` to find a collection's
+  directory. If you haven't already, you will need to `raco install
+  raco-find-collection` for this to work.
+
+- **racket-smart-open-bracket-enable**: If you customize this to `t`
+  (it is `nil` by default), then you can press <kbd>[</kbd> and either
+  `(` or `[` will be inserted automatically, based on Racket conventions
+  for certain forms. This is similar to the Dr. Racket option,
+  _Automatically adjust opening square brackets_. When `paredit-mode`
+  is enabled, this calls the appropriate paredit functions instead of
+  directly inserting the characters.
+
+- **Package suggestions**. For module not found errors, one or more
+  suggested packages are displayed after the error message. (This
+  requires Racket 6.1 or newer.)
 
 - In the `*Racket REPL*` buffer you can issue some special
   commands. Some of them are the foundation for Emacs commands. Others
