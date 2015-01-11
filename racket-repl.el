@@ -188,39 +188,44 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
 
 ;;;###autoload
 (defun racket-repl ()
-  "Run a Racket REPL in a comint buffer.
+  "Ensure Racket REPL running and visible, without changing `selected-window'.
 
-When starting Racket, `racket--repl-wait-for-prompt'.
-
-The selected window remains the same.
-
-Does not necessarily cause the REPL buffer to be shown in a window.
+When the REPL buffer is already visible in a window, use that
+window. Otherwise use `(other-window 1)`. Regardless, do NOT
+change `selected-window'.
 
 Runs `comint-mode-hook' and `racket-repl-mode-hook'."
   (interactive)
   (let ((original-window (selected-window)))
-    ;; What window to use? If REPL buffer already visible in a window,
-    ;; keep using that. Otherwise (other-window -1).
-    (let ((rw (get-buffer-window racket--repl-buffer-name)))
-      (if rw
-          (select-window rw)
+    (let ((repl-window (get-buffer-window racket--repl-buffer-name)))
+      (if repl-window
+          (select-window repl-window)
         (other-window 1)))
-    ;; If REPL buffer doesn't have a live process, start one.
-    (unless (comint-check-proc racket--repl-buffer-name)
-      (message "Starting Racket...")
-      (set-buffer (make-comint racket--repl-buffer-name/raw ;w/o *stars*
-                               racket-program
-                               nil
-                               racket--run.rkt))
-      ;; The following is needed to make e.g. λ work when pasted into the
-      ;; comint-buffer, both directly by the user and via the racket--eval
-      ;; functions.
+    (racket-repl-ensure-buffer-and-process)
+    (select-window original-window)))
+
+(defun racket-repl-ensure-buffer-and-process ()
+  "Ensure Racket REPL buffer exists and has live Racket process.
+
+When starting Racket process, `racket--repl-wait-for-prompt'.
+
+Use this instead of `racket-repl' when you don't want care about
+and don't want to affect the selected window."
+  (unless (comint-check-proc racket--repl-buffer-name)
+    (message "Starting Racket...")
+    (with-current-buffer
+        (make-comint racket--repl-buffer-name/raw ;w/o *stars*
+                     racket-program
+                     nil
+                     racket--run.rkt)
+      ;; The following is needed to make e.g. λ work when pasted
+      ;; into the comint-buffer, both directly by the user and via
+      ;; the racket--eval functions.
       (set-process-coding-system (get-buffer-process racket--repl-buffer-name)
                                  'utf-8 'utf-8)
       (racket-repl-mode)
       (racket--repl-wait-for-prompt)
-      (message ""))
-    (select-window original-window)))
+      (message ""))))
 
 (defcustom racket--wait-for-prompt-timeout 30
   "When REPL starts Racket process, how long to wait for Racket prompt."

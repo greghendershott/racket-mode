@@ -29,7 +29,7 @@
   "Eval EXPRESSION in the *Racket REPL* buffer, but redirect the
 resulting output to a *Racket REPL Redirected Output* buffer, and
 return that buffer's name."
-  (racket-repl)
+  (racket-repl-ensure-buffer-and-process)
   (let ((output-buffer "*Racket REPL Redirected Output*"))
     (with-current-buffer (get-buffer-create output-buffer)
       (erase-buffer)
