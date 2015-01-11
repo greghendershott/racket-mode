@@ -1,6 +1,6 @@
 ;;; racket-font-lock.el
 
-;; Copyright (c) 2013-2014 by Greg Hendershott.
+;; Copyright (c) 2013-2015 by Greg Hendershott.
 
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
