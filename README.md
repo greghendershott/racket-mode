@@ -201,8 +201,8 @@ A few notes:
   search for module paths and filenames.
 
 - **racket-find-collection** uses `raco fc` to find a collection's
-  directory. If you haven't already, you will need to `raco install
-  raco-find-collection` for this to work.
+  directory. If you haven't already, you will need to `raco pkg
+  install raco-find-collection` for this to work.
 
 - **racket-smart-open-bracket-enable**: If you customize this to `t`
   (it is `nil` by default), then you can press <kbd>[</kbd> and either
