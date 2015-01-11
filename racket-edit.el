@@ -246,7 +246,8 @@ Returns the buffer in which the description was written."
 (define-derived-mode racket-describe-mode fundamental-mode
   "RacketDescribe"
   "Major mode for describing Racket functions.
-\\{racket-describe-mode-map}")
+\\{racket-describe-mode-map}"
+  (setq show-trailing-whitespace nil))
 
 (defun racket-describe--next-button ()
   (interactive)
