@@ -426,6 +426,10 @@ modules and tidies everything into a single, sorted require form.
 Note: This only works when the source file can be evaluated with
 no errors.
 
+Note: This only works for requires at the top level of a source
+file using `#lang`. It does *not* work for `require`s inside
+`module` forms.
+
 Note: Currently this only helps change `#lang racket` to
 `#lang racket/base`. It does *not* help with other similar conversions,
 such as changing `#lang typed/racket` to `#lang typed/racket/base`."
