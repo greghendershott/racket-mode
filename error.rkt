@@ -1,8 +1,6 @@
 #lang racket/base
 
-(require (for-syntax racket/base
-                     syntax/parse)
-         racket/match
+(require racket/match
          racket/runtime-path
          racket/string
          "util.rkt"
@@ -130,14 +128,8 @@
    (fully-qualify-error-path "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
    "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f"))
 
-(define-syntax (with-dynamic-requires stx)
-  (syntax-parse stx
-    [(_ ([lib:id id:id] ...+) body:expr ...+)
-     #'(let ([id (dynamic-require 'lib 'id)] ...)
-         body ...)]))
-
 (define maybe-suggest-packages
-  (with-handlers ([exn:fail? void])
+  (with-handlers ([exn:fail? (λ _ void)])
     (with-dynamic-requires ([racket/base exn:missing-module?]
                             [racket/base exn:missing-module-accessor]
                             [pkg/lib pkg-catalog-suggestions-for-module])
@@ -147,9 +139,15 @@
           (match (pkg-catalog-suggestions-for-module mod)
             [(list) void]
             [(list p)
-             (display-commented (format "Maybe `raco pkg install ~a`?"
-                                        p))]
+             (display-commented (format "Try `raco pkg install ~a`?" p))]
             [(? list? ps)
-             (display-commented (format "Maybe `raco pkg install` one of ~a?"
+             (display-commented (format "Try `raco pkg install` one of ~a?"
                                         (string-join ps ", ")))]
             [_ void]))))))
+
+(module+ test
+  ;; Point of this test is older Rackets where the with-handlers
+  ;; clause is exercised.
+  (check-not-exn
+   (λ ()
+     (maybe-suggest-packages (exn:fail "" (current-continuation-marks))))))
