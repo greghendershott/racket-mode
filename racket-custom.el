@@ -37,6 +37,7 @@
   "Pathname of the racket executable."
   :tag "Racket Program"
   :type '(file :must-match t)
+  :risky t
   :group 'racket)
 
 (defcustom racket-raco-program (cond (racket--winp "Raco.exe")
@@ -44,6 +45,7 @@
   "Pathname of the raco executable."
   :tag "Raco Program"
   :type '(file :must-match t)
+  :risky t
   :group 'racket)
 
 (defcustom racket-memory-limit 2048
@@ -56,6 +58,7 @@ terminated upon the first garbage collection where memory exceeds
 the limit (maybe by a significant amount)."
   :tag "Memory Limit"
   :type 'integer
+  :safe #'integerp
   :group 'racket)
 
 ;;; REPL
@@ -70,18 +73,21 @@ the limit (maybe by a significant amount)."
 Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   :tag "History Filter Regexp"
   :type 'regexp
+  :safe #'stringp
   :group 'racket-repl)
 
 (defcustom racket-images-inline t
   "Whether to display inline images in the REPL."
   :tag "Images Inline"
   :type 'boolean
+  :safe #'booleanp
   :group 'racket-repl)
 
 (defcustom racket-images-keep-last 100
   "How many images to keep in the image cache."
   :tag "Images Keep Last"
   :type 'integer
+  :safe #'integerp
   :group 'racket-repl)
 
 (defcustom racket-images-system-viewer "display"
@@ -89,18 +95,21 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
  `racket-view-last-image'."
   :tag "Images System Viewer"
   :type 'string
+  :risky t
   :group 'racket-repl)
 
 (defcustom racket-pretty-print t
   "Use pretty-print instead of print in REPL."
   :tag "Pretty Print"
   :type 'boolean
+  :safe #'booleanp
   :group 'racket-repl)
 
 (defcustom racket-wait-for-prompt-timeout 30
   "When REPL starts Racket process, how long to wait for Racket prompt."
   :tag "Wait For Prompt Timeout"
   :type 'number
+  :safe #'numberp
   :group 'racket-repl)
 
 
@@ -115,27 +124,28 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   "Display lambda keywords using λ."
   :tag "Pretty Lambda"
   :type 'boolean
-  :safe 'booleanp
+  :safe #'booleanp
   :group 'racket-other)
 
 (defcustom racket-rackjure-indent t
   "Indent {} for #lang rackjure dictionaries?"
   :tag "Rackjure Indent"
   :type 'boolean
-  :safe 'booleanp
+  :safe #'booleanp
   :group 'racket-other)
 
 (defcustom racket-smart-open-bracket-enable nil
   "Use `racket-smart-open-bracket' when '[' is pressed?"
   :tag "Smart Open Bracket Enable"
   :type 'boolean
+  :safe #'booleanp
   :group 'racket-other)
 
 (defcustom racket-use-company-mode t
   "Enable company-mode for racket-mode edit buffers?"
   :tag "Use Company Mode"
   :type 'boolean
-  :safe 'booleanp
+  :safe #'booleanp
   :group 'racket-other)
 
 
