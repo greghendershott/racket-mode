@@ -375,7 +375,7 @@ With prefix arg, open the N-th last shown image."
   ;; `displayln`) the opening ≺ helps the user visually delimit the
   ;; output from the following prompt.
   (setq-local comint-prompt-regexp "^≺.*?≻ +")
-  ;; (setq-local comint-use-prompt-regexp t)
+  (setq-local comint-use-prompt-regexp t)
   ;; (setq-local comint-prompt-read-only t)
   (setq-local mode-line-process nil)
   (setq-local comint-input-filter (function racket-repl--input-filter))
