@@ -54,6 +54,31 @@ when there is no symbol-at-point or prefix is true."
         (read-from-minibuffer prompt (if sap (symbol-name sap) ""))
       sap)))
 
+;;; racket--easy-keymap-define
+
+(defun racket--easy-keymap-define (spec)
+  "Make a sparse keymap with the bindings in SPEC.
+
+This is simply a way to DRY many calls to `define-key'.
+
+SPEC is
+  (list (list key-or-keys fn) ...)
+
+where key-or-keys is either a string given to `kbd', or (for the
+case where multiple keys bind to the same command) a list of such
+strings."
+  (let ((m (make-sparse-keymap)))
+    (mapc (lambda (x)
+            (let ((keys (if (listp (car x))
+                            (car x)
+                          (list (car x))))
+                  (fn (cadr x)))
+              (mapc (lambda (key)
+                      (define-key m (kbd key) fn))
+                    keys)))
+          spec)
+    m))
+
 (provide 'racket-util)
 
 ;; racket-util.el ends here

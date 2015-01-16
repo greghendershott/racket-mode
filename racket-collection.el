@@ -121,24 +121,14 @@ See also: `racket-visit-module' and `racket-open-require-path'."
 (defvar racket--orp/max-height 10
   "The maximum height of the minibuffer.")
 (defvar racket--orp/keymap
-  (let ((m (make-sparse-keymap)))
-    (mapc (lambda (x)
-            (define-key m (kbd (car x)) (cadr x)))
-          '(("RET"    racket--orp/enter)
-            ("C-j"    racket--orp/enter)
-            ("C-g"    racket--orp/quit)
-            ("C-n"    racket--orp/next)
-            ("<up>"   racket--orp/next)
-            ("C-p"    racket--orp/prev)
-            ("<down>" racket--orp/next)
-            ;; nops FIXME better way to handle this?
-            ("SPC" racket--orp/nop)
-            ("TAB" racket--orp/nop)
-            ("C-v" racket--orp/nop)
-            ("M-v" racket--orp/nop)
-            ("M-<" racket--orp/nop)
-            ("M->" racket--orp/nop)))
-    m))
+  (racket--easy-keymap-define
+   '((("RET" "C-j")    racket--orp/enter)
+     ("C-g"            racket--orp/quit)
+     (("C-p" "<up>")   racket--orp/prev)
+     (("C-n" "<down>") racket--orp/next)
+     ;; Some keys should be no-ops.
+     (("SPC" "TAB" "C-v" "<next>" "M-v" "<prior>" "M-<" "<home>" "M->" "<end>")
+      racket--orp/nop))))
 
 (defvar racket-find-module-path-completions-rkt
   (expand-file-name "find-module-path-completions.rkt"
