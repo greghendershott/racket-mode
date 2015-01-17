@@ -224,11 +224,16 @@ candidates or (point-max)."
   nil)
 
 (defun racket--orp/post-command ()
-  "Checks if input has changed and updates matches"
+  "Update matches if input changed.
+Also constrain point in case user tried to navigate past
+`racket--orp/eoinput'."
   (when racket--orp/active
     (let ((input (racket--orp/get-user-input)))
       (when (not (string-equal input racket--orp/input))
-        (racket--orp/on-input-changed input)))))
+        (racket--orp/on-input-changed input)))
+    (let ((eoi (racket--orp/eoinput)))
+      (when (> (point) eoi)
+        (goto-char eoi)))))
 
 (defun racket--orp/on-input-changed (input)
   (setq racket--orp/input input)
@@ -240,10 +245,12 @@ candidates or (point-max)."
 
 (defun racket--orp/draw-matches ()
   (save-excursion
-    (delete-region (racket--orp/eoinput) (point-max)) ;delete existing
-    (let* ((len (length racket--orp/matches))
+    (let* ((inhibit-read-only t)
+           (eoi (racket--orp/eoinput))
+           (len (length racket--orp/matches))
            (n   (min racket--orp/max-height len))
            (i   racket--orp/match-index))
+      (delete-region eoi (point-max)) ;delete existing
       (while (> n 0)
         (insert "\n")
         (cond ((= i racket--orp/match-index) (insert "-> "))
@@ -253,7 +260,8 @@ candidates or (point-max)."
         (cond ((< (1+ i) len) (setq i (1+ i)))
               (t              (setq i 0))))
       (when (< racket--orp/max-height len)
-        (insert "\n   ...")))))
+        (insert "\n   ..."))
+      (put-text-property eoi (point-max) 'read-only 'fence))))
 
 (defun racket--orp/enter ()
   "On a dir, adds its contents to choices. On a file, opens the file."
