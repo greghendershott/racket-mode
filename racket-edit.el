@@ -490,7 +490,7 @@ instead of textually, and handle module and submodule forms."
           (requires nil))
       (while (condition-case ()
                  (progn
-                   (re-search-forward "^(require")
+                   (re-search-forward "^(require ")
                    (let* ((beg (progn (backward-up-list) (point)))
                           (end (progn (forward-sexp)     (point)))
                           (str (buffer-substring-no-properties beg end))
