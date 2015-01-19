@@ -30,20 +30,23 @@
 resulting output to a *Racket REPL Redirected Output* buffer, and
 return that buffer's name."
   (racket-repl-ensure-buffer-and-process)
-  (let ((output-buffer "*Racket REPL Redirected Output*"))
-    (with-current-buffer (get-buffer-create output-buffer)
+  ;; Important: Leading space in buffer name disables undo for it.
+  ;; That in turn means that racket--eval/buffer in the midst of a
+  ;; command won't cause an undo-boundary to be inserted.
+  (let ((output-buffer-name " *Racket REPL Redirected Output*"))
+    (with-current-buffer (get-buffer-create output-buffer-name)
       (erase-buffer)
       (comint-redirect-send-command-to-process
        expression
-       output-buffer
+       output-buffer-name
        (racket--get-repl-buffer-process)
        nil ;echo?
        t)  ;no-display?
       ;; Wait for the process to complete
-      (set-buffer (process-buffer (racket--get-repl-buffer-process)))
-      (while (null comint-redirect-completed)
-        (accept-process-output nil 1))
-      output-buffer)))
+      (with-current-buffer (process-buffer (racket--get-repl-buffer-process))
+        (while (null comint-redirect-completed)
+          (accept-process-output nil 1)))
+      output-buffer-name)))
 
 (defun racket--eval/string (expression)
   "Call `racket--eval/buffer' and return the output as a string."
