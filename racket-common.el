@@ -469,16 +469,13 @@ existence using `fboundp'."
   "Try `indent-for-tab-command' then `completion-at-point'.
 
 Call `indent-for-tab-command'. See if it did anything (changed
-the indentation, or moved point to the first non-whitespace on
-the line). If not, call `completion-at-point'."
+the indentation, or moved point to `beginning-of-line-text'). If
+not, call `completion-at-point'."
   (interactive)
-  ;; As far as I can tell it's sufficient to see whether point moved.
-  ;; `indent-for-tab-command` will move point as a side-effect of
-  ;; changing indentation, and also obviously when point is moved to
-  ;; the starting non-whitespace.
   (let ((pt (point)))
     (indent-for-tab-command)
-    (when (equal pt (point))
+    (when (and (equal (point) pt)
+               (looking-back "\\sw" 1))
       (completion-at-point))))
 
 (defun racket-backward-up-list ()
