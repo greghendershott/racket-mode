@@ -18,6 +18,57 @@
 
 (require 'racket-custom)
 
+;; The two top-level commands we care about are:
+;;   1. `indent-region' C-M-\
+;;   2. `indent-pp-sexp' C-M-q
+;;
+;; 1. `indent-region' is in indent.el. Normally it calls
+;; `indent-according-to-mode', which in turn calls the mode-specific
+;; `indent-line-function'. In lisp-mode that's `lisp-indent-line', in
+;; racket-mode that's `racket-indent-line'. These in turn call
+;; `calculate-lisp-indent'. That in turn calls the mode-specific
+;; `indent-function' -- in our case `racket-indent-function'.
+;;
+;; 2. `indent-pp-sexp' is lisp-specific, in lisp-mode.el. This is
+;; a wrapper for `indent-sexp', which also uses
+;; `calculate-lisp-indent', and therefore `racket-indent-function'.
+;; (AFAICT `indent-line' is not involved with this).
+;;
+;; The status quo Emacs design seems to support (a) indentation
+;; customization per mode, while also (b) allowing some lisp
+;; indentation logic to be factored out for "DRY" as
+;; `calculate-lisp-indent'. On the other hand, while tracing through
+;; with edebug there seems to be a lot of complexity, as well as some
+;; duplication of work, among `calculate-lisp-indent' and
+;; `lisp-indent-function'. Yet I'm not quite brave enough to take out
+;; a clean sheet of paper and rewrite from scratch.
+
+(defun racket-indent-line (&optional whole-exp)
+  "Indent current line as Racket code.
+
+This behaves like `lisp-indent-line', except that whole-line
+comments are treated the same regardless of whether they start
+with single or double semicolons."
+  (interactive)
+  (let ((indent (calculate-lisp-indent))
+	(pos (- (point-max) (point)))
+	(beg (progn (beginning-of-line) (point))))
+    (skip-chars-forward " \t")
+    (if (or (null indent) (looking-at "\\s<\\s<\\s<"))
+	;; Don't alter indentation of a ;;; comment line
+	;; or a line that starts in a string.
+        ;; FIXME: inconsistency: comment-indent moves ;;; to column 0.
+	(goto-char (- (point-max) pos))
+      (when (listp indent)
+        (setq indent (car indent)))
+      (unless (zerop (- indent (current-column)))
+        (delete-region beg (point))
+        (indent-to indent))
+      ;; If initial point was within line's indentation,
+      ;; position after the indentation.  Else stay at same point in text.
+      (when (> (- (point-max) pos) (point))
+        (goto-char (- (point-max) pos))))))
+
 (defvar calculate-lisp-indent-last-sexp)
 
 ;; Copied from lisp-mode but heavily modified
@@ -62,17 +113,7 @@ Lisp function does not specify a special indentation."
     (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t)
     (if (and (elt state 2)
              (not (looking-at "\\sw\\|\\s_")))
-        ;; car of form doesn't seem to be a symbol
         (progn
-          (when (not (> (save-excursion (forward-line 1) (point))
-                        calculate-lisp-indent-last-sexp))
-            (goto-char calculate-lisp-indent-last-sexp)
-            (beginning-of-line)
-            (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t))
-          ;; Indent under the list or under the first sexp on the same
-          ;; line as calculate-lisp-indent-last-sexp.  Note that first
-          ;; thing on that line has to be complete sexp since we are
-          ;; inside the innermost containing sexp.
           (backward-prefix-chars)
           (current-column))
       (let* ((function (buffer-substring (point) (progn (forward-sexp 1) (point))))
@@ -81,12 +122,12 @@ Lisp function does not specify a special indentation."
                          (get (intern-soft function) 'scheme-indent-function))))
         (cond ((or
                 ;; a vector literal:  #( ... )
-                (and (eq (char-after (- open-pos 1)) ?\#)
-                     (eq (char-after open-pos) ?\())
+                (and (eq (char-before open-pos) ?\#)
+                     (eq (char-after  open-pos) ?\())
                 ;; a quoted '( ... ) or quasiquoted `( ...) list --
                 ;; but NOT syntax #'( ... )
-                (and (not (eq (char-after (- open-pos 2)) ?\#))
-                     (memq (char-after (- open-pos 1)) '(?\' ?\`))
+                (and (not (eq (char-before (1- open-pos)) ?\#))
+                     (memq (char-before open-pos) '(?\' ?\`))
                      (eq (char-after open-pos) ?\())
                 ;; #lang rackjure dict literal { ... }
                 (and racket-rackjure-indent
@@ -102,13 +143,60 @@ Lisp function does not specify a special indentation."
               ((and (null method)
                     (> (length function) 5)
                     (string-match "\\`with-" function))
-               (lisp-indent-specform 1 state
-                                     indent-point normal-indent))
+               (racket--indent-specform 1 state
+                                        indent-point normal-indent))
               ((integerp method)
-               (lisp-indent-specform method state
-                                     indent-point normal-indent))
+               (racket--indent-specform method state
+                                        indent-point normal-indent))
               (method
                (funcall method state indent-point normal-indent)))))))
+
+(defun racket--indent-specform (count state indent-point normal-indent)
+  "This is like `lisp-indent-specform' but fixes bug #50.
+
+To find last form, COUNT is decremented -- and it can go negative
+when there is more than one form per line. In that case
+`lisp-indent-specform' returns NORMAL-INDENT instead of body
+indent. Often they're the same and it doesn't matter, but they
+differ in the bug #50 examples.
+
+While I was at it, I simplified the logic to remove what seemed
+like N/A cruft (I hope I'm right about that.)"
+  (let ((containing-form-start (elt state 1))
+        (orig-count count))
+    ;; Move to the start of containing form, calculate indentation
+    ;; to use for non-distinguished forms (> count), and move past the
+    ;; function symbol.  lisp-indent-function guarantees that there is at
+    ;; least one word or symbol character following open paren of containing
+    ;; form.
+    (goto-char containing-form-start)
+    (let* ((containing-form-column (current-column))
+           (body-indent (+ lisp-body-indent containing-form-column))
+           non-distinguished-column)
+      (forward-char 1)
+      (forward-sexp 1)
+      (parse-partial-sexp (point) indent-point 1 t)
+      ;; Now find the start of the last form.
+      (while (and (< (point) indent-point)
+                  (condition-case ()
+                      (progn
+                        (setq count (1- count))
+                        (forward-sexp 1)
+                        (parse-partial-sexp (point) indent-point 1 t)
+                        (when (zerop count)
+                          (setq non-distinguished-column (current-column)))
+                        t)
+                    (error nil))))
+      ;; Point is sitting before first character of last (or count) sexp.
+      (cond (;; A distinguished form. Use double lisp-body-indent.
+             (> count 0)
+             (list (+ containing-form-column (* 2 lisp-body-indent))
+                   containing-form-start))
+            ((or (and (= orig-count 0) (= count 0))
+                 (and (= count 0) (<= body-indent normal-indent)))
+             body-indent)
+            (non-distinguished-column non-distinguished-column)
+            (t normal-indent)))))
 
 (defun racket--conditional-indent (state indent-point normal-indent
                                    looking-at-regexp true false)
@@ -292,32 +380,6 @@ doesn't hurt to do so."
           (while 1)
           ;; `with-` forms given 1 automatically by our indent function
           )))
-
-(defun racket-indent-line (&optional whole-exp)
-  "Indent current line as Racket code.
-
-This behaves like `lisp-indent-line', except that whole-line
-comments are treated the same regardless of whether they start
-with single or double semicolons."
-  (interactive)
-  (let ((indent (calculate-lisp-indent))
-	(pos (- (point-max) (point)))
-	(beg (progn (beginning-of-line) (point))))
-    (skip-chars-forward " \t")
-    (if (or (null indent) (looking-at "\\s<\\s<\\s<"))
-	;; Don't alter indentation of a ;;; comment line
-	;; or a line that starts in a string.
-        ;; FIXME: inconsistency: comment-indent moves ;;; to column 0.
-	(goto-char (- (point-max) pos))
-      (when (listp indent)
-        (setq indent (car indent)))
-      (unless (zerop (- indent (current-column)))
-        (delete-region beg (point))
-        (indent-to indent))
-      ;; If initial point was within line's indentation,
-      ;; position after the indentation.  Else stay at same point in text.
-      (when (> (- (point-max) pos) (point))
-        (goto-char (- (point-max) pos))))))
 
 (provide 'racket-indent)
 

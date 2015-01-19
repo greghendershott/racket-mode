@@ -74,11 +74,6 @@
     (modify-syntax-entry ?@ "'   " st)
     (modify-syntax-entry ?# "' 14" st)
     (modify-syntax-entry ?\\ "\\   " st)
-
-    ;; ;; Make # and | symbol constituents.
-    ;; (modify-syntax-entry ?# "_ p14bn" racket-mode-syntax-table)
-    ;; (modify-syntax-entry ?| "_ 23bn"  racket-mode-syntax-table)
-
     st))
 
 (defvar racket-mode-abbrev-table nil)
@@ -460,10 +455,10 @@ existence using `fboundp'."
 ;;; Misc
 
 (defun racket-newline-and-indent ()
-  "Do `newline' and `lisp-indent-for-line'."
+  "Do `newline' and `racket-indent-line'."
   (interactive)
   (newline)
-  (lisp-indent-line))
+  (racket-indent-line))
 
 (defun racket-indent-or-complete ()
   "Try `indent-for-tab-command' then `completion-at-point'.
