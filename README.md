@@ -1,6 +1,7 @@
 # Racket mode for GNU Emacs
 
 [![Build Status](https://travis-ci.org/greghendershott/racket-mode.png?branch=master)](https://travis-ci.org/greghendershott/racket-mode)
+[![MELPA](http://melpa.org/packages/racket-mode-badge.svg)](http://melpa.org/#/racket-mode)
 
 This provides a major mode to edit [Racket] source files, as well as a
 major mode for a Racket REPL. The edit/run experience is similar to
