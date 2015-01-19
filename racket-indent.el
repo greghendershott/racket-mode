@@ -210,8 +210,6 @@ doesn't hurt to do so."
           (compound-unit/sig 0)
           (delay 0)
           (def 1)                    ;cheating: not actually in Racket
-          (dict-set 1)
-          (dict-set* 1)
           (do 2)
           (dynamic-wind 0)
           (fn 1)                     ;cheating: not actually in Racket
