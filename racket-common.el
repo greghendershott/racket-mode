@@ -475,7 +475,7 @@ not, call `completion-at-point'."
   (let ((pt (point)))
     (indent-for-tab-command)
     (when (and (equal (point) pt)
-               (looking-back "\\sw" 1))
+               (looking-back "\\sw\\{3\\}" 3))
       (completion-at-point))))
 
 (defun racket-backward-up-list ()
