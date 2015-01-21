@@ -69,9 +69,8 @@ comment
   (let-values ([(a b) (values 1 2)])
     #t)
   (for/list ([x (in-list (list 1 2 (list 3 4)))])
-      (cond
-       [(pair? x) (car x)]
-       [else x])))
+    (cond [(pair? x) (car x)]
+          [else x])))
 
 (define (foo)
   (let ([x 10])
