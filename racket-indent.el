@@ -112,7 +112,9 @@ Lisp function does not specify a special indentation."
     (goto-char (1+ (elt state 1)))
     (parse-partial-sexp (point) calculate-lisp-indent-last-sexp 0 t)
     (if (and (elt state 2)
-             (not (looking-at "\\sw\\|\\s_")))
+             (or (not (looking-at "\\sw\\|\\s_")) ;not symbol
+                 (and (eq (char-before (point)) ?#)) ;Racket #:keyword
+                      (eq (char-after  (point)) ?:)))
         (progn
           (backward-prefix-chars)
           (current-column))
@@ -122,16 +124,16 @@ Lisp function does not specify a special indentation."
                          (get (intern-soft function) 'scheme-indent-function))))
         (cond ((or
                 ;; a vector literal:  #( ... )
-                (and (eq (char-before open-pos) ?\#)
+                (and (eq (char-before open-pos) ?#)
                      (eq (char-after  open-pos) ?\())
                 ;; a quoted '( ... ) or quasiquoted `( ...) list --
                 ;; but NOT syntax #'( ... )
-                (and (not (eq (char-before (1- open-pos)) ?\#))
+                (and (not (eq (char-before (1- open-pos)) ?#))
                      (memq (char-before open-pos) '(?\' ?\`))
                      (eq (char-after open-pos) ?\())
                 ;; #lang rackjure dict literal { ... }
                 (and racket-rackjure-indent
-                     (eq (char-after open-pos) ?\{)))
+                     (eq (char-after open-pos) ?{)))
                ;; Indent all aligned with first item:
                (goto-char open-pos)
                (1+ (current-column)))
