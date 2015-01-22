@@ -100,7 +100,7 @@
              (intxt (if (>= (point) (marker-position pmark))
                         (progn (if comint-eol-on-send (end-of-line))
                                (buffer-substring pmark (point)))
-                      (let ((copy (funcall comint-get-old-input)))
+                      (let ((copy (racket--get-old-input)))
                         (goto-char pmark)
                         (insert copy)
                         copy)))
@@ -168,15 +168,15 @@
   "If complete sexpr, eval in Racket. Else do `racket-newline-and-indent'."
   (interactive)
   (let ((proc (get-buffer-process (current-buffer))))
-    (if (not proc)
-        (user-error "Current buffer has no process")
-      (condition-case nil
-          (progn
-            (save-excursion
-              (goto-char (process-mark proc))
-              (forward-list)) ;will error unless complete sexpr
-            (racket--comint-send-input))
-        (error (racket-newline-and-indent))))))
+    (cond ((not proc) (user-error "Current buffer has no process"))
+          ((eq "" (racket--get-old-input)) (beep))
+          (t (condition-case nil
+                 (progn
+                   (save-excursion
+                     (goto-char (process-mark proc))
+                     (forward-list)) ;will error unless complete sexpr
+                   (racket--comint-send-input))
+               (error (racket-newline-and-indent)))))))
 
 (defvar racket--run.rkt
   (expand-file-name "run.rkt"
