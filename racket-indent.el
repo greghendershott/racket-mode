@@ -123,7 +123,7 @@ Lisp function does not specify a special indentation."
       (let* ((head (buffer-substring (point) (progn (forward-sexp 1) (point))))
              (method (or (get (intern-soft head) 'racket-indent-function)
                          (get (intern-soft head) 'scheme-indent-function))))
-        (cond ((racket--align-with-head)
+        (cond ((racket--align-sequence-with-head)
                (goto-char open-pos)
                (1+ (current-column)))
               ((and (null method)
@@ -140,37 +140,48 @@ Lisp function does not specify a special indentation."
                     (string-match "\\`with-" head))
                (racket--indent-specform 1 state indent-point normal-indent))
               ((integerp method)
-               (racket--indent-specform method state indent-point normal-indent))
+               (racket--indent-specform method state indent-point normal-indent4))
               (method
                (funcall method state indent-point normal-indent)))))))
 
-(defun racket--align-with-head ()
-  (save-excursion
-    (condition-case ()
-        (let ((answer 'unknown))
-          (while (eq answer 'unknown)
-            (backward-up-list)
-            (cond ((or
-                    ;; a vector literal: #( )
-                    (and (eq (char-before (point)) ?#)
-                         (eq (char-after  (point)) ?\())
-                    ;; a quoted '( ) or quasiquoted `( ) list --
-                    ;; but NOT syntax #'( ) or quasisyntax #`( )
-                    (and (not (eq (char-before (1- (point))) ?#))
-                         (memq (char-before (point)) '(?\' ?\`))
-                         (eq (char-after (point)) ?\())
-                    ;; #lang rackjure dict literal { ... }
-                    (and racket-rackjure-indent
-                         (eq (char-after (point)) ?{)))
-                   (setq answer t))
-                  (;; unquote or unquote-splicing
-                   (and (or (eq (char-before (point)) ?,)
-                            (and (eq (char-before (1- (point))) ?,)
-                                 (eq (char-before (point))      ?@)))
-                        (eq (char-after (point)) ?\())
-                   (setq answer nil))))
-          answer)
-      (error nil))))
+(defun racket--align-sequence-with-head ()
+  "Indent items with the head item for certain sequences?
+
+These include '() `() #() -- and {} if `racket-rackjure-indent'
+is t -- but not #'() #`() ,() ,@().
+
+To handle nested items, search `backward-up-list' up to
+`racket-indent-sequence-depth' times."
+  (and (>= racket-indent-sequence-depth 1)
+       (save-excursion
+         (condition-case ()
+             (let ((answer 'unknown)
+                   (depth racket-indent-sequence-depth))
+               (while (and (eq answer 'unknown)
+                           (> depth 0))
+                 (backward-up-list)
+                 (setq depth (1- depth))
+                 (cond ((or
+                         ;; a quoted '( ) or quasiquoted `( ) list --
+                         ;; but NOT syntax #'( ) or quasisyntax #`( )
+                         (and (memq (char-before (point)) '(?\' ?\`))
+                              (eq (char-after (point)) ?\()
+                              (not (eq (char-before (1- (point))) ?#)))
+                         ;; a vector literal: #( )
+                         (and (eq (char-before (point)) ?#)
+                              (eq (char-after  (point)) ?\())
+                         ;; #lang rackjure dict literal { ... }
+                         (and racket-rackjure-indent
+                              (eq (char-after (point)) ?{)))
+                        (setq answer t))
+                       (;; unquote or unquote-splicing
+                        (and (or (eq (char-before (point)) ?,)
+                                 (and (eq (char-before (1- (point))) ?,)
+                                      (eq (char-before (point))      ?@)))
+                             (eq (char-after (point)) ?\())
+                        (setq answer nil))))
+               (eq answer t))
+           (error nil)))))
 
 
 (defun racket--indent-specform (count state indent-point normal-indent)

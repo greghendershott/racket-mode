@@ -1,3 +1,5 @@
+;; -*- racket-indent-sequence-depth: 100; racket-rackjure-indent: t; -*-
+
 #lang racket
 
 (require xml)

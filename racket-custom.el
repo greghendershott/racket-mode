@@ -120,15 +120,30 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   :tag "Other"
   :group 'racket)
 
+(defcustom racket-indent-sequence-depth 0
+  "To what depth should `racket--align-sequence-to-head' search.
+This affects the indentation of forms like '() `() #() -- and {}
+if `racket-rackjure-indent' is t -- but not #'() #`() ,() ,@(). A
+zero value disables, giving the normal indent behavior of
+DrRacket or Emacs `lisp-mode' derived modes like `scheme-mode'.
+Note that setting this to a high value can make indentation
+noticeably slower."
+  :tag "Indent Sequence Depth"
+  :type 'integerp
+  :safe #'integerp
+  :group 'racket-other)
+
 (defcustom racket-pretty-lambda nil
-  "Display lambda keywords using λ."
+  "Display lambda keywords using λ. This is deprecated.
+Instead you can insert actual λ characters using \\<racket-mode-map>\\[racket-insert-lambda]."
   :tag "Pretty Lambda"
   :type 'boolean
   :safe #'booleanp
   :group 'racket-other)
 
 (defcustom racket-rackjure-indent t
-  "Indent {} for #lang rackjure dictionaries?"
+  "Indent {} with items aligned with the head item?
+This is indirectly disabled if `racket-indent-sequence-depth' is 0."
   :tag "Rackjure Indent"
   :type 'boolean
   :safe #'booleanp
