@@ -140,7 +140,7 @@ Lisp function does not specify a special indentation."
                     (string-match "\\`with-" head))
                (racket--indent-specform 1 state indent-point normal-indent))
               ((integerp method)
-               (racket--indent-specform method state indent-point normal-indent4))
+               (racket--indent-specform method state indent-point normal-indent))
               (method
                (funcall method state indent-point normal-indent)))))))
 
@@ -183,7 +183,6 @@ To handle nested items, search `backward-up-list' up to
                (eq answer t))
            (error nil)))))
 
-
 (defun racket--indent-specform (count state indent-point normal-indent)
   "This is like `lisp-indent-specform' but fixes bug #50.
 
@@ -191,10 +190,7 @@ To find last form, COUNT is decremented -- and it can go negative
 when there is more than one form per line. In that case
 `lisp-indent-specform' returns NORMAL-INDENT instead of body
 indent. Often they're the same and it doesn't matter, but they
-differ in the bug #50 examples.
-
-While I was at it, I simplified the logic to remove what seemed
-like N/A cruft (I hope I'm right about that.)"
+differ in the bug #50 examples."
   (let ((containing-form-start (elt state 1))
         (orig-count count))
     ;; Move to the start of containing form, calculate indentation
@@ -216,13 +212,11 @@ like N/A cruft (I hope I'm right about that.)"
                         (setq count (1- count))
                         (forward-sexp 1)
                         (parse-partial-sexp (point) indent-point 1 t)
-                        (when (zerop count)
+                        (when (zerop count) ;the 1st non-distuished form
                           (setq non-distinguished-column (current-column)))
                         t)
                     (error nil))))
-      ;; Point is sitting before first character of last (or count) sexp.
-      (cond (;; A distinguished form. Use double lisp-body-indent.
-             (> count 0)
+      (cond ((> count 0) ;; A distinguished form
              (list (+ containing-form-column (* 2 lisp-body-indent))
                    containing-form-start))
             ((or (and (= orig-count 0) (= count 0))
