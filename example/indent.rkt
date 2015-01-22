@@ -123,6 +123,17 @@
 (with-handlers ([x y])
   a b c)
 
+;; define and other 'defun style
+
+(define (x) x x
+  x)
+
+(struct x x
+  ())
+
+(match-define (list x y)
+  (list 1 2))
+
 ;;; Bug #50
 
 '((x
