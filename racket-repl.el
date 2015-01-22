@@ -71,10 +71,12 @@
 
 (defun racket--get-old-input ()
   "Snarf the sexp ending at point."
-  (save-excursion
-    (let ((end (point)))
-      (backward-sexp)
-      (buffer-substring (point) end))))
+  (if (looking-back comint-prompt-regexp 80)
+      ""
+    (save-excursion
+      (let ((end (point)))
+        (backward-sexp)
+        (buffer-substring (point) end)))))
 
 ;; I don't want comint-mode clobbering our font-lock with
 ;; comint-highlight-input face. Changing that _face_ to be non-bold
@@ -378,8 +380,8 @@ With prefix arg, open the N-th last shown image."
   (setq-local comint-use-prompt-regexp t)
   (setq-local comint-prompt-read-only t) ;rebind C-w to `comint-kill-region'!
   (setq-local mode-line-process nil)
-  (setq-local comint-input-filter (function racket-repl--input-filter))
-  (add-hook 'comint-output-filter-functions 'racket-repl--output-filter nil t)
+  (setq-local comint-input-filter #'racket-repl--input-filter)
+  (add-hook 'comint-output-filter-functions #'racket-repl--output-filter nil t)
   (compilation-setup t)
   (setq-local
    compilation-error-regexp-alist
@@ -388,7 +390,7 @@ With prefix arg, open the N-th last shown image."
      ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3)   ;rackunit
      ("#<path:\\([^>]+\\)>" 1 nil nil 0)                       ;path struct
      ))
-  (setq-local comint-get-old-input (function racket--get-old-input)))
+  (setq-local comint-get-old-input #'racket--get-old-input))
 
 (provide 'racket-repl)
 
