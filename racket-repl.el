@@ -71,7 +71,7 @@
 
 (defun racket--get-old-input ()
   "Snarf the sexp ending at point."
-  (if (looking-back comint-prompt-regexp 80)
+  (if (looking-back comint-prompt-regexp (max 0 (- (point) 80)))
       ""
     (save-excursion
       (let ((end (point)))
