@@ -1,4 +1,4 @@
-;; -*- racket-indent-sequence-depth: 100; racket-rackjure-indent: t; -*-
+;; -*- racket-indent-sequence-depth: 100; racket-indent-curly-as-sequence: t; -*-
 
 #lang racket
 

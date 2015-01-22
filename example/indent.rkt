@@ -1,4 +1,4 @@
-;; -*- racket-indent-sequence-depth: 100; racket-rackjure-indent: t; -*-
+;; -*- racket-indent-sequence-depth: 100; racket-indent-curly-as-sequence: t; -*-
 
 ;;; Quoted list
 
@@ -44,7 +44,7 @@
 #'(foo (#%app hasheq (quote a) (quote 42))
        (quote a))
 
-;;; Rackjure style dictionary
+;;; Rackjure style dictionary (when racket-indent-curly-as-sequence is t).
 
 {a b
  c d}

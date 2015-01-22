@@ -147,7 +147,7 @@ Lisp function does not specify a special indentation."
 (defun racket--align-sequence-with-head ()
   "Indent items with the head item for certain sequences?
 
-These include '() `() #() -- and {} if `racket-rackjure-indent'
+These include '() `() #() -- and {} if `racket-indent-curly-as-sequence'
 is t -- but not #'() #`() ,() ,@().
 
 To handle nested items, search `backward-up-list' up to
@@ -170,8 +170,8 @@ To handle nested items, search `backward-up-list' up to
                          ;; a vector literal: #( )
                          (and (eq (char-before (point)) ?#)
                               (eq (char-after  (point)) ?\())
-                         ;; #lang rackjure dict literal { ... }
-                         (and racket-rackjure-indent
+                         ;; { }
+                         (and racket-indent-curly-as-sequence
                               (eq (char-after (point)) ?{)))
                         (setq answer t))
                        (;; unquote or unquote-splicing
