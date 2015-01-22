@@ -18,13 +18,16 @@
                 (buffer-substring-no-properties (point-min)
                                                 (point-max))))
 
-(ert-deftest racket-tests/indent ()
-    "Indentation of example/indent.rkt and example/example.rkt shouldn't change."
-  (find-file "example/indent.rkt")
-  (indent-region (point-min) (point-max))
-  (should-not (buffer-modified-p))
-  (find-file "example/example.rkt")
-  (indent-region (point-min) (point-max))
-  (should-not (buffer-modified-p)))
+(ert-deftest racket-tests/indent/example-rkt ()
+  "Indentation of example/example.rkt shouldn't change."
+  (with-current-buffer (find-file "example/example.rkt")
+    (indent-region (point-min) (point-max))
+    (should-not (buffer-modified-p))))
+
+(ert-deftest racket-tests/indent/indent-rkt ()
+  "Indentation of example/indent.rkt shouldn't change."
+  (with-current-buffer (find-file "example/indent.rkt")
+    (indent-region (point-min) (point-max))
+    (should-not (buffer-modified-p))))
 
 (provide 'racket-tests)

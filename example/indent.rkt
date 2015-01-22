@@ -66,20 +66,59 @@
 ;;; Normal function application.
 
 (foobar x
-        x
-        y)
+        y
+        z)
+
+(foobar
+ x
+ y
+ z)
 
 (dict-set a
           b
           c)
+
+(dict-set
+ a
+ b
+ c)
 
 ;;; Forms with special indentation
 
 (let ([x 0])
   x)
 
+(syntax-case stx ()
+  [(_ x) #'#f]
+  [(_ x y) #'#t])
+
+;; begin and cond have 0 style
+(begin
+  0
+  0)
+
+(begin 0
+       0)
+
 (cond [1 2]
       [3 4])
+
+(cond
+  [1 2]
+  [3 4])
+
+(if a
+    x
+    x)
+
+;; begin*
+
+(begin-for-foo 0
+               0)
+
+(begin-for-foo
+  0
+  0)
 
 (with-handlers ([x y])
   a b c)
