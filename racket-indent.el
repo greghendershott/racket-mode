@@ -126,6 +126,10 @@ Lisp function does not specify a special indentation."
         (cond ((racket--align-with-head)
                (goto-char open-pos)
                (1+ (current-column)))
+              ((and (null method)
+                    (>= (length head) 5)
+                    (string-match "\\`begin" head))
+               (racket--indent-specform 0 state indent-point normal-indent))
               ((or (eq method 'defun)
                    (and (null method)
                         (>= (length head) 3)
@@ -286,7 +290,7 @@ for/fold and for*/fold."
 (defun racket--set-indentation ()
   "Set indentation for various Racket forms.
 
-Note that `def*` and `with-*` aren't listed here because
+Note that `beg*`, `def*` and `with-*` aren't listed here because
 `racket-indent-function' handles those.
 
 Note that indentation is set for the symbol alone, and also
@@ -298,8 +302,7 @@ doesn't hurt to do so."
           (put (car x) 'racket-indent-function (cadr x))
           (let ((typed (intern (format "%s:" (car x)))))
             (put typed 'racket-indent-function (cadr x))))
-        '((begin 0)
-          (begin-for-syntax 0)
+        '(;; begin* forms default to 0 unless otherwise specified here
           (begin0 1)
           (c-declare 0)
           (c-lambda 2)
@@ -314,11 +317,12 @@ doesn't hurt to do so."
           (class defun)
           (class* defun)
           (compound-unit/sig 0)
+          (cond 0)
+          ;; def* forms default to 'defun unless otherwise specified here
           (delay 0)
-          (def 1)                    ;cheating: not actually in Racket
           (do 2)
           (dynamic-wind 0)
-          (fn 1)                     ;cheating: not actually in Racket
+          (fn 1) ;alias for lambda (although not officially in Racket)
           (for 1)
           (for/list racket--indent-for)
           (for/vector racket--indent-for)
@@ -368,6 +372,8 @@ doesn't hurt to do so."
           (match* 1)
           (match-let 1)
           (match-let* 1)
+          (match-lambda 0)
+          (match-lambda* 0)
           (mixin 2)
           (module 2)
           (module+ 1)
@@ -396,7 +402,7 @@ doesn't hurt to do so."
           (unless 1)
           (when 1)
           (while 1)
-          ;; `with-` forms given 1 automatically by our indent function
+          ;; with- forms default to 1 unless otherwise specified here
           )))
 
 (provide 'racket-indent)
