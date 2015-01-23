@@ -463,14 +463,16 @@ existence using `fboundp'."
 (defun racket-indent-or-complete ()
   "Try `indent-for-tab-command' then `completion-at-point'.
 
-Call `indent-for-tab-command'. See if it did anything (changed
-the indentation, or moved point to `beginning-of-line-text'). If
-not, call `completion-at-point'."
+Call `indent-for-tab-command'. If did not change the indentation
+or move point to `beginning-of-line-text', and if point is
+in/after at least 3 word/symbol characters, then call
+`completion-at-point'."
   (interactive)
   (let ((pt (point)))
     (indent-for-tab-command)
-    (when (and (equal (point) pt)
-               (looking-back "\\sw\\{3\\}" 3))
+    (when (and (equal pt (point))
+               (thing-at-point-looking-at (rx (>= 3 (or (syntax word)
+                                                        (syntax symbol))))))
       (completion-at-point))))
 
 (defun racket-backward-up-list ()
