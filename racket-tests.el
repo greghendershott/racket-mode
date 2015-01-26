@@ -1,7 +1,7 @@
 (require 'racket-mode)
 
 (ert-deftest racket-tests/repl ()
-    "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
+  "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
   (racket-repl)
   (dotimes (_ 5) (accept-process-output nil 1))
   (with-current-buffer (get-buffer "*Racket REPL*")
@@ -29,5 +29,28 @@
   (with-current-buffer (find-file "example/indent.rkt")
     (indent-region (point-min) (point-max))
     (should-not (buffer-modified-p))))
+
+(ert-deftest racket-tests/smart-open-bracket ()
+  "Just a simple test the `cond` form with smart open bracket
+disabled vs. enabled. Currently this is really just a regression
+test for bug #81. This could be expanded into a series of
+exhaustive tests of all the special forms it handles."
+  (let ((input "[cond [[number? x] #t]\n[else #f]]"))
+    ;; When smart open bracket mode is disabled, result should be
+    ;; exactly what was input.
+    (with-temp-buffer
+      (racket-mode)
+      (let ((racket-smart-open-bracket-enable nil))
+        (insert input)
+        (equal (buffer-substring-no-properties (point-min) (point-max))
+               input)))
+    ;; When smart open bracket mode is enabled, result should be
+    ;; be the adjusted string below.
+    (with-temp-buffer
+      (racket-mode)
+      (let ((racket-smart-open-bracket-enable nil))
+        (insert input)
+        (equal (buffer-substring-no-properties (point-min) (point-max))
+               "(cond [(number? x) #t]\n[else #f])")))))
 
 (provide 'racket-tests)
