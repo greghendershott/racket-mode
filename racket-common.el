@@ -310,9 +310,9 @@
       ;; Note: Previous item handles the first, accumulators subform.
       (0 2 ,(rx (seq (or "for/fold"
                          "for*/fold")
-                     (or space line-end)))))
-    "A list of lists. Each sub list is arguments to supply to
-  `racket--smart-open-bracket-helper'."))
+                     (or space line-end))))))
+  "A list of lists. Each sub list is arguments to supply to
+  `racket--smart-open-bracket-helper'.")
 
 (defun racket--smart-open-bracket-helper (pre-backward-sexps
                                           post-backward-sexps
