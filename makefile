@@ -32,7 +32,7 @@ compile: clean \
 test: test-racket test-elisp
 
 test-racket:
-	raco test -x ./*.rkt  # not example/example.rkt
+	raco test -x ./*.rkt  # not example/*.rkt
 
 test-elisp:
 	$(BATCHEMACS) -l ert -l racket-tests.el -f ert-run-tests-batch-and-exit

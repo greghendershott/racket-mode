@@ -1,0 +1,210 @@
+«m:;; »«x:-*- racket-indent-sequence-depth: 100; racket-indent-curly-as-sequence: t; -*-
+»
+«k:#lang» «v:racket»
+
+«:racket-paren-face:(»«k:require» xml«:racket-paren-face:)»
+«:racket-paren-face:(»«k:provide» valid-bucket-name?«:racket-paren-face:)»
+
+«m:;; »«x:Various def* forms are font-locked:
+»
+«:racket-paren-face:(»«k:define» «:racket-paren-face:(»«f:function» foo«:racket-paren-face:)»
+  «:racket-selfeval-face:#t»«:racket-paren-face:)»
+«:racket-paren-face:(»«k:define» «v:a-var» «:racket-selfeval-face:10»«:racket-paren-face:)»
+
+«:racket-paren-face:(»«k:define/contract» «:racket-paren-face:(»«f:f2» x«:racket-paren-face:)»
+  «:racket-paren-face:(»any/c . «k:->» . any«:racket-paren-face:)»
+  «:racket-selfeval-face:#t»«:racket-paren-face:)»
+
+«:racket-paren-face:(»«k:define-values» «:racket-paren-face:(»«v:1st-var 2nd-var»«:racket-paren-face:)» «:racket-paren-face:(»«b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:))»
+
+«m:;; »«x:for/fold is indented correctly:
+»«:racket-paren-face:(»«b:for/fold» «:racket-paren-face:([»str «s:""»«:racket-paren-face:])»
+          «:racket-paren-face:([»ss '«:racket-paren-face:(»«s:"a"» «s:"b"» «s:"c"»«:racket-paren-face:)])»
+  «:racket-paren-face:(»«b:string-append» str ss«:racket-paren-face:))»
+
+«m:;; »«x:Auto-converts word `lambda` to `λ`:
+»«:racket-paren-face:(»«k:lambda» «:racket-paren-face:(»x«:racket-paren-face:)» «:racket-selfeval-face:#t»«:racket-paren-face:)»
+
+«m:;; »«x:Or use M-C-y to insert to insert `λ` char.
+»
+«m:;; »«x:Smart indentation for quoted lists:
+»'«:racket-paren-face:(»«:racket-selfeval-face:1» «:racket-selfeval-face:2»
+  «:racket-selfeval-face:3» «:racket-selfeval-face:4»«:racket-paren-face:)»
+
+«m:;; »«x:Smart indentation for vector literals:
+»#«:racket-paren-face:(»«:racket-selfeval-face:1» «:racket-selfeval-face:2»
+  «:racket-selfeval-face:3» «:racket-selfeval-face:4»«:racket-paren-face:)»
+
+«m:;; »«x:Smart indentation for Rackjure dict literals:
+»«:racket-paren-face:(»«k:module» «f:x» «v:rackjure
+»  «:racket-paren-face:{»«:racket-selfeval-face:'a» «:racket-selfeval-face:0»
+   «:racket-selfeval-face:'b» «:racket-selfeval-face:2»«:racket-paren-face:})»
+
+«m:;; »«x:Silly test submodule example.
+»«m:;; »«x:Try using C-c C-f to Fold (hide) it, and C-c C-u to Unfold it.
+»«:racket-paren-face:(»«k:module+» «f:test
+»  «:racket-paren-face:(»«k:require» rackunit«:racket-paren-face:)»
+  «:racket-paren-face:(»check-true «:racket-selfeval-face:#t»«:racket-paren-face:))»
+
+«m:;; »«x:Single line comment
+»
+«x:#|
+
+Multi-line
+comment
+
+|#»
+
+«x:#;(sexpr comment)»
+
+«:racket-paren-face:(»«k:define» «:racket-paren-face:(»«f:a-function» x «:racket-keyword-argument-face:#:keyword» «:racket-paren-face:[»y «:racket-selfeval-face:0»«:racket-paren-face:])»
+  «:racket-paren-face:(»«k:and» «:racket-paren-face:(»«b:append» «:racket-paren-face:(»«b:car» '«:racket-paren-face:(»«:racket-selfeval-face:1» «:racket-selfeval-face:2» «:racket-selfeval-face:3»«:racket-paren-face:))))»
+  «:racket-paren-face:(»«b:regexp-match?» «:racket-selfeval-face:#rx»«s:"foobar"» «s:"foobar"»«:racket-paren-face:)»
+  «:racket-paren-face:(»«b:regexp-match?» «:racket-selfeval-face:#px»«s:"foobar"» «s:"foobar"»«:racket-paren-face:)»
+  «:racket-paren-face:(»«k:define» «v:a» «:racket-selfeval-face:1»«:racket-paren-face:)»
+  «:racket-paren-face:(»«k:let» «:racket-paren-face:([»a «s:"foo"»«:racket-paren-face:]»
+        «:racket-paren-face:[»b «s:"bar"»«:racket-paren-face:])»
+    «:racket-paren-face:(»«b:displayln» b«:racket-paren-face:))»
+  «:racket-paren-face:(»«k:let*» «:racket-paren-face:([»a «s:"foo"»«:racket-paren-face:]»
+         «:racket-paren-face:[»b «s:"bar"»«:racket-paren-face:])»
+    «:racket-paren-face:(»«b:displayln» b«:racket-paren-face:))»
+  «:racket-paren-face:(»«k:let-values» «:racket-paren-face:([(»a b«:racket-paren-face:)» «:racket-paren-face:(»«b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:)])»
+    «:racket-selfeval-face:#t»«:racket-paren-face:)»
+  «:racket-paren-face:(»«b:for/list» «:racket-paren-face:([»x «:racket-paren-face:(»in-list «:racket-paren-face:(»«b:list» «:racket-selfeval-face:1» «:racket-selfeval-face:2» «:racket-paren-face:(»«b:list» «:racket-selfeval-face:3» «:racket-selfeval-face:4»«:racket-paren-face:)))])»
+    «:racket-paren-face:(»«k:cond» «:racket-paren-face:[(»«b:pair?» x«:racket-paren-face:)» «:racket-paren-face:(»«b:car» x«:racket-paren-face:)]»
+          «:racket-paren-face:[»else x«:racket-paren-face:])))»
+
+«:racket-paren-face:(»«k:define» «:racket-paren-face:(»«f:foo»«:racket-paren-face:)»
+  «:racket-paren-face:(»«k:let» «:racket-paren-face:([»x «:racket-selfeval-face:10»«:racket-paren-face:])»
+    «:racket-selfeval-face:#t»«:racket-paren-face:)»
+
+  «:racket-paren-face:(»«k:let» «:racket-paren-face:([»x «:racket-selfeval-face:1»«:racket-paren-face:]»
+        «:racket-paren-face:[»y «:racket-selfeval-face:2»«:racket-paren-face:])»
+    «:racket-selfeval-face:#t»«:racket-paren-face:)»
+
+  «:racket-paren-face:(»«k:define» «v:1/2-the-way» «:racket-selfeval-face:0»«:racket-paren-face:)»
+  «:racket-paren-face:(»«k:define» «v:less-than-1/2» «:racket-selfeval-face:0»«:racket-paren-face:)»
+
+  «m:;; »«x:Self-eval examples
+»  «:racket-paren-face:(»«b:values»
+   1/2-the-way                            «m:;»«x:should NOT be self-eval
+»   less-than-1/2                          «m:;»«x:should NOT be self-eval
+»   «:racket-selfeval-face:+inf.0»
+   «:racket-selfeval-face:-inf.0»
+   «:racket-selfeval-face:+nan.0»
+   «:racket-selfeval-face:#t»
+   «:racket-selfeval-face:#f»
+   «:racket-selfeval-face:1»
+   «:racket-selfeval-face:1.0»
+   «:racket-selfeval-face:1/2»
+   «:racket-selfeval-face:-1/2»
+   «:racket-selfeval-face:#b100»
+   «:racket-selfeval-face:#o123»
+   «:racket-selfeval-face:#d123»
+   «:racket-selfeval-face:#x7f7f»
+   «:racket-selfeval-face:'symbol»
+   «:racket-selfeval-face:'|symbol with spaces|»
+   «:racket-selfeval-face:'symbol-with-no-alpha/numeric-chars»
+   «:racket-selfeval-face:#\c»
+   «:racket-selfeval-face:#\space»
+   «:racket-selfeval-face:#\newline»
+
+   «m:;; »«x:Literal number examples
+»
+   «m:;; »«x:#b
+»   «:racket-selfeval-face:#b1.1»
+   «:racket-selfeval-face:#b-1.1»
+   «:racket-selfeval-face:#b1e1»
+   «:racket-selfeval-face:#b0/1»
+   «:racket-selfeval-face:#b1/1»
+   «:racket-selfeval-face:#b1e-1»
+   «:racket-selfeval-face:#b101»
+
+   «m:;; »«x:#d
+»   «:racket-selfeval-face:#d-1.23»
+   «:racket-selfeval-face:#d1.123»
+   «:racket-selfeval-face:#d1e3»
+   «:racket-selfeval-face:#d1e-22»
+   «:racket-selfeval-face:#d1/2»
+   «:racket-selfeval-face:#d-1/2»
+   «:racket-selfeval-face:#d1»
+   «:racket-selfeval-face:#d-1»
+
+   «m:;; »«x:No # reader prefix -- same as #d
+»   «:racket-selfeval-face:-1.23»
+   «:racket-selfeval-face:1.123»
+   «:racket-selfeval-face:1e3»
+   «:racket-selfeval-face:1e-22»
+   «:racket-selfeval-face:1/2»
+   «:racket-selfeval-face:-1/2»
+   «:racket-selfeval-face:1»
+   «:racket-selfeval-face:-1»
+
+   «m:;; »«x:#e
+»   «:racket-selfeval-face:#e-1.23»
+   «:racket-selfeval-face:#e1.123»
+   «:racket-selfeval-face:#e1e3»
+   «:racket-selfeval-face:#e1e-22»
+   «:racket-selfeval-face:#e1»
+   «:racket-selfeval-face:#e-1»
+   «:racket-selfeval-face:#e1/2»
+   «:racket-selfeval-face:#e-1/2»
+
+   «m:;; »«x:#i always float
+»   «:racket-selfeval-face:#i-1.23»
+   «:racket-selfeval-face:#i1.123»
+   «:racket-selfeval-face:#i1e3»
+   «:racket-selfeval-face:#i1e-22»
+   «:racket-selfeval-face:#i1/2»
+   «:racket-selfeval-face:#i-1/2»
+   «:racket-selfeval-face:#i1»
+   «:racket-selfeval-face:#i-1»
+
+   «m:;; »«x:#o
+»   «:racket-selfeval-face:#o777.777»
+   «:racket-selfeval-face:#o-777.777»
+   «:racket-selfeval-face:#o777e777»
+   «:racket-selfeval-face:#o777e-777»
+   «:racket-selfeval-face:#o3/7»
+   «:racket-selfeval-face:#o-3/7»
+   «:racket-selfeval-face:#o777»
+   «:racket-selfeval-face:#o-777»
+
+   «m:;; »«x:#x
+»   «:racket-selfeval-face:#x-f.f»
+   «:racket-selfeval-face:#xf.f»
+   «:racket-selfeval-face:#x-f»
+   «:racket-selfeval-face:#xf»
+   «:racket-paren-face:))»
+
+«:racket-paren-face:(»«k:define/contract» «:racket-paren-face:(»«f:valid-bucket-name?» s «:racket-keyword-argument-face:#:keyword» «:racket-paren-face:[»dns-compliant? «:racket-selfeval-face:#t»«:racket-paren-face:])»
+  «:racket-paren-face:((»«b:string?»«:racket-paren-face:)» «:racket-paren-face:(»«:racket-keyword-argument-face:#:keyword» «b:boolean?»«:racket-paren-face:)» . «k:->*» . «b:boolean?»«:racket-paren-face:)»
+  «:racket-paren-face:(»«k:cond»
+    «:racket-paren-face:[»dns-compliant?
+     «:racket-paren-face:(»«k:and» «:racket-paren-face:(»«b:<=» «:racket-selfeval-face:3» «:racket-paren-face:(»«b:string-length» s«:racket-paren-face:))» «:racket-paren-face:(»«b:<=» «:racket-paren-face:(»«b:string-length» s«:racket-paren-face:)» «:racket-selfeval-face:63»«:racket-paren-face:)»
+          «:racket-paren-face:(»«b:not» «:racket-paren-face:(»«b:regexp-match» «:racket-selfeval-face:#px»«s:"\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"» s«:racket-paren-face:))»
+          «:racket-paren-face:(»«b:for/and» «:racket-paren-face:([»s «:racket-paren-face:(»regexp-split «:racket-selfeval-face:#rx»«s:"\\."» s«:racket-paren-face:)])»
+            «:racket-paren-face:(»«k:define» «:racket-paren-face:(»«f:valid-first-or-last?» c«:racket-paren-face:)»
+              «:racket-paren-face:(»«k:or» «:racket-paren-face:(»«b:char-lower-case?» «:racket-paren-face:(»«b:string-ref» s «:racket-selfeval-face:0»«:racket-paren-face:))»
+                  «:racket-paren-face:(»«b:char-numeric?» «:racket-paren-face:(»«b:string-ref» s «:racket-selfeval-face:0»«:racket-paren-face:))))»
+            «:racket-paren-face:(»«k:define» «:racket-paren-face:(»«f:valid-mid?» c«:racket-paren-face:)»
+              «:racket-paren-face:(»«k:or» «:racket-paren-face:(»valid-first-or-last? c«:racket-paren-face:)»
+                  «:racket-paren-face:(»«b:equal?» c «:racket-selfeval-face:#\-»«:racket-paren-face:)))»
+            «:racket-paren-face:(»«k:define» «v:len» «:racket-paren-face:(»«b:string-length» s«:racket-paren-face:))»
+            «:racket-paren-face:(»«k:and» «:racket-paren-face:(»«b:<» «:racket-selfeval-face:0» len«:racket-paren-face:)»
+                 «:racket-paren-face:(»valid-first-or-last? «:racket-paren-face:(»«b:string-ref» s «:racket-selfeval-face:0»«:racket-paren-face:))»
+                 «:racket-paren-face:(»valid-first-or-last? «:racket-paren-face:(»«b:string-ref» s «:racket-paren-face:(»«b:sub1» len«:racket-paren-face:)))»
+                 «:racket-paren-face:(»«k:or» «:racket-paren-face:(»«b:<=» len «:racket-selfeval-face:2»«:racket-paren-face:)»
+                     «:racket-paren-face:(»«b:for/and» «:racket-paren-face:([»c «:racket-paren-face:(»«b:substring» s «:racket-selfeval-face:1» «:racket-paren-face:(»«b:sub1» len«:racket-paren-face:))])»
+                       «:racket-paren-face:(»valid-mid? c«:racket-paren-face:))))))]»
+    «:racket-paren-face:[»else
+     «:racket-paren-face:(»«k:and» «:racket-paren-face:(»«b:<=» «:racket-paren-face:(»«b:string-length» s«:racket-paren-face:)» «:racket-selfeval-face:255»«:racket-paren-face:)»
+          «:racket-paren-face:(»«b:for/and» «:racket-paren-face:([»c s«:racket-paren-face:])»
+            «:racket-paren-face:(»«k:or» «:racket-paren-face:(»«b:char-numeric?» c«:racket-paren-face:)»
+                «:racket-paren-face:(»«b:char-lower-case?» c«:racket-paren-face:)»
+                «:racket-paren-face:(»«b:char-upper-case?» c«:racket-paren-face:)»
+                «:racket-paren-face:(»«b:equal?» c «:racket-selfeval-face:#\.»«:racket-paren-face:)»
+                «:racket-paren-face:(»«b:equal?» c «:racket-selfeval-face:#\-»«:racket-paren-face:)»
+                «:racket-paren-face:(»«b:equal?» c «:racket-selfeval-face:#\_»«:racket-paren-face:))))]))»
+
+«:racket-paren-face:(»«b:displayln» «s:"I'm running!"»«:racket-paren-face:)»

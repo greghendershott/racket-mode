@@ -110,7 +110,7 @@ comment
    #\newline
 
    ;; Literal number examples
-   
+
    ;; #b
    #b1.1
    #b-1.1
@@ -119,7 +119,7 @@ comment
    #b1/1
    #b1e-1
    #b101
-   
+
    ;; #d
    #d-1.23
    #d1.123

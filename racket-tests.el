@@ -1,5 +1,22 @@
 (require 'racket-mode)
 
+;; Ensure the faceup package is installed, e.g. on Travis CI.
+(require 'package)
+(add-to-list 'package-archives
+             '("melpa" . "http://melpa.milkbox.net/packages/") t)
+(package-initialize)
+(unless (package-installed-p 'faceup)
+  (condition-case ()
+      (package-install 'faceup)
+    (error (package-refresh-contents)
+           (package-install 'faceup))))
+(require 'faceup)
+
+(defconst racket-tests/here-dir (faceup-this-file-directory)
+  "The directory this file is located in.")
+
+;;; REPL
+
 (ert-deftest racket-tests/repl ()
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
   (racket-repl)
@@ -18,17 +35,34 @@
                 (buffer-substring-no-properties (point-min)
                                                 (point-max))))
 
-(ert-deftest racket-tests/indent/example-rkt ()
-  "Indentation of example/example.rkt shouldn't change."
-  (with-current-buffer (find-file "example/example.rkt")
-    (indent-region (point-min) (point-max))
-    (should-not (buffer-modified-p))))
+;;; Indentation
 
-(ert-deftest racket-tests/indent/indent-rkt ()
-  "Indentation of example/indent.rkt shouldn't change."
-  (with-current-buffer (find-file "example/indent.rkt")
+(defun racket-tests/same-indent (file)
+  (with-current-buffer (find-file (concat racket-tests/here-dir file))
     (indent-region (point-min) (point-max))
-    (should-not (buffer-modified-p))))
+    (not (buffer-modified-p))))
+
+(ert-deftest racket-tests/indent-rkt ()
+  "Indentation of example/*.rkt shouldn't change."
+  (should (racket-tests/same-indent "example/example.rkt"))
+  (should (racket-tests/same-indent "example/indent.rkt")))
+
+;;; Font-lock
+
+(defun racket-tests/same-faceup (file)
+  "Test that FILE is fontified as the .faceup file describes.
+FILE is interpreted as relative to this source directory."
+  (faceup-test-font-lock-file 'racket-mode
+                              (concat racket-tests/here-dir file)))
+
+(faceup-defexplainer racket-tests/same-faceup)
+
+(ert-deftest racket-tests/font-lock ()
+  "Font-lock of example/*.rkt shouldn't change."
+  (should (racket-tests/same-faceup "example/indent.rkt"))
+  (should (racket-tests/same-faceup "example/example.rkt")))
+
+;;; Smart open bracket
 
 (ert-deftest racket-tests/smart-open-bracket ()
   "Just a simple test the `cond` form with smart open bracket
