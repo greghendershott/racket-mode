@@ -45,72 +45,45 @@
       (modify-syntax-entry i "_   " st)
       (setq i (1+ i)))
 
-    ;; Whitespace
+    ;; Whitespace (except ?\n, see below in comment section)
     (modify-syntax-entry ?\t "    " st)
-    (modify-syntax-entry ?\n ">   " st)
     (modify-syntax-entry ?\f "    " st)
     (modify-syntax-entry ?\r "    " st)
     (modify-syntax-entry ?\s "    " st)
 
     ;; These characters are delimiters but otherwise undefined.
     ;; Brackets and braces balance for editing convenience.
-    (modify-syntax-entry ?\[ "(]  " st)
-    (modify-syntax-entry ?\] ")[  " st)
-    (modify-syntax-entry ?{ "(}  " st)
-    (modify-syntax-entry ?} "){  " st)
-    (modify-syntax-entry ?\| "\" 23bn" st)
-
-    ;; Other atom delimiters
     (modify-syntax-entry ?\( "()  " st)
     (modify-syntax-entry ?\) ")(  " st)
-    ;; It's used for single-line comments as well as for #;(...) sexp-comments.
-    (modify-syntax-entry ?\; "< 2 " st)
-    (modify-syntax-entry ?\" "\"   " st)
-    (modify-syntax-entry ?' "'   " st)
-    (modify-syntax-entry ?` "'   " st)
+    (modify-syntax-entry ?\[ "(]  " st)
+    (modify-syntax-entry ?\] ")[  " st)
+    (modify-syntax-entry ?{  "(}  " st)
+    (modify-syntax-entry ?}  "){  " st)
 
-    ;; Special characters
-    (modify-syntax-entry ?, "'   " st)
-    (modify-syntax-entry ?@ "'   " st)
-    (modify-syntax-entry ?# "' 14" st)
+    ;; Other atom delimiters
+    (modify-syntax-entry ?\" "\"   " st)
+    (modify-syntax-entry ?'  "'   " st)
+    (modify-syntax-entry ?`  "'   " st)
+    (modify-syntax-entry ?,  "'   " st)
+    (modify-syntax-entry ?@  "'   " st)
     (modify-syntax-entry ?\\ "\\   " st)
+
+    ;; Comment related
+    (modify-syntax-entry ?\; "< 2 " st) ;; both line ; and sexp #;
+    (modify-syntax-entry ?\n ">   " st)
+    (modify-syntax-entry ?#  "w 14" st)
+    (modify-syntax-entry ?\| "\" 23bn" st)
+
     st))
 
 (defvar racket-mode-abbrev-table nil)
 (define-abbrev-table 'racket-mode-abbrev-table ())
 
-(defconst racket-sexp-comment-syntax-table
-  (let ((st (make-syntax-table racket-mode-syntax-table)))
-    (modify-syntax-entry ?\; "." st)
-    (modify-syntax-entry ?\n " " st)
-    (modify-syntax-entry ?#  "'" st)
-    st))
-
-(defun racket-font-lock-syntactic-face-function (state)
-  (when (and (null (nth 3 state))
-             (eq (char-after (nth 8 state)) ?#)
-             (eq (char-after (1+ (nth 8 state))) ?\;))
-    ;; It's a sexp-comment.  Tell parse-partial-sexp where it ends.
-    (save-excursion
-      (let ((pos (point))
-            (end
-             (condition-case err
-                 (let ((parse-sexp-lookup-properties nil))
-                   (goto-char (+ 2 (nth 8 state)))
-                   ;; FIXME: this doesn't handle the case where the sexp
-                   ;; itself contains a #; comment.
-                   (forward-sexp 1)
-                   (point))
-               (scan-error (nth 2 err)))))
-        (when (< pos (- end 2))
-          (put-text-property pos (- end 2)
-                             'syntax-table racket-sexp-comment-syntax-table))
-        (put-text-property (- end 1) end 'syntax-table '(12)))))
-  ;; Choose the face to use.
-  (lisp-font-lock-syntactic-face-function state))
-
 (defconst racket-syntax-propertize-function
   (syntax-propertize-rules
+   ;; Handle sexp comments
+   ((rx "#;")
+    (0 (ignore (racket--syntax-propertize-sexp-comment))))
    ;; Treat #px"" and #rx"" as single sexpr for navigation and indent.
    ((rx (group (or "#px" "#rx"))
         (group "\"")
@@ -121,54 +94,81 @@
     (3 (ignore))
     (4 "\""))))
 
+(defconst racket--sexp-comment-syntax-table
+  (let ((st (make-syntax-table racket-mode-syntax-table)))
+    (modify-syntax-entry ?\; "." st)
+    (modify-syntax-entry ?\n " " st)
+    (modify-syntax-entry ?#  "'" st)
+    st))
+
+(defun racket--syntax-propertize-sexp-comment ()
+  (let* ((beg (match-beginning 0))
+         (state (save-excursion (save-match-data (syntax-ppss beg)))))
+    (unless (or (nth 3 state)           ;in a string
+                (nth 4 state))          ;in a comment
+      (save-excursion
+        (let ((end (condition-case err
+                       (let ((parse-sexp-lookup-properties nil)
+                             (parse-sexp-ignore-comments nil))
+                         (goto-char (+ 2 beg)) ;after the "#;"
+                         (forward-sexp 1)
+                         (point))
+                     (scan-error (nth 2 err))))) ;start of last complete sexp
+          (put-text-property beg (1+ beg)
+                             'syntax-table
+                             ;; 11 = comment-start. nil = no matching-char.
+                             '(11 . nil))
+          (put-text-property (1+ beg) (1- end)
+                             'syntax-table
+                             racket--sexp-comment-syntax-table)
+          (put-text-property (1- end) end
+                             'syntax-table
+                             ;; 12 = comment-end. nil = no matching-char.
+                             '(12 . nil)))))))
+
 (defun racket--variables-for-both-modes ()
-  ;; Set many things explicitly. We wouldn't need to set most of these
-  ;; if our editing major mode, `racket-mode`, were derived from
-  ;; `scheme-mode` instead of from `prog-mode`. So why do it this way?
-  ;; Because of our `racket-repl-mode`. That needs to derive from
-  ;; `comint-mode`, therefore it needs to set them explicitly. Setting them
-  ;; all here ensures consistency. And in that case, racket-mode need not
-  ;; derive from scheme-mode, it can derive from just prog-mode.
+  ;;; Syntax and font-lock stuff.
   (set-syntax-table racket-mode-syntax-table)
   (setq-local syntax-propertize-function racket-syntax-propertize-function)
   (setq-local multibyte-syntax-as-symbol t)
-  (setq-local local-abbrev-table racket-mode-abbrev-table)
-  (setq-local paragraph-start (concat "$\\|" page-delimiter))
-  (setq-local paragraph-separate paragraph-start)
-  (setq-local paragraph-ignore-fill-prefix t)
-  (setq-local fill-paragraph-function 'lisp-fill-paragraph)
-  (setq-local adaptive-fill-mode nil)
-  (setq-local indent-line-function 'racket-indent-line)
-  (setq-local parse-sexp-ignore-comments t)
-  (setq-local outline-regexp ";;; \\|(....")
+  (setq-local font-lock-defaults
+              `(,racket-font-lock-keywords     ;keywords
+                nil                            ;keywords-only?
+                nil                            ;case-fold?
+                nil                            ;syntax-alist
+                beginning-of-defun             ;syntax-begin
+                ;; Additional variables:
+                (font-lock-mark-block-function . mark-defun)
+                (parse-sexp-lookup-properties . t)
+                (font-lock-extra-managed-props syntax-table)))
+  ;; -----------------------------------------------------------------
+  ;; Comments. Borrowed from lisp-mode
   (setq-local comment-start ";")
   (setq-local comment-add 1)            ;default to `;;' in comment-region
   ;; Look within the line for a ; following an even number of backslashes
   ;; after either a non-backslash or the line beginning:
   (setq-local comment-start-skip
               "\\(\\(^\\|[^\\\\\n]\\)\\(\\\\\\\\\\)*\\)\\(;+\\|#|\\) *")
-  ;; Font lock mode uses this only when it KNOWS a comment is starting:
+  ;; Font lock mode uses this only when it knows a comment is starting:
   (setq-local font-lock-comment-start-skip ";+ *")
-  (setq-local comment-column 40)
   (setq-local parse-sexp-ignore-comments t)
-  (setq-local lisp-indent-function 'racket-indent-function)
+  ;; -----------------------------------------------------------------
+  ;;; Misc
+  (setq-local comment-column 40)
+  (setq-local local-abbrev-table racket-mode-abbrev-table)
+  (setq-local paragraph-start (concat "$\\|" page-delimiter))
+  (setq-local paragraph-separate paragraph-start)
+  (setq-local paragraph-ignore-fill-prefix t)
+  (setq-local fill-paragraph-function #'lisp-fill-paragraph)
+  (setq-local adaptive-fill-mode nil)
+  (setq-local indent-line-function #'racket-indent-line)
+  (setq-local parse-sexp-ignore-comments t)
+  (setq-local outline-regexp ";;; \\|(....")
+  (setq-local lisp-indent-function #'racket-indent-function)
   (racket--set-indentation)
   (setq-local indent-tabs-mode nil)
-  (setq-local font-lock-defaults
-              `(,racket-font-lock-keywords     ;keywords
-                nil                            ;keywords-only?
-                nil                            ;case-fold?
-                (("+-*/.<>=!?$%_&~^:" . "w")   ;syntax-alist
-                 (?# . "w 14"))
-                beginning-of-defun             ;syntax-begin
-                ;; Additional variables:
-                (font-lock-mark-block-function . mark-defun)
-                (font-lock-syntactic-face-function
-                 . racket-font-lock-syntactic-face-function)
-                (parse-sexp-lookup-properties . t)
-                (font-lock-extra-managed-props syntax-table)))
-  (setq-local completion-at-point-functions '(racket-complete-at-point))
-  (setq-local eldoc-documentation-function 'racket-eldoc-function))
+  (setq-local completion-at-point-functions (list #'racket-complete-at-point))
+  (setq-local eldoc-documentation-function #'racket-eldoc-function))
 
 
 ;;; Insert lambda char (like DrRacket)
