@@ -22,26 +22,24 @@
 (defvar racket--trace-enable nil)
 
 (defun racket--trace (p &optional s retval)
-  (if racket--trace-enable
-      (let ((b (get-buffer-create "*Racket Trace*"))
-	    (deactivate-mark deactivate-mark))
-	(save-excursion
-	  (save-restriction
-	    (set-buffer b)
-	    (insert p ": " (if (stringp s) s (format "%S" s)) "\n")))))
+  (when racket--trace-enable
+    (let ((b (get-buffer-create "*Racket Trace*"))
+          (deactivate-mark deactivate-mark))
+      (save-excursion
+        (save-restriction
+          (with-current-buffer b
+            (insert p ": " (if (stringp s) s (format "%S" s)) "\n"))))))
   retval)
 
 (defun racket--toggle-trace (arg)
   (interactive "P")
   (setq racket--trace-enable (or arg (not racket--trace-enable)))
   (if racket--trace-enable
-      (message "Racket trace on"))
-  (let ((b (get-buffer "*Racket Trace*")))
-    (if b
-	(if racket--trace-enable
-	    (kill-buffer b)
-	  (pop-to-buffer b t t)
-	  (setq truncate-lines t)))))
+      (message "Racket trace on")
+    (message "Racket trace off"))
+  (let ((b (get-buffer-create "*Racket Trace*")))
+    (pop-to-buffer b t t)
+    (setq truncate-lines t)))
 
 
 ;;; racket--symbol-at-point-or-prompt
