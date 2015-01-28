@@ -105,7 +105,7 @@
       ("\\_<#b[01]+e[-+]?[01]+\\_>" . racket-selfeval-face)
       ("\\_<#b[-+]?[01]/[01]+\\_>" . racket-selfeval-face)
       ("\\_<#b[-+]?[01]+\\_>" . racket-selfeval-face)
-      ("\\_<#b[^ ]*\\_>" . font-lock-warnng-face)
+      ("\\_<#b[^ ]*\\_>" . font-lock-warning-face)
 
       ;; #e
       ("\\_<#e[-+]?[0-9]+\\.[0-9]+\\_>" . racket-selfeval-face)
