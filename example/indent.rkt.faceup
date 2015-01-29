@@ -158,8 +158,8 @@
                     «:racket-paren-face:(»«b:for/list» «:racket-paren-face:([»fld «:racket-paren-face:(»in-list «:racket-paren-face:(»«b:syntax->list» #'«:racket-paren-face:(»field «k:...»«:racket-paren-face:)))])»
                       «:racket-paren-face:(»format-id stx «s:"~a-~a"» «:racket-paren-face:(»syntax->datum #«:racket-selfeval-face:'id»«:racket-paren-face:)» fld«:racket-paren-face:))])»
        #'«:racket-paren-face:(»serializable-struct
-          id «:racket-paren-face:(»field «k:...»«:racket-paren-face:)» «:racket-keyword-argument-face:#:transparent
-»          «:racket-keyword-argument-face:#:property» «b:prop:procedure»
+          id «:racket-paren-face:(»field «k:...»«:racket-paren-face:)» «:racket-keyword-argument-face:#:transparent»
+          «:racket-keyword-argument-face:#:property» «b:prop:procedure»
           «:racket-paren-face:(»«k:lambda» «:racket-paren-face:(»self . args«:racket-paren-face:)»
             «:racket-paren-face:(»«b:match» args
               «:racket-paren-face:[(»«b:list» «:racket-selfeval-face:'field»«:racket-paren-face:)» «:racket-paren-face:(»accessor self«:racket-paren-face:)]» «k:...»

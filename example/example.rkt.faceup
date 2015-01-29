@@ -36,14 +36,14 @@
   «:racket-selfeval-face:3» «:racket-selfeval-face:4»«:racket-paren-face:)»
 
 «m:;; »«x:Smart indentation for Rackjure dict literals:
-»«:racket-paren-face:(»«k:module» «f:x» «v:rackjure
-»  «:racket-paren-face:{»«:racket-selfeval-face:'a» «:racket-selfeval-face:0»
+»«:racket-paren-face:(»«k:module» «f:x» «v:rackjure»
+  «:racket-paren-face:{»«:racket-selfeval-face:'a» «:racket-selfeval-face:0»
    «:racket-selfeval-face:'b» «:racket-selfeval-face:2»«:racket-paren-face:})»
 
 «m:;; »«x:Silly test submodule example.
 »«m:;; »«x:Try using C-c C-f to Fold (hide) it, and C-c C-u to Unfold it.
-»«:racket-paren-face:(»«k:module+» «f:test
-»  «:racket-paren-face:(»«k:require» rackunit«:racket-paren-face:)»
+»«:racket-paren-face:(»«k:module+» «f:test»
+  «:racket-paren-face:(»«k:require» rackunit«:racket-paren-face:)»
   «:racket-paren-face:(»check-true «:racket-selfeval-face:#t»«:racket-paren-face:))»
 
 «m:;; »«x:Single line comment

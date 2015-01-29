@@ -24,16 +24,16 @@
       ;; #lang
       (,(rx (group (group "#lang")
                    (1+ " ")
-                   (group (1+ (not (any "\n"))))))
+                   (group (1+ not-newline))))
        (2 font-lock-keyword-face nil t)
        (3 font-lock-variable-name-face nil t))
 
       ;; keyword argument
-      (,(rx "#:" (1+ (not (any "^ "))))
+      (,(rx "#:" (1+ (or (syntax word) (syntax symbol))))
        . racket-keyword-argument-face)
 
       ;; symbol
-      (,(rx "'" (1+ (or (syntax symbol) (syntax word))))
+      (,(rx "'" (1+ (or (syntax word) (syntax symbol))))
        . racket-selfeval-face)
       ;; The '|symbol with spaces case is handed in syntax-propertize
 
@@ -42,7 +42,7 @@
        1 racket-selfeval-face)
 
       ;; literal char
-      (,(rx "#\\" (1+ (or (syntax symbol) (syntax word))))
+      (,(rx "#\\" (1+ (or (syntax word) (syntax symbol))))
        . racket-selfeval-face)
 
       ;; paren
@@ -60,17 +60,17 @@
        1 font-lock-variable-name-face)
 
       ;; def* -- functions
-      (,(rx "(def" (0+ (not (any " "))) (1+ " ")
-            "(" (group (1+ (not (any " )")))))
+      (,(rx "(def" (0+ (or (syntax word) (syntax symbol))) (1+ " ")
+            "(" (group (1+ (or (syntax word) (syntax symbol)))))
        1 font-lock-function-name-face)
 
       ;; module and module*
       (,(rx "("
             (group "module" (? "*"))
             (1+ " ")
-            (group (1+ (not (any " "))))
+            (group (1+ (or (syntax word) (syntax symbol))))
             (1+ " ")
-            (group (1+ (not (any " ")))))
+            (group (1+ (or (syntax word) (syntax symbol)))))
        (1 font-lock-keyword-face nil t)
        (2 font-lock-function-name-face nil t)
        (3 font-lock-variable-name-face nil t))
@@ -78,14 +78,15 @@
       (,(rx "("
             (group "module+")
             (1+ " ")
-            (group (1+ (not (any " ")))))
+            (group (1+ (or (syntax word) (syntax symbol)))))
        (1 font-lock-keyword-face nil t)
        (2 font-lock-function-name-face nil t))
 
       ;; pretty lambda
       (,(rx (syntax open-parenthesis)
             (? (or "case-" "match-" "opt-"))
-            (group "lambda"))
+            (group "lambda")
+            (or word-end symbol-end))
        1
        (if racket-pretty-lambda
            (progn (compose-region (match-beginning 1)
