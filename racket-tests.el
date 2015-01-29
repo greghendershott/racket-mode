@@ -64,27 +64,26 @@ FILE is interpreted as relative to this source directory."
 
 ;;; Smart open bracket
 
+(defun racket-tests/brackets (smartp input expected)
+  (with-temp-buffer
+    (racket-mode)
+    (let ((racket-smart-open-bracket-enable smartp))
+      (mapc (lambda (x)
+              (cond ((eq x ?\[) (racket-smart-open-bracket))
+                    ((eq x ?\]) (racket-insert-closing-bracket))
+                    (t (insert x))))
+            input)
+      (equal (buffer-substring-no-properties (point-min) (point-max))
+             expected))))
+
 (ert-deftest racket-tests/smart-open-bracket ()
-  "Just a simple test the `cond` form with smart open bracket
-disabled vs. enabled. Currently this is really just a regression
-test for bug #81. This could be expanded into a series of
-exhaustive tests of all the special forms it handles."
-  (let ((input "[cond [[number? x] #t]\n[else #f]]"))
-    ;; When smart open bracket mode is disabled, result should be
-    ;; exactly what was input.
-    (with-temp-buffer
-      (racket-mode)
-      (let ((racket-smart-open-bracket-enable nil))
-        (insert input)
-        (equal (buffer-substring-no-properties (point-min) (point-max))
-               input)))
-    ;; When smart open bracket mode is enabled, result should be
-    ;; be the adjusted string below.
-    (with-temp-buffer
-      (racket-mode)
-      (let ((racket-smart-open-bracket-enable nil))
-        (insert input)
-        (equal (buffer-substring-no-properties (point-min) (point-max))
-               "(cond [(number? x) #t]\n[else #f])")))))
+  "Type a `cond` form with `racket-smart-open-bracket-enable' both t and nil.
+Currently this is really just a regression test for bug #81. This
+could be expanded into a series of exhaustive tests of all the
+special forms it handles."
+  (let ((before "[cond [[f x] #t][else #f]]")
+        (after  "(cond [(f x) #t][else #f])"))
+    (should (racket-tests/brackets nil before before))
+    (should (racket-tests/brackets t   before after))))
 
 (provide 'racket-tests)
