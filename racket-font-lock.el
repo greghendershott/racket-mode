@@ -22,61 +22,81 @@
   (eval-when-compile
     `(
       ;; #lang
-      ("\\(\\(#lang\\)[ ]+\\([^\n]+\\)\\)"
+      (,(rx (group (group "#lang")
+                   (1+ " ")
+                   (group (1+ (not (any "\n"))))))
        (2 font-lock-keyword-face nil t)
        (3 font-lock-variable-name-face nil t))
 
       ;; keyword argument
-      ("#:[^ )]+"                 . racket-keyword-argument-face)
+      (,(rx "#:" (1+ (not (any "^ "))))
+       . racket-keyword-argument-face)
 
       ;; symbol
-      ("'\\sw+"                   . racket-selfeval-face)
-      ("'|\\(\\sw\\| \\)+|"       . racket-selfeval-face)
+      (,(rx "'" (1+ (or (syntax symbol) (syntax word))))
+       . racket-selfeval-face)
+      ;; The '|symbol with spaces case is handed in syntax-propertize
 
       ;; #rx #px
-      ("\\(#[pr]x\\)\"" (1 racket-selfeval-face))
+      (,(rx (group (or "#rx" "#px")) ?\")
+       1 racket-selfeval-face)
 
       ;; literal char
-      ("\\_<#\\\\\\([][-`~!@#$%&*()_+=^{}\;:'\"<>,.?/|\\\\]\\|\\sw+\\>\\)"
+      (,(rx "#\\" (1+ (or (syntax symbol) (syntax word))))
        . racket-selfeval-face)
 
       ;; paren
-      ("[][(){}]"                 . racket-paren-face)
+      (,(rx (any "[](){}")) . racket-paren-face)
 
       (,(regexp-opt racket-type-list 'symbols) . font-lock-type-face)
       (,(regexp-opt racket-builtins 'symbols) . font-lock-builtin-face)
       (,(regexp-opt racket-keywords 'symbols) . font-lock-keyword-face)
 
       ;; def* -- variables
-      ("(\\(def[^ ]*[ ]+\\([^( ]+\\)\\)"       2 font-lock-variable-name-face)
-      ("(\\(define-values[ ]*(\\([^(]+\\))\\)" 2 font-lock-variable-name-face)
+      (,(rx "(def" (0+ (not (any " "))) (1+ " ")
+            (group (1+ (not (any "( ")))))
+       1 font-lock-variable-name-face)
+      (,(rx "(define-values" (0+ " ") "(" (group (1+ (not (any "(")))) ")")
+       1 font-lock-variable-name-face)
 
       ;; def* -- functions
-      ("(\\(def[^ ]*[ ]*(\\([^ )]+\\)\\)" 2 font-lock-function-name-face)
+      (,(rx "(def" (0+ (not (any " "))) (1+ " ")
+            "(" (group (1+ (not (any " )")))))
+       1 font-lock-function-name-face)
 
       ;; module and module*
-      ("(\\(module[*]?\\)[ ]+\\([^ ]+\\)[ ]+\\([^ ]+\\)"
+      (,(rx "("
+            (group "module" (? "*"))
+            (1+ " ")
+            (group (1+ (not (any " "))))
+            (1+ " ")
+            (group (1+ (not (any " ")))))
        (1 font-lock-keyword-face nil t)
        (2 font-lock-function-name-face nil t)
        (3 font-lock-variable-name-face nil t))
       ;; module+
-      ("(\\(module[+]\\)[ ]+\\([^ ]+\\)"
+      (,(rx "("
+            (group "module+")
+            (1+ " ")
+            (group (1+ (not (any " ")))))
        (1 font-lock-keyword-face nil t)
        (2 font-lock-function-name-face nil t))
 
       ;; pretty lambda
-      ("[[(]\\(case-\\|match-\\|opt-\\)?\\(lambda\\)\\>"
-       2
+      (,(rx (syntax open-parenthesis)
+            (? (or "case-" "match-" "opt-"))
+            (group "lambda"))
+       1
        (if racket-pretty-lambda
-           (progn (compose-region (match-beginning 2)
-                                  (match-end       2)
+           (progn (compose-region (match-beginning 1)
+                                  (match-end       1)
                                   racket-lambda-char)
                   nil)
          font-lock-keyword-face)
        nil t)
 
       ;; #t #f
-      (,(regexp-opt '("#t" "#f") 'symbols) . racket-selfeval-face)
+      (,(rx (or "#t" "#f")) . racket-selfeval-face)
 
       ;; From my Pygments lexer (maybe can simplify b/c unlike Pygments
       ;; we're not lexing for types like int vs. float).
