@@ -57,6 +57,19 @@ comment
 
 #;(sexpr comment)
 
+;; Nested sexpr comments
+
+(list 2
+      #;2)
+
+(list 1
+      #;4
+      #;(3))
+
+(let (#;[x #;1]
+      [y 2])
+  y)
+
 (define (a-function x #:keyword [y 0])
   (and (append (car '(1 2 3))))
   (regexp-match? #rx"foobar" "foobar")

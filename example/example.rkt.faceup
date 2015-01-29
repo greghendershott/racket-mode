@@ -57,6 +57,19 @@ comment
 
 «x:#;(sexpr comment)»
 
+«m:;; »«x:Nested sexpr comments
+»
+«:racket-paren-face:(»«b:list» «:racket-selfeval-face:2»
+      «x:#;2»«:racket-paren-face:)»
+
+«:racket-paren-face:(»«b:list» «:racket-selfeval-face:1»
+      «x:#;4»
+      «x:#;(3)»«:racket-paren-face:)»
+
+«:racket-paren-face:(»«k:let» «:racket-paren-face:(»«x:#;[x #;1]»
+      «:racket-paren-face:[»y «:racket-selfeval-face:2»«:racket-paren-face:])»
+  y«:racket-paren-face:)»
+
 «:racket-paren-face:(»«k:define» «:racket-paren-face:(»«f:a-function» x «:racket-keyword-argument-face:#:keyword» «:racket-paren-face:[»y «:racket-selfeval-face:0»«:racket-paren-face:])»
   «:racket-paren-face:(»«k:and» «:racket-paren-face:(»«b:append» «:racket-paren-face:(»«b:car» '«:racket-paren-face:(»«:racket-selfeval-face:1» «:racket-selfeval-face:2» «:racket-selfeval-face:3»«:racket-paren-face:))))»
   «:racket-paren-face:(»«b:regexp-match?» «:racket-selfeval-face:#rx»«s:"foobar"» «s:"foobar"»«:racket-paren-face:)»
