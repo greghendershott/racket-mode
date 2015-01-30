@@ -20,7 +20,14 @@
 
 (defconst racket-font-lock-keywords
   (eval-when-compile
+    ;; Note: font-lock iterates by matcher, doing an re-search-forward
+    ;; over the entire region. As a result, it's faster to consolidate
+    ;; matchers that will yield the same result (unless they need to
+    ;; be tried in a certain order).
     `(
+      ;; paren
+      (,(rx (any "[](){}")) . racket-paren-face)
+
       ;; #lang
       (,(rx (group (group "#lang")
                    (1+ " ")
@@ -32,21 +39,17 @@
       (,(rx "#:" (1+ (or (syntax word) (syntax symbol))))
        . racket-keyword-argument-face)
 
-      ;; symbol
-      (,(rx "'" (1+ (or (syntax word) (syntax symbol))))
+      ;; Various things for racket-selfeval-face
+      (,(rx (or
+             ;; symbol
+             (seq ?' ?| (+? any) ?|)
+             (seq ?' (1+ (or (syntax word) (syntax symbol))))
+             (seq "#\\" (1+ (or (syntax word) (syntax symbol))))))
        . racket-selfeval-face)
-      ;; The '|symbol with spaces case is handed in syntax-propertize
 
-      ;; #rx #px
+      ;; #rx #px. Needs `group'.
       (,(rx (group (or "#rx" "#px")) ?\")
        1 racket-selfeval-face)
-
-      ;; literal char
-      (,(rx "#\\" (1+ (or (syntax word) (syntax symbol))))
-       . racket-selfeval-face)
-
-      ;; paren
-      (,(rx (any "[](){}")) . racket-paren-face)
 
       (,(regexp-opt racket-type-list 'symbols) . font-lock-type-face)
       (,(regexp-opt racket-builtins 'symbols) . font-lock-builtin-face)
@@ -96,64 +99,48 @@
          font-lock-keyword-face)
        nil t)
 
-      ;; #t #f
-      (,(rx (or "#t" "#f")) . racket-selfeval-face)
-
-      ;; From my Pygments lexer (maybe can simplify b/c unlike Pygments
-      ;; we're not lexing for types like int vs. float).
-      ;;
-      ;; Numeric literals including Racket reader hash prefixes.
-      ;; Caveat: None of these regexps attempt to exclude identifiers
-      ;; that start with a number, such as a variable named
-      ;; "100-Continue".
-
-      ;; #d (or no hash prefix)
-      ("\\_<\\(#d\\)?[-+]?[0-9]+\\.[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<\\(#d\\)?[0-9]+e[-+]?[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<\\(#d\\)?[-+]?[0-9]+/[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<\\(#d\\)?[-+]?[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#d[^ ]*\\_>". font-lock-warning-face)
-
-      ;; #x
-      ("\\_<#x[-+]?[0-9a-fA-F]+\\.[0-9a-fA-F]+\\_>" . racket-selfeval-face)
-      ;; the exponent variation (e.g. #x1e1) is N/A
-      ("\\_<#x[-+]?[0-9a-fA-F]+/[0-9a-fA-F]+\\_>" . racket-selfeval-face)
-      ("\\_<#x[-+]?[0-9a-fA-F]+\\_>" . racket-selfeval-face)
-      ("\\_<#x[^ ]*\\_>" . font-lock-warning-face)
-
-      ;; #b
-      ("\\_<#b[-+]?[01]+\\.[01]+\\_>" . racket-selfeval-face)
-      ("\\_<#b[01]+e[-+]?[01]+\\_>" . racket-selfeval-face)
-      ("\\_<#b[-+]?[01]/[01]+\\_>" . racket-selfeval-face)
-      ("\\_<#b[-+]?[01]+\\_>" . racket-selfeval-face)
-      ("\\_<#b[^ ]*\\_>" . font-lock-warning-face)
-
-      ;; #e
-      ("\\_<#e[-+]?[0-9]+\\.[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#e[0-9]+e[-+]?[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#e[-+]?[0-9]+/[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#e[-+]?[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#e[^ ]*\\_>" . font-lock-warning-face)
-
-      ;; #i
-      ("\\_<#i[-+]?[0-9]+\\.[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#i[0-9]+e[-+]?[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#i[-+]?[0-9]+/[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#i[-+]?[0-9]+\\_>" . racket-selfeval-face)
-      ("\\_<#i[^ ]*\\_>" . font-lock-warning-face)
-
-      ;; #o
-      ("\\_<#o[-+]?[0-7]+\\.[0-7]+\\_>" . racket-selfeval-face)
-      ("\\_<#o[0-7]+e[-+]?[0-7]+\\_>" . racket-selfeval-face)
-      ("\\_<#o[-+]?[0-7]+/[0-7]+\\_>" . racket-selfeval-face)
-      ("\\_<#o[-+]?[0-7]+\\_>" . racket-selfeval-face)
-      ("\\_<#o[^ ]*\\_>" . font-lock-warning-face)
-
-      ;; numeric constants
-      (,(regexp-opt '("+inf.0" "-inf.0" "+nan.0") 'symbols)
+      ;; Some self-eval constants
+      (,(regexp-opt '("#t" "#f" "+inf.0" "-inf.0" "+nan.0") 'symbols)
        . racket-selfeval-face)
 
-      ))
+      ;; Numeric literals including Racket reader hash prefixes.
+      (,(rx
+         (seq symbol-start
+              (or
+               ;; #d #e #i or no hash prefix
+               (seq (? "#" (any "dei"))
+                    (or (seq (? (any "-+"))
+                             (1+ digit)
+                             (? (any "./") (1+ digit)))
+                        (seq (1+ digit)
+                             ?e
+                             (? (any "-+"))
+                             (1+ digit))))
+               ;; #x
+               (seq "#x"
+                    (? (any "-+"))
+                    (1+ hex-digit)
+                    (? (any "./") (1+ hex-digit)))
+               ;; #b
+               (seq "#b"
+                    (or (seq (? (any "-+"))
+                             (1+ (any "01"))
+                             (? (any "./") (1+ (any "01"))))
+                        (seq (1+ (any "01"))
+                             ?e
+                             (? (any "-+"))
+                             (1+ (any "01")))))
+               ;; #o
+               (seq "#o"
+                    (or (seq (? (any "-+"))
+                             (1+ (any "0-7"))
+                             (? (any "./") (1+ (any "0-7"))))
+                        (seq (1+ (any "0-7"))
+                             ?e
+                             (? (any "-+"))
+                             (1+ (any "0-7"))))))
+              symbol-end))
+       . racket-selfeval-face)))
     "Font lock keywords for Racket mode")
 
 (provide 'racket-font-lock)

@@ -72,7 +72,7 @@
     (modify-syntax-entry ?\; "< 2 " st) ;; both line ; and sexp #;
     (modify-syntax-entry ?\n ">   " st)
     (modify-syntax-entry ?#  "w 14" st)
-    (modify-syntax-entry ?\| "_ 23bn" st)
+    (modify-syntax-entry ?|  "_ 23bn" st)
 
     st))
 
@@ -85,17 +85,15 @@
    ((rx "#;")
     (0 (ignore (racket--syntax-propertize-sexp-comment))))
    ;; Treat #px"" and #rx"" as single sexpr for navigation and indent.
-   ((rx (group (or "#px" "#rx"))
-        (group "\"")
-        (group (zero-or-more (not (any "\""))))
-        (group "\""))
-    (1 "'")
-    (2 "\"")
-    (3 (ignore))
-    (4 "\""))
-   ;; Handle '|symbol with spaces|
-   ((rx ?' ?| (*? any) ?|)
-    (0 (ignore (racket--syntax-propertize-bar-symbol))))))
+   ((rx (group ?# (or "px" "rx"))
+        ?\"
+        (* (or (not (any ?\"))
+               (seq ?\\ ?\")))
+        ?\")
+    (1 "'"))
+   ;; Treat '|symbol with spaces| as all word syntax for nav
+   ((rx ?' ?| (+? any) ?|)
+    (0 "w"))))
 
 (defconst racket--sexp-comment-syntax-table
   (let ((st (make-syntax-table racket-mode-syntax-table)))
@@ -129,15 +127,6 @@
                              ;; 12 = comment-end. nil = no matching-char.
                              '(12 . nil)))))))
 
-(defun racket--syntax-propertize-bar-symbol ()
-  (let* ((beg (match-beginning 0))
-         (end (match-end 0))
-         (state (save-excursion (save-match-data (syntax-ppss beg)))))
-    (unless (or (nth 3 state)           ;in a string
-                (nth 4 state))          ;in a comment
-      (put-text-property beg end 'syntax-table '(3 . nil))
-      (put-text-property beg end 'face 'racket-selfeval-face))))
-
 (defun racket--variables-for-both-modes ()
   ;;; Syntax and font-lock stuff.
   (set-syntax-table racket-mode-syntax-table)
@@ -151,8 +140,7 @@
                 beginning-of-defun             ;syntax-begin
                 ;; Additional variables:
                 (font-lock-mark-block-function . mark-defun)
-                (parse-sexp-lookup-properties . t)
-                (font-lock-extra-managed-props syntax-table)))
+                (parse-sexp-lookup-properties . t)))
   ;; -----------------------------------------------------------------
   ;; Comments. Borrowed from lisp-mode
   (setq-local comment-start ";")
