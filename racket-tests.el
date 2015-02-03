@@ -40,7 +40,9 @@
 (defun racket-tests/same-indent (file)
   (with-current-buffer (find-file (concat racket-tests/here-dir file))
     (indent-region (point-min) (point-max))
-    (not (buffer-modified-p))))
+    (let ((ok (not (buffer-modified-p))))
+      (revert-buffer t t t)  ;revert in case running ERT interactively
+      ok)))
 
 (ert-deftest racket-tests/indent-rkt ()
   "Indentation of example/*.rkt shouldn't change."

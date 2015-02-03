@@ -1,5 +1,8 @@
 ;; -*- racket-indent-sequence-depth: 100; racket-indent-curly-as-sequence: t; -*-
 
+;;; NOTE: After changing this file you will need to M-x faceup-write-file
+;;; to regenerate the .faceup test comparison file.
+
 ;;; Quoted list
 
 '(a b
@@ -85,6 +88,13 @@
  b
  c)
 
+(call-with-values (lambda () (values 1 2))
+                  +)
+
+(call-with-values
+ (lambda () (values 1 2))
+ +)
+
 ;;; Forms with special indentation
 
 (let ([x 0])
@@ -125,7 +135,7 @@
 (with-handlers ([x y])
   a b c)
 
-;; define and other 'defun style
+;; def, with-, call-with- and other 'defun style
 
 (define (x) x x
   x)
@@ -135,6 +145,13 @@
 
 (match-define (list x y)
   (list 1 2))
+
+(with-output-to-file path #:mode 'text #:exists 'replace
+  (λ () (display "Hello, world.")))
+
+(call-with-output-file path #:mode 'text #:exists 'replace
+  (λ (out) (display "Hello, world." out)))
+
 
 ;;; Bug #50
 

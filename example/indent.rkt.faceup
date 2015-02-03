@@ -1,5 +1,8 @@
 «m:;; »«x:-*- racket-indent-sequence-depth: 100; racket-indent-curly-as-sequence: t; -*-
 »
+«m:;;; »«x:NOTE: After changing this file you will need to M-x faceup-write-file
+»«m:;;; »«x:to regenerate the .faceup test comparison file.
+»
 «m:;;; »«x:Quoted list
 »
 '«:racket-paren-face:(»a b
@@ -85,6 +88,13 @@
  b
  c«:racket-paren-face:)»
 
+«:racket-paren-face:(»«b:call-with-values» «:racket-paren-face:(»«k:lambda» «:racket-paren-face:()» «:racket-paren-face:(»«b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:))»
+                  «b:+»«:racket-paren-face:)»
+
+«:racket-paren-face:(»«b:call-with-values»
+ «:racket-paren-face:(»«k:lambda» «:racket-paren-face:()» «:racket-paren-face:(»«b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:))»
+ «b:+»«:racket-paren-face:)»
+
 «m:;;; »«x:Forms with special indentation
 »
 «:racket-paren-face:(»«k:let» «:racket-paren-face:([»x «:racket-selfeval-face:0»«:racket-paren-face:])»
@@ -125,7 +135,7 @@
 «:racket-paren-face:(»«k:with-handlers» «:racket-paren-face:([»x y«:racket-paren-face:])»
   a b c«:racket-paren-face:)»
 
-«m:;; »«x:define and other 'defun style
+«m:;; »«x:def, with-, call-with- and other 'defun style
 »
 «:racket-paren-face:(»«k:define» «:racket-paren-face:(»«f:x»«:racket-paren-face:)» x x
   x«:racket-paren-face:)»
@@ -135,6 +145,13 @@
 
 «:racket-paren-face:(»«b:match-define» «:racket-paren-face:(»«b:list» x y«:racket-paren-face:)»
   «:racket-paren-face:(»«b:list» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:))»
+
+«:racket-paren-face:(»«b:with-output-to-file» path «:racket-keyword-argument-face:#:mode» «:racket-selfeval-face:'text» «:racket-keyword-argument-face:#:exists» «:racket-selfeval-face:'replace»
+  «:racket-paren-face:(»«k:λ» «:racket-paren-face:()» «:racket-paren-face:(»«b:display» «s:"Hello, world."»«:racket-paren-face:)))»
+
+«:racket-paren-face:(»«b:call-with-output-file» path «:racket-keyword-argument-face:#:mode» «:racket-selfeval-face:'text» «:racket-keyword-argument-face:#:exists» «:racket-selfeval-face:'replace»
+  «:racket-paren-face:(»«k:λ» «:racket-paren-face:(»out«:racket-paren-face:)» «:racket-paren-face:(»«b:display» «s:"Hello, world."» out«:racket-paren-face:)))»
+
 
 «m:;;; »«x:Bug #50
 »

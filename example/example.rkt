@@ -1,5 +1,8 @@
 ;; -*- racket-indent-sequence-depth: 100; racket-indent-curly-as-sequence: t; -*-
 
+;;; NOTE: After changing this file you will need to M-x faceup-write-file
+;;; to regenerate the .faceup test comparison file.
+
 #lang racket
 
 (require xml)

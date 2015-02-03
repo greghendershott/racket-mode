@@ -248,14 +248,23 @@ A few notes:
 
 ## Indentation
 
-racket-mode includes indentation settings for many Racket built-in
-functions and forms. To customize these further, you can use Elisp to
-`(put <symbol> 'racket-indent-function <n>)`, where `<symbol>` is the
-name of the Racket form (e.g. `'test-case`) and `n` is an integer. The
-meaning of `n` is the same as for `lisp-indent-function` and
-`scheme-indent-function`: Indent the first `n` arguments specially
-(like ordinary function arguments), and then indent any further
-arguments like a body.
+With respect to indentation, racket-mode:
+
+* Automatically indents forms that start with `begin` in the usual
+  way that `begin` is indented.
+
+* Automatically indents forms that start with `def` or `with-` in the
+  usual way that `define` is indented.
+
+* Has rules for many specific standard Racket forms.
+
+To extend, use your Emacs init file to `(put SYMBOL
+'racket-indent-function INDENT)`, where `SYMBOL` is the name of the
+Racket form (e.g. `'test-case`) and `INDENT` is an integer or the
+symbol `'defun`. When `INDENT` is an integer, the meaning is the same
+as for `lisp-indent-function` and `scheme-indent-function`: Indent the
+first `n` arguments specially and then indent any further arguments
+like a body.
 
 For example in your `.emacs` file you could use:
 
@@ -278,16 +287,6 @@ to this:
   blah
   blah)
 ```
-
-Also:
-
-* racket-mode uses a special indentation for forms starting with "def"
-  and "with".
-
-* racket-mode first looks for a property on `racket-indent-function`;
-  if none is found, it checks `scheme-indent-function`. That way you
-  can use custom indents you may have already defined for use with
-  scheme-mode.
 
 ## Background/Motivation
 

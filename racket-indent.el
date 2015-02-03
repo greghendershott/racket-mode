@@ -120,24 +120,17 @@ Lisp function does not specify a special indentation."
           (backward-prefix-chars)
           (current-column))
       (let* ((head (buffer-substring (point) (progn (forward-sexp 1) (point))))
-             (method (or (get (intern-soft head) 'racket-indent-function)
-                         (get (intern-soft head) 'scheme-indent-function))))
+             (method (get (intern-soft head) 'racket-indent-function)))
         (cond ((racket--align-sequence-with-head)
                (goto-char open-pos)
                (1+ (current-column)))
               ((and (null method)
-                    (>= (length head) 5)
-                    (string-match "\\`begin" head))
+                    (string-match (rx bos "begin") head))
                (racket--indent-specform 0 state indent-point normal-indent))
               ((or (eq method 'defun)
                    (and (null method)
-                        (>= (length head) 3)
-                        (string-match "\\`def" head)))
+                        (string-match (rx bos (or "def" "with-")) head)))
                (lisp-indent-defform state indent-point))
-              ((and (null method)
-                    (> (length head) 5)
-                    (string-match "\\`with-" head))
-               (racket--indent-specform 1 state indent-point normal-indent))
               ((integerp method)
                (racket--indent-specform method state indent-point normal-indent))
               (method
@@ -297,8 +290,8 @@ for/fold and for*/fold."
 Note that `beg*`, `def*` and `with-*` aren't listed here because
 `racket-indent-function' handles those.
 
-Note that indentation is set for the symbol alone, and also
-with : appended, for Typed Racket. For example both `let` and
+Note that indentation is set for the symbol alone, and also with
+a : suffix for legacy Typed Racket. For example both `let` and
 `let:`. Although this is overzealous in the sense that Typed
 Racket does not define its own variant of all of these, it
 doesn't hurt to do so."
@@ -310,11 +303,9 @@ doesn't hurt to do so."
           (begin0 1)
           (c-declare 0)
           (c-lambda 2)
-          (call-with-input-file 1)
-          (call-with-input-file* 1)
-          (call-with-semaphore 1)
-          (call-with-output-file 1)
-          (call-with-values 1)
+          (call-with-input-file defun)
+          (call-with-output-file defun)
+          (call-with-output-file* defun)
           (case 1)
           (case-lambda 0)
           (catch 1)
