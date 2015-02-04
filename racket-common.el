@@ -298,6 +298,10 @@
                          "letrec-syntaxes"
                          "letrec-syntaxes+values"
                          "letrec-values"
+                         "match-let"
+                         "match-let-values"
+                         "match-let*-values"
+                         "match-letrec"
                          "parameterize"
                          "parameterize*"
                          "with-handlers"
@@ -310,14 +314,17 @@
       ;; Note: Previous item handles the first, accumulators subform.
       (0 2 ,(rx (seq (or "for/fold"
                          "for*/fold")
-                     (or space line-end))))))
+                     (or space line-end))))
+      ;; named-let bindings
+      ;;
+      (0 2 ,(rx (seq "let" (1+ whitespace) (1+ (not (in "()[]{}\",'`;#|\" "))))))))
   "A list of lists. Each sub list is arguments to supply to
   `racket--smart-open-bracket-helper'.")
 
 (defun racket--smart-open-bracket-helper (pre-backward-sexps
                                           post-backward-sexps
                                           regexp)
-"Is point is a subform (of a known form REGEXP) that should open with '['.
+  "Is point is a subform (of a known form REGEXP) that should open with '['.
 
 Returns \"[\" or nil."
   (and (save-excursion
