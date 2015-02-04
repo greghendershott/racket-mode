@@ -83,6 +83,11 @@ ii) if that property specifies a function, it is called with three
 arguments (not two), the third argument being the default (i.e., current)
 indentation.
 
+iii) there is special handling for:
+  - forms that begin with a #:keyword
+  - sequence literals when `racket-indent-sequence-depth' is > 0
+  - {} forms when `racket-indent-curly-as-sequence'
+
 The function `calculate-lisp-indent' calls this to determine
 if the arguments of a Lisp function call should be indented specially.
 
@@ -90,17 +95,19 @@ INDENT-POINT is the position at which the line being indented begins.
 Point is located at the point to indent under (for default indentation);
 STATE is the `parse-partial-sexp' state for that position.
 
-If the current line is in a call to a Lisp function that has a non-nil
+If the current line is in a call to a Lisp form that has a non-nil
 property `racket-indent-function' it specifies how to indent.  The property
 value can be:
 
 * `defun', meaning indent `defun'-style
-  \(this is also the case if there is no property and the function
-  has a name that begins with \"def\", and three or more arguments);
+  \(this is also the case if there is no property and the form
+  has a name that begins with \"def\" or \"with-\");
 
 * an integer N, meaning indent the first N arguments specially
-  (like ordinary function arguments), and then indent any further
-  arguments like a body;
+  \(like ordinary function arguments), and then indent any further
+  arguments like a body
+  \(a value of 0 is used if there is no property and the form
+  has a name that begins with \"begin\");
 
 * a function to call that returns the indentation (or nil).
   `lisp-indent-function' calls this function with the same two arguments
@@ -176,20 +183,14 @@ To handle nested items, search `backward-up-list' up to
            (error nil)))))
 
 (defun racket--indent-specform (count state indent-point normal-indent)
-  "This is like `lisp-indent-specform' but fixes bug #50.
-
-To find last form, COUNT is decremented -- and it can go negative
-when there is more than one form per line. In that case
-`lisp-indent-specform' returns NORMAL-INDENT instead of body
-indent. Often they're the same and it doesn't matter, but they
-differ in the bug #50 examples."
+  "This is like `lisp-indent-specform' but fixes bug #50."
   (let ((containing-form-start (elt state 1))
         (orig-count count))
-    ;; Move to the start of containing form, calculate indentation
-    ;; to use for non-distinguished forms (> count), and move past the
-    ;; function symbol.  lisp-indent-function guarantees that there is at
-    ;; least one word or symbol character following open paren of containing
-    ;; form.
+    ;; Move to the start of containing form, calculate indentation to
+    ;; use for non-distinguished forms (> count), and move past the
+    ;; function symbol. `lisp-indent-function' guarantees that there
+    ;; is at least one word or symbol character following open paren
+    ;; of containing form.
     (goto-char containing-form-start)
     (let* ((containing-form-column (current-column))
            (body-indent (+ lisp-body-indent containing-form-column))
@@ -204,7 +205,11 @@ differ in the bug #50 examples."
                         (setq count (1- count))
                         (forward-sexp 1)
                         (parse-partial-sexp (point) indent-point 1 t)
-                        (when (zerop count) ;the 1st non-distuished form
+                        ;; Remember column of first non-distinguished
+                        ;; form -- provided it's the first form on
+                        ;; the line.
+                        (when (and (zerop count)
+                                   (looking-back (rx bol (* (syntax whitespace)))))
                           (setq non-distinguished-column (current-column)))
                         t)
                     (error nil))))

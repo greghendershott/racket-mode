@@ -100,7 +100,24 @@
 (let ([x 0])
   x)
 
+;; indent 2
+
 (syntax-case stx ()
+  [(_ x) #'#f]
+  [(_ x y) #'#t])
+
+;; indent 3
+
+(syntax-case* stx () x
+  [(_ x) #'#f]
+  [(_ x y) #'#t])
+
+(syntax-case*
+    stx
+    (module #%module-begin define-values define-syntaxes
+            define define/contract
+            define-syntax struct define-struct)
+    x
   [(_ x) #'#f]
   [(_ x y) #'#t])
 
@@ -152,6 +169,32 @@
 (call-with-output-file path #:mode 'text #:exists 'replace
   (λ (out) (display "Hello, world." out)))
 
+
+;;; Special forms: When the first non-distinguished form is on the
+;;; same line as distinguished forms, disregard it for indent.
+
+;; module has indent 2
+
+(module 1
+    2
+  3
+  4
+  5)
+
+;; Normal case
+(module 1 2
+  3
+  4
+  5)
+
+;; Weird case -- but this is how scheme-mode indents it.
+(module 1 2 3
+        4
+        5)
+
+;; Weird case -- but this is how scheme-mode indents it.
+(module 1 2 3 4
+        5)
 
 ;;; Bug #50
 
