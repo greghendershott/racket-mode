@@ -3,7 +3,7 @@
 ;; Copyright (c) 2013-2015 by Greg Hendershott.
 
 ;; Package: racket-mode
-;; Package-Requires: ((emacs "24.3"))
+;; Package-Requires: ((emacs "24.3") (dash "2.10.0") (faceup "0.0.2") (s "1.9.0"))
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
 
@@ -54,6 +54,7 @@ http://www.gnu.org/licenses/ for details.")
 (defvar racket-mode-map
   (racket--easy-keymap-define
    '(("<f5>"        racket-run)
+     ("C-c C-k"     racket-run)
      ("M-C-<f5>"    racket-racket)
      ("C-<f5>"      racket-test)
      ("M-C-x"       racket-send-definition)

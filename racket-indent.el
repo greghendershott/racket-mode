@@ -48,7 +48,43 @@
 
 This behaves like `lisp-indent-line', except that whole-line
 comments are treated the same regardless of whether they start
-with single or double semicolons."
+with single or double semicolons.
+
+- Automatically indents forms that start with `begin` in the usual
+  way that `begin` is indented.
+
+- Automatically indents forms that start with `def` or `with-` in the
+  usual way that `define` is indented.
+
+- Has rules for many specific standard Racket forms.
+
+To extend, use your Emacs init file to
+
+    (put SYMBOL 'racket-indent-function INDENT)
+
+where `SYMBOL` is the name of the Racket form (e.g. `'test-case`)
+and `INDENT` is an integer or the symbol `'defun`. When `INDENT`
+is an integer, the meaning is the same as for
+`lisp-indent-function` and `scheme-indent-function`: Indent the
+first `n` arguments specially and then indent any further
+arguments like a body.
+
+For example in your `.emacs` file you could use:
+
+    (put 'test-case 'racket-indent-function 1)
+
+to change the indent of `test-case` from this:
+
+    (test-case foo
+               blah
+               blah)
+
+to this:
+
+    (test-case foo
+      blah
+      blah)
+"
   (interactive)
   (let ((indent (calculate-lisp-indent))
 	(pos (- (point-max) (point)))

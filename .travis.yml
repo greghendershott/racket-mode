@@ -22,6 +22,7 @@ before_install:
     - sudo apt-get install -qq emacs24 emacs24-el
 
 script:
+    - make deps
     - make compile
     - make test
 

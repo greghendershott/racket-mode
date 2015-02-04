@@ -1,15 +1,18 @@
-(require 'racket-mode)
+;;; racket-tests.el --- Major mode for Racket language.
 
-;; Ensure the faceup package is installed, e.g. on Travis CI.
-(require 'package)
-(add-to-list 'package-archives
-             '("melpa" . "http://melpa.milkbox.net/packages/") t)
-(package-initialize)
-(unless (package-installed-p 'faceup)
-  (condition-case ()
-      (package-install 'faceup)
-    (error (package-refresh-contents)
-           (package-install 'faceup))))
+;; Copyright (c) 2013-2015 by Greg Hendershott.
+
+;; License:
+;; This is free software; you can redistribute it and/or modify it
+;; under the terms of the GNU General Public License as published by
+;; the Free Software Foundation; either version 2, or (at your option)
+;; any later version. This is distributed in the hope that it will be
+;; useful, but without any warranty; without even the implied warranty
+;; of merchantability or fitness for a particular purpose. See the GNU
+;; General Public License for more details. See
+;; http://www.gnu.org/licenses/ for details.
+
+(require 'racket-mode)
 (require 'faceup)
 
 (defconst racket-tests/here-dir (faceup-this-file-directory)
@@ -89,3 +92,5 @@ special forms it handles."
     (should (racket-tests/brackets t   before after))))
 
 (provide 'racket-tests)
+
+;;; racket-tests.el ends here

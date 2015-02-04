@@ -52,8 +52,8 @@
   "Terminate the Racket process if memory use exceeds this value in MB.
 Changes to this value take effect upon the next `racket-run'.
 
-Caveat: This uses Racket's custodian-limit-memory, which doesn't
-enforce the limit exactly. Instead, the program will be
+Caveat: This uses Racket's `custodian-limit-memory`, which does
+not enforce the limit exactly. Instead, the program will be
 terminated upon the first garbage collection where memory exceeds
 the limit (maybe by a significant amount)."
   :tag "Memory Limit"
@@ -121,7 +121,7 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   :group 'racket)
 
 (defcustom racket-indent-curly-as-sequence t
-  "Indent {} with items aligned with the head item?
+  "Indent `{}` with items aligned with the head item?
 This is indirectly disabled if `racket-indent-sequence-depth' is 0.
 This is safe to set as a file-local variable."
   :tag "Indent Curly As Sequence"
@@ -131,12 +131,13 @@ This is safe to set as a file-local variable."
 
 (defcustom racket-indent-sequence-depth 0
   "To what depth should `racket--align-sequence-to-head' search.
-This affects the indentation of forms like '() `() #() -- and {}
-if `racket-indent-curly-as-sequence' is t -- but not #'() #`()
-,() ,@(). A zero value disables, giving the normal indent
-behavior of DrRacket or Emacs `lisp-mode' derived modes like
-`scheme-mode'. Setting this to a high value can make indentation
-noticeably slower. This is safe to set as a file-local variable."
+This affects the indentation of forms like `` '()` `() #() `` --
+and `{}` if `racket-indent-curly-as-sequence' is t -- but not
+`` #'() #`() ,() ,@() ``. A zero value disables, giving the
+normal indent behavior of DrRacket or Emacs `lisp-mode' derived
+modes like `scheme-mode'. Setting this to a high value can make
+indentation noticeably slower. This is safe to set as a
+file-local variable."
   :tag "Indent Sequence Depth"
   :type 'integerp
   :safe #'integerp
@@ -144,14 +145,16 @@ noticeably slower. This is safe to set as a file-local variable."
 
 (defcustom racket-pretty-lambda nil
   "Display lambda keywords using λ. This is deprecated.
-Instead you can insert actual λ characters using \\<racket-mode-map>\\[racket-insert-lambda]."
+Instead you can insert actual λ characters using
+\\<racket-mode-map>\\[racket-insert-lambda]
+`racket-insert-lambda'."
   :tag "Pretty Lambda"
   :type 'boolean
   :safe #'booleanp
   :group 'racket-other)
 
 (defcustom racket-smart-open-bracket-enable nil
-  "Use `racket-smart-open-bracket' when '[' is pressed?"
+  "Use `racket-smart-open-bracket' when `[` is pressed?"
   :tag "Smart Open Bracket Enable"
   :type 'boolean
   :safe #'booleanp
@@ -179,7 +182,7 @@ Instead you can insert actual λ characters using \\<racket-mode-map>\\[racket-i
      (:foreground "IndianRed"))
     (((background light))
      (:foreground "Red3")))
-  "Face for #:keyword arguments."
+  "Face for `#:keyword` arguments."
   :tag "Keyword Argument Face"
   :group 'racket-faces)
 
@@ -187,7 +190,7 @@ Instead you can insert actual λ characters using \\<racket-mode-map>\\[racket-i
 (defface racket-paren-face
   (let ((fg (face-foreground 'default)))
     `((t (:foreground ,fg))))
-  "Face for parentheses () [] {}."
+  "Face for `() [] {}`."
   :tag "Paren Face"
   :group 'racket-faces)
 

@@ -342,9 +342,13 @@ Returns \"[\" or nil."
            (error nil)))))
 
 (defun racket-smart-open-bracket ()
-  "Automatically insert a '(' or a '[' as appropriate.
+  "Automatically insert a `(` or a `[` as appropriate.
 
-By default, inserts a '('. Inserts a '[' in the following cases:
+When `racket-smart-open-bracket-enable' is nil, this simply
+inserts `[`. Otherwise, this behaves like the \"Automatically
+adjust opening square brackets\" feature in Dr. Racket:
+
+By default, inserts a `(`. Inserts a `[` in the following cases:
 
   - `let`-like bindings -- forms with `let` in the name as well
     as things like `parameterize`, `with-handlers`, and
@@ -355,21 +359,17 @@ By default, inserts a '('. Inserts a '[' in the following cases:
 
   - `for`-like bindings and `for/fold` accumulators.
 
-To force insert '[', use `quoted-insert': \\[quoted-insert] [.
-
 When the previous s-expression in a sequence is a compound
 expression, uses the same kind of delimiter.
 
-Combined with `racket-insert-closing-bracket', this means that
-you can press the unshifted '[' and ']' keys to get whatever
-delimiters follow the Racket conventions for these forms. (When
-`paredit-mode' is active, you need not even press ']'; this
-command calls `paredit-open-round' or `paredit-open-square' to
-work as usual.)
+To force insert `[`, use `quoted-insert': \\[quoted-insert] [.
 
-To disable: Customize `racket-smart-open-bracket-enable'. This is
-like the 'Automatically adjust opening square brackets'
-preference in Dr. Racket."
+Combined with `racket-insert-closing-bracket', this means that
+you can press the unshifted `[` and `]` keys to get whatever
+delimiters follow the Racket conventions for these forms. (When
+`paredit-mode' is active, you need not even press `]`. This calls
+`paredit-open-round' or `paredit-open-square' so that paredit
+will work as usual.)"
   (interactive)
   (let ((ch (or (and (not racket-smart-open-bracket-enable) "[")
                 (cl-some (lambda (xs)
@@ -474,7 +474,10 @@ existence using `fboundp'."
 Call `indent-for-tab-command'. If did not change the indentation
 or move point to `beginning-of-line-text', and if point is
 in/after at least 3 word/symbol characters, then call
-`completion-at-point'."
+`completion-at-point'.
+
+Note: Completion only finds symbols in the current namespace. You
+may need to `racket-run' the buffer, first."
   (interactive)
   (let ((pt (point)))
     (indent-for-tab-command)

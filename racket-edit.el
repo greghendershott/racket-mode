@@ -27,7 +27,54 @@
 (require 'hideshow)
 
 (defun racket-run ()
-  "Save and evaluate the buffer in REPL, like DrRacket's Run."
+  "Save and evaluate the buffer in REPL, like DrRacket's Run.
+
+When you run again, the files is evaluated from scratch -- the
+custodian releases resources like threads and the evaluation
+environment is reset to the contents of the file. In other words,
+like DrRacket, this provides the predictability of a \"static\"
+baseline, plus some interactive exploration.
+
+Output in the `*Racket REPL*` buffer that describes a file and
+position is automatically \"linkified\". To visit, move point
+there and press <kdb>RET</kbd>, mouse click, or use a
+Compilation mode command such as \\[next-error] (next error).
+Examples of such text include:
+
+- Racket error messages.
+- `rackunit` test failure location messages.
+- `print`s of `#<path>` objects.
+
+In the `*Racket REPL*` buffer you can issue some special
+commands. Some of them are the foundation for Emacs commands.
+Others are available only as a command in the REPL.
+
+- `,help`: See these commands.
+
+- `,top`: Reset the REPL to \"no file\" (i.e. a base namespace).
+
+- `,run <file>`: Run the file. What `racket-run' uses. Either
+  `\"file.rkt\"` is `file.rkt` OK.
+
+- `,doc <symbol-or-string>`: Look for `<symbol-or-string>` in
+  Racket's documentation. What `racket-doc' uses.
+
+- `,cd`, `,pwd`: Change and show [`current-directory`].
+
+- `,log` controls the log output level, overall, as well as for
+  specific named loggers created with [`define-logger`].
+
+    - `,log`: Show the current levels.
+
+    - `,log <logger> <level>`: Set a logger to show at least level
+      `none`, `fatal`, `error`, `warning`, `info`, or `debug`.
+
+    - `,log <logger> <level>`: Set a logger to use the default
+      level.
+
+    - `,log <level>`: Set the default level for all other loggers
+      not specified individually.
+"
   (interactive)
   (save-buffer)
   (racket--invalidate-completion-cache)
@@ -38,14 +85,19 @@
                         racket-pretty-print)))
 
 (defun racket-racket ()
-  "Do `racket <file>` in *shell* buffer."
+  "Do `racket <file>` in `*shell*` buffer."
   (interactive)
   (racket--shell (concat racket-racket-program
                          " "
                          (racket--quoted-buffer-file-name))))
 
 (defun racket-test ()
-  "Do (require (submod \".\" test)) in *racket* buffer."
+  "Do `(require (submod \".\" test))` in `*racket*` buffer.
+
+See also:
+- `racket-fold-all-tests'
+- `racket-unfold-all-tests'
+"
   (interactive)
   (racket-run) ;start fresh, so (require) will have an effect
   (racket--eval
@@ -56,7 +108,7 @@
              (flush-output (current-output-port))))))
 
 (defun racket-raco-test ()
-  "Do `raco test -x <file>` in *shell* buffer.
+  "Do `raco test -x <file>` in `*shell*` buffer.
 To run <file>'s `test` submodule."
   (interactive)
   (racket--shell (concat racket-raco-program
@@ -66,12 +118,17 @@ To run <file>'s `test` submodule."
 (defun racket-visit-definition (&optional prefix)
   "Visit definition of symbol at point.
 
-Note: Only works if you've `racket-run' the buffer so that its
-namespace is active.
+Use \\[racket-unvisit] to return.
+
+Note: Only finds symbols defined in the current namespace. You
+may need to invoke `racket-run' on the current buffer, first.
 
 Note: Only visits the definition of module level identifiers (i.e.
 things for which Racket's `identifier-binding` function returns a
-list, as opposed to 'lexical)."
+list, as opposed to `'lexical`).
+
+Note: If the definition is from Racket's `#%kernel` module, it
+will tell you so but won't visit the definition site."
   (interactive "P")
   (let ((sym (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")))
     (when sym
@@ -106,7 +163,9 @@ list, as opposed to 'lexical)."
 (defun racket-visit-module (&optional prefix)
   "Visit definition of module at point, e.g. net/url or \"file.rkt\".
 
-Only works if you've `racket-run' the buffer so that its
+Use \\[racket-unvisit] to return.
+
+Note: Only works if you've `racket-run' the buffer so that its
 namespace is active.
 
 See also: `racket-find-collection'."
@@ -120,6 +179,8 @@ See also: `racket-find-collection'."
 
 (defun racket-doc (&optional prefix)
   "View documentation of the identifier or string at point.
+
+Uses the default external web browser.
 
 If point is an identifier required in the current namespace that
 has help, opens the web browser directly at that help
@@ -157,6 +218,28 @@ instead of looking at point."
 ;;; racket-describe-mode
 
 (defun racket-describe (&optional prefix)
+"Describes the function at point in a `*Racket Describe*` buffer.
+
+The intent is to give a quick reminder or introduction to a
+function, regardless of whether it has installed documentation --
+and to do so within Emacs, without switching to a web browser
+window.
+
+This buffer is also displayed when you use company-mode and press
+<kbd>C-h</kbd> in the pop up completion list.
+
+- If the function has installed Racket documentation, then a
+  simplified version of the HTML is presented in the buffer,
+  including the \"blue box\", documentation prose, and examples.
+
+- Otherwise, the function's signature -- e.g. `(name arg-1-name
+  arg-2-name)` is displayed. If the function has a Typed Racket
+  type, or has a contract, then that is also displayed.
+
+You can quit the buffer by pressing <kbd>q</kbd>. Also, at the
+bottom of the buffer are Emacs buttons (which you may navigate among
+using <kbd>TAB</kbd> for visiting the definition or opening the full
+browser documentation (if any)."
   (interactive "P")
   (let ((sym (racket--symbol-at-point-or-prompt prefix "Describe: ")))
     (when sym
