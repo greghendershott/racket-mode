@@ -1,12 +1,36 @@
 # Contributors
 
-Thanks to the following contributors:
+Thanks to the following contributors.
+
+## Pull Requests
 
 - [@antoineB](https://github.com/antoineB)
 - [@zenspider](https://github.com/zenspider)
 - [@mswift42](https://github.com/mswift42)
 - [@yasuyk](https://github.com/yasuyk)
 - [@purcell](https://github.com/purcell)
+- [@DonRyuDragoni](https://github.com/DonRyuDragoni)
+- [@tonyg](https://github.com/tonyg)
+- [@3rdLaw](https://github.com/3rdLaw)
+- [@syohex](https://github.com/syohex)
+
+## Issues
+
+- [@philnguyen](https://github.com/philnguyen)
+- [@jasonhemann](https://github.com/jasonhemann)
+- [@mattearnshaw](https://github.com/mattearnshaw)
+- [@stamourv](https://github.com/stamourv)
+- [@samth](https://github.com/samth)
+- [@egreglee](https://github.com/egreglee)
+- [@dented42](https://github.com/dented42)
+- [@JohnGurin](https://github.com/JohnGurin)
+- [@daFlyingDutchman](https://github.com/daFlyingDutchman)
+- [@technomancy](https://github.com/technomancy)
+- [@florence](https://github.com/florence)
+- [@gozes](https://github.com/gozes)
+- [@acarrico](https://github.com/acarrico)
+- [@bremner](https://github.com/bremner)
+- [@stchang](https://github.com/stchang)
 
 # Acknowledgements
 
