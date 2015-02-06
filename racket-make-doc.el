@@ -1,4 +1,3 @@
-;; -*- lexical: t; -*-
 ;;; racket-make-doc.el --- Major mode for Racket language.
 
 ;; Copyright (c) 2013-2015 by Greg Hendershott.
