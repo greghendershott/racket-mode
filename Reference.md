@@ -4,7 +4,7 @@
     - [Run](#run)
     - [Test](#test)
     - [Eval](#eval)
-    - [Find code](#find-code)
+    - [Visit](#visit)
     - [Learn](#learn)
     - [Edit](#edit)
     - [Macro expand](#macro-expand)
@@ -110,7 +110,7 @@ Send the current definition to the Racket REPL.
 
 Send the previous sexp to the Racket REPL.
 
-## Find code
+## Visit
 
 ### racket-visit-definition
 <kbd>M-.</kbd>

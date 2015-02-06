@@ -56,7 +56,7 @@
     racket-send-region
     racket-send-definition
     racket-send-last-sexp
-    "Find code"
+    "Visit"
     racket-visit-definition
     racket-visit-module
     racket-unvisit
