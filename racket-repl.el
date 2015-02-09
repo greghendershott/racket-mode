@@ -38,6 +38,7 @@
    '(("RET"             racket-repl-eval-or-newline-and-indent)
      ("TAB"             racket-indent-or-complete)
      ("M-C-u"           racket-backward-up-list)
+     ("C-a"             comint-bol)
      ("C-w"             comint-kill-region)
      ("[C-S-backspace]" comint-kill-whole-line)
      ("["               racket-smart-open-bracket)
