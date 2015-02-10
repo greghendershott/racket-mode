@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require macro-debugger/analysis/check-requires
+(require help/help-utils
+         macro-debugger/analysis/check-requires
          racket/contract
          racket/file
          racket/format
@@ -245,12 +246,8 @@
 ;;; misc
 
 (define (doc stx)
-  (eval
-   (namespace-syntax-introduce
-    (datum->syntax #f
-                   `(begin
-                     (local-require racket/help)
-                     (help ,stx))))))
+  (cond [(identifier? stx) (find-help (namespace-syntax-introduce stx))]
+        [else              (search-for (list (~a (syntax->datum stx))))]))
 
 (define (cd s)
   (let ([old-wd (current-directory)])
