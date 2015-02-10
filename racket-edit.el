@@ -56,6 +56,11 @@ Others are available only as a command in the REPL.
 - `,run <file>`: Run the file. What `racket-run' uses. Either
   `\"file.rkt\"` is `file.rkt` OK.
 
+- `,exit`: Exit Racket. Handy in a `#lang` like r5rs where the
+  `exit` procedure is not available. (Regardless of how Racket
+  exits, the `*Racket REPL*` buffer is not killed and is reused
+  if you `racket-run' again.)
+
 - `,doc <symbol-or-string>`: Look for `<symbol-or-string>` in
   Racket's documentation. What `racket-doc' uses.
 

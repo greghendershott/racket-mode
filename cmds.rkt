@@ -67,6 +67,7 @@
    "Commands:
 ,run </path/to/file.rkt> [<memory-limit-MB> [<pretty-print?>]]
 ,top [<memory-limit-MB>]
+,exit
 ,def <identifier>
 ,type <identifier>
 ,doc <identifier>|<string>
