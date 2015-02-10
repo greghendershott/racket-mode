@@ -58,6 +58,7 @@
            [(requires/trim) (requires/trim (read) (read))]
            [(requires/base) (requires/base (read) (read))]
            [(find-collection) (find-collection (read))]
+           [(exit) (exit)]
            [else (usage)])]
         [_ stx]))))
 
