@@ -49,6 +49,7 @@ http://www.gnu.org/licenses/ for details.")
 (require 'racket-repl)
 (require 'racket-collection)
 (require 'racket-util)
+(require 'racket-pcomplete)
 (require 'easymenu)
 
 (defvar racket-mode-map
