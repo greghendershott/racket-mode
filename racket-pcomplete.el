@@ -448,7 +448,6 @@
   (cons "--help" (cadr (assoc command racket--raco-pkg-command-options))))
 
 ;; TODO raco-planet-options
-;; TODO pcomplete/racket
 
 ;;;###autoload
 (defun pcomplete/raco ()
@@ -469,6 +468,72 @@
                  (member subcommand racket--raco-pkg-commands))
         (when (pcomplete-match "^-" 0)
           (pcomplete-here (racket--raco-pkg-get-options subcommand)))))
+    (pcomplete-here (pcomplete-entries))))
+
+
+(defconst racket--racket-options '("-e"
+                                   "--eval"
+                                   "-f"
+                                   "--load"
+                                   "-t"
+                                   "--require"
+                                   "-l"
+                                   "--lib"
+                                   "-p"
+                                   "-r"
+                                   "--script"
+                                   "-u"
+                                   "--require-script"
+                                   "-k"
+                                   "-m"
+                                   "--main"
+                                   "-i"
+                                   "--repl"
+                                   "-n"
+                                   "--no-lib"
+                                   "-v"
+                                   "--version"
+                                   "-V"
+                                   "--no-yield"
+                                   "-c"
+                                   "--no-compiled"
+                                   "-q"
+                                   "--no-init-file"
+                                   "-I"
+                                   "-X"
+                                   "--collects"
+                                   "-S"
+                                   "--search"
+                                   "-G"
+                                   "--config"
+                                   "-A"
+                                   "--addon"
+                                   "-R"
+                                   "--compiled"
+                                   "-U"
+                                   "--no-user-path"
+                                   "-N"
+                                   "--name"
+                                   "-j"
+                                   "--no-jit"
+                                   "-d"
+                                   "--no-delay"
+                                   "-b"
+                                   "--binary"
+                                   "-W"
+                                   "--warn"
+                                   "-L"
+                                   "--syslog"
+                                   "-h"
+                                   "--help")
+  "List of options for racket.")
+
+;;;###autoload
+(defun pcomplete/racket ()
+  (let ((command (nth 1 pcomplete-args)))
+    (while
+        (when (pcomplete-match "^-" 0)
+          (pcomplete-here* racket--racket-options)))
     (pcomplete-here (pcomplete-entries))))
 
 (provide 'racket-pcomplete)
