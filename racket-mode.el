@@ -161,6 +161,10 @@ http://www.gnu.org/licenses/ for details.")
                 ("\\.rktd\\'" . racket-mode))
               auto-mode-alist))
 
+;;;###autoload
+(add-to-list 'interpreter-mode-alist
+             '("racket" . racket-mode))
+
 (provide 'racket-mode)
 
 ;;; racket-mode.el ends here

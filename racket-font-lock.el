@@ -28,6 +28,9 @@
       ;; paren
       (,(rx (any "[](){}")) . racket-paren-face)
 
+      ;; #shebang
+      (,(rx bol "#!" (+ nonl) eol) . font-lock-comment-face)
+
       ;; #lang
       (,(rx (group (group "#lang")
                    (1+ " ")
