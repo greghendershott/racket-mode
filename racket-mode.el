@@ -145,6 +145,35 @@ http://www.gnu.org/licenses/ for details.")
   (set (make-local-variable 'imenu-syntax-alist)
        '(("+-*/.<>=?!$%_&~^:" . "w"))))
 
+
+(when (require 'helm nil 't)
+
+  (when (fboundp 'helm-candidate-buffer)
+    (defun racket-helm-apropos-init ()
+      (with-current-buffer (helm-candidate-buffer 'global)
+	(dolist (elem (racket--eval/sexpr ",apropos"))
+	  (insert (car elem) "\n")))))
+
+  (defun racket-helm-apropos-match-part (candidate)
+    candidate)
+
+  (defun racket-helm-apropos-action (candidate)
+    (racket--do-describe candidate t))
+
+  (defvar helm-source-racket-apropos
+    '((name . "Search throught racket defining symbol")
+      (init . racket-helm-apropos-init)
+      (candidates-in-buffer)
+      (get-line . buffer-substring)
+      (match-part . racket-helm-apropos-match-part)
+      (action . racket-helm-apropos-action)))
+
+  (when (fboundp 'helm)
+    (defun racket-helm-apropos ()
+      "Equivalent of helm-apropos but for the racket installed documentation"
+      (interactive)
+      (helm :sources 'helm-source-racket-apropos :buffer "*helm racket apropos*"))))
+
 ;;;###autoload
 (define-derived-mode racket-mode prog-mode
   "Racket"

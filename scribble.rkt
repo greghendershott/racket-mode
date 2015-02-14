@@ -1,13 +1,19 @@
 #lang racket/base
 
 (require racket/file
+         racket/list
          racket/match
          scribble/xref
          setup/xref
          (only-in xml xml->xexpr element xexpr->string)
          (only-in html read-html-as-xml))
 
-(provide scribble-doc/html)
+(provide scribble-doc/html
+         scribble-decl-list)
+
+(define (scribble-decl-list)
+  (define xref (load-collections-xref))
+  (map entry-words (xref-index xref)))
 
 (module+ test
   (require rackunit))

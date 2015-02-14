@@ -41,6 +41,7 @@
         [(uq cmd)
          (eq? 'unquote (syntax-e #'uq))
          (case (syntax-e #'cmd)
+           [(apropos) (elisp-println (scribble-decl-list))]
            [(run) (run put/stop rerun)]
            [(top) (top put/stop rerun)]
            [(def) (def (read))]
