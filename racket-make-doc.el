@@ -16,6 +16,7 @@
 
 (require 'racket-mode)
 (require 'racket-profile)
+(require 'racket-edit)
 (require 'dash)
 (require 's)
 
@@ -79,6 +80,7 @@
     racket-smart-open-bracket
     racket-cycle-paren-shapes
     racket-backward-up-list
+    racket-check-syntax-mode
     "Macro expand"
     racket-expand-region
     racket-expand-definition

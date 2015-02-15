@@ -203,6 +203,22 @@ Instead you can insert actual λ characters using
   :group 'faces
   :group 'racket)
 
+(defconst racket-check-syntax-def-face 'racket-check-syntax-def-face)
+(defface racket-check-syntax-def-face
+  '((t
+     (:foreground "Black" :background "SeaGreen1" :weight bold)))
+  "Face `racket-check-syntax' uses to highlight definitions."
+  :tag "Check Syntax Def Face"
+  :group 'racket-faces)
+
+(defconst racket-check-syntax-use-face 'racket-check-syntax-use-face)
+(defface racket-check-syntax-use-face
+  '((t
+     (:foreground "Black" :background "PaleGreen1" :slant italic)))
+  "Face `racket-check-syntax' uses to highlight uses."
+  :tag "Check Syntax Use Face"
+  :group 'racket-faces)
+
 (defconst racket-keyword-argument-face 'racket-keyword-argument-face)
 (defface racket-keyword-argument-face
   '((((background dark))
@@ -228,7 +244,6 @@ Instead you can insert actual λ characters using
   "Face for self-evaluating expressions like numbers, symbols, strings."
   :tag "Selfeval Face"
   :group 'racket-faces)
-
 
 ;; racket-custom.el ends here
 

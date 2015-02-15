@@ -8,7 +8,7 @@ default:
 	@echo Try \'make help\'
 
 help:
-	@echo "Targets: clean, compile, test, test-racket, test-elisp"
+	@echo "Targets: clean, compile, deps, doc, test, test-racket, test-elisp"
 
 clean:
 	-rm *.elc
