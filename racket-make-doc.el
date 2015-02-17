@@ -15,6 +15,7 @@
 ;;; Generate a markdown format file for Reference documentation.
 
 (require 'racket-mode)
+(require 'racket-profile)
 (require 'dash)
 (require 's)
 
@@ -49,6 +50,7 @@
   '("Run"
     racket-run
     racket-racket
+    racket-profile
     "Test"
     racket-test
     racket-raco-test
@@ -132,6 +134,7 @@
     racket-racket-program
     racket-raco-program
     racket-memory-limit
+    racket-error-context
     "REPL"
     racket-history-filter-regexp
     racket-images-inline

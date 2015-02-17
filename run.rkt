@@ -1,25 +1,38 @@
 #lang racket/base
 
-(require racket/match
+(require errortrace/errortrace-lib
+         racket/cmdline
+         racket/match
          racket/runtime-path
          racket/pretty
+         "channel.rkt"
          "cmds.rkt"
          "error.rkt"
          "gui.rkt"
          "logger.rkt"
+         "older-racket.rkt"
          "util.rkt")
 
+;; This is a horrible hack to work around the horrible fact that
+;; errortrace-lib does not provide the `execute-info` hash (like it
+;; does provide `test-coverage-info`) which must be emptied between
+;; runs.
+(require (only-in rackunit require/expose))
+(require/expose errortrace/errortrace-lib (execute-info))
+
 (module+ main
+  (command-line #:args (command-output-file)
+                (current-command-output-file command-output-file))
   ;; Emacs on Windows comint-mode needs buffering disabled
   (when (eq? (system-type 'os) 'windows)
     (file-stream-buffer-mode (current-output-port) 'none))
   (display (banner))
   (flush-output)
   (parameterize ([error-display-handler our-error-display-handler])
-    (run #f)))
+    (run rerun-default)))
 
-;; run: (or/c #f path-string?) (or/c #f natural?) boolean? -> any
-(define (run maybe-path-str [mem-limit #f] [pretty-print? #t])
+(define (run rr) ;rerun? -> void?
+  (match-define (rerun maybe-path-str mem-limit pretty-print? context-level) rr)
   (define-values (path dir) (path-string->path&dir maybe-path-str))
   ;; Always set current-directory and current-load-relative-directory
   ;; to match the source file.
@@ -37,14 +50,30 @@
   ;; If racket/gui/base isn't loaded, the current-eventspace parameter
   ;; doesn't exist, so make a "dummy" parameter of that name.
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
+  (define need-errortrace? (errortrace-level? context-level))
   (parameterize*
       ([current-custodian user-cust]
-       ;; Use parameterize* so that this value...
+       ;; Use parameterize* so that `current-namespace` ...
        [current-namespace ((txt/gui make-base-namespace make-gui-namespace))]
-       ;; ...is in effect when setting this:
+       ;; ... is in effect when setting `current-eventspace` and others:
        [current-eventspace ((txt/gui void make-eventspace))]
        [compile-enforce-module-constants #f]
-       [compile-context-preservation-enabled #t])
+       [compile-context-preservation-enabled (not (eq? context-level 'low))]
+       [current-compile (if need-errortrace?
+                            (make-errortrace-compile-handler)
+                            (current-compile))]
+       [instrumenting-enabled need-errortrace?]
+       [use-compiled-file-paths (if need-errortrace?
+                                   (cons (build-path "compiled" "errortrace")
+                                         (use-compiled-file-paths))
+                                   (use-compiled-file-paths))]
+       [profiling-enabled (eq? context-level 'profile)]
+       [execute-counts-enabled (eq? context-level 'coverage)])
+    ;; Some context-levels need some state to be reset.
+    (match context-level
+      ['profile (clear-profile-results)]
+      ['coverage (hash-clear! execute-info)]
+      [_ (void)])
     ;; repl-thunk will be called from another thread -- either a plain
     ;; thread when racket/gui/base is not (yet) instantiated, or, from
     ;; (event-handler-thread (current-eventspace)).
@@ -61,13 +90,13 @@
           ;; exn:fail? during module load => re-run with "empty" module
           (with-handlers ([exn? (λ (x)
                                   (display-exn x)
-                                  (put/stop (rerun #f mem-limit #t)))])
+                                  (put/stop (struct-copy rerun rr [path #f])))])
             (maybe-load-language-info path)
             (namespace-require path)
             (current-namespace (module->namespace path))
             (check-top-interaction))))
       ;; 3. read-eval-print-loop
-      (parameterize ([current-prompt-read (make-prompt-read path put/stop rerun)]
+      (parameterize ([current-prompt-read (make-prompt-read path)]
                      [current-module-name-resolver repl-module-name-resolver])
         ;; Note that read-eval-print-loop catches all non-break exceptions.
         (read-eval-print-loop)))
@@ -78,7 +107,7 @@
   ;; custodian box event. Also catch breaks.
   (define msg
     (with-handlers ([exn:break? (λ (exn) (display-exn exn) 'break)])
-      (match (sync ch user-cust-box)
+      (match (sync the-channel user-cust-box)
         [(? custodian-box?)
          (display-commented
           (format "Exceeded the ~a MB memory limit you set.\n" mem-limit))
@@ -87,9 +116,9 @@
   (custodian-shutdown-all user-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match msg
-    ['break               (run #f mem-limit)]
-    [(rerun path mem pp?) (run path mem pp?)]
-    [(load-gui)           (require-gui) (run maybe-path-str)]))
+    ['break        (run (struct-copy rerun rr [path #f]))]
+    [(? rerun? x)  (run x)]
+    [(? load-gui?) (require-gui) (run rr)]))
 
 (define (maybe-load-language-info path)
   ;; Load language-info (if any) and do configure-runtime.
@@ -112,19 +141,6 @@
   ;; Check that the lang defines #%top-interaction
   (unless (memq '#%top-interaction (namespace-mapped-symbols))
     (error 'repl "The module's language provides no `#%top-interaction' and\ncannot be used in a REPL.")))
-
-;; Messages via a channel from the repl thread to the main thread.
-(define ch (make-channel))
-(struct msg ())
-(struct rerun    msg (path mem pp?)) ;(or/c #f path-string?) (or/c #f nat?) boolean?
-(struct load-gui msg ())
-
-;; To be called from REPL thread. Puts message for the main thread to
-;; the channel, and blocks itself; main thread will kill the REPL
-;; thread. Effectively "exit the thread with a return value".
-(define (put/stop v) ;; msg? -> void?
-  (channel-put ch v)
-  (void (sync never-evt)))
 
 ;; Catch attempt to load racket/gui/base for the first time.
 (define repl-module-name-resolver

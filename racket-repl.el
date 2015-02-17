@@ -33,46 +33,13 @@
 (defun racket--get-repl-buffer-process ()
   (get-buffer-process racket--repl-buffer-name))
 
-(defvar racket-repl-mode-map
-  (racket--easy-keymap-define
-   '(("RET"             racket-repl-eval-or-newline-and-indent)
-     ("TAB"             racket-indent-or-complete)
-     ("M-C-u"           racket-backward-up-list)
-     ("C-a"             comint-bol)
-     ("C-w"             comint-kill-region)
-     ("[C-S-backspace]" comint-kill-whole-line)
-     ("["               racket-smart-open-bracket)
-     (")"               racket-insert-closing-paren)
-     ("]"               racket-insert-closing-bracket)
-     ("}"               racket-insert-closing-brace)
-     ("M-C-y"           racket-insert-lambda)
-     ("C-c C-d"         racket-doc)
-     ("C-c C-."         racket-describe)
-     ("M-."             racket-visit-definition)
-     ("C-M-."           racket-visit-module)))
-  "Keymap for Racket REPL mode.")
-
-(easy-menu-define racket-repl-mode-menu racket-repl-mode-map
-  "Menu for Racket REPL mode."
-  '("Racket"
-    ["Insert λ" racket-insert-lambda]
-    ["Indent Region" indent-region]
-    ["Cycle Paren Shapes" racket-cycle-paren-shapes]
-    "---"
-    ["Visit Definition" racket-visit-definition]
-    ["Visit Module" racket-visit-module]
-    ["Return from Visit" racket-unvisit]
-    "---"
-    ["Racket Documentation" racket-doc]
-    ["Describe" racket-describe]))
-
 (defun racket-repl--input-filter (str)
   "Don't save anything matching `racket-history-filter-regexp'."
   (not (string-match racket-history-filter-regexp str)))
 
 (defun racket--get-old-input ()
   "Snarf the sexp ending at point."
-  (if (looking-back comint-prompt-regexp (max 0 (- (point) 80)))
+  (if (looking-back comint-prompt-regexp (line-beginning-position))
       ""
     (save-excursion
       (let ((end (point)))
@@ -170,19 +137,14 @@
   (interactive)
   (let ((proc (get-buffer-process (current-buffer))))
     (cond ((not proc) (user-error "Current buffer has no process"))
-          ((eq "" (racket--get-old-input)) (beep))
-          (t (condition-case nil
-                 (progn
-                   (save-excursion
-                     (goto-char (process-mark proc))
-                     (forward-list)) ;will error unless complete sexpr
-                   (racket--comint-send-input))
-               (error (racket-newline-and-indent)))))))
-
-(defvar racket--run.rkt
-  (expand-file-name "run.rkt"
-                    (file-name-directory (or load-file-name (buffer-file-name))))
-  "Path to run.rkt")
+          ((not (eq "" (racket--get-old-input)))
+           (condition-case nil
+               (progn
+                 (save-excursion
+                   (goto-char (process-mark proc))
+                   (forward-list)) ;will error unless complete sexpr
+                 (racket--comint-send-input))
+             (error (racket-newline-and-indent)))))))
 
 ;;;###autoload
 (defun racket-repl ()
@@ -202,6 +164,15 @@ Runs `comint-mode-hook' and `racket-repl-mode-hook'."
     (racket-repl-ensure-buffer-and-process)
     (select-window original-window)))
 
+(defvar racket--run.rkt
+  (expand-file-name "run.rkt"
+                    (file-name-directory (or load-file-name (buffer-file-name))))
+  "Path to run.rkt")
+
+(defvar racket--repl-command-output-file
+  (make-temp-file "racket-mode-command-ouput-file")
+  "File used to collect output from commands used by racket-mode.")
+
 (defun racket-repl-ensure-buffer-and-process ()
   "Ensure Racket REPL buffer exists and has live Racket process.
 
@@ -215,37 +186,82 @@ and don't want to affect the selected window."
         (make-comint racket--repl-buffer-name/raw ;w/o *stars*
                      racket-racket-program
                      nil
-                     racket--run.rkt)
+                     racket--run.rkt
+                     racket--repl-command-output-file)
       ;; The following is needed to make e.g. λ work when pasted
       ;; into the comint-buffer, both directly by the user and via
-      ;; the racket--eval functions.
+      ;; the racket--repl-eval functions.
       (set-process-coding-system (get-buffer-process racket--repl-buffer-name)
                                  'utf-8 'utf-8)
       (racket-repl-mode)
-      (racket--repl-wait-for-prompt)
-      (message ""))))
+      (racket--repl-wait-for-prompt))))
 
 (defun racket--repl-wait-for-prompt ()
   "Wait up to `racket-wait-for-prompt-timeout' seconds for
-`racket--repl-has-prompt-p' to be t."
+`racket--repl-has-prompt' to be t."
   (message "Waiting for Racket prompt...")
   (let ((deadline (+ (float-time) racket-wait-for-prompt-timeout)))
-    (while (and (not (racket--repl-has-prompt-p))
+    (while (and (not (racket--repl-has-prompt))
                 (< (float-time) deadline))
       (accept-process-output (get-buffer-process racket--repl-buffer-name)
                              (- deadline (float-time)))))
-  (unless (racket--repl-has-prompt-p)
+  (if (racket--repl-has-prompt)
+        (message "")
     (error "Timeout waiting for Racket REPL prompt")))
 
-(defun racket--repl-has-prompt-p ()
+(defun racket--repl-has-prompt ()
   "Is the REPL process alive and is the Racket prompt the last thing in the buffer?"
   (and (comint-check-proc racket--repl-buffer-name)
        (with-current-buffer racket--repl-buffer-name
          (save-excursion
            (goto-char (point-max))
-           (and (re-search-backward "\n" nil t)
-                (re-search-forward comint-prompt-regexp nil t)
-                (= (point) (point-max)))))))
+           (looking-back comint-prompt-regexp (line-beginning-position))))))
+
+(defun racket--repl-eval (expression)
+  "Eval EXPRESSION in the *Racket REPL* buffer, allow Racket output to be displayed, and show the window. Intended for use by things like ,run command."
+  (racket-repl)
+  (racket--repl-forget-errors)
+  (comint-send-string (racket--get-repl-buffer-process) expression)
+  (racket--repl-show-and-move-to-end))
+
+(defconst racket--repl-command-timeout 10
+  "Default timeout when none supplied to `racket--repl-cmd/buffer' and friends.")
+
+(defun racket--repl-cmd/buffer (command &optional timeout)
+  "Send COMMAND capturing its input in the returned buffer.
+
+Expects COMMAND to already include the comma/unquote prefix: `,command`.
+
+Prepends a `#` to make it `#,command`. This causes output to be
+redirected to `racket--repl-command-output-file'. When that file
+comes into existence, the command has completed and we read its
+contents into a buffer."
+  (racket-repl-ensure-buffer-and-process)
+  (when (file-exists-p racket--repl-command-output-file)
+    (delete-file racket--repl-command-output-file))
+  (comint-send-string (racket--get-repl-buffer-process)
+                      (concat "#" command "\n")) ;e.g. #,command
+  (let ((deadline (+ (float-time) (or timeout racket--repl-command-timeout))))
+    (while (and (not (file-exists-p racket--repl-command-output-file))
+                (< (float-time) deadline))
+      (accept-process-output (get-buffer-process racket--repl-buffer-name)
+                             (- deadline (float-time)))
+      (sit-for 0))) ;let REPL output be drawn
+  (unless (file-exists-p racket--repl-command-output-file)
+    (error "Command timed out"))
+  (let ((buf (get-buffer-create " *Racket Command Output*")))
+    (with-current-buffer buf
+      (erase-buffer)
+      (insert-file-contents racket--repl-command-output-file)
+      (delete-file racket--repl-command-output-file))
+    buf))
+
+(defun racket--repl-cmd/string (command &optional timeout)
+  (with-current-buffer (racket--repl-cmd/buffer command timeout)
+    (buffer-substring (point-min) (point-max))))
+
+(defun racket--repl-cmd/sexpr (command &optional timeout)
+  (eval (read (racket--repl-cmd/string command timeout))))
 
 ;;;
 
@@ -362,22 +378,44 @@ With prefix arg, open the N-th last shown image."
 
 ;;; racket-repl-mode
 
+(defvar racket-repl-mode-map
+  (racket--easy-keymap-define
+   '(("RET"             racket-repl-eval-or-newline-and-indent)
+     ("TAB"             racket-indent-or-complete)
+     ("M-C-u"           racket-backward-up-list)
+     ("C-a"             comint-bol)
+     ("C-w"             comint-kill-region)
+     ("[C-S-backspace]" comint-kill-whole-line)
+     ("["               racket-smart-open-bracket)
+     (")"               racket-insert-closing-paren)
+     ("]"               racket-insert-closing-bracket)
+     ("}"               racket-insert-closing-brace)
+     ("M-C-y"           racket-insert-lambda)
+     ("C-c C-d"         racket-doc)
+     ("C-c C-."         racket-describe)
+     ("M-."             racket-visit-definition)
+     ("C-M-."           racket-visit-module)))
+  "Keymap for Racket REPL mode.")
+
+(easy-menu-define racket-repl-mode-menu racket-repl-mode-map
+  "Menu for Racket REPL mode."
+  '("Racket"
+    ["Insert λ" racket-insert-lambda]
+    ["Indent Region" indent-region]
+    ["Cycle Paren Shapes" racket-cycle-paren-shapes]
+    "---"
+    ["Visit Definition" racket-visit-definition]
+    ["Visit Module" racket-visit-module]
+    ["Return from Visit" racket-unvisit]
+    "---"
+    ["Racket Documentation" racket-doc]
+    ["Describe" racket-describe]))
+
 (define-derived-mode racket-repl-mode comint-mode "Racket-REPL"
   "Major mode for Racket REPL.
 \\{racket-repl-mode-map}"
   (racket--variables-for-both-modes)
-  ;; comint-prompt-regexp is important to get exactly right for
-  ;; comint-redirect-send-command-to-process as used by
-  ;; racket--eval/buffer and friends. Bad things happen if this regexp
-  ;; accidentally matches process output other than the prompt. After
-  ;; fighting with this for awhile, it occurred to me to use "≺file≻"
-  ;; (instead of "file>"). Much less likely to occur in process
-  ;; output. Also it lets the regexp become simpler and more reliably
-  ;; handle things such as file names with spaces in them. Also when
-  ;; process output doesn't end with a newline (e.g. `display` not
-  ;; `displayln`) the opening ≺ helps the user visually delimit the
-  ;; output from the following prompt.
-  (setq-local comint-prompt-regexp "^≺.*?≻ +")
+  (setq-local comint-prompt-regexp ".*?> +")
   (setq-local comint-use-prompt-regexp t)
   (setq-local comint-prompt-read-only t) ;rebind C-w to `comint-kill-region'!
   (setq-local mode-line-process nil)

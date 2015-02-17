@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require racket/match
+(require errortrace/errortrace-lib
+         racket/match
          racket/runtime-path
          racket/string
          "util.rkt"
@@ -38,21 +39,29 @@
         (display-commented (source-location->string srcloc))))))
 
 (define (display-context exn)
-  (match (context->string
-          (continuation-mark-set->context (exn-continuation-marks exn)))
-    ["" (void)]
-    [s (display-commented "Context:")
-       (display-commented s)]))
+  (cond [(instrumenting-enabled)
+         (define p (open-output-string))
+         (print-error-trace p exn)
+         (match (get-output-string p)
+           ["" (void)]
+           [s  (display-commented (string-append "Context (errortrace):"
+                                                 ;; et prepends a \n
+                                                 s))])]
+        [else
+         (match (context->string
+                 (continuation-mark-set->context (exn-continuation-marks exn)))
+           ["" (void)]
+           [s (display-commented (string-append "Context:\n"
+                                                s))])]))
 
 (define (context->string xs)
   ;; Limit the context in two ways:
   ;; 1. Don't go beyond error-print-context-length
   ;; 2. Don't go into "system" context that's just noisy.
-  ;; Also, show the context in reverse, for Emacs compilation-mode.
-  (string-join (reverse (for/list ([x xs]
-                                   [_ (error-print-context-length)]
-                                   #:unless (system-context? x))
-                          (context-item->string x)))
+  (string-join (for/list ([x xs]
+                          [_ (error-print-context-length)]
+                          #:unless (system-context? x))
+                 (context-item->string x))
                "\n"))
 
 (define-runtime-path run.rkt "run.rkt")

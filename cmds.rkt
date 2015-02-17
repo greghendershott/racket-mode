@@ -1,6 +1,7 @@
-#lang racket/base
+#lang at-exp racket/base
 
-(require help/help-utils
+(require errortrace/errortrace-lib
+         help/help-utils
          macro-debugger/analysis/check-requires
          racket/contract
          racket/file
@@ -14,62 +15,103 @@
          racket/string
          syntax/modresolve
          (only-in xml xexpr->string)
+         "channel.rkt"
          "defn.rkt"
          "logger.rkt"
          "scribble.rkt"
          "try-catch.rkt"
          "util.rkt")
 
-(provide make-prompt-read)
+(provide make-prompt-read
+         current-command-output-file)
 
 (module+ test
   (require rackunit))
 
-(define (make-prompt-read path put/stop rerun)
+;; Commands intended for use programmatically by racket-mode may
+;; output their results to a file whose name is the value of the
+;; current-command-output-file parameter. This avoids mixing with
+;; stdout and stderr, which ultimately is not very reliable. How does
+;; racket-mode know when the file is ready to be read? 1. racket-mode
+;; deletes the file, calls us, and loops waiting for the file to
+;; exist. 2. We direct the command's output to a temporary file, then
+;; when the command has finished, rename the temp file to
+;; current-command-output-file. This way, racket-mode knows that as
+;; soon as the file exists again, the command is finished and its
+;; output is ready to be read from the file.
+(define current-command-output-file (make-parameter #f))
+(define tmp-file (make-temporary-file))
+(define (with-output-to-command-output-file f)
+  (cond [(current-command-output-file)
+         (with-output-to-file tmp-file f #:exists 'replace)
+         (rename-file-or-directory tmp-file (current-command-output-file) #t)]
+        [else (f)]))
+
+(define ((make-prompt-read path))
   (define-values (base name _) (cond [path (split-path path)]
                                      [else (values (current-directory) "" #f)]))
-  (λ ()
-    (let ([;; Elisp prints '() as 'nil. Reverse that. (Assumption:
-           ;; Although Elisp code puns nil/() also to mean "false",
-           ;; _our_ Elisp code _won't_ do that.)
-           read (λ () (match (read) ['nil '()] [x x]))])
-      (flush-output (current-error-port))
-      (display #\u227a) (display name) (display #\u227b) (display #\space)
-      (define in ((current-get-interaction-input-port)))
-      (define stx ((current-read-interaction) (object-name in) in))
-      (syntax-case stx ()
-        [(uq cmd)
-         (eq? 'unquote (syntax-e #'uq))
-         (case (syntax-e #'cmd)
-           [(run) (run put/stop rerun)]
-           [(top) (top put/stop rerun)]
-           [(def) (def (read))]
-           [(doc) (doc (read-syntax))]
-           [(describe) (describe (read-syntax))]
-           [(mod) (mod (read) path)]
-           [(type) (type (read))]
-           [(exp) (exp1 (read))]
-           [(exp+) (exp+)]
-           [(exp!) (exp! (read))]
-           [(log) (log-display (map string->symbol (string-split (read-line))))]
-           [(pwd) (display-commented (~v (current-directory)))]
-           [(cd) (cd (~a (read)))]
-           [(requires/tidy) (requires/tidy (read))]
-           [(requires/trim) (requires/trim (read) (read))]
-           [(requires/base) (requires/base (read) (read))]
-           [(find-collection) (find-collection (read))]
-           [(exit) (exit)]
-           [else (usage)])]
-        [_ stx]))))
+  (let ([read elisp-read])
+    (flush-output (current-error-port))
+    (display name) (display "> ")
+    (define in ((current-get-interaction-input-port)))
+    (define stx ((current-read-interaction) (object-name in) in))
+    (syntax-case stx ()
+      ;; #,command redirect
+      [(uq cmd)
+       (eq? 'unsyntax (syntax-e #'uq))
+       (with-output-to-command-output-file
+         (λ () (handle-command #'cmd path)))]
+      ;; ,command normal
+      [(uq cmd)
+       (eq? 'unquote (syntax-e #'uq))
+       (handle-command #'cmd path)]
+      [_ stx])))
+
+(define (elisp-read)
+  ;; Elisp prints '() as 'nil. Reverse that. (Assumption: Although
+  ;; some Elisp code puns nil/() also to mean "false", _our_ Elisp
+  ;; code _won't_ do that.)
+  (match (read)
+    ['nil '()]
+    [x x]))
+
+(define (handle-command cmd-stx path)
+  (case (syntax-e cmd-stx)
+    ;; These commands are intended to be used by either the user or
+    ;; racket-mode.
+    [(run) (run-or-top 'run)]
+    [(top) (run-or-top 'top)]
+    [(doc) (doc (read-syntax))]
+    [(exp) (exp1 (read))]
+    [(exp+) (exp+)]
+    [(exp!) (exp! (read))]
+    [(log) (log-display (map string->symbol (string-split (read-line))))]
+    [(pwd) (display-commented (~v (current-directory)))]
+    [(cd) (cd (~a (read)))]
+    [(exit) (exit)]
+    [(info) (info)]
+    ;; These remaining commands are intended to be used by
+    ;; racket-mode, only.
+    [(syms) (syms)]
+    [(def) (def (read))]
+    [(describe) (describe (read-syntax))]
+    [(mod) (mod (read) path)]
+    [(type) (type (read))]
+    [(requires/tidy) (requires/tidy (read))]
+    [(requires/trim) (requires/trim (read) (read))]
+    [(requires/base) (requires/base (read) (read))]
+    [(find-collection) (find-collection (read))]
+    [(get-profile) (get-profile)]
+    [(get-uncovered) (get-uncovered path)]
+    [else (usage)]))
 
 (define (usage)
-  (displayln
+  (display-commented
    "Commands:
-,run </path/to/file.rkt> [<memory-limit-MB> [<pretty-print?>]]
-,top [<memory-limit-MB>]
+,run </path/to/file.rkt> [<memory-limit-MB> [<pretty-print?> [<error-context>]]]
+   where <error-context> = low | medium | high
+,top [<memory-limit-MB> [<pretty-print?> [<error-context>]]]
 ,exit
-,def <identifier>
-,type <identifier>
 ,doc <identifier>|<string>
 ,exp <stx>
 ,exp+
@@ -79,11 +121,11 @@
 ,log <opts> ...")
   (void))
 
-;;; run and top
+;;; run, top, info
 
-;; Parameter-like interface, but we don't care about thread-local
-;; stuff. We do care about calling collect-garbage IFF the new limit
-;; is less than the old one or less than the current actual usage.
+;; Parameter-like interface, but we don't want thread-local. We do
+;; want to call collect-garbage IFF the new limit is less than the old
+;; one or less than the current actual usage.
 (define current-mem
   (let ([old #f])
     (case-lambda
@@ -95,41 +137,48 @@
             (collect-garbage))
        (set! old new)])))
 
-(define current-pp? (make-parameter #t))
+;; Likewise: Want parameter signature but NOT thread-local.
+(define-syntax-rule (make-parameter-ish init)
+  (let ([old init])
+    (case-lambda
+      [() old]
+      [(new) (set! old new)])))
 
-(define (run put/stop rerun)
-  ;; Note: Use ~a on path to allow both `,run "/path/file.rkt"` and
-  ;; `run /path/file.rkt`.
+(define current-pp? (make-parameter-ish #t))
+(define current-ctx-lvl (make-parameter-ish 'low)) ;context-level?
+
+(define (run-or-top which)
+  ;; Support both the ,run and ,top commands. Latter has no first path
+  ;; arg, but otherwise they share subsequent optional args. (Note:
+  ;; The complexity here is from the desire to let user type simply
+  ;; e.g. ",top" or ",run file" and use the existing values for the
+  ;; omitted args. We're intended mainly to be used from Emacs, which
+  ;; can/does always supply all the args. But, may as well make it
+  ;; convenient for human users, too.)
   (define (go path)
-    (put/stop (rerun (~a path) (current-mem) (current-pp?))))
-  (match (read-line->reads)
-    [(list path mem pp?) (cond [(and (number? mem) (boolean? pp?))
-                                (current-mem mem)
-                                (current-pp? pp?)
-                                (go path)]
-                               [else (usage)])]
-    [(list path mem)     (cond [(number? mem)
-                                (current-mem mem)
-                                (go path)]
-                               [else (usage)])]
-    [(list path)         (go path)]
-    [_                   (usage)]))
-
-(define (top put/stop rerun)
-  (define (go)
-    (put/stop (rerun #f (current-mem) (current-pp?))))
-  (match (read-line->reads)
-    [(list mem pp?) (cond [(and (number? mem) (boolean? pp?))
-                           (current-mem mem)
-                           (current-pp? pp?)
-                           (go)]
-                          [else (usage)])]
-    [(list mem)     (cond [(number? mem)
-                           (current-mem mem)
-                           (go)]
-                          [else (usage)])]
-    [(list)         (go)]
-    [_              (usage)]))
+    (put/stop (rerun (and path (~a path)) ;"/path/file" or /path/file
+                     (current-mem)
+                     (current-pp?)
+                     (current-ctx-lvl))))
+  (match (match which
+           ['run (read-line->reads)]
+           ['top (cons #f (read-line->reads))]) ;i.e. path = #f
+    [(list path (? number? mem) (? boolean? pp?) (? context-level? ctx))
+     (current-mem mem)
+     (current-pp? pp?)
+     (current-ctx-lvl ctx)
+     (go path)]
+    [(list path (? number? mem) (? boolean? pp?))
+     (current-mem mem)
+     (current-pp? pp?)
+     (go path)]
+    [(list path (? number? mem) (? boolean? pp?))
+     (current-mem mem)
+     (go path)]
+    [(list path)
+     (go path)]
+    [_
+     (usage)]))
 
 (define (read-line->reads)
   (reads-from-string (read-line)))
@@ -144,7 +193,17 @@
     ['nil            (cons #f (reads))] ;in case from elisp
     [x               (cons x (reads))]))
 
+;; This really just for my own use debugging. Not documented.
+(define (info)
+  (displayln @~a{Memory Limit:   @(current-mem)
+                 Pretty Print:   @(current-pp?)
+                 Error Context:  @(current-ctx-lvl)
+                 Command Output: @(current-command-output-file)}))
+
 ;;; misc other commands
+
+(define (syms)
+  (elisp-println (map symbol->string (namespace-mapped-symbols))))
 
 (define (def sym)
   (elisp-println (find-definition (symbol->string sym))))
@@ -210,14 +269,8 @@
 ;; (because the argument names have explanatory value), and also look
 ;; for Typed Racket type or a contract, if any.
 
-;; Keep reusing one temporary file.
-(define describe-html-path (make-temporary-file "racket-mode-describe-~a"))
-
 (define (describe stx)
-  (with-output-to-file describe-html-path #:mode 'text #:exists 'replace
-    (λ () (display (describe* stx))))
-  (elisp-println (path->string describe-html-path))
-  (void)) ;(void) prevents Typed Racket type annotation line
+  (display (describe* stx)))
 
 (define (describe* _stx)
   (define stx (namespace-syntax-introduce _stx))
@@ -248,8 +301,9 @@
 ;;; misc
 
 (define (doc stx)
-  (cond [(identifier? stx) (find-help (namespace-syntax-introduce stx))]
-        [else              (search-for (list (~a (syntax->datum stx))))]))
+  (try
+   (find-help (namespace-syntax-introduce stx))
+   #:catch exn:fail? _ (search-for (list (~a (syntax->datum stx))))))
 
 (define (cd s)
   (let ([old-wd (current-directory)])
@@ -547,6 +601,66 @@
     [f  (map path->string (f str))]))
 
 (define find-collection (compose elisp-println do-find-collection))
+
+;;; profile
+
+(define (get-profile)
+  (elisp-println
+   ;; TODO: Filter files from racket-mode itself, b/c just noise?
+   (for/list ([x (in-list (get-profile-results))])
+     (match-define (list count msec name stx _ ...) x)
+     (list count
+           msec
+           (and name (symbol->string name))
+           (and (syntax-source stx) (path? (syntax-source stx))
+                (path->string (syntax-source stx)))
+           (syntax-position stx)
+           (and (syntax-position stx) (syntax-span stx)
+                (+ (syntax-position stx) (syntax-span stx)))))))
+
+;;; coverage
+
+(define (get-uncovered path)
+  (elisp-println
+   (consolidate-coverage-ranges
+    (for*/list ([x (in-list (get-execute-counts))]
+                [stx (in-value (car x))]
+                #:when (equal? path (syntax-source stx))
+                [count (in-value (cdr x))]
+                #:when (zero? count))
+      (cons (syntax-position stx)
+            (+ (syntax-position stx) (syntax-span stx)))))))
+
+(define (consolidate-coverage-ranges xs)
+  (remove-duplicates (sort xs < #:key car)
+                     same?))
+
+(define (same? x y)
+  ;; Is x a subset of y or vice versa?
+  (match-define (cons x/beg x/end) x)
+  (match-define (cons y/beg y/end) y)
+  (or (and (<= x/beg y/beg) (<= y/end x/end))
+      (and (<= y/beg x/beg) (<= x/end y/end))))
+
+(module+ test
+  (check-true (same? '(0 . 9) '(0 . 9)))
+  (check-true (same? '(0 . 9) '(4 . 5)))
+  (check-true (same? '(4 . 5) '(0 . 9)))
+  (check-false (same? '(0 . 1) '(1 . 2)))
+  (check-equal? (consolidate-coverage-ranges
+                 '((10 . 20) (10 . 11) (19 . 20) (10 . 20)
+                   (20 . 30) (20 . 21) (29 . 30) (20 . 30)))
+                '((10 . 20)
+                  (20 . 30)))
+  ;; This is a test of actual coverage data I got from one example,
+  ;; where the maximal subsets were (164 . 197) and (214. 247).
+  (check-equal?
+   (consolidate-coverage-ranges
+    '((164 . 197) (164 . 197) (164 . 197)
+      (173 . 180) (173 . 180) (173 . 180) (173 . 180) (173 . 180) (187 . 196)
+      (214 . 247) (214 . 247) (214 . 247)
+      (223 . 230) (223 . 230) (223 . 230) (223 . 230) (223 . 230) (237 . 246)))
+   '((164 . 197) (214 . 247))))
 
 ;; Local Variables:
 ;; coding: utf-8

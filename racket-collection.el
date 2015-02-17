@@ -17,7 +17,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'racket-util)
-(require 'racket-eval)
+(require 'racket-repl)
 (require 'ido)
 (require 'tq)
 (require 'racket-custom) ;for `racket-racket-program'
@@ -48,7 +48,7 @@ Also handy is the `flx-ido' package from MELPA.
 See also: `racket-visit-module' and `racket-open-require-path'."
   (interactive "P")
   (let* ((coll  (racket--symbol-at-point-or-prompt prefix "Collection name: "))
-         (paths (racket--eval/sexpr (format ",find-collection \"%s\"\n" coll))))
+         (paths (racket--repl-cmd/sexpr (format ",find-collection \"%s\"\n" coll))))
     (cond ((eq 'find-collection-not-installed paths)
            ;; FIXME? Offer to run this for them?
            (error "Run `raco pkg install raco-find-collection'"))

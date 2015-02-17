@@ -21,12 +21,12 @@ compile: clean \
 	racket-collection.elc \
 	racket-complete.elc \
 	racket-edit.elc \
-	racket-eval.elc \
 	racket-font-lock.elc \
 	racket-indent.elc \
 	racket-keywords-and-builtins.elc \
 	racket-make-doc.elc \
 	racket-mode.elc \
+	racket-profile.elc \
 	racket-repl.elc \
 	racket-tests.elc \
 	racket-util.elc

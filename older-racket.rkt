@@ -8,7 +8,11 @@
 ;; run on Racket 5.3.5 (perhaps earlier, but I haven't tested).
 (provide find-collects-dir
          path->collects-relative
-         current-directory-for-user)
+         current-directory-for-user
+         hash-clear!)
+
+(module+ test
+  (require rackunit))
 
 (define (our-find-collects-dir)
   (apply build-path
@@ -44,6 +48,21 @@
 (define current-directory-for-user
   (dynamic-require 'racket/base 'current-directory-for-user
                    (const our-current-directory-for-user)))
+
+;;; Racket 6.0 adds hash-clear!
+
+(define (our-hash-clear! ht)
+  (for ([key (in-list (hash-keys ht))])
+    (hash-remove! ht key)))
+
+(module+ test
+  (define ht (make-hash '((0 . "zero") (1 . "one") (2 . "two"))))
+  (our-hash-clear! ht)
+  (check-true (zero? (hash-count ht))))
+
+(define hash-clear!
+  (dynamic-require 'racket/base 'hash-clear!
+                   (const our-hash-clear!)))
 
 ;; Local Variables:
 ;; coding: utf-8

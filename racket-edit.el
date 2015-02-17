@@ -22,18 +22,20 @@
 (require 'racket-custom)
 (require 'racket-common)
 (require 'racket-complete)
-(require 'racket-eval)
 (require 'racket-util)
 (require 'hideshow)
 
-(defun racket-run ()
-  "Save and evaluate the buffer in REPL, like DrRacket's Run.
+(defun racket-run (&optional errortracep)
+  "Save and evaluate the buffer in REPL, much like DrRacket's Run.
 
-When you run again, the files is evaluated from scratch -- the
+When you run again, the file is evaluated from scratch -- the
 custodian releases resources like threads and the evaluation
 environment is reset to the contents of the file. In other words,
 like DrRacket, this provides the predictability of a \"static\"
 baseline, plus some interactive exploration.
+
+With a C-u prefix, uses errortrace for improved stack traces.
+Otherwise follows the `racket-error-context' setting.
 
 Output in the `*Racket REPL*` buffer that describes a file and
 position is automatically \"linkified\". To visit, move point
@@ -80,15 +82,24 @@ Others are available only as a command in the REPL.
     - `,log <level>`: Set the default level for all other loggers
       not specified individually.
 "
-  (interactive)
-  (save-buffer)
+  (interactive "P")
+  (racket--do-run (if errortracep
+                      'high
+                    racket-error-context)))
+
+(defun racket--do-run (context-level)
+  "Helper function for `racket-run'-like commands.
+Supplies CONTEXT-LEVEL to the back-end ,run command; see run.rkt."
+  (when (buffer-modified-p)
+    (save-buffer))
+  (remove-overlays (point-min) (point-max) 'racket-uncovered-overlay)
   (racket--invalidate-completion-cache)
   (racket--invalidate-type-cache)
-  (racket--eval (format ",run %s %s %s\n"
-                        (racket--quoted-buffer-file-name)
-                        racket-memory-limit
-                        racket-pretty-print)))
-
+  (racket--repl-eval (format ",run %s %s %s %s\n"
+                             (racket--quoted-buffer-file-name)
+                             racket-memory-limit
+                             racket-pretty-print
+                             context-level)))
 (defun racket-racket ()
   "Do `racket <file>` in `*shell*` buffer."
   (interactive)
@@ -96,21 +107,39 @@ Others are available only as a command in the REPL.
                          " "
                          (racket--quoted-buffer-file-name))))
 
-(defun racket-test ()
-  "Do `(require (submod \".\" test))` in `*racket*` buffer.
+(defun racket-test (&optional coverage)
+  "Do `(require (submod \".\" test))` in `*Racket REPL*` buffer.
+
+With prefix, runs with coverage instrumentation and highlights
+uncovered code.
 
 See also:
 - `racket-fold-all-tests'
 - `racket-unfold-all-tests'
 "
-  (interactive)
-  (racket-run) ;start fresh, so (require) will have an effect
-  (racket--eval
-   (format "%S\n"
-           `(begin
-             (displayln "Running tests...")
-             (require (submod "." test))
-             (flush-output (current-output-port))))))
+  (interactive "P")
+  (message (if coverage "Running tests with coverage instrumentation enabled..."
+             "Running tests..."))
+  (racket--do-run (if coverage 'coverage racket-error-context))
+  (racket--repl-eval (format "%S\n"
+                             `(begin
+                               (require (submod "." test))
+                               (flush-output (current-output-port)))))
+  (if (not coverage)
+      (message "Tests done.")
+    (message "Checking coverage results...")
+    (let ((xs (racket--repl-cmd/sexpr ",get-uncovered")))
+      (dolist (x xs)
+        (let ((beg (car x))
+              (end (cdr x)))
+          (let ((o (make-overlay beg end)))
+            (overlay-put o 'name 'racket-uncovered-overlay)
+            (overlay-put o 'priority 100)
+            (overlay-put o 'face font-lock-warning-face))))
+      (if (not xs)
+          (message "Coverage complete.")
+        (message (format "Missing coverage in %s places." (length xs)))
+        (goto-char (car (car xs)))))))
 
 (defun racket-raco-test ()
   "Do `raco test -x <file>` in `*shell*` buffer.
@@ -119,6 +148,24 @@ To run <file>'s `test` submodule."
   (racket--shell (concat racket-raco-program
                          " test -x "
                          (racket--quoted-buffer-file-name))))
+
+(defun racket--shell (cmd)
+  (let ((w (selected-window)))
+    (save-buffer)
+    (let ((rw (get-buffer-window "*shell*")))
+      (if rw
+          (select-window rw)
+        (other-window -1)))
+    (message (concat cmd "..."))
+    (shell)
+    (pop-to-buffer-same-window "*shell*")
+    (comint-send-string "*shell*" (concat cmd "\n"))
+    (select-window w)
+    (sit-for 3)
+    (message nil)))
+
+
+;;; visiting defs and mods
 
 (defun racket-visit-definition (&optional prefix)
   "Visit definition of symbol at point.
@@ -141,7 +188,7 @@ will tell you so but won't visit the definition site."
 
 (defun racket--do-visit-def-or-mod (cmd sym)
   "CMD must be \"def\" or \"mod\". SYM must be `symbolp`."
-  (let ((result (racket--eval/sexpr (format ",%s %s\n\n" cmd sym))))
+  (let ((result (racket--repl-cmd/sexpr (format ",%s %s\n\n" cmd sym))))
     (cond ((and (listp result) (= (length result) 3))
            (racket--push-loc)
            (cl-destructuring-bind (path line col) result
@@ -153,13 +200,12 @@ will tell you so but won't visit the definition site."
           ((eq result 'kernel)
            (message "`%s' defined in #%%kernel -- source not available." sym))
           ((y-or-n-p "Not found. Run current buffer and try again? ")
-           (racket--eval/buffer (format ",run %s\n"
-                                        (racket--quoted-buffer-file-name)))
+           (racket-run)
            (racket--do-visit-def-or-mod cmd sym)))))
 
 (defun racket--get-def-file+line (sym)
   "For use by company-mode 'location option."
-  (let ((result (racket--eval/sexpr (format ",def %s\n\n" sym))))
+  (let ((result (racket--repl-cmd/sexpr (format ",def %s\n\n" sym))))
     (cond ((and (listp result) (= (length result) 3))
            (cl-destructuring-bind (path line col) result
              (cons path line)))
@@ -200,9 +246,7 @@ instead of looking at point."
   (interactive "P")
   (let ((sym (racket--symbol-at-point-or-prompt prefix "Racket help for: ")))
     (when sym
-      (unless (string-match-p "^Sending to web browser..."
-                              (racket--eval/string (format ",doc %s" sym)))
-        (racket--eval/buffer (format ",doc \"%s\"" sym)))))) ;quoted
+      (racket--repl-cmd/string (format ",doc %s" sym)))))
 
 (defvar racket--loc-stack '())
 
@@ -261,7 +305,7 @@ Returns the buffer in which the description was written."
     (racket-describe-mode)
     (read-only-mode -1)
     (erase-buffer)
-    (let ((file (racket--eval/sexpr (format ",describe %s" sym)))
+    (let ((html (racket--repl-cmd/string (format ",describe %s" sym)))
           (spc (string #x2020))) ;unlikely character (hopefully)
       ;; Emacs shr renderer removes leading &nbsp; from <td> elements
       ;; -- which messes up the indentation of s-expressions including
@@ -269,7 +313,7 @@ Returns the buffer in which the description was written."
       ;; and replace `spc' with " " after shr-insert-document outputs.
       (shr-insert-document
        (with-temp-buffer
-         (insert-file-contents file)
+         (insert html)
          (goto-char (point-min))
          (while (re-search-forward "&nbsp;" nil t)
            (replace-match spc t t))
@@ -291,7 +335,7 @@ Returns the buffer in which the description was written."
        "Documentation in Browser"
        'action
        `(lambda (btn)
-          (racket--eval/buffer
+          (racket--repl-cmd/buffer
            ,(substring-no-properties (format ",doc %s\n" sym)))))
       (insert "          [q]uit"))
     (read-only-mode 1)
@@ -313,7 +357,6 @@ Returns the buffer in which the description was written."
     m)
   "Keymap for Racket Describe mode.")
 
-;;;###autoload
 (define-derived-mode racket-describe-mode fundamental-mode
   "RacketDescribe"
   "Major mode for describing Racket functions.
@@ -416,7 +459,7 @@ BUGGY: The first-ever invocation might not display a GUI window.
 If so, try again."
   (interactive)
   (save-buffer)
-  (racket--eval
+  (racket--repl-eval
    (format "%S\n"
            `(begin
              (require macro-debugger/stepper racket/port)
@@ -463,7 +506,7 @@ See also: `racket-trim-requires' and `racket-base-requires'."
          (beg (nth 0 result))
          (reqs (nth 1 result))
          (new (and beg reqs
-                   (racket--eval/string
+                   (racket--repl-cmd/string
                     (format ",requires/tidy %S" reqs)))))
     (when new
       (goto-char beg)
@@ -486,7 +529,7 @@ See also: `racket-base-requires'."
          (beg (nth 0 result))
          (reqs (nth 1 result))
          (new (and beg reqs
-                   (racket--eval/string
+                   (racket--repl-cmd/string
                     (format ",requires/trim \"%s\" %S"
                             (substring-no-properties (buffer-file-name))
                             reqs))))
@@ -532,7 +575,7 @@ such as changing `#lang typed/racket` to `#lang typed/racket/base`."
                   (save-excursion
                     (goto-char 0) (forward-line 1) (insert "\n") (point))))
          (reqs (nth 1 result))
-         (new (racket--eval/string
+         (new (racket--repl-cmd/string
                (format ",requires/base \"%s\" %S"
                        (substring-no-properties (buffer-file-name))
                        reqs)))

@@ -18,7 +18,7 @@
 
 (require 'cl-lib)
 (require 'racket-custom)
-(require 'racket-eval)
+(require 'racket-repl)
 
 (make-variable-buffer-local
  (defvar racket--namespace-symbols nil
@@ -35,9 +35,7 @@ See `racket--invalidate-completion-cache' and
   "Get Racket namespace symbols from the cache or from the Racket process."
   (unless racket--namespace-symbols
     (setq racket--namespace-symbols
-          (racket--eval/sexpr
-           (format "%S"
-                   `(map symbol->string (namespace-mapped-symbols))))))
+          (racket--repl-cmd/sexpr ",syms")))
   racket--namespace-symbols)
 
 (defun racket--complete-prefix (prefix)
@@ -125,7 +123,7 @@ See `racket--invalidate-completion-cache' and
     ;; ...and therefore this test:
     (if (not (eq v 'not-found))
         v
-      (let ((v (racket--eval/sexpr (concat ",type " str))))
+      (let ((v (racket--repl-cmd/sexpr (concat ",type " str))))
         (puthash sym v racket--type-cache)
         v))))
 

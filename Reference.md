@@ -21,13 +21,16 @@
 ### racket-run
 <kbd>&lt;f5&gt;</kbd> or <kbd>C-c C-k</kbd>
 
-Save and evaluate the buffer in REPL, like DrRacket's Run.
+Save and evaluate the buffer in REPL, much like DrRacket's Run.
 
-When you run again, the files is evaluated from scratch -- the
+When you run again, the file is evaluated from scratch -- the
 custodian releases resources like threads and the evaluation
 environment is reset to the contents of the file. In other words,
 like DrRacket, this provides the predictability of a "static"
 baseline, plus some interactive exploration.
+
+With a C-u prefix, uses errortrace for improved stack traces.
+Otherwise follows the [`racket-error-context`](#racket-error-context) setting.
 
 Output in the `*Racket REPL*` buffer that describes a file and
 position is automatically "linkified". To visit, move point
@@ -80,12 +83,45 @@ Others are available only as a command in the REPL.
 
 Do `racket <file>` in `*shell*` buffer.
 
+### racket-profile
+<kbd>C-c C-l</kbd>
+
+Runs with profiling instrumentation and shows results.
+
+Results are presented in a [`racket-profile-mode`](#racket-profile-mode) buffer, which
+also lets you quickly view the source code.
+
+You may evaluate expressions in the REPL. They are also profiled.
+Use [`racket--profile-refresh`](#racket--profile-refresh) to see the updated results. (In
+other words a possible workflow is: [`racket-profile`](#racket-profile) a .rkt file,
+call one its functions in the REPL, and refresh the profile
+results.)
+
+Caveat: Only source files are instrumented. You may need to
+delete compiled/*.zo files.
+
+key             binding
+---             -------
+
+RET		racket--profile-visit
+,		racket--profile-sort
+g		racket--profile-refresh
+n		racket--profile-next
+p		racket--profile-prev
+q		racket--profile-quit
+z		racket--profile-show-zero
+
+
+
 ## Test
 
 ### racket-test
-<kbd>&lt;C-f5&gt;</kbd>
+<kbd>&lt;C-f5&gt;</kbd> or <kbd>C-c C-t</kbd>
 
-Do `(require (submod "." test))` in `*racket*` buffer.
+Do `(require (submod "." test))` in `*Racket REPL*` buffer.
+
+With prefix, runs with coverage instrumentation and highlights
+uncovered code.
 
 See also:
 - [`racket-fold-all-tests`](#racket-fold-all-tests)
@@ -495,6 +531,27 @@ Caveat: This uses Racket's `custodian-limit-memory`, which does
 not enforce the limit exactly. Instead, the program will be
 terminated upon the first garbage collection where memory exceeds
 the limit (maybe by a significant amount).
+
+### racket-error-context
+The level of context used for [`racket-run`](#racket-run) error stack traces.
+
+Each level improves stack trace information, but causes your
+program to run more slowly.
+
+  - 'low corresponds to `compile-context-preservation-enabled`
+    `#f`.
+
+  - 'medium corresponds to `compile-context-preservation-enabled`
+    `#t`, which disables some optimizations like inlining.
+
+  - 'high corresponds to `compile-context-preservation-enabled`
+    `#t` and to use of `errortrace`, which heavily instruments
+    your code and therefore may be significantly slower.
+
+Tip: Regardless of this setting, you can enable 'high errortrace
+for a specific [`racket-run`](#racket-run) using a C-u prefix. This lets you
+normally run with a faster setting, and temporarily re-run to get
+a more-helpful error message.
 
 ## REPL
 
