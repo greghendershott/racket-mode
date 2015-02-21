@@ -464,7 +464,7 @@ existence using `fboundp'."
 (defun racket-newline-and-indent ()
   "Do `newline' and `racket-indent-line'."
   (interactive)
-  (delete-trailing-whitespace)
+  (delete-trailing-whitespace (line-beginning-position) (line-end-position))
   (newline)
   (racket-indent-line))
 
