@@ -43,3 +43,11 @@
     (λ (str)
       (for ([x (in-list (get str))])
         (displayln (path->string (cadr x)))))))
+
+;; Local Variables:
+;; coding: utf-8
+;; comment-column: 40
+;; indent-tabs-mode: nil
+;; require-final-newline: t
+;; show-trailing-whitespace: t
+;; End:

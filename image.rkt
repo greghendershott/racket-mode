@@ -24,3 +24,11 @@
 (define (convert-image v)
   (cond [(and (convertible? v) (convert v 'png-bytes)) => save-temporary-image]
         [else v]))
+
+;; Local Variables:
+;; coding: utf-8
+;; comment-column: 40
+;; indent-tabs-mode: nil
+;; require-final-newline: t
+;; show-trailing-whitespace: t
+;; End:

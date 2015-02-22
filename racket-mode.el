@@ -167,4 +167,12 @@ http://www.gnu.org/licenses/ for details.")
 
 (provide 'racket-mode)
 
+;; Local Variables:
+;; coding: utf-8
+;; comment-column: 40
+;; indent-tabs-mode: nil
+;; require-final-newline: t
+;; show-trailing-whitespace: t
+;; End:
+
 ;;; racket-mode.el ends here

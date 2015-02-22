@@ -9,7 +9,7 @@
 (provide find-collects-dir
          path->collects-relative
          current-directory-for-user)
-         
+
 (define (our-find-collects-dir)
   (apply build-path
          (reverse (cdr (reverse (explode-path (collection-path "racket")))))))
@@ -44,3 +44,11 @@
 (define current-directory-for-user
   (dynamic-require 'racket/base 'current-directory-for-user
                    (const our-current-directory-for-user)))
+
+;; Local Variables:
+;; coding: utf-8
+;; comment-column: 40
+;; indent-tabs-mode: nil
+;; require-final-newline: t
+;; show-trailing-whitespace: t
+;; End:

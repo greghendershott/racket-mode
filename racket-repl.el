@@ -395,4 +395,12 @@ With prefix arg, open the N-th last shown image."
 
 (provide 'racket-repl)
 
+;; Local Variables:
+;; coding: utf-8
+;; comment-column: 40
+;; indent-tabs-mode: nil
+;; require-final-newline: t
+;; show-trailing-whitespace: t
+;; End:
+
 ;; racket-repl.el ends here

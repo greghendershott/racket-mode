@@ -31,3 +31,11 @@
 
 (define (gui-dyn-req sym)
   (dynamic-require 'racket/gui/base sym))
+
+;; Local Variables:
+;; coding: utf-8
+;; comment-column: 40
+;; indent-tabs-mode: nil
+;; require-final-newline: t
+;; show-trailing-whitespace: t
+;; End:
