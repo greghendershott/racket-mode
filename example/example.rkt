@@ -12,6 +12,10 @@
 
 (define (function foo)
   #t)
+
+(define ((curried-function x) y)
+  (list x y))
+
 (define a-var 10)
 
 (define/contract (f2 x)

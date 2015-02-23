@@ -12,6 +12,10 @@
 »
 «:racket-paren-face:(»«k:define» «:racket-paren-face:(»«f:function» foo«:racket-paren-face:)»
   «:racket-selfeval-face:#t»«:racket-paren-face:)»
+
+«:racket-paren-face:(»«k:define» «:racket-paren-face:((»«f:curried-function» x«:racket-paren-face:)» y«:racket-paren-face:)»
+  «:racket-paren-face:(»«b:list» x y«:racket-paren-face:))»
+
 «:racket-paren-face:(»«k:define» «v:a-var» «:racket-selfeval-face:10»«:racket-paren-face:)»
 
 «:racket-paren-face:(»«k:define/contract» «:racket-paren-face:(»«f:f2» x«:racket-paren-face:)»

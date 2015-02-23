@@ -67,7 +67,7 @@
 
       ;; def* -- functions
       (,(rx "(def" (0+ (or (syntax word) (syntax symbol))) (1+ " ")
-            "(" (group (1+ (or (syntax word) (syntax symbol)))))
+            (+ "(") (group (1+ (or (syntax word) (syntax symbol)))))
        1 font-lock-function-name-face)
 
       ;; module and module*
