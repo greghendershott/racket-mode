@@ -26,7 +26,7 @@
    ,y«:racket-paren-face:))»
 
 `«:racket-paren-face:(»Delete
-  ,@«:racket-paren-face:(»«b:for/list» «:racket-paren-face:([»p «:racket-paren-face:(»in-list paths«:racket-paren-face:)])»
+  ,@«:racket-paren-face:(»«b:for/list» «:racket-paren-face:([»p «:racket-paren-face:(»«b:in-list» paths«:racket-paren-face:)])»
       `«:racket-paren-face:(»Object «:racket-paren-face:()»
         «:racket-paren-face:(»Key «:racket-paren-face:()» ,p«:racket-paren-face:))))»
 
@@ -215,7 +215,7 @@
   «:racket-paren-face:(»«b:syntax-parse» stx
     «:racket-paren-face:[(»_ id:id «:racket-paren-face:(»field:id «k:...»«:racket-paren-face:))»
      «:racket-paren-face:(»«k:with-syntax» «:racket-paren-face:([(»accessor «k:...»«:racket-paren-face:)»
-                    «:racket-paren-face:(»«b:for/list» «:racket-paren-face:([»fld «:racket-paren-face:(»in-list «:racket-paren-face:(»«b:syntax->list» #'«:racket-paren-face:(»field «k:...»«:racket-paren-face:)))])»
+                    «:racket-paren-face:(»«b:for/list» «:racket-paren-face:([»fld «:racket-paren-face:(»«b:in-list» «:racket-paren-face:(»«b:syntax->list» #'«:racket-paren-face:(»field «k:...»«:racket-paren-face:)))])»
                       «:racket-paren-face:(»format-id stx «s:"~a-~a"» «:racket-paren-face:(»syntax->datum #«:racket-selfeval-face:'id»«:racket-paren-face:)» fld«:racket-paren-face:))])»
        #'«:racket-paren-face:(»serializable-struct
           id «:racket-paren-face:(»field «k:...»«:racket-paren-face:)» «:racket-keyword-argument-face:#:transparent»
