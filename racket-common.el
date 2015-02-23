@@ -299,6 +299,7 @@
                          "letrec-syntaxes+values"
                          "letrec-values"
                          "match-let"
+                         "match-let*"
                          "match-let-values"
                          "match-let*-values"
                          "match-letrec"
