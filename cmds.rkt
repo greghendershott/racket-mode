@@ -296,8 +296,9 @@
     [v              v]))
 
 (module+ test
-  (check-equal? (with-output-to-string (λ () (elisp-print '(1 t nil 3))))
-                "'(1 t nil 3)"))
+  (check-equal? (with-output-to-string
+                  (λ () (elisp-print '(1 #t nil () (a . b)))))
+                "'(1 t nil nil (a . b))"))
 
 ;;; misc
 
