@@ -304,8 +304,11 @@
 
 (define (doc stx)
   (try
-   (find-help (namespace-syntax-introduce stx))
-   #:catch exn:fail? _ (search-for (list (~a (syntax->datum stx))))))
+   (match (with-output-to-string
+            (λ () (find-help (namespace-syntax-introduce stx))))
+     [(pregexp "Sending to web browser") #t])
+   #:catch exn:fail? _
+   (search-for (list (~a (syntax->datum stx))))))
 
 (define (cd s)
   (let ([old-wd (current-directory)])
