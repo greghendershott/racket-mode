@@ -66,6 +66,19 @@ from [MELPA]. <kbd>M-x package-install</kbd>, `racket-mode`.
 >              t)
 > ```
 
+### Minimal Racket
+
+If you have installed the minimal Racket distribution (for example by
+using the [homebrew recipe]): `racket-mode` needs some additional
+packages (like `errortrace` and `macro-debugger`). A simple way to get
+all these packages is to install the `drracket` package:
+
+```shell
+$ raco pkg install drracket
+```
+
+[homebrew recipe]: https://github.com/Homebrew/homebrew/blob/master/Library/Formula/plt-racket.rb
+
 ## Configure
 
 To start, there are only two [variables](Reference.md#variables) you
@@ -89,12 +102,6 @@ Therefore you may want to set both of these to be full pathames.
 You can `setq` these directly in your Emacs init file (`~/.emacs` or
 `~/.emacs.d/init.el`), or, use <kbd>M-x Customize</kbd>, as you
 prefer.
-
-If you have installed racket via [hombrew](http://brewformulas.org/PltRacket)
-you will need to install additional packages with [raco](http://docs.racket-lang.org/raco/index.html):
-```shell
- $ raco pkg install drracket
-```
 
 ### Key bindings
 
