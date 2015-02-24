@@ -90,6 +90,12 @@ You can `setq` these directly in your Emacs init file (`~/.emacs` or
 `~/.emacs.d/init.el`), or, use <kbd>M-x Customize</kbd>, as you
 prefer.
 
+If you have installed racket via [hombrew](http://brewformulas.org/PltRacket) 
+you will need to install additional packages with [raco](http://docs.racket-lang.org/raco/index.html):
+```shell
+ $ raco pkg install drracket
+```
+
 ### Key bindings
 
 To customize things like key bindings, you can use `racket-mode-hook`
