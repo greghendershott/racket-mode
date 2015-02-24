@@ -11,6 +11,12 @@
          current-directory-for-user
          hash-clear!)
 
+;;; General note: Can use dynamic-require fail-thunk when we're sure
+;;; the module exists, e.g. looking for a function in racket/base. But
+;;; dynamic-require on a module that does not exist will cause an
+;;; exception. So use exception handling when looking for things in
+;;; collections introduced in a newer version of Racket.
+
 (module+ test
   (require rackunit))
 
@@ -21,6 +27,9 @@
 (define find-collects-dir
   (dynamic-require 'setup/dirs 'find-collects-dir
                    (const our-find-collects-dir)))
+
+(module+ test
+  (check-not-exn (λ () (find-collects-dir))))
 
 ;; Warning: This is only the subset of path->collects-relative
 ;; functionality that we actually use.
@@ -40,14 +49,22 @@
   (dynamic-require 'setup/collects 'path->collects-relative
                    (const our-path->collects-relative)))
 
+(module+ test
+  (check-equal? (path->collects-relative
+                 (apply build-path (append (explode-path (find-collects-dir))
+                                           (explode-path "racket/base"))))
+                '(collects #"racket" #"base")))
+
 ;; This is a no-op, but that suffices for our use here because we only
 ;; use it in 6.0+ to revert back to pre-6.0 behavior.
-(define (our-current-directory-for-user v)
-  (void))
+(define our-current-directory-for-user (make-parameter #f))
 
 (define current-directory-for-user
   (dynamic-require 'racket/base 'current-directory-for-user
                    (const our-current-directory-for-user)))
+
+(module+ test
+  (check-not-exn (λ () (current-directory-for-user))))
 
 ;;; Racket 6.0 adds hash-clear!
 
