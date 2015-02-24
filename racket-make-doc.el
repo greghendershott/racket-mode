@@ -52,6 +52,7 @@
     racket-run
     racket-racket
     racket-profile
+    racket-profile-mode
     "Test"
     racket-test
     racket-raco-test

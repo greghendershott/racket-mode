@@ -765,7 +765,10 @@ definition or usage, related items are highlighted and
 information is displayed in the echo area. You may also use
 special commands to navigate among the definition and its usages.
 
-\\{racket-check-syntax-mode-map}"
+```
+\\{racket-check-syntax-mode-map}
+```
+"
   :lighter " CheckSyntax"
   :keymap '(("q" . racket-check-syntax-mode-quit)
             ("h" . racket-check-syntax-mode-help)

@@ -39,9 +39,7 @@ call one its functions in the REPL, and refresh the profile
 results.)
 
 Caveat: Only source files are instrumented. You may need to
-delete compiled/*.zo files.
-
-\\{racket-profile-mode-map}"
+delete compiled/*.zo files."
   (interactive)
   (when (eq major-mode 'racket-mode)
     (message "Running with profiling instrumentation and getting results...")
@@ -159,7 +157,10 @@ delete compiled/*.zo files.
   "RacketProfile"
   "Major mode for results of `racket-profile'.
 
-\\{racket-profile-mode-map}"
+```
+\\{racket-profile-mode-map}
+```
+"
   (setq show-trailing-whitespace nil))
 
 (provide 'racket-profile)

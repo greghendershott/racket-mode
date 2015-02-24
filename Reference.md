@@ -100,6 +100,12 @@ results.)
 Caveat: Only source files are instrumented. You may need to
 delete compiled/*.zo files.
 
+### racket-profile-mode
+<kbd>M-x racket-profile-mode</kbd>
+
+Major mode for results of [`racket-profile`](#racket-profile).
+
+```
 key             binding
 ---             -------
 
@@ -112,6 +118,12 @@ q		racket--profile-quit
 z		racket--profile-show-zero
 
 
+```
+
+
+In addition to any hooks its parent mode `special-mode` might have run,
+this mode runs the hook [`racket-profile-mode-hook`](#racket-profile-mode-hook), as the final step
+during initialization.
 
 ## Test
 
@@ -472,6 +484,7 @@ definition or usage, related items are highlighted and
 information is displayed in the echo area. You may also use
 special commands to navigate among the definition and its usages.
 
+```
 key             binding
 ---             -------
 
@@ -482,6 +495,8 @@ p		racket-check-syntax-mode-goto-prev-use
 q		racket-check-syntax-mode-quit
 r		racket-check-syntax-mode-rename
 
+
+```
 
 
 ## Macro expand
