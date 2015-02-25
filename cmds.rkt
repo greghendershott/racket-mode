@@ -3,7 +3,6 @@
 (require errortrace/errortrace-lib
          help/help-utils
          macro-debugger/analysis/check-requires
-         racket/contract
          racket/format
          racket/function
          racket/list
@@ -351,7 +350,7 @@
 (define (requires/tidy reqs)
   (let* ([reqs (combine-requires reqs)]
          [reqs (group-requires reqs)])
-    (require-pretty-format reqs)))
+    (elisp-println (require-pretty-format reqs))))
 
 ;; requires/trim : path-string? (listof require-sexpr) -> require-sexpr
 ;;
@@ -375,7 +374,7 @@
                                    [else req]))
                            reqs)]
          [reqs (group-requires reqs)])
-    (require-pretty-format reqs)))
+    (elisp-println (require-pretty-format reqs))))
 
 ;; Use `bypass` to help convert from `#lang racket` to `#lang
 ;; racket/base` plus explicit requires.
@@ -407,7 +406,7 @@
                            reqs)]
          [reqs (append reqs adds)]
          [reqs (group-requires reqs)])
-    (require-pretty-format reqs)))
+    (elisp-println (require-pretty-format reqs))))
 
 ;; show-requires* : Like show-requires but accepts a path-string? that
 ;; need not already be a module path.
