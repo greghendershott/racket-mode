@@ -12,11 +12,42 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'ert)
 (require 'racket-mode)
+(require 'edmacro)
 (require 'faceup)
+(require 'racket-common)
 
 (defconst racket-tests/here-dir (faceup-this-file-directory)
   "The directory this file is located in.")
+
+;;; Utility functions for "integration" testing
+
+(defun racket-tests/type (typing)
+  (execute-kbd-macro (string-to-vector typing))
+  (redisplay))
+
+(defun racket-tests/press (binding)
+  (racket-tests/type (edmacro-parse-keys binding)))
+
+(defun racket-tests/type&press (typing binding)
+  (racket-tests/type typing)
+  (racket-tests/press binding))
+
+(defun racket-tests/see-rx (rx)
+  (accept-process-output nil 1)
+  (sit-for 0.1)
+  (looking-back rx))
+
+(defun racket-tests/see (str)
+  (racket-tests/see-rx (regexp-quote str)))
+
+(defun racket-tests/explain-see (str)
+  `(actual . ,(buffer-substring-no-properties
+               (max (point-min) (- (point) (length str)))
+               (point))))
+(put 'racket-tests/see-rx 'ert-explainer #'racket-tests/explain-see)
+(put 'racket-tests/see    'ert-explainer #'racket-tests/explain-see)
 
 ;;; REPL
 
@@ -24,17 +55,24 @@
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
   (racket-repl)
   (dotimes (_ 5) (accept-process-output nil 1))
-  (should (racket-tests/match "^Welcome to Racket v[0-9.]+\n> "))
-  (insert "(exit)")
-  (racket-repl-eval-or-newline-and-indent)
-  (dotimes (_ 5) (accept-process-output nil 1))
-  (should (racket-tests/match "Process Racket REPL finished\n$")))
-
-(defun racket-tests/match (regexp)
-  "Return `string-match' of regexp on entire non-property buffer text."
-  (string-match regexp
-                (buffer-substring-no-properties (point-min)
-                                                (point-max))))
+  (with-current-buffer (get-buffer "*Racket REPL*")
+    ;; Welcome
+    (should (racket-tests/see-rx "Welcome to Racket v[0-9.]+\n> "))
+    ;; Completion
+    (racket-tests/type&press "with-inp" "TAB")
+    (should (racket-tests/see "with-input-from-file"))
+    (racket-tests/press "RET")
+    (should (racket-tests/see "#<procedure:with-input-from-file>\n> "))
+    ;; Multiline expression indent
+    (racket-tests/type&press "(if 1" "RET")
+    (should (racket-tests/see "(if 1\n      "))
+    (racket-tests/type&press "2" "RET")
+    (should (racket-tests/see "2\n      "))
+    (racket-tests/type&press "3)" "RET")
+    (should (racket-tests/see "3)\n2\n> "))
+    ;; Exit
+    (racket-tests/type&press "(exit)" "RET")
+    (should (racket-tests/see "Process Racket REPL finished\n"))))
 
 ;;; Indentation
 
