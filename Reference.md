@@ -480,9 +480,9 @@ Analyze the buffer and annotate with information.
 
 The buffer becomes read-only until you exit this minor mode.
 However you may navigate the usual ways. When point is on a
-definition or usage, related items are highlighted and
+definition or use, related items are highlighted and
 information is displayed in the echo area. You may also use
-special commands to navigate among the definition and its usages.
+special commands to navigate among the definition and its uses.
 
 ```
 key             binding

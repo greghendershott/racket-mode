@@ -658,7 +658,7 @@ instead of textually, and handle module and submodule forms."
     (message s))
   (-when-let (uses (get-text-property new 'racket-check-syntax-def))
     ;; Fastest way to find beg/end of this definition is from its
-    ;; first usage's 'racket-check-syntax-use property.
+    ;; first use's 'racket-check-syntax-use property.
     (-let [(beg end) (car uses)]
       (-when-let (def (get-text-property beg 'racket-check-syntax-use))
         (-let [(beg end) def]
@@ -682,15 +682,18 @@ instead of textually, and handle module and submodule forms."
   (racket-check-syntax-mode -1))
 
 (defun racket-check-syntax-mode-goto-def ()
-  "When point is on a usage, go to its definition."
+  "When point is on a use, go to its definition."
   (interactive)
   (-when-let (def (get-text-property (point) 'racket-check-syntax-use))
     (-let [(beg end) def]
       (goto-char beg))))
 
 (defun racket-check-syntax-mode-forward-use (amt)
-  "When point is on a usage, go AMT usages forward. AMT may be negative.
-If point is instead on a definition, then go to its first usage."
+  "When point is on a use, go AMT uses forward. AMT may be negative.
+
+Moving before/after the first/last use wraps around.
+
+If point is instead on a definition, then go to its first use."
   (-if-let (def (get-text-property (point) 'racket-check-syntax-use))
       (-let (((beg end) def))
         (-when-let (uses (get-text-property beg 'racket-check-syntax-def))
@@ -707,17 +710,17 @@ If point is instead on a definition, then go to its first usage."
                                  (if (< ix-next 0) (1- (length uses)) ix-next))))
                  (next (nth ix-next uses)))
             (goto-char (car next)))))
-    ;; When on a definition, simply go to its first usage.
+    ;; When on a definition, simply go to its first use.
     (-when-let (uses (get-text-property (point) 'racket-check-syntax-def))
       (goto-char (car (car uses))))))
 
 (defun racket-check-syntax-mode-goto-next-use ()
-  "When point is on a usage, go to the next (sibling) usage."
+  "When point is on a use, go to the next (sibling) use."
   (interactive)
   (racket-check-syntax-mode-forward-use 1))
 
 (defun racket-check-syntax-mode-goto-prev-use ()
-  "When point is on a usage, go to the previous (sibling) usage."
+  "When point is on a use, go to the previous (sibling) use."
   (interactive)
   (racket-check-syntax-mode-forward-use -1))
 
@@ -769,9 +772,9 @@ If point is instead on a definition, then go to its first usage."
 
 The buffer becomes read-only until you exit this minor mode.
 However you may navigate the usual ways. When point is on a
-definition or usage, related items are highlighted and
+definition or use, related items are highlighted and
 information is displayed in the echo area. You may also use
-special commands to navigate among the definition and its usages.
+special commands to navigate among the definition and its uses.
 
 ```
 \\{racket-check-syntax-mode-map}
