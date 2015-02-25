@@ -4,7 +4,6 @@
          help/help-utils
          macro-debugger/analysis/check-requires
          racket/contract
-         racket/file
          racket/format
          racket/function
          racket/list
@@ -33,17 +32,17 @@
 ;; current-command-output-file parameter. This avoids mixing with
 ;; stdout and stderr, which ultimately is not very reliable. How does
 ;; racket-mode know when the file is ready to be read? 1. racket-mode
-;; deletes the file, calls us, and loops waiting for the file to
-;; exist. 2. We direct the command's output to a temporary file, then
-;; when the command has finished, rename the temp file to
+;; deletes the file, calls us, and waits for the file to exist. 2. We
+;; direct the command's output to a temporary file (on the same fs),
+;; then when the command has finished, rename the temp file to
 ;; current-command-output-file. This way, racket-mode knows that as
 ;; soon as the file exists again, the command is finished and its
 ;; output is ready to be read from the file.
 (define current-command-output-file (make-parameter #f))
-(define tmp-file (make-temporary-file))
 (define (with-output-to-command-output-file f)
   (cond [(current-command-output-file)
-         (with-output-to-file tmp-file f #:exists 'replace)
+         (define tmp-file (path-add-suffix (current-command-output-file) ".tmp"))
+         (with-output-to-file tmp-file #:exists 'replace f)
          (rename-file-or-directory tmp-file (current-command-output-file) #t)]
         [else (f)]))
 
