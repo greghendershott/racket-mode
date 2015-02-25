@@ -93,6 +93,10 @@ Others are available only as a command in the REPL.
                       'high
                     racket-error-context)))
 
+(defun racket-errortrace ()
+  (interactive)
+  (racket-run t))
+
 (defun racket--do-run (context-level &optional what-to-run)
   "Helper function for `racket-run'-like commands.
 
