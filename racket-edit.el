@@ -634,16 +634,24 @@ instead of textually, and handle module and submodule forms."
 
 ;;; racket-check-syntax
 
+(defvar racket--highlight-overlays nil)
+
 (defun racket--highlight (beg end defp)
-  (let ((o (make-overlay beg end)))
-    (overlay-put o 'name 'racket-check-syntax-overlay)
-    (overlay-put o 'priority 100)
-    (overlay-put o 'face (if defp
-                             racket-check-syntax-def-face
-                           racket-check-syntax-use-face))))
+  ;; Unless one of our highlight overlays already exists there...
+  (let ((os (overlays-at beg)))
+    (unless (cl-some (lambda (o) (member o racket--highlight-overlays)) os)
+      (let ((o (make-overlay beg end)))
+        (setq racket--highlight-overlays (cons o racket--highlight-overlays))
+        (overlay-put o 'name 'racket-check-syntax-overlay)
+        (overlay-put o 'priority 100)
+        (overlay-put o 'face (if defp
+                                 racket-check-syntax-def-face
+                               racket-check-syntax-use-face))))))
 
 (defun racket--unhighlight-all ()
-  (remove-overlays (point-min) (point-max) 'racket-check-syntax-overlay))
+  (while racket--highlight-overlays
+    (delete-overlay (car racket--highlight-overlays))
+    (setq racket--highlight-overlays (cdr racket--highlight-overlays))))
 
 (defun racket--point-entered (old new)
   (-when-let (s (get-text-property new 'help-echo))
