@@ -147,22 +147,20 @@
              (error (racket-newline-and-indent)))))))
 
 ;;;###autoload
-(defun racket-repl ()
-  "Ensure Racket REPL running and visible, without changing `selected-window'.
+(defun racket-repl (&optional noselect)
+  "Run the Racket REPL and display its buffer in some window.
 
-When the REPL buffer is already visible in a window, use that
-window. Otherwise use `(other-window 1)`. Regardless, do NOT
-change `selected-window'.
+If the Racket process is not already running, it is started.
 
-Runs `comint-mode-hook' and `racket-repl-mode-hook'."
-  (interactive)
-  (let ((original-window (selected-window)))
-    (let ((repl-window (get-buffer-window racket--repl-buffer-name)))
-      (if repl-window
-          (select-window repl-window)
-        (other-window 1)))
-    (racket-repl-ensure-buffer-and-process)
-    (select-window original-window)))
+If NOSELECT is not nil, does not select the REPL
+window (preserves the originally selected window).
+
+Commands that don't want the REPL to be displayed can instead use
+`racket--repl-ensure-buffer-and-process'."
+  (interactive "P")
+  (racket--repl-ensure-buffer-and-process t)
+  (unless noselect
+    (select-window (get-buffer-window racket--repl-buffer-name))))
 
 (defvar racket--run.rkt
   (expand-file-name "run.rkt"
@@ -173,53 +171,63 @@ Runs `comint-mode-hook' and `racket-repl-mode-hook'."
   (make-temp-file "racket-mode-command-ouput-file")
   "File used to collect output from commands used by racket-mode.")
 
-(defun racket-repl-ensure-buffer-and-process ()
+(defun racket--repl-ensure-buffer-and-process (&optional display)
   "Ensure Racket REPL buffer exists and has live Racket process.
 
-When starting Racket process, `racket--repl-wait-for-prompt'.
+If the Racket process is not already running, it is started and
+the buffer is put in `racket-repl-mode'.
 
-Use this instead of `racket-repl' when you don't want care about
-and don't want to affect the selected window."
-  (unless (comint-check-proc racket--repl-buffer-name)
-    (message "Starting Racket...")
+Non-nil DISPLAY means `display-buffer'.
+
+Never changes selected window."
+  (if (comint-check-proc racket--repl-buffer-name)
+      (when display
+        (display-buffer racket--repl-buffer-name))
     (with-current-buffer
         (make-comint racket--repl-buffer-name/raw ;w/o *stars*
                      racket-racket-program
                      nil
                      racket--run.rkt
                      racket--repl-command-output-file)
+      ;; Display now so users see startup and banner sooner.
+      (when display
+        (display-buffer (current-buffer)))
       ;; The following is needed to make e.g. λ work when pasted
       ;; into the comint-buffer, both directly by the user and via
       ;; the racket--repl-eval functions.
       (set-process-coding-system (get-buffer-process racket--repl-buffer-name)
                                  'utf-8 'utf-8)
-      (racket-repl-mode)
-      (racket--repl-wait-for-prompt))))
+      (racket-repl-mode))))
 
-(defun racket--repl-wait-for-prompt ()
-  "Wait up to `racket-wait-for-prompt-timeout' seconds for
-`racket--repl-has-prompt' to be t."
-  (message "Waiting for Racket prompt...")
-  (let ((deadline (+ (float-time) racket-wait-for-prompt-timeout)))
-    (while (and (not (racket--repl-has-prompt))
-                (< (float-time) deadline))
-      (accept-process-output (get-buffer-process racket--repl-buffer-name)
-                             (- deadline (float-time)))))
-  (if (racket--repl-has-prompt)
-        (message "")
-    (error "Timeout waiting for Racket REPL prompt")))
+(defun racket-repl-file-name ()
+  "Return the file running in the buffer, or nil.
 
-(defun racket--repl-has-prompt ()
-  "Is the REPL process alive and is the Racket prompt the last thing in the buffer?"
-  (and (comint-check-proc racket--repl-buffer-name)
-       (with-current-buffer racket--repl-buffer-name
-         (save-excursion
-           (goto-char (point-max))
-           (looking-back comint-prompt-regexp (line-beginning-position))))))
+The result can be nil if the REPL is not started, or if it is
+running no particular file as with the `,top` command."
+  (when (comint-check-proc racket--repl-buffer-name)
+    (racket--repl-cmd/sexpr ",path")))
+
+(defun racket-repl-switch-to-edit ()
+  "Switch to the window for the buffer of the file running in the REPL.
+
+If no buffer is visting the file, `find-file' it in `other-window'.
+
+If the REPL is running no file (if the prompt is `>`), do nothing."
+  (interactive)
+  (let ((path (racket-repl-file-name)))
+    (unless path
+      (user-error "The REPL is not running any file"))
+    (let ((buffer (find-buffer-visiting path)))
+      (if buffer
+          (pop-to-buffer buffer t)
+        (other-window 1)
+        (find-file path)))))
 
 (defun racket--repl-eval (expression)
-  "Eval EXPRESSION in the *Racket REPL* buffer, allow Racket output to be displayed, and show the window. Intended for use by things like ,run command."
-  (racket-repl)
+  "Eval EXPRESSION in the *Racket REPL* buffer.
+Allow Racket process output to be displayed, and show the window.
+Intended for use by things like ,run command."
+  (racket-repl t)
   (racket--repl-forget-errors)
   (comint-send-string (racket--get-repl-buffer-process) expression)
   (racket--repl-show-and-move-to-end))
@@ -236,7 +244,7 @@ Prepends a `#` to make it `#,command`. This causes output to be
 redirected to `racket--repl-command-output-file'. When that file
 comes into existence, the command has completed and we read its
 contents into a buffer."
-  (racket-repl-ensure-buffer-and-process)
+  (racket--repl-ensure-buffer-and-process)
   (when (file-exists-p racket--repl-command-output-file)
     (delete-file racket--repl-command-output-file))
   (comint-send-string (racket--get-repl-buffer-process)
@@ -271,7 +279,7 @@ Before sending the region, calls `racket-repl' and
 `racket--repl-forget-errors'. Afterwards calls
 `racket--repl-show-and-move-to-end'."
   (when (and start end)
-    (racket-repl)
+    (racket-repl t)
     (racket--repl-forget-errors)
     (comint-send-region (racket--get-repl-buffer-process) start end)
     (comint-send-string (racket--get-repl-buffer-process) "\n")
@@ -310,12 +318,9 @@ will ignore them."
 (defun racket--repl-show-and-move-to-end ()
   "Make the Racket REPL visible, and move point to end.
 Keep original window selected."
-  (let ((w (selected-window)))
-    (pop-to-buffer racket--repl-buffer-name t)
-    (select-window (get-buffer-window racket--repl-buffer-name))
-    (with-current-buffer racket--repl-buffer-name
-      (goto-char (point-max)))
-    (select-window w)))
+  (display-buffer racket--repl-buffer-name)
+  (with-current-buffer racket--repl-buffer-name
+    (comint-goto-process-mark)))
 
 ;;; Inline images in REPL
 
@@ -394,7 +399,8 @@ With prefix arg, open the N-th last shown image."
      ("C-c C-d"         racket-doc)
      ("C-c C-."         racket-describe)
      ("M-."             racket-visit-definition)
-     ("C-M-."           racket-visit-module)))
+     ("C-M-."           racket-visit-module)
+     ("C-c C-z"         racket-repl-switch-to-edit)))
   "Keymap for Racket REPL mode.")
 
 (easy-menu-define racket-repl-mode-menu racket-repl-mode-map
@@ -409,7 +415,9 @@ With prefix arg, open the N-th last shown image."
     ["Return from Visit" racket-unvisit]
     "---"
     ["Racket Documentation" racket-doc]
-    ["Describe" racket-describe]))
+    ["Describe" racket-describe]
+    "---"
+    ["Switch to Edit Buffer" racket-repl-switch-to-edit]))
 
 (define-derived-mode racket-repl-mode comint-mode "Racket-REPL"
   "Major mode for Racket REPL.

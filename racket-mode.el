@@ -54,8 +54,9 @@ http://www.gnu.org/licenses/ for details.")
 
 (defvar racket-mode-map
   (racket--easy-keymap-define
-   '(("<f5>"        racket-run)
-     ("C-c C-k"     racket-run)
+   '(("C-c C-k"     racket-run)
+     ("C-c C-z"     racket-repl)
+     ("<f5>"        racket-run-and-switch-to-repl)
      ("M-C-<f5>"    racket-racket)
      ("C-<f5>"      racket-test)
      ("C-c C-t"     racket-test)
@@ -91,10 +92,11 @@ http://www.gnu.org/licenses/ for details.")
   '("Racket"
     ("Run"
      ["in REPL" racket-run]
-     ["via `racket`" racket-racket])
+     ["in REPL and switch to REPL" racket-run-and-switch-to-repl]
+     ["in *shell* using `racket`" racket-racket])
     ("Tests"
      ["in REPL" racket-test]
-     ["via `raco test`" racket-raco-test]
+     ["in *shell* using `raco test`" racket-raco-test]
      "---"
      ["Fold All" racket-fold-all-tests]
      ["Unfold All" racket-unfold-all-tests])
@@ -108,6 +110,7 @@ http://www.gnu.org/licenses/ for details.")
      ["Last S-Expression" racket-expand-last-sexp]
      "---"
      ["Again" racket-expand-again])
+    ["Switch to REPL" racket-repl]
     "---"
     ["Comment" comment-dwim]
     ["Insert λ" racket-insert-lambda]

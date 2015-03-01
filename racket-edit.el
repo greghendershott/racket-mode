@@ -35,6 +35,10 @@ environment is reset to the contents of the file. In other words,
 like DrRacket, this provides the predictability of a \"static\"
 baseline, plus some interactive exploration.
 
+See also `racket-run-and-switch-to-repl', which is even more like
+DrRacket's Run because it selects the REPL window (gives it the
+focus), too.
+
 With a C-u prefix, uses errortrace for improved stack traces.
 Otherwise follows the `racket-error-context' setting.
 
@@ -91,6 +95,8 @@ Others are available only as a command in the REPL.
 (defun racket--do-run (context-level)
   "Helper function for `racket-run'-like commands.
 Supplies CONTEXT-LEVEL to the back-end ,run command; see run.rkt."
+  (unless (eq major-mode 'racket-mode)
+    (error "Current buffer is not a racket-mode buffer"))
   (when (buffer-modified-p)
     (save-buffer))
   (remove-overlays (point-min) (point-max) 'racket-uncovered-overlay)
@@ -101,6 +107,16 @@ Supplies CONTEXT-LEVEL to the back-end ,run command; see run.rkt."
                              racket-memory-limit
                              racket-pretty-print
                              context-level)))
+
+(defun racket-run-and-switch-to-repl (&optional errortracep)
+  "This is `racket-run' followed by `racket-switch-to-repl'.
+
+With a C-u prefix, uses errortrace for improved stack traces.
+Otherwise follows the `racket-error-context' setting."
+  (interactive "P")
+  (racket-run errortracep)
+  (racket-repl))
+
 (defun racket-racket ()
   "Do `racket <file>` in `*shell*` buffer."
   (interactive)

@@ -90,6 +90,7 @@
     [(info) (info)]
     ;; These remaining commands are intended to be used by
     ;; racket-mode, only.
+    [(path) (elisp-println (and path (path->string path)))]
     [(syms) (syms)]
     [(def) (def (read))]
     [(describe) (describe (read-syntax))]
