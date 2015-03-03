@@ -1,7 +1,6 @@
 #lang at-exp racket/base
 
-(require errortrace/errortrace-lib
-         help/help-utils
+(require help/help-utils
          macro-debugger/analysis/check-requires
          racket/format
          racket/function
@@ -15,6 +14,7 @@
          (only-in xml xexpr->string)
          "channel.rkt"
          "defn.rkt"
+         "instrument.rkt"
          "logger.rkt"
          "scribble.rkt"
          "try-catch.rkt"
@@ -611,7 +611,7 @@
 (define (get-profile)
   (elisp-println
    ;; TODO: Filter files from racket-mode itself, b/c just noise?
-   (for/list ([x (in-list (get-profile-results))])
+   (for/list ([x (in-list (get-profile-info))])
      (match-define (list count msec name stx _ ...) x)
      (list count
            msec
@@ -627,13 +627,14 @@
 (define (get-uncovered path)
   (elisp-println
    (consolidate-coverage-ranges
-    (for*/list ([x (in-list (get-execute-counts))]
-                [stx (in-value (car x))]
-                #:when (equal? path (syntax-source stx))
-                [count (in-value (cdr x))]
-                #:when (zero? count))
-      (cons (syntax-position stx)
-            (+ (syntax-position stx) (syntax-span stx)))))))
+    (for*/list ([x (in-list (get-test-coverage-info))]
+                [covered? (in-value (first x))]
+                #:when (not covered?)
+                [src (in-value (second x))]
+                #:when (equal? path src)
+                [pos (in-value (third x))]
+                [span (in-value (fourth x))])
+      (cons pos (+ pos span))))))
 
 (define (consolidate-coverage-ranges xs)
   (remove-duplicates (sort xs < #:key car)

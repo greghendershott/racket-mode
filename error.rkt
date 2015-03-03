@@ -1,9 +1,9 @@
 #lang racket/base
 
-(require errortrace/errortrace-lib
-         racket/match
+(require racket/match
          racket/runtime-path
          racket/string
+         "instrument.rkt"
          "util.rkt"
          "older-racket.rkt")
 

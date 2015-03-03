@@ -1,7 +1,6 @@
 #lang racket/base
 
-(require errortrace/errortrace-lib
-         racket/cmdline
+(require racket/cmdline
          racket/match
          racket/runtime-path
          racket/pretty
@@ -9,16 +8,10 @@
          "cmds.rkt"
          "error.rkt"
          "gui.rkt"
+         "instrument.rkt"
          "logger.rkt"
          "older-racket.rkt"
          "util.rkt")
-
-;; This is a horrible hack to work around the horrible fact that
-;; errortrace-lib does not provide the `execute-info` hash (like it
-;; does provide `test-coverage-info`) which must be emptied between
-;; runs.
-(require (only-in rackunit require/expose))
-(require/expose errortrace/errortrace-lib (execute-info))
 
 (module+ main
   (command-line #:args (command-output-file)
@@ -50,7 +43,6 @@
   ;; If racket/gui/base isn't loaded, the current-eventspace parameter
   ;; doesn't exist, so make a "dummy" parameter of that name.
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
-  (define need-errortrace? (errortrace-level? context-level))
   (parameterize*
       ([current-custodian user-cust]
        ;; Use parameterize* so that `current-namespace` ...
@@ -59,20 +51,20 @@
        [current-eventspace ((txt/gui void make-eventspace))]
        [compile-enforce-module-constants #f]
        [compile-context-preservation-enabled (not (eq? context-level 'low))]
-       [current-compile (if need-errortrace?
-                            (make-errortrace-compile-handler)
-                            (current-compile))]
-       [instrumenting-enabled need-errortrace?]
-       [use-compiled-file-paths (if need-errortrace?
+       [current-eval (if (instrument-level? context-level)
+                         (make-instrumented-eval-handler (current-eval))
+                         (current-eval))]
+       [instrumenting-enabled (instrument-level? context-level)]
+       [use-compiled-file-paths (if (instrument-level? context-level)
                                    (cons (build-path "compiled" "errortrace")
                                          (use-compiled-file-paths))
                                    (use-compiled-file-paths))]
        [profiling-enabled (eq? context-level 'profile)]
-       [execute-counts-enabled (eq? context-level 'coverage)])
+       [test-coverage-enabled (eq? context-level 'coverage)])
     ;; Some context-levels need some state to be reset.
     (match context-level
-      ['profile (clear-profile-results)]
-      ['coverage (hash-clear! execute-info)]
+      ['profile (clear-profile-info!)]
+      ['coverage (clear-test-coverage-info!)]
       [_ (void)])
     ;; repl-thunk will be called from another thread -- either a plain
     ;; thread when racket/gui/base is not (yet) instantiated, or, from
@@ -93,6 +85,10 @@
                                   (put/stop (struct-copy rerun rr [path #f])))])
             (maybe-load-language-info path)
             (namespace-require path)
+            ;; ;; Automatically run test submodule, if any:
+            ;; (define submod-spec `(submod ,path test))
+            ;; (when (module-declared? submod-spec)
+            ;;   (dynamic-require submod-spec #f))
             (current-namespace (module->namespace path))
             (check-top-interaction))))
       ;; 3. read-eval-print-loop
