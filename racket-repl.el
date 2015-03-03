@@ -319,8 +319,9 @@ will ignore them."
   "Make the Racket REPL visible, and move point to end.
 Keep original window selected."
   (display-buffer racket--repl-buffer-name)
-  (with-current-buffer racket--repl-buffer-name
-    (goto-char (point-max))))
+  (save-selected-window
+    (select-window (get-buffer-window racket--repl-buffer-name))
+    (comint-show-maximum-output)))
 
 ;;; Inline images in REPL
 
