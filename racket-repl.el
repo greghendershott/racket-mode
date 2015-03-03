@@ -320,7 +320,7 @@ will ignore them."
 Keep original window selected."
   (display-buffer racket--repl-buffer-name)
   (with-current-buffer racket--repl-buffer-name
-    (comint-goto-process-mark)))
+    (goto-char (point-max))))
 
 ;;; Inline images in REPL
 
