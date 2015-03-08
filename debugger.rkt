@@ -8,6 +8,8 @@
          "debugger-load.rkt" ;not gui-debugger/load-sandbox b/c gui
          "elisp.rkt")
 
+(provide make-debug-eval-handler)
+
 ;; Active breakpoints: Presumably these will be Emacs overlays?
 
 ;; Frames and Vars: Presumably these will be in some separate
@@ -203,27 +205,40 @@
 
 ;;; Annotation
 
-(define ((make-debug-eval-handler orig-eval) orig-exp)
-  (cond [(compiled-expression? (if (syntax? orig-exp)
-                                   (syntax-e orig-exp)
-                                   orig-exp))
-         (orig-eval orig-exp)]
-        [else
-         (define exp (if (syntax? orig-exp)
-                         orig-exp
-                         (namespace-syntax-introduce
-                          (datum->syntax #f orig-exp))))
-         (define top-e (expand-syntax-to-top-form exp))
-         (define fn (and (syntax? orig-exp)
-                         (let ([src (syntax-source orig-exp)])
-                           (and (path? src)
-                                src))))
-         (cond [(annotate-this-module? fn)
-                (parameterize ([current-eval orig-eval])
-                  (eval/annotations top-e
-                                    annotate-module?
-                                    annotator))]
-               [else (orig-eval top-e)])]))
+(define (make-debug-eval-handler orig-eval files-to-debug)
+  (define (annotate-module? filename m)
+    (annotate-this-module? filename))
+
+  (define (annotate-this-module? filename)
+    ;; (pr `(debug-file? ,filename))
+    ;; (display "DEBUG> ")
+    ;; (read)
+    (member filename files-to-debug))
+
+  (clear-breakable-positions!)
+  (clear-bound-identifiers!)
+  (clear-top-level-bindings!)
+  (λ (orig-exp)
+    (cond [(compiled-expression? (if (syntax? orig-exp)
+                                     (syntax-e orig-exp)
+                                     orig-exp))
+           (orig-eval orig-exp)]
+          [else
+           (define exp (if (syntax? orig-exp)
+                           orig-exp
+                           (namespace-syntax-introduce
+                            (datum->syntax #f orig-exp))))
+           (define top-e (expand-syntax-to-top-form exp))
+           (define fn (and (syntax? orig-exp)
+                           (let ([src (syntax-source orig-exp)])
+                             (and (path? src)
+                                  src))))
+           (cond [(annotate-this-module? fn)
+                  (parameterize ([current-eval orig-eval])
+                    (eval/annotations top-e
+                                      annotate-module?
+                                      annotator))]
+                 [else (orig-eval top-e)])])))
 
 (define (annotator stx)
   (define source (syntax-source stx))
@@ -238,24 +253,13 @@
   (set-breakable-positions! source breakable-positions)
   annotated)
 
-(define (annotate-module? filename m)
-  (annotate-this-module? filename))
-
-(define (annotate-this-module? filename)
-  ;; (pr `(debug-file? ,filename))
-  ;; (display "DEBUG> ")
-  ;; (read)
-  (member filename files-to-debug))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;; example usage
 
-(define files-to-debug (list (string->path "/tmp/simple.rkt")
-                             (string->path "/tmp/foo.rkt")))
+(define files-to-debug (map string->path '("/tmp/simple.rkt" "/tmp/foo.rkt")))
 
-(parameterize ([current-eval (make-debug-eval-handler (current-eval))])
-  (clear-breakable-positions!)
-  (clear-bound-identifiers!)
-  (clear-top-level-bindings!)
+(parameterize ([current-eval (make-debug-eval-handler (current-eval)
+                                                      files-to-debug)])
   (namespace-require (car files-to-debug)))
 
 ;; Local Variables:

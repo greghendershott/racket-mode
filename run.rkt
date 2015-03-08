@@ -6,6 +6,7 @@
          racket/pretty
          "channel.rkt"
          "cmds.rkt"
+         "debugger.rkt"
          "error.rkt"
          "gui.rkt"
          "instrument.rkt"
@@ -52,9 +53,12 @@
          ;; OTHERS:
          [compile-enforce-module-constants #f]
          [compile-context-preservation-enabled (not (eq? context-level 'low))]
-         [current-eval (if (instrument-level? context-level)
-                           (make-instrumented-eval-handler (current-eval))
-                           (current-eval))]
+         [current-eval (match context-level
+                         ['debug
+                          (make-debug-eval-handler (current-eval) (list path))]
+                         [(? instrument-level?)
+                          (make-instrumented-eval-handler (current-eval))]
+                         [_ (current-eval)])]
          [instrumenting-enabled (instrument-level? context-level)]
          [profiling-enabled (eq? context-level 'profile)]
          [test-coverage-enabled (eq? context-level 'coverage)]

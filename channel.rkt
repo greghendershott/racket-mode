@@ -27,7 +27,8 @@
 (define context-levels
   `(low      ;compile-context-preservation-enabled #f
     medium   ;compile-context-preservation-enabled #t
-    ,@instrument-levels))
+    ,@instrument-levels
+    debug))
 
 (define-syntax-rule (memq? x xs)
   (not (not (memq x xs))))
