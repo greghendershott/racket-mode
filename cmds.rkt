@@ -452,10 +452,6 @@
 ;; for-syntax, for-template, for-label, for-meta, and plain (0).
 ;; Within each such group, sort them first by module paths then
 ;; relative requires. Within each such group, sort alphabetically.
-;;
-;; Note: Does *not* attempt to sort things *within* require subforms
-;; such as except-in, only-in and so on. Such forms are only sorted in
-;; between module paths and relative requires.
 (define (group-requires reqs)
   ;; Put the requires into a hash of sets.
   (define ht (make-hasheq)) ;(hash/c <level> (set <mod>))
@@ -545,13 +541,35 @@
 (module+ test
   (check-equal? (require-pretty-format
                  '(require a))
-                "(require a)\n")
+                @~a{(require a)
+
+                    })
   (check-equal? (require-pretty-format
                  '(require a b))
-                "(require a\n         b)\n")
+                @~a{(require a
+                             b)
+
+                    })
   (check-equal? (require-pretty-format
                  '(require (for-syntax a b) (for-meta 2 c d) e f))
-                "(require (for-syntax a\n                     b)\n         (for-meta 2 c\n                     d)\n         e\n         f)\n"))
+                @~a{(require (for-syntax a
+                                         b)
+                             (for-meta 2 c
+                                         d)
+                             e
+                             f)
+
+                    })
+  (check-equal? (require-pretty-format
+                 `(require (only-in m a b) (except-in m a b)))
+                @~a{(require (only-in m
+                                      a
+                                      b)
+                             (except-in m
+                                        a
+                                        b))
+
+                    }))
 
 ;; Pretty print a require form with one module per line and with
 ;; indentation for the `for-X` subforms. Example:
@@ -564,10 +582,6 @@
 ;;          racket/string
 ;;          "a.rkt"
 ;;          "b.rkt")
-;;
-;; Note: Does *not* attempt to format things *within* require subforms
-;; such as except-in, only-in and so on. Each such form is put on its
-;; own line, but might run >80 chars.
 (define (require-pretty-print x)
   (define (prn x first? indent)
     (define (indent-string)
@@ -583,7 +597,8 @@
     (match x
       [(list 'require)
        (void)]
-      [(list* (and pre (or 'require 'for-syntax 'for-template 'for-label))
+      [(list* (and pre (or 'require 'for-syntax 'for-template 'for-label
+                           'only-in 'except-in))
               this more)
        (prn-form (format "~s" pre) this more)
        (when (eq? pre 'require)
