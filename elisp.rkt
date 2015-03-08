@@ -49,6 +49,12 @@
     [(? struct? x)    (~a x)]
     [(? procedure? x) (~a x)]
     [(? hash? ht)     (hash->list ht)]
+    [(? syntax? stx)  (map ->elisp (list (syntax-e stx)
+                                         (syntax-source stx)
+                                         (syntax-line stx)
+                                         (syntax-column stx)
+                                         (syntax-position stx)
+                                         (syntax-span stx)))]
     [v                v]))
 
 (module+ test
