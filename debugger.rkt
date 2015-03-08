@@ -23,9 +23,9 @@
 
 
 ;;; Printing
-(define pr elisp-println) ;for real, use by Elisp
-;; (require racket/pretty)  ;for interactice dev...
-;; (define pr pretty-print) ;...easier to read
+;;(define pr elisp-println) ;for real, use by Elisp
+(require racket/pretty)  ;for interactice dev...
+(define pr pretty-print) ;...easier to read
 
 
 ;;; Breakpoints
@@ -125,15 +125,16 @@
         [else (fk)]))
 
 (define (get-var frames src pos)
-  (define id (position->identifier src pos))
-  (cond [id (lookup-var id frames
-                        (λ (val get/set!) (pr val))
-                        (λ () (pr 'undefined)))]
-        [else (pr "undefined")]))
+  (lookup-var (position->identifier src pos)
+              frames
+              (λ (val get/set!) (pr val))
+              (λ () (pr 'undefined))))
 
 (define (set-var frames src pos new-val)
-  (define id (position->identifier src pos))
-  (and id (lookup-var id frames (λ (val get/set!) (get/set! new-val)) (λ () #f))))
+  (lookup-var (position->identifier src pos)
+              frames
+              (λ (val get/set!) (get/set! new-val) #t)
+              (λ () #f)))
 
 ;;; Annotation callbacks
 
@@ -169,21 +170,21 @@
                 [(break-after)  (+ (syntax-position stx) (syntax-span stx) -1)]))
   (pr
    `(,which
-     (module ,(mark-module-name top-mark))
-     (source ,src)
      (pos    ,pos)
-     (line   ,(syntax-line stx))
-     (col    ,(syntax-column stx))
+     (stx    ,stx)
+     (module ,(mark-module-name top-mark))
      (frames ,(for/list ([m (in-list all-marks)])
-                (define stx (mark-source m))
-                `(,(syntax-position stx)
-                  ,(+ (syntax-position stx) (syntax-span stx)))))
-     (bindings ,(for/list ([b (in-list (mark-bindings top-mark))])
-                  `(,(syntax-e (mark-binding-binding b))
-                    ,(mark-binding-value b))))
+                (mark-source m)))
+     (bindings ,(for*/list ([b (in-list (mark-bindings top-mark))]
+                            [stx (in-value (mark-binding-binding b))]
+                            #:when (syntax-original? stx)
+                            [val (in-value (mark-binding-value b))])
+                  (list stx val)))
      (vals ,vals)))
+  ;; Could this be a read-eval-print-loop much like the main REPL?
+  ;; Allowing arbitrary evaluations?
   (let loop ()
-    (display "DEBUG> ") ;;just to keep racket-repl happy for input
+    (display "DEBUG> ") ;;just to keep racket-repl happy for input during dev
     (match (read)
       ;; Commands to resume, optionally modifying `vals` (whose
       ;; meaning varies for break-before and break-after):
