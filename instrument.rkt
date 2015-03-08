@@ -11,7 +11,8 @@
                   stacktrace-imports^)
          racket/match
          racket/unit
-         "older-racket.rkt") ;for hash-clear!
+         "older-racket.rkt" ;for hash-clear!
+         "util.rkt")
 
 (provide make-instrumented-eval-handler
          error-context-display-depth
@@ -41,14 +42,10 @@
   ;; This is modeled after the one in DrRacket.
   (cond
     [(or (not (instrumenting-enabled))
-         (compiled-expression? (if (syntax? orig-exp)
-                                   (syntax-e orig-exp)
-                                   orig-exp)))
+         (compiled-expression? (syntax-or-sexpr->sexpr orig-exp)))
      (orig-eval orig-exp)]
     [else
-     (let loop ([exp (if (syntax? orig-exp)
-                         orig-exp
-                         (namespace-syntax-introduce (datum->syntax #f orig-exp)))])
+     (let loop ([exp (syntax-or-sexpr->syntax orig-exp)])
        (let ([top-e (expand-syntax-to-top-form exp)])
          (syntax-case top-e (begin)
            [(begin expr ...)

@@ -6,7 +6,8 @@
          racket/match
          racket/dict
          "debugger-load.rkt" ;not gui-debugger/load-sandbox b/c gui
-         "elisp.rkt")
+         "elisp.rkt"
+         "util.rkt")
 
 (provide make-debug-eval-handler)
 
@@ -219,15 +220,10 @@
   (clear-bound-identifiers!)
   (clear-top-level-bindings!)
   (λ (orig-exp)
-    (cond [(compiled-expression? (if (syntax? orig-exp)
-                                     (syntax-e orig-exp)
-                                     orig-exp))
+    (cond [(compiled-expression? (syntax-or-sexpr->sexpr orig-exp))
            (orig-eval orig-exp)]
           [else
-           (define exp (if (syntax? orig-exp)
-                           orig-exp
-                           (namespace-syntax-introduce
-                            (datum->syntax #f orig-exp))))
+           (define exp (syntax-or-sexpr->syntax orig-exp))
            (define top-e (expand-syntax-to-top-form exp))
            (define fn (and (syntax? orig-exp)
                            (let ([src (syntax-source orig-exp)])
