@@ -1,7 +1,7 @@
 #lang mzscheme
 
-;;; This is copied from gui-debugger/load-sandbox.rkt but avoids
-;;; dep on racket/gui
+;; This is almost entirely copied from gui-debugger/load-sandbox.rkt
+;; but avoids dep on racket/gui.
 
 (require syntax/moddep
          racket/private/namespace)
@@ -60,3 +60,11 @@
   (let ([p (open-input-file filename)])
     (port-count-lines! p)
     (values p filename)))
+
+;; Local Variables:
+;; coding: utf-8
+;; comment-column: 40
+;; indent-tabs-mode: nil
+;; require-final-newline: t
+;; show-trailing-whitespace: t
+;; End:

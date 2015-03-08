@@ -1,47 +1,51 @@
 #lang racket/base
 
-(require gui-debugger/annotator
+(require data/interval-map
+         gui-debugger/annotator
          gui-debugger/marks
          racket/match
-         racket/format
-         racket/pretty
-         "debugger-load.rkt") ;not gui-debugger/load-sandbox b/c gui
+         racket/dict
+         "debugger-load.rkt" ;not gui-debugger/load-sandbox b/c gui
+         "elisp.rkt")
 
 ;; Active breakpoints: Presumably these will be Emacs overlays?
 
 ;; Frames and Vars: Presumably these will be in some separate
 ;; racket-debug-watch-mode window?
 
+;; Multi-file debugging. DrR prompts as eval-handler is given each
+;; file. I guess that will require a command prompt?
+
 ;; How about something like Elisp `(debug id ...)`, or Ruby `pry`? Is
 ;; that orthogonal -- could be done with errortrace instrumentation?
 ;; Maybe the only connection to this is that IF full debugger is
 ;; running it could be an automatic breakpoint.
 
+
+;;; Printing
+(define pr elisp-println) ;for real, use by Elisp
+;; (require racket/pretty)  ;for interactice dev...
+;; (define pr pretty-print) ;...easier to read
+
+
+;;; Breakpoints
+
 (define step? #t)
 
 ;; Annotation populates this with an entry for every breakable
-;; position. Subsequently, you can only update entries to be #t or #f.
-;; IOW you can't set a breakpoint for a position that is not
+;; position. Subsequently, you can only update entries to be #t or
+;; #f. IOW you can't set a breakpoint for a position that is not
 ;; breakable.
 (define breakpoints (make-hash)) ;(hash/c (cons src pos) boolean)
 
+(define (clear-breakable-positions!)
+  (hash-clear! breakpoints))
+
 (define (list-breaks)
-  ;; TODO: Make Elisp friendly.
-  (pretty-print breakpoints))
+  (elisp-println breakpoints))
 
 (define (should-break? src pos)
   (hash-ref breakpoints (cons src pos) #f))
-
-(define (reset-breakable-positions! source breakable-positions)
-  (clear-breakpoints-for-source! source)
-  (set-breakable-positions! source breakable-positions))
-
-(define (clear-breakpoints-for-source! source)
-  (for ([key (in-list (for*/list ([key (in-hash-keys breakpoints)]
-                                  [src (in-value (car key))]
-                                  #:when (equal? source src))
-                        key))])
-    (hash-remove! breakpoints key)))
 
 (define (set-breakable-positions! source breakable-positions)
   (for ([pos (in-list breakable-positions)])
@@ -54,88 +58,171 @@
          #t]
         [else #f]))
 
-;;;
+;;; Bound identifiers
+
+;; Annotation populates this with an entry for every identifer. We use
+;; this to match source positions with identifier stxs. (DrR uses a
+;; vector, but I think an interval-map is a better fit.)
+(define bound-identifiers (make-hash)) ;(hash/c src interval-map)
+
+(define (clear-bound-identifiers!)
+  (hash-clear! bound-identifiers))
+
+(define (add-bound-identifier! bound binding)
+  (define src (syntax-source bound))
+  (define pos (syntax-position bound))
+  (define span (syntax-span bound))
+  (when (and src pos span)
+    (hash-update! bound-identifiers
+                  src
+                  (λ (im)
+                    (interval-map-set! im pos (+ pos span) binding)
+                    im)
+                  (λ () (make-interval-map)))))
+
+(define (position->identifier src pos)
+  (interval-map-ref (hash-ref bound-identifiers src (make-interval-map))
+                    pos
+                    #f))
+
+(define (list-bindings)
+  (pr (for/list ([(src im) (in-hash bound-identifiers)])
+        (list src
+              (for/list ([(k v) (in-dict im)])
+                (list k (syntax->datum v)))))))
+
+;;; Top-level bindings
+
+(define top-level-bindings '()) ;(list/c (cons/c stx procedure?))
+
+(define (clear-top-level-bindings!)
+  (set! top-level-bindings '()))
+
+(define (add-top-level-binding! var get/set!)
+  (set! top-level-bindings
+        (cons (cons var get/set!) top-level-bindings)))
+
+(define (lookup-top-level-var var)
+  (for/or ([b (in-list top-level-bindings)])
+    (match-define (cons v get/set!) b)
+    (and (or (bound-identifier=? v var)
+             (free-identifier=? v var))
+         get/set!)))
+
+;;; Get/set vars (either bound or top-level)
+
+;; The success continuation is called with the value and the setter proc.
+(define (lookup-var id frames sk fk)
+  (cond [(and id frames (lookup-first-binding (λ (id2) (free-identifier=? id id2))
+                                              frames
+                                              (λ () #f)))
+         => (λ (binding)
+              (sk (mark-binding-value binding)
+                  (λ (v) (mark-binding-set! binding v))))]
+        [(and id (lookup-top-level-var id))
+         => (λ (tlb)
+              (sk (tlb) tlb))]
+        [else (fk)]))
+
+(define (get-var frames src pos)
+  (define id (position->identifier src pos))
+  (cond [id (lookup-var id frames
+                        (λ (val get/set!) (pr val))
+                        (λ () (pr 'undefined)))]
+        [else (pr "undefined")]))
+
+(define (set-var frames src pos new-val)
+  (define id (position->identifier src pos))
+  (and id (lookup-var id frames (λ (val get/set!) (get/set! new-val)) (λ () #f))))
+
+;;; Annotation callbacks
 
 (define (record-bound-identifier type bound binding)
-  ;;(pretty-print (list ''record-bound type bound binding))
+  ;;(pr (list 'record-bound type bound binding))
+  (add-bound-identifier! bound binding)
   (void))
 
 (define (record-top-level-identifier mod var get/set!)
-  ;;(pretty-print (list ''record-top-level mod var get/set!))
+  ;;(pr (list 'record-top-level mod var get/set!))
+  (add-top-level-binding! var get/set!)
   (void))
 
+;; When break? returns #t, either break-before or break-after will be
+;; called next.
 (define ((break? src) pos)
-  ;; (pretty-print (list ''break? src pos))
   (or step?
       (should-break? src pos)))
 
 (define (break-before top-mark ccm)
-  (command 'break-before top-mark ccm '())
-  #f)
+  (break-prompt 'break-before top-mark ccm #f))
 
 (define (break-after top-mark ccm . vals)
-  (define other-marks (continuation-mark-set->list ccm debug-key))
-  (command 'break-after top-mark ccm vals)
-  (apply values vals))
+  (apply values (break-prompt 'break-after top-mark ccm vals)))
 
-(define (command which top-mark ccm vals)
+(define (break-prompt which top-mark ccm vals)
   (define other-marks (continuation-mark-set->list ccm debug-key))
+  (define all-marks (cons top-mark other-marks))
   (define stx (mark-source top-mark))
-  (define src (match (syntax-source stx) [(? path? p) (path->string p)] [x x]))
+  (define src (syntax-source stx))
   (define pos (case which
                 [(break-before) (syntax-position stx)]
                 [(break-after)  (+ (syntax-position stx) (syntax-span stx) -1)]))
-  (pretty-print
+  (pr
    `(,which
      (module ,(mark-module-name top-mark))
      (source ,src)
      (pos    ,pos)
      (line   ,(syntax-line stx))
      (col    ,(syntax-column stx))
-     (frames ,(for/list ([m (in-list (cons top-mark other-marks))])
+     (frames ,(for/list ([m (in-list all-marks)])
                 (define stx (mark-source m))
                 `(,(syntax-position stx)
                   ,(+ (syntax-position stx) (syntax-span stx)))))
      (bindings ,(for/list ([b (in-list (mark-bindings top-mark))])
                   `(,(syntax-e (mark-binding-binding b))
-                    ,(~a (mark-binding-value b)))))
+                    ,(mark-binding-value b))))
      (vals ,vals)))
   (let loop ()
     (display "DEBUG> ") ;;just to keep racket-repl happy for input
     (match (read)
-      [`(step)       (set! step? #t)]
-      [`(go)         (set! step? #f)]
-      [`(break ,pos) (displayln (set-breakpoint! (syntax-source stx) pos #t)) (loop)]
-      [`(clear ,pos) (displayln (set-breakpoint! (syntax-source stx) pos #f)) (loop)]
-      [`(list)       (list-breaks) (loop)]
-      [_             (displayln #f)])))
+      ;; Commands to resume, optionally modifying `vals` (whose
+      ;; meaning varies for break-before and break-after):
+      [`(step)        (set! step? #t) vals]
+      [`(step ,vs)    (set! step? #t) vs]
+      [`(go)          (set! step? #f) vals]
+      [`(go ,vs)      (set! step? #f) vs]
+      ;; Commands to tweak state but not yet resume (ergo the `loop`):
+      [`(break ,pos)  (pr (set-breakpoint! src pos #t)) (loop)]
+      [`(clear ,pos)  (pr (set-breakpoint! src pos #f)) (loop)]
+      [`(breaks)      (list-breaks)                     (loop)]
+      [`(bindings)    (list-bindings)                   (loop)]
+      [`(get ,pos)    (get-var all-marks src pos)       (loop)]
+      [`(set ,pos ,v) (set-var all-marks src pos v)     (loop)]
+      [_              (pr "unknown command")            (loop)])))
+
+;;; Annotation
 
 (define ((make-debug-eval-handler orig-eval) orig-exp)
-  (cond
-    [(compiled-expression? (if (syntax? orig-exp)
-                               (syntax-e orig-exp)
-                               orig-exp))
-     (orig-eval orig-exp)]
-    [else
-     (define exp (if (syntax? orig-exp)
-                     orig-exp
-                     (namespace-syntax-introduce
-                      (datum->syntax #f orig-exp))))
-     (define top-e (expand-syntax-to-top-form exp))
-     (define fn (and (syntax? orig-exp)
-                     (let ([src (syntax-source orig-exp)])
-                       (and (path? src)
-                            src))))
-     (cond [(annotate-this-module? fn)
-            (parameterize ([current-eval orig-eval])
-              (eval/annotations top-e
-                                annotate-module?
-                                annotator))]
-           [else (orig-eval top-e)])]))
-
-(define (annotate-module? filename m)
-  ;; For now, only annotate the original file.
-  (annotate-this-module? filename))
+  (cond [(compiled-expression? (if (syntax? orig-exp)
+                                   (syntax-e orig-exp)
+                                   orig-exp))
+         (orig-eval orig-exp)]
+        [else
+         (define exp (if (syntax? orig-exp)
+                         orig-exp
+                         (namespace-syntax-introduce
+                          (datum->syntax #f orig-exp))))
+         (define top-e (expand-syntax-to-top-form exp))
+         (define fn (and (syntax? orig-exp)
+                         (let ([src (syntax-source orig-exp)])
+                           (and (path? src)
+                                src))))
+         (cond [(annotate-this-module? fn)
+                (parameterize ([current-eval orig-eval])
+                  (eval/annotations top-e
+                                    annotate-module?
+                                    annotator))]
+               [else (orig-eval top-e)])]))
 
 (define (annotator stx)
   (define source (syntax-source stx))
@@ -147,15 +234,33 @@
                                   record-bound-identifier
                                   record-top-level-identifier
                                   source))
-  (reset-breakable-positions! source breakable-positions)
+  (set-breakable-positions! source breakable-positions)
   annotated)
+
+(define (annotate-module? filename m)
+  (annotate-this-module? filename))
+
+(define (annotate-this-module? filename)
+  ;; (pr `(debug-file? ,filename))
+  ;; (display "DEBUG> ")
+  ;; (read)
+  (member filename files-to-debug))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
-(define file-to-debug (string->path "/tmp/simple.rkt"))
-
-(define (annotate-this-module? filename)
-  (equal? filename file-to-debug))
+(define files-to-debug (list (string->path "/tmp/simple.rkt")
+                             (string->path "/tmp/foo.rkt")))
 
 (parameterize ([current-eval (make-debug-eval-handler (current-eval))])
-  (namespace-require file-to-debug))
+  (clear-breakable-positions!)
+  (clear-bound-identifiers!)
+  (clear-top-level-bindings!)
+  (namespace-require (car files-to-debug)))
+
+;; Local Variables:
+;; coding: utf-8
+;; comment-column: 40
+;; indent-tabs-mode: nil
+;; require-final-newline: t
+;; show-trailing-whitespace: t
+;; End:

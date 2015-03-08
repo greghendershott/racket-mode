@@ -15,6 +15,7 @@
          "channel.rkt"
          "defn.rkt"
          "fresh-line.rkt"
+         "elisp.rkt"
          "instrument.rkt"
          "logger.rkt"
          "scribble.rkt"
@@ -76,14 +77,6 @@
   (display "> ")
   (flush-output)
   (zero-column!))
-
-(define (elisp-read)
-  ;; Elisp prints '() as 'nil. Reverse that. (Assumption: Although
-  ;; some Elisp code puns nil/() also to mean "false", _our_ Elisp
-  ;; code _won't_ do that.)
-  (match (read)
-    ['nil '()]
-    [x x]))
 
 (define (handle-command cmd-stx path)
   (let ([read elisp-read])
@@ -290,28 +283,6 @@
   (define stx (namespace-syntax-introduce _stx))
   (or (scribble-doc/html stx)
       (sig-and/or-type stx)))
-
-;;; print elisp values
-
-(define (elisp-println v)
-  (elisp-print v)
-  (newline))
-
-(define (elisp-print v)
-  (print (->elisp v)))
-
-(define (->elisp v)
-  (match v
-    [(or #f (list)) 'nil]
-    [#t             't]
-    [(? list? xs)   (map ->elisp xs)]
-    [(cons x y)     (cons (->elisp x) (->elisp y))]
-    [v              v]))
-
-(module+ test
-  (check-equal? (with-output-to-string
-                  (λ () (elisp-print '(1 #t nil () (a . b)))))
-                "'(1 t nil nil (a . b))"))
 
 ;;; misc
 
