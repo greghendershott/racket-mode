@@ -162,14 +162,10 @@ http://www.gnu.org/licenses/ for details.")
   (hs-minor-mode t))
 
 ;;;###autoload
-(setq auto-mode-alist
-      (append '(("\\.rkt\\'" . racket-mode)
-                ("\\.rktd\\'" . racket-mode))
-              auto-mode-alist))
-
-;;;###autoload
-(add-to-list 'interpreter-mode-alist
-             '("racket" . racket-mode))
+(progn
+  (add-to-list 'auto-mode-alist '("\\.rkt[dl]?\\'" . racket-mode))
+  (modify-coding-system-alist 'file "\\.rkt[dl]?\\'"  'utf-8)
+  (add-to-list 'interpreter-mode-alist '("racket" . racket-mode)))
 
 (provide 'racket-mode)
 
