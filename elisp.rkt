@@ -49,7 +49,7 @@
     [(? struct? x)    (~a x)]
     [(? procedure? x) (~a x)]
     [(? hash? ht)     (hash->list ht)]
-    [(? syntax? stx)  (map ->elisp (list (syntax-e stx)
+    [(? syntax? stx)  (map ->elisp (list (~a (syntax->datum stx))
                                          (syntax-source stx)
                                          (syntax-line stx)
                                          (syntax-column stx)

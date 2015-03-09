@@ -4,7 +4,9 @@
          gui-debugger/annotator
          gui-debugger/marks
          racket/match
+         racket/port
          racket/dict
+         "command-output.rkt"
          "debugger-load.rkt" ;not gui-debugger/load-sandbox b/c gui
          "elisp.rkt"
          "util.rkt")
@@ -26,9 +28,13 @@
 
 
 ;;; Printing
-;;(define pr elisp-println) ;for real, use by Elisp
-(require racket/pretty)  ;for interactice dev...
-(define pr pretty-print) ;...easier to read
+(define (pr v)
+  (begin
+    (local-require racket/pretty)
+    (pretty-print v (current-error-port))) ;just to debug the debugger
+  (with-output-to-command-output-file (λ () (elisp-println v))))
+;; (require racket/pretty)  ;for interactice dev...
+;; (define pr pretty-print) ;...easier to read
 
 
 ;;; Breakpoints
@@ -88,11 +94,13 @@
                     pos
                     #f))
 
-(define (list-bindings)
-  (pr (for/list ([(src im) (in-hash bound-identifiers)])
-        (list src
-              (for/list ([(k v) (in-dict im)])
-                (list k (syntax->datum v)))))))
+(define (list-bindings) ;just for dev
+  (local-require racket/pretty)
+  (pretty-print (for/list ([(src im) (in-hash bound-identifiers)])
+                  (list src
+                        (for/list ([(k v) (in-dict im)])
+                          (list k (syntax->datum v)))))
+                (current-error-port)))
 
 ;;; Top-level bindings
 
@@ -130,14 +138,16 @@
 (define (get-var frames src pos)
   (lookup-var (position->identifier src pos)
               frames
-              (λ (val get/set!) (pr val))
+              (λ (val get/set!) (pr (format "~a" val)))
               (λ () (pr 'undefined))))
 
-(define (set-var frames src pos new-val)
-  (lookup-var (position->identifier src pos)
-              frames
-              (λ (val get/set!) (get/set! new-val) #t)
-              (λ () #f)))
+(define (set-var frames src pos new-val-str)
+  (with-handlers ([exn:fail? void])
+    (define new-val (with-input-from-string new-val-str read))
+    (lookup-var (position->identifier src pos)
+                frames
+                (λ (val get/set!) (get/set! new-val) #t)
+                (λ () #f))))
 
 ;;; Annotation callbacks
 
@@ -187,7 +197,7 @@
   ;; Could this be a read-eval-print-loop much like the main REPL?
   ;; Allowing arbitrary evaluations?
   (let loop ()
-    (display "DEBUG> ") ;;just to keep racket-repl happy for input during dev
+    (eprintf "DEBUG> ") ;;just to keep racket-repl happy for input during dev
     (match (read)
       ;; Commands to resume, optionally modifying `vals` (whose
       ;; meaning varies for break-before and break-after):
@@ -198,45 +208,47 @@
       ;; Commands to tweak state but not yet resume (ergo the `loop`):
       [`(break ,pos)  (pr (set-breakpoint! src pos #t)) (loop)]
       [`(clear ,pos)  (pr (set-breakpoint! src pos #f)) (loop)]
-      [`(breaks)      (list-breaks)                     (loop)]
+      ;; [`(breaks)      (list-breaks)                     (loop)]
       [`(bindings)    (list-bindings)                   (loop)]
-      [`(get ,pos)    (get-var all-marks src pos)       (loop)]
-      [`(set ,pos ,v) (set-var all-marks src pos v)     (loop)]
-      [_              (pr "unknown command")            (loop)])))
+      [`(get ,pos)    (pr (get-var all-marks src pos))   (loop)]
+      [`(set ,pos ,v) (pr (set-var all-marks src pos v)) (loop)]
+      [_              (pr "unknown command")             (loop)])))
+
+(define (debug-done)
+  (pr 'DEBUG-DONE))
 
 ;;; Annotation
 
 (define (make-debug-eval-handler orig-eval files-to-debug)
-  (define (annotate-module? filename m)
-    (annotate-this-module? filename))
-
-  (define (annotate-this-module? filename)
-    ;; (pr `(debug-file? ,filename))
-    ;; (display "DEBUG> ")
-    ;; (read)
-    (member filename files-to-debug))
-
+  (set! step? #t)
   (clear-breakable-positions!)
   (clear-bound-identifiers!)
   (clear-top-level-bindings!)
+
+  (define (annotate-module? path [module 'n/a])
+    ;; (pr `(debug-file? ,filename))
+    ;; (display "DEBUG> ")
+    ;; (read)
+    (member path files-to-debug))
+
   (λ (orig-exp)
     (cond [(compiled-expression? (syntax-or-sexpr->sexpr orig-exp))
            (orig-eval orig-exp)]
           [else
            (define exp (syntax-or-sexpr->syntax orig-exp))
            (define top-e (expand-syntax-to-top-form exp))
-           (define fn (and (syntax? orig-exp)
-                           (let ([src (syntax-source orig-exp)])
-                             (and (path? src)
-                                  src))))
-           (cond [(annotate-this-module? fn)
+           (define path (and (syntax? orig-exp)
+                             (let ([src (syntax-source orig-exp)])
+                               (and (path? src)
+                                    src))))
+           (cond [(annotate-module? path)
                   (parameterize ([current-eval orig-eval])
                     (eval/annotations top-e
                                       annotate-module?
-                                      annotator))]
+                                      (annotator (car files-to-debug))))]
                  [else (orig-eval top-e)])])))
 
-(define (annotator stx)
+(define ((annotator add-done-path) stx)
   (define source (syntax-source stx))
   (define-values (annotated breakable-positions)
     (annotate-for-single-stepping (expand-syntax stx)
@@ -247,16 +259,35 @@
                                   record-top-level-identifier
                                   source))
   (set-breakable-positions! source breakable-positions)
-  annotated)
+  (cond [(equal? add-done-path source) (annotate-add-debug-done annotated)]
+        [else annotated]))
+
+(define (annotate-add-debug-done stx)
+  (syntax-case stx (module)
+    [(module id lang mb)
+     (syntax-case (disarm #'mb) ()
+       [(plain-module-begin module-level-exprs ...)
+        (quasisyntax/loc stx
+          (module id lang
+            #,(rearm #'mb
+                     #`(plain-module-begin
+                        module-level-exprs ...
+                        (#%plain-app #,debug-done)))))])]))
+
+(define (disarm stx) (syntax-disarm stx code-insp))
+(define (rearm old new) (syntax-rearm new old))
+
+(define code-insp (variable-reference->module-declaration-inspector
+                   (#%variable-reference)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; example usage
 
-(define files-to-debug (map string->path '("/tmp/simple.rkt" "/tmp/foo.rkt")))
+;; (define files-to-debug (map string->path '("/tmp/simple.rkt" "/tmp/foo.rkt")))
 
-(parameterize ([current-eval (make-debug-eval-handler (current-eval)
-                                                      files-to-debug)])
-  (namespace-require (car files-to-debug)))
+;; (parameterize ([current-eval (make-debug-eval-handler (current-eval)
+;;                                                       files-to-debug)])
+;;   (namespace-require (car files-to-debug)))
 
 ;; Local Variables:
 ;; coding: utf-8

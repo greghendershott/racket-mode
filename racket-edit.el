@@ -993,6 +993,94 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
       (scan-error nil))))
 
 
+;;; debug
+
+(defvar racket-debug-mode-break-data nil)
+
+(defun racket-debug-mode--start ()
+  (when (buffer-modified-p)
+    (save-buffer))
+  (remove-overlays (point-min) (point-max) 'racket-uncovered-overlay)
+  (racket--invalidate-completion-cache)
+  (racket--invalidate-type-cache)
+  (setq racket-debug-mode-break-data
+        (racket--repl-cmd/sexpr (format ",run %s %s %s %s\n"
+                                        (racket--quoted-buffer-file-name)
+                                        racket-memory-limit
+                                        racket-pretty-print
+                                        'debug)))
+  (racket-debug-mode--goto-break)
+  (setq buffer-read-only t))
+
+(defun racket-debug-mode--stop ()
+  (setq buffer-read-only nil))
+
+(defun racket-debug-mode-quit ()
+  (interactive)
+  (racket-debug-mode -1))
+
+(defun racket-debug-mode--goto-break ()
+  (if (eq racket-debug-mode-break-data 'DEBUG-DONE)
+      (racket-debug-mode-quit)
+    (goto-char (cadr (assoc 'pos racket-debug-mode-break-data)))
+    (message (mapconcat (lambda (binding)
+                          (format "%s => ~@" (caar binding) (cadr binding)))
+                        (cadr (assoc 'bindings racket-debug-mode-break-data))
+                        "\n"))))
+
+(defun racket-debug-mode-step ()
+  (interactive)
+  (setq racket-debug-mode-break-data
+        (racket--repl-cmd/sexpr "(step)" nil t))
+  (racket-debug-mode--goto-break))
+
+(defun racket-debug-mode-go ()
+  (interactive)
+  (setq racket-debug-mode-break-data
+        (racket--repl-cmd/sexpr "(go)" nil t))
+  (racket-debug-mode--goto-break))
+
+(defun racket-debug-mode-set-breakpoint ()
+  (interactive)
+  (racket--repl-cmd/sexpr (format "(break %s)" (point)) nil t))
+
+(defun racket-debug-mode-clear-breakpoint ()
+  (interactive)
+  (racket--repl-cmd/sexpr (format "(clear %s)" (point)) nil t))
+
+(defun racket-debug-mode-value ()
+  (interactive)
+  (let* ((old (racket--repl-cmd/sexpr (format "(get %s)" (point)) nil t))
+         (new (read-string "Value: " old)))
+    (racket--repl-cmd/sexpr (format "(set %s %s)" (point) new) nil t)))
+
+(define-minor-mode racket-debug-mode
+  "Debug.
+
+The buffer becomes read-only until you exit this minor mode.
+However you may navigate the usual ways.
+
+```
+\\{racket-debug-mode-map}
+```
+"
+  :lighter " Debug"
+  :keymap (racket--easy-keymap-define
+           '(("<SPC>"      racket-debug-mode-step)
+             ("s"          racket-debug-mode-step)
+             ("g"          racket-debug-mode-go)
+             ("b"          racket-debug-mode-set-breakpoint)
+             ("u"          racket-debug-mode-clear-breakpoint)
+             ("C-<return>" racket-debug-mode-value)
+             ("q"          racket-debug-mode-quit)))
+  (unless (eq major-mode 'racket-mode)
+    (setq racket-debug-mode nil)
+    (error "racket-debug-mode only works with racket-mode"))
+  (racket-debug-mode--stop)
+  (when racket-debug-mode
+    (racket-debug-mode--start)))
+
+
 ;;; misc
 
 (defun racket--quoted-buffer-file-name ()

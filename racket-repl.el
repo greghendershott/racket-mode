@@ -235,7 +235,7 @@ Intended for use by things like ,run command."
 (defconst racket--repl-command-timeout 10
   "Default timeout when none supplied to `racket--repl-cmd/buffer' and friends.")
 
-(defun racket--repl-cmd/buffer (command &optional timeout)
+(defun racket--repl-cmd/buffer (command &optional timeout no-prepend-hash-p)
   "Send COMMAND capturing its input in the returned buffer.
 
 Expects COMMAND to already include the comma/unquote prefix: `,command`.
@@ -248,7 +248,8 @@ contents into a buffer."
   (when (file-exists-p racket--repl-command-output-file)
     (delete-file racket--repl-command-output-file))
   (comint-send-string (racket--get-repl-buffer-process)
-                      (concat "#" command "\n")) ;e.g. #,command
+                      (concat (if no-prepend-hash-p "" "#")
+                              command "\n")) ;e.g. #,command
   (let ((deadline (+ (float-time) (or timeout racket--repl-command-timeout))))
     (while (and (not (file-exists-p racket--repl-command-output-file))
                 (< (float-time) deadline))
@@ -264,12 +265,12 @@ contents into a buffer."
       (delete-file racket--repl-command-output-file))
     buf))
 
-(defun racket--repl-cmd/string (command &optional timeout)
-  (with-current-buffer (racket--repl-cmd/buffer command timeout)
+(defun racket--repl-cmd/string (command &optional timeout no-prepend-hash-p)
+  (with-current-buffer (racket--repl-cmd/buffer command timeout no-prepend-hash-p)
     (buffer-substring (point-min) (point-max))))
 
-(defun racket--repl-cmd/sexpr (command &optional timeout)
-  (eval (read (racket--repl-cmd/string command timeout))))
+(defun racket--repl-cmd/sexpr (command &optional timeout no-prepend-hash-p)
+  (eval (read (racket--repl-cmd/string command timeout no-prepend-hash-p))))
 
 ;;;
 
