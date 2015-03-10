@@ -3,6 +3,7 @@
 (require data/interval-map
          gui-debugger/annotator
          gui-debugger/marks
+         racket/format
          racket/match
          racket/port
          racket/dict
@@ -135,15 +136,14 @@
               (sk (tlb) tlb))]
         [else (fk)]))
 
-(define (get-var frames src pos)
+(define (get-var frames src pos) ;; -> string?
   (lookup-var (position->identifier src pos)
               frames
-              (λ (val get/set!) (pr (format "~a" val)))
-              (λ () (pr 'undefined))))
+              (λ (val get/set!) (~s val)) ;~s for write so we can read later
+              (λ () 'undefined)))
 
-(define (set-var frames src pos new-val-str)
-  (with-handlers ([exn:fail? void])
-    (define new-val (with-input-from-string new-val-str read))
+(define (set-var frames src pos new-val) ;; -> string?
+  (with-handlers ([exn:fail? (λ _ #f)])
     (lookup-var (position->identifier src pos)
                 frames
                 (λ (val get/set!) (get/set! new-val) #t)
@@ -193,7 +193,7 @@
                             #:when (syntax-original? stx)
                             [val (in-value (mark-binding-value b))])
                   (list stx val)))
-     (vals ,vals)))
+     (vals ,(and vals (~s vals))))) ;~s for write so we can read later
   ;; Could this be a read-eval-print-loop much like the main REPL?
   ;; Allowing arbitrary evaluations?
   (let loop ()
@@ -209,7 +209,7 @@
       [`(break ,pos)  (pr (set-breakpoint! src pos #t)) (loop)]
       [`(clear ,pos)  (pr (set-breakpoint! src pos #f)) (loop)]
       ;; [`(breaks)      (list-breaks)                     (loop)]
-      [`(bindings)    (list-bindings)                   (loop)]
+      ;; [`(bindings)    (list-bindings)                   (loop)]
       [`(get ,pos)    (pr (get-var all-marks src pos))   (loop)]
       [`(set ,pos ,v) (pr (set-var all-marks src pos v)) (loop)]
       [_              (pr "unknown command")             (loop)])))

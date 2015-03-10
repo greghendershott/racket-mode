@@ -1022,17 +1022,29 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
 (defun racket-debug-mode--goto-break ()
   (if (eq racket-debug-mode-break-data 'DEBUG-DONE)
       (racket-debug-mode-quit)
+    ;; FIXME: Handle multi-file debugging
     (goto-char (cadr (assoc 'pos racket-debug-mode-break-data)))
-    (message (mapconcat (lambda (binding)
-                          (format "%s => ~@" (caar binding) (cadr binding)))
-                        (cadr (assoc 'bindings racket-debug-mode-break-data))
-                        "\n"))))
+    ;; FIXME: Put in dedicated window instead of message?
+    (let ((which (format "%s\n" (car racket-debug-mode-break-data)))
+          (rs (let ((vs (cadr (assoc 'vals racket-debug-mode-break-data))))
+                (if vs (format "Return Values ==> %s\n" vs) "")))
+          (bs (mapconcat (lambda (binding)
+                           (format "%s => %s" (caar binding) (cadr binding)))
+                         (cadr (assoc 'bindings racket-debug-mode-break-data))
+                         "\n")))
+      (message (concat which rs bs)))))
 
-(defun racket-debug-mode-step ()
-  (interactive)
-  (setq racket-debug-mode-break-data
-        (racket--repl-cmd/sexpr "(step)" nil t))
-  (racket-debug-mode--goto-break))
+(defun racket-debug-mode-step (&optional change-value-p)
+  (interactive "P")
+  (let ((cmd (if (and change-value-p
+                      (cadr (assoc 'vals racket-debug-mode-break-data)))
+                 (let* ((old (cadr (assoc 'vals racket-debug-mode-break-data)))
+                        (new (read-string "Return Values: " old)))
+                   (format "(step %s)" new))
+               "(step)")))
+    (setq racket-debug-mode-break-data
+          (racket--repl-cmd/sexpr cmd nil t))
+    (racket-debug-mode--goto-break)))
 
 (defun racket-debug-mode-go ()
   (interactive)
