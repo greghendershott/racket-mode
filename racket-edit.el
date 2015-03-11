@@ -995,44 +995,71 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
 
 ;;; debug
 
-(defvar racket-debug-mode-break-data nil)
+(defvar racket-debug-mode-debugging-p nil
+  "Is racket-debug-mode active in any buffer?")
+(defvar racket-debug-mode-break-data nil
+  "The last response from the debugger engine.")
 
 (defun racket-debug-mode--start ()
-  (when (buffer-modified-p)
-    (save-buffer))
   (remove-overlays (point-min) (point-max) 'racket-uncovered-overlay)
-  (racket--invalidate-completion-cache)
-  (racket--invalidate-type-cache)
-  (setq racket-debug-mode-break-data
-        (racket--repl-cmd/sexpr (format ",run %s %s %s %s\n"
+  (setq buffer-read-only t)
+  (unless racket-debug-mode-debugging-p
+    (setq racket-debug-mode-debugging-p t)
+    (racket--invalidate-completion-cache)
+    (racket--invalidate-type-cache)
+    (when (buffer-modified-p)
+      (save-buffer))
+    (racket-debug-mode--command (format ",run %s %s %s %s\n"
                                         (racket--quoted-buffer-file-name)
                                         racket-memory-limit
                                         racket-pretty-print
-                                        'debug)))
-  (racket-debug-mode--goto-break)
-  (setq buffer-read-only t))
+                                        'debug))))
 
 (defun racket-debug-mode--stop ()
-  (setq buffer-read-only nil))
+  (setq buffer-read-only nil)
+  (when racket-debug-mode-debugging-p
+    (setq racket-debug-mode-debugging-p nil)
+    (setq racket-debug-mode-break-data nil)))
 
 (defun racket-debug-mode-quit ()
   (interactive)
-  (racket-debug-mode -1))
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (when (racket-debug-mode-on-p)
+        (racket-debug-mode 0)))))
 
-(defun racket-debug-mode--goto-break ()
-  (if (eq racket-debug-mode-break-data 'DEBUG-DONE)
-      (racket-debug-mode-quit)
-    ;; FIXME: Handle multi-file debugging
-    (goto-char (cadr (assoc 'pos racket-debug-mode-break-data)))
-    ;; FIXME: Put in dedicated window instead of message?
+(defun racket-debug-mode--command (cmd)
+  (setq racket-debug-mode-break-data
+        (racket--repl-cmd/sexpr cmd nil t))
+  (cond
+   ((eq 'DEBUG-DONE racket-debug-mode-break-data)
+    (racket-debug-mode-quit))
+   ((and (listp racket-debug-mode-break-data)
+         (eq 'debug-file? (car racket-debug-mode-break-data)))
+    (let ((v (y-or-n-p (format "Also debug %s? "
+                               (cadr racket-debug-mode-break-data)))))
+      (racket-debug-mode--command (if v "#t" "#f"))))
+   ((and (listp racket-debug-mode-break-data)
+         (memq (car racket-debug-mode-break-data) '(break-before break-after)))
     (let ((which (format "%s\n" (car racket-debug-mode-break-data)))
+          (src (cadr (assoc 'src racket-debug-mode-break-data)))
+          (pos (cadr (assoc 'pos racket-debug-mode-break-data)))
           (rs (let ((vs (cadr (assoc 'vals racket-debug-mode-break-data))))
                 (if vs (format "Return Values ==> %s\n" vs) "")))
           (bs (mapconcat (lambda (binding)
                            (format "%s => %s" (caar binding) (cadr binding)))
                          (cadr (assoc 'bindings racket-debug-mode-break-data))
                          "\n")))
-      (message (concat which rs bs)))))
+      (unless (equal src (buffer-file-name))
+        (find-file src)
+        (racket-debug-mode 1))
+      (goto-char pos)
+      ;; FIXME: Put in dedicated window instead of message?
+      (message (concat which rs bs))))
+   (t
+    (racket-debug-mode-quit)
+    (error (format "Unknown reponse from debugger: %s"
+                   racket-debug-mode-break-data)))))
 
 (defun racket-debug-mode-step (&optional change-value-p)
   (interactive "P")
@@ -1042,15 +1069,11 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
                         (new (read-string "Return Values: " old)))
                    (format "(step %s)" new))
                "(step)")))
-    (setq racket-debug-mode-break-data
-          (racket--repl-cmd/sexpr cmd nil t))
-    (racket-debug-mode--goto-break)))
+    (racket-debug-mode--command cmd)))
 
 (defun racket-debug-mode-go ()
   (interactive)
-  (setq racket-debug-mode-break-data
-        (racket--repl-cmd/sexpr "(go)" nil t))
-  (racket-debug-mode--goto-break))
+  (racket-debug-mode--command "(go)"))
 
 (defun racket-debug-mode-set-breakpoint ()
   (interactive)
@@ -1088,9 +1111,12 @@ However you may navigate the usual ways.
   (unless (eq major-mode 'racket-mode)
     (setq racket-debug-mode nil)
     (error "racket-debug-mode only works with racket-mode"))
-  (racket-debug-mode--stop)
-  (when racket-debug-mode
-    (racket-debug-mode--start)))
+  (if racket-debug-mode
+      (racket-debug-mode--start)
+    (racket-debug-mode--stop)))
+
+(defun racket-debug-mode-on-p ()
+  racket-debug-mode)
 
 
 ;;; misc

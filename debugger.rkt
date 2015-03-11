@@ -3,10 +3,11 @@
 (require data/interval-map
          gui-debugger/annotator
          gui-debugger/marks
+         racket/dict
          racket/format
          racket/match
+         racket/path
          racket/port
-         racket/dict
          "command-output.rkt"
          "debugger-load.rkt" ;not gui-debugger/load-sandbox b/c gui
          "elisp.rkt"
@@ -30,9 +31,9 @@
 
 ;;; Printing
 (define (pr v)
-  (begin
-    (local-require racket/pretty)
-    (pretty-print v (current-error-port))) ;just to debug the debugger
+  ;; (begin
+  ;;   (local-require racket/pretty)
+  ;;   (pretty-print v (current-error-port))) ;just to debug the debugger
   (with-output-to-command-output-file (λ () (elisp-println v))))
 ;; (require racket/pretty)  ;for interactice dev...
 ;; (define pr pretty-print) ;...easier to read
@@ -184,6 +185,7 @@
   (pr
    `(,which
      (pos    ,pos)
+     (src    ,src)
      (stx    ,stx)
      (module ,(mark-module-name top-mark))
      (frames ,(for/list ([m (in-list all-marks)])
@@ -197,7 +199,7 @@
   ;; Could this be a read-eval-print-loop much like the main REPL?
   ;; Allowing arbitrary evaluations?
   (let loop ()
-    (eprintf "DEBUG> ") ;;just to keep racket-repl happy for input during dev
+    ;;(eprintf "DEBUG> ") ;just to keep racket-repl happy for input during dev
     (match (read)
       ;; Commands to resume, optionally modifying `vals` (whose
       ;; meaning varies for break-before and break-after):
@@ -212,24 +214,27 @@
       ;; [`(bindings)    (list-bindings)                   (loop)]
       [`(get ,pos)    (pr (get-var all-marks src pos))   (loop)]
       [`(set ,pos ,v) (pr (set-var all-marks src pos v)) (loop)]
-      [_              (pr "unknown command")             (loop)])))
+      [x              (pr (format "unknown command: ~a" x)) (loop)])))
 
 (define (debug-done)
   (pr 'DEBUG-DONE))
 
 ;;; Annotation
 
-(define (make-debug-eval-handler orig-eval files-to-debug)
+(define (make-debug-eval-handler orig-eval file-to-debug)
   (set! step? #t)
   (clear-breakable-positions!)
   (clear-bound-identifiers!)
   (clear-top-level-bindings!)
 
   (define (annotate-module? path [module 'n/a])
-    ;; (pr `(debug-file? ,filename))
-    ;; (display "DEBUG> ")
-    ;; (read)
-    (member path files-to-debug))
+    (or (equal? path file-to-debug)
+        (and (path? path)
+             (equal? (path-only path) (path-only file-to-debug)) ;FIXME
+             (begin
+               (pr `(debug-file? ,path))
+               ;;(eprintf "DEBUG> ") ;just to keep racket-repl happy during dev
+               (read)))))
 
   (λ (orig-exp)
     (cond [(compiled-expression? (syntax-or-sexpr->sexpr orig-exp))
@@ -245,7 +250,7 @@
                   (parameterize ([current-eval orig-eval])
                     (eval/annotations top-e
                                       annotate-module?
-                                      (annotator (car files-to-debug))))]
+                                      (annotator file-to-debug)))]
                  [else (orig-eval top-e)])])))
 
 (define ((annotator add-done-path) stx)
@@ -283,11 +288,11 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; example usage
 
-;; (define files-to-debug (map string->path '("/tmp/simple.rkt" "/tmp/foo.rkt")))
+;; (define file-to-debug (string->path "/tmp/simple.rkt"))
 
 ;; (parameterize ([current-eval (make-debug-eval-handler (current-eval)
-;;                                                       files-to-debug)])
-;;   (namespace-require (car files-to-debug)))
+;;                                                       file-to-debug)])
+;;   (namespace-require file-to-debug))
 
 ;; Local Variables:
 ;; coding: utf-8

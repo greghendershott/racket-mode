@@ -253,9 +253,7 @@ contents into a buffer."
   (let ((deadline (+ (float-time) (or timeout racket--repl-command-timeout))))
     (while (and (not (file-exists-p racket--repl-command-output-file))
                 (< (float-time) deadline))
-      (accept-process-output (get-buffer-process racket--repl-buffer-name)
-                             (- deadline (float-time)))
-      (sit-for 0))) ;let REPL output be drawn
+      (sit-for 0.1))) ;let REPL output be drawn
   (unless (file-exists-p racket--repl-command-output-file)
     (error "Command timed out"))
   (let ((buf (get-buffer-create " *Racket Command Output*")))
