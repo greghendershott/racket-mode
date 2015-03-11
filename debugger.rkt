@@ -24,27 +24,27 @@
 ;; 'DEBUG-DONE annotation by us).
 ;;
 ;; When evaluating the original file and it's requires, we respond by
-;; outputting zero or more `(debug-file? ,path) sexprs. We expect a
+;; outputting zero or more `(also-file? ,path) sexprs. We expect a
 ;; sexpr answer to each. If non-#f, that file is also annotated for
 ;; debugging. (This is like the DrR popup asking whether to debug each
 ;; additional file).
 ;;
 ;; Then we enter what you can think of as a "debugger REPL". The main
-;; "prompt" we output is a `(break-before ...) or `(break-after ...)
-;; sexpr. This says we've hit a breakpoint, and where it is. Our
-;; client should then issue a sexpr "command" like `(step) or `(go).
-;; This leads to another break "prompt" from us, and so on. A final
-;; 'DEBUG-DONE "prompt" from us lets the client know it can exit its
-;; debugger UI mode.
+;; "prompt" we output is a `(break ...) sexpr. This says we've hit a
+;; breakpoint, and where it is. Our client should then issue a sexpr
+;; "command" like `(step) or `(go). This leads to another break
+;; "prompt" from us, and so on. A final 'DEBUG-DONE "prompt" from us
+;; lets the client know it can exit its debugger UI mode.
 ;;
 ;; A few commands -- such a `(break) `(clear) `(set) `(get) -- cause
 ;; us to enter a "sub-loop": We expect zero or more other such
 ;; commands, and eventually a command like `(step) or `(go) which will
-;; result in another `(break-before), `(break-after) or 'DEBUG-DONE
-;; prompt. In other words, while the program is at a break-point, zero
-;; or more special commands can be issue before resuming execution.
+;; result in another `(break) or 'DEBUG-DONE prompt. In other words,
+;; while the program is at a breakpoint, zero or more special
+;; commands can be issue before resuming execution.
 ;;
-;; This command and sub-command REPL is in the break-prompt function.
+;; This command and sub-command REPL is in the `break-prompt`
+;; function.
 
 ;;; Printing
 (define (pr v)
@@ -183,10 +183,10 @@
       (should-break? src pos)))
 
 (define (break-before top-mark ccm)
-  (break-prompt 'break-before top-mark ccm #f))
+  (break-prompt 'before top-mark ccm #f))
 
 (define (break-after top-mark ccm . vals)
-  (apply values (break-prompt 'break-after top-mark ccm vals)))
+  (apply values (break-prompt 'after top-mark ccm vals)))
 
 (define (break-prompt which top-mark ccm vals)
   (define other-marks (continuation-mark-set->list ccm debug-key))
@@ -194,10 +194,11 @@
   (define stx (mark-source top-mark))
   (define src (syntax-source stx))
   (define pos (case which
-                [(break-before) (syntax-position stx)]
-                [(break-after)  (+ (syntax-position stx) (syntax-span stx) -1)]))
+                [(before) (syntax-position stx)]
+                [(after)  (+ (syntax-position stx) (syntax-span stx) -1)]))
   (pr
-   `(,which
+   `(break
+     ,which
      (pos    ,pos)
      (src    ,src)
      (stx    ,stx)
@@ -216,7 +217,7 @@
     ;;(eprintf "DEBUG> ") ;just to keep racket-repl happy for input during dev
     (match (read)
       ;; Commands to resume, optionally modifying `vals` (whose
-      ;; meaning varies for break-before and break-after):
+      ;; meaning varies for 'before and 'after):
       [`(step)        (set! step? #t) vals]
       [`(step ,vs)    (set! step? #t) vs]
       [`(go)          (set! step? #f) vals]
@@ -246,7 +247,7 @@
         (and (path? path)
              (equal? (path-only path) (path-only file-to-debug)) ;FIXME
              (begin
-               (pr `(debug-file? ,path))
+               (pr `(also-file? ,path))
                ;;(eprintf "DEBUG> ") ;just to keep racket-repl happy during dev
                (read)))))
 
