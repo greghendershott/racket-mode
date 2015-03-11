@@ -19,7 +19,7 @@
 ## Run
 
 ### racket-run
-<kbd>&lt;f5&gt;</kbd> or <kbd>C-c C-k</kbd>
+<kbd>C-c C-k</kbd>
 
 Save and evaluate the buffer in REPL, much like DrRacket's Run.
 
@@ -28,6 +28,10 @@ custodian releases resources like threads and the evaluation
 environment is reset to the contents of the file. In other words,
 like DrRacket, this provides the predictability of a "static"
 baseline, plus some interactive exploration.
+
+See also [`racket-run-and-switch-to-repl`](#racket-run-and-switch-to-repl), which is even more like
+DrRacket's Run because it selects the REPL window (gives it the
+focus), too.
 
 With a C-u prefix, uses errortrace for improved stack traces.
 Otherwise follows the [`racket-error-context`](#racket-error-context) setting.
@@ -367,24 +371,6 @@ file using `#lang`. It does *not* work for `require`s inside
 Note: Currently this only helps change `#lang racket` to
 `#lang racket/base`. It does *not* help with other similar conversions,
 such as changing `#lang typed/racket` to `#lang typed/racket/base`.
-
-### racket-newline-and-indent
-<kbd>RET</kbd>
-
-Do `newline` and [`racket-indent-line`](#racket-indent-line).
-
-### racket-indent-or-complete
-<kbd>TAB</kbd>
-
-Try `indent-for-tab-command` then `completion-at-point`.
-
-Call `indent-for-tab-command`. If did not change the indentation
-or move point to `beginning-of-line-text`, and if point is
-in/after at least 3 word/symbol characters, then call
-`completion-at-point`.
-
-Note: Completion only finds symbols in the current namespace. You
-may need to [`racket-run`](#racket-run) the buffer, first.
 
 ### racket-indent-line
 <kbd>M-x racket-indent-line</kbd>

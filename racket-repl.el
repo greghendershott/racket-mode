@@ -144,7 +144,7 @@
                    (goto-char (process-mark proc))
                    (forward-list)) ;will error unless complete sexpr
                  (racket--comint-send-input))
-             (error (racket-newline-and-indent)))))))
+             (error (newline-and-indent)))))))
 
 ;;;###autoload
 (defun racket-repl (&optional noselect)
@@ -387,7 +387,7 @@ With prefix arg, open the N-th last shown image."
 (defvar racket-repl-mode-map
   (racket--easy-keymap-define
    '(("RET"             racket-repl-eval-or-newline-and-indent)
-     ("TAB"             racket-indent-or-complete)
+     ("TAB"             indent-for-tab-command)
      ("M-C-u"           racket-backward-up-list)
      ("C-a"             comint-bol)
      ("C-w"             comint-kill-region)

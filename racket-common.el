@@ -462,31 +462,6 @@ existence using `fboundp'."
 
 ;;; Misc
 
-(defun racket-newline-and-indent ()
-  "Do `newline' and `racket-indent-line'."
-  (interactive)
-  (delete-trailing-whitespace (line-beginning-position) (line-end-position))
-  (newline)
-  (racket-indent-line))
-
-(defun racket-indent-or-complete ()
-  "Try `indent-for-tab-command' then `completion-at-point'.
-
-Call `indent-for-tab-command'. If did not change the indentation
-or move point to `beginning-of-line-text', and if point is
-in/after at least 3 word/symbol characters, then call
-`completion-at-point'.
-
-Note: Completion only finds symbols in the current namespace. You
-may need to `racket-run' the buffer, first."
-  (interactive)
-  (let ((pt (point)))
-    (indent-for-tab-command)
-    (when (and (equal pt (point))
-               (thing-at-point-looking-at (rx (>= 3 (or (syntax word)
-                                                        (syntax symbol))))))
-      (completion-at-point))))
-
 (defun racket-backward-up-list ()
   "Like `backward-up-list' but also works when point is in a string literal."
   (interactive)

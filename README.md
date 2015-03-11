@@ -116,6 +116,19 @@ to be an additional binding:
             (define-key racket-mode-map (kbd "C-c r") 'racket-run)))
 ```
 
+### Completion
+
+To have <kbd>TAB</kbd> do completion as well as indent, add the
+following to your Emacs init file:
+
+```cl
+(setq tab-always-indent 'complete)
+```
+
+This changes the behavior of Emacs' standard `indent-for-tab-command`,
+to which <kbd>TAB</kbd> is bound by default in the racket-mode edit
+and REPL modes.
+
 ## Documentation
 
 Within Emacs, use the usual help functions.

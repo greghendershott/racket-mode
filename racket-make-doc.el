@@ -75,8 +75,6 @@
     racket-tidy-requires
     racket-trim-requires
     racket-base-requires
-    racket-newline-and-indent
-    racket-indent-or-complete
     racket-indent-line
     racket-smart-open-bracket
     racket-cycle-paren-shapes
