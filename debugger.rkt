@@ -15,19 +15,36 @@
 
 (provide make-debug-eval-handler)
 
-;; Active breakpoints: Presumably these will be Emacs overlays?
+;;; Protocol
 
-;; Frames and Vars: Presumably these will be in some separate
-;; racket-debug-watch-mode window?
-
-;; Multi-file debugging. DrR prompts as eval-handler is given each
-;; file. I guess that will require a command prompt?
-
-;; How about something like Elisp `(debug id ...)`, or Ruby `pry`? Is
-;; that orthogonal -- could be done with errortrace instrumentation?
-;; Maybe the only connection to this is that IF full debugger is
-;; running it could be an automatic breakpoint.
-
+;; Our client should set current-eval to the result of
+;; `(make-debug-eval-handler (current-eval) file-to-be-debugged)`.
+;; Then namespace-require the primary file to be debugged. It will get
+;; annotated in the usual way by gui-debugger (plus some extra
+;; 'DEBUG-DONE annotation by us).
+;;
+;; When evaluating the original file and it's requires, we respond by
+;; outputting zero or more `(debug-file? ,path) sexprs. We expect a
+;; sexpr answer to each. If non-#f, that file is also annotated for
+;; debugging. (This is like the DrR popup asking whether to debug each
+;; additional file).
+;;
+;; Then we enter what you can think of as a "debugger REPL". The main
+;; "prompt" we output is a `(break-before ...) or `(break-after ...)
+;; sexpr. This says we've hit a breakpoint, and where it is. Our
+;; client should then issue a sexpr "command" like `(step) or `(go).
+;; This leads to another break "prompt" from us, and so on. A final
+;; 'DEBUG-DONE "prompt" from us lets the client know it can exit its
+;; debugger UI mode.
+;;
+;; A few commands -- such a `(break) `(clear) `(set) `(get) -- cause
+;; us to enter a "sub-loop": We expect zero or more other such
+;; commands, and eventually a command like `(step) or `(go) which will
+;; result in another `(break-before), `(break-after) or 'DEBUG-DONE
+;; prompt. In other words, while the program is at a break-point, zero
+;; or more special commands can be issue before resuming execution.
+;;
+;; This command and sub-command REPL is in the break-prompt function.
 
 ;;; Printing
 (define (pr v)
@@ -35,9 +52,6 @@
   ;;   (local-require racket/pretty)
   ;;   (pretty-print v (current-error-port))) ;just to debug the debugger
   (with-output-to-command-output-file (λ () (elisp-println v))))
-;; (require racket/pretty)  ;for interactice dev...
-;; (define pr pretty-print) ;...easier to read
-
 
 ;;; Breakpoints
 
