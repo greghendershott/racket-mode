@@ -36,12 +36,12 @@
 ;; "prompt" from us, and so on. A final 'DEBUG-DONE "prompt" from us
 ;; lets the client know it can exit its debugger UI mode.
 ;;
-;; A few commands -- such a `(break) `(clear) `(set) `(get) -- cause
-;; us to enter a "sub-loop": We expect zero or more other such
-;; commands, and eventually a command like `(step) or `(go) which will
-;; result in another `(break) or 'DEBUG-DONE prompt. In other words,
-;; while the program is at a breakpoint, zero or more special
-;; commands can be issue before resuming execution.
+;; A few commands -- such a `(break) `(set) `(get) -- cause us to
+;; enter a "sub-loop": We expect zero or more other such commands, and
+;; eventually a command like `(step) or `(go) which will result in
+;; another `(break) or 'DEBUG-DONE prompt. In other words, while the
+;; program is at a breakpoint, zero or more special commands can be
+;; issue before resuming execution.
 ;;
 ;; This command and sub-command REPL is in the `break-prompt`
 ;; function.
@@ -59,7 +59,7 @@
 
 ;; Annotation populates this with an entry for every breakable
 ;; position.
-(define breakpoints (make-hash)) ;(hash src (hash pos boolean)))
+(define breakpoints (make-hash)) ;(hash src (hash pos (U #f #t 'one-shot))))
 
 (define (list-breaks)
   (elisp-println breakpoints))
@@ -76,14 +76,18 @@
                     ht)
                   (λ () (make-hash)))))
 
-(define (should-break? src pos)
-  (hash-ref (hash-ref breakpoints src (hash)) pos #f))
+(define (should-break?! src pos)
+  (define ht (hash-ref breakpoints src (hash)))
+  (match (hash-ref ht pos #f)
+    [#f #f]
+    [#t #t]
+    ['one-shot (hash-set! ht pos #f) #t]))
 
 ;; If fuzzy-pos is close to a following actually breakable position,
 ;; set the breakpoint status and return the actual breakable position
 ;; (so the client may update its UI). Else return #f (so the client
 ;; can complain to the user).
-(define (set-breakpoint! src fuzzy-pos on?)
+(define (set-breakpoint! src fuzzy-pos v)
   (match (hash-ref breakpoints src #f)
     [#f #f]
     [ht
@@ -91,7 +95,7 @@
      (match (for/or ([i (in-range fuzzy-pos (+ fuzzy-pos 2048))])
               (and (hash-has-key? ht i) i))
        [#f #f]
-       [actual-pos (hash-set! ht actual-pos on?) actual-pos])]))
+       [actual-pos (hash-set! ht actual-pos v) actual-pos])]))
 
 ;;; Bound identifiers
 
@@ -189,8 +193,8 @@
 ;; When break? returns #t, either break-before or break-after will be
 ;; called next.
 (define ((break? src) pos)
-  (or step?
-      (should-break? src pos)))
+  (or (should-break?! src pos) ;do first so can clear one-shot breaks
+      step?))
 
 (define (break-before top-mark ccm)
   (break-prompt 'before top-mark ccm #f))
@@ -226,20 +230,18 @@
   (let loop ()
     ;;(eprintf "DEBUG> ") ;just to keep racket-repl happy for input during dev
     (match (read)
+      [`(quit) (eprintf "Quitting debugger\n") (exit)]
       ;; Commands to resume, optionally modifying `vals` (whose
       ;; meaning varies for 'before and 'after):
-      [`(step)        (set! step? #t) vals]
-      [`(step ,vs)    (set! step? #t) vs]
-      [`(go)          (set! step? #f) vals]
-      [`(go ,vs)      (set! step? #f) vs]
+      [`(step)     (set! step? #t) vals]
+      [`(step ,vs) (set! step? #t) vs]
+      [`(go)       (set! step? #f) vals]
+      [`(go ,vs)   (set! step? #f) vs]
       ;; Commands to tweak state but not yet resume (ergo the `loop`):
-      [`(break ,pos)  (pr (set-breakpoint! src pos #t)) (loop)]
-      [`(clear ,pos)  (pr (set-breakpoint! src pos #f)) (loop)]
-      ;; [`(breaks)      (list-breaks)                     (loop)]
-      ;; [`(bindings)    (list-bindings)                   (loop)]
-      [`(get ,pos)    (pr (get-var all-marks src pos))   (loop)]
-      [`(set ,pos ,v) (pr (set-var all-marks src pos v)) (loop)]
-      [x              (pr (format "unknown command: ~a" x)) (loop)])))
+      [`(break ,pos ,v) (pr (set-breakpoint! src pos v))      (loop)]
+      [`(get ,pos)      (pr (get-var all-marks src pos))      (loop)]
+      [`(set ,pos ,v)   (pr (set-var all-marks src pos v))    (loop)]
+      [x                (pr (format "unknown command: ~a" x)) (loop)])))
 
 (define (debug-done)
   (pr 'DEBUG-DONE))

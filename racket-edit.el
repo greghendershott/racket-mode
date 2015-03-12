@@ -1023,6 +1023,10 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
 
 (defun racket-debug-mode-quit ()
   (interactive)
+  (racket--repl-eval "(quit)\n")
+  (racket-debug-mode--turn-off-minor-mode-in-all-buffers))
+
+(defun racket-debug-mode--turn-off-minor-mode-in-all-buffers ()
   (dolist (buf (buffer-list))
     (with-current-buffer buf
       (when (racket-debug-mode-on-p)
@@ -1033,7 +1037,9 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
         (racket--repl-cmd/sexpr cmd nil t))
   (cond
    ((eq 'DEBUG-DONE racket-debug-mode-break-data)
-    (racket-debug-mode-quit))
+    ;; The debugger has exited its prompt/command loop, so we simply
+    ;; need to turn off our minor mode in all buffers.
+    (racket-debug-mode--turn-off-minor-mode-in-all-buffers))
    ((and (listp racket-debug-mode-break-data)
          (eq 'also-file? (car racket-debug-mode-break-data)))
     (let ((v (y-or-n-p (format "Also debug %s? "
@@ -1075,23 +1081,39 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
   (interactive)
   (racket-debug-mode--command "(go)"))
 
-(defun racket-debug-mode--do-breakpoint (on-p)
+(defun racket-debug-mode--do-breakpoint (v)
   "Find breakable position near point, go there, and set or clear break."
-  (let* ((which (if on-p "break" "clear"))
-         (cmd (format "(%s %s)" which (point)))
+  (let* ((v-str (cl-case v
+                  ((t)   "#t")
+                  ((nil) "#f")
+                  (t     v)))
+         (cmd (format "(break %s %s)" (point) v-str))
          (pos (racket--repl-cmd/sexpr cmd nil t)))
     (if pos
         (progn (goto-char pos)
-               (message (format "Breakpoint %s" (if on-p "set" "cleared"))))
+               (cl-case v
+                 ((t)   (message "Breakpoint set"))
+                 ((nil) (message "Breakpoint cleared"))))
       (error "Cannot find breakable position"))))
 
 (defun racket-debug-mode-set-breakpoint ()
+  "Set a break at the first breakable position after point."
   (interactive)
   (racket-debug-mode--do-breakpoint t))
 
 (defun racket-debug-mode-clear-breakpoint ()
+  "Clear a break at the first breakable position after point."
   (interactive)
   (racket-debug-mode--do-breakpoint nil))
+
+(defun racket-debug-mode-run-to-point ()
+  "Run to the first breakable position after point.
+
+Effectively this sets a one-shot breakpoint then does
+`racket-debug-mode-go'."
+  (interactive)
+  (racket-debug-mode--do-breakpoint 'one-shot)
+  (racket-debug-mode-go))
 
 (defun racket-debug-mode-value ()
   (interactive)
@@ -1114,6 +1136,7 @@ However you may navigate the usual ways.
            '(("<SPC>"      racket-debug-mode-step)
              ("s"          racket-debug-mode-step)
              ("g"          racket-debug-mode-go)
+             ("."          racket-debug-mode-run-to-point)
              ("b"          racket-debug-mode-set-breakpoint)
              ("u"          racket-debug-mode-clear-breakpoint)
              ("C-<return>" racket-debug-mode-value)
@@ -1127,6 +1150,11 @@ However you may navigate the usual ways.
 
 (defun racket-debug-mode-on-p ()
   racket-debug-mode)
+
+(defun racket-debug-mode--foo ()
+  (let ((o (make-overlay 73 74)))
+    (overlay-put o 'after-string "=22")
+    (overlay-put o 'invisible t)))
 
 
 ;;; misc
