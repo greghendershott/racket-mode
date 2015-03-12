@@ -1075,13 +1075,23 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
   (interactive)
   (racket-debug-mode--command "(go)"))
 
+(defun racket-debug-mode--do-breakpoint (on-p)
+  "Find breakable position near point, go there, and set or clear break."
+  (let* ((which (if on-p "break" "clear"))
+         (cmd (format "(%s %s)" which (point)))
+         (pos (racket--repl-cmd/sexpr cmd nil t)))
+    (if pos
+        (progn (goto-char pos)
+               (message (format "Breakpoint %s" (if on-p "set" "cleared"))))
+      (error "Cannot find breakable position"))))
+
 (defun racket-debug-mode-set-breakpoint ()
   (interactive)
-  (racket--repl-cmd/sexpr (format "(break %s)" (point)) nil t))
+  (racket-debug-mode--do-breakpoint t))
 
 (defun racket-debug-mode-clear-breakpoint ()
   (interactive)
-  (racket--repl-cmd/sexpr (format "(clear %s)" (point)) nil t))
+  (racket-debug-mode--do-breakpoint nil))
 
 (defun racket-debug-mode-value ()
   (interactive)

@@ -58,30 +58,40 @@
 (define step? #t)
 
 ;; Annotation populates this with an entry for every breakable
-;; position. Subsequently, you can only update entries to be #t or
-;; #f. IOW you can't set a breakpoint for a position that is not
-;; breakable.
-(define breakpoints (make-hash)) ;(hash/c (cons src pos) boolean)
-
-(define (clear-breakable-positions!)
-  (hash-clear! breakpoints))
+;; position.
+(define breakpoints (make-hash)) ;(hash src (hash pos boolean)))
 
 (define (list-breaks)
   (elisp-println breakpoints))
 
-(define (should-break? src pos)
-  (hash-ref breakpoints (cons src pos) #f))
+(define (clear-breakable-positions!)
+  (hash-clear! breakpoints))
 
 (define (set-breakable-positions! source breakable-positions)
   (for ([pos (in-list breakable-positions)])
-    (hash-set! breakpoints (cons source pos) #f)))
+    (hash-update! breakpoints
+                  source
+                  (λ (ht)
+                    (hash-set! ht pos #f)
+                    ht)
+                  (λ () (make-hash)))))
 
-(define (set-breakpoint! src pos on?)
-  (define key (cons src pos))
-  (cond [(hash-has-key? breakpoints key)
-         (hash-set! breakpoints key on?)
-         #t]
-        [else #f]))
+(define (should-break? src pos)
+  (hash-ref (hash-ref breakpoints src (hash)) pos #f))
+
+;; If fuzzy-pos is close to a following actually breakable position,
+;; set the breakpoint status and return the actual breakable position
+;; (so the client may update its UI). Else return #f (so the client
+;; can complain to the user).
+(define (set-breakpoint! src fuzzy-pos on?)
+  (match (hash-ref breakpoints src #f)
+    [#f #f]
+    [ht
+     ;; FIXME: Smarter way to find next breakable position?
+     (match (for/or ([i (in-range fuzzy-pos (+ fuzzy-pos 2048))])
+              (and (hash-has-key? ht i) i))
+       [#f #f]
+       [actual-pos (hash-set! ht actual-pos on?) actual-pos])]))
 
 ;;; Bound identifiers
 
