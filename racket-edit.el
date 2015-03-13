@@ -100,7 +100,7 @@ Supplies CONTEXT-LEVEL to the back-end ,run command; see run.rkt."
   (when (or (buffer-modified-p)
             (and buffer-file-name (not (file-exists-p buffer-file-name))))
     (save-buffer))
-  (remove-overlays (point-min) (point-max) 'racket-uncovered-overlay)
+  (racket--remove-uncovered-overlays)
   (racket--invalidate-completion-cache)
   (racket--invalidate-type-cache)
   (racket--repl-eval (format ",run %s %s %s %s\n"
@@ -124,6 +124,12 @@ Otherwise follows the `racket-error-context' setting."
   (racket--shell (concat racket-racket-program
                          " "
                          (racket--quoted-buffer-file-name))))
+
+(defvar racket--uncovered-overlays nil)
+
+(defun racket--remove-uncovered-overlays ()
+  (while racket--uncovered-overlays
+    (delete-overlay (pop racket--uncovered-overlays))))
 
 (defun racket-test (&optional coverage)
   "Do `(require (submod \".\" test))` in `*Racket REPL*` buffer.
@@ -160,6 +166,7 @@ See also:
         (let ((beg (car x))
               (end (cdr x)))
           (let ((o (make-overlay beg end)))
+            (push o racket--uncovered-overlays)
             (overlay-put o 'name 'racket-uncovered-overlay)
             (overlay-put o 'priority 100)
             (overlay-put o 'face font-lock-warning-face))))
@@ -665,7 +672,7 @@ instead of textually, and handle module and submodule forms."
   (let ((os (overlays-at beg)))
     (unless (cl-some (lambda (o) (member o racket--highlight-overlays)) os)
       (let ((o (make-overlay beg end)))
-        (setq racket--highlight-overlays (cons o racket--highlight-overlays))
+        (push o racket--highlight-overlays)
         (overlay-put o 'name 'racket-check-syntax-overlay)
         (overlay-put o 'priority 100)
         (overlay-put o 'face (if defp
@@ -674,8 +681,7 @@ instead of textually, and handle module and submodule forms."
 
 (defun racket--unhighlight-all ()
   (while racket--highlight-overlays
-    (delete-overlay (car racket--highlight-overlays))
-    (setq racket--highlight-overlays (cdr racket--highlight-overlays))))
+    (delete-overlay (pop racket--highlight-overlays))))
 
 (defun racket--point-entered (old new)
   (pcase (get-text-property new 'help-echo)
@@ -1001,7 +1007,7 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
   "The last response from the debugger engine.")
 
 (defun racket-debug-mode--start ()
-  (remove-overlays (point-min) (point-max) 'racket-uncovered-overlay)
+  (racket--remove-uncovered-overlays)
   (setq buffer-read-only t)
   (unless racket-debug-mode-debugging-p
     (setq racket-debug-mode-debugging-p t)
@@ -1017,6 +1023,7 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
 
 (defun racket-debug-mode--stop ()
   (setq buffer-read-only nil)
+  (racket-debug-mode--remove-overlays)
   (when racket-debug-mode-debugging-p
     (setq racket-debug-mode-debugging-p nil)
     (setq racket-debug-mode-break-data nil)))
@@ -1049,19 +1056,29 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
          (eq 'break (car racket-debug-mode-break-data)))
     (let ((which (format "%s\n" (cadr racket-debug-mode-break-data)))
           (src (cadr (assoc 'src racket-debug-mode-break-data)))
-          (pos (cadr (assoc 'pos racket-debug-mode-break-data)))
-          (rs (let ((vs (cadr (assoc 'vals racket-debug-mode-break-data))))
-                (if vs (format "Return Values ==> %s\n" vs) "")))
-          (bs (mapconcat (lambda (binding)
-                           (format "%s => %s" (caar binding) (cadr binding)))
-                         (cadr (assoc 'bindings racket-debug-mode-break-data))
-                         "\n")))
+          (pos (cadr (assoc 'pos racket-debug-mode-break-data))))
       (unless (equal src (buffer-file-name))
         (find-file src)
         (racket-debug-mode 1))
       (goto-char pos)
-      ;; FIXME: Put in dedicated window instead of message?
-      (message (concat which rs bs))))
+      (racket-debug-mode--remove-overlays)
+      (mapc (lambda (binding)
+              (cl-destructuring-bind (uses val) binding
+                (mapc (lambda (use)
+                        (cl-destructuring-bind (dat src line col pos span) use
+                          (let* ((beg pos)
+                                 (end (+ pos span))
+                                 (str (format "=%s" val))
+                                 (str (propertize
+                                       str
+                                       'face racket-debug-value-face)))
+                            (racket-debug-mode--add-overlay beg end str))))
+                      uses)))
+            (cadr (assoc 'bindings racket-debug-mode-break-data)))
+      (let ((vals (cadr (assoc 'vals racket-debug-mode-break-data))))
+        (when vals
+          nil)) ;;TODO
+      (message "break")))
    (t
     (racket-debug-mode-quit)
     (error (format "Unknown reponse from debugger: %s"
@@ -1151,10 +1168,18 @@ However you may navigate the usual ways.
 (defun racket-debug-mode-on-p ()
   racket-debug-mode)
 
-(defun racket-debug-mode--foo ()
-  (let ((o (make-overlay 73 74)))
-    (overlay-put o 'after-string "=22")
-    (overlay-put o 'invisible t)))
+(defvar racket--debug-overlays nil)
+
+(defun racket-debug-mode--add-overlay (beg end str)
+  (let ((o (make-overlay beg end)))
+    (push o racket--debug-overlays)
+    (overlay-put o 'name 'racket-debug-mode-overlay)
+    ;;(overlay-put o 'invisible t)
+    (overlay-put o 'after-string str)))
+
+(defun racket-debug-mode--remove-overlays ()
+  (while racket--debug-overlays
+    (delete-overlay (pop racket--debug-overlays))))
 
 
 ;;; misc

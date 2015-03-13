@@ -5,9 +5,11 @@
          gui-debugger/marks
          racket/dict
          racket/format
+         racket/list
          racket/match
          racket/path
          racket/port
+         syntax/id-table
          "command-output.rkt"
          "debugger-load.rkt" ;not gui-debugger/load-sandbox b/c gui
          "elisp.rkt"
@@ -104,20 +106,39 @@
 ;; vector, but I think an interval-map is a better fit.)
 (define bound-identifiers (make-hash)) ;(hash/c src interval-map)
 
-(define (clear-bound-identifiers!)
-  (hash-clear! bound-identifiers))
+(define def->uses (make-bound-id-table)) ;(bound-id-table/c stx (listof stx))
+(define use->def (make-bound-id-table)) ;(bound-id-table/c stx stx)
 
-(define (add-bound-identifier! bound binding)
+(define (clear-bound-identifiers!)
+  (hash-clear! bound-identifiers)
+  (set! def->uses (make-bound-id-table))
+  (set! use->def (make-bound-id-table)))
+
+(define (add-bound-identifier! type bound binding)
   (define src (syntax-source bound))
   (define pos (syntax-position bound))
   (define span (syntax-span bound))
   (when (and src pos span)
-    (hash-update! bound-identifiers
-                  src
-                  (λ (im)
-                    (interval-map-set! im pos (+ pos span) binding)
-                    im)
-                  (λ () (make-interval-map)))))
+    (unless (eq? type 'top-level)
+      (hash-update! bound-identifiers
+                    src
+                    (λ (im)
+                      (interval-map-set! im pos (+ pos span) binding)
+                      im)
+                    make-interval-map))
+    (bound-id-table-set! def->uses
+                         binding
+                         (cons bound
+                               (bound-id-table-ref def->uses binding '())))
+    (bound-id-table-set! use->def
+                         bound
+                         binding)))
+
+(define (binding->bounds binding)
+  (bound-id-table-ref def->uses binding '()))
+
+(define (bound->binding bound)
+  (bound-id-table-ref use->def bound))
 
 (define (position->identifier src pos)
   (interval-map-ref (hash-ref bound-identifiers src (make-interval-map))
@@ -181,12 +202,10 @@
 ;;; Annotation callbacks
 
 (define (record-bound-identifier type bound binding)
-  ;;(pr (list 'record-bound type bound binding))
-  (add-bound-identifier! bound binding)
+  (add-bound-identifier! type bound binding)
   (void))
 
 (define (record-top-level-identifier mod var get/set!)
-  ;;(pr (list 'record-top-level mod var get/set!))
   (add-top-level-binding! var get/set!)
   (void))
 
@@ -210,20 +229,26 @@
   (define pos (case which
                 [(before) (syntax-position stx)]
                 [(after)  (+ (syntax-position stx) (syntax-span stx) -1)]))
+  (define locals (for*/list ([b (in-list (mark-bindings top-mark))]
+                             [stx (in-value (mark-binding-binding b))]
+                             #:when (syntax-original? stx)
+                             [val (in-value (mark-binding-value b))])
+                   (list (binding->bounds stx) val)))
+  (define tops (for*/list ([b (in-list top-level-bindings)]
+                           [stx (in-value (car b))]
+                           [val (in-value ((cdr b)))])
+                 (list (binding->bounds stx) val)))
+  (define bindings (append locals tops))
   (pr
    `(break
      ,which
-     (pos    ,pos)
-     (src    ,src)
+     (pos    ,pos) ;also in stx, but extract for Elisp convenience
+     (src    ,src) ;also in stx, but extract for Elisp convenience
      (stx    ,stx)
      (module ,(mark-module-name top-mark))
      (frames ,(for/list ([m (in-list all-marks)])
                 (mark-source m)))
-     (bindings ,(for*/list ([b (in-list (mark-bindings top-mark))]
-                            [stx (in-value (mark-binding-binding b))]
-                            #:when (syntax-original? stx)
-                            [val (in-value (mark-binding-value b))])
-                  (list stx val)))
+     (bindings ,bindings)
      (vals ,(and vals (~s vals))))) ;~s for write so we can read later
   ;; Could this be a read-eval-print-loop much like the main REPL?
   ;; Allowing arbitrary evaluations?
@@ -260,7 +285,7 @@
              (equal? (path-only path) (path-only file-to-debug)) ;FIXME
              (begin
                (pr `(also-file? ,path))
-               ;;(eprintf "DEBUG> ") ;just to keep racket-repl happy during dev
+               ;;(eprintf "DEBUG> ")
                (read)))))
 
   (λ (orig-exp)
@@ -315,8 +340,7 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; example usage
 
-;; (define file-to-debug (string->path "/tmp/simple.rkt"))
-
+;; (define file-to-debug (string->path "/tmp/a.rkt"))
 ;; (parameterize ([current-eval (make-debug-eval-handler (current-eval)
 ;;                                                       file-to-debug)])
 ;;   (namespace-require file-to-debug))
