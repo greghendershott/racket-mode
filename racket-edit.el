@@ -1057,28 +1057,30 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
     (let ((which (format "%s\n" (cadr racket-debug-mode-break-data)))
           (src (cadr (assoc 'src racket-debug-mode-break-data)))
           (pos (cadr (assoc 'pos racket-debug-mode-break-data))))
+      (racket-debug-mode--remove-overlays)
       (unless (equal src (buffer-file-name))
         (find-file src)
         (racket-debug-mode 1))
       (goto-char pos)
-      (racket-debug-mode--remove-overlays)
       (mapc (lambda (binding)
               (cl-destructuring-bind (uses val) binding
                 (mapc (lambda (use)
                         (cl-destructuring-bind (dat src line col pos span) use
                           (let* ((beg pos)
                                  (end (+ pos span))
-                                 (str (format "=%s" val))
-                                 (str (propertize
-                                       str
-                                       'face racket-debug-value-face)))
+                                 (str (propertize (format "=%s" val)
+                                                  'face racket-debug-value-face)))
                             (racket-debug-mode--add-overlay beg end str))))
                       uses)))
             (cadr (assoc 'bindings racket-debug-mode-break-data)))
       (let ((vals (cadr (assoc 'vals racket-debug-mode-break-data))))
         (when vals
-          nil)) ;;TODO
-      (message "break")))
+          (let* ((beg (point))
+                 (end (1+ beg))
+                 (str (propertize (format "=>%s" vals)
+                                  'face racket-debug-result-face)))
+            (racket-debug-mode--add-overlay beg end str))))
+      (message "Break")))
    (t
     (racket-debug-mode-quit)
     (error (format "Unknown reponse from debugger: %s"
@@ -1171,7 +1173,7 @@ However you may navigate the usual ways.
 (defvar racket--debug-overlays nil)
 
 (defun racket-debug-mode--add-overlay (beg end str)
-  (let ((o (make-overlay beg end)))
+  (let ((o (make-overlay beg end (current-buffer))))
     (push o racket--debug-overlays)
     (overlay-put o 'name 'racket-debug-mode-overlay)
     ;;(overlay-put o 'invisible t)
@@ -1179,6 +1181,7 @@ However you may navigate the usual ways.
 
 (defun racket-debug-mode--remove-overlays ()
   (while racket--debug-overlays
+    (remove-overlays (point-min) (point-max) 'racket-debug-mode-overlay)
     (delete-overlay (pop racket--debug-overlays))))
 
 

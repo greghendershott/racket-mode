@@ -227,6 +227,14 @@ Instead you can insert actual λ characters using
   :tag "Debug Value Face"
   :group 'racket-faces)
 
+(defconst racket-debug-result-face 'racket-debug-result-face)
+(defface racket-debug-result-face
+  '((t
+     (:foreground "Black" :background "MistyRose1" :slant italic)))
+  "Face `racket-debug-mode' uses to show binding results inline."
+  :tag "Debug Result Face"
+  :group 'racket-faces)
+
 (defconst racket-keyword-argument-face 'racket-keyword-argument-face)
 (defface racket-keyword-argument-face
   '((((background dark))
