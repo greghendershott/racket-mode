@@ -104,15 +104,17 @@
 ;; Annotation populates this with an entry for every identifer. We use
 ;; this to match source positions with identifier stxs. (DrR uses a
 ;; vector, but I think an interval-map is a better fit.)
-(define bound-identifiers (make-hash)) ;(hash/c src interval-map)
+(define bound-id-locs (make-hash)) ;(hash/c src interval-map)
+(define local-uses '()) ;(listof stx)
+(define top-uses '()) ;(listof stx)
 
-(define def->uses (make-bound-id-table)) ;(bound-id-table/c stx (listof stx))
-(define use->def (make-bound-id-table)) ;(bound-id-table/c stx stx)
+(define-syntax-rule (push! v xs)
+  (set! xs (cons v xs)))
 
 (define (clear-bound-identifiers!)
-  (hash-clear! bound-identifiers)
-  (set! def->uses (make-bound-id-table))
-  (set! use->def (make-bound-id-table)))
+  (hash-clear! bound-id-locs)
+  (set! local-uses '())
+  (set! top-uses '()))
 
 (define (add-bound-identifier! type bound binding)
   (define src (syntax-source bound))
@@ -120,34 +122,29 @@
   (define span (syntax-span bound))
   (when (and src pos span)
     (unless (eq? type 'top-level)
-      (hash-update! bound-identifiers
+      (hash-update! bound-id-locs
                     src
                     (λ (im)
                       (interval-map-set! im pos (+ pos span) binding)
                       im)
                     make-interval-map))
-    (bound-id-table-set! def->uses
-                         binding
-                         (cons bound
-                               (bound-id-table-ref def->uses binding '())))
-    (bound-id-table-set! use->def
-                         bound
-                         binding)))
+    (when (eq? type 'ref)
+      (push! bound local-uses))
+    (when (eq? type 'top-level)
+      (push! bound top-uses))))
 
-(define (binding->bounds binding)
-  (bound-id-table-ref def->uses binding '()))
-
-(define (bound->binding bound)
-  (bound-id-table-ref use->def bound))
+(define ((id=? a) b)
+  (or (bound-identifier=? a b)
+      (free-identifier=? a b)))
 
 (define (position->identifier src pos)
-  (interval-map-ref (hash-ref bound-identifiers src (make-interval-map))
+  (interval-map-ref (hash-ref bound-id-locs src (make-interval-map))
                     pos
                     #f))
 
 (define (list-bindings) ;just for dev
   (local-require racket/pretty)
-  (pretty-print (for/list ([(src im) (in-hash bound-identifiers)])
+  (pretty-print (for/list ([(src im) (in-hash bound-id-locs)])
                   (list src
                         (for/list ([(k v) (in-dict im)])
                           (list k (syntax->datum v)))))
@@ -155,7 +152,7 @@
 
 ;;; Top-level bindings
 
-(define top-level-bindings '()) ;(list/c (cons/c stx procedure?))
+(define top-level-bindings '()) ;(listof (cons/c stx procedure?))
 
 (define (clear-top-level-bindings!)
   (set! top-level-bindings '()))
@@ -233,11 +230,11 @@
                              [stx (in-value (mark-binding-binding b))]
                              #:when (syntax-original? stx)
                              [val (in-value (mark-binding-value b))])
-                   (list (binding->bounds stx) val)))
+                   (list (filter (id=? stx) local-uses) val)))
   (define tops (for*/list ([b (in-list top-level-bindings)]
                            [stx (in-value (car b))]
                            [val (in-value ((cdr b)))])
-                 (list (binding->bounds stx) val)))
+                 (list (filter (id=? stx) top-uses) val)))
   (define bindings (append locals tops))
   (pr
    `(break
