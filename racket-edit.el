@@ -1005,23 +1005,27 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
 (defvar racket--debug-break-timer nil)
 
 (defun racket-debug ()
-  "Run with debugging.
+  "Instrument file(s) for debugging and run.
+
+For each required file in the same directory, you get a y/n
+prompt. Answering yes means you can step and break in that other
+file, too.
 
 Upon each break, the source file is shown with point at the
-breakpoint, in `racket-debug-mode', which provides additional commands.
+breakpoint. The minor mode `racket-debug-mode' is enabled, which
+provides additional commands like `racket-debug-mode-step' and
+`racket-debug-mode-go'.
 
-The REPL may be used during the break, to evaluate expressions
-with the namespace of the module. The REPL may be used even after
-the program completes: The debugging-instrumented code is still
-'live'. So if you make a function call, it will break at the
-first expression, and you may continue debugging. (To 'exit'
-debugging, simply do a normal `racket-run' of the file.)"
+During the break, the Racket REPL may be used to evaluate
+expressions in the namespace of the module. The REPL may be used
+even after the program completes: The debugging-instrumented code
+is still 'live'. So if you make a function call, it will break
+before the first expression. (To \"exit\" debugging, do a normal
+`racket-run'.)"
   (interactive)
   (racket--do-run 'debug)
   (setq racket--debug-break-timer
-        (run-with-timer 0.5
-                        0.5
-                        #'racket--on-debug-break-timer)))
+        (run-with-timer 0.5 nil #'racket--on-debug-break-timer)))
 
 (defun racket--debug-kill-timer ()
   (when racket--debug-break-timer
@@ -1029,13 +1033,15 @@ debugging, simply do a normal `racket-run' of the file.)"
     (setq racket--debug-break-timer nil)))
 
 (defun racket--on-debug-break-timer ()
+  (when (file-exists-p racket--repl-debug-break-output-file)
+    (with-temp-buffer
+      (insert-file-contents racket--repl-debug-break-output-file)
+      (delete-file racket--repl-debug-break-output-file)
+      (racket--debug-on-break
+       (eval (read (buffer-substring (point-min) (point-max)))))))
   ;; TODO: If no DEBUG: prompt in REPL, should we kill the timer?
-  (and (file-exists-p racket--repl-debug-break-output-file)
-       (with-temp-buffer
-         (insert-file-contents racket--repl-debug-break-output-file)
-         (delete-file racket--repl-debug-break-output-file)
-         (racket--debug-on-break
-          (eval (read (buffer-substring (point-min) (point-max))))))))
+  (setq racket--debug-break-timer
+        (run-with-timer 0.5 nil #'racket--on-debug-break-timer)))
 
 (defvar racket-debug-mode-break-data nil
   "Data for the most recent debugger break.")
@@ -1049,10 +1055,10 @@ debugging, simply do a normal `racket-run' of the file.)"
          (eq 'also-file? (car data)))
     (let ((v (y-or-n-p (format "Also debug %s? "
                                (cadr data)))))
-      (racket--repl-eval (if v "#t\n" "#f\n"))))
+      (racket--repl-eval (concat (if v "#t" "#f") "\n"))))
    ((and (listp data)
          (eq 'break (car data)))
-    (let ((which (format "%s\n" (cadr data)))
+    (let ((which (cadr data))
           (src (cadr (assoc 'src data)))
           (pos (cadr (assoc 'pos data))))
       (find-file src)
@@ -1101,7 +1107,8 @@ debugging, simply do a normal `racket-run' of the file.)"
   (racket--repl-eval ",(go)\n"))
 
 (defun racket-debug-mode--do-breakpoint (v)
-  "Find breakable position near point, go there, and set or clear break."
+  "Find breakable position near point, go there, and set
+breakpoint status to V, which may be t, nil, or 'one-shot."
   (let* ((v-str (cl-case v
                   ((t)   "#t")
                   ((nil) "#f")
