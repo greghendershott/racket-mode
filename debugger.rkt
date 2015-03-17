@@ -42,27 +42,35 @@
 ;; Thereafter excecution, followed by one or more breaks. Upon a
 ;; break, we output a (break ...) sexpr. Then we enter a
 ;; read-eval-print-loop, whose prompt-read handler prints a
-;; "DEBUG:path>" prompt. It is a full-fledged REPL (not limited to
-;; "debugging commands"). It supports the usual, non-debuggging
-;; commands. And it support certain debugging commands. Some debug
-;; commands -- like (break) (set) (get) -- cause us to remain in our
-;; extended debug REPL, with the program still at its breakpoint. Some
-;; of the debug commands -- (step) or (go) -- exit the extended REPL
-;; and resume execution. This resumed execution may result in more
-;; breaks.
+;; "DEBUG:path:pos>" prompt. It is a full-fledged REPL:
 ;;
-;; Eventually a 'DEBUG-DONE output from us says we are done with the
-;; evaluation of the module. However the annotated code is still live.
-;; If it is evaluated (e.g. function call) in the REPL, we may get
-;; more breaks. If so, we will again emit a (debug) sexpr and enter
-;; our debugger REPL.
+;; 1. Its prompt-read handler wraps the input expression in a
+;;    let-syntax with a set!-transformer for every local variable. As
+;;    a result the user can eval and even set! local as well as
+;;    top-level bindings.
+;;
+;; 2. It supports the usual racket-mode commands, plus some debugging
+;;    commands.
+;;
+;;    Some of these debug commands -- like (break) (set) (get) --
+;;    cause us to remain in our extended debug REPL, with the program
+;;    still at its breakpoint.
+;;
+;;    Other debug commands -- (step) or (go) -- exit the extended REPL
+;;    and resume execution. This resumed execution may result in more
+;;    breaks.
+;;
+;; After evaluation of the module completes, the annotated code is
+;; still "live". If code is evaluated (e.g. function call) in the
+;; REPL, it will break before the first expression. We will again emit
+;; a (break) sexpr and enter our debugger REPL.
 ;;
 ;; As a result, it's best to think of the (break) sexpr as a kind of
-;; "notification" or "synchronous exception". The Elisp code should
-;; expect it at any time. On receipt, it should find-file and enable a
-;; debugger minor-mode. Likewise, upon a (go) or (step) it should
-;; disable the debugger minor-mode. In other words, the minor mode
-;; isn't about debugging, it's about being in a break state, and the
+;; "synchronous notification". The Elisp code should expect it at any
+;; time. On receipt, it should find-file and enable a debugger
+;; minor-mode. Likewise, upon a (go) or (step) it should disable the
+;; debugger minor-mode. In other words, the minor mode isn't about
+;; debugging per se -- it's about being in a break state, and the
 ;; things that can be shown or done during that state, including
 ;; resuming.
 
@@ -73,7 +81,11 @@
 
 ;; Annotation populates this with an entry for every breakable
 ;; position.
-(define breakpoints (make-hash)) ;(hash src (hash pos (U #f #t 'one-shot))))
+(define breakpoints (make-hash)) ;(hash src
+                                 ; (hash pos
+                                 ;       (U #f #t
+                                 ;          'one-shot
+                                 ;          exact-positive-integer?))))
 
 (define (clear-breakable-positions!)
   (hash-clear! breakpoints))
@@ -92,7 +104,11 @@
   (match (hash-ref ht pos #f)
     [#f #f]
     [#t #t]
-    ['one-shot (hash-set! ht pos #f) #t]))
+    ['one-shot (hash-set! ht pos #f) #t]
+    [(? exact-positive-integer? skip)
+     (define n (sub1 skip))
+     (hash-set! ht pos (if (zero? n) #t n))
+     (zero? n)]))
 
 ;; If fuzzy-pos is close to a following actually breakable position,
 ;; set the breakpoint status and return the actual breakable position
@@ -246,9 +262,9 @@
       (elisp-println
        `(break
          ,which
-         (pos    ,pos) ;also in stx, but extract for Elisp convenience
-         (src    ,src) ;also in stx, but extract for Elisp convenience
-         (stx    ,stx)
+         (pos ,pos) ;also in stx, but extract for Elisp convenience
+         (src ,src) ;also in stx, but extract for Elisp convenience
+         (stx ,stx)
          (module ,(mark-module-name top-mark))
          (frames ,(for/list ([m (in-list all-marks)])
                     (mark-source m)))
@@ -266,7 +282,7 @@
                                    [stx (in-value (mark-binding-binding b))]
                                    #:when (syntax-original? stx))
                          (with-syntax ([id (syntax->datum stx)]
-                                       [get/set! (cadr b)])
+                                       [get/set! (mark-binding-set! b)])
                            #'[id
                               (make-set!-transformer
                                (λ (stx)

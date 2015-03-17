@@ -1017,11 +1017,13 @@ provides additional commands like `racket-debug-mode-step' and
 `racket-debug-mode-go'.
 
 During the break, the Racket REPL may be used to evaluate
-expressions in the namespace of the module. The REPL may be used
-even after the program completes: The debugging-instrumented code
-is still 'live'. So if you make a function call, it will break
-before the first expression. (To \"exit\" debugging, do a normal
-`racket-run'.)"
+expressions in the namespace of the module. Both top-level and
+local bindings are visible and may be `set!` to new values.
+
+The REPL may be used even after the program completes, because
+the code remains instrumented for debugging. If you make a
+function call, it will break before the first expression. (To
+\"fully exit\" debugging, do a normal `racket-run'.)"
   (interactive)
   (racket--do-run 'debug)
   (setq racket--debug-break-timer
@@ -1034,10 +1036,10 @@ before the first expression. (To \"exit\" debugging, do a normal
 
 (defun racket--on-debug-break-timer ()
   (when (file-exists-p racket--repl-debug-break-output-file)
-    (with-temp-buffer
-      (insert-file-contents racket--repl-debug-break-output-file)
-      (delete-file racket--repl-debug-break-output-file)
-      (racket--debug-on-break
+    (racket--debug-on-break
+     (with-temp-buffer
+       (insert-file-contents racket--repl-debug-break-output-file)
+       (delete-file racket--repl-debug-break-output-file)
        (eval (read (buffer-substring (point-min) (point-max)))))))
   ;; TODO: Should we avoid setting the timer if no DEBUG: prompt in REPL?
   (setq racket--debug-break-timer
@@ -1051,8 +1053,7 @@ before the first expression. (To \"exit\" debugging, do a normal
   (cond
    ((and (listp data)
          (eq 'also-file? (car data)))
-    (let ((v (y-or-n-p (format "Also debug %s? "
-                               (cadr data)))))
+    (let ((v (y-or-n-p (format "Also debug %s? " (cadr data)))))
       (racket--repl-eval (concat (if v "#t" "#f") "\n"))))
    ((and (listp data)
          (eq 'break (car data)))
@@ -1104,26 +1105,30 @@ before the first expression. (To \"exit\" debugging, do a normal
   (racket-debug-mode 0)
   (racket--repl-eval ",(go)\n"))
 
-(defun racket-debug-mode--do-breakpoint (v)
+(defun racket-debug-mode--do-breakpoint (status)
   "Find breakable position near point, go there, and set
-breakpoint status to V, which may be t, nil, or 'one-shot."
-  (let* ((v-str (cl-case v
-                  ((t)   "#t")
-                  ((nil) "#f")
-                  (t     v)))
-         (cmd (format ",(break %s %s)" (point) v-str))
+breakpoint status to STATUS, which may be t, nil, 'one-shot, or a
+positive number (the break is skipped N times)"
+  (let* ((str (cl-case status
+                ((t)   "#t")
+                ((nil) "#f")
+                (t     status)))
+         (cmd (format ",(break %s %s)" (point) str))
          (pos (racket--repl-cmd/sexpr cmd)))
     (if pos
         (progn (goto-char pos)
-               (cl-case v
+               (cl-case status
                  ((t)   (message "Breakpoint set"))
                  ((nil) (message "Breakpoint cleared"))))
-      (error "Cannot find breakable position"))))
+      (error "Cannot find a breakable position after point"))))
 
-(defun racket-debug-mode-set-breakpoint ()
-  "Set a break at the first breakable position after point."
-  (interactive)
-  (racket-debug-mode--do-breakpoint t))
+(defun racket-debug-mode-set-breakpoint (&optional skip-count)
+  "Set a break at the first breakable position after point.
+
+With a numeric prefix SKIP-COUNT, will skip the breakpoint that
+number of times, then become a normal breakpoint."
+  (interactive "p")
+  (racket-debug-mode--do-breakpoint (or skip-count t)))
 
 (defun racket-debug-mode-clear-breakpoint ()
   "Clear a break at the first breakable position after point."
@@ -1176,8 +1181,8 @@ However you may navigate the usual ways.
     (setq racket-debug-mode nil)
     (error "racket-debug-mode only works with racket-mode"))
   (if racket-debug-mode
-      (read-only-mode 1)
-    (read-only-mode 0)
+      (setq buffer-read-only t)
+    (setq buffer-read-only nil)
     (setq racket-debug-mode-break-data nil)
     (racket-debug-mode--remove-overlays)))
 
