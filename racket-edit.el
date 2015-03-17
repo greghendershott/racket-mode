@@ -103,6 +103,7 @@ Supplies CONTEXT-LEVEL to the back-end ,run command; see run.rkt."
   (racket--remove-uncovered-overlays)
   (racket--invalidate-completion-cache)
   (racket--invalidate-type-cache)
+  (racket--debug-kill-timer)
   (racket--repl-eval (format ",run %s %s %s %s\n"
                              (racket--quoted-buffer-file-name)
                              racket-memory-limit
@@ -1001,66 +1002,60 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
 
 ;;; debug
 
-(defvar racket-debug-mode-debugging-p nil
-  "Is racket-debug-mode active in any buffer?")
-(defvar racket-debug-mode-break-data nil
-  "The last response from the debugger engine.")
+(defvar racket--debug-break-timer nil)
 
-(defun racket-debug-mode--start ()
-  (racket--remove-uncovered-overlays)
-  (setq buffer-read-only t)
-  (unless racket-debug-mode-debugging-p
-    (setq racket-debug-mode-debugging-p t)
-    (racket--invalidate-completion-cache)
-    (racket--invalidate-type-cache)
-    (when (buffer-modified-p)
-      (save-buffer))
-    (racket-debug-mode--command (format ",run %s %s %s %s\n"
-                                        (racket--quoted-buffer-file-name)
-                                        racket-memory-limit
-                                        racket-pretty-print
-                                        'debug))))
+(defun racket-debug ()
+  "Run with debugging.
 
-(defun racket-debug-mode--stop ()
-  (setq buffer-read-only nil)
-  (racket-debug-mode--remove-overlays)
-  (when racket-debug-mode-debugging-p
-    (setq racket-debug-mode-debugging-p nil)
-    (setq racket-debug-mode-break-data nil)))
+Upon each break, the source file is shown with point at the
+breakpoint, in `racket-debug-mode', which provides additional commands.
 
-(defun racket-debug-mode-quit ()
+The REPL may be used during the break, to evaluate expressions
+with the namespace of the module. The REPL may be used even after
+the program completes: The debugging-instrumented code is still
+'live'. So if you make a function call, it will break at the
+first expression, and you may continue debugging. (To 'exit'
+debugging, simply do a normal `racket-run' of the file.)"
   (interactive)
-  (racket--repl-eval "(quit)\n")
-  (racket-debug-mode--turn-off-minor-mode-in-all-buffers))
+  (racket--do-run 'debug)
+  (setq racket--debug-break-timer
+        (run-with-timer 0.5
+                        0.5
+                        #'racket--on-debug-break-timer)))
 
-(defun racket-debug-mode--turn-off-minor-mode-in-all-buffers ()
-  (dolist (buf (buffer-list))
-    (with-current-buffer buf
-      (when (racket-debug-mode-on-p)
-        (racket-debug-mode 0)))))
+(defun racket--debug-kill-timer ()
+  (when racket--debug-break-timer
+    (cancel-timer racket--debug-break-timer)
+    (setq racket--debug-break-timer nil)))
 
-(defun racket-debug-mode--command (cmd)
-  (setq racket-debug-mode-break-data
-        (racket--repl-cmd/sexpr cmd nil t))
+(defun racket--on-debug-break-timer ()
+  ;; TODO: If no DEBUG: prompt in REPL, should we kill the timer?
+  (and (file-exists-p racket--repl-debug-break-output-file)
+       (with-temp-buffer
+         (insert-file-contents racket--repl-debug-break-output-file)
+         (delete-file racket--repl-debug-break-output-file)
+         (racket--debug-on-break
+          (eval (read (buffer-substring (point-min) (point-max))))))))
+
+(defvar racket-debug-mode-break-data nil
+  "Data for the most recent debugger break.")
+
+(defun racket--debug-on-break (data)
+  (setq racket-debug-mode-break-data data) ;save for `racket-debug-mode-step'
   (cond
-   ((eq 'DEBUG-DONE racket-debug-mode-break-data)
-    ;; The debugger has exited its prompt/command loop, so we simply
-    ;; need to turn off our minor mode in all buffers.
-    (racket-debug-mode--turn-off-minor-mode-in-all-buffers))
-   ((and (listp racket-debug-mode-break-data)
-         (eq 'also-file? (car racket-debug-mode-break-data)))
+   ((eq 'DEBUG-DONE data)
+    nil)
+   ((and (listp data)
+         (eq 'also-file? (car data)))
     (let ((v (y-or-n-p (format "Also debug %s? "
-                               (cadr racket-debug-mode-break-data)))))
-      (racket-debug-mode--command (if v "#t" "#f"))))
-   ((and (listp racket-debug-mode-break-data)
-         (eq 'break (car racket-debug-mode-break-data)))
-    (let ((which (format "%s\n" (cadr racket-debug-mode-break-data)))
-          (src (cadr (assoc 'src racket-debug-mode-break-data)))
-          (pos (cadr (assoc 'pos racket-debug-mode-break-data))))
-      (racket-debug-mode--remove-overlays)
-      (unless (equal src (buffer-file-name))
-        (find-file src)
-        (racket-debug-mode 1))
+                               (cadr data)))))
+      (racket--repl-eval (if v "#t\n" "#f\n"))))
+   ((and (listp data)
+         (eq 'break (car data)))
+    (let ((which (format "%s\n" (cadr data)))
+          (src (cadr (assoc 'src data)))
+          (pos (cadr (assoc 'pos data))))
+      (find-file src)
       (goto-char pos)
       (mapc (lambda (binding)
               (cl-destructuring-bind (uses val) binding
@@ -1072,33 +1067,38 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
                                                   'face racket-debug-value-face)))
                             (racket-debug-mode--add-overlay beg end str))))
                       uses)))
-            (cadr (assoc 'bindings racket-debug-mode-break-data)))
-      (let ((vals (cadr (assoc 'vals racket-debug-mode-break-data))))
+            (cadr (assoc 'bindings data)))
+      (let ((vals (cadr (assoc 'vals data))))
         (when vals
           (let* ((beg (point))
                  (end (1+ beg))
                  (str (propertize (format "=>%s" vals)
                                   'face racket-debug-result-face)))
             (racket-debug-mode--add-overlay beg end str))))
-      (message "Break")))
+      (racket-debug-mode 1)
+      (message (format "Break %s" which))))
    (t
-    (racket-debug-mode-quit)
+    ;;(racket-debug-mode-quit)
     (error (format "Unknown reponse from debugger: %s"
-                   racket-debug-mode-break-data)))))
+                   data)))))
 
 (defun racket-debug-mode-step (&optional change-value-p)
+  "Evaluate the next expression and break."
   (interactive "P")
   (let ((cmd (if (and change-value-p
                       (cadr (assoc 'vals racket-debug-mode-break-data)))
                  (let* ((old (cadr (assoc 'vals racket-debug-mode-break-data)))
                         (new (read-string "Return Values: " old)))
-                   (format "(step %s)" new))
-               "(step)")))
-    (racket-debug-mode--command cmd)))
+                   (format ",(step %s)\n" new))
+               ",(step)\n")))
+    (racket-debug-mode 0)
+    (racket--repl-eval cmd)))
 
 (defun racket-debug-mode-go ()
+  "Continue until the next breakpoint, if any."
   (interactive)
-  (racket-debug-mode--command "(go)"))
+  (racket-debug-mode 0)
+  (racket--repl-eval ",(go)\n"))
 
 (defun racket-debug-mode--do-breakpoint (v)
   "Find breakable position near point, go there, and set or clear break."
@@ -1106,8 +1106,8 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
                   ((t)   "#t")
                   ((nil) "#f")
                   (t     v)))
-         (cmd (format "(break %s %s)" (point) v-str))
-         (pos (racket--repl-cmd/sexpr cmd nil t)))
+         (cmd (format ",(break %s %s)" (point) v-str))
+         (pos (racket--repl-cmd/sexpr cmd)))
     (if pos
         (progn (goto-char pos)
                (cl-case v
@@ -1135,10 +1135,17 @@ Effectively this sets a one-shot breakpoint then does
   (racket-debug-mode-go))
 
 (defun racket-debug-mode-value ()
+  "Change the value at point (if any)."
   (interactive)
-  (let* ((old (racket--repl-cmd/sexpr (format "(get %s)" (point)) nil t))
+  (let* ((old (racket--repl-cmd/sexpr (format "(get %s)" (point))))
          (new (read-string "Value: " old)))
-    (racket--repl-cmd/sexpr (format "(set %s %s)" (point) new) nil t)))
+    (racket--repl-cmd/sexpr (format "(set %s %s)" (point) new))))
+
+(defun racket-debug-mode-quit ()
+  (interactive)
+  ;;(racket--repl-eval ",(quit)\n") ;still need this?
+  (racket--debug-kill-timer)
+  (racket-debug-mode 0))
 
 (define-minor-mode racket-debug-mode
   "Debug.
@@ -1164,25 +1171,25 @@ However you may navigate the usual ways.
     (setq racket-debug-mode nil)
     (error "racket-debug-mode only works with racket-mode"))
   (if racket-debug-mode
-      (racket-debug-mode--start)
-    (racket-debug-mode--stop)))
-
-(defun racket-debug-mode-on-p ()
-  racket-debug-mode)
+      (read-only-mode 1)
+    (read-only-mode 0)
+    (setq racket-debug-mode-break-data nil)
+    (racket-debug-mode--remove-overlays)))
 
 (defvar racket--debug-overlays nil)
 
 (defun racket-debug-mode--add-overlay (beg end str)
+  "The nice thing about 'after-string overlays is that they do
+not affect positions."
   (let ((o (make-overlay beg end (current-buffer))))
     (push o racket--debug-overlays)
     (overlay-put o 'name 'racket-debug-mode-overlay)
-    ;;(overlay-put o 'invisible t)
     (overlay-put o 'after-string str)))
 
 (defun racket-debug-mode--remove-overlays ()
-  (while racket--debug-overlays
     (remove-overlays (point-min) (point-max) 'racket-debug-mode-overlay)
-    (delete-overlay (pop racket--debug-overlays))))
+    (while racket--debug-overlays
+      (delete-overlay (pop racket--debug-overlays))))
 
 
 ;;; misc

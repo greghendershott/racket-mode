@@ -25,7 +25,8 @@
 
 (provide make-prompt-read
          current-command-output-file
-         display-prompt)
+         display-prompt
+         handle-command)
 
 (module+ test
   (require rackunit))

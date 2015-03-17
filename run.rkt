@@ -6,6 +6,7 @@
          racket/pretty
          "channel.rkt"
          "cmds.rkt"
+         "command-output.rkt"
          "debugger.rkt"
          "error.rkt"
          "gui.rkt"
@@ -15,8 +16,9 @@
          "util.rkt")
 
 (module+ main
-  (command-line #:args (command-output-file)
-                (current-command-output-file command-output-file))
+  (command-line #:args (command-output-file debug-break-output-file)
+                (current-command-output-file command-output-file)
+                (current-debug-break-output-file debug-break-output-file))
   ;; Emacs on Windows comint-mode needs buffering disabled
   (when (eq? (system-type 'os) 'windows)
     (file-stream-buffer-mode (current-output-port) 'none))

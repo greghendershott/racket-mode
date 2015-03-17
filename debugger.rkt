@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require data/interval-map
+(require (for-syntax racket/base)
+         data/interval-map
          gui-debugger/annotator
          gui-debugger/marks
          racket/dict
@@ -10,14 +11,21 @@
          racket/path
          racket/port
          syntax/id-table
+         "cmds.rkt"
          "command-output.rkt"
          "debugger-load.rkt" ;not gui-debugger/load-sandbox b/c gui
          "elisp.rkt"
          "util.rkt")
 
+;;; TODO: A `(debug)` form to put in source, to cause a break?
+;;;
+;;; TODO: How about handling exn:break -- can we make it work when
+;;; user breaks? (Probably of no practical use except in seemingly
+;;; "hung" programs.)
+
 (provide make-debug-eval-handler)
 
-;;; Protocol
+;;; Protocol/Flow
 
 ;; Our client should set current-eval to the result of
 ;; `(make-debug-eval-handler (current-eval) file-to-be-debugged)`.
@@ -25,35 +33,39 @@
 ;; annotated in the usual way by gui-debugger (plus some extra
 ;; 'DEBUG-DONE annotation by us).
 ;;
-;; When evaluating the original file and it's requires, we respond by
+;; When evaluating the original file and its requires, we respond by
 ;; outputting zero or more `(also-file? ,path) sexprs. We expect a
 ;; sexpr answer to each. If non-#f, that file is also annotated for
 ;; debugging. (This is like the DrR popup asking whether to debug each
 ;; additional file).
 ;;
-;; Then we enter what you can think of as a "debugger REPL". The main
-;; "prompt" we output is a `(break ...) sexpr. This says we've hit a
-;; breakpoint, and where it is. Our client should then issue a sexpr
-;; "command" like `(step) or `(go). This leads to another break
-;; "prompt" from us, and so on. A final 'DEBUG-DONE "prompt" from us
-;; lets the client know it can exit its debugger UI mode.
+;; Thereafter excecution, followed by one or more breaks. Upon a
+;; break, we output a (break ...) sexpr. Then we enter a
+;; read-eval-print-loop, whose prompt-read handler prints a
+;; "DEBUG:path>" prompt. It is a full-fledged REPL (not limited to
+;; "debugging commands"). It supports the usual, non-debuggging
+;; commands. And it support certain debugging commands. Some debug
+;; commands -- like (break) (set) (get) -- cause us to remain in our
+;; extended debug REPL, with the program still at its breakpoint. Some
+;; of the debug commands -- (step) or (go) -- exit the extended REPL
+;; and resume execution. This resumed execution may result in more
+;; breaks.
 ;;
-;; A few commands -- such a `(break) `(set) `(get) -- cause us to
-;; enter a "sub-loop": We expect zero or more other such commands, and
-;; eventually a command like `(step) or `(go) which will result in
-;; another `(break) or 'DEBUG-DONE prompt. In other words, while the
-;; program is at a breakpoint, zero or more special commands can be
-;; issue before resuming execution.
+;; Eventually a 'DEBUG-DONE output from us says we are done with the
+;; evaluation of the module. However the annotated code is still live.
+;; If it is evaluated (e.g. function call) in the REPL, we may get
+;; more breaks. If so, we will again emit a (debug) sexpr and enter
+;; our debugger REPL.
 ;;
-;; This command and sub-command REPL is in the `break-prompt`
-;; function.
+;; As a result, it's best to think of the (break) sexpr as a kind of
+;; "notification" or "synchronous exception". The Elisp code should
+;; expect it at any time. On receipt, it should find-file and enable a
+;; debugger minor-mode. Likewise, upon a (go) or (step) it should
+;; disable the debugger minor-mode. In other words, the minor mode
+;; isn't about debugging, it's about being in a break state, and the
+;; things that can be shown or done during that state, including
+;; resuming.
 
-;;; Printing
-(define (pr v)
-  ;; (begin
-  ;;   (local-require racket/pretty)
-  ;;   (pretty-print v (current-error-port))) ;just to debug the debugger
-  (with-output-to-command-output-file (λ () (elisp-println v))))
 
 ;;; Breakpoints
 
@@ -213,12 +225,12 @@
       step?))
 
 (define (break-before top-mark ccm)
-  (break-prompt 'before top-mark ccm #f))
+  (break 'before top-mark ccm #f))
 
 (define (break-after top-mark ccm . vals)
-  (apply values (break-prompt 'after top-mark ccm vals)))
+  (apply values (break 'after top-mark ccm vals)))
 
-(define (break-prompt which top-mark ccm vals)
+(define (break which top-mark ccm vals)
   (define other-marks (continuation-mark-set->list ccm debug-key))
   (define all-marks (cons top-mark other-marks))
   (define stx (mark-source top-mark))
@@ -236,37 +248,96 @@
                            [val (in-value ((cdr b)))])
                  (list (filter (id=? stx) top-uses) val)))
   (define bindings (append locals tops))
-  (pr
-   `(break
-     ,which
-     (pos    ,pos) ;also in stx, but extract for Elisp convenience
-     (src    ,src) ;also in stx, but extract for Elisp convenience
-     (stx    ,stx)
-     (module ,(mark-module-name top-mark))
-     (frames ,(for/list ([m (in-list all-marks)])
-                (mark-source m)))
-     (bindings ,bindings)
-     (vals ,(and vals (~s vals))))) ;~s for write so we can read later
-  ;; Could this be a read-eval-print-loop much like the main REPL?
-  ;; Allowing arbitrary evaluations?
-  (let loop ()
-    ;;(eprintf "DEBUG> ") ;just to keep racket-repl happy for input during dev
-    (match (read)
-      [`(quit) (eprintf "Quitting debugger\n") (exit)]
-      ;; Commands to resume, optionally modifying `vals` (whose
-      ;; meaning varies for 'before and 'after):
-      [`(step)     (set! step? #t) vals]
-      [`(step ,vs) (set! step? #t) vs]
-      [`(go)       (set! step? #f) vals]
-      [`(go ,vs)   (set! step? #f) vs]
-      ;; Commands to tweak state but not yet resume (ergo the `loop`):
-      [`(break ,pos ,v) (pr (set-breakpoint! src pos v))      (loop)]
-      [`(get ,pos)      (pr (get-var all-marks src pos))      (loop)]
-      [`(set ,pos ,v)   (pr (set-var all-marks src pos v))    (loop)]
-      [x                (pr (format "unknown command: ~a" x)) (loop)])))
+  (with-output-to-debug-break-output-file
+    (λ ()
+      (elisp-println
+       `(break
+         ,which
+         (pos    ,pos) ;also in stx, but extract for Elisp convenience
+         (src    ,src) ;also in stx, but extract for Elisp convenience
+         (stx    ,stx)
+         (module ,(mark-module-name top-mark))
+         (frames ,(for/list ([m (in-list all-marks)])
+                    (mark-source m)))
+         (bindings ,bindings)
+         (vals ,(and vals (~s vals))))))) ;~s for write so we can read later
+
+  (define (enrich-with-locals stx)
+    ;; Using module->namespace gives read/write access to top-level
+    ;; identifiers. But for locals, we need to wrap the REPL input stx
+    ;; in a let-syntax that has a make-set!-transformer for each
+    ;; local.
+    (syntax-case stx ()
+      [stx
+       #`(let #,(for*/list ([b (in-list (mark-bindings top-mark))]
+                            [stx (in-value (mark-binding-binding b))]
+                            #:when (syntax-original? stx)
+                            [id (in-value (syntax->datum stx))]
+                            [val (in-value (mark-binding-value b))])
+                  #`[#,id #,val])
+       ;; #`(let ()
+       ;;     (local-require gui-debugger/marks)
+       ;;     (let-syntax #,(for*/list ([b (in-list (mark-bindings top-mark))]
+       ;;                               [stx (in-value (mark-binding-binding b))]
+       ;;                               #:when (syntax-original? stx))
+       ;;                     (define get/set! (cadr b))
+       ;;                     #`[#,(syntax->datum stx)
+       ;;                        (make-set!-transformer
+       ;;                         (λ (stx)
+       ;;                           (syntax-case stx (set!)
+       ;;                             [(set! id v)
+       ;;                              #'(mark-binding-set! #,b v)]
+       ;;                             [id
+       ;;                              (identifier? #'id)
+       ;;                              #`#,(get/set!)])))])
+              stx)]))
+
+  (define ((debug-prompt-read resume))
+    (printf "DEBUG:~a:~a> " (path->string src) pos)
+    (define in ((current-get-interaction-input-port)))
+    (define stx ((current-read-interaction) (object-name in) in))
+    (newline) ;cosmetic
+    (syntax-case stx ()
+      ;; #,command redirect
+      [(uq cmd)
+       (eq? 'unsyntax (syntax-e #'uq))
+       (with-output-to-command-output-file
+         (λ () (handle-debug-command #'cmd resume)))]
+      ;; ,command normal
+      [(uq cmd)
+       (eq? 'unquote (syntax-e #'uq))
+       (handle-debug-command #'cmd resume)]
+      [_ (println (syntax->datum (enrich-with-locals stx)))
+         (enrich-with-locals stx)]))
+
+  (define (handle-debug-command cmd-stx resume)
+    (match (syntax->datum cmd-stx)
+      [`(step)          (set! step? #t) (resume vals)]
+      [`(step ,vs)      (set! step? #t) (resume vs)]
+      [`(go)            (set! step? #f) (resume vals)]
+      [`(go ,vs)        (set! step? #f) (resume vs)]
+      [`(break ,pos ,v) (elisp-println (set-breakpoint! src pos v))]
+      [`(get ,pos)      (elisp-println (get-var all-marks src pos))]
+      [`(set ,pos ,v)   (elisp-println (set-var all-marks src pos v))]
+      [_                (handle-command cmd-stx src)]))
+
+  (let/ec resume
+    (parameterize ([current-prompt-read (debug-prompt-read resume)]
+                   [current-namespace (module->namespace src)])
+      (read-eval-print-loop))))
 
 (define (debug-done)
-  (pr 'DEBUG-DONE))
+  ;; Evaluation of the annotated module has completed. The annotated
+  ;; code is still "live" and can still be evaluated from the REPL --
+  ;; e.g. calling a function. The annotation will still call our
+  ;; `break?`, which will continue to break due to existing
+  ;; breakpoints or if `step?` is #t. Set `step?` to #t here (it may
+  ;; have been set #f by a `go` command) so user gets at least the
+  ;; initial break.
+  (set! step? #t)
+  (with-output-to-debug-break-output-file
+    (λ ()
+      (elisp-println 'DEBUG-DONE))))
 
 ;;; Annotation
 
@@ -281,8 +352,8 @@
         (and (path? path)
              (equal? (path-only path) (path-only file-to-debug)) ;FIXME
              (begin
-               (pr `(also-file? ,path))
-               ;;(eprintf "DEBUG> ")
+               (with-output-to-debug-break-output-file
+                 (λ () (elisp-println `(also-file? ,path))))
                (read)))))
 
   (λ (orig-exp)
