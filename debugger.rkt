@@ -255,35 +255,29 @@
          (bindings ,bindings)
          (vals ,(and vals (~s vals))))))) ;~s for write so we can read later
 
-  (define (enrich-with-locals stx)
+  (define (add-locals stx)
     ;; Using module->namespace gives read/write access to top-level
     ;; identifiers. But for locals, we need to wrap the REPL input stx
     ;; in a let-syntax that has a make-set!-transformer for each
-    ;; local.
+    ;; local. Ergo the user can use set! to change the actual value.
     (syntax-case stx ()
       [stx
-       #`(let #,(for*/list ([b (in-list (mark-bindings top-mark))]
-                            [stx (in-value (mark-binding-binding b))]
-                            #:when (syntax-original? stx)
-                            [id (in-value (syntax->datum stx))]
-                            [val (in-value (mark-binding-value b))])
-                  #`[#,id #,val])
-       ;; #`(let ()
-       ;;     (local-require gui-debugger/marks)
-       ;;     (let-syntax #,(for*/list ([b (in-list (mark-bindings top-mark))]
-       ;;                               [stx (in-value (mark-binding-binding b))]
-       ;;                               #:when (syntax-original? stx))
-       ;;                     (define get/set! (cadr b))
-       ;;                     #`[#,(syntax->datum stx)
-       ;;                        (make-set!-transformer
-       ;;                         (λ (stx)
-       ;;                           (syntax-case stx (set!)
-       ;;                             [(set! id v)
-       ;;                              #'(mark-binding-set! #,b v)]
-       ;;                             [id
-       ;;                              (identifier? #'id)
-       ;;                              #`#,(get/set!)])))])
-              stx)]))
+       #`(let-syntax #,(for*/list ([b (in-list (mark-bindings top-mark))]
+                                   [stx (in-value (mark-binding-binding b))]
+                                   #:when (syntax-original? stx))
+                         (with-syntax ([id (syntax->datum stx)]
+                                       [get/set! (cadr b)])
+                           #'[id
+                              (make-set!-transformer
+                               (λ (stx)
+                                 (syntax-case stx (set!)
+                                   [(set! id v)
+                                    (identifier? #'id)
+                                    #'(#%plain-app get/set! v)]
+                                   [id
+                                    (identifier? #'id)
+                                    #'(#%plain-app get/set!)])))]))
+                     stx)]))
 
   (define ((debug-prompt-read resume))
     (printf "DEBUG:~a:~a> " (path->string src) pos)
@@ -300,8 +294,7 @@
       [(uq cmd)
        (eq? 'unquote (syntax-e #'uq))
        (handle-debug-command #'cmd resume)]
-      [_ (println (syntax->datum (enrich-with-locals stx)))
-         (enrich-with-locals stx)]))
+      [_ (add-locals stx)]))
 
   (define (handle-debug-command cmd-stx resume)
     (match (syntax->datum cmd-stx)
@@ -376,10 +369,10 @@
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; example usage
 
-;; (define file-to-debug (string->path "/tmp/a.rkt"))
-;; (parameterize ([current-eval (make-debug-eval-handler (current-eval)
-;;                                                       file-to-debug)])
-;;   (namespace-require file-to-debug))
+;; (let ([file-to-debug (string->path "/tmp/a.rkt")])
+;;   (parameterize ([current-eval (make-debug-eval-handler (current-eval)
+;;                                                         file-to-debug)])
+;;     (namespace-require file-to-debug)))
 
 ;; Local Variables:
 ;; coding: utf-8
