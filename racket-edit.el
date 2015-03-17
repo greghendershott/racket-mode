@@ -1039,7 +1039,7 @@ before the first expression. (To \"exit\" debugging, do a normal
       (delete-file racket--repl-debug-break-output-file)
       (racket--debug-on-break
        (eval (read (buffer-substring (point-min) (point-max)))))))
-  ;; TODO: If no DEBUG: prompt in REPL, should we kill the timer?
+  ;; TODO: Should we avoid setting the timer if no DEBUG: prompt in REPL?
   (setq racket--debug-break-timer
         (run-with-timer 0.5 nil #'racket--on-debug-break-timer)))
 
@@ -1049,8 +1049,6 @@ before the first expression. (To \"exit\" debugging, do a normal
 (defun racket--debug-on-break (data)
   (setq racket-debug-mode-break-data data) ;save for `racket-debug-mode-step'
   (cond
-   ((eq 'DEBUG-DONE data)
-    nil)
    ((and (listp data)
          (eq 'also-file? (car data)))
     (let ((v (y-or-n-p (format "Also debug %s? "

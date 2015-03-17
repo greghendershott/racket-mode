@@ -75,9 +75,6 @@
 ;; position.
 (define breakpoints (make-hash)) ;(hash src (hash pos (U #f #t 'one-shot))))
 
-(define (list-breaks)
-  (elisp-println breakpoints))
-
 (define (clear-breakable-positions!)
   (hash-clear! breakpoints))
 
@@ -110,6 +107,7 @@
               (and (hash-has-key? ht i) i))
        [#f #f]
        [actual-pos (hash-set! ht actual-pos v) actual-pos])]))
+
 
 ;;; Bound identifiers
 
@@ -154,13 +152,6 @@
                     pos
                     #f))
 
-(define (list-bindings) ;just for dev
-  (local-require racket/pretty)
-  (pretty-print (for/list ([(src im) (in-hash bound-id-locs)])
-                  (list src
-                        (for/list ([(k v) (in-dict im)])
-                          (list k (syntax->datum v)))))
-                (current-error-port)))
 
 ;;; Top-level bindings
 
@@ -179,6 +170,7 @@
     (and (or (bound-identifier=? v var)
              (free-identifier=? v var))
          get/set!)))
+
 
 ;;; Get/set vars (either bound or top-level)
 
@@ -207,6 +199,7 @@
                 frames
                 (λ (val get/set!) (get/set! new-val) #t)
                 (λ () #f))))
+
 
 ;;; Annotation callbacks
 
@@ -326,18 +319,6 @@
                    [current-namespace (module->namespace src)])
       (read-eval-print-loop))))
 
-(define (debug-done)
-  ;; Evaluation of the annotated module has completed. The annotated
-  ;; code is still "live" and can still be evaluated from the REPL --
-  ;; e.g. calling a function. The annotation will still call our
-  ;; `break?`, which will continue to break due to existing
-  ;; breakpoints or if `step?` is #t. Set `step?` to #t here (it may
-  ;; have been set #f by a `go` command) so user gets at least the
-  ;; initial break.
-  (set! step? #t)
-  (with-output-to-debug-break-output-file
-    (λ ()
-      (elisp-println 'DEBUG-DONE))))
 
 ;;; Annotation
 
@@ -370,10 +351,10 @@
                   (parameterize ([current-eval orig-eval])
                     (eval/annotations top-e
                                       annotate-module?
-                                      (annotator file-to-debug)))]
+                                      annotator))]
                  [else (orig-eval top-e)])])))
 
-(define ((annotator add-done-path) stx)
+(define (annotator stx)
   (define source (syntax-source stx))
   (define-values (annotated breakable-positions)
     (annotate-for-single-stepping (expand-syntax stx)
@@ -384,20 +365,7 @@
                                   record-top-level-identifier
                                   source))
   (set-breakable-positions! source breakable-positions)
-  (cond [(equal? add-done-path source) (annotate-add-debug-done annotated)]
-        [else annotated]))
-
-(define (annotate-add-debug-done stx)
-  (syntax-case stx (module)
-    [(module id lang mb)
-     (syntax-case (disarm #'mb) ()
-       [(plain-module-begin module-level-exprs ...)
-        (quasisyntax/loc stx
-          (module id lang
-            #,(rearm #'mb
-                     #`(plain-module-begin
-                        module-level-exprs ...
-                        (#%plain-app #,debug-done)))))])]))
+  annotated)
 
 (define (disarm stx) (syntax-disarm stx code-insp))
 (define (rearm old new) (syntax-rearm new old))
