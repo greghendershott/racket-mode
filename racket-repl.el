@@ -426,7 +426,7 @@ With prefix arg, open the N-th last shown image."
   (racket--variables-for-both-modes)
   (setq-local comint-prompt-regexp ".*?> +")
   (setq-local comint-use-prompt-regexp t)
-  (setq-local comint-prompt-read-only t) ;rebind C-w to `comint-kill-region'!
+  (setq-local comint-prompt-read-only nil)
   (setq-local mode-line-process nil)
   (setq-local comint-input-filter #'racket-repl--input-filter)
   (add-hook 'comint-output-filter-functions #'racket-repl--output-filter nil t)
