@@ -97,7 +97,7 @@
                   (λ (ht)
                     (hash-set! ht pos #f)
                     ht)
-                  (λ () (make-hash)))))
+                  make-hash)))
 
 (define (should-break?! src pos)
   (define ht (hash-ref breakpoints src (hash)))
