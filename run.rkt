@@ -44,24 +44,26 @@
   ;; doesn't exist, so make a "dummy" parameter of that name.
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
   (define repl-thread
-    (parameterize*
-        ([current-custodian user-cust]
-         ;; Use parameterize* so that `current-namespace` ...
+    (parameterize* ;; Use `parameterize*` because the order matters.
+        (;; FIRST: current-custodian and current-namespace, so in
+         ;; effect for later parameterizations.
+         [current-custodian user-cust]
          [current-namespace ((txt/gui make-base-namespace make-gui-namespace))]
-         ;; ... is in effect when setting `current-eventspace` and others:
-         [current-eventspace ((txt/gui void make-eventspace))]
+         ;; OTHERS:
          [compile-enforce-module-constants #f]
          [compile-context-preservation-enabled (not (eq? context-level 'low))]
          [current-eval (if (instrument-level? context-level)
                            (make-instrumented-eval-handler (current-eval))
                            (current-eval))]
          [instrumenting-enabled (instrument-level? context-level)]
-         [use-compiled-file-paths (if (instrument-level? context-level)
-                                      (cons (build-path "compiled" "errortrace")
-                                            (use-compiled-file-paths))
-                                      (use-compiled-file-paths))]
          [profiling-enabled (eq? context-level 'profile)]
-         [test-coverage-enabled (eq? context-level 'coverage)])
+         [test-coverage-enabled (eq? context-level 'coverage)]
+         ;; LAST: `current-eventspace` because `make-eventspace`
+         ;; creates an event handler thread -- now. We want that
+         ;; thread to inherit the parameterizations above. (Otherwise
+         ;; in the non-gui case, we call `thread` inside the
+         ;; parameterize* form, so that's fine.)
+         [current-eventspace ((txt/gui void make-eventspace))])
       ;; Some context-levels need some state to be reset.
       (match context-level
         ['profile (clear-profile-info!)]
