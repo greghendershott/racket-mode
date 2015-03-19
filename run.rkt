@@ -43,66 +43,67 @@
   ;; If racket/gui/base isn't loaded, the current-eventspace parameter
   ;; doesn't exist, so make a "dummy" parameter of that name.
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
-  (parameterize*
-      ([current-custodian user-cust]
-       ;; Use parameterize* so that `current-namespace` ...
-       [current-namespace ((txt/gui make-base-namespace make-gui-namespace))]
-       ;; ... is in effect when setting `current-eventspace` and others:
-       [current-eventspace ((txt/gui void make-eventspace))]
-       [compile-enforce-module-constants #f]
-       [compile-context-preservation-enabled (not (eq? context-level 'low))]
-       [current-eval (if (instrument-level? context-level)
-                         (make-instrumented-eval-handler (current-eval))
-                         (current-eval))]
-       [instrumenting-enabled (instrument-level? context-level)]
-       [use-compiled-file-paths (if (instrument-level? context-level)
-                                   (cons (build-path "compiled" "errortrace")
-                                         (use-compiled-file-paths))
-                                   (use-compiled-file-paths))]
-       [profiling-enabled (eq? context-level 'profile)]
-       [test-coverage-enabled (eq? context-level 'coverage)])
-    ;; Some context-levels need some state to be reset.
-    (match context-level
-      ['profile (clear-profile-info!)]
-      ['coverage (clear-test-coverage-info!)]
-      [_ (void)])
-    ;; repl-thunk will be called from another thread -- either a plain
-    ;; thread when racket/gui/base is not (yet) instantiated, or, from
-    ;; (event-handler-thread (current-eventspace)).
-    (define (repl-thunk)
-      ;; 0. Set current-print and pretty-print hooks.
-      (current-print (make-print-handler pretty-print?))
-      (pretty-print-print-hook (make-pretty-print-print-hook))
-      (pretty-print-size-hook (make-pretty-print-size-hook))
-      ;; 1. Start logger display thread.
-      (start-log-receiver)
-      ;; 2. If module, load its lang info, require, and enter its namespace.
-      (when (and path (module-path? path))
-        (parameterize ([current-module-name-resolver repl-module-name-resolver])
-          ;; exn:fail? during module load => re-run with "empty" module
-          (with-handlers ([exn? (λ (x)
-                                  (display-exn x)
-                                  (put/stop (struct-copy rerun rr [path #f])))])
-            (maybe-load-language-info path)
-            (namespace-require path)
-            ;; ;; Automatically run test submodule, if any:
-            ;; (define submod-spec `(submod ,path test))
-            ;; (when (module-declared? submod-spec)
-            ;;   (dynamic-require submod-spec #f))
-            (current-namespace (module->namespace path))
-            (check-top-interaction))))
-      ;; 3. read-eval-print-loop
-      (parameterize ([current-prompt-read (make-prompt-read path)]
-                     [current-module-name-resolver repl-module-name-resolver])
-        ;; Note that read-eval-print-loop catches all non-break exceptions.
-        (read-eval-print-loop)))
-    ;; Main thread: Run repl-thunk on a plain thread, or, on the user
-    ;; eventspace thread via queue-callback.
-    ((txt/gui thread queue-callback) repl-thunk))
+  (define repl-thread
+    (parameterize*
+        ([current-custodian user-cust]
+         ;; Use parameterize* so that `current-namespace` ...
+         [current-namespace ((txt/gui make-base-namespace make-gui-namespace))]
+         ;; ... is in effect when setting `current-eventspace` and others:
+         [current-eventspace ((txt/gui void make-eventspace))]
+         [compile-enforce-module-constants #f]
+         [compile-context-preservation-enabled (not (eq? context-level 'low))]
+         [current-eval (if (instrument-level? context-level)
+                           (make-instrumented-eval-handler (current-eval))
+                           (current-eval))]
+         [instrumenting-enabled (instrument-level? context-level)]
+         [use-compiled-file-paths (if (instrument-level? context-level)
+                                      (cons (build-path "compiled" "errortrace")
+                                            (use-compiled-file-paths))
+                                      (use-compiled-file-paths))]
+         [profiling-enabled (eq? context-level 'profile)]
+         [test-coverage-enabled (eq? context-level 'coverage)])
+      ;; Some context-levels need some state to be reset.
+      (match context-level
+        ['profile (clear-profile-info!)]
+        ['coverage (clear-test-coverage-info!)]
+        [_ (void)])
+      ;; repl-thunk will be called from another thread -- either a plain
+      ;; thread when racket/gui/base is not (yet) instantiated, or, from
+      ;; (eventspace-handler-thread (current-eventspace)).
+      (define (repl-thunk)
+        ;; 0. Set current-print and pretty-print hooks.
+        (current-print (make-print-handler pretty-print?))
+        (pretty-print-print-hook (make-pretty-print-print-hook))
+        (pretty-print-size-hook (make-pretty-print-size-hook))
+        ;; 1. Start logger display thread.
+        (start-log-receiver)
+        ;; 2. If module, load its lang info, require, and enter its namespace.
+        (when (and path (module-path? path))
+          (parameterize ([current-module-name-resolver repl-module-name-resolver])
+            ;; exn:fail? during module load => re-run with "empty" module
+            (with-handlers ([exn? (λ (x)
+                                    (display-exn x)
+                                    (put/stop (struct-copy rerun rr [path #f])))])
+              (maybe-load-language-info path)
+              (namespace-require path)
+              (current-namespace (module->namespace path))
+              (check-top-interaction))))
+        ;; 3. read-eval-print-loop
+        (parameterize ([current-prompt-read (make-prompt-read path)]
+                       [current-module-name-resolver repl-module-name-resolver])
+          ;; Note that read-eval-print-loop catches all non-break
+          ;; exceptions.
+          (read-eval-print-loop)))
+      ;; Main thread: Run repl-thunk on a plain thread, or, on the
+      ;; eventspace thread via queue-callback. Return the thread.
+      (define t/v ((txt/gui thread    queue-callback           ) repl-thunk))
+      (define thd ((txt/gui (λ _ t/v) eventspace-handler-thread) (current-eventspace)))
+      thd))
   ;; Main thread: Wait for message from REPL thread channel, or, user
-  ;; custodian box event. Also catch breaks.
+  ;; custodian box event. Also catch breaks, in which case we
+  ;; break-thread the repl thread so display-exn runs there.
   (define msg
-    (with-handlers ([exn:break? (λ (exn) (display-exn exn) 'break)])
+    (with-handlers ([exn:break? (λ _ (break-thread repl-thread) (sleep) 'break)])
       (match (sync the-channel user-cust-box)
         [(? custodian-box?)
          (display-commented
