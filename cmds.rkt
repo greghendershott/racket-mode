@@ -48,22 +48,21 @@
 (define ((make-prompt-read path))
   (define-values (base name _) (cond [path (split-path path)]
                                      [else (values (current-directory) "" #f)]))
-  (let ([read elisp-read])
-    (flush-output (current-error-port))
-    (display name) (display "> ")
-    (define in ((current-get-interaction-input-port)))
-    (define stx ((current-read-interaction) (object-name in) in))
-    (syntax-case stx ()
-      ;; #,command redirect
-      [(uq cmd)
-       (eq? 'unsyntax (syntax-e #'uq))
-       (with-output-to-command-output-file
-         (λ () (handle-command #'cmd path)))]
-      ;; ,command normal
-      [(uq cmd)
-       (eq? 'unquote (syntax-e #'uq))
-       (handle-command #'cmd path)]
-      [_ stx])))
+  (flush-output (current-error-port))
+  (display name) (display "> ")
+  (define in ((current-get-interaction-input-port)))
+  (define stx ((current-read-interaction) (object-name in) in))
+  (syntax-case stx ()
+    ;; #,command redirect
+    [(uq cmd)
+     (eq? 'unsyntax (syntax-e #'uq))
+     (with-output-to-command-output-file
+       (λ () (handle-command #'cmd path)))]
+    ;; ,command normal
+    [(uq cmd)
+     (eq? 'unquote (syntax-e #'uq))
+     (handle-command #'cmd path)]
+    [_ stx]))
 
 (define (elisp-read)
   ;; Elisp prints '() as 'nil. Reverse that. (Assumption: Although
@@ -74,36 +73,37 @@
     [x x]))
 
 (define (handle-command cmd-stx path)
-  (case (syntax-e cmd-stx)
-    ;; These commands are intended to be used by either the user or
-    ;; racket-mode.
-    [(run) (run-or-top 'run)]
-    [(top) (run-or-top 'top)]
-    [(doc) (doc (read-syntax))]
-    [(exp) (exp1 (read))]
-    [(exp+) (exp+)]
-    [(exp!) (exp! (read))]
-    [(log) (log-display (map string->symbol (string-split (read-line))))]
-    [(pwd) (display-commented (~v (current-directory)))]
-    [(cd) (cd (~a (read)))]
-    [(exit) (exit)]
-    [(info) (info)]
-    ;; These remaining commands are intended to be used by
-    ;; racket-mode, only.
-    [(path) (elisp-println (and path (path->string path)))]
-    [(syms) (syms)]
-    [(def) (def (read))]
-    [(describe) (describe (read-syntax))]
-    [(mod) (mod (read) path)]
-    [(type) (type (read))]
-    [(requires/tidy) (requires/tidy (read))]
-    [(requires/trim) (requires/trim (read) (read))]
-    [(requires/base) (requires/base (read) (read))]
-    [(find-collection) (find-collection (read))]
-    [(get-profile) (get-profile)]
-    [(get-uncovered) (get-uncovered path)]
-    [(check-syntax) (check-syntax path)]
-    [else (usage)]))
+  (let ([read elisp-read])
+    (case (syntax-e cmd-stx)
+      ;; These commands are intended to be used by either the user or
+      ;; racket-mode.
+      [(run) (run-or-top 'run)]
+      [(top) (run-or-top 'top)]
+      [(doc) (doc (read-syntax))]
+      [(exp) (exp1 (read))]
+      [(exp+) (exp+)]
+      [(exp!) (exp! (read))]
+      [(log) (log-display (map string->symbol (string-split (read-line))))]
+      [(pwd) (display-commented (~v (current-directory)))]
+      [(cd) (cd (~a (read)))]
+      [(exit) (exit)]
+      [(info) (info)]
+      ;; These remaining commands are intended to be used by
+      ;; racket-mode, only.
+      [(path) (elisp-println (and path (path->string path)))]
+      [(syms) (syms)]
+      [(def) (def (read))]
+      [(describe) (describe (read-syntax))]
+      [(mod) (mod (read) path)]
+      [(type) (type (read))]
+      [(requires/tidy) (requires/tidy (read))]
+      [(requires/trim) (requires/trim (read) (read))]
+      [(requires/base) (requires/base (read) (read))]
+      [(find-collection) (find-collection (read))]
+      [(get-profile) (get-profile)]
+      [(get-uncovered) (get-uncovered path)]
+      [(check-syntax) (check-syntax path)]
+      [else (usage)])))
 
 (define (usage)
   (display-commented
