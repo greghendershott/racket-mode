@@ -278,22 +278,34 @@
     ;; local. Ergo the user can use set! to change the actual value.
     (syntax-case stx ()
       [stx
-       #`(let-syntax #,(for*/list ([b (in-list (mark-bindings top-mark))]
-                                   [stx (in-value (mark-binding-binding b))]
-                                   #:when (syntax-original? stx))
-                         (with-syntax ([id (syntax->datum stx)]
-                                       [get/set! (cadr b)])
-                           #'[id
-                              (make-set!-transformer
-                               (λ (stx)
-                                 (syntax-case stx (set!)
-                                   [(set! id v)
-                                    (identifier? #'id)
-                                    #'(#%plain-app get/set! v)]
-                                   [id
-                                    (identifier? #'id)
-                                    #'(#%plain-app get/set!)])))]))
-                     stx)]))
+       ;; Assumption: Given two identifiers with eq symbol, we can
+       ;; find the innermost one because it will be first in the list
+       ;; returned by mark-bindings. That's my impression from
+       ;; gui-debugger/marks.rkt.
+       (let ([inner-bindings (make-hasheq)]) ;symbol? => mark-binding
+         (for* ([b (in-list (mark-bindings top-mark))]
+                [stx (in-value (mark-binding-binding b))]
+                #:when (syntax-original? stx)
+                [id (in-value (syntax->datum stx))]
+                #:when (not (hash-has-key? inner-bindings id)))
+           (hash-set! inner-bindings id b))
+         #`(let-syntax #,(for*/list ([b (in-hash-values inner-bindings)]
+                                     [stx (in-value (mark-binding-binding b))]
+                                     [id (in-value (syntax->datum stx))]
+                                     [get/set! (in-value (cadr b))])
+                           (with-syntax ([id id]
+                                         [get/set! get/set!])
+                             #'[id
+                                (make-set!-transformer
+                                 (λ (stx)
+                                   (syntax-case stx (set!)
+                                     [(set! id v)
+                                      (identifier? #'id)
+                                      #'(#%plain-app get/set! v)]
+                                     [id
+                                      (identifier? #'id)
+                                      #'(#%plain-app get/set!)])))]))
+                       stx))]))
 
   (define ((debug-prompt-read resume))
     (display-prompt (format "DEBUG:~a:~a" (path->string src) pos))
@@ -310,7 +322,10 @@
       [(uq cmd)
        (eq? 'unquote (syntax-e #'uq))
        (handle-debug-command #'cmd resume)]
-      [_ (add-locals stx)]))
+      [_ (let ()
+           ;;(local-require racket/pretty) ;; DELETE ME
+           ;;(pretty-print (syntax->datum (add-locals stx))) ;;DELETE ME
+           (add-locals stx))]))
 
   (define (handle-debug-command cmd-stx resume)
     (match (syntax->datum cmd-stx)
@@ -332,36 +347,38 @@
 ;;; Annotation
 
 (define (make-debug-eval-handler orig-eval file-to-debug)
-  (set! step? #t)
-  (clear-breakable-positions!)
-  (clear-bound-identifiers!)
-  (clear-top-level-bindings!)
+  (cond [file-to-debug
+         (set! step? #t)
+         (clear-breakable-positions!)
+         (clear-bound-identifiers!)
+         (clear-top-level-bindings!)
 
-  (define (annotate-module? path [module 'n/a])
-    (or (equal? path file-to-debug)
-        (and (path? path)
-             (equal? (path-only path) (path-only file-to-debug)) ;FIXME
-             (begin
-               (with-output-to-debug-break-output-file
-                 (λ () (elisp-println `(also-file? ,path))))
-               (read)))))
+         (define (annotate-module? path [module 'n/a])
+           (or (equal? path file-to-debug)
+               (and (path? path)
+                    (equal? (path-only path) (path-only file-to-debug)) ;FIXME
+                    (begin
+                      (with-output-to-debug-break-output-file
+                        (λ () (elisp-println `(also-file? ,path))))
+                      (read)))))
 
-  (λ (orig-exp)
-    (cond [(compiled-expression? (syntax-or-sexpr->sexpr orig-exp))
-           (orig-eval orig-exp)]
-          [else
-           (define exp (syntax-or-sexpr->syntax orig-exp))
-           (define top-e (expand-syntax-to-top-form exp))
-           (define path (and (syntax? orig-exp)
-                             (let ([src (syntax-source orig-exp)])
-                               (and (path? src)
-                                    src))))
-           (cond [(annotate-module? path)
-                  (parameterize ([current-eval orig-eval])
-                    (eval/annotations top-e
-                                      annotate-module?
-                                      annotator))]
-                 [else (orig-eval top-e)])])))
+         (λ (orig-exp)
+           (cond [(compiled-expression? (syntax-or-sexpr->sexpr orig-exp))
+                  (orig-eval orig-exp)]
+                 [else
+                  (define exp (syntax-or-sexpr->syntax orig-exp))
+                  (define top-e (expand-syntax-to-top-form exp))
+                  (define path (and (syntax? orig-exp)
+                                    (let ([src (syntax-source orig-exp)])
+                                      (and (path? src)
+                                           src))))
+                  (cond [(annotate-module? path)
+                         (parameterize ([current-eval orig-eval])
+                           (eval/annotations top-e
+                                             annotate-module?
+                                             annotator))]
+                        [else (orig-eval top-e)])]))]
+        [else orig-eval]))
 
 (define (annotator stx)
   (define source (syntax-source stx))
