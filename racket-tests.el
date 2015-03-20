@@ -58,19 +58,20 @@
   (with-current-buffer (get-buffer "*Racket REPL*")
     (let ((tab-always-indent 'complete))
       ;; Welcome
-      (should (racket-tests/see-rx "Welcome to Racket v[0-9.]+\n> "))
+      (should (racket-tests/see-rx (concat "Welcome to Racket v[0-9.]+\n"
+                                           (regexp-quote "\uFEFF> "))))
       ;; Completion
       (racket-tests/type&press "with-inp" "TAB")
       (should (racket-tests/see "with-input-from-file"))
       (racket-tests/press "RET")
-      (should (racket-tests/see "#<procedure:with-input-from-file>\n> "))
+      (should (racket-tests/see "#<procedure:with-input-from-file>\n\uFEFF> "))
       ;; Multiline expression indent
       (racket-tests/type&press "(if 1" "RET")
       (should (racket-tests/see "(if 1\n      "))
       (racket-tests/type&press "2" "RET")
       (should (racket-tests/see "2\n      "))
       (racket-tests/type&press "3)" "RET")
-      (should (racket-tests/see "3)\n2\n> "))
+      (should (racket-tests/see "3)\n2\n\uFEFF> "))
       ;; Exit
       (racket-tests/type&press "(exit)" "RET")
       (should (racket-tests/see "Process Racket REPL finished\n")))))

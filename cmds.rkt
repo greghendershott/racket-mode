@@ -21,7 +21,8 @@
          "util.rkt")
 
 (provide make-prompt-read
-         current-command-output-file)
+         current-command-output-file
+         display-prompt)
 
 (module+ test
   (require rackunit))
@@ -49,7 +50,7 @@
   (define-values (base name _) (cond [path (split-path path)]
                                      [else (values (current-directory) "" #f)]))
   (flush-output (current-error-port))
-  (display name) (display "> ")
+  (display-prompt name)
   (define in ((current-get-interaction-input-port)))
   (define stx ((current-read-interaction) (object-name in) in))
   (syntax-case stx ()
@@ -63,6 +64,14 @@
      (eq? 'unquote (syntax-e #'uq))
      (handle-command #'cmd path)]
     [_ stx]))
+
+(define (display-prompt str)
+  ;; Use a character unlikely to appear in normal output. Makes it
+  ;; easier for Emacs comint-regexp-prompt not to match program output
+  ;; by mistake.
+  (display str)
+  (display #\uFEFF) ;ZERO WIDTH NON-BREAKING SPACE
+  (display "> "))
 
 (define (elisp-read)
   ;; Elisp prints '() as 'nil. Reverse that. (Assumption: Although

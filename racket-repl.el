@@ -424,7 +424,7 @@ With prefix arg, open the N-th last shown image."
   "Major mode for Racket REPL.
 \\{racket-repl-mode-map}"
   (racket--variables-for-both-modes)
-  (setq-local comint-prompt-regexp ".*?> +")
+  (setq-local comint-prompt-regexp (rx (regexp "^[^>\n]*") "\ufeff> "))
   (setq-local comint-use-prompt-regexp t)
   (setq-local comint-prompt-read-only nil)
   (setq-local mode-line-process nil)
