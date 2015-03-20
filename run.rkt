@@ -57,7 +57,7 @@
          [compile-context-preservation-enabled (not (eq? context-level 'low))]
          [current-eval (match context-level
                          ['debug
-                          (make-debug-eval-handler (current-eval) (list path))]
+                          (make-debug-eval-handler (current-eval) path)]
                          [(? instrument-level?)
                           (make-instrumented-eval-handler (current-eval))]
                          [_ (current-eval)])]
