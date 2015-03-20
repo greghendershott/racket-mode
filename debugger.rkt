@@ -282,7 +282,7 @@
                                    [stx (in-value (mark-binding-binding b))]
                                    #:when (syntax-original? stx))
                          (with-syntax ([id (syntax->datum stx)]
-                                       [get/set! (mark-binding-set! b)])
+                                       [get/set! (cadr b)])
                            #'[id
                               (make-set!-transformer
                                (λ (stx)
