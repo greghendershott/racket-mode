@@ -1,5 +1,7 @@
 #lang racket/base
 
+(require syntax/parse/define)
+
 (provide current-command-output-file
          with-output-to-command-output-file
          current-debug-break-output-file
@@ -19,7 +21,7 @@
 
 ;; Use the same mechanism for debugger break information.
 
-(define ((with-output-to-param-file param) f)
+(define (call-with-output-to-param-file param f)
   (cond [(param)
          (define tmp-file (path-add-suffix (param) ".tmp"))
          (with-output-to-file tmp-file #:exists 'replace f)
@@ -27,9 +29,11 @@
         [else (f)]))
 
 (define current-command-output-file (make-parameter #f))
-(define current-debug-break-output-file (make-parameter #f))
+(define-simple-macro (with-output-to-command-output-file e:expr ...+)
+  (call-with-output-to-param-file current-command-output-file
+                                  (λ () e ...)))
 
-(define with-output-to-command-output-file
-  (with-output-to-param-file current-command-output-file))
-(define with-output-to-debug-break-output-file
-  (with-output-to-param-file current-debug-break-output-file))
+(define current-debug-break-output-file (make-parameter #f))
+(define-simple-macro (with-output-to-debug-break-output-file e:expr ...+)
+  (call-with-output-to-param-file current-debug-break-output-file
+                                  (λ () e ...)))

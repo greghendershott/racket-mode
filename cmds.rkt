@@ -42,7 +42,7 @@
     [(uq cmd)
      (eq? 'unsyntax (syntax-e #'uq))
      (with-output-to-command-output-file
-       (λ () (handle-command #'cmd path)))]
+       (handle-command #'cmd path))]
     ;; ,command normal
     [(uq cmd)
      (eq? 'unquote (syntax-e #'uq))

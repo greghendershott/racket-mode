@@ -258,18 +258,17 @@
                  (list (filter (id=? stx) top-uses) val)))
   (define bindings (append locals tops))
   (with-output-to-debug-break-output-file
-    (λ ()
-      (elisp-println
-       `(break
-         ,which
-         (pos ,pos) ;also in stx, but extract for Elisp convenience
-         (src ,src) ;also in stx, but extract for Elisp convenience
-         (stx ,stx)
-         (module ,(mark-module-name top-mark))
-         (frames ,(for/list ([m (in-list all-marks)])
-                    (mark-source m)))
-         (bindings ,bindings)
-         (vals ,(and vals (~s vals))))))) ;~s for write so we can read later
+    (elisp-println
+     `(break
+       ,which
+       (pos ,pos) ;also in stx, but extract for Elisp convenience
+       (src ,src) ;also in stx, but extract for Elisp convenience
+       (stx ,stx)
+       (module ,(mark-module-name top-mark))
+       (frames ,(for/list ([m (in-list all-marks)])
+                  (mark-source m)))
+       (bindings ,bindings)
+       (vals ,(and vals (~s vals)))))) ;~s for write so we can read later
 
   (define (add-locals stx)
     ;; Using module->namespace gives read/write access to top-level
@@ -359,7 +358,7 @@
                     (equal? (path-only path) (path-only file-to-debug)) ;FIXME
                     (begin
                       (with-output-to-debug-break-output-file
-                        (λ () (elisp-println `(also-file? ,path))))
+                       (elisp-println `(also-file? ,path)))
                       (read)))))
 
          (λ (orig-exp)
