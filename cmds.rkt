@@ -32,9 +32,7 @@
   (require rackunit))
 
 (define ((make-prompt-read path))
-  (define-values (base name _) (cond [path (split-path path)]
-                                     [else (values (current-directory) "" #f)]))
-  (display-prompt name)
+  (display-prompt (or (and path (name-only path)) ""))
   (define in ((current-get-interaction-input-port)))
   (define stx ((current-read-interaction) (object-name in) in))
   (syntax-case stx ()

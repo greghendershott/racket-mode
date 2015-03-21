@@ -307,7 +307,7 @@
                        stx))]))
 
   (define ((debug-prompt-read resume))
-    (display-prompt (format "DEBUG:~a:~a" (path->string src) pos))
+    (display-prompt (format "DEBUG:~a:~a" (name-only src) pos))
     (define in ((current-get-interaction-input-port)))
     (define stx ((current-read-interaction) (object-name in) in))
     (newline) ;cosmetic

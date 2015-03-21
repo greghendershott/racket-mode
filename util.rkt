@@ -6,7 +6,8 @@
 (provide display-commented
          with-dynamic-requires
          syntax-or-sexpr->syntax
-         syntax-or-sexpr->sexpr)
+         syntax-or-sexpr->sexpr
+         name-only)
 
 (define (display-commented str)
   (eprintf "; ~a\n"
@@ -27,3 +28,17 @@
   (if (syntax? v)
       (syntax-e v)
       v))
+
+;; racket/path provides `path-only` but not a `name-only`.
+(define (name-only path)
+  (define-values (_ name dir?) (split-path path))
+  (and (not dir?) name))
+
+(module+ test
+  (require rackunit)
+  (check-equal? (name-only (string->path "/path/to/foo.bar"))
+                (string->path "foo.bar"))
+  (check-equal? (name-only (string->path "/foo.bar"))
+                (string->path "foo.bar"))
+  (check-equal? (name-only (string->path "/path/to/dir/"))
+                #f))
