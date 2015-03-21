@@ -375,11 +375,11 @@
                          (parameterize ([current-eval orig-eval])
                            (eval/annotations top-e
                                              annotate-module?
-                                             annotator))]
+                                             (annotator file-to-debug)))]
                         [else (orig-eval top-e)])]))]
         [else orig-eval]))
 
-(define (annotator stx)
+(define ((annotator add-done-path) stx)
   (define source (syntax-source stx))
   (define-values (annotated breakable-positions)
     (annotate-for-single-stepping (expand-syntax stx)
@@ -390,7 +390,30 @@
                                   record-top-level-identifier
                                   source))
   (set-breakable-positions! source breakable-positions)
-  annotated)
+  (cond [(equal? add-done-path source) (annotate-add-debug-done annotated)]
+        [else annotated]))
+
+(define (annotate-add-debug-done stx)
+  (syntax-case stx (module)
+    [(module id lang mb)
+     (syntax-case (disarm #'mb) ()
+       [(plain-module-begin module-level-exprs ...)
+        (quasisyntax/loc stx
+          (module id lang
+            #,(rearm #'mb
+                     #`(plain-module-begin
+                        module-level-exprs ...
+                        (#%plain-app #,debug-done)))))])]))
+
+(define (debug-done)
+  ;; Evaluation of the annotated module has completed. The annotated
+  ;; code is still "live" and can still be evaluated from the REPL --
+  ;; e.g. call a function. The annotation will still call our
+  ;; `break?`, which will continue to break due to existing
+  ;; breakpoints or if `step?` is #t. Set `step?` to #t here (it may
+  ;; have been set #f by a `go` command) so user gets at least the
+  ;; initial break.
+  (set! step? #t))
 
 (define (disarm stx) (syntax-disarm stx code-insp))
 (define (rearm old new) (syntax-rearm new old))
