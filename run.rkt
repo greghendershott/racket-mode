@@ -6,14 +6,14 @@
          racket/pretty
          "channel.rkt"
          "cmds.rkt"
-         "command-output.rkt"
          "debugger.rkt"
          "error.rkt"
          "gui.rkt"
          "instrument.rkt"
          "logger.rkt"
          "older-racket.rkt"
-         "util.rkt")
+         "util.rkt"
+         "with-output.rkt")
 
 (module+ main
   (command-line #:args (command-output-file debug-break-output-file)
@@ -89,6 +89,8 @@
         (when (and path (module-path? path))
           (parameterize ([current-module-name-resolver repl-module-name-resolver])
             ;; exn:fail? during module load => re-run with "empty" module
+            ;;
+            ;; FIXME: When debugging, exception => break
             (with-handlers ([exn? (λ (x)
                                     (display-exn x)
                                     (put/stop (struct-copy rerun rr [path #f])))])

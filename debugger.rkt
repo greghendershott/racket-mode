@@ -12,10 +12,11 @@
          racket/port
          syntax/id-table
          "cmds.rkt"
-         "command-output.rkt"
-         "debugger-load.rkt" ;not gui-debugger/load-sandbox b/c gui
+         "debugger-load.rkt"
+         "debugger-step.rkt" ;not gui-debugger/load-sandbox b/c gui
          "elisp.rkt"
-         "util.rkt")
+         "util.rkt"
+         "with-output.rkt")
 
 ;;; TODO: A `(debug)` form to put in source, to cause a break?
 ;;;
@@ -29,9 +30,8 @@
 
 ;; Our client should set current-eval to the result of
 ;; `(make-debug-eval-handler (current-eval) file-to-be-debugged)`.
-;; Then namespace-require the primary file to be debugged. It will get
-;; annotated in the usual way by gui-debugger (plus some extra
-;; 'DEBUG-DONE annotation by us).
+;; Then namespace-require the primary file to be debugged. Its code
+;; will get annotated in the usual way by gui-debugger.
 ;;
 ;; When evaluating the original file and its requires, we respond by
 ;; outputting zero or more `(also-file? ,path) sexprs. We expect a
@@ -39,9 +39,9 @@
 ;; debugging. (This is like the DrR popup asking whether to debug each
 ;; additional file).
 ;;
-;; Thereafter excecution, followed by one or more breaks. Upon a
-;; break, we output a (break ...) sexpr. Then we enter a
-;; read-eval-print-loop, whose prompt-read handler prints a
+;; Thereafter: Execcution, with a breakpoint automatically before the
+;; first expression. Upon a break, we output a (break ...) sexpr. Then
+;; we enter a read-eval-print-loop, whose prompt-read handler prints a
 ;; "DEBUG:path:pos>" prompt. It is a full-fledged REPL:
 ;;
 ;; 1. Its prompt-read handler wraps the input expression in a
@@ -60,24 +60,21 @@
 ;;    and resume execution. This resumed execution may result in more
 ;;    breaks.
 ;;
-;; After evaluation of the module completes, the annotated code is
-;; still "live". If code is evaluated (e.g. function call) in the
-;; REPL, it will break before the first expression. We will again emit
-;; a (break) sexpr and enter our debugger REPL.
+;; After evaluation of the module completes, its code is still
+;; annotated. When any of it is evaluated again in the REPL, it will
+;; again break before the first expression -- see all of the above.
 ;;
 ;; As a result, it's best to think of the (break) sexpr as a kind of
 ;; "synchronous notification". The Elisp code should expect it at any
-;; time. On receipt, it should find-file and enable a debugger
-;; minor-mode. Likewise, upon a (go) or (step) it should disable the
-;; debugger minor-mode. In other words, the minor mode isn't about
+;; time. On receipt, it should find-file and enable a debugger break
+;; state minor-mode. Likewise, upon a (go) or (step) it should disable
+;; the minor-mode. In other words, the minor mode isn't about
 ;; debugging per se -- it's about being in a break state, and the
-;; things that can be shown or done during that state, including
-;; resuming.
+;; things that can be shown or done during that state, including that
+;; state by resuming.
 
 
 ;;; Breakpoints
-
-(define step? #t)
 
 ;; Annotation populates this with an entry for every breakable
 ;; position.
@@ -99,7 +96,7 @@
                     ht)
                   make-hash)))
 
-(define (should-break?! src pos)
+(define (break-here?! src pos)
   (define ht (hash-ref breakpoints src (hash)))
   (match (hash-ref ht pos #f)
     [#f #f]
@@ -230,8 +227,8 @@
 ;; When break? returns #t, either break-before or break-after will be
 ;; called next.
 (define ((break? src) pos)
-  (or (should-break?! src pos) ;do first so can clear one-shot breaks
-      step?))
+  (or (break-here?! src pos) ;test first, has side-effect
+      (debug-step?)))
 
 (define (break-before top-mark ccm)
   (break 'before top-mark ccm #f))
@@ -304,7 +301,7 @@
                                      [id
                                       (identifier? #'id)
                                       #'(#%plain-app get/set!)])))]))
-                       stx))]))
+             stx))]))
 
   (define ((debug-prompt-read resume))
     (display-prompt (format "DEBUG:~a:~a" (name-only src) pos))
@@ -316,7 +313,7 @@
       [(uq cmd)
        (eq? 'unsyntax (syntax-e #'uq))
        (with-output-to-command-output-file
-         (λ () (handle-debug-command #'cmd resume)))]
+         (handle-debug-command #'cmd resume))]
       ;; ,command normal
       [(uq cmd)
        (eq? 'unquote (syntax-e #'uq))
@@ -328,10 +325,10 @@
 
   (define (handle-debug-command cmd-stx resume)
     (match (syntax->datum cmd-stx)
-      [`(step)          (set! step? #t) (resume vals)]
-      [`(step ,vs)      (set! step? #t) (resume vs)]
-      [`(go)            (set! step? #f) (resume vals)]
-      [`(go ,vs)        (set! step? #f) (resume vs)]
+      [`(step)          (debug-step? #t) (resume vals)]
+      [`(step ,vs)      (debug-step? #t) (resume vs)]
+      [`(go)            (debug-step? #f) (resume vals)]
+      [`(go ,vs)        (debug-step? #f) (resume vs)]
       [`(break ,pos ,v) (elisp-println (set-breakpoint! src pos v))]
       [`(get ,pos)      (elisp-println (get-var all-marks src pos))]
       [`(set ,pos ,v)   (elisp-println (set-var all-marks src pos v))]
@@ -347,7 +344,7 @@
 
 (define (make-debug-eval-handler orig-eval file-to-debug)
   (cond [file-to-debug
-         (set! step? #t)
+         (debug-step? #t)
          (clear-breakable-positions!)
          (clear-bound-identifiers!)
          (clear-top-level-bindings!)
@@ -375,11 +372,11 @@
                          (parameterize ([current-eval orig-eval])
                            (eval/annotations top-e
                                              annotate-module?
-                                             (annotator file-to-debug)))]
+                                             annotator))]
                         [else (orig-eval top-e)])]))]
         [else orig-eval]))
 
-(define ((annotator add-done-path) stx)
+(define (annotator stx)
   (define source (syntax-source stx))
   (define-values (annotated breakable-positions)
     (annotate-for-single-stepping (expand-syntax stx)
@@ -390,30 +387,7 @@
                                   record-top-level-identifier
                                   source))
   (set-breakable-positions! source breakable-positions)
-  (cond [(equal? add-done-path source) (annotate-add-debug-done annotated)]
-        [else annotated]))
-
-(define (annotate-add-debug-done stx)
-  (syntax-case stx (module)
-    [(module id lang mb)
-     (syntax-case (disarm #'mb) ()
-       [(plain-module-begin module-level-exprs ...)
-        (quasisyntax/loc stx
-          (module id lang
-            #,(rearm #'mb
-                     #`(plain-module-begin
-                        module-level-exprs ...
-                        (#%plain-app #,debug-done)))))])]))
-
-(define (debug-done)
-  ;; Evaluation of the annotated module has completed. The annotated
-  ;; code is still "live" and can still be evaluated from the REPL --
-  ;; e.g. call a function. The annotation will still call our
-  ;; `break?`, which will continue to break due to existing
-  ;; breakpoints or if `step?` is #t. Set `step?` to #t here (it may
-  ;; have been set #f by a `go` command) so user gets at least the
-  ;; initial break.
-  (set! step? #t))
+  annotated)
 
 (define (disarm stx) (syntax-disarm stx code-insp))
 (define (rearm old new) (syntax-rearm new old))

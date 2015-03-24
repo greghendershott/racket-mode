@@ -13,7 +13,7 @@
          syntax/modresolve
          (only-in xml xexpr->string)
          "channel.rkt"
-         "command-output.rkt"
+         "debugger-step.rkt"
          "defn.rkt"
          "fresh-line.rkt"
          "elisp.rkt"
@@ -21,7 +21,8 @@
          "logger.rkt"
          "scribble.rkt"
          "try-catch.rkt"
-         "util.rkt")
+         "util.rkt"
+         "with-output.rkt")
 
 (provide make-prompt-read
          current-command-output-file
@@ -32,6 +33,7 @@
   (require rackunit))
 
 (define ((make-prompt-read path))
+  (debug-step? #t) ;at a non-debug prompt, reset the step? flag
   (display-prompt (or (and path (name-only path)) ""))
   (define in ((current-get-interaction-input-port)))
   (define stx ((current-read-interaction) (object-name in) in))
@@ -52,7 +54,7 @@
   (fresh-line)
   (display str)
   ;; Use a character unlikely to appear in normal output. Makes it
-  ;; easier for Emacs comint-regexp-prompt not to match program output
+  ;; easier for Emacs comint-prompt-regexp not to match program output
   ;; by mistake.
   (display #\uFEFF) ;ZERO WIDTH NON-BREAKING SPACE
   (display "> ")

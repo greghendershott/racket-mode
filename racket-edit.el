@@ -380,14 +380,10 @@ Returns the buffer in which the description was written."
     (current-buffer)))
 
 (defvar racket-describe-mode-map
-  (let ((m (make-sparse-keymap)))
-    (set-keymap-parent m nil)
-    (mapc (lambda (x)
-            (define-key m (kbd (car x)) (cadr x)))
-          '(("q"       quit-window)
-            ("<tab>"   racket-describe--next-button)
-            ("S-<tab>" racket-describe--prev-button)))
-    m)
+  (racket--easy-keymap-define
+   '(("q"       quit-window)
+     ("<tab>"   racket-describe--next-button)
+     ("S-<tab>" racket-describe--prev-button)))
   "Keymap for Racket Describe mode.")
 
 (define-derived-mode racket-describe-mode fundamental-mode
@@ -1021,8 +1017,8 @@ expressions in the namespace of the module. Both top-level and
 local bindings are visible and may be `set!` to new values.
 
 The REPL may be used even after the program completes, because
-the code remains instrumented for debugging. If you make a
-function call, it will break before the first expression. (To
+the code remains instrumented for debugging. If you call
+instrumented code, it will break before the first expression. (To
 \"fully exit\" debugging, do a normal `racket-run'.)"
   (interactive)
   (racket--do-run 'debug)
@@ -1060,8 +1056,19 @@ function call, it will break before the first expression. (To
     (let ((which (cadr data))
           (src (cadr (assoc 'src data)))
           (pos (cadr (assoc 'pos data))))
-      (find-file src)
+      ;; If file already visible in a window, select that window.
+      ;; Otherwise pick any window except Racket REPL, then find-file.
+      (let* ((buf (get-file-buffer src))
+             (win (and buf (get-buffer-window buf))))
+        (if win
+            (select-window win)
+          (let ((win (get-buffer-window racket--repl-buffer-name)))
+            (when (equal win (selected-window))
+              (other-window 1)))
+          (find-file src)))
+      ;; Go to the breakpoint position.
       (goto-char pos)
+      ;; Draw bindings.
       (mapc (lambda (binding)
               (cl-destructuring-bind (uses val) binding
                 (mapc (lambda (use)
@@ -1073,6 +1080,7 @@ function call, it will break before the first expression. (To
                             (racket-debug-mode--add-overlay beg end str))))
                       uses)))
             (cadr (assoc 'bindings data)))
+      ;; Maybe draw result values.
       (let ((vals (cadr (assoc 'vals data))))
         (when vals
           (let* ((beg (point))
@@ -1080,10 +1088,11 @@ function call, it will break before the first expression. (To
                  (str (propertize (format "=>%s" vals)
                                   'face racket-debug-result-face)))
             (racket-debug-mode--add-overlay beg end str))))
+      ;; Enter the debug break mode.
+      (racket--debug-keymap-work-around) ;BEFORE racket-debug-mode
       (racket-debug-mode 1)
       (message (format "Break %s" which))))
    (t
-    ;;(racket-debug-mode-quit)
     (error (format "Unknown reponse from debugger: %s"
                    data)))))
 
@@ -1153,30 +1162,74 @@ Effectively this sets a one-shot breakpoint then does
 
 (defun racket-debug-mode-quit ()
   (interactive)
-  ;;(racket--repl-eval ",(quit)\n") ;still need this?
   (racket--debug-kill-timer)
   (racket-debug-mode 0))
 
-(define-minor-mode racket-debug-mode
-  "Debug.
+;; Herein I pair program. My partner is Mr. Hankey.
+;;
+;; We detect the break using run-with-timer. Enabling a minor mode
+;; from a timer callback means its keymap won't take effect until
+;; AFTER one command is processed. See discussion here:
+;;
+;; https://lists.gnu.org/archive/html/emacs-pretest-bug/2007-04/msg00279.html
+;;
+;; Use the work-around described there -- slamming our keys into
+;; (current-local-keymap). However, also save the original keys, and
+;; restore them in a post-command-hook -- because at that point the
+;; minor mode map will work thereafter.
+;;
+;; Like I said. Mr. Hankey.
 
-The buffer becomes read-only until you exit this minor mode.
-However you may navigate the usual ways.
+(defvar racket--debug-mode-keys
+  '(("<SPC>"      racket-debug-mode-step)
+    ("s"          racket-debug-mode-step)
+    ("g"          racket-debug-mode-go)
+    ("."          racket-debug-mode-run-to-point)
+    ("b"          racket-debug-mode-set-breakpoint)
+    ("u"          racket-debug-mode-clear-breakpoint)
+    ("C-<return>" racket-debug-mode-value)
+    ("q"          racket-debug-mode-quit))
+  "Defined separately as part of the work-around; see comment above")
+
+(defvar racket--debug-keymap-orig-keys nil)
+
+(defun racket--debug-keymap-work-around ()
+  "See comment above"
+  (setq racket--debug-keymap-orig-keys
+        (mapcar (lambda (x)
+                  (let* ((key (kbd (car x)))
+                         (old (key-binding key))
+                         (new (cadr x)))
+                    (define-key (current-local-map) key new)
+                    (list key old)))
+                racket--debug-mode-keys))
+  (add-hook 'post-command-hook
+            #'racket--debug-keymap-work-around-post-command-hook))
+
+(defun racket--debug-keymap-work-around-post-command-hook ()
+  "See comment above"
+  (mapc (lambda (x)
+          (define-key (current-local-map) (car x) (cadr x)))
+        racket--debug-keymap-orig-keys)
+  (setq racket--debug-keymap-orig-keys nil)
+  (remove-hook 'post-command-hook
+               #'racket--debug-keymap-work-around-post-command-hook))
+
+(defvar racket-debug-mode-map
+  (racket--easy-keymap-define racket--debug-mode-keys)
+  "Keymap for racket-debug-mode.")
+
+(define-minor-mode racket-debug-mode
+  "A minor mode for debug breaks.
+
+Although the buffer becomes read-only, you may still use
+`racket-mode' commands that don't modify the buffer.
 
 ```
 \\{racket-debug-mode-map}
 ```
 "
   :lighter " Debug"
-  :keymap (racket--easy-keymap-define
-           '(("<SPC>"      racket-debug-mode-step)
-             ("s"          racket-debug-mode-step)
-             ("g"          racket-debug-mode-go)
-             ("."          racket-debug-mode-run-to-point)
-             ("b"          racket-debug-mode-set-breakpoint)
-             ("u"          racket-debug-mode-clear-breakpoint)
-             ("C-<return>" racket-debug-mode-value)
-             ("q"          racket-debug-mode-quit)))
   (unless (eq major-mode 'racket-mode)
     (setq racket-debug-mode nil)
     (error "racket-debug-mode only works with racket-mode"))
