@@ -389,12 +389,6 @@
   (set-breakable-positions! source breakable-positions)
   annotated)
 
-(define (disarm stx) (syntax-disarm stx code-insp))
-(define (rearm old new) (syntax-rearm new old))
-
-(define code-insp (variable-reference->module-declaration-inspector
-                   (#%variable-reference)))
-
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; example usage
 
