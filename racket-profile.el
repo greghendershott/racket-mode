@@ -19,6 +19,7 @@
 (require 'cl-lib)
 (require 'racket-edit)
 (require 'racket-repl)
+(require 'racket-util)
 
 (defvar racket--profile-results nil)
 (defvar racket--profile-sort-col 1) ;0=Calls, 1=Msec
@@ -138,18 +139,14 @@ delete compiled/*.zo files."
   (quit-window))
 
 (defvar racket-profile-mode-map
-  (let ((m (make-sparse-keymap)))
-    (set-keymap-parent m nil)
-    (mapc (lambda (x)
-            (define-key m (kbd (car x)) (cadr x)))
-          '(("q"   racket--profile-quit)
-            ("g"   racket--profile-refresh)
-            ("n"   racket--profile-next)
-            ("p"   racket--profile-prev)
-            ("z"   racket--profile-show-zero)
-            ("RET" racket--profile-visit)
-            (","   racket--profile-sort)))
-    m)
+  (racket--easy-keymap-define
+   '(("q"   racket--profile-quit)
+     ("g"   racket--profile-refresh)
+     ("n"   racket--profile-next)
+     ("p"   racket--profile-prev)
+     ("z"   racket--profile-show-zero)
+     ("RET" racket--profile-visit)
+     (","   racket--profile-sort)))
   "Keymap for Racket Profile mode.")
 
 (define-derived-mode racket-profile-mode special-mode
