@@ -1088,6 +1088,8 @@ instrumented code, it will break before the first expression. (To
                  (str (propertize (format "=>%s" vals)
                                   'face racket-debug-result-face)))
             (racket-debug-mode--add-overlay beg end str))))
+      ;; Show/draw the frames window
+      (racket-debug-frames-mode-draw (cadr (assoc 'frames data)))
       ;; Enter the debug break mode.
       (racket--debug-keymap-work-around) ;BEFORE racket-debug-mode
       (racket-debug-mode 1)
@@ -1163,7 +1165,8 @@ Effectively this sets a one-shot breakpoint then does
 (defun racket-debug-mode-quit ()
   (interactive)
   (racket--debug-kill-timer)
-  (racket-debug-mode 0))
+  (racket-debug-mode 0)
+  (racket-debug-frames-mode-quit))
 
 ;; Herein I pair program. My partner is Mr. Hankey.
 ;;
@@ -1253,6 +1256,79 @@ not affect positions."
     (remove-overlays (point-min) (point-max) 'racket-debug-mode-overlay)
     (while racket--debug-overlays
       (delete-overlay (pop racket--debug-overlays))))
+
+
+;;; debug frames
+
+(defvar racket-debug-frames-mode-map
+  (racket--easy-keymap-define
+   '(("n"   racket-debug-frames-mode-next)
+     ("p"   racket-debug-frames-mode-prev)
+     ("RET" racket-debug-frames-mode-visit)
+     ("q"   racket-debug-frames-mode-quit)))
+  "Keymap for `racket-debug-frames-mode'.")
+
+(define-derived-mode racket-debug-frames-mode special-mode
+  "RacketDebugFrames"
+  "Major mode to debugger frames.
+
+```
+\\{racket-debug-frames-mode-map}
+```
+"
+  (setq buffer-read-only t)
+  (setq truncate-lines t))
+
+(defun racket-debug-frames-mode-quit ()
+  (interactive)
+  (let ((win (get-buffer-window "*Debug Frames*")))
+    (when win
+      (delete-window win))))
+
+(defun racket-debug-frames-mode-draw (frames)
+  (let* ((buf (get-buffer-create "*Debug Frames*"))
+         (win (or (get-buffer-window buf)
+                  (set-window-buffer (split-window-vertically)
+                                     "*Debug Frames*"))))
+    (with-current-buffer buf
+      (unless (eq major-mode 'racket-debug-frames-mode)
+        (racket-debug-frames-mode))
+      (let ((inhibit-read-only t))
+        (erase-buffer)
+        (dolist (frame frames)
+          (cl-destructuring-bind (datum file line col pos span) frame
+            (let* ((file-buf (get-file-buffer file))
+                   (txt (if file-buf
+                            (with-current-buffer file-buf
+                              (replace-regexp-in-string
+                               "[ \n\t]+" " "
+                               (buffer-substring pos (+ pos span))))
+                          datum)))
+              (insert (propertize (format "%s\n" txt)
+                                  'racket-debug-frame-location
+                                  (list file pos))))))
+        (goto-char (point-min))
+        ;;(fit-window-to-buffer win 10 1)
+        ))))
+
+(defun racket-debug-frames-mode-visit ()
+  (interactive)
+  (let ((prop (get-text-property (point) 'racket-debug-frame-location)))
+    (when prop
+      (cl-destructuring-bind (file pos) prop
+        (select-window (get-buffer-window (find-file-other-window file)))
+        (goto-char pos)))))
+
+(defun racket-debug-frames-mode-next ()
+  (interactive)
+  (forward-line 1)
+  (racket-debug-frames-mode-visit))
+
+(defun racket-debug-frames-mode-prev ()
+  (interactive)
+  (forward-line -1)
+  (racket-debug-frames-mode-visit))
+
 
 
 ;;; misc
