@@ -75,6 +75,7 @@
         ['profile (clear-profile-info!)]
         ['coverage (clear-test-coverage-info!)]
         [_ (void)])
+
       ;; repl-thunk will be called from another thread -- either a plain
       ;; thread when racket/gui/base is not (yet) instantiated, or, from
       ;; (eventspace-handler-thread (current-eventspace)).
@@ -89,11 +90,14 @@
         (when (and path (module-path? path))
           (parameterize ([current-module-name-resolver repl-module-name-resolver])
             ;; exn:fail? during module load => re-run with "empty" module
-            ;;
-            ;; FIXME: When debugging, exception => break
-            (with-handlers ([exn? (λ (x)
-                                    (display-exn x)
-                                    (put/stop (struct-copy rerun rr [path #f])))])
+            (with-handlers ([exn:fail?
+                             (λ (x)
+                               (display-exn x)
+                               (put/stop (struct-copy rerun rr [path #f])))]
+                            [(λ (exn)
+                               (and (exn:break? exn)
+                                    (eq? 'debug context-level)))
+                             debug-exn:break-handler])
               (maybe-load-language-info path)
               (namespace-require path)
               (current-namespace (module->namespace path))
@@ -104,22 +108,33 @@
           ;; Note that read-eval-print-loop catches all non-break
           ;; exceptions.
           (read-eval-print-loop)))
-      ;; Main thread: Run repl-thunk on a plain thread, or, on the
-      ;; eventspace thread via queue-callback. Return the thread.
+
+      ;; Main thread: Run repl-thunk -- on a plain thread we create
+      ;; now, OR, on the already-created eventspace thread via
+      ;; queue-callback. Return the thread.
       (define t/v ((txt/gui thread    queue-callback           ) repl-thunk))
       (define thd ((txt/gui (λ _ t/v) eventspace-handler-thread) (current-eventspace)))
       thd))
+
   ;; Main thread: Wait for message from REPL thread channel, or, user
   ;; custodian box event. Also catch breaks, in which case we
   ;; break-thread the repl thread so display-exn runs there.
   (define msg
-    (with-handlers ([exn:break? (λ _ (break-thread repl-thread) (sleep) 'break)])
-      (match (sync the-channel user-cust-box)
-        [(? custodian-box?)
-         (display-commented
-          (format "Exceeded the ~a MB memory limit you set.\n" mem-limit))
-         'break]
-        [msg msg])))
+    (let loop ()
+      (with-handlers ([exn:break?
+                       (λ (exn)
+                         (eprintf "main thread ~v caught exn:break\n"
+                                  (current-thread))
+                         (break-thread repl-thread)
+                         (match context-level
+                           ['debug (loop)]
+                           [_      (sleep) 'break]))])
+        (match (sync the-channel user-cust-box)
+          [(? custodian-box?)
+           (display-commented
+            (format "Exceeded the ~a MB memory limit you set.\n" mem-limit))
+           'break]
+          [msg msg]))))
   (custodian-shutdown-all user-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match msg

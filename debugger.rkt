@@ -19,12 +19,9 @@
          "with-output.rkt")
 
 ;;; TODO: A `(debug)` form to put in source, to cause a break?
-;;;
-;;; TODO: How about handling exn:break -- can we make it work when
-;;; user breaks? (Probably of no practical use except in seemingly
-;;; "hung" programs.)
 
-(provide make-debug-eval-handler)
+(provide make-debug-eval-handler
+         debug-exn:break-handler)
 
 ;;; Protocol/Flow
 
@@ -231,19 +228,23 @@
       (debug-step?)))
 
 (define (break-before top-mark ccm)
-  (break 'before top-mark ccm #f))
+  (break 'before
+         (cons top-mark (continuation-mark-set->list ccm debug-key))
+         #f))
 
 (define (break-after top-mark ccm . vals)
-  (apply values (break 'after top-mark ccm vals)))
+  (apply values
+         (break 'after
+                (cons top-mark (continuation-mark-set->list ccm debug-key))
+                vals)))
 
-(define (break which top-mark ccm vals)
-  (define other-marks (continuation-mark-set->list ccm debug-key))
-  (define all-marks (cons top-mark other-marks))
+(define (break which all-marks vals)
+  (define top-mark (car all-marks))
   (define stx (mark-source top-mark))
   (define src (syntax-source stx))
-  (define pos (case which
-                [(before) (syntax-position stx)]
-                [(after)  (+ (syntax-position stx) (syntax-span stx) -1)]))
+  (define pos (match which
+                ['after (+ (syntax-position stx) (syntax-span stx) -1)]
+                [_      (syntax-position stx)]))
   (define locals (for*/list ([b (in-list (mark-bindings top-mark))]
                              [stx (in-value (mark-binding-binding b))]
                              #:when (syntax-original? stx)
@@ -375,6 +376,13 @@
                                              annotator))]
                         [else (orig-eval top-e)])]))]
         [else orig-eval]))
+
+(define (debug-exn:break-handler exn)
+  (eprintf "debug exn:break handler, thread ~v\n" (current-thread))
+  (break 'exn:break
+         (continuation-mark-set->list (exn-continuation-marks exn) debug-key)
+         #f)
+  ((exn:break-continuation exn)))
 
 (define (annotator stx)
   (define source (syntax-source stx))
