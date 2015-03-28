@@ -60,6 +60,10 @@
 (module+ test
   (check-equal? (with-output-to-string
                   (λ ()
+                    (elisp-println `(#t . #f))))
+                "'(t . nil)\n")
+  (check-equal? (with-output-to-string
+                  (λ ()
                     (elisp-println `(1 #t nil () (a . b)))))
                 "'(1 t nil nil (a . b))\n")
   (check-equal? (with-output-to-string
@@ -72,7 +76,8 @@
                     (struct bar (a b) #:transparent)
                     (elisp-println (list + (foo 1 2) (bar 1 2)))))
                 "'(\"#<procedure:+>\" #<foo> \"#(struct:bar 1 2)\")\n")
-  (check-equal? (with-output-to-string
-                  (λ ()
-                    (elisp-println (hash 'a 0 'b 1))))
-                "'((a . 0) (b . 1))\n"))
+  (let ([s (with-output-to-string
+             (λ ()
+               (elisp-println (hash 'a 0 'b 1))))])
+    (check-true (or (equal? s "'((a . 0) (b . 1))\n")
+                    (equal? s "'((b . 1) (a . 0))\n")))))
