@@ -21,6 +21,10 @@
 
 ;;; TODO: A `(debug)` form to put in source, to cause a break?
 
+;;; TODO: Break when a user-supplied expression becomes #t. e.g. `(>=
+;;; x 5)`, where `x` is the identifier during the break in which the
+;;; break-on-expression is set.
+
 (provide make-debug-eval-handler
          debug-exn:break-handler)
 
