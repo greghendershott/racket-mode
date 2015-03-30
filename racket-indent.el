@@ -405,6 +405,7 @@ doesn't hurt to do so."
           (let-values 1)
           (let-syntax 1)
           (letrec-syntax 1)
+          (let/cc 1)
           (let/ec 1)
           (match 1)
           (match* 1)
