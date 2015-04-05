@@ -16,6 +16,8 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 's)
+
 
 ;;; trace
 
@@ -49,7 +51,10 @@
 when there is no symbol-at-point or prefix is true."
   (let ((sap (symbol-at-point)))
     (if (or prefix (not sap))
-        (read-from-minibuffer prompt (if sap (symbol-name sap) ""))
+        (let ((s (read-from-minibuffer prompt (if sap (symbol-name sap) ""))))
+          (if (equal "" (s-trim s))
+              nil
+            s))
       sap)))
 
 ;;; racket--easy-keymap-define

@@ -47,27 +47,29 @@ Also handy is the `flx-ido' package from MELPA.
 
 See also: `racket-visit-module' and `racket-open-require-path'."
   (interactive "P")
-  (let* ((coll  (racket--symbol-at-point-or-prompt prefix "Collection name: "))
-         (paths (racket--repl-cmd/sexpr (format ",find-collection \"%s\"\n" coll))))
-    (cond ((eq 'find-collection-not-installed paths)
-           ;; FIXME? Offer to run this for them?
-           (error "Run `raco pkg install raco-find-collection'"))
-          ((not paths)
-           (error "Collection not found"))
-          ((= 1 (length paths))
-           (racket--find-file-in-dir (car paths)))
-          (t
-           (let ((done nil))
-             (while (not done)
-               ;; `(ido-find-file-in-dir (ido-completing-read paths))`
-               ;; -- except we want to let the user press C-g inside
-               ;; ido-find-file-in-dir to back up and pick a different
-               ;; module path.
-               (let ((dir (ido-completing-read "Directory: " paths)))
-                 (condition-case ()
-                     (progn (racket--find-file-in-dir dir)
-                            (setq done t))
-                   (quit nil)))))))))
+  (let ((coll  (racket--symbol-at-point-or-prompt prefix "Collection name: ")))
+    (when coll
+      (let ((paths (racket--repl-cmd/sexpr (format ",find-collection \"%s\"\n"
+                                                   coll))))
+        (cond ((eq 'find-collection-not-installed paths)
+               ;; FIXME? Offer to run this for them?
+               (error "Run `raco pkg install raco-find-collection'"))
+              ((not paths)
+               (error (format "Collection `%s' not found" coll)))
+              ((= 1 (length paths))
+               (racket--find-file-in-dir (car paths)))
+              (t
+               (let ((done nil))
+                 (while (not done)
+                   ;; `(ido-find-file-in-dir (ido-completing-read paths))`
+                   ;; -- except we want to let the user press C-g inside
+                   ;; ido-find-file-in-dir to back up and pick a different
+                   ;; module path.
+                   (let ((dir (ido-completing-read "Directory: " paths)))
+                     (condition-case ()
+                         (progn (racket--find-file-in-dir dir)
+                                (setq done t))
+                       (quit nil)))))))))))
 
 (defun racket--find-file-in-dir (dir)
   "Like `ido-find-file-in-dir', but allows C-d to `dired' as does `ido-find-file'."
