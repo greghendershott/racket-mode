@@ -198,8 +198,8 @@ Instead you can insert actual λ characters using
 ;;; Faces
 
 (defgroup racket-faces nil
-  "Faces"
-  :tag "Faces"
+  "Racket Faces"
+  :tag "Racket Faces"
   :group 'faces
   :group 'racket)
 
@@ -245,8 +245,6 @@ Instead you can insert actual λ characters using
   :tag "Selfeval Face"
   :group 'racket-faces)
 
-;; racket-custom.el ends here
-
 ;; Local Variables:
 ;; coding: utf-8
 ;; comment-column: 40
@@ -256,3 +254,5 @@ Instead you can insert actual λ characters using
 ;; End:
 
 (provide 'racket-custom)
+
+;; racket-custom.el ends here
