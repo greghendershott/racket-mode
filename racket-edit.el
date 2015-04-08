@@ -103,7 +103,7 @@ Supplies CONTEXT-LEVEL to the back-end ,run command; see run.rkt."
   (racket--remove-uncovered-overlays)
   (racket--invalidate-completion-cache)
   (racket--invalidate-type-cache)
-  (racket--debug-kill-timer)
+  (racket-debug-mode 0)
   (racket--repl-eval (format ",run %s %s %s %s\n"
                              (racket--quoted-buffer-file-name)
                              racket-memory-limit
@@ -999,13 +999,18 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
 ;;; debug
 
 (defvar racket--debug-break-timer nil)
+(defvar racket--debug-break-timer-interval 0.25)
+
+(defvar racket--debug-break-data nil
+  "Data for the most current debugger break, if any.")
+
+(defvar racket--debug-overlays nil)
 
 (defun racket-debug ()
-  "Instrument file(s) for debugging and run.
+  "Instrument file(s), enable `racket-debug-mode', and run.
 
-For each required file in the same directory, you get a y/n
-prompt. Answering yes means you can step and break in that other
-file, too.
+For each `require`d file in the same directory, you get a y/n
+prompt. Answer yes to debug that file, too.
 
 Upon each break, the source file is shown with point at the
 breakpoint. Uses of top-level and local bindings are drawn
@@ -1027,8 +1032,11 @@ instrumented code, it will break before the first expression. (To
 \"fully exit\" debugging, do a normal `racket-run'.)"
   (interactive)
   (racket--do-run 'debug)
+  (racket-debug-mode 1)
   (setq racket--debug-break-timer
-        (run-with-timer 0.5 nil #'racket--on-debug-break-timer)))
+        (run-with-timer racket--debug-break-timer-interval
+                        nil
+                        #'racket--on-debug-break-timer)))
 
 (defun racket--debug-kill-timer ()
   (when racket--debug-break-timer
@@ -1044,20 +1052,20 @@ instrumented code, it will break before the first expression. (To
        (eval (read (buffer-substring (point-min) (point-max)))))))
   ;; TODO: Should we avoid setting the timer if no DEBUG: prompt in REPL?
   (setq racket--debug-break-timer
-        (run-with-timer 0.5 nil #'racket--on-debug-break-timer)))
-
-(defvar racket-debug-mode-break-data nil
-  "Data for the most recent debugger break.")
+        (run-with-timer racket--debug-break-timer-interval
+                        nil
+                        #'racket--on-debug-break-timer)))
 
 (defun racket--debug-on-break (data)
-  (setq racket-debug-mode-break-data data) ;save for `racket-debug-mode-step'
   (cond
    ((and (listp data)
          (eq 'also-file? (car data)))
+    (setq racket--debug-break-data nil)
     (let ((v (y-or-n-p (format "Also debug %s? " (cadr data)))))
       (racket--repl-eval (concat (if v "#t" "#f") "\n"))))
    ((and (listp data)
          (eq 'break (car data)))
+    (setq racket--debug-break-data data)
     (let ((which (cadr data))
           (src (cadr (assoc 'src data)))
           (pos (cadr (assoc 'pos data))))
@@ -1073,6 +1081,8 @@ instrumented code, it will break before the first expression. (To
           (find-file src)))
       ;; Go to the breakpoint position.
       (goto-char pos)
+      ;; Remove existing overlays
+      (racket-debug-mode--remove-overlays)
       ;; Draw bindings.
       (mapc (lambda (binding)
               (cl-destructuring-bind (uses val) binding
@@ -1096,29 +1106,32 @@ instrumented code, it will break before the first expression. (To
       ;; Show/draw the frames window
       (racket-debug-frames-mode-draw (cadr (assoc 'frames data)))
       ;; Enter the debug break mode.
-      (racket--debug-keymap-work-around) ;BEFORE racket-debug-mode
-      (racket-debug-mode 1)
       (message (format "Break %s" which))))
    (t
-    (error (format "Unknown reponse from debugger: %s"
+    (setq racket--debug-break-data nil)
+    (error (format "Unknown response from debugger: %s"
                    data)))))
 
 (defun racket-debug-mode-step (&optional change-value-p)
   "Evaluate the next expression and break."
   (interactive "P")
+  (unless racket--debug-break-data
+    (error "Not at a break"))
   (let ((cmd (if (and change-value-p
-                      (cadr (assoc 'vals racket-debug-mode-break-data)))
-                 (let* ((old (cadr (assoc 'vals racket-debug-mode-break-data)))
+                      (cadr (assoc 'vals racket--debug-break-data)))
+                 (let* ((old (cadr (assoc 'vals racket--debug-break-data)))
                         (new (read-string "Return Values: " old)))
                    (format ",(step %s)\n" new))
                ",(step)\n")))
-    (racket-debug-mode 0)
+    (setq racket--debug-break-data nil)
     (racket--repl-eval cmd)))
 
 (defun racket-debug-mode-go ()
   "Continue until the next breakpoint, if any."
   (interactive)
-  (racket-debug-mode 0)
+  (unless racket--debug-break-data
+    (error "Not at a break"))
+  (setq racket--debug-break-data nil)
   (racket--repl-eval ",(go)\n"))
 
 (defun racket-debug-mode--do-breakpoint (status)
@@ -1173,60 +1186,6 @@ Effectively this sets a one-shot breakpoint then does
   (racket-debug-mode 0)
   (racket-debug-frames-mode-quit))
 
-;; Herein I pair program. My partner is Mr. Hankey.
-;;
-;; We detect the break using run-with-timer. Enabling a minor mode
-;; from a timer callback means its keymap won't take effect until
-;; AFTER one command is processed. See discussion here:
-;;
-;; https://lists.gnu.org/archive/html/emacs-pretest-bug/2007-04/msg00279.html
-;;
-;; Use the work-around described there -- slamming our keys into
-;; (current-local-keymap). However, also save the original keys, and
-;; restore them in a post-command-hook -- because by then the minor
-;; mode map will be used thereafter.
-;;
-;; Like I said. Mr. Hankey.
-
-(defvar racket--debug-mode-keys
-  '(("<SPC>"      racket-debug-mode-step)
-    ("s"          racket-debug-mode-step)
-    ("g"          racket-debug-mode-go)
-    ("."          racket-debug-mode-run-to-point)
-    ("b"          racket-debug-mode-set-breakpoint)
-    ("u"          racket-debug-mode-clear-breakpoint)
-    ("C-<return>" racket-debug-mode-value)
-    ("q"          racket-debug-mode-quit))
-  "Defined separately as part of the work-around; see comment above")
-
-(defvar racket--debug-keymap-orig-keys nil)
-
-(defun racket--debug-keymap-work-around ()
-  "See comment above"
-  (setq racket--debug-keymap-orig-keys
-        (mapcar (lambda (x)
-                  (let* ((key (kbd (car x)))
-                         (old (key-binding key))
-                         (new (cadr x)))
-                    (define-key (current-local-map) key new)
-                    (list key old)))
-                racket--debug-mode-keys))
-  (add-hook 'post-command-hook
-            #'racket--debug-keymap-work-around-post-command-hook))
-
-(defun racket--debug-keymap-work-around-post-command-hook ()
-  "See comment above"
-  (mapc (lambda (x)
-          (define-key (current-local-map) (car x) (cadr x)))
-        racket--debug-keymap-orig-keys)
-  (setq racket--debug-keymap-orig-keys nil)
-  (remove-hook 'post-command-hook
-               #'racket--debug-keymap-work-around-post-command-hook))
-
-(defvar racket-debug-mode-map
-  (racket--easy-keymap-define racket--debug-mode-keys)
-  "Keymap for racket-debug-mode.")
-
 (define-minor-mode racket-debug-mode
   "A minor mode for debug breaks.
 
@@ -1240,16 +1199,23 @@ Although the buffer becomes read-only, you may still use
 See `racket-debug' for more information.
 "
   :lighter " Debug"
+  :keymap (racket--easy-keymap-define
+           '(("<SPC>"      racket-debug-mode-step)
+             ("s"          racket-debug-mode-step)
+             ("g"          racket-debug-mode-go)
+             ("."          racket-debug-mode-run-to-point)
+             ("b"          racket-debug-mode-set-breakpoint)
+             ("u"          racket-debug-mode-clear-breakpoint)
+             ("C-<return>" racket-debug-mode-value)
+             ("q"          racket-debug-mode-quit)))
   (unless (eq major-mode 'racket-mode)
     (setq racket-debug-mode nil)
     (error "racket-debug-mode only works with racket-mode"))
+  (setq racket--debug-break-data nil)
   (if racket-debug-mode
       (setq buffer-read-only t)
     (setq buffer-read-only nil)
-    (setq racket-debug-mode-break-data nil)
     (racket-debug-mode--remove-overlays)))
-
-(defvar racket--debug-overlays nil)
 
 (defun racket-debug-mode--add-overlay (beg end str)
   "The nice thing about 'after-string overlays is that they do
@@ -1265,6 +1231,7 @@ not affect positions."
       (delete-overlay (pop racket--debug-overlays))))
 
 
+
 ;;; debug frames
 
 (defvar racket-debug-frames-mode-map
