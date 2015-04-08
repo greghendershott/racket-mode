@@ -39,6 +39,10 @@
 (define (elisp-print v)
   (print (->elisp v)))
 
+;; Note: This is intended for use where we want Racket values to be
+;; used in Elisp code. It is NOT intended for arbitrary Racket values
+;; that the end user will edit -- instead, use `~s` or `write` so that
+;; they can be `read` later.
 (define (->elisp v)
   (match v
     [(or #f (list))   'nil]

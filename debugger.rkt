@@ -254,11 +254,13 @@
                              [stx (in-value (mark-binding-binding b))]
                              #:when (syntax-original? stx)
                              [val (in-value (mark-binding-value b))])
-                   (list (filter (id=? stx) local-uses) val)))
+                   (list (filter (id=? stx) local-uses)
+                         (~s val)))) ;~s write so we can read later
   (define tops (for*/list ([b (in-list top-level-bindings)]
                            [stx (in-value (car b))]
                            [val (in-value ((cdr b)))])
-                 (list (filter (id=? stx) top-uses) val)))
+                 (list (filter (id=? stx) top-uses)
+                       (~s val)))) ;~s write so we can read later
   (define bindings (append locals tops))
   (with-output-to-debug-break-output-file
     (elisp-println
@@ -271,7 +273,7 @@
        (frames ,(for/list ([m (in-list all-marks)])
                   (mark-source m)))
        (bindings ,bindings)
-       (vals ,(and vals (~s vals)))))) ;~s for write so we can read later
+       (vals ,(and vals (~s vals)))))) ;~s write so we can read later
 
   (define (add-locals stx)
     ;; Using module->namespace gives read/write access to top-level
@@ -324,10 +326,7 @@
       [(uq cmd)
        (eq? 'unquote (syntax-e #'uq))
        (handle-debug-command #'cmd resume)]
-      [_ (let ()
-           ;;(local-require racket/pretty) ;; DELETE ME
-           ;;(pretty-print (syntax->datum (add-locals stx))) ;;DELETE ME
-           (add-locals stx))]))
+      [_ (add-locals stx)]))
 
   (define (handle-debug-command cmd-stx resume)
     (match (syntax->datum cmd-stx)
