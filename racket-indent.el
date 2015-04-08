@@ -264,7 +264,7 @@ To handle nested items, search `backward-up-list' up to
   (let ((n (if (looking-at looking-at-regexp) true false)))
     (lisp-indent-specform n state indent-point normal-indent)))
 
-(defun racket--indent-let (state indent-point normal-indent)
+(defun racket--indent-maybe-named-let (state indent-point normal-indent)
   ;; check for named let
   (racket--conditional-indent state indent-point normal-indent
                               "[-a-zA-Z0-9+*/?!@$%^&_:~]" 2 1))
@@ -396,15 +396,17 @@ doesn't hurt to do so."
           (λ 1)
           (lambda 1)
           (lambda/kw 1)
-          (let racket--indent-let)
+          (let racket--indent-maybe-named-let)
           (let* 1)
           (letrec 1)
+          (letrec-values 1)
           (let-values 1)
           (let*-values 1)
           (let+ 1)
-          (let-values 1)
           (let-syntax 1)
           (letrec-syntax 1)
+          (letrec-syntaxes 1)
+          (letrec-syntaxes+values racket--indent-for/fold-untyped)
           (let/cc 1)
           (let/ec 1)
           (match 1)
