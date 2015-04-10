@@ -1080,8 +1080,9 @@ instrumented code, it will break before the first expression. (To
           (find-file src)))
       ;; Go to the breakpoint position.
       (goto-char pos)
+      (racket--debug-show-fringe-triangle)
       ;; Remove existing overlays
-      (racket-debug-mode--remove-overlays)
+      (racket--debug-remove-overlays)
       ;; Draw bindings.
       (mapc (lambda (binding)
               (cl-destructuring-bind (uses val) binding
@@ -1092,7 +1093,7 @@ instrumented code, it will break before the first expression. (To
                                  (str (racket--debug-format-val "=" val))
                                  (str (propertize str
                                                   'face racket-debug-value-face)))
-                            (racket-debug-mode--add-overlay beg end str))))
+                            (racket--debug-add-overlay beg end str))))
                       uses)))
             (cadr (assoc 'bindings data)))
       ;; Maybe draw result values.
@@ -1103,7 +1104,7 @@ instrumented code, it will break before the first expression. (To
                  (str (racket--debug-format-val "=>" vals))
                  (str (propertize str
                                   'face racket-debug-result-face)))
-            (racket-debug-mode--add-overlay beg end str))))
+            (racket--debug-add-overlay beg end str))))
       ;; Show/draw the frames window
       (racket-debug-frames-mode-draw (cadr (assoc 'frames data)))
       ;; Enter the debug break mode.
@@ -1150,7 +1151,7 @@ expression."
   (setq racket--debug-break-data nil)
   (racket--repl-eval ",(go)\n"))
 
-(defun racket-debug-mode--do-breakpoint (status)
+(defun racket--debug-do-breakpoint (status)
   "Find breakable position near point, go there, and set
 breakpoint status to STATUS, which may be t, nil, 'one-shot, or a
 positive number (the break is skipped N times)"
@@ -1173,12 +1174,12 @@ positive number (the break is skipped N times)"
 With a numeric prefix SKIP-COUNT, will skip the breakpoint that
 number of times, then become a normal breakpoint."
   (interactive "p")
-  (racket-debug-mode--do-breakpoint (or skip-count t)))
+  (racket--debug-do-breakpoint (or skip-count t)))
 
 (defun racket-debug-mode-clear-breakpoint ()
   "Clear a break at the first breakable position after point."
   (interactive)
-  (racket-debug-mode--do-breakpoint nil))
+  (racket--debug-do-breakpoint nil))
 
 (defun racket-debug-mode-run-to-point ()
   "Run to the first breakable position after point.
@@ -1186,7 +1187,7 @@ number of times, then become a normal breakpoint."
 Effectively this sets a one-shot breakpoint then does
 `racket-debug-mode-go'."
   (interactive)
-  (racket-debug-mode--do-breakpoint 'one-shot)
+  (racket--debug-do-breakpoint 'one-shot)
   (racket-debug-mode-go))
 
 (defun racket-debug-mode-value ()
@@ -1231,11 +1232,12 @@ See `racket-debug' for more information.
   (if racket-debug-mode
       (setq buffer-read-only t)
     (setq buffer-read-only nil)
-    (racket-debug-mode--remove-overlays)))
+    (racket--debug-hide-fringe-triangle)
+    (racket--debug-remove-overlays)))
 
 (defvar racket--debug-overlays nil)
 
-(defun racket-debug-mode--add-overlay (beg end str)
+(defun racket--debug-add-overlay (beg end str)
   "The nice thing about 'after-string overlays is that they do
 not affect positions."
   (let ((o (make-overlay beg end (current-buffer))))
@@ -1243,10 +1245,18 @@ not affect positions."
     (overlay-put o 'name 'racket-debug-mode-overlay)
     (overlay-put o 'after-string str)))
 
-(defun racket-debug-mode--remove-overlays ()
+(defun racket--debug-remove-overlays ()
     (remove-overlays (point-min) (point-max) 'racket-debug-mode-overlay)
     (while racket--debug-overlays
       (delete-overlay (pop racket--debug-overlays))))
+
+(defun racket--debug-show-fringe-triangle ()
+  (setq overlay-arrow-position
+        (set-marker (make-marker)
+                    (save-excursion (beginning-of-line) (point)))))
+
+(defun racket--debug-hide-fringe-triangle ()
+  (setq overlay-arrow-position nil))
 
 
 
