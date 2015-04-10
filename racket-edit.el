@@ -998,14 +998,6 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
 
 ;;; debug
 
-(defvar racket--debug-break-timer nil)
-(defvar racket--debug-break-timer-interval 0.25)
-
-(defvar racket--debug-break-data nil
-  "Data for the most current debugger break, if any.")
-
-(defvar racket--debug-overlays nil)
-
 (defun racket-debug ()
   "Instrument file(s), enable `racket-debug-mode', and run.
 
@@ -1033,6 +1025,12 @@ instrumented code, it will break before the first expression. (To
   (interactive)
   (racket--do-run 'debug)
   (racket-debug-mode 1)
+  (racket--debug-set-timer))
+
+(defvar racket--debug-break-timer nil)
+(defvar racket--debug-break-timer-interval 0.25)
+
+(defun racket--debug-set-timer ()
   (setq racket--debug-break-timer
         (run-with-timer racket--debug-break-timer-interval
                         nil
@@ -1050,10 +1048,10 @@ instrumented code, it will break before the first expression. (To
        (insert-file-contents racket--repl-debug-break-output-file)
        (delete-file racket--repl-debug-break-output-file)
        (eval (read (buffer-substring (point-min) (point-max)))))))
-  (setq racket--debug-break-timer
-        (run-with-timer racket--debug-break-timer-interval
-                        nil
-                        #'racket--on-debug-break-timer)))
+  (racket--debug-set-timer))
+
+(defvar racket--debug-break-data nil
+  "Data for the most current debugger break, if any.")
 
 (defun racket--debug-on-break (data)
   (cond
@@ -1089,7 +1087,8 @@ instrumented code, it will break before the first expression. (To
                         (cl-destructuring-bind (dat src line col pos span) use
                           (let* ((beg pos)
                                  (end (+ pos span))
-                                 (str (propertize (format "=%s" val)
+                                 (str (racket--debug-format-val "=" val))
+                                 (str (propertize str
                                                   'face racket-debug-value-face)))
                             (racket-debug-mode--add-overlay beg end str))))
                       uses)))
@@ -1099,7 +1098,8 @@ instrumented code, it will break before the first expression. (To
         (when vals
           (let* ((beg (point))
                  (end (1+ beg))
-                 (str (propertize (format "=>%s" vals)
+                 (str (racket--debug-format-val "=>" vals))
+                 (str (propertize str
                                   'face racket-debug-result-face)))
             (racket-debug-mode--add-overlay beg end str))))
       ;; Show/draw the frames window
@@ -1110,6 +1110,18 @@ instrumented code, it will break before the first expression. (To
     (setq racket--debug-break-data nil)
     (error (format "Unknown response from debugger: %s"
                    data)))))
+
+(defvar racket--debug-max-val 80
+  "Maximum length of displayed values")
+
+(defun racket--debug-format-val (prefix val)
+  (let* ((s (format "%s" val))
+         (len (length s)))
+    (concat prefix
+            (if (> len racket--debug-max-val)
+                (concat (substring s 0 (- racket--debug-max-val 3))
+                        "...")
+              s))))
 
 (defun racket-debug-mode-step (&optional change-value-p)
   "Evaluate the next expression and break.
@@ -1218,6 +1230,8 @@ See `racket-debug' for more information.
       (setq buffer-read-only t)
     (setq buffer-read-only nil)
     (racket-debug-mode--remove-overlays)))
+
+(defvar racket--debug-overlays nil)
 
 (defun racket-debug-mode--add-overlay (beg end str)
   "The nice thing about 'after-string overlays is that they do
