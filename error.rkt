@@ -3,6 +3,7 @@
 (require racket/match
          racket/runtime-path
          racket/string
+         "fresh-line.rkt"
          "instrument.rkt"
          "util.rkt"
          "older-racket.rkt")
@@ -20,6 +21,7 @@
 (define (our-error-display-handler str exn)
   (when (exn? exn)
     (unless (equal? "Check failure" (exn-message exn)) ;rackunit check fails
+      (fresh-line)
       (display-commented (fully-qualify-error-path str))
       (display-srclocs exn)
       (unless (exn:fail:user? exn)

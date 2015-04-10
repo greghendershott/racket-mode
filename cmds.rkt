@@ -14,6 +14,7 @@
          (only-in xml xexpr->string)
          "channel.rkt"
          "defn.rkt"
+         "fresh-line.rkt"
          "instrument.rkt"
          "logger.rkt"
          "scribble.rkt"
@@ -50,7 +51,10 @@
   (define-values (base name _) (cond [path (split-path path)]
                                      [else (values (current-directory) "" #f)]))
   (flush-output (current-error-port))
+  (fresh-line)
   (display-prompt name)
+  (flush-output)
+  (zero-column!)
   (define in ((current-get-interaction-input-port)))
   (define stx ((current-read-interaction) (object-name in) in))
   (syntax-case stx ()
