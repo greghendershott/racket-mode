@@ -26,7 +26,7 @@
 (require 'racket-util)
 (require 'hideshow)
 
-(defun racket-run (&optional errortracep)
+(defun racket-run (&optional prefix)
   "Save and evaluate the buffer in REPL, much like DrRacket's Run.
 
 When you run again, the file is evaluated from scratch -- the
@@ -40,6 +40,7 @@ DrRacket's Run because it selects the REPL window (gives it the
 focus), too.
 
 With a C-u prefix, uses errortrace for improved stack traces.
+With a C-u C-u prefix, does `racket-debug'.
 Otherwise follows the `racket-error-context' setting.
 
 Output in the `*Racket REPL*` buffer that describes a file and
@@ -87,10 +88,11 @@ Others are available only as a command in the REPL.
     - `,log <level>`: Set the default level for all other loggers
       not specified individually.
 "
-  (interactive "P")
-  (racket--do-run (if errortracep
-                      'high
-                    racket-error-context)))
+  (interactive "p")
+  (cl-case prefix
+    ((4)       (racket--do-run 'high))
+    ((16)      (racket-debug))
+    (otherwise (racket--do-run racket-error-context))))
 
 (defun racket--do-run (context-level)
   "Helper function for `racket-run'-like commands.
