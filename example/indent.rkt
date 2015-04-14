@@ -234,3 +234,22 @@
               [(list-rest (list-rest 'field fields) args)
                (struct-copy id self
                             [field (apply (accessor self) fields args)])] ...))))]))
+
+;; Bug #123
+
+#hash([a . (#hash()
+            0)]
+      [b . (#hasheq()
+            0)]
+      [c . (#fx(0 1 2)
+            0)]
+      [d . (#fx3(0 1 2)
+            0)]
+      [e . (#fl(0.0 1.0 2.0)
+            0)]
+      [f . (#fl3(0.0 1.0 2.0)
+            0)]
+      [g . (#s(foo x)
+            0)]
+      [h . (#3(0 1 2)
+            0)])

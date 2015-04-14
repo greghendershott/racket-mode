@@ -71,6 +71,7 @@
     ;; Comment related
     (modify-syntax-entry ?\; "< 2 " st) ;; both line ; and sexp #;
     (modify-syntax-entry ?\n ">   " st)
+
     (modify-syntax-entry ?#  "w 14" st)
     (modify-syntax-entry ?|  "_ 23bn" st)
 
@@ -84,12 +85,17 @@
    ;; Handle sexp comments
    ((rx "#;")
     (0 (ignore (racket--syntax-propertize-sexp-comment))))
-   ;; Treat #px"" and #rx"" as single sexpr for navigation and indent.
-   ((rx (group ?# (or "px" "rx"))
-        ?\"
-        (* (or (not (any ?\"))
-               (seq ?\\ ?\")))
-        ?\")
+   ;; Treat "complex" reader literals as a single sexp for nav and
+   ;; indent, by marking the stuff after the # as prefix syntax.
+   ;; Racket predefines reader literals like #"" #rx"" #px"" #hash()
+   ;; #hasheq() #fx3(0 1 2) #s() and so on. I think these -- plus any
+   ;; user defined reader extensions -- can all be covered with the
+   ;; following general rx. Also it seems sufficient to look for just
+   ;; the opening delimiter pair -- the ( [ { or " -- here.
+   ((rx (group ?#
+               (zero-or-more (or (syntax symbol)
+                                 (syntax word))))
+        (or ?\" ?\( ?\[ ?\{))
     (1 "'"))
    ;; Treat '|symbol with spaces| as all word syntax for nav
    ((rx ?' ?| (+? any) ?|)

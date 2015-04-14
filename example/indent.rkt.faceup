@@ -234,3 +234,22 @@
               «:racket-paren-face:[(»list-rest «:racket-paren-face:(»list-rest «:racket-selfeval-face:'field» fields«:racket-paren-face:)» args«:racket-paren-face:)»
                «:racket-paren-face:(»struct-copy id self
                             «:racket-paren-face:[»field «:racket-paren-face:(»«b:apply» «:racket-paren-face:(»accessor self«:racket-paren-face:)» fields args«:racket-paren-face:)])]» «k:...»«:racket-paren-face:))))]))»
+
+«m:;; »«x:Bug #123
+»
+#hash«:racket-paren-face:([»a . «:racket-paren-face:(»#hash«:racket-paren-face:()»
+            «:racket-selfeval-face:0»«:racket-paren-face:)]»
+      «:racket-paren-face:[»b . «:racket-paren-face:(»#hasheq«:racket-paren-face:()»
+            «:racket-selfeval-face:0»«:racket-paren-face:)]»
+      «:racket-paren-face:[»c . «:racket-paren-face:(»#fx«:racket-paren-face:(»«:racket-selfeval-face:0» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:)»
+            «:racket-selfeval-face:0»«:racket-paren-face:)]»
+      «:racket-paren-face:[»d . «:racket-paren-face:(»#fx3«:racket-paren-face:(»«:racket-selfeval-face:0» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:)»
+            «:racket-selfeval-face:0»«:racket-paren-face:)]»
+      «:racket-paren-face:[»e . «:racket-paren-face:(»#fl«:racket-paren-face:(»«:racket-selfeval-face:0.0» «:racket-selfeval-face:1.0» «:racket-selfeval-face:2.0»«:racket-paren-face:)»
+            «:racket-selfeval-face:0»«:racket-paren-face:)]»
+      «:racket-paren-face:[»f . «:racket-paren-face:(»#fl3«:racket-paren-face:(»«:racket-selfeval-face:0.0» «:racket-selfeval-face:1.0» «:racket-selfeval-face:2.0»«:racket-paren-face:)»
+            «:racket-selfeval-face:0»«:racket-paren-face:)]»
+      «:racket-paren-face:[»g . «:racket-paren-face:(»#s«:racket-paren-face:(»foo x«:racket-paren-face:)»
+            «:racket-selfeval-face:0»«:racket-paren-face:)]»
+      «:racket-paren-face:[»h . «:racket-paren-face:(»#3«:racket-paren-face:(»«:racket-selfeval-face:0» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:)»
+            «:racket-selfeval-face:0»«:racket-paren-face:)])»
