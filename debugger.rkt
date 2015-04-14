@@ -21,9 +21,10 @@
 
 ;;; TODO: A `(debug)` form to put in source, to cause a break?
 
-;;; TODO: Break when a user-supplied expression becomes #t. e.g. `(>=
-;;; x 5)`, where `x` is the identifier during the break in which the
-;;; break-on-expression is set.
+;;; TODO: Conditional breakpoints. Break when a user-supplied
+;;; expression becomes #t. e.g. `(>= x 5)`, where `x` is the
+;;; identifier during the break in which the break-on-expression is
+;;; set.
 
 (provide make-debug-eval-handler
          debug-exn:break-handler)
@@ -78,13 +79,20 @@
 
 ;;; Breakpoints
 
-;; Annotation populates this with an entry for every breakable
-;; position.
-(define breakpoints (make-hash)) ;(hash src
-                                 ; (hash pos
-                                 ;       (U #f #t
-                                 ;          'one-shot
-                                 ;          exact-positive-integer?))))
+;; Annotation calls `set-breakable-positions!`, which builds
+;; `breakpoints`, a mutable hash-table of hash-tables. (I'd use a
+;; single ht with (cons src pos) key, except that set-breakpoint!
+;; needs per-source.)
+;;
+;; (Hash Path ;source
+;;       (Hash Natural ;position
+;;             (U #f               ;never break
+;;                #t               ;always break
+;;                'one-shot        ;break first time, then becomes #f
+;;                Positive-Integer ;skip N times, then always break
+;;                (-> Boolean)     ;conditional break
+;;                )))
+(define breakpoints (make-hash))
 
 (define (clear-breakable-positions!)
   (hash-clear! breakpoints))
@@ -107,7 +115,8 @@
     [(? exact-positive-integer? skip)
      (define n (sub1 skip))
      (hash-set! ht pos (if (zero? n) #t n))
-     (zero? n)]))
+     (zero? n)]
+    [(? procedure? f) (f)]))
 
 ;; If fuzzy-pos is close to a following actually breakable position,
 ;; set the breakpoint status and return the actual breakable position
@@ -195,26 +204,45 @@
                                               frames
                                               (λ () #f)))
          => (λ (binding)
-              (sk (mark-binding-value binding)
-                  (λ (v) (mark-binding-set! binding v))))]
+              (sk (cadr binding)))]
         [(and id (lookup-top-level-var id))
-         => (λ (tlb)
-              (sk (tlb) tlb))]
+         => (λ (get/set!)
+              (sk get/set!))]
         [else (fk)]))
 
 (define (get-var frames src pos) ;; -> string?
   (lookup-var (position->identifier src pos)
               frames
-              (λ (val get/set!) (~s val)) ;~s for write so we can read later
+              (λ (get/set!) (~s (get/set!))) ;~s for write so we can read later
               (λ () 'undefined)))
 
 (define (set-var frames src pos new-val) ;; -> string?
   (with-handlers ([exn:fail? (λ _ #f)])
     (lookup-var (position->identifier src pos)
                 frames
-                (λ (val get/set!) (get/set! new-val) #t)
+                (λ (get/set!) (get/set! new-val) #t)
                 (λ () #f))))
 
+
+;;; Watchpoints
+
+(struct watchpoint (src pos v))
+(define watchpoints (list)) ;(List Watchpoint)
+
+(define (set-watchpoint! src pos v)
+  (set! watchpoints
+        (cons (watchpoint src pos v)
+              watchpoints)))
+
+(define (watch-break?)
+  (define ccm (current-continuation-marks))
+  (define frames (continuation-mark-set->list ccm debug-key))
+  (for/or ([wp (in-list watchpoints)])
+    (match-define (watchpoint src pos v) wp)
+    (lookup-var (position->identifier src pos)
+                frames
+                (λ (get/set!) (printf "~a ~a\n" (get/set!) v) (equal? (get/set!) v))
+                (λ () (printf "not found\n") #f))))
 
 ;;; Annotation callbacks
 
@@ -230,6 +258,7 @@
 ;; called next.
 (define ((break? src) pos)
   (or (break-here?! src pos) ;test first, has side-effect
+      (watch-break?)
       (debug-step?)))
 
 (define (break-before top-mark ccm)
@@ -335,6 +364,7 @@
       [`(go)            (debug-step? #f) (resume vals)]
       [`(go ,vs)        (debug-step? #f) (resume vs)]
       [`(break ,pos ,v) (elisp-println (set-breakpoint! src pos v))]
+      [`(watch ,pos ,v) (elisp-println (set-watchpoint! src pos v))]
       [`(get ,pos)      (elisp-println (get-var all-marks src pos))]
       [`(set ,pos ,v)   (elisp-println (set-var all-marks src pos v))]
       [_                (handle-command cmd-stx src)]))
