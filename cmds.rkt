@@ -50,11 +50,7 @@
 (define ((make-prompt-read path))
   (define-values (base name _) (cond [path (split-path path)]
                                      [else (values (current-directory) "" #f)]))
-  (flush-output (current-error-port))
-  (fresh-line)
   (display-prompt name)
-  (flush-output)
-  (zero-column!)
   (define in ((current-get-interaction-input-port)))
   (define stx ((current-read-interaction) (object-name in) in))
   (syntax-case stx ()
@@ -70,12 +66,16 @@
     [_ stx]))
 
 (define (display-prompt str)
+  (flush-output (current-error-port))
+  (fresh-line)
+  (display str)
   ;; Use a character unlikely to appear in normal output. Makes it
   ;; easier for Emacs comint-regexp-prompt not to match program output
   ;; by mistake.
-  (display str)
   (display #\uFEFF) ;ZERO WIDTH NON-BREAKING SPACE
-  (display "> "))
+  (display "> ")
+  (flush-output)
+  (zero-column!))
 
 (define (elisp-read)
   ;; Elisp prints '() as 'nil. Reverse that. (Assumption: Although
