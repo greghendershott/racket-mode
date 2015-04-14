@@ -11,7 +11,9 @@
 (define (maybe-new-output-ports)
   (define-syntax-rule (maybe last cur)
     (unless (eq? last cur)
-      (when last (flush-output last)) ;just in case
+      (when (and last
+                 (not (port-closed? last)))
+        (flush-output last)) ;just in case
       (set! last cur)
       (flush-output last)
       (port-count-lines! last)))
