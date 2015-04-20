@@ -196,6 +196,32 @@
 (module 1 2 3 4
         5)
 
+;;; for/fold
+
+;; for/fold untyped, accum on same line
+(for/fold ()
+          ()
+  #t)
+
+;; for/fold untyped, accum on different line
+(for/fold
+    ()
+    ()
+  #t)
+
+;; for/fold typed, accum on same line
+(for/fold : T
+          ()
+          ()
+  #t)
+
+;; for/fold typed, accum on different line
+(for/fold
+    : T
+    ()
+    ()
+  #t)
+
 ;;; Bug #50
 
 '((x

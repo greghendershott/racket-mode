@@ -196,6 +196,32 @@
 »«:racket-paren-face:(»«k:module» «f:1» «v:2» «:racket-selfeval-face:3» «:racket-selfeval-face:4»
         «:racket-selfeval-face:5»«:racket-paren-face:)»
 
+«m:;;; »«x:for/fold
+»
+«m:;; »«x:for/fold untyped, accum on same line
+»«:racket-paren-face:(»«b:for/fold» «:racket-paren-face:()»
+          «:racket-paren-face:()»
+  «:racket-selfeval-face:#t»«:racket-paren-face:)»
+
+«m:;; »«x:for/fold untyped, accum on different line
+»«:racket-paren-face:(»«b:for/fold»
+    «:racket-paren-face:()»
+    «:racket-paren-face:()»
+  «:racket-selfeval-face:#t»«:racket-paren-face:)»
+
+«m:;; »«x:for/fold typed, accum on same line
+»«:racket-paren-face:(»«b:for/fold» «k::» T
+          «:racket-paren-face:()»
+          «:racket-paren-face:()»
+  «:racket-selfeval-face:#t»«:racket-paren-face:)»
+
+«m:;; »«x:for/fold typed, accum on different line
+»«:racket-paren-face:(»«b:for/fold»
+    «k::» T
+    «:racket-paren-face:()»
+    «:racket-paren-face:()»
+  «:racket-selfeval-face:#t»«:racket-paren-face:)»
+
 «m:;;; »«x:Bug #50
 »
 '«:racket-paren-face:((»x

@@ -281,7 +281,7 @@ for/fold and for*/fold."
 (defun racket--indent-for/fold (state indent-point normal-indent)
   "Indent function for for/fold and for*/fold."
   ;; check for maybe-type-ann e.g. (for/fold : T ([n 0]) ([x xs]) x)
-  (skip-chars-forward " \t")
+  (skip-chars-forward " \t\n")
   (if (looking-at ":")
       (lisp-indent-specform 4 state indent-point normal-indent)
     (racket--indent-for/fold-untyped state indent-point normal-indent)))
@@ -291,6 +291,7 @@ for/fold and for*/fold."
   (let ((containing-sexp-start (elt state 1))
         containing-sexp-point
         containing-sexp-column
+        containing-sexp-line
         body-indent
         clause-indent)
     ;; Move to the start of containing sexp, calculate its
@@ -304,26 +305,31 @@ for/fold and for*/fold."
     (goto-char containing-sexp-start)
     (setq containing-sexp-point (point))
     (setq containing-sexp-column (current-column))
+    (setq containing-sexp-line (line-number-at-pos)) ;expensive?
     (setq body-indent (+ lisp-body-indent containing-sexp-column))
     (forward-char 1)    ;Move past the open paren.
     (forward-sexp 2)    ;Move to the next sexp, past its close paren
-    (backward-sexp 1)   ;Move to its start paren
-    (setq clause-indent (current-column))
-    (forward-sexp 1)    ;Move back past close paren
-    ;; Now go back to the beginning of the line holding
-    ;; the indentation point. Count the sexps on the way.
-    (parse-partial-sexp (point) indent-point 1 t)
-    (let ((n 1))
-      (while (and (< (point) indent-point)
-                  (condition-case ()
-                      (progn
-                        (setq n (+ 1 n))
-                        (forward-sexp 1)
-                        (parse-partial-sexp (point) indent-point 1 t))
-                    (error nil))))
-      (list (cond ((= 1 n) clause-indent)
-                  (t body-indent))
-            containing-sexp-point))))
+    ;; If the first, accumulator sexp is not on the same line, then
+    ;; this is simply specform 2.
+    (if (/= (line-number-at-pos) containing-sexp-line) ;expensive?
+        (lisp-indent-specform 2 state indent-point normal-indent)
+      (backward-sexp 1)   ;Move to its start paren
+      (setq clause-indent (current-column))
+      (forward-sexp 1)    ;Move back past close paren
+      ;; Now go back to the beginning of the line holding
+      ;; the indentation point. Count the sexps on the way.
+      (parse-partial-sexp (point) indent-point 1 t)
+      (let ((n 1))
+        (while (and (< (point) indent-point)
+                    (condition-case ()
+                        (progn
+                          (setq n (+ 1 n))
+                          (forward-sexp 1)
+                          (parse-partial-sexp (point) indent-point 1 t))
+                      (error nil))))
+        (list (cond ((= 1 n) clause-indent)
+                    (t body-indent))
+              containing-sexp-point)))))
 
 (defun racket--set-indentation ()
   "Set indentation for various Racket forms.
