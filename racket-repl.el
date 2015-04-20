@@ -405,6 +405,7 @@ With prefix arg, open the N-th last shown image."
      ("C-c C-."         racket-describe)
      ("M-."             racket-visit-definition)
      ("C-M-."           racket-visit-module)
+     ("M-,"             racket-unvisit)
      ("C-c C-z"         racket-repl-switch-to-edit)))
   "Keymap for Racket REPL mode.")
 
