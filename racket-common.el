@@ -97,9 +97,12 @@
                                  (syntax word))))
         (or ?\" ?\( ?\[ ?\{))
     (1 "'"))
-   ;; Treat '|symbol with spaces| as all word syntax for nav
-   ((rx ?' ?| (+? any) ?|)
-    (0 "w"))))
+   ;; Treat '|symbol with spaces| as word syntax
+   ((rx ?' ?| (+ any) ?|)
+    (0 "w"))
+   ;; Treat |identifier with spaces| -- but not #|comment|# -- as word syntax
+   ((rx (not (any ?#)) (group ?| (+ any) ?|) (not (any ?#)))
+    (1 "w"))))
 
 (defconst racket--sexp-comment-syntax-table
   (let ((st (make-syntax-table racket-mode-syntax-table)))

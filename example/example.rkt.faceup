@@ -77,6 +77,12 @@ comment
       «:racket-paren-face:[»y «:racket-selfeval-face:2»«:racket-paren-face:])»
   y«:racket-paren-face:)»
 
+|identifier with spaces|
+
+|;no comment|
+
+| #|no comment|# |
+
 «:racket-paren-face:(»«k:define» «:racket-paren-face:(»«f:a-function» x «:racket-keyword-argument-face:#:keyword» «:racket-paren-face:[»y «:racket-selfeval-face:0»«:racket-paren-face:])»
   «:racket-paren-face:(»«k:and» «:racket-paren-face:(»«b:append» «:racket-paren-face:(»«b:car» '«:racket-paren-face:(»«:racket-selfeval-face:1» «:racket-selfeval-face:2» «:racket-selfeval-face:3»«:racket-paren-face:))))»
   «:racket-paren-face:(»«b:regexp-match?» «:racket-selfeval-face:#rx»«s:"foobar"» «s:"foobar"»«:racket-paren-face:)»
@@ -124,6 +130,8 @@ comment
    «:racket-selfeval-face:#x7f7f»
    «:racket-selfeval-face:'symbol»
    «:racket-selfeval-face:'|symbol with spaces|»
+   «:racket-selfeval-face:'|;no comment|»
+   «:racket-selfeval-face:'| #|no comment|# |»
    «:racket-selfeval-face:'symbol-with-no-alpha/numeric-chars»
    «:racket-selfeval-face:#\c»
    «:racket-selfeval-face:#\space»

@@ -45,7 +45,7 @@
       ;; Various things for racket-selfeval-face
       (,(rx (or
              ;; symbol
-             (seq ?' ?| (+? any) ?|)
+             (seq ?' ?| (+ any) ?|)
              (seq ?' (1+ (or (syntax word) (syntax symbol))))
              (seq "#\\" (1+ (or (syntax word) (syntax symbol))))))
        . racket-selfeval-face)

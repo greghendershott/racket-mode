@@ -77,6 +77,12 @@ comment
       [y 2])
   y)
 
+|identifier with spaces|
+
+|;no comment|
+
+| #|no comment|# |
+
 (define (a-function x #:keyword [y 0])
   (and (append (car '(1 2 3))))
   (regexp-match? #rx"foobar" "foobar")
@@ -124,6 +130,8 @@ comment
    #x7f7f
    'symbol
    '|symbol with spaces|
+   '|;no comment|
+   '| #|no comment|# |
    'symbol-with-no-alpha/numeric-chars
    #\c
    #\space
