@@ -17,6 +17,7 @@
 (require 'racket-mode)
 (require 'racket-profile)
 (require 'racket-edit)
+(require 'racket-unicode-input-method)
 (require 'dash)
 (require 's)
 
@@ -80,6 +81,7 @@
     racket-cycle-paren-shapes
     racket-backward-up-list
     racket-check-syntax-mode
+    racket-unicode-input-method-enable
     "Macro expand"
     racket-expand-region
     racket-expand-definition

@@ -84,10 +84,10 @@ $ raco pkg install drracket
 To start, there are only two [variables](Reference.md#variables) you
 _might_ need to set:
 
-- **racket-racket-program**, the name or pathname of the Racket
+- `racket-racket-program` is the name or pathname of the Racket
   executable. This defaults to `Racket.exe` on Windows else `racket`.
 
-- Set **racket-raco-program**, the name or pathname of the Raco
+- `racket-raco-program` is the name or pathname of the Raco
   executable. This defaults to `Raco.exe` on Windows else `raco`.
 
 On Windows or Linux, these defaults will probably work for you.
@@ -95,7 +95,8 @@ On Windows or Linux, these defaults will probably work for you.
 On OS X, downloading Racket doesn't add its `bin` directory to your
 `PATH`. Even after you add it, GUI Emacs doesn't automatically use
 your path (unless you use the handy [exec-path-from-shell] package).
-Therefore you may want to set both of these to be full pathames.
+Therefore you may want to set both of these to be full pathames like
+`/usr/racket/bin/racket` and `/usr/racket/bin/raco`.
 
 [exec-path-from-shell]: http://melpa.org/#/exec-path-from-shell
 
@@ -106,15 +107,32 @@ prefer.
 ### Key bindings
 
 To customize things like key bindings, you can use `racket-mode-hook`
-in your Emacs init file. For example, although <kbd>F5</kbd> is bound
-to the **racket-run** command, let's say you wanted <kbd>C-c r</kbd>
-to be an additional binding:
+in your Emacs init file. For example, although <kbd>F5</kbd> and
+<kbd>C-c C-k</kbd> are bound to the `racket-run` command, let's say
+you wanted <kbd>C-c r</kbd> to be an additional binding:
 
 ```cl
 (add-hook 'racket-mode-hook
           (lambda ()
             (define-key racket-mode-map (kbd "C-c r") 'racket-run)))
 ```
+
+### Unicode input method
+
+An optional Emacs input method, `racket-unicode`, lets you easily type
+various Unicode symbols that might be useful when writing Racket code.
+
+To automatically enable the `racket-unicode` input method in
+`racket-mode` and `racket-repl-mode` buffers, put the following code
+in your Emacs init file:
+
+```cl
+(add-hook 'racket-mode-hook      #'racket-unicode-input-method-enable)
+(add-hook 'racket-repl-mode-hook #'racket-unicode-input-method-enable)
+```
+
+For more information, see the documentation: <kbd>C-h f
+racket-unicode-input-method-enable</kbd>.
 
 ### Completion
 

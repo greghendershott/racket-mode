@@ -485,6 +485,48 @@ r		racket-check-syntax-mode-rename
 ```
 
 
+### racket-unicode-input-method-enable
+<kbd>M-x racket-unicode-input-method-enable</kbd>
+
+Set input method to `racket-unicode`.
+
+The `racket-unicode` input method lets you easily type various
+Unicode symbols that might be useful when writing Racket
+code.
+
+To automatically enable the `racket-unicode` input method in
+`racket-mode` buffers use `M-x customize-variable <RET>
+racket-mode-hook` or put the following code in your Emacs init
+file:
+
+    (add-hook 'racket-mode-hook #'racket-unicode-input-method-enable)
+
+Likewise for `racket-repl-mode` buffers:
+
+    (add-hook 'racket-repl-mode-hook #'racket-unicode-input-method-enable)
+
+To temporarily enable this input method for a single buffer you
+can use `M-x racket-unicode-input-method-enable`.
+
+Use `C-\` to toggle the input method.
+
+When the `racket-unicode` input method is active, you can for
+example type `All` and it is immediately replaced with `∀`. A few
+other examples:
+
+    omega     ω
+    x_1       x₁
+    x^1       x¹
+    |A|       𝔸
+    test-->>E test-->>∃ (racket/redex)
+
+To see a table of all key sequences use `M-x
+describe-input-method <RET> racket-unicode`.
+
+If you don’t like the highlighting of partially matching tokens you
+can turn it off by setting `input-method-highlight-flag` to nil via
+`M-x customize-variable`.
+
 ## Macro expand
 
 ### racket-expand-region

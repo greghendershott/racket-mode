@@ -29,6 +29,7 @@ compile: clean \
 	racket-profile.elc \
 	racket-repl.elc \
 	racket-tests.elc \
+	racket-unicode-input-method.elc \
 	racket-util.elc
 
 # Install packages we depend on. Intended for one-time use by
