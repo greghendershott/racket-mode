@@ -289,6 +289,7 @@
     "define-values-for-syntax"
     "delay"
     "do"
+    "field"
     "fluid-let"
     "inherit"
     "init"
