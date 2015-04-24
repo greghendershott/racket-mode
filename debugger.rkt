@@ -29,6 +29,9 @@
 (provide make-debug-eval-handler
          debug-exn:break-handler)
 
+(module+ test
+  (require rackunit))
+
 ;;; Protocol/Flow
 
 ;; Our client should set current-eval to the result of
@@ -77,6 +80,9 @@
 ;; state by resuming.
 
 
+(define (debug-marks ccm)
+  (continuation-mark-set->list ccm debug-key))
+
 ;;; Breakpoints
 
 ;; Annotation calls `set-breakable-positions!`, which builds
@@ -90,7 +96,6 @@
 ;;                #t               ;always break
 ;;                'one-shot        ;break first time, then becomes #f
 ;;                Positive-Integer ;skip N times, then always break
-;;                (-> Boolean)     ;conditional break
 ;;                )))
 (define breakpoints (make-hash))
 
@@ -115,8 +120,7 @@
     [(? exact-positive-integer? skip)
      (define n (sub1 skip))
      (hash-set! ht pos (if (zero? n) #t n))
-     (zero? n)]
-    [(? procedure? f) (f)]))
+     (zero? n)]))
 
 ;; If fuzzy-pos is close to a following actually breakable position,
 ;; set the breakpoint status and return the actual breakable position
@@ -142,7 +146,7 @@
 (define local-uses '()) ;(listof stx)
 (define top-uses '()) ;(listof stx)
 
-(define-syntax-rule (push! v xs)
+(define-syntax-rule (push! xs v)
   (set! xs (cons v xs)))
 
 (define (clear-bound-identifiers!)
@@ -163,9 +167,9 @@
                       im)
                     make-interval-map))
     (when (eq? type 'ref)
-      (push! bound local-uses))
+      (push! local-uses bound))
     (when (eq? type 'top-level)
-      (push! bound top-uses))))
+      (push! top-uses bound))))
 
 (define ((id=? a) b)
   (or (bound-identifier=? a b)
@@ -226,23 +230,42 @@
 
 ;;; Watchpoints
 
-(struct watchpoint (src pos v))
+(struct watchpoint (src pos v) #:transparent)
 (define watchpoints (list)) ;(List Watchpoint)
 
-(define (set-watchpoint! src pos v)
-  (set! watchpoints
-        (cons (watchpoint src pos v)
-              watchpoints)))
+(define (any-watches?)
+  (not (empty? watchpoints)))
 
-(define (watch-break?)
-  (define ccm (current-continuation-marks))
-  (define frames (continuation-mark-set->list ccm debug-key))
+(define (set-watchpoint! src pos v)
+  (match (position->identifier src pos)
+    [#f #f]
+    [id (push! watchpoints (watchpoint src pos v)) #t]))
+
+(define (clear-watchpoint! src pos)
+  (match (position->identifier src pos)
+    [#f #f]
+    [id (set! watchpoints
+              (remove (watchpoint src pos 'N/A)
+                      watchpoints
+                      (λ (a b)
+                        (and (equal? (watchpoint-src a) (watchpoint-src b))
+                             (equal? (watchpoint-pos a) (watchpoint-pos b))))))
+        #t]))
+
+(module+ test
+  (check-false (any-watches?))
+  (set-watchpoint! 'src 0 #t)
+  (check-true (any-watches?))
+  (clear-watchpoint! 'src 0)
+  (check-false (any-watches?)))
+
+(define (watch-break? frames)
   (for/or ([wp (in-list watchpoints)])
     (match-define (watchpoint src pos v) wp)
     (lookup-var (position->identifier src pos)
                 frames
-                (λ (get/set!) (printf "~a ~a\n" (get/set!) v) (equal? (get/set!) v))
-                (λ () (printf "not found\n") #f))))
+                (λ (get/set!) (equal? (get/set!) v))
+                (λ () (eprintf "not found\n") #f))))
 
 ;;; Annotation callbacks
 
@@ -258,20 +281,32 @@
 ;; called next.
 (define ((break? src) pos)
   (or (break-here?! src pos) ;test first, has side-effect
-      (watch-break?)
-      (debug-step?)))
+      (debug-step?)
+      (cond [(any-watches?) (set! break-only-for-watch? #t) #t]
+            [else #f])))
 
+;; This bit of awkwardness is because `break?` is not called with
+;; `top-mark` -- which we need to detect watch conditions right away.
+;; As a result we'll have break? return #t if there are any watches
+;; (regardless of their condition) and do the actual test in
+;; break-before.
+(define break-only-for-watch? #f)
+
+;; Mark (Listof Mark) -> (U #f (Listof Any))
 (define (break-before top-mark ccm)
-  (break 'before
-         (cons top-mark (continuation-mark-set->list ccm debug-key))
-         #f))
+  (define all-marks (cons top-mark (debug-marks ccm)))
+  (and (or (not break-only-for-watch?)
+           (begin (set! break-only-for-watch? #f)
+                  (watch-break? all-marks)))
+       (break 'before all-marks #f)))
 
+;; Mark (Listof Mark) (Listof Any) -> (U #f (Listof Any))
 (define (break-after top-mark ccm . vals)
   (apply values
-         (break 'after
-                (cons top-mark (continuation-mark-set->list ccm debug-key))
-                vals)))
+         (cond [break-only-for-watch? (set! break-only-for-watch? #f) vals]
+               [else (break 'after (cons top-mark (debug-marks ccm)) vals)])))
 
+;; (U 'before 'after) (Listof Mark) (U #f (Listof Any)) -> (U #f (Listof Any))
 (define (break which all-marks vals)
   (define top-mark (car all-marks))
   (define stx (mark-source top-mark))
@@ -365,6 +400,7 @@
       [`(go ,vs)        (debug-step? #f) (resume vs)]
       [`(break ,pos ,v) (elisp-println (set-breakpoint! src pos v))]
       [`(watch ,pos ,v) (elisp-println (set-watchpoint! src pos v))]
+      [`(unwatch ,pos)  (elisp-println (clear-watchpoint! src pos))]
       [`(get ,pos)      (elisp-println (get-var all-marks src pos))]
       [`(set ,pos ,v)   (elisp-println (set-var all-marks src pos v))]
       [_                (handle-command cmd-stx src)]))
