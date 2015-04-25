@@ -15,7 +15,7 @@
          "debugger-load.rkt"
          "debugger-step.rkt" ;not gui-debugger/load-sandbox b/c gui
          "elisp.rkt"
-         "older-racket.rkt" ;for hash-clear!
+         "older-racket.rkt" ;for hash-clear! and hash-empty?
          "util.rkt"
          "with-output.rkt")
 

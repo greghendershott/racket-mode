@@ -9,7 +9,8 @@
 (provide find-collects-dir
          path->collects-relative
          current-directory-for-user
-         hash-clear!)
+         hash-clear!
+         hash-empty?)
 
 ;;; General note: Can use dynamic-require fail-thunk when we're sure
 ;;; the module exists, e.g. looking for a function in racket/base. But
@@ -66,7 +67,7 @@
 (module+ test
   (check-not-exn (λ () (current-directory-for-user))))
 
-;;; Racket 6.0 adds hash-clear!
+;;; Racket 6.0 adds hash-clear! and hash-empty?
 
 (define (our-hash-clear! ht)
   (for ([key (in-list (hash-keys ht))])
@@ -80,3 +81,13 @@
 (define hash-clear!
   (dynamic-require 'racket/base 'hash-clear!
                    (const our-hash-clear!)))
+
+(define (our-hash-empty? ht)
+  (zero? (hash-count ht)))
+
+(module+ test
+  (check-true (hash-empty? (hash)))
+  (check-false (hash-empty? (hash 'key 'value))))
+
+(define hash-empty?
+  (dynamic-require 'racket/base 'hash-empty?
