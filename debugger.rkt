@@ -21,10 +21,7 @@
 
 ;;; TODO: A `(debug)` form to put in source, to cause a break?
 
-;;; TODO: Conditional breakpoints. Break when a user-supplied
-;;; expression becomes #t. e.g. `(>= x 5)`, where `x` is the
-;;; identifier during the break in which the break-on-expression is
-;;; set.
+;;; TODO: Handle exn:break satisfactorily, including resume/continue.
 
 (provide make-debug-eval-handler
          debug-exn:break-handler)
@@ -250,7 +247,7 @@
     (lookup-var id
                 frames
                 (λ (get/set!) (equal? (get/set!) v))
-                (λ () (eprintf "not found\n") #f))))
+                (λ () #f))))
 
 ;;; Annotation callbacks
 
@@ -432,12 +429,35 @@
                         [else (orig-eval top-e)])]))]
         [else orig-eval]))
 
-(define (debug-exn:break-handler exn)
+;; This does NOT work with `with-handlers`. It DOES work with
+;; `uncaught-exception-handler`! See example:
+;; https://github.com/racket/r6rs/blob/9e248e7591d9b01f67d964f905a9884fa5df5d69/r6rs-lib/rnrs/exceptions-6.rkt#L84
+;;
+;; I think this is explained by the doc for error-escape-handler:
+;;
+;; "Due to a continuation barrier around exception-handling calls, an
+;; error escape handler cannot invoke a full continuation that was
+;; created prior to the exception, but it can abort to a prompt (see
+;; call-with-continuation-prompt) or invoke an escape continuation
+;; (see call-with-escape-continuation)."
+;;
+;; `with-handlers` must be subject to this. Whereas
+;; `uncaught-exception-handler` is not.
+;;
+;; Example that does work:
+;; (parameterize ([uncaught-exception-handler
+;;                 (λ (e)
+;;                   (eprintf "with-handlers got break\n")
+;;                   ((exn:break-continuation e)
+;;                    (lambda () (values))))])
+;;   (for/sum ([i (in-range 1000000000)])
+;;     1))
+(define (debug-exn:break-handler exn) ;DOES NOT WORK w/ with-handlers
   (eprintf "debug exn:break handler, thread ~v\n" (current-thread))
   (break 'exn:break
          (continuation-mark-set->list (exn-continuation-marks exn) debug-key)
          #f)
-  ((exn:break-continuation exn)))
+  ((exn:break-continuation exn))) ;<=== hits continuation barrier
 
 (define (annotator stx)
   (define source (syntax-source stx))
