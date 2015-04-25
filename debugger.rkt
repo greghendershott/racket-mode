@@ -230,39 +230,24 @@
 
 ;;; Watchpoints
 
-(struct watchpoint (src pos v) #:transparent)
-(define watchpoints (list)) ;(List Watchpoint)
+(define watchpoints (make-hash)) ;(hash/c identifier? any/c)
 
 (define (any-watches?)
-  (not (empty? watchpoints)))
+  (not (hash-empty? watchpoints)))
 
 (define (set-watchpoint! src pos v)
   (match (position->identifier src pos)
     [#f #f]
-    [id (push! watchpoints (watchpoint src pos v)) #t]))
+    [id (hash-set! watchpoints id v) #t]))
 
 (define (clear-watchpoint! src pos)
   (match (position->identifier src pos)
     [#f #f]
-    [id (set! watchpoints
-              (remove (watchpoint src pos 'N/A)
-                      watchpoints
-                      (λ (a b)
-                        (and (equal? (watchpoint-src a) (watchpoint-src b))
-                             (equal? (watchpoint-pos a) (watchpoint-pos b))))))
-        #t]))
-
-(module+ test
-  (check-false (any-watches?))
-  (set-watchpoint! 'src 0 #t)
-  (check-true (any-watches?))
-  (clear-watchpoint! 'src 0)
-  (check-false (any-watches?)))
+    [id (hash-remove! watchpoints id) #t]))
 
 (define (watch-break? frames)
-  (for/or ([wp (in-list watchpoints)])
-    (match-define (watchpoint src pos v) wp)
-    (lookup-var (position->identifier src pos)
+  (for/or ([(id v) (in-hash watchpoints)])
+    (lookup-var id
                 frames
                 (λ (get/set!) (equal? (get/set!) v))
                 (λ () (eprintf "not found\n") #f))))
