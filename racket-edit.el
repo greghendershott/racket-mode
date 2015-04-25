@@ -1133,7 +1133,7 @@ With prefix, prompts for a value to substitute for the next
 expression."
   (interactive "P")
   (unless racket--debug-break-data
-    (error "Not at a break"))
+    (user-error "Not at a break"))
   (let ((cmd (if (and change-value-p
                       (cadr (assoc 'vals racket--debug-break-data)))
                  (let* ((old (cadr (assoc 'vals racket--debug-break-data)))
@@ -1147,7 +1147,7 @@ expression."
   "Continue until the next breakpoint, if any."
   (interactive)
   (unless racket--debug-break-data
-    (error "Not at a break"))
+    (user-error "Not at a break"))
   (setq racket--debug-break-data nil)
   (racket--repl-eval ",(go)\n"))
 
@@ -1166,7 +1166,7 @@ positive number (the break is skipped N times)"
                (cl-case status
                  ((t)   (message "Breakpoint set"))
                  ((nil) (message "Breakpoint cleared"))))
-      (error "Cannot find a breakable position after point"))))
+      (user-error "Cannot find a breakable position after point"))))
 
 (defun racket-debug-mode-set-breakpoint (&optional skip-count)
   "Set a break at the first breakable position after point.
@@ -1197,6 +1197,21 @@ Effectively this sets a one-shot breakpoint then does
          (new (read-string "Value: " old)))
     (racket--repl-cmd/sexpr (format ",(set %s %s)" (point) new))))
 
+(defun racket-debug-mode-watch ()
+  "Watch the variable at point (if any)."
+  (interactive)
+  (let* ((v (read-string "Break when value is: ")))
+    (if (racket--repl-cmd/sexpr (format ",(watch %s %s)" (point) v))
+        (message "Watch set")
+      (user-error "Could not set watch"))))
+
+(defun racket-debug-mode-unwatch ()
+  "Unwatch the variable at point (if any)."
+  (interactive)
+  (if (racket--repl-cmd/sexpr (format ",(unwatch %s)" (point)))
+      (message "Watch removed")
+    (user-error "Could not remove watch")))
+
 (defun racket-debug-mode-quit ()
   (interactive)
   (racket--debug-kill-timer)
@@ -1224,6 +1239,8 @@ See `racket-debug' for more information.
              ("b"          racket-debug-mode-set-breakpoint)
              ("u"          racket-debug-mode-clear-breakpoint)
              ("C-<return>" racket-debug-mode-value)
+             ("w"          racket-debug-mode-watch)
+             ("W"          racket-debug-mode-unwatch)
              ("q"          racket-debug-mode-quit)))
   (unless (eq major-mode 'racket-mode)
     (setq racket-debug-mode nil)
