@@ -240,10 +240,11 @@
       (sig v)
       ""))
 
-(define (sig v) ;symbol? -> (or/c #f string?)
-  (define x (find-signature (symbol->string v)))
-  (cond [x (~a x)]
-        [else #f]))
+(define (sig v) ;any/c -> (or/c #f string?)
+  (and (symbol? v)
+       (match (find-signature (symbol->string v))
+         [#f #f]
+         [x (~a x)])))
 
 (define (type-or-contract v) ;any/c -> (or/c #f string?)
   ;; 1. Try using Typed Racket's REPL simplified type.

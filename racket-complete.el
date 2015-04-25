@@ -118,14 +118,11 @@ See `racket--invalidate-completion-cache' and
 
 (defun racket-get-type (str)
   (let* ((sym (intern str))
-         ;; Since nil can be value in hash-table, supply a default...
-         (v (gethash sym racket--type-cache 'not-found)))
-    ;; ...and therefore this test:
-    (if (not (eq v 'not-found))
-        v
-      (let ((v (racket--repl-cmd/sexpr (concat ",type " str))))
-        (puthash sym v racket--type-cache)
-        v))))
+         (v (gethash sym racket--type-cache)))
+    (or v
+        (let ((v (racket--repl-cmd/sexpr (concat ",type " str))))
+          (puthash sym v racket--type-cache)
+          v))))
 
 ;;; eldoc
 
@@ -133,9 +130,14 @@ See `racket--invalidate-completion-cache' and
   (and (> (point) (point-min))
        (save-excursion
          (condition-case nil
+             ;; The looking-xxx checks below are to avoid calling
+             ;; `racket-get-type' when the sexp is quoted or when its
+             ;; first elem couldn't be a Racket function name.
              (let* ((beg (progn
-                           (backward-up-list) (forward-char 1) (point)))
-                    (beg (and (looking-at "[^0-9#'`,]") beg))
+                           (backward-up-list)
+                           (and (looking-back "[^`',]" (- (point) 1))
+                                (progn (forward-char 1) (point)))))
+                    (beg (and beg (looking-at "[^0-9#'`,\"]") beg))
                     (end (and beg (progn (forward-sexp) (point))))
                     (end (and end
                               (char-after (point))
