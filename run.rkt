@@ -27,6 +27,8 @@
   (parameterize ([error-display-handler our-error-display-handler])
     (run rerun-default)))
 
+(define orig-ueh (uncaught-exception-handler))
+
 (define (run rr) ;rerun? -> void?
   (match-define (rerun maybe-path-str mem-limit pretty-print? context-level) rr)
   (define-values (path dir) (path-string->path&dir maybe-path-str))
@@ -46,6 +48,11 @@
   ;; If racket/gui/base isn't loaded, the current-eventspace parameter
   ;; doesn't exist, so make a "dummy" parameter of that name.
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
+  ;; Debugger wants to handle exn:break specially
+  (uncaught-exception-handler
+   (match context-level
+     ['debug (make-debug-uncaught-exception-handler orig-ueh)]
+     [_      orig-ueh]))
   (define repl-thread
     (parameterize* ;; Use `parameterize*` because the order matters.
         (;; FIRST: current-custodian and current-namespace, so in
@@ -93,11 +100,7 @@
             (with-handlers ([exn:fail?
                              (λ (x)
                                (display-exn x)
-                               (put/stop (struct-copy rerun rr [path #f])))]
-                            [(λ (exn)
-                               (and (exn:break? exn)
-                                    (eq? 'debug context-level)))
-                             debug-exn:break-handler])
+                               (put/stop (struct-copy rerun rr [path #f])))])
               (maybe-load-language-info path)
               (namespace-require path)
               (current-namespace (module->namespace path))
@@ -117,24 +120,23 @@
       thd))
 
   ;; Main thread: Wait for message from REPL thread channel, or, user
-  ;; custodian box event. Also catch breaks, in which case we
-  ;; break-thread the repl thread so display-exn runs there.
+  ;; custodian-box event.
+  (define (get-msg)
+    (match (sync the-channel user-cust-box)
+      [(? custodian-box?)
+       (display-commented
+        (format "Exceeded the ~a MB memory limit you set.\n" mem-limit))
+       'break]
+      [msg msg]))
   (define msg
-    (let loop ()
-      (with-handlers ([exn:break?
-                       (λ (exn)
-                         (eprintf "main thread ~v caught exn:break\n"
-                                  (current-thread))
-                         (break-thread repl-thread)
-                         (match context-level
-                           ['debug (loop)]
-                           [_      (sleep) 'break]))])
-        (match (sync the-channel user-cust-box)
-          [(? custodian-box?)
-           (display-commented
-            (format "Exceeded the ~a MB memory limit you set.\n" mem-limit))
-           'break]
-          [msg msg]))))
+    (match context-level
+      ;; `with-handlers` installs a continuation barrier that prevents
+      ;; using exn:break-continuation in uncaught-exception-handler.
+      ['debug (get-msg)]
+      ;; Otherwise, catch breaks here, and break the repl thread so
+      ;; display-exn runs there and is informative.
+      [_ (with-handlers ([exn:break? (λ (e) (break-thread repl-thread) (sleep) 'break)])
+           (get-msg))]))
   (custodian-shutdown-all user-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match msg

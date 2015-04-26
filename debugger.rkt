@@ -24,7 +24,7 @@
 ;;; TODO: Handle exn:break satisfactorily, including resume/continue.
 
 (provide make-debug-eval-handler
-         debug-exn:break-handler)
+         make-debug-uncaught-exception-handler)
 
 (module+ test
   (require rackunit))
@@ -108,7 +108,7 @@
                     ht)
                   make-hash)))
 
-(define (break-here?! src pos)
+(define (breakpoint-here?! src pos)
   (define ht (hash-ref breakpoints src (hash)))
   (match (hash-ref ht pos #f)
     [#f #f]
@@ -259,13 +259,8 @@
   (add-top-level-binding! var get/set!)
   (void))
 
-;; When break? returns #t, either break-before or break-after will be
-;; called next.
-(define ((break? src) pos)
-  (or (break-here?! src pos) ;test first, has side-effect
-      (debug-step?)
-      (cond [(any-watches?) (set! break-only-for-watch? #t) #t]
-            [else #f])))
+
+(define break-for-exn:break? #f)
 
 ;; This bit of awkwardness is because `break?` is not called with
 ;; `top-mark` -- which we need to detect watch conditions right away.
@@ -273,6 +268,16 @@
 ;; (regardless of their condition) and do the actual test in
 ;; break-before.
 (define break-only-for-watch? #f)
+
+;; When break? returns #t, either break-before or break-after will be
+;; called next.
+(define ((break? src) pos)
+  (or (breakpoint-here?! src pos) ;test first, has side-effect
+      (debug-step?)
+      (cond [break-for-exn:break? (set! break-for-exn:break? #f) #t]
+            [else #f])
+      (cond [(any-watches?) (set! break-only-for-watch? #t) #t]
+            [else #f])))
 
 ;; Mark (Listof Mark) -> (U #f (Listof Any))
 (define (break-before top-mark ccm)
@@ -429,35 +434,16 @@
                         [else (orig-eval top-e)])]))]
         [else orig-eval]))
 
-;; This does NOT work with `with-handlers`. It DOES work with
-;; `uncaught-exception-handler`! See example:
-;; https://github.com/racket/r6rs/blob/9e248e7591d9b01f67d964f905a9884fa5df5d69/r6rs-lib/rnrs/exceptions-6.rkt#L84
-;;
-;; I think this is explained by the doc for error-escape-handler:
-;;
-;; "Due to a continuation barrier around exception-handling calls, an
-;; error escape handler cannot invoke a full continuation that was
-;; created prior to the exception, but it can abort to a prompt (see
-;; call-with-continuation-prompt) or invoke an escape continuation
-;; (see call-with-escape-continuation)."
-;;
-;; `with-handlers` must be subject to this. Whereas
-;; `uncaught-exception-handler` is not.
-;;
-;; Example that does work:
-;; (parameterize ([uncaught-exception-handler
-;;                 (λ (e)
-;;                   (eprintf "with-handlers got break\n")
-;;                   ((exn:break-continuation e)
-;;                    (lambda () (values))))])
-;;   (for/sum ([i (in-range 1000000000)])
-;;     1))
-(define (debug-exn:break-handler exn) ;DOES NOT WORK w/ with-handlers
-  (eprintf "debug exn:break handler, thread ~v\n" (current-thread))
-  (break 'exn:break
-         (continuation-mark-set->list (exn-continuation-marks exn) debug-key)
-         #f)
-  ((exn:break-continuation exn))) ;<=== hits continuation barrier
+(define ((make-debug-uncaught-exception-handler orig-ueh) e)
+  (cond [(exn:break? e)
+         (eprintf "\ndebug-uncaught-exception-handler got exn:break, thread ~v\n"
+                  (current-thread))
+         (eprintf "set (set! break-for-exn:break? #t)\n")
+         (set! break-for-exn:break? #t)
+         (eprintf "resuming using exn:break-continuation ~a\n"
+                  (exn:break-continuation e))
+         ((exn:break-continuation e))]
+        [else (orig-ueh e)]))
 
 (define (annotator stx)
   (define source (syntax-source stx))
