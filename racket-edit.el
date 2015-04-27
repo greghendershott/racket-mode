@@ -1149,6 +1149,9 @@ expression."
   (unless racket--debug-break-data
     (user-error "Not at a break"))
   (setq racket--debug-break-data nil)
+  (racket--debug-remove-overlays)
+  (racket--debug-hide-fringe-triangle)
+  (message "Running")
   (racket--repl-eval ",(go)\n"))
 
 (defun racket--debug-do-breakpoint (status)
