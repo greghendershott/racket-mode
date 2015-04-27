@@ -12,8 +12,8 @@
          racket/port
          syntax/id-table
          "cmds.rkt"
-         "debugger-load.rkt"
-         "debugger-step.rkt" ;not gui-debugger/load-sandbox b/c gui
+         "debugger-load.rkt" ;not gui-debugger/load-sandbox b/c gui
+         "debugger-step.rkt"
          "elisp.rkt"
          "older-racket.rkt" ;for hash-clear! and hash-empty?
          "util.rkt"
