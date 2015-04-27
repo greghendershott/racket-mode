@@ -305,12 +305,15 @@
                              [stx (in-value (mark-binding-binding b))]
                              #:when (syntax-original? stx)
                              [val (in-value (mark-binding-value b))])
-                   (list (filter (id=? stx) local-uses)
+                   (list (remove-duplicates (filter (id=? stx) local-uses)
+                                            #:key syntax-position)
                          (~s val)))) ;~s write so we can read later
   (define tops (for*/list ([b (in-list top-level-bindings)]
                            [stx (in-value (car b))]
+                           #:when (syntax-original? stx)
                            [val (in-value ((cdr b)))])
-                 (list (filter (id=? stx) top-uses)
+                 (list (remove-duplicates (filter (id=? stx) top-uses)
+                                          #:key syntax-position)
                        (~s val)))) ;~s write so we can read later
   (define bindings (append locals tops))
   (with-output-to-debug-break-output-file
