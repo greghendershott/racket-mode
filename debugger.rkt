@@ -21,10 +21,7 @@
 
 ;;; TODO: A `(debug)` form to put in source, to cause a break?
 
-;;; TODO: Handle exn:break satisfactorily, including resume/continue.
-
-(provide make-debug-eval-handler
-         make-debug-uncaught-exception-handler)
+(provide make-debug-eval-handler)
 
 (module+ test
   (require rackunit))
@@ -249,6 +246,7 @@
                 (λ (get/set!) (equal? (get/set!) v))
                 (λ () #f))))
 
+
 ;;; Annotation callbacks
 
 (define (record-bound-identifier type bound binding)
@@ -259,8 +257,23 @@
   (add-top-level-binding! var get/set!)
   (void))
 
-
-(define break-for-exn:break? #f)
+;; This bit of awkwardness is because I couldn't get exn:break
+;; handling to work reliably. Instead: Emacs will signal breaks to us
+;; through another means. For now, this means is the existence of a
+;; file. Of course, that's relatively expensive to check, so we use a
+;; separate thread check at intervals. FIXME: Use tcp/ip instead?
+(define break-file-checker-thread
+  (thread (λ () ;; FIXME: Run this thread only when debugging?
+            (let loop ()
+              (sleep 1)
+              ;; This depends on current-debug-signal-break-file and
+              ;; debug-step? being parameter-ish, NOT true per-thread
+              ;; parameters.
+              (define fn (current-debug-signal-break-file))
+              (when (and fn (file-exists? fn))
+                (delete-file fn)
+                (debug-step? #t))
+              (loop)))))
 
 ;; This bit of awkwardness is because `break?` is not called with
 ;; `top-mark` -- which we need to detect watch conditions right away.
@@ -274,8 +287,6 @@
 (define ((break? src) pos)
   (or (breakpoint-here?! src pos) ;test first, has side-effect
       (debug-step?)
-      (cond [break-for-exn:break? (set! break-for-exn:break? #f) #t]
-            [else #f])
       (cond [(any-watches?) (set! break-only-for-watch? #t) #t]
             [else #f])))
 
@@ -436,17 +447,6 @@
                                              annotator))]
                         [else (orig-eval top-e)])]))]
         [else orig-eval]))
-
-(define ((make-debug-uncaught-exception-handler orig-ueh) e)
-  (cond [(exn:break? e)
-         (eprintf "\ndebug-uncaught-exception-handler got exn:break, thread ~v\n"
-                  (current-thread))
-         (eprintf "set (set! break-for-exn:break? #t)\n")
-         (set! break-for-exn:break? #t)
-         (eprintf "resuming using exn:break-continuation ~a\n"
-                  (exn:break-continuation e))
-         ((exn:break-continuation e))]
-        [else (orig-ueh e)]))
 
 (define (annotator stx)
   (define source (syntax-source stx))

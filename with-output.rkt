@@ -1,11 +1,13 @@
 #lang racket/base
 
-(require syntax/parse/define)
+(require syntax/parse/define
+         "util.rkt")
 
 (provide current-command-output-file
          with-output-to-command-output-file
          current-debug-break-output-file
-         with-output-to-debug-break-output-file)
+         with-output-to-debug-break-output-file
+         current-debug-signal-break-file)
 
 ;; Commands intended for use programmatically by racket-mode may
 ;; output their results to a file whose name is the value of the
@@ -33,14 +35,17 @@
          (rename-file-or-directory tmp-file (param) #t)]
         [else (f)]))
 
-(define current-command-output-file (make-parameter #f))
+(define current-command-output-file (make-parameter-ish #f))
 
 (define-simple-macro (with-output-to-command-output-file e:expr ...+)
   (call-with-output-to-param-file current-command-output-file
                                   (λ () e ...)))
 
-(define current-debug-break-output-file (make-parameter #f))
+(define current-debug-break-output-file (make-parameter-ish #f))
 
 (define-simple-macro (with-output-to-debug-break-output-file e:expr ...+)
   (call-with-output-to-param-file current-debug-break-output-file
                                   (λ () e ...)))
+
+;; Not actually an output file, more like an input file:
+(define current-debug-signal-break-file (make-parameter-ish #f))

@@ -168,12 +168,18 @@ Commands that don't want the REPL to be displayed can instead use
   "Path to run.rkt")
 
 (defvar racket--repl-command-output-file
-  (make-temp-file "racket-mode-command-ouput-file")
+  (make-temp-file "racket-mode-command-ouput-file-")
   "File used to collect output from commands used by racket-mode.")
 
 (defvar racket--repl-debug-break-output-file
-  (make-temp-file "racket-mode-debug-break-ouput-file")
-  "File used to collect debugger break info.")
+  (make-temp-file "racket-mode-debug-break-ouput-file-")
+  "File used to collect info about a debugger break.")
+
+(defvar racket--repl-debug-signal-break-file
+  (make-temp-file "racket-mode-debug-signal-break-file-")
+  "File used to signal that a debugger break should happen.
+This is a work-around for not being able to get exn:break
+handling working reliably.")
 
 (defun racket--repl-ensure-buffer-and-process (&optional display)
   "Ensure Racket REPL buffer exists and has live Racket process.
@@ -193,7 +199,8 @@ Never changes selected window."
                      nil
                      racket--run.rkt
                      racket--repl-command-output-file
-                     racket--repl-debug-break-output-file)
+                     racket--repl-debug-break-output-file
+                     racket--repl-debug-signal-break-file)
       ;; Display now so users see startup and banner sooner.
       (when display
         (display-buffer (current-buffer)))

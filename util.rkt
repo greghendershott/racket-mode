@@ -7,7 +7,8 @@
          with-dynamic-requires
          syntax-or-sexpr->syntax
          syntax-or-sexpr->sexpr
-         name-only)
+         name-only
+         make-parameter-ish)
 
 (define (display-commented str)
   (eprintf "; ~a\n"
@@ -42,3 +43,10 @@
                 (string->path "foo.bar"))
   (check-equal? (name-only (string->path "/path/to/dir/"))
                 #f))
+
+;; A parameter-like signature, but NOT per-thread.
+(define (make-parameter-ish init [guard values])
+  (let ([old init])
+    (case-lambda
+      [() old]
+      [(new) (set! old (guard new))])))

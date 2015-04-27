@@ -6,4 +6,10 @@
 
 (provide debug-step?)
 
-(define debug-step? (make-parameter #t))
+;; Parameter-ish signature, but not a parameter because we want to
+;; share it among threads.
+(define debug-step?
+  (let ([old #t])
+    (case-lambda
+      [() old]
+      [(new) (set! old new)])))

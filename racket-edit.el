@@ -1215,6 +1215,16 @@ Effectively this sets a one-shot breakpoint then does
       (message "Watch removed")
     (user-error "Could not remove watch")))
 
+(defun racket-debug-mode-break ()
+  "Signal the debugger to break."
+  (interactive)
+  (with-temp-buffer
+    (write-region nil   ;start: nil=entire buffer contents
+                  nil   ;end: n/a
+                  racket--repl-debug-signal-break-file
+                  nil   ;append
+                  1)))  ;visit: do not display "Wrote file" message
+
 (defun racket-debug-mode-quit ()
   (interactive)
   (racket--debug-kill-timer)
@@ -1235,16 +1245,16 @@ See `racket-debug' for more information.
 "
   :lighter " Debug"
   :keymap (racket--easy-keymap-define
-           '(("<SPC>"      racket-debug-mode-step)
-             ("s"          racket-debug-mode-step)
-             ("g"          racket-debug-mode-go)
-             ("."          racket-debug-mode-run-to-point)
-             ("b"          racket-debug-mode-set-breakpoint)
-             ("u"          racket-debug-mode-clear-breakpoint)
-             ("C-<return>" racket-debug-mode-value)
-             ("w"          racket-debug-mode-watch)
-             ("W"          racket-debug-mode-unwatch)
-             ("q"          racket-debug-mode-quit)))
+           '((("s" "<SPC>")   racket-debug-mode-step)
+             ("g"             racket-debug-mode-go)
+             ("."             racket-debug-mode-run-to-point)
+             ("b"             racket-debug-mode-set-breakpoint)
+             ("u"             racket-debug-mode-clear-breakpoint)
+             ("C-<return>"    racket-debug-mode-value)
+             ("w"             racket-debug-mode-watch)
+             ("W"             racket-debug-mode-unwatch)
+             (("k" "C-c C-c") racket-debug-mode-break)
+             ("q"             racket-debug-mode-quit)))
   (unless (eq major-mode 'racket-mode)
     (setq racket-debug-mode nil)
     (error "racket-debug-mode only works with racket-mode"))

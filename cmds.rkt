@@ -127,12 +127,6 @@
        (set! old new)])))
 
 ;; Likewise: Want parameter signature but NOT thread-local.
-(define-syntax-rule (make-parameter-ish init)
-  (let ([old init])
-    (case-lambda
-      [() old]
-      [(new) (set! old new)])))
-
 (define current-pp? (make-parameter-ish #t))
 (define current-ctx-lvl (make-parameter-ish 'low)) ;context-level?
 
