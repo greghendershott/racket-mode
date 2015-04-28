@@ -1175,7 +1175,9 @@ positive number (the break is skipped N times)"
   "Set a break at the first breakable position after point.
 
 With a numeric prefix SKIP-COUNT, will skip the breakpoint that
-number of times, then become a normal breakpoint."
+number of times, then become a normal breakpoint.
+
+Note: Currently there is no UI to show existing breakpoints."
   (interactive "p")
   (racket--debug-do-breakpoint (or skip-count t)))
 
@@ -1187,7 +1189,7 @@ number of times, then become a normal breakpoint."
 (defun racket-debug-mode-run-to-point ()
   "Run to the first breakable position after point.
 
-Effectively this sets a one-shot breakpoint then does
+Effectively this sets a one-shot breakpoint and does
 `racket-debug-mode-go'."
   (interactive)
   (racket--debug-do-breakpoint 'one-shot)
@@ -1201,7 +1203,13 @@ Effectively this sets a one-shot breakpoint then does
     (racket--repl-cmd/sexpr (format ",(set %s %s)" (point) new))))
 
 (defun racket-debug-mode-watch ()
-  "Watch the variable at point (if any)."
+  "Break when the identifer at point is a certain value.
+
+Caveats:
+
+- Watchpoints will cause execution to be significantly slower.
+
+- Currently there is no UI to show existing watchpoints."
   (interactive)
   (let* ((v (read-string "Break when value is: ")))
     (if (racket--repl-cmd/sexpr (format ",(watch %s %s)" (point) v))
@@ -1209,14 +1217,19 @@ Effectively this sets a one-shot breakpoint then does
       (user-error "Could not set watch"))))
 
 (defun racket-debug-mode-unwatch ()
-  "Unwatch the variable at point (if any)."
+  "Unwatch the identifer at point (if any)."
   (interactive)
   (if (racket--repl-cmd/sexpr (format ",(unwatch %s)" (point)))
       (message "Watch removed")
     (user-error "Could not remove watch")))
 
 (defun racket-debug-mode-break ()
-  "Signal the debugger to break."
+  "Signal the debugger to break.
+
+Note: This does not use SIGINT and exn:break. Instead, it creates
+a special file whose existence is a flag to break. In the Racket
+REPL buffer, `comint-interrupt-subjob' C-c C-c generates an
+actual SIGINT."
   (interactive)
   (with-temp-buffer
     (write-region nil   ;start: nil=entire buffer contents
@@ -1226,13 +1239,18 @@ Effectively this sets a one-shot breakpoint then does
                   1)))  ;visit: do not display "Wrote file" message
 
 (defun racket-debug-mode-quit ()
+  "Quit `racket-debug-mode'.
+
+Note: The Racket REPL remains in debugging state until your next
+`racket-run'. The role of `racket-debug-mode' is to handle
+debugger breaks."
   (interactive)
   (racket--debug-kill-timer)
   (racket-debug-mode 0)
   (racket-debug-frames-mode-quit))
 
 (define-minor-mode racket-debug-mode
-  "A minor mode for debug breaks.
+  "A minor mode to handle debugger breaks.
 
 Although the buffer becomes read-only, you may still use
 `racket-mode' commands that don't modify the buffer.
@@ -1268,7 +1286,8 @@ See `racket-debug' for more information.
 (defvar racket--debug-overlays nil)
 
 (defun racket--debug-add-overlay (beg end str)
-  "The nice thing about 'after-string overlays is that they do
+  "Add an 'after-string overlay.
+Note: The nice thing about 'after-string overlays is that they do
 not affect positions."
   (let ((o (make-overlay beg end (current-buffer))))
     (push o racket--debug-overlays)
@@ -1276,16 +1295,19 @@ not affect positions."
     (overlay-put o 'after-string str)))
 
 (defun racket--debug-remove-overlays ()
-    (remove-overlays (point-min) (point-max) 'racket-debug-mode-overlay)
-    (while racket--debug-overlays
-      (delete-overlay (pop racket--debug-overlays))))
+  "Remove all `racket--debug-overlays'."
+  (remove-overlays (point-min) (point-max) 'racket-debug-mode-overlay)
+  (while racket--debug-overlays
+    (delete-overlay (pop racket--debug-overlays))))
 
 (defun racket--debug-show-fringe-triangle ()
+  "Show a triangle in the fringe for point's line."
   (setq overlay-arrow-position
         (set-marker (make-marker)
                     (save-excursion (beginning-of-line) (point)))))
 
 (defun racket--debug-hide-fringe-triangle ()
+  "Hide any fringle triangle."
   (setq overlay-arrow-position nil))
 
 
