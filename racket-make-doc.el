@@ -54,6 +54,7 @@
     racket-racket
     racket-profile
     racket-profile-mode
+    racket-debug
     "Test"
     racket-test
     racket-raco-test

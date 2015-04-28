@@ -34,6 +34,7 @@ DrRacket's Run because it selects the REPL window (gives it the
 focus), too.
 
 With a C-u prefix, uses errortrace for improved stack traces.
+With a C-u C-u prefix, does [`racket-debug`](#racket-debug).
 Otherwise follows the [`racket-error-context`](#racket-error-context) setting.
 
 Output in the `*Racket REPL*` buffer that describes a file and
@@ -128,6 +129,51 @@ z		racket--profile-show-zero
 In addition to any hooks its parent mode `special-mode` might have run,
 this mode runs the hook [`racket-profile-mode-hook`](#racket-profile-mode-hook), as the final step
 during initialization.
+
+### racket-debug
+<kbd>M-x racket-debug</kbd>
+
+Instrument file(s), enable [`racket-debug-mode`](#racket-debug-mode), and run.
+
+For each `require`d file in the same directory, you get a y/n
+prompt. Answer yes to debug that file, too.
+
+Upon each break, the source file is shown with point at the
+breakpoint. Uses of top-level and local bindings are drawn
+showing the current values inline. The minor mode
+[`racket-debug-mode`](#racket-debug-mode) is enabled, which provides additional
+commands:
+
+```
+key             binding
+---             -------
+
+C-c		Prefix Command
+SPC		racket-debug-mode-step
+.		racket-debug-mode-run-to-point
+W		racket-debug-mode-unwatch
+b		racket-debug-mode-set-breakpoint
+g		racket-debug-mode-go
+k		racket-debug-mode-break
+q		racket-debug-mode-quit
+s		racket-debug-mode-step
+u		racket-debug-mode-clear-breakpoint
+w		racket-debug-mode-watch
+<C-return>	racket-debug-mode-value
+
+C-c C-c		racket-debug-mode-break
+
+
+```
+
+During a break, the Racket REPL may be used to evaluate
+expressions in the namespace of the module. Both top-level and
+local bindings may be referenced and `set!` to new values.
+
+The REPL may be used even after the program completes, because
+the code remains instrumented for debugging. If you call
+instrumented code, it will break before the first expression. (To
+"fully exit" debugging, do a normal [`racket-run`](#racket-run).)
 
 ## Test
 
