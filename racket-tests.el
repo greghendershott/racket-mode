@@ -51,10 +51,14 @@
 
 ;;; REPL
 
+(defvar racket-tests/repl-startup-seconds
+  (if (getenv "TRAVIS_CI") 30 5)
+  "How long to wait for Racket to start. Wait longer on Travis CI.")
+
 (ert-deftest racket-tests/repl ()
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
   (racket-repl)
-  (dotimes (_ 5) (accept-process-output nil 1))
+  (dotimes (_ racket-tests/repl-startup-seconds) (accept-process-output nil 1))
   (with-current-buffer (get-buffer "*Racket REPL*")
     (let ((tab-always-indent 'complete))
       ;; Welcome
