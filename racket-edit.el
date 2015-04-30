@@ -1029,6 +1029,8 @@ instrumented code, it will break before the first expression. (To
   (racket-debug-mode 1)
   (racket--debug-set-timer))
 
+(defvar racket-debug-mode nil)
+
 (defvar racket--debug-break-timer nil)
 (defvar racket--debug-break-timer-interval 0.25)
 
