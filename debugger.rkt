@@ -323,7 +323,9 @@
   (define tops (for*/list ([b (in-list top-level-bindings)]
                            [stx (in-value (car b))]
                            #:when (syntax-original? stx)
-                           [val (in-value ((cdr b)))])
+                           [val (in-value ((cdr b)))]
+                           ;; Ignore top-level procedure bindings; noisy
+                           #:unless (procedure? val))
                  (list (remove-duplicates (filter (id=? stx) top-uses)
                                           #:key syntax-position)
                        (~s val)))) ;~s write so we can read later
