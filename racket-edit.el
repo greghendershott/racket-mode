@@ -1089,13 +1089,14 @@ instrumented code, it will break before the first expression. (To
       (mapc (lambda (binding)
               (cl-destructuring-bind (uses val) binding
                 (mapc (lambda (use)
-                        (cl-destructuring-bind (dat src line col pos span) use
-                          (let* ((beg pos)
-                                 (end (+ pos span))
-                                 (str (racket--debug-format-val "=" val))
-                                 (str (propertize str
-                                                  'face racket-debug-value-face)))
-                            (racket--debug-add-overlay beg end str))))
+                        (cl-destructuring-bind (dat this-src line col pos span) use
+                          (when (equal src this-src)
+                            (let* ((beg pos)
+                                   (end (+ pos span))
+                                   (str (racket--debug-format-val "=" val))
+                                   (str (propertize str
+                                                    'face racket-debug-value-face)))
+                              (racket--debug-add-overlay beg end str)))))
                       uses)))
             (cadr (assoc 'bindings data)))
       ;; Maybe draw result values.
