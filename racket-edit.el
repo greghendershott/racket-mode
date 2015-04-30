@@ -1053,7 +1053,7 @@ instrumented code, it will break before the first expression. (To
   (racket--debug-set-timer))
 
 (defvar racket--debug-break-data nil
-  "Data for the most current debugger break, if any.")
+  "Data for the current debugger break, if any.")
 
 (defun racket--debug-on-break (data)
   (cond
@@ -1107,7 +1107,8 @@ instrumented code, it will break before the first expression. (To
             (racket--debug-add-overlay beg end str))))
       ;; Show/draw the frames window
       (racket-debug-frames-mode-draw (cadr (assoc 'frames data)))
-      ;; Enter the debug break mode.
+      ;; racket-debug-mode might not yet be enabled if break in other file
+      (unless racket-debug-mode (racket-debug-mode 1))
       (message (format "Break %s" which))))
    (t
     (setq racket--debug-break-data nil)
@@ -1239,14 +1240,17 @@ actual SIGINT."
                   1)))  ;visit: do not display "Wrote file" message
 
 (defun racket-debug-mode-quit ()
-  "Quit `racket-debug-mode'.
+  "Disable `racket-debug-mode' in all buffers and kill frames buffer.
 
 Note: The Racket REPL remains in debugging state until your next
 `racket-run'. The role of `racket-debug-mode' is to handle
 debugger breaks."
   (interactive)
   (racket--debug-kill-timer)
-  (racket-debug-mode 0)
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (when racket-debug-mode
+        (racket-debug-mode 0))))
   (racket-debug-frames-mode-quit))
 
 (define-minor-mode racket-debug-mode
@@ -1276,7 +1280,6 @@ See `racket-debug' for more information.
   (unless (eq major-mode 'racket-mode)
     (setq racket-debug-mode nil)
     (error "racket-debug-mode only works with racket-mode"))
-  (setq racket--debug-break-data nil)
   (if racket-debug-mode
       (setq buffer-read-only t)
     (setq buffer-read-only nil)
