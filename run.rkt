@@ -63,6 +63,11 @@
                          [(? instrument-level?)
                           (make-instrumented-eval-handler (current-eval))]
                          [_ (current-eval)])]
+         [current-load/use-compiled
+          (match context-level
+            ['debug (make-debug-load/use-compiled-handler (current-load/use-compiled)
+                                                          path)]
+            [_ (current-load/use-compiled)])]
          [instrumenting-enabled (instrument-level? context-level)]
          [profiling-enabled (eq? context-level 'profile)]
          [test-coverage-enabled (eq? context-level 'coverage)]

@@ -21,7 +21,8 @@
 
 ;;; TODO: A `(debug)` form to put in source, to cause a break?
 
-(provide make-debug-eval-handler)
+(provide make-debug-eval-handler
+         make-debug-load/use-compiled-handler)
 
 (module+ test
   (require rackunit))
@@ -460,6 +461,11 @@
                                   source))
   (set-breakable-positions! source breakable-positions)
   annotated)
+
+(define ((make-debug-load/use-compiled-handler orig file-to-debug) path sym)
+  ((cond [(equal? path file-to-debug) (current-load)] ;ignore .zo if any
+         [else orig])
+   path sym))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; example usage
