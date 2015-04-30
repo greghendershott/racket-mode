@@ -424,14 +424,19 @@
          (clear-bound-identifiers!)
          (clear-top-level-bindings!)
 
+         (define ht (make-hash)) ;(Hashof Path Boolean)
          (define (annotate-module? path [module 'n/a])
-           (or (equal? path file-to-debug)
-               (and (path? path)
-                    (equal? (path-only path) (path-only file-to-debug)) ;FIXME
-                    (begin
-                      (with-output-to-debug-break-output-file
-                       (elisp-println `(also-file? ,path)))
-                      (read)))))
+           (hash-ref! ht
+                      path
+                      (λ ()
+                        (or (equal? path file-to-debug)
+                            (and (path? path)
+                                 ;; FIXME: Simplistic
+                                 (equal? (path-only path) (path-only file-to-debug))
+                                 (begin
+                                   (with-output-to-debug-break-output-file
+                                     (elisp-println `(also-file? ,path)))
+                                   (read)))))))
 
          (λ (orig-exp)
            (cond [(compiled-expression? (syntax-or-sexpr->sexpr orig-exp))
