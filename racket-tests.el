@@ -43,9 +43,11 @@
   (racket-tests/see-rx (regexp-quote str)))
 
 (defun racket-tests/explain-see (str)
-  `(actual . ,(buffer-substring-no-properties
+  `((actual . ,(buffer-substring-no-properties
                (max (point-min) (- (point) (length str)))
-               (point))))
+               (point)))
+    (point . ,(point))
+    (full . ,(buffer-substring-no-properties (point-min) (point-max)))))
 (put 'racket-tests/see-rx 'ert-explainer #'racket-tests/explain-see)
 (put 'racket-tests/see    'ert-explainer #'racket-tests/explain-see)
 
