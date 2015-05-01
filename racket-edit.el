@@ -1349,11 +1349,21 @@ not affect positions."
       (kill-buffer racket-debug-frames-buffer-name))))
 
 (defun racket-debug-frames-mode-draw (frames)
+  "Update the frames buffer, creating it and a window for if necessary.
+
+Use `window-combination-limit' so that `split-window-vertically'
+will create a window as the only sibling of the current
+window (both go in a new, internal parent window). That way, as
+it grows/shrinks, it will take/give space only from the sibling.
+And when eventually deleted, will restore the sibling's original
+size. See discussion and example in Elisp manual: 28.7
+Recombining Windows."
   (let* ((buf (get-buffer-create racket-debug-frames-buffer-name))
          (new? (not (get-buffer-window buf)))
          (win (or (get-buffer-window buf)
-                  (set-window-buffer (split-window-vertically (- window-min-height))
-                                     racket-debug-frames-buffer-name))))
+                  (let ((window-combination-limit t))
+                    (set-window-buffer (split-window-vertically (- window-min-height))
+                                       racket-debug-frames-buffer-name)))))
     (with-current-buffer buf
       (unless (eq major-mode 'racket-debug-frames-mode)
         (racket-debug-frames-mode))
