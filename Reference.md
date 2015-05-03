@@ -139,6 +139,15 @@ Do `(require (submod "." test))` in `*Racket REPL*` buffer.
 With prefix, runs with coverage instrumentation and highlights
 uncovered code.
 
+Put your tests in a `test` submodule. For example:
+
+    (module+ test
+      (require rackunit)
+      (check-true #t))
+
+rackunit test failure messages show the location. You may use
+`next-error` to jump to the location of each failing test.
+
 See also:
 - [`racket-fold-all-tests`](#racket-fold-all-tests)
 - [`racket-unfold-all-tests`](#racket-unfold-all-tests)
