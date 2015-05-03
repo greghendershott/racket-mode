@@ -1058,18 +1058,15 @@ instrumented code, it will break before the first expression. (To
   "Data for the current debugger break, if any.")
 
 (defun racket--debug-on-break (data)
-  (cond
-   ((and (listp data)
-         (eq 'also-file? (car data)))
+  (pcase data
+   (`(also-file\? ,file)
     (setq racket--debug-break-data nil)
-    (let ((v (y-or-n-p (format "Also debug %s? " (cadr data)))))
+    (let ((v (y-or-n-p (format "Also debug %s? " file))))
       (racket--repl-eval (concat (if v "#t" "#f") "\n"))))
-   ((and (listp data)
-         (eq 'break (car data)))
+   (`(break ,which . ,more)
     (setq racket--debug-break-data data)
-    (let ((which (cadr data))
-          (src (cadr (assoc 'src data)))
-          (pos (cadr (assoc 'pos data))))
+    (let ((src (cadr (assoc 'src more)))
+          (pos (cadr (assoc 'pos more))))
       ;; If file already visible in a window, select that window.
       ;; Otherwise pick any window except Racket REPL, then find-file.
       (let* ((buf (get-file-buffer src))
@@ -1098,9 +1095,9 @@ instrumented code, it will break before the first expression. (To
                                                     'face racket-debug-value-face)))
                               (racket--debug-add-overlay beg end str)))))
                       uses)))
-            (cadr (assoc 'bindings data)))
+            (cadr (assoc 'bindings more)))
       ;; Maybe draw result values.
-      (let ((vals (cadr (assoc 'vals data))))
+      (let ((vals (cadr (assoc 'vals more))))
         (when vals
           (let* ((beg (point))
                  (end (1+ beg))
@@ -1109,11 +1106,11 @@ instrumented code, it will break before the first expression. (To
                                   'face racket-debug-result-face)))
             (racket--debug-add-overlay beg end str))))
       ;; Show/draw the frames window
-      (racket-debug-frames-mode-draw (cadr (assoc 'frames data)))
+      (racket-debug-frames-mode-draw (cadr (assoc 'frames more)))
       ;; racket-debug-mode might not yet be enabled if break in other file
       (unless racket-debug-mode (racket-debug-mode 1))
       (message (format "Break %s" which))))
-   (t
+   (_
     (setq racket--debug-break-data nil)
     (error (format "Unknown response from debugger: %s"
                    data)))))
