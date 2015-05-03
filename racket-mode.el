@@ -171,7 +171,6 @@ http://www.gnu.org/licenses/ for details.")
 \\{racket-mode-map}"
   (racket--variables-for-both-modes)
   (racket--variables-imenu)
-  (racket--company-setup)
   (racket--maybe-set-compile-command)
   (hs-minor-mode t))
 

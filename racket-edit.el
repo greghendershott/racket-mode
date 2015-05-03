@@ -319,8 +319,8 @@ browser documentation (if any)."
     (when sym
       (racket--do-describe sym t))))
 
-(defun racket--do-describe (sym pop-to)
-  "A helper for `racket-describe' and `racket-company-backend'.
+(defun racket--do-describe (sym &optional pop-to)
+  "A helper for `racket-describe' and company-mode.
 
 POP-TO should be t for the former (in which case some buttons are
 added) and nil for the latter.
