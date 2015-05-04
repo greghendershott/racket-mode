@@ -1000,6 +1000,9 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
 
 ;;; debug
 
+(defvar racket--debug-other-files 'ask
+  "'ask: ask about each file; t = yes to all, nil = no to all")
+
 (defun racket-debug ()
   "Instrument file(s), enable `racket-debug-mode', and run.
 
@@ -1027,6 +1030,7 @@ instrumented code, it will break before the first expression. (To
   (interactive)
   (racket--do-run 'debug)
   (racket-debug-mode 1)
+  (setq racket--debug-other-files 'ask)
   (racket--debug-set-timer))
 
 (defvar racket-debug-mode nil)
@@ -1058,62 +1062,72 @@ instrumented code, it will break before the first expression. (To
   "Data for the current debugger break, if any.")
 
 (defun racket--debug-on-break (data)
+  "Handle (also-file) or (break) notifications from the debug evaluator."
   (pcase data
-   (`(also-file\? ,file)
-    (setq racket--debug-break-data nil)
-    (let ((v (y-or-n-p (format "Also debug %s? " file))))
-      (racket--repl-eval (concat (if v "#t" "#f") "\n"))))
-   (`(break ,which . ,more)
-    (setq racket--debug-break-data data)
-    (let ((src (cadr (assoc 'src more)))
-          (pos (cadr (assoc 'pos more))))
-      ;; If file already visible in a window, select that window.
-      ;; Otherwise pick any window except Racket REPL, then find-file.
-      (let* ((buf (get-file-buffer src))
-             (win (and buf (get-buffer-window buf))))
-        (if win
-            (select-window win)
-          (let ((win (get-buffer-window racket--repl-buffer-name)))
-            (when (equal win (selected-window))
-              (other-window 1)))
-          (find-file src)))
-      ;; Go to the breakpoint position.
-      (goto-char pos)
-      (racket--debug-show-fringe-triangle)
-      ;; Remove existing overlays
-      (racket--debug-remove-overlays)
-      ;; Draw bindings.
-      (mapc (lambda (binding)
-              (cl-destructuring-bind (uses val) binding
-                (mapc (lambda (use)
-                        (cl-destructuring-bind (dat this-src line col pos span) use
-                          (when (equal src this-src)
-                            (let* ((beg pos)
-                                   (end (+ pos span))
-                                   (str (racket--debug-format-val "=" val))
-                                   (str (propertize str
-                                                    'face racket-debug-value-face)))
-                              (racket--debug-add-overlay beg end str)))))
-                      uses)))
-            (cadr (assoc 'bindings more)))
-      ;; Maybe draw result values.
-      (let ((vals (cadr (assoc 'vals more))))
-        (when vals
-          (let* ((beg (point))
-                 (end (1+ beg))
-                 (str (racket--debug-format-val "=>" vals))
-                 (str (propertize str
-                                  'face racket-debug-result-face)))
-            (racket--debug-add-overlay beg end str))))
-      ;; Show/draw the frames window
-      (racket-debug-frames-mode-draw (cadr (assoc 'frames more)))
-      ;; racket-debug-mode might not yet be enabled if break in other file
-      (unless racket-debug-mode (racket-debug-mode 1))
-      (message (format "Break %s" which))))
-   (_
-    (setq racket--debug-break-data nil)
-    (error (format "Unknown response from debugger: %s"
-                   data)))))
+    (`(also-file\? ,file)
+     (setq racket--debug-break-data nil)
+     (let ((v racket--debug-other-files))
+       (while (eq v 'ask)
+         (select-window (minibuffer-window))
+         (message "Also debug %s (y, n, Y, or N)? " file)
+         (setq v (pcase (read-event)
+                   (?y t)
+                   (?n nil)
+                   (?Y (setq racket--debug-other-files t) t)
+                   (?N (setq racket--debug-other-files nil) nil)
+                   (_  (beep) 'ask))))
+       (racket--repl-eval (concat (if v "#t" "#f") "\n"))))
+    (`(break ,which . ,more)
+     (setq racket--debug-break-data data)
+     (let ((src (cadr (assoc 'src more)))
+           (pos (cadr (assoc 'pos more))))
+       ;; If file already visible in a window, select that window.
+       ;; Otherwise pick any window except Racket REPL, then find-file.
+       (let* ((buf (get-file-buffer src))
+              (win (and buf (get-buffer-window buf))))
+         (if win
+             (select-window win)
+           (let ((win (get-buffer-window racket--repl-buffer-name)))
+             (when (equal win (selected-window))
+               (other-window 1)))
+           (find-file src)))
+       ;; Go to the breakpoint position.
+       (goto-char pos)
+       (racket--debug-show-fringe-triangle)
+       ;; Remove existing overlays
+       (racket--debug-remove-overlays)
+       ;; Draw bindings.
+       (mapc (lambda (binding)
+               (cl-destructuring-bind (uses val) binding
+                 (mapc (lambda (use)
+                         (cl-destructuring-bind (dat this-src line col pos span) use
+                           (when (equal src this-src)
+                             (let* ((beg pos)
+                                    (end (+ pos span))
+                                    (str (racket--debug-format-val "=" val))
+                                    (str (propertize str
+                                                     'face racket-debug-value-face)))
+                               (racket--debug-add-overlay beg end str)))))
+                       uses)))
+             (cadr (assoc 'bindings more)))
+       ;; Maybe draw result values.
+       (let ((vals (cadr (assoc 'vals more))))
+         (when vals
+           (let* ((beg (point))
+                  (end (1+ beg))
+                  (str (racket--debug-format-val "=>" vals))
+                  (str (propertize str
+                                   'face racket-debug-result-face)))
+             (racket--debug-add-overlay beg end str))))
+       ;; Show/draw the frames window
+       (racket-debug-frames-mode-draw (cadr (assoc 'frames more)))
+       ;; racket-debug-mode might not yet be enabled if break in other file
+       (unless racket-debug-mode (racket-debug-mode 1))
+       (message (format "Break %s" which))))
+    (_
+     (setq racket--debug-break-data nil)
+     (error (format "Unknown response from debugger: %s"
+                    data)))))
 
 (defvar racket--debug-max-val 80
   "Maximum length of displayed values")
