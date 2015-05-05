@@ -178,7 +178,7 @@
 
 ;;; Top-level bindings
 
-(define top-level-bindings '()) ;(listof (cons/c stx procedure?))
+(define top-level-bindings '()) ;(Listof (Pair Syntax Procedure))
 
 (define (clear-top-level-bindings!)
   (set! top-level-bindings '()))
@@ -225,7 +225,7 @@
 
 ;;; Watchpoints
 
-(define watchpoints (make-hash)) ;(hash/c identifier? any/c)
+(define watchpoints (make-hash)) ;(Hashof Identifier Any)
 
 (define (any-watches?)
   (not (hash-empty? watchpoints)))
