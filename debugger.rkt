@@ -137,16 +137,16 @@
 ;; Annotation populates this with an entry for every identifer. We use
 ;; this to match source positions with identifier stxs. (DrR uses a
 ;; vector, but I think an interval-map is a better fit.)
-(define bound-id-locs (make-hash)) ;(hash/c src interval-map)
-(define local-uses '()) ;(listof stx)
-(define top-uses '()) ;(listof stx)
+(define bound-id-locs (make-hash)) ;(Hashof SyntaxSource (IntervalMap Syntax))
+(define local-binding->uses (make-hash)) ;(Hashof Syntax Syntax)
+(define top-uses '()) ;(Listof Syntax)
 
 (define-syntax-rule (push! xs v)
   (set! xs (cons v xs)))
 
 (define (clear-bound-identifiers!)
   (hash-clear! bound-id-locs)
-  (set! local-uses '())
+  (hash-clear! local-binding->uses)
   (set! top-uses '()))
 
 (define (add-bound-identifier! type bound binding)
@@ -162,7 +162,10 @@
                       im)
                     make-interval-map))
     (when (eq? type 'ref)
-      (push! local-uses bound))
+      (hash-update! local-binding->uses
+                    binding
+                    (λ (bounds) (cons bound bounds))
+                    (list)))
     (when (eq? type 'top-level)
       (push! top-uses bound))))
 
@@ -317,7 +320,8 @@
                              [stx (in-value (mark-binding-binding b))]
                              #:when (syntax-original? stx)
                              [val (in-value (mark-binding-value b))])
-                   (list (remove-duplicates (filter (id=? stx) local-uses)
+                   (list (remove-duplicates (cons stx ;include the binding
+                                                  (hash-ref local-binding->uses stx '()))
                                             #:key syntax-position)
                          (~s val)))) ;~s write so we can read later
   (define tops (for*/list ([b (in-list top-level-bindings)]
