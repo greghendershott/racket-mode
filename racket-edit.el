@@ -1006,12 +1006,14 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
 (defun racket-debug ()
   "Instrument file(s), enable `racket-debug-mode', and run.
 
-For each `require`d file in the same directory, you get a y/n
-prompt. Answer yes to debug that file, too.
+For each `require`d file in the same directory, you get a y/n/Y/N
+prompt asking whether to debug this file, too. Answer y or n --
+or Y or N to answer for all such files (similar to pressing ! for
+`query-replace').
 
 Upon each break, the source file is shown with point at the
-breakpoint. Uses of top-level and local bindings are drawn
-showing the current values inline. The minor mode
+breakpoint. The values of of top-level and local bindings are
+drawn in the buffer to right of the binding name. The minor mode
 `racket-debug-mode' is enabled, which provides additional
 commands:
 
@@ -1021,12 +1023,15 @@ commands:
 
 During a break, the Racket REPL may be used to evaluate
 expressions in the namespace of the module. Both top-level and
-local bindings may be referenced and `set!` to new values.
+local bindings may be referenced and `set!` to new values. (You
+can also change a binding value by moving point to its definition
+and choosing `racket-debug-mode-value'.)
 
 The REPL may be used even after the program completes, because
 the code remains instrumented for debugging. If you call
 instrumented code, it will break before the first expression. (To
-\"fully exit\" debugging, do a normal `racket-run'.)"
+\"fully exit\" debugging, do a normal `racket-run', and, press q
+to exit `racket-debug-mode'.)"
   (interactive)
   (racket--do-run 'debug)
   (racket-debug-mode 1)
@@ -1211,7 +1216,10 @@ Effectively this sets a one-shot breakpoint and does
   (racket-debug-mode-go))
 
 (defun racket-debug-mode-value ()
-  "Change the value at point (if any)."
+  "Change the value at point (if any).
+
+Limitation: The new value will not be redrawn inline until the
+next step command."
   (interactive)
   (let* ((old (racket--repl-cmd/sexpr (format ",(get %s)" (point))))
          (new (read-string "Value: " old)))
