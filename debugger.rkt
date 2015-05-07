@@ -316,6 +316,10 @@
   (define pos (match which
                 ['after (+ (syntax-position stx) (syntax-span stx) -1)]
                 [_      (syntax-position stx)]))
+  ;; FIXME? Show the locals for all-marks, not just top-mark? A bit
+  ;; "busy" but perhaps helpful. Caution: If doing so, need to
+  ;; remove-duplicates across all marks, favoring upper marks -- otherwise
+  ;; recursion would show _all_ the values.
   (define locals (for*/list ([b (in-list (mark-bindings top-mark))]
                              [stx (in-value (mark-binding-binding b))]
                              #:when (syntax-original? stx)
