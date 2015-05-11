@@ -1,3 +1,8 @@
+# Reporting bugs
+
+Please use <kbd>M-x racket-bug-report</kbd> to generate a buffer with
+helpful information you can copy and paste in your bug report.
+
 # Package dependencies
 
 racket-mode depends on a few packages:

@@ -17,6 +17,7 @@ clean:
 	$(BYTECOMP) $<
 
 compile: clean \
+	racket-bug-report.elc \
 	racket-common.elc \
 	racket-collection.elc \
 	racket-complete.elc \

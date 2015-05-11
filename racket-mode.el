@@ -49,6 +49,7 @@ http://www.gnu.org/licenses/ for details.")
 (require 'racket-profile)
 (require 'racket-repl)
 (require 'racket-collection)
+(require 'racket-bug-report)
 (require 'racket-util)
 (require 'easymenu)
 
