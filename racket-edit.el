@@ -1134,8 +1134,8 @@ to exit `racket-debug-mode'.)"
      (error (format "Unknown response from debugger: %s"
                     data)))))
 
-(defvar racket--debug-max-val 80
-  "Maximum length of displayed values")
+(defconst racket--debug-max-val 80
+  "Elide displayed values that exceed this length.")
 
 (defun racket--debug-format-val (prefix val)
   (let* ((s (format "%s" val))
@@ -1149,8 +1149,14 @@ to exit `racket-debug-mode'.)"
 (defun racket-debug-mode-step (&optional change-value-p)
   "Evaluate the next expression and break.
 
-With prefix, prompts for a value to substitute for the next
-expression."
+With C-u prefix, prompts for values to substitute for the next
+expression:
+
+  - At a \"break-before\", the next expression is skipped
+    entirely and the values are used instead.
+
+  - At a \"break-after\", the return values of the
+    already-evaluated expression are replaced."
   (interactive "P")
   (unless racket--debug-break-data
     (user-error "Not at a break"))
