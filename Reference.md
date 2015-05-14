@@ -483,12 +483,16 @@ special commands to navigate among the definition and its uses.
 key             binding
 ---             -------
 
+TAB		racket-check-syntax-mode-goto-next-def
 .		racket-check-syntax-mode-goto-def
 h		racket-check-syntax-mode-help
+j		racket-check-syntax-mode-goto-next-def
+k		racket-check-syntax-mode-goto-prev-def
 n		racket-check-syntax-mode-goto-next-use
 p		racket-check-syntax-mode-goto-prev-use
 q		racket-check-syntax-mode-quit
 r		racket-check-syntax-mode-rename
+S-TAB		racket-check-syntax-mode-goto-prev-def
 
 
 ```

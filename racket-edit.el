@@ -792,6 +792,22 @@ If point is instead on a definition, then go to its first use."
             (goto-char (marker-position point-marker))
             (racket-check-syntax-mode 1)))))))
 
+(defun racket-check-syntax-mode-goto-next-def ()
+  (interactive)
+  (let ((pos (next-single-property-change (point) 'racket-check-syntax-def)))
+    (when pos
+      (unless (get-text-property pos 'racket-check-syntax-def)
+        (setq pos (next-single-property-change pos 'racket-check-syntax-def)))
+      (and pos (goto-char pos)))))
+
+(defun racket-check-syntax-mode-goto-prev-def ()
+  (interactive)
+  (let ((pos (previous-single-property-change (point) 'racket-check-syntax-def)))
+    (when pos
+      (unless (get-text-property pos 'racket-check-syntax-def)
+        (setq pos (previous-single-property-change pos 'racket-check-syntax-def)))
+      (and pos (goto-char pos)))))
+
 (define-minor-mode racket-check-syntax-mode
   "Analyze the buffer and annotate with information.
 
@@ -806,12 +822,15 @@ special commands to navigate among the definition and its uses.
 ```
 "
   :lighter " CheckSyntax"
-  :keymap '(("q" . racket-check-syntax-mode-quit)
-            ("h" . racket-check-syntax-mode-help)
-            ("." . racket-check-syntax-mode-goto-def)
-            ("n" . racket-check-syntax-mode-goto-next-use)
-            ("p" . racket-check-syntax-mode-goto-prev-use)
-            ("r" . racket-check-syntax-mode-rename))
+  :keymap (racket--easy-keymap-define
+           '(("q"       racket-check-syntax-mode-quit)
+             ("h"       racket-check-syntax-mode-help)
+             (("j" "TAB")    racket-check-syntax-mode-goto-next-def)
+             (("k" "S-TAB")  racket-check-syntax-mode-goto-prev-def)
+             ("."       racket-check-syntax-mode-goto-def)
+             ("n"       racket-check-syntax-mode-goto-next-use)
+             ("p"       racket-check-syntax-mode-goto-prev-use)
+             ("r"       racket-check-syntax-mode-rename)))
   (unless (eq major-mode 'racket-mode)
     (setq racket-check-syntax-mode nil)
     (error "racket-check-syntax-mode only works with racket-mode"))
@@ -851,7 +870,8 @@ special commands to navigate among the definition and its uses.
       (setq buffer-read-only t)
       (racket--point-entered (point-min) (point)) ;in case already in one
       (setq header-line-format
-            "Check Syntax. Buffer is read-only. Press h for help, q to quit."))
+            "Check Syntax. Buffer is read-only. Press h for help, q to quit.")
+      (racket-check-syntax-mode-goto-next-def))
     (message "")))
 
 (defun racket--check-syntax-stop ()
