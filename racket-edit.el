@@ -1154,11 +1154,13 @@ expression."
   (interactive "P")
   (unless racket--debug-break-data
     (user-error "Not at a break"))
-  (let ((cmd (if (and change-value-p
-                      (cadr (assoc 'vals racket--debug-break-data)))
-                 (let* ((old (cadr (assoc 'vals racket--debug-break-data)))
-                        (new (read-string "Return Values: " old)))
-                   (format ",(step %s)\n" new))
+  (let ((cmd (if change-value-p
+                 (if (cadr (assoc 'vals racket--debug-break-data)) ;break after
+                     (let* ((old (cadr (assoc 'vals racket--debug-break-data)))
+                            (new (read-string "Return values: " old)))
+                       (format ",(step %s)\n" new))
+                   (format ",(step %s)\n" ;break before
+                           (read-string "Skip, instead use values: " "()")))
                ",(step)\n")))
     (setq racket--debug-break-data nil)
     (racket--repl-eval cmd)))
