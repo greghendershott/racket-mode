@@ -49,12 +49,22 @@
 ;;; Commands
 
 (defconst racket-make-doc/commands
-  '("Run"
+  `("Run"
     racket-run
     racket-racket
     racket-profile
     racket-profile-mode
     racket-debug
+    (racket-debug-mode-step ,racket-debug-mode-map)
+    (racket-debug-mode-go ,racket-debug-mode-map)
+    (racket-debug-mode-run-to-point ,racket-debug-mode-map)
+    (racket-debug-mode-set-breakpoint ,racket-debug-mode-map)
+    (racket-debug-mode-clear-breakpoint ,racket-debug-mode-map)
+    (racket-debug-mode-value ,racket-debug-mode-map)
+    (racket-debug-mode-watch ,racket-debug-mode-map)
+    (racket-debug-mode-unwatch ,racket-debug-mode-map)
+    (racket-debug-mode-break ,racket-debug-mode-map)
+    (racket-debug-mode-quit ,racket-debug-mode-map)
     "Test"
     racket-test
     racket-raco-test
@@ -123,8 +133,8 @@
                 (format "<kbd>M-x %s</kbd>" symbol))))
     (concat str "\n\n")))
 
-(defun racket-make-doc/bindings (symbol)
-  (where-is-internal symbol racket-mode-map))
+(defun racket-make-doc/bindings (symbol keymap)
+  (where-is-internal symbol keymap))
 
 (defun racket-make-doc/html-escape (str)
   (with-temp-buffer

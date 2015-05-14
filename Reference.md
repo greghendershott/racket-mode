@@ -135,12 +135,14 @@ during initialization.
 
 Instrument file(s), enable [`racket-debug-mode`](#racket-debug-mode), and run.
 
-For each `require`d file in the same directory, you get a y/n
-prompt. Answer yes to debug that file, too.
+For each `require`d file in the same directory, you get a y/n/Y/N
+prompt asking whether to debug this file, too. Answer y or n --
+or Y or N to answer for all such files (similar to pressing ! for
+`query-replace`).
 
 Upon each break, the source file is shown with point at the
-breakpoint. Uses of top-level and local bindings are drawn
-showing the current values inline. The minor mode
+breakpoint. The values of of top-level and local bindings are
+drawn in the buffer to right of the binding name. The minor mode
 [`racket-debug-mode`](#racket-debug-mode) is enabled, which provides additional
 commands:
 
@@ -168,12 +170,100 @@ C-c C-c		racket-debug-mode-break
 
 During a break, the Racket REPL may be used to evaluate
 expressions in the namespace of the module. Both top-level and
-local bindings may be referenced and `set!` to new values.
+local bindings may be referenced and `set!` to new values. (You
+can also change a binding value by moving point to its definition
+and choosing [`racket-debug-mode-value`](#racket-debug-mode-value).)
 
 The REPL may be used even after the program completes, because
 the code remains instrumented for debugging. If you call
 instrumented code, it will break before the first expression. (To
-"fully exit" debugging, do a normal [`racket-run`](#racket-run).)
+"fully exit" debugging, do a normal [`racket-run`](#racket-run), and, press q
+to exit [`racket-debug-mode`](#racket-debug-mode).)
+
+### racket-debug-mode-step
+<kbd>SPC</kbd> or <kbd>s</kbd>
+
+Evaluate the next expression and break.
+
+With C-u prefix, prompts for values to substitute for the next
+expression:
+
+  - At a "break-before", the next expression is skipped
+    entirely and the values are used instead.
+
+  - At a "break-after", the return values of the
+    already-evaluated expression are replaced.
+
+### racket-debug-mode-go
+<kbd>g</kbd>
+
+Continue until the next breakpoint, if any.
+
+### racket-debug-mode-run-to-point
+<kbd>.</kbd>
+
+Run to the first breakable position after point.
+
+Effectively this sets a one-shot breakpoint and does
+[`racket-debug-mode-go`](#racket-debug-mode-go).
+
+### racket-debug-mode-set-breakpoint
+<kbd>b</kbd>
+
+Set a break at the first breakable position after point.
+
+With a numeric prefix SKIP-COUNT, will skip the breakpoint that
+number of times, then become a normal breakpoint.
+
+Note: Currently there is no UI to show existing breakpoints.
+
+### racket-debug-mode-clear-breakpoint
+<kbd>u</kbd>
+
+Clear a break at the first breakable position after point.
+
+### racket-debug-mode-value
+<kbd>&lt;C-return&gt;</kbd>
+
+Change the value at point (if any).
+
+Limitation: The new value will not be redrawn inline until the
+next step command.
+
+### racket-debug-mode-watch
+<kbd>w</kbd>
+
+Break when the identifer at point is a certain value.
+
+Caveats:
+
+- Watchpoints will cause execution to be significantly slower.
+
+- Currently there is no UI to show existing watchpoints.
+
+### racket-debug-mode-unwatch
+<kbd>W</kbd>
+
+Unwatch the identifer at point (if any).
+
+### racket-debug-mode-break
+<kbd>k</kbd> or <kbd>C-c C-c</kbd>
+
+Signal the debugger to break.
+
+Note: This does not use SIGINT and exn:break. Instead, it creates
+a special file whose existence is a flag to break. In the Racket
+REPL buffer, `comint-interrupt-subjob` C-c C-c generates an
+actual SIGINT.
+
+### racket-debug-mode-quit
+<kbd>q</kbd>
+
+Disable [`racket-debug-mode`](#racket-debug-mode) in all buffers and kill frames buffer.
+
+Note: The Racket REPL remains in debugging state until your next
+[`racket-run`](#racket-run). The role of [`racket-debug-mode`](#racket-debug-mode) is to handle
+debugger breaks.
 
 ## Test
 
