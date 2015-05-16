@@ -18,7 +18,7 @@
 (require 'racket-profile)
 (require 'racket-edit)
 (require 'racket-unicode-input-method)
-(require 'dash)
+(require 'cl-lib)
 (require 's)
 
 ;;; Top
@@ -92,30 +92,31 @@
 
 (defun racket-make-doc/commands ()
   (apply #'concat
-         (-map #'racket-make-doc/command racket-make-doc/commands)))
+         (mapcar #'racket-make-doc/command racket-make-doc/commands)))
 
 (defun racket-make-doc/command (s)
   (if (stringp s)
       (format "## %s\n\n" s)
     (concat (format "### %s\n" s)
             (racket-make-doc/bindings-as-kbd s)
-            (-> (or (documentation s) "No documentation.\n\n")
-                racket-make-doc/linkify
-                racket-make-doc/tweak-quotes)
+            (racket-make-doc/tweak-quotes
+             (racket-make-doc/linkify
+              (or (documentation s) "No documentation.\n\n")))
             "\n\n")))
 
 (defun racket-make-doc/bindings-as-kbd (symbol)
   (let* ((bindings (racket-make-doc/bindings symbol))
          (strs (and bindings
-                    (-non-nil
-                     (-map (lambda (binding)
-                             (unless (eq (aref binding 0) 'menu-bar)
-                               (format "<kbd>%s</kbd>"
-                                       (racket-make-doc/html-escape
-                                        (key-description binding)))))
-                           bindings))))
+                    (cl-remove-if-not
+                     #'identity
+                     (mapcar (lambda (binding)
+                               (unless (eq (aref binding 0) 'menu-bar)
+                                 (format "<kbd>%s</kbd>"
+                                         (racket-make-doc/html-escape
+                                          (key-description binding)))))
+                             bindings))))
          (str (if strs
-                  (apply #'concat (-interpose " or " strs))
+                  (mapconcat #'identity strs " or ")
                 (format "<kbd>M-x %s</kbd>" symbol))))
     (concat str "\n\n")))
 
@@ -161,10 +162,10 @@
   (if (stringp s)
       (format "## %s\n\n" s)
     (concat (format "### %s\n" s)
-            (-> (or (documentation-property s 'variable-documentation)
-                    "No documentation.\n\n")
-                racket-make-doc/linkify
-                racket-make-doc/tweak-quotes)
+            (racket-make-doc/tweak-quotes
+             (racket-make-doc/linkify
+              (or (documentation-property s 'variable-documentation)
+                  "No documentation.\n\n")))
             "\n\n")))
 
 ;;; Faces
@@ -181,10 +182,10 @@
 
 (defun racket-make-doc/face (symbol)
   (concat (format "### %s\n" symbol)
-          (-> (or (documentation-property symbol 'face-documentation)
-                  "No documentation.\n\n")
-              racket-make-doc/linkify
-              racket-make-doc/tweak-quotes)
+          (racket-make-doc/tweak-quotes
+           (racket-make-doc/linkify
+            (or (documentation-property symbol 'face-documentation)
+                "No documentation.\n\n")))
           "\n\n"))
 
 ;;; TOC
@@ -198,9 +199,9 @@
           "\n"))
 
 (defun racket-make-doc/subheads (xs)
-  (->> (-filter #'stringp xs)
-       (-map #'racket-make-doc/subhead)
-       (apply #'concat)))
+  (apply #'concat
+         (mapcar #'racket-make-doc/subhead
+                 (cl-remove-if-not #'stringp xs))))
 
 (defun racket-make-doc/subhead (x)
   (format "    - [%s](#%s)\n"
