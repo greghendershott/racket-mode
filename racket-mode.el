@@ -3,7 +3,7 @@
 ;; Copyright (c) 2013-2015 by Greg Hendershott.
 
 ;; Package: racket-mode
-;; Package-Requires: ((emacs "24.3") (dash "2.10.0") (faceup "0.0.2") (s "1.9.0"))
+;; Package-Requires: ((emacs "24.3") (faceup "0.0.2") (s "1.9.0"))
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
 
