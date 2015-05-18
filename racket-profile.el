@@ -102,21 +102,20 @@ delete compiled/*.zo files."
 
 (defun racket--profile-visit ()
   (interactive)
-  (let ((win  (selected-window))
-        (prop (get-text-property (point) 'racket-profile-location)))
-    (when prop
-      (cl-destructuring-bind (file beg end) prop
-        (setq racket--profile-overlay-this
-              (make-overlay (save-excursion (beginning-of-line) (point))
-                            (save-excursion (end-of-line) (point))
-                            (current-buffer)))
-        (overlay-put racket--profile-overlay-this 'face 'next-error)
-        (find-file-other-window file)
-        (setq racket--profile-overlay-that (make-overlay beg end (current-buffer)))
-        (overlay-put racket--profile-overlay-that 'face 'next-error)
-        (goto-char beg)
-        (add-hook 'pre-command-hook #'racket--profile-remove-overlay)
-        (select-window win)))))
+  (let ((win (selected-window)))
+    (pcase (get-text-property (point) 'racket-profile-location)
+      (`(,file ,beg ,end)
+       (setq racket--profile-overlay-this
+             (make-overlay (save-excursion (beginning-of-line) (point))
+                           (save-excursion (end-of-line) (point))
+                           (current-buffer)))
+       (overlay-put racket--profile-overlay-this 'face 'next-error)
+       (find-file-other-window file)
+       (setq racket--profile-overlay-that (make-overlay beg end (current-buffer)))
+       (overlay-put racket--profile-overlay-that 'face 'next-error)
+       (goto-char beg)
+       (add-hook 'pre-command-hook #'racket--profile-remove-overlay)
+       (select-window win)))))
 
 (defun racket--profile-remove-overlay ()
   (delete-overlay racket--profile-overlay-this)

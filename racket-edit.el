@@ -214,28 +214,25 @@ will tell you so but won't visit the definition site."
 
 (defun racket--do-visit-def-or-mod (cmd sym)
   "CMD must be \"def\" or \"mod\". SYM must be `symbolp`."
-  (let ((result (racket--repl-cmd/sexpr (format ",%s %s\n\n" cmd sym))))
-    (cond ((and (listp result) (= (length result) 3))
-           (racket--push-loc)
-           (cl-destructuring-bind (path line col) result
-             (find-file path)
-             (goto-char (point-min))
-             (forward-line (1- line))
-             (forward-char col))
-           (message "Type M-, to return"))
-          ((eq result 'kernel)
-           (message "`%s' defined in #%%kernel -- source not available." sym))
-          ((y-or-n-p "Not found. Run current buffer and try again? ")
-           (racket-run)
-           (racket--do-visit-def-or-mod cmd sym)))))
+  (pcase (racket--repl-cmd/sexpr (format ",%s %s\n\n" cmd sym))
+    (`(,path ,line ,col)
+     (racket--push-loc)
+     (find-file path)
+     (goto-char (point-min))
+     (forward-line (1- line))
+     (forward-char col)
+     (message "Type M-, to return"))
+    (`kernel
+     (message "`%s' defined in #%%kernel -- source not available." sym))
+    (_ (when (y-or-n-p "Not found. Run current buffer and try again? ")
+         (racket-run)
+         (racket--do-visit-def-or-mod cmd sym)))))
 
 (defun racket--get-def-file+line (sym)
   "For use by company-mode 'location option."
-  (let ((result (racket--repl-cmd/sexpr (format ",def %s\n\n" sym))))
-    (cond ((and (listp result) (= (length result) 3))
-           (cl-destructuring-bind (path line col) result
-             (cons path line)))
-          (t nil))))
+  (pcase (racket--repl-cmd/sexpr (format ",def %s\n\n" sym))
+    (`(,path ,line ,_) (cons path line))
+    (_ nil)))
 
 (defun racket-visit-module (&optional prefix)
   "Visit definition of module at point, e.g. net/url or \"file.rkt\".
@@ -284,9 +281,10 @@ instead of looking at point."
   "Return from previous `racket-visit-definition' or `racket-visit-module'."
   (interactive)
   (if racket--loc-stack
-      (cl-destructuring-bind (buffer . pt) (pop racket--loc-stack)
-        (pop-to-buffer-same-window buffer)
-        (goto-char pt))
+      (pcase (pop racket--loc-stack)
+        (`(,buffer . ,pt)
+         (pop-to-buffer-same-window buffer)
+         (goto-char pt)))
     (message "Stack empty.")))
 
 
