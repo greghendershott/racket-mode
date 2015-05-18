@@ -150,7 +150,7 @@
       [(mp rmp stx)
        (repl-module-name-resolver mp rmp stx #t)]
       [(mp rmp stx load?)
-       (when (and (eq? mp 'racket/gui/base) load?)
+       (when (and load? (memq mp '(racket/gui/base scheme/gui/base)))
          (unless (gui-required?)
            (put/stop (load-gui))))
        (orig-resolver mp rmp stx load?)])))
