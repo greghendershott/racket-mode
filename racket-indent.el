@@ -289,33 +289,24 @@ for/fold and for*/fold."
 (defun racket--indent-for/fold-untyped (state indent-point normal-indent)
   ;; see http://community.schemewiki.org/?emacs-indentation
   (let ((containing-sexp-start (elt state 1))
-        containing-sexp-point
         containing-sexp-column
         containing-sexp-line
         body-indent
         clause-indent)
-    ;; Move to the start of containing sexp, calculate its
-    ;; indentation, store its point and move past the function symbol
-    ;; so that we can use 'parse-partial-sexp'.
-    ;;
-    ;; 'lisp-indent-function' guarantees that there is at least one
-    ;; word or symbol character following open paren of containing
-    ;; sexp.
-    (forward-char 1)
     (goto-char containing-sexp-start)
-    (setq containing-sexp-point (point))
     (setq containing-sexp-column (current-column))
     (setq containing-sexp-line (line-number-at-pos)) ;expensive?
     (setq body-indent (+ lisp-body-indent containing-sexp-column))
-    (forward-char 1)    ;Move past the open paren.
-    (forward-sexp 2)    ;Move to the next sexp, past its close paren
-    ;; If the first, accumulator sexp is not on the same line, then
-    ;; this is simply specform 2.
+    ;; Move to the open paren of the first, accumulator sexp
+    (forward-char 1)    ;past the open paren
+    (forward-sexp 2)    ;to the next sexp, past its close paren
+    (backward-sexp 1)   ;back to its open paren
+    ;; If the first, accumulator sexp is not on the same line as
+    ;; `for/fold`, then this is simply specform 2.
     (if (/= (line-number-at-pos) containing-sexp-line) ;expensive?
         (lisp-indent-specform 2 state indent-point normal-indent)
-      (backward-sexp 1)   ;Move to its start paren
       (setq clause-indent (current-column))
-      (forward-sexp 1)    ;Move back past close paren
+      (forward-sexp 1)    ;past close paren
       ;; Now go back to the beginning of the line holding
       ;; the indentation point. Count the sexps on the way.
       (parse-partial-sexp (point) indent-point 1 t)
@@ -327,9 +318,8 @@ for/fold and for*/fold."
                           (forward-sexp 1)
                           (parse-partial-sexp (point) indent-point 1 t))
                       (error nil))))
-        (list (cond ((= 1 n) clause-indent)
-                    (t body-indent))
-              containing-sexp-point)))))
+        (list (if (= 1 n) clause-indent body-indent)
+              containing-sexp-start)))))
 
 (defun racket--set-indentation ()
   "Set indentation for various Racket forms.

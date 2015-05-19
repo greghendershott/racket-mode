@@ -199,27 +199,35 @@
 «m:;;; »«x:for/fold
 »
 «m:;; »«x:for/fold untyped, accum on same line
-»«:racket-paren-face:(»«b:for/fold» «:racket-paren-face:()»
-          «:racket-paren-face:()»
+»«:racket-paren-face:(»«b:for/fold» «:racket-paren-face:([»a «:racket-selfeval-face:0»«:racket-paren-face:]»
+           «:racket-paren-face:[»b «:racket-selfeval-face:0»«:racket-paren-face:])»
+          «:racket-paren-face:([»x «:racket-selfeval-face:0»«:racket-paren-face:]»
+           «:racket-paren-face:[»y «:racket-selfeval-face:0»«:racket-paren-face:])»
   «:racket-selfeval-face:#t»«:racket-paren-face:)»
 
 «m:;; »«x:for/fold untyped, accum on different line
 »«:racket-paren-face:(»«b:for/fold»
-    «:racket-paren-face:()»
-    «:racket-paren-face:()»
+    «:racket-paren-face:([»a «:racket-selfeval-face:0»«:racket-paren-face:]»
+     «:racket-paren-face:[»b «:racket-selfeval-face:0»«:racket-paren-face:])»
+    «:racket-paren-face:([»x «:racket-selfeval-face:0»«:racket-paren-face:]»
+     «:racket-paren-face:[»y «:racket-selfeval-face:0»«:racket-paren-face:])»
   «:racket-selfeval-face:#t»«:racket-paren-face:)»
 
-«m:;; »«x:for/fold typed, accum on same line
+«m:;; »«x:for/fold typed, type on same line
 »«:racket-paren-face:(»«b:for/fold» «k::» T
-          «:racket-paren-face:()»
-          «:racket-paren-face:()»
+          «:racket-paren-face:([»a «:racket-selfeval-face:0»«:racket-paren-face:]»
+           «:racket-paren-face:[»b «:racket-selfeval-face:0»«:racket-paren-face:])»
+          «:racket-paren-face:([»x «:racket-selfeval-face:0»«:racket-paren-face:]»
+           «:racket-paren-face:[»y «:racket-selfeval-face:0»«:racket-paren-face:])»
   «:racket-selfeval-face:#t»«:racket-paren-face:)»
 
-«m:;; »«x:for/fold typed, accum on different line
+«m:;; »«x:for/fold typed, type on different line
 »«:racket-paren-face:(»«b:for/fold»
     «k::» T
-    «:racket-paren-face:()»
-    «:racket-paren-face:()»
+    «:racket-paren-face:([»a «:racket-selfeval-face:0»«:racket-paren-face:]»
+     «:racket-paren-face:[»b «:racket-selfeval-face:0»«:racket-paren-face:])»
+    «:racket-paren-face:([»x «:racket-selfeval-face:0»«:racket-paren-face:]»
+     «:racket-paren-face:[»y «:racket-selfeval-face:0»«:racket-paren-face:])»
   «:racket-selfeval-face:#t»«:racket-paren-face:)»
 
 «m:;;; »«x:Bug #50

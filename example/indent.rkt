@@ -199,27 +199,35 @@
 ;;; for/fold
 
 ;; for/fold untyped, accum on same line
-(for/fold ()
-          ()
+(for/fold ([a 0]
+           [b 0])
+          ([x 0]
+           [y 0])
   #t)
 
 ;; for/fold untyped, accum on different line
 (for/fold
-    ()
-    ()
+    ([a 0]
+     [b 0])
+    ([x 0]
+     [y 0])
   #t)
 
-;; for/fold typed, accum on same line
+;; for/fold typed, type on same line
 (for/fold : T
-          ()
-          ()
+          ([a 0]
+           [b 0])
+          ([x 0]
+           [y 0])
   #t)
 
-;; for/fold typed, accum on different line
+;; for/fold typed, type on different line
 (for/fold
     : T
-    ()
-    ()
+    ([a 0]
+     [b 0])
+    ([x 0]
+     [y 0])
   #t)
 
 ;;; Bug #50
