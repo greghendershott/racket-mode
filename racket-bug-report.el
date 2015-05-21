@@ -16,6 +16,8 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'cl-lib)
+
 (defconst racket--source-dir
   (file-name-directory (or load-file-name (buffer-file-name))))
 
@@ -29,31 +31,46 @@
     (princ "Please copy and paste this into your bug report at:\n\n")
     (princ "  https://github.com/greghendershott/racket-mode/issues/new\n\n")
     (princ "```\n")
-    (pp `(,@(mapcar (lambda (id)
-                      (list id
-                            (condition-case ()
-                                (symbol-value id)
-                              (error 'VOID-VARIABLE))))
-                    `(emacs-version
-                      system-type
-                      major-mode
-                      racket--source-dir
-                      racket-racket-program
-                      racket-raco-program
-                      racket-memory-limit
-                      racket-error-context
-                      racket-history-filter-regexp
-                      racket-images-inline
-                      racket-images-keep-last
-                      racket-images-system-viewer
-                      racket-pretty-print
-                      racket-indent-curly-as-sequence
-                      racket-indent-sequence-depth
-                      racket-pretty-lambda
-                      racket-smart-open-bracket-enable
-                      racket-use-company-mode
-                      ,@(mapcar #'car minor-mode-alist)))))
-    (princ "```\n")))
+    (cl-labels ((id-val (id) (list id
+                                   (condition-case () (symbol-value id)
+                                     (error 'UNDEFINED)))))
+      (let ((emacs-uptime (emacs-uptime)))
+        (pp `(,@(mapcar #'id-val
+                        `(emacs-version
+                          emacs-uptime
+                          system-type
+                          major-mode
+                          racket--source-dir
+                          racket-racket-program
+                          racket-raco-program
+                          racket-memory-limit
+                          racket-error-context
+                          racket-history-filter-regexp
+                          racket-images-inline
+                          racket-images-keep-last
+                          racket-images-system-viewer
+                          racket-pretty-print
+                          racket-indent-curly-as-sequence
+                          racket-indent-sequence-depth
+                          racket-pretty-lambda
+                          racket-smart-open-bracket-enable
+                          racket-use-company-mode)))))
+      ;; Show lists of enabled and disabled minor modes, each sorted by name.
+      (let* ((minor-modes (cl-remove-duplicates
+                           (append minor-mode-list
+                                   (mapcar #'car minor-mode-alist))))
+             (modes/values (mapcar #'id-val minor-modes))
+             (sorted (sort modes/values
+                           (lambda (a b)
+                             (string-lessp (format "%s" (car a))
+                                           (format "%s" (car b)))))))
+        (cl-labels ((f (x) (list (car x)))) ;car as a list so pp line-wraps
+          (pp `(enabled-minor-modes  ,@(mapcar #'f (cl-remove-if-not #'cadr sorted))))
+          (pp `(disabled-minor-modes ,@(mapcar #'f (cl-remove-if     #'cadr sorted))))))
+      (princ "```\n"))))
+
+(defun racket-bug-report--val (id)
+)
 
 (provide 'racket-bug-report)
 
