@@ -407,6 +407,7 @@ doesn't hurt to do so."
           (letrec-syntax 1)
           (let/cc 1)
           (let/ec 1)
+          (shared 1)
           (match 1)
           (match* 1)
           (match-define defun)
