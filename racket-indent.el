@@ -405,6 +405,7 @@ doesn't hurt to do so."
           (letrec-syntaxes+values racket--indent-for/fold-untyped)
           (let/cc 1)
           (let/ec 1)
+          (shared 1)
           (match 1)
           (match* 1)
           (match-define defun)
