@@ -17,6 +17,7 @@
 
 (require 'racket-custom)
 (require 'racket-keywords-and-builtins)
+(require 'cl-lib)
 
 (defconst racket-font-lock-keywords
   (eval-when-compile
@@ -69,6 +70,9 @@
       (,(rx "(def" (0+ (or (syntax word) (syntax symbol))) (1+ " ")
             (+ "(") (group (1+ (or (syntax word) (syntax symbol)))))
        1 font-lock-function-name-face)
+
+      ;; let identifiers
+      (,#'racket--font-lock-let-identifiers . font-lock-variable-name-face)
 
       ;; module and module*
       (,(rx "("
@@ -145,6 +149,67 @@
               symbol-end))
        . racket-selfeval-face)))
     "Font lock keywords for Racket mode")
+
+(defun racket--font-lock-let-identifiers (limit)
+  "In let forms give identifiers `font-lock-variable-name-face'.
+
+This handles both let and let-values style forms (bindings with
+with single identifiers or identifier lists).
+
+Note: This works only when the let form has a closing paren.
+\(Otherwise, when you type an incomplete let form before existing
+code, this would mistakenly treat the existing code as part of
+the let form.) The font-lock will kick in after you type the
+closing paren. Or if you use paredit, it will already be there."
+  (while (re-search-forward "(let" limit t)
+    (when (racket--inside-complete-sexp)
+      ;; Check for named let
+      (when (looking-at (rx (+ space) (+ (or (syntax word) (syntax symbol)))))
+        (forward-sexp 1)
+        (backward-sexp 1)
+        (racket--font-lock-this-sexpr font-lock-function-name-face))
+      (down-list 1) ;to the open paren of the first binding form
+      (while (ignore-errors
+               (down-list 1) ;to the id or list of id's
+               (if (not (looking-at "[([{]"))
+                   (racket--font-lock-this-sexpr font-lock-variable-name-face)
+                 ;; list of ids, e.g. let-values
+                 (down-list 1)    ;to first id
+                 (cl-loop
+                  do (racket--font-lock-this-sexpr font-lock-variable-name-face)
+                  while (ignore-errors (forward-sexp 1) (backward-sexp 1) t))
+                 (backward-up-list))
+               (backward-up-list) ;to open paren of this binding form
+               (forward-sexp 1)   ;to open paren of next binding form
+               t))))
+  nil)
+
+(defun racket--inside-complete-sexp ()
+  "Return whether point is inside a complete sexp."
+  (condition-case ()
+      (save-excursion (backward-up-list) (forward-sexp 1) t)
+    (error nil)))
+
+(defun racket--font-lock-this-sexpr (face)
+  "Set face to FACE, rear-nonsticky, for the sexp starting at point.
+Moves point to the end of the sexp."
+  (let ((beg (point))
+        (end (progn (forward-sexp 1) (point))))
+    (add-text-properties beg end
+                         `(face ,face
+                           fontified t
+                           rear-nonsticky (face)))))
+
+(defvar font-lock-beg) ;from font-lock.el -- make compiler happy
+
+(defun racket--font-lock-extend-region ()
+  "Extend beginning of font lock region to beginning-of-defun.
+Needed to support let, because we need the whole form (if any)."
+  (beginning-of-defun)
+  (if (<= font-lock-beg (point))
+      nil
+    (setq font-lock-beg (point))
+    t))
 
 (provide 'racket-font-lock)
 

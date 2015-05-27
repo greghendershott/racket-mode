@@ -24,6 +24,45 @@
 
 (define-values (1st-var 2nd-var) (values 1 2))
 
+;; let: font-lock identifiers
+
+(let ([foo 10]
+      [bar 20])
+  foo)
+
+(let loop ([x 10])
+  (unless (zero? x)
+    (loop (sub1 x))))
+
+(let* ([foo 10]
+       [bar 20])
+  foo)
+
+(let-values ([(a b) (values 1 2)])
+  (values a b))
+
+(let*-values ([(a b) (values 1 2)])
+  (values a b))
+
+(letrec-values ([(a b) (values 1 2)])
+  (values a b))
+
+(let-syntax ([foo #'foo])
+  foo)
+
+(letrec-syntax ([foo #'foo])
+  foo)
+
+(let-syntaxes ([(foo) #'foo])
+  foo)
+
+(letrec-syntaxes ([(foo) #'foo])
+  foo)
+
+(letrec-syntaxes+values ([(foo) #'foo])
+                        ([(a b) (values 1 2)])
+  foo)
+
 ;; for/fold is indented correctly:
 (for/fold ([str ""])
           ([ss '("a" "b" "c")])

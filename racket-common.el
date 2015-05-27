@@ -18,12 +18,12 @@
 
 ;; Things used by both racket-mode and racket-repl-mode
 
+(require 'cl-lib)
 (require 'thingatpt)
 (require 'racket-custom)
 (require 'racket-keywords-and-builtins)
 (require 'racket-font-lock)
 (require 'racket-indent)
-(require 'cl-lib)
 
 (defvar racket-mode-syntax-table
   (let ((st (make-syntax-table))
@@ -142,14 +142,19 @@
   (setq-local syntax-propertize-function racket-syntax-propertize-function)
   (setq-local multibyte-syntax-as-symbol t)
   (setq-local font-lock-defaults
-              `(,racket-font-lock-keywords     ;keywords
-                nil                            ;keywords-only?
-                nil                            ;case-fold?
-                nil                            ;syntax-alist
-                beginning-of-defun             ;syntax-begin
-                ;; Additional variables:
-                (font-lock-mark-block-function . mark-defun)
-                (parse-sexp-lookup-properties . t)))
+              (list racket-font-lock-keywords ;keywords
+                    nil                       ;keywords-only?
+                    nil                       ;case-fold?
+                    nil                       ;syntax-alist
+                    nil                       ;syntax-begin
+                    ;; Additional variables:
+                    (cons 'syntax-begin-function #'beginning-of-defun)
+                    (cons 'font-lock-mark-block-function #'mark-defun)
+                    (cons 'parse-sexp-lookup-properties t)
+                    (cons 'font-lock-multiline t)
+                    (cons 'font-lock-extend-region-functions
+                          (list #'font-lock-extend-region-wholelines
+                                #'racket--font-lock-extend-region))))
   ;; -----------------------------------------------------------------
   ;; Comments. Borrowed from lisp-mode
   (setq-local comment-start ";")
@@ -177,7 +182,8 @@
   (racket--set-indentation)
   (setq-local indent-tabs-mode nil)
   (setq-local completion-at-point-functions (list #'racket-complete-at-point))
-  (setq-local eldoc-documentation-function #'racket-eldoc-function))
+  (setq-local eldoc-documentation-function #'racket-eldoc-function)
+  (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function))
 
 
 ;;; Insert lambda char (like DrRacket)
@@ -477,6 +483,35 @@ existence using `fboundp'."
   (while (in-string-p)
     (backward-char))
   (backward-up-list))
+
+;;; racket--beginning-of-defun
+
+(defun racket--beginning-of-defun-function (arg)
+  "Like `beginning-of-defun' but aware of Racket module forms."
+  (unless (= arg 1) (error "not yet implemented"))
+  (let ((pt (point)))
+    (ignore-errors (backward-sexp 1)) ;in case we're between top-level forms
+    (if (racket--goto-beg-of-defun)
+        t
+      (goto-char pt)
+      nil)))
+
+(defun racket--goto-beg-of-defun ()
+  (let (old
+        older)
+    (while (ignore-errors
+             (setq older old)
+             (setq old (point))
+             ;; Do NOT use `racket-backward-up-list' because
+             ;; `in-string-p' calls `beginning-of-defun' -- us!
+             (backward-up-list 1)
+             t)
+      nil)
+    (when (and older (looking-at "[([{]module[*+]?"))
+      (setq old older))
+    (when old
+      (goto-char old)
+      t)))
 
 (provide 'racket-common)
 

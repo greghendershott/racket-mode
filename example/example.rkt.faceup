@@ -24,6 +24,45 @@
 
 «:racket-paren-face:(»«k:define-values» «:racket-paren-face:(»«v:1st-var 2nd-var»«:racket-paren-face:)» «:racket-paren-face:(»«b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:))»
 
+«m:;; »«x:let: font-lock identifiers
+»
+«:racket-paren-face:(»«k:let» «:racket-paren-face:([»«v:foo» «:racket-selfeval-face:10»«:racket-paren-face:]»
+      «:racket-paren-face:[»«v:bar» «:racket-selfeval-face:20»«:racket-paren-face:])»
+  foo«:racket-paren-face:)»
+
+«:racket-paren-face:(»«k:let» «f:loop» «:racket-paren-face:([»«v:x» «:racket-selfeval-face:10»«:racket-paren-face:])»
+  «:racket-paren-face:(»«k:unless» «:racket-paren-face:(»«b:zero?» x«:racket-paren-face:)»
+    «:racket-paren-face:(»loop «:racket-paren-face:(»«b:sub1» x«:racket-paren-face:))))»
+
+«:racket-paren-face:(»«k:let*» «:racket-paren-face:([»«v:foo» «:racket-selfeval-face:10»«:racket-paren-face:]»
+       «:racket-paren-face:[»«v:bar» «:racket-selfeval-face:20»«:racket-paren-face:])»
+  foo«:racket-paren-face:)»
+
+«:racket-paren-face:(»«k:let-values» «:racket-paren-face:([(»«v:a» «v:b»«:racket-paren-face:)» «:racket-paren-face:(»«b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:)])»
+  «:racket-paren-face:(»«b:values» a b«:racket-paren-face:))»
+
+«:racket-paren-face:(»«k:let*-values» «:racket-paren-face:([(»«v:a» «v:b»«:racket-paren-face:)» «:racket-paren-face:(»«b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:)])»
+  «:racket-paren-face:(»«b:values» a b«:racket-paren-face:))»
+
+«:racket-paren-face:(»«k:letrec-values» «:racket-paren-face:([(»«v:a» «v:b»«:racket-paren-face:)» «:racket-paren-face:(»«b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:)])»
+  «:racket-paren-face:(»«b:values» a b«:racket-paren-face:))»
+
+«:racket-paren-face:(»«k:let-syntax» «:racket-paren-face:([»«v:foo» #«:racket-selfeval-face:'foo»«:racket-paren-face:])»
+  foo«:racket-paren-face:)»
+
+«:racket-paren-face:(»«k:letrec-syntax» «:racket-paren-face:([»«v:foo» #«:racket-selfeval-face:'foo»«:racket-paren-face:])»
+  foo«:racket-paren-face:)»
+
+«:racket-paren-face:(»«k:let-syntaxes» «:racket-paren-face:([(»«v:foo»«:racket-paren-face:)» #«:racket-selfeval-face:'foo»«:racket-paren-face:])»
+  foo«:racket-paren-face:)»
+
+«:racket-paren-face:(»«k:letrec-syntaxes» «:racket-paren-face:([(»«v:foo»«:racket-paren-face:)» #«:racket-selfeval-face:'foo»«:racket-paren-face:])»
+  foo«:racket-paren-face:)»
+
+«:racket-paren-face:(»«k:letrec-syntaxes+values» «:racket-paren-face:([(»«v:foo»«:racket-paren-face:)» #«:racket-selfeval-face:'foo»«:racket-paren-face:])»
+                        «:racket-paren-face:([(»a b«:racket-paren-face:)» «:racket-paren-face:(»«b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:)])»
+  foo«:racket-paren-face:)»
+
 «m:;; »«x:for/fold is indented correctly:
 »«:racket-paren-face:(»«b:for/fold» «:racket-paren-face:([»str «s:""»«:racket-paren-face:])»
           «:racket-paren-face:([»ss '«:racket-paren-face:(»«s:"a"» «s:"b"» «s:"c"»«:racket-paren-face:)])»
@@ -74,7 +113,7 @@ comment
       «x:#;(3)»«:racket-paren-face:)»
 
 «:racket-paren-face:(»«k:let» «:racket-paren-face:(»«x:#;[x #;1]»
-      «:racket-paren-face:[»y «:racket-selfeval-face:2»«:racket-paren-face:])»
+      «:racket-paren-face:[»«v:y» «:racket-selfeval-face:2»«:racket-paren-face:])»
   y«:racket-paren-face:)»
 
 |identifier with spaces|
@@ -88,24 +127,24 @@ comment
   «:racket-paren-face:(»«b:regexp-match?» «:racket-selfeval-face:#rx»«s:"foobar"» «s:"foobar"»«:racket-paren-face:)»
   «:racket-paren-face:(»«b:regexp-match?» «:racket-selfeval-face:#px»«s:"foobar"» «s:"foobar"»«:racket-paren-face:)»
   «:racket-paren-face:(»«k:define» «v:a» «:racket-selfeval-face:1»«:racket-paren-face:)»
-  «:racket-paren-face:(»«k:let» «:racket-paren-face:([»a «s:"foo"»«:racket-paren-face:]»
-        «:racket-paren-face:[»b «s:"bar"»«:racket-paren-face:])»
+  «:racket-paren-face:(»«k:let» «:racket-paren-face:([»«v:a» «s:"foo"»«:racket-paren-face:]»
+        «:racket-paren-face:[»«v:b» «s:"bar"»«:racket-paren-face:])»
     «:racket-paren-face:(»«b:displayln» b«:racket-paren-face:))»
-  «:racket-paren-face:(»«k:let*» «:racket-paren-face:([»a «s:"foo"»«:racket-paren-face:]»
-         «:racket-paren-face:[»b «s:"bar"»«:racket-paren-face:])»
+  «:racket-paren-face:(»«k:let*» «:racket-paren-face:([»«v:a» «s:"foo"»«:racket-paren-face:]»
+         «:racket-paren-face:[»«v:b» «s:"bar"»«:racket-paren-face:])»
     «:racket-paren-face:(»«b:displayln» b«:racket-paren-face:))»
-  «:racket-paren-face:(»«k:let-values» «:racket-paren-face:([(»a b«:racket-paren-face:)» «:racket-paren-face:(»«b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:)])»
+  «:racket-paren-face:(»«k:let-values» «:racket-paren-face:([(»«v:a» «v:b»«:racket-paren-face:)» «:racket-paren-face:(»«b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:)])»
     «:racket-selfeval-face:#t»«:racket-paren-face:)»
   «:racket-paren-face:(»«b:for/list» «:racket-paren-face:([»x «:racket-paren-face:(»«b:in-list» «:racket-paren-face:(»«b:list» «:racket-selfeval-face:1» «:racket-selfeval-face:2» «:racket-paren-face:(»«b:list» «:racket-selfeval-face:3» «:racket-selfeval-face:4»«:racket-paren-face:)))])»
     «:racket-paren-face:(»«k:cond» «:racket-paren-face:[(»«b:pair?» x«:racket-paren-face:)» «:racket-paren-face:(»«b:car» x«:racket-paren-face:)]»
           «:racket-paren-face:[»else x«:racket-paren-face:])))»
 
 «:racket-paren-face:(»«k:define» «:racket-paren-face:(»«f:foo»«:racket-paren-face:)»
-  «:racket-paren-face:(»«k:let» «:racket-paren-face:([»x «:racket-selfeval-face:10»«:racket-paren-face:])»
+  «:racket-paren-face:(»«k:let» «:racket-paren-face:([»«v:x» «:racket-selfeval-face:10»«:racket-paren-face:])»
     «:racket-selfeval-face:#t»«:racket-paren-face:)»
 
-  «:racket-paren-face:(»«k:let» «:racket-paren-face:([»x «:racket-selfeval-face:1»«:racket-paren-face:]»
-        «:racket-paren-face:[»y «:racket-selfeval-face:2»«:racket-paren-face:])»
+  «:racket-paren-face:(»«k:let» «:racket-paren-face:([»«v:x» «:racket-selfeval-face:1»«:racket-paren-face:]»
+        «:racket-paren-face:[»«v:y» «:racket-selfeval-face:2»«:racket-paren-face:])»
     «:racket-selfeval-face:#t»«:racket-paren-face:)»
 
   «:racket-paren-face:(»«k:define» «v:1/2-the-way» «:racket-selfeval-face:0»«:racket-paren-face:)»

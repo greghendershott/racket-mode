@@ -97,7 +97,7 @@
 
 «m:;;; »«x:Forms with special indentation
 »
-«:racket-paren-face:(»«k:let» «:racket-paren-face:([»x «:racket-selfeval-face:0»«:racket-paren-face:])»
+«:racket-paren-face:(»«k:let» «:racket-paren-face:([»«v:x» «:racket-selfeval-face:0»«:racket-paren-face:])»
   x«:racket-paren-face:)»
 
 «m:;; »«x:indent 2
