@@ -146,6 +146,30 @@ This changes the behavior of Emacs' standard `indent-for-tab-command`,
 to which <kbd>TAB</kbd> is bound by default in the racket-mode edit
 and REPL modes.
 
+### Font-lock (syntax highlighting)
+
+Font-lock (as Emacs calls syntax highlighting) can be controlled using
+`font-lock-maximum-decoration`, which defaults to `t` (maximum). You
+can set it to a number, where 0 is the lowest level. You can even
+supply an association list to specify different values for different
+major modes.
+
+Historically you might choose a lower level for speed. These days you
+might do so because you prefer a simpler appearance.
+
+Racket-mode supports four, increasing levels of font-lock:
+
+0: Just strings, comments, and `#lang`.
+
+1: `#:keyword`s and self-evaluating literals like numbers, `'symbol`s,
+   `'|symbols with spaces|`, regular expressions.
+
+2: Identifiers in `define`-like and `let`-like forms.
+
+3: Identifiers provided by `racket`, `typed/racket`, `racket/syntax`,
+   and `syntax/parse`. (This level effectively treats Racket as a
+   language, instead of a language for making languages.)
+
 ## Documentation
 
 Within Emacs, use the usual help functions.

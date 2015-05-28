@@ -19,16 +19,17 @@
 (require 'racket-keywords-and-builtins)
 (require 'cl-lib)
 
-(defconst racket-font-lock-keywords
-  (eval-when-compile
-    ;; Note: font-lock iterates by matcher, doing an re-search-forward
-    ;; over the entire region. As a result, it's faster to consolidate
-    ;; matchers that will yield the same result (unless they need to
-    ;; be tried in a certain order).
-    `(
-      ;; paren
-      (,(rx (any "[](){}")) . racket-paren-face)
+;; Define 3 levels of font-lock, as documented in 23.6.5 "Levels of
+;; Font Lock". User may control using `font-lock-maximum-decoration'.
 
+;; Note: font-lock iterates by matcher, doing an re-search-forward
+;; over the entire region. As a result, it's faster to consolidate
+;; matchers that will yield the same result (unless they need to be
+;; tried in a certain order).
+
+(defconst racket-font-lock-keywords-0
+  (eval-when-compile
+    `(
       ;; #shebang
       (,(rx bol "#!" (+ nonl) eol) . font-lock-comment-face)
 
@@ -38,7 +39,12 @@
                    (group (1+ not-newline))))
        (2 font-lock-keyword-face nil t)
        (3 font-lock-variable-name-face nil t))
+    ))
+  "Strings, comments, #lang.")
 
+(defconst racket-font-lock-keywords-1
+  (eval-when-compile
+    `(
       ;; keyword argument
       (,(rx "#:" (1+ (or (syntax word) (syntax symbol))))
        . racket-keyword-argument-face)
@@ -54,57 +60,6 @@
       ;; #rx #px. Needs `group'.
       (,(rx (group (or "#rx" "#px")) ?\")
        1 racket-selfeval-face)
-
-      (,(regexp-opt racket-type-list 'symbols) . font-lock-type-face)
-      (,(regexp-opt racket-builtins 'symbols) . font-lock-builtin-face)
-      (,(regexp-opt racket-keywords 'symbols) . font-lock-keyword-face)
-
-      ;; def* -- variables
-      (,(rx "(def" (0+ (not (any " "))) (1+ " ")
-            (group (1+ (not (any "( ")))))
-       1 font-lock-variable-name-face)
-      (,(rx "(define-values" (0+ " ") "(" (group (1+ (not (any "(")))) ")")
-       1 font-lock-variable-name-face)
-
-      ;; def* -- functions
-      (,(rx "(def" (0+ (or (syntax word) (syntax symbol))) (1+ " ")
-            (+ "(") (group (1+ (or (syntax word) (syntax symbol)))))
-       1 font-lock-function-name-face)
-
-      ;; let identifiers
-      (,#'racket--font-lock-let-identifiers . font-lock-variable-name-face)
-
-      ;; module and module*
-      (,(rx "("
-            (group "module" (? "*"))
-            (1+ " ")
-            (group (1+ (or (syntax word) (syntax symbol))))
-            (1+ " ")
-            (group (1+ (or (syntax word) (syntax symbol)))))
-       (1 font-lock-keyword-face nil t)
-       (2 font-lock-function-name-face nil t)
-       (3 font-lock-variable-name-face nil t))
-      ;; module+
-      (,(rx "("
-            (group "module+")
-            (1+ " ")
-            (group (1+ (or (syntax word) (syntax symbol)))))
-       (1 font-lock-keyword-face nil t)
-       (2 font-lock-function-name-face nil t))
-
-      ;; pretty lambda
-      (,(rx (syntax open-parenthesis)
-            (? (or "case-" "match-" "opt-"))
-            (group "lambda")
-            (or word-end symbol-end))
-       1
-       (if racket-pretty-lambda
-           (progn (compose-region (match-beginning 1)
-                                  (match-end       1)
-                                  racket-lambda-char)
-                  nil)
-         font-lock-keyword-face)
-       nil t)
 
       ;; Some self-eval constants
       (,(regexp-opt '("#t" "#f" "+inf.0" "-inf.0" "+nan.0") 'symbols)
@@ -147,8 +102,106 @@
                              (? (any "-+"))
                              (1+ (any "0-7"))))))
               symbol-end))
-       . racket-selfeval-face)))
-    "Font lock keywords for Racket mode")
+       . racket-selfeval-face)
+
+      ))
+  "Self-evals")
+
+(defconst racket-font-lock-keywords-2
+  (eval-when-compile
+    `(
+      ;; paren
+      (,(rx (any "[](){}")) . racket-paren-face)
+
+      ;; def* -- variables
+      (,(rx "(def" (0+ (not (any " "))) (1+ " ")
+            (group (1+ (not (any "( ")))))
+       1 font-lock-variable-name-face)
+      (,(rx "(define-values" (0+ " ") "(" (group (1+ (not (any "(")))) ")")
+       1 font-lock-variable-name-face)
+
+      ;; def* -- functions
+      (,(rx "(def" (0+ (or (syntax word) (syntax symbol))) (1+ " ")
+            (+ "(") (group (1+ (or (syntax word) (syntax symbol)))))
+       1 font-lock-function-name-face)
+
+      ;; let identifiers
+      (,#'racket--font-lock-let-identifiers . font-lock-variable-name-face)
+
+      ;; module and module*
+      (,(rx "("
+            (group "module" (? "*"))
+            (1+ space)
+            (group (1+ (or (syntax word) (syntax symbol))))
+            (1+ space)
+            (group (1+ (or (syntax word) (syntax symbol)))))
+       (1 font-lock-keyword-face nil t)
+       (2 font-lock-function-name-face nil t)
+       (3 font-lock-variable-name-face nil t))
+      ;; module+
+      (,(rx "("
+            (group "module+")
+            (1+ space)
+            (group (1+ (or (syntax word) (syntax symbol)))))
+       (1 font-lock-keyword-face nil t)
+       (2 font-lock-function-name-face nil t))
+
+      ;; pretty lambda (deprecated)
+      (,(rx (syntax open-parenthesis)
+            (? (or "case-" "match-" "opt-"))
+            (group "lambda")
+            (or word-end symbol-end))
+       1
+       (if racket-pretty-lambda
+           (progn (compose-region (match-beginning 1)
+                                  (match-end       1)
+                                  racket-lambda-char)
+                  nil)
+         font-lock-keyword-face)
+       nil t)
+      ))
+  "Parens, modules, function/variable identifiers, Typed Racket types.")
+
+(defconst racket-font-lock-keywords-3
+  (eval-when-compile
+    `(
+      (,(regexp-opt racket-keywords 'symbols) . font-lock-keyword-face)
+      (,(regexp-opt racket-builtins-1-of-2 'symbols) . font-lock-builtin-face)
+      (,(regexp-opt racket-builtins-2-of-2 'symbols) . font-lock-builtin-face)
+      (,(regexp-opt racket-type-list 'symbols) . font-lock-type-face)
+      ))
+  "Function/variable identifiers, Typed Racket types.
+
+Note: To the extent you use #lang racket or #typed/racket, this
+may be handy. But Racket is also a tool to make #lang's, and this
+doesn't really fit that.")
+
+(defconst racket-font-lock-keywords-level-0
+  (append racket-font-lock-keywords-0))
+
+(defconst racket-font-lock-keywords-level-1
+  (append racket-font-lock-keywords-0
+          racket-font-lock-keywords-1))
+
+(defconst racket-font-lock-keywords-level-2
+  (append racket-font-lock-keywords-0
+          racket-font-lock-keywords-1
+          racket-font-lock-keywords-2))
+
+(defconst racket-font-lock-keywords-level-3
+  (append racket-font-lock-keywords-0
+          racket-font-lock-keywords-1
+          racket-font-lock-keywords-2
+          racket-font-lock-keywords-3))
+
+(defconst racket-font-lock-keywords
+  '(racket-font-lock-keywords-level-0
+    racket-font-lock-keywords-level-1
+    racket-font-lock-keywords-level-2
+    racket-font-lock-keywords-level-3))
+
+
+;;; let forms
 
 (defun racket--font-lock-let-identifiers (limit)
   "In let forms give identifiers `font-lock-variable-name-face'.
@@ -160,7 +213,8 @@ Note: This works only when the let form has a closing paren.
 \(Otherwise, when you type an incomplete let form before existing
 code, this would mistakenly treat the existing code as part of
 the let form.) The font-lock will kick in after you type the
-closing paren. Or if you use paredit, it will already be there."
+closing paren. Or if you use electric-pair-mode, paredit, or
+simillar, it will already be there."
   (while (re-search-forward "(let" limit t)
     (when (racket--inside-complete-sexp)
       ;; Check for named let

@@ -96,8 +96,9 @@
 (defun racket-tests/same-faceup (file)
   "Test that FILE is fontified as the .faceup file describes.
 FILE is interpreted as relative to this source directory."
-  (faceup-test-font-lock-file 'racket-mode
-                              (concat racket-tests/here-dir file)))
+  (let ((font-lock-maximum-decoration t))
+    (faceup-test-font-lock-file 'racket-mode
+                                (concat racket-tests/here-dir file))))
 
 (faceup-defexplainer racket-tests/same-faceup)
 

@@ -114,9 +114,15 @@
 
 (syntax-case*
     stx
-    (module #%module-begin define-values define-syntaxes
-            define define/contract
-            define-syntax struct define-struct)
+    (#%module-begin
+     module
+     define-values
+     define-syntaxes
+     define
+     define/contract
+     define-syntax
+     struct
+     define-struct)
     x
   [(_ x) #'#f]
   [(_ x y) #'#t])
