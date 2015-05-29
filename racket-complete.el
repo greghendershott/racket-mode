@@ -130,12 +130,13 @@ See `racket--invalidate-completion-cache' and
   (and (> (point) (point-min))
        (save-excursion
          (condition-case nil
-             ;; The looking-xxx checks below are to avoid calling
-             ;; `racket-get-type' when the sexp is quoted or when its
-             ;; first elem couldn't be a Racket function name.
+             ;; The char-before and looking-at checks below are to
+             ;; avoid calling `racket-get-type' when the sexp is
+             ;; quoted or when its first elem couldn't be a Racket
+             ;; function name.
              (let* ((beg (progn
                            (backward-up-list)
-                           (and (looking-back "[^`',]" (- (point) 1))
+                           (and (not (memq (char-before) '(?` ?' ?,)))
                                 (progn (forward-char 1) (point)))))
                     (beg (and beg (looking-at "[^0-9#'`,\"]") beg))
                     (end (and beg (progn (forward-sexp) (point))))
