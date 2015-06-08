@@ -133,8 +133,8 @@
                 (format "<kbd>M-x %s</kbd>" symbol))))
     (concat str "\n\n")))
 
-(defun racket-make-doc/bindings (symbol keymap)
-  (where-is-internal symbol keymap))
+(defun racket-make-doc/bindings (symbol)
+  (where-is-internal symbol racket-mode-map))
 
 (defun racket-make-doc/html-escape (str)
   (with-temp-buffer
