@@ -12,4 +12,4 @@
   (let ([old #t])
     (case-lambda
       [() old]
-      [(new) (set! old new)])))
+      [(new) (set! old (not (not new)))])))

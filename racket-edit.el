@@ -1161,15 +1161,31 @@ expression:
   (unless racket--debug-break-data
     (user-error "Not at a break"))
   (let ((cmd (if change-value-p
-                 (if (cadr (assoc 'vals racket--debug-break-data)) ;break after
-                     (let* ((old (cadr (assoc 'vals racket--debug-break-data)))
-                            (new (read-string "Return values: " old)))
-                       (format ",(step %s)\n" new))
-                   (format ",(step %s)\n" ;break before
-                           (read-string "Skip, instead use values: " "()")))
+                 (pcase (cadr (assoc 'vals racket--debug-break-data))
+                   (`() (format ",(step %s)\n" ;break before
+                                (read-string "Skip, instead use values: " "()")))
+                   (old (format ",(step %s)\n" ;break after
+                                (read-string "Return values: " old))))
                ",(step)\n")))
     (setq racket--debug-break-data nil)
     (racket--repl-eval cmd)))
+
+(defun racket-debug-mode-step-over ()
+  "Step over the current expression."
+  (interactive)
+  (pcase racket--debug-break-data
+    (`(break before . ,_)
+     (setq racket--debug-break-data nil)
+     (racket--repl-eval ",(step-over)\n"))
+    (_ (user-error "Not at a break before an expression"))))
+
+(defun racket-debug-mode-step-out ()
+  "Step out of the current expression."
+  (interactive)
+  (unless racket--debug-break-data
+    (user-error "Not at a break"))
+  (setq racket--debug-break-data nil)
+  (racket--repl-eval ",(step-out)\n"))
 
 (defun racket-debug-mode-go ()
   "Continue until the next breakpoint, if any."
@@ -1298,6 +1314,8 @@ See `racket-debug' for more information.
   :lighter " Debug"
   :keymap (racket--easy-keymap-define
            '((("s" "<SPC>")   racket-debug-mode-step)
+             ("v"             racket-debug-mode-step-over)
+             ("o"             racket-debug-mode-step-out)
              ("g"             racket-debug-mode-go)
              ("."             racket-debug-mode-run-to-point)
              ("b"             racket-debug-mode-set-breakpoint)

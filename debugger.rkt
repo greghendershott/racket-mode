@@ -71,8 +71,8 @@
 ;; state minor-mode. Likewise, upon a (go) or (step) it should disable
 ;; the minor-mode. In other words, the minor mode isn't about
 ;; debugging per se -- it's about being in a break state, and the
-;; things that can be shown or done during that state, including that
-;; state by resuming.
+;; things that can be shown or done during that state, including
+;; exiting that state by resuming.
 
 
 (define (debug-marks ccm)
@@ -89,7 +89,7 @@
 ;;       (Hash Natural ;position
 ;;             (U #f               ;never break
 ;;                #t               ;always break
-;;                'one-shot        ;break first time, then becomes #f
+;;                (-> Boolean)
 ;;                Positive-Integer ;skip N times, then always break
 ;;                )))
 (define breakpoints (make-hash))
@@ -111,7 +111,7 @@
   (match (hash-ref ht pos #f)
     [#f #f]
     [#t #t]
-    ['one-shot (hash-set! ht pos #f) #t]
+    [(? procedure? f) (f)]
     [(? exact-positive-integer? skip)
      (define n (sub1 skip))
      (hash-set! ht pos (if (zero? n) #t n))
@@ -129,7 +129,13 @@
      (match (for/or ([i (in-range fuzzy-pos (+ fuzzy-pos 2048))])
               (and (hash-has-key? ht i) i))
        [#f #f]
-       [actual-pos (hash-set! ht actual-pos v) actual-pos])]))
+       [pos (hash-set! ht
+                       pos
+                       (match v
+                         ['one-shot (let ([orig (hash-ref ht pos #f)])
+                                      (λ () (hash-set! ht pos orig) #t))]
+                         [v v]))
+            pos])]))
 
 
 ;;; Bound identifiers
@@ -387,6 +393,36 @@
                                       #'(#%plain-app get/set!)])))]))
              stx))]))
 
+  (define (big-step out/over)
+    ;; go through stack frames until it's possible to set a breakpoint at the end
+    (define frames (match* (out/over which)
+                     [('out  _      ) (rest all-marks)]
+                     [('over 'before) all-marks]
+                     [('over 'after ) '()]))
+    (define len (length frames))
+    (define len-debug-key-marks (length (continuation-mark-set->list
+                                         (current-continuation-marks)
+                                         debug-key)))
+    (define frame (for/or ([frame (in-list frames)]
+                           [depth (in-range len -1 -1)])
+                    (let/ec k
+                      (let* ([stx (mark-source frame)]
+                             [src (syntax-source stx)]
+                             [lpos (or (syntax-position stx) (k #f))]
+                             [pos (+ lpos (syntax-span stx) -1)]
+                             [bps (hash-ref breakpoints src)]
+                             [orig-stat (hash-ref bps pos 'invalid)])
+                        (match orig-stat
+                          ['invalid #f]
+                          [_ (hash-set! bps pos
+                                        (λ ()
+                                          (and (< len-debug-key-marks depth)
+                                               (begin
+                                                 (hash-set! bps pos orig-stat)
+                                                 #t))))
+                             frame])))))
+    (debug-step? (not frame)))
+
   (define ((debug-prompt-read resume))
     (display-prompt (format "DEBUG:~a:~a" (name-only src) pos))
     (define in ((current-get-interaction-input-port)))
@@ -406,16 +442,20 @@
 
   (define (handle-debug-command cmd-stx resume)
     (match (syntax->datum cmd-stx)
-      [`(step)          (debug-step? #t) (resume vals)]
-      [`(step ,vs)      (debug-step? #t) (resume vs)]
-      [`(go)            (debug-step? #f) (resume vals)]
-      [`(go ,vs)        (debug-step? #f) (resume vs)]
-      [`(break ,pos ,v) (elisp-println (set-breakpoint! src pos v))]
-      [`(watch ,pos ,v) (elisp-println (set-watchpoint! src pos v))]
-      [`(unwatch ,pos)  (elisp-println (clear-watchpoint! src pos))]
-      [`(get ,pos)      (elisp-println (get-var all-marks src pos))]
-      [`(set ,pos ,v)   (elisp-println (set-var all-marks src pos v))]
-      [_                (handle-command cmd-stx src)]))
+      [`(step)            (debug-step? #t) (resume vals)]
+      [`(step ,vals)      (debug-step? #t) (resume vals)]
+      [`(step-over)       (big-step 'over) (resume vals)]
+      [`(step-over ,vals) (big-step 'over) (resume vals)]
+      [`(step-out)        (big-step 'out)  (resume vals)]
+      [`(step-out ,vals)  (big-step 'out)  (resume vals)]
+      [`(go)              (debug-step? #f) (resume vals)]
+      [`(go ,vals)        (debug-step? #f) (resume vals)]
+      [`(break ,pos ,v)   (elisp-println (set-breakpoint! src pos v))]
+      [`(watch ,pos ,v)   (elisp-println (set-watchpoint! src pos v))]
+      [`(unwatch ,pos)    (elisp-println (clear-watchpoint! src pos))]
+      [`(get ,pos)        (elisp-println (get-var all-marks src pos))]
+      [`(set ,pos ,v)     (elisp-println (set-var all-marks src pos v))]
+      [_                  (handle-command cmd-stx src)]))
 
   (let/ec resume
     (parameterize ([current-prompt-read (debug-prompt-read resume)]
