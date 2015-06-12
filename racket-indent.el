@@ -415,6 +415,7 @@ doesn't hurt to do so."
           (match-let* 1)
           (match-lambda 0)
           (match-lambda* 0)
+          (match/values 1)
           (mixin 2)
           (module 2)
           (module+ 1)
