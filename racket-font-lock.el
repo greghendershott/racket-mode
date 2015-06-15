@@ -145,6 +145,16 @@
             (group (1+ (or (syntax word) (syntax symbol)))))
        (1 font-lock-keyword-face nil t)
        (2 font-lock-function-name-face nil t))
+      ))
+  "Parens, modules, function/variable identifiers, Typed Racket types.")
+
+(defconst racket-font-lock-keywords-3
+  (eval-when-compile
+    `(
+      (,(regexp-opt racket-keywords 'symbols) . font-lock-keyword-face)
+      (,(regexp-opt racket-builtins-1-of-2 'symbols) . font-lock-builtin-face)
+      (,(regexp-opt racket-builtins-2-of-2 'symbols) . font-lock-builtin-face)
+      (,(regexp-opt racket-type-list 'symbols) . font-lock-type-face)
 
       ;; pretty lambda (deprecated)
       (,(rx (syntax open-parenthesis)
@@ -159,16 +169,6 @@
                   nil)
          font-lock-keyword-face)
        nil t)
-      ))
-  "Parens, modules, function/variable identifiers, Typed Racket types.")
-
-(defconst racket-font-lock-keywords-3
-  (eval-when-compile
-    `(
-      (,(regexp-opt racket-keywords 'symbols) . font-lock-keyword-face)
-      (,(regexp-opt racket-builtins-1-of-2 'symbols) . font-lock-builtin-face)
-      (,(regexp-opt racket-builtins-2-of-2 'symbols) . font-lock-builtin-face)
-      (,(regexp-opt racket-type-list 'symbols) . font-lock-type-face)
       ))
   "Function/variable identifiers, Typed Racket types.
 
