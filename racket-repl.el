@@ -444,10 +444,16 @@ With prefix arg, open the N-th last shown image."
   (compilation-setup t)
   (setq-local
    compilation-error-regexp-alist
-   '(("^;?[ ]*\\([^ :]+\\):\\([0-9]+\\)[:.]\\([0-9]+\\)" 1 2 3) ;errs, defns
-     ("^;?[ ]*at:[ ]+\\([^ :]+\\):\\([0-9]+\\)[.]\\([0-9]+\\)$" 1 2 3) ;contract
-     ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3)   ;rackunit
-     ("#<path:\\([^>]+\\)>" 1 nil nil 0)                       ;path struct
+   '(;; error
+     ("^;?[ ]*\\([^ :]+\\):\\([0-9]+\\)[:.]\\([0-9]+\\)" 1 2 3)
+     ;; contract
+     ("^;?[ ]*at:[ ]+\\([^ :]+\\):\\([0-9]+\\)[.]\\([0-9]+\\)$" 1 2 3)
+     ;; rackunit check-xxx
+     ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3)
+     ;;rackunit/text-ui test-suite
+     ("^location:[ ]+\\(\\([^:]+\\):\\([0-9]+\\):\\([0-9]+\\)\\)" 2 3 4 2 1)
+     ;; path struct
+     ("#<path:\\([^>]+\\)>" 1 nil nil 0)
      ))
   (setq-local comint-get-old-input #'racket--get-old-input))
 
