@@ -7,7 +7,15 @@ env:
     - RACKET_VERSION=6.0.1
     - RACKET_VERSION=6.1
     - RACKET_VERSION=6.1.1
+    - RACKET_VERSION=6.2
     - RACKET_VERSION=HEAD
+    - RACKET_VERSION=SCOPE_SNAPSHOT
+
+matrix:
+  allow_failures:
+    - env: RACKET_VERSION=HEAD
+    - env: RACKET_VERSION=SCOPE_SNAPSHOT
+  fast_finish: true
 
 before_install:
     ## Racket
