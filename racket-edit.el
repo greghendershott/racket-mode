@@ -97,7 +97,8 @@ Others are available only as a command in the REPL.
 Supplies CONTEXT-LEVEL to the back-end ,run command; see run.rkt."
   (unless (eq major-mode 'racket-mode)
     (error "Current buffer is not a racket-mode buffer"))
-  (when (buffer-modified-p)
+  (when (or (buffer-modified-p)
+            (and buffer-file-name (not (file-exists-p buffer-file-name))))
     (save-buffer))
   (remove-overlays (point-min) (point-max) 'racket-uncovered-overlay)
   (racket--invalidate-completion-cache)
