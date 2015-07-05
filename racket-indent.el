@@ -440,6 +440,8 @@ doesn't hurt to do so."
           (syntax-parameterize 1)
           (syntax/loc 1)
           (syntax-parse 1)
+          (test-begin 0)
+          (test-case 1)
           (unit defun)
           (unit/sig 2)
           (unless 1)
