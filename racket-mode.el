@@ -55,7 +55,8 @@ http://www.gnu.org/licenses/ for details.")
 
 (defvar racket-mode-map
   (racket--easy-keymap-define
-   '(("C-c C-k"     racket-run)
+   '((("C-c C-k"
+       "C-c C-c")   racket-run)
      ("C-c C-z"     racket-repl)
      ("<f5>"        racket-run-and-switch-to-repl)
      ("M-C-<f5>"    racket-racket)
