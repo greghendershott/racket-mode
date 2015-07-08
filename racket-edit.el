@@ -874,6 +874,125 @@ special commands to navigate among the definition and its uses.
     (setq buffer-read-only nil)))
 
 
+;;; align
+
+(defun racket-align ()
+  "Align values in the same column.
+
+Useful for binding forms like `let` and `parameterize`,
+conditionals like `cond` and `match`, association lists, and any
+series of couples like the arguments to `hash`.
+
+Before choosing this command, put point on the first of a series
+of \"couples\". A couple is:
+
+- A list of two or more sexprs: `[sexpr val sexpr ...]`
+- Two sexprs: `sexpr val`.
+
+Each `val` moves to the same column and is `indent-sexp'-ed (in
+case it is a multi-line form).
+
+For example with point on the `[` before `a`:
+
+    Before             After
+
+    (let ([a 12]       (let ([a   12]
+          [bar 23])          [bar 23])
+      ....)              ....)
+
+    '([a . 12]         '([a   . 12]
+      [bar . 23])        [bar . 23])
+
+    (cond [a? #t]      (cond [a?   #t]
+          [b? (f x           [b?   (f x
+                 y)]                  y)]
+          [else #f])         [else #f])
+
+Or with point on the `'` before `a`:
+
+    (list 'a 12        (list 'a   12
+          'bar 23)           'bar 23)
+
+If more than one couple is on the same line, none are aligned,
+because it is unclear where the value column should be. For
+example the following form will not change; `racket-align' will
+display an error message:
+
+    (let ([a 0][b 1]
+          [c 2])       error; unchanged
+      ....)
+
+When a couple's sexprs start on different lines, that couple is
+ignored. Other, single-line couples in the series are aligned as
+usual. For example:
+
+    (let ([foo         (let ([foo
+           0]                 0]
+          [bar 1]            [bar 1]
+          [x 2])             [x   2])
+      ....)              ....)
+
+See also: `racket-unalign'."
+  (interactive)
+  (save-excursion
+    (let ((listp (eq ?\( (char-syntax (char-after))))
+          (prev-line 0)
+          (max-col 0))
+      (racket--for-each-couple listp
+                               (lambda ()
+                                 (setq max-col (max max-col (current-column)))
+                                 (let ((this-line (line-number-at-pos)))
+                                   (when (= prev-line this-line)
+                                     (user-error
+                                      "Can't align if any couples are on same line"))
+                                   (setq prev-line this-line))))
+      (racket--for-each-couple listp
+                               (lambda ()
+                                 (indent-to max-col)
+                                 (indent-sexp))))))
+
+(defun racket-unalign ()
+  "The opposite of `racket-align'.
+
+Effectively does M-x `just-one-space' and `indent-sexp' for each
+couple's value."
+  (interactive)
+  (save-excursion
+    (let ((listp (eq ?\( (char-syntax (char-after)))))
+      (racket--for-each-couple listp
+                               (lambda ()
+                                 (just-one-space)
+                                 (indent-sexp))))))
+
+(defun racket--for-each-couple (listp f)
+  "Move point to each value sexp of a couple, and `funcall' F.
+
+Only call F when the couple's sexprs are on the same line.
+
+When LISTP is true, expects couples to be `[id val]`, else `id val`."
+  (save-excursion
+    (condition-case ()
+        (while t
+          (when listp
+            (down-list))
+          (forward-sexp)
+          (let ((line (line-number-at-pos)))
+            (forward-sexp)
+            (backward-sexp)
+            (when (= line (line-number-at-pos))
+              ;; Defensive: Backup over any prefix or punctuation
+              ;; chars just in case backward-sexp didn't (although it
+              ;; should have if our syntax table is correct).
+              (while (memq (char-syntax (char-before)) '(?\' ?\.))
+                (goto-char (1- (point))))
+              (funcall f)))
+          ;; On to the next couple...
+          (if listp
+              (up-list)
+            (forward-sexp)))
+      (scan-error nil))))
+
+
 ;;; misc
 
 (defun racket--quoted-buffer-file-name ()

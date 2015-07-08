@@ -82,6 +82,8 @@
     racket-backward-up-list
     racket-check-syntax-mode
     racket-unicode-input-method-enable
+    racket-align
+    racket-unalign
     "Macro expand"
     racket-expand-region
     racket-expand-definition

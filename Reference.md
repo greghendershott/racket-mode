@@ -19,7 +19,7 @@
 ## Run
 
 ### racket-run
-<kbd>C-c C-k</kbd>
+<kbd>C-c C-k</kbd> or <kbd>C-c C-c</kbd>
 
 Save and evaluate the buffer in REPL, much like DrRacket's Run.
 
@@ -539,6 +539,74 @@ describe-input-method <RET> racket-unicode`.
 If you don’t like the highlighting of partially matching tokens you
 can turn it off by setting `input-method-highlight-flag` to nil via
 `M-x customize-variable`.
+
+### racket-align
+<kbd>M-[</kbd>
+
+Align values in the same column.
+
+Useful for binding forms like `let` and `parameterize`,
+conditionals like `cond` and `match`, association lists, and any
+series of couples like the arguments to `hash`.
+
+Before choosing this command, put point on the first of a series
+of "couples". A couple is:
+
+- A list of two or more sexprs: `[sexpr val sexpr ...]`
+- Two sexprs: `sexpr val`.
+
+Each `val` moves to the same column and is `indent-sexp`-ed (in
+case it is a multi-line form).
+
+For example with point on the `[` before `a`:
+
+    Before             After
+
+    (let ([a 12]       (let ([a   12]
+          [bar 23])          [bar 23])
+      ....)              ....)
+
+    '([a . 12]         '([a   . 12]
+      [bar . 23])        [bar . 23])
+
+    (cond [a? #t]      (cond [a?   #t]
+          [b? (f x           [b?   (f x
+                 y)]                  y)]
+          [else #f])         [else #f])
+
+Or with point on the `'` before `a`:
+
+    (list 'a 12        (list 'a   12
+          'bar 23)           'bar 23)
+
+If more than one couple is on the same line, none are aligned,
+because it is unclear where the value column should be. For
+example the following form will not change; [`racket-align`](#racket-align) will
+display an error message:
+
+    (let ([a 0][b 1]
+          [c 2])       error; unchanged
+      ....)
+
+When a couple's sexprs start on different lines, that couple is
+ignored. Other, single-line couples in the series are aligned as
+usual. For example:
+
+    (let ([foo         (let ([foo
+           0]                 0]
+          [bar 1]            [bar 1]
+          [x 2])             [x   2])
+      ....)              ....)
+
+See also: [`racket-unalign`](#racket-unalign).
+
+### racket-unalign
+<kbd>M-{</kbd>
+
+The opposite of [`racket-align`](#racket-align).
+
+Effectively does M-x `just-one-space` and `indent-sexp` for each
+couple's value.
 
 ## Macro expand
 

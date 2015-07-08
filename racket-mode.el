@@ -55,8 +55,8 @@ http://www.gnu.org/licenses/ for details.")
 
 (defvar racket-mode-map
   (racket--easy-keymap-define
-   '((("C-c C-k"
-       "C-c C-c")   racket-run)
+   '((("C-c C-c"
+       "C-c C-k")   racket-run)
      ("C-c C-z"     racket-repl)
      ("<f5>"        racket-run-and-switch-to-repl)
      ("M-C-<f5>"    racket-racket)
@@ -86,7 +86,9 @@ http://www.gnu.org/licenses/ for details.")
      ("M-C-."       racket-visit-module)
      ("M-,"         racket-unvisit)
      ("C-c C-f"     racket-fold-all-tests)
-     ("C-c C-u"     racket-unfold-all-tests)))
+     ("C-c C-u"     racket-unfold-all-tests)
+     ("M-["         racket-align)
+     ("M-{"         racket-unalign)))
   "Keymap for Racket mode. Inherits from `lisp-mode-shared-map'.")
 
 (easy-menu-define racket-mode-menu racket-mode-map
@@ -118,6 +120,8 @@ http://www.gnu.org/licenses/ for details.")
     ["Insert λ" racket-insert-lambda]
     ["Indent Region" indent-region]
     ["Cycle Paren Shapes" racket-cycle-paren-shapes]
+    ["Align" racket-align]
+    ["Unalign" racket-unalign]
     "---"
     ["Visit Definition" racket-visit-definition]
     ["Visit Module" racket-visit-module]
