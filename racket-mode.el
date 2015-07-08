@@ -152,6 +152,15 @@ http://www.gnu.org/licenses/ for details.")
   (set (make-local-variable 'imenu-syntax-alist)
        '(("+-*/.<>=?!$%_&~^:" . "w"))))
 
+(defun racket--maybe-set-compile-command ()
+  "Unless a makefile exists, `compile' should \"raco make `buffer-file-name'\"."
+  (unless (or (file-exists-p "makefile")
+              (file-exists-p "Makefile"))
+    (set (make-local-variable 'compile-command)
+         (concat racket-raco-program
+                 " make "
+                 buffer-file-name))))
+
 ;;;###autoload
 (define-derived-mode racket-mode prog-mode
   "Racket"
@@ -160,6 +169,7 @@ http://www.gnu.org/licenses/ for details.")
   (racket--variables-for-both-modes)
   (racket--variables-imenu)
   (racket--company-setup)
+  (racket--maybe-set-compile-command)
   (hs-minor-mode t))
 
 ;;;###autoload
