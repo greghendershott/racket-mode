@@ -13,6 +13,8 @@ Thanks to the following contributors.
 - [@tonyg](https://github.com/tonyg)
 - [@3rdLaw](https://github.com/3rdLaw)
 - [@syohex](https://github.com/syohex)
+- [@vkz](https://github.com/vkz)
+- [@cpitclaudel](https://github.com/cpitclaudel)
 
 ## Issues
 
