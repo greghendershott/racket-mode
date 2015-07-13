@@ -261,8 +261,7 @@
     (current-namespace (module->namespace defn.rkt)))
   (check-equal? (find-definition "display") 'kernel)
   (check-match (find-definition "displayln")
-               (list* (pregexp "/racket/private/misc\\.rkt$") _))
-  (check-equal? (find-signature "find-signature") '(find-signature str)))
+               (list* (pregexp "/racket/private/misc\\.rkt$") _)))
 
 ;; Local Variables:
 ;; coding: utf-8
