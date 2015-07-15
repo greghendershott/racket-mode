@@ -69,17 +69,6 @@
           (pp `(disabled-minor-modes ,@(mapcar #'f (cl-remove-if     #'cadr sorted))))))
       (princ "```\n"))))
 
-(defun racket-bug-report--val (id)
-)
-
 (provide 'racket-bug-report)
-
-;; Local Variables:
-;; coding: utf-8
-;; comment-column: 40
-;; indent-tabs-mode: nil
-;; require-final-newline: t
-;; show-trailing-whitespace: t
-;; End:
 
 ;;; racket-bug-report.el ends here

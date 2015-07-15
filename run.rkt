@@ -208,11 +208,3 @@
     (λ (value display? port)
       (cond [(convert? value) (print (convert value) port)]
             [else (orig value display? port)]))))
-
-;; Local Variables:
-;; coding: utf-8
-;; comment-column: 40
-;; indent-tabs-mode: nil
-;; require-final-newline: t
-;; show-trailing-whitespace: t
-;; End:

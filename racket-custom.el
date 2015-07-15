@@ -245,14 +245,6 @@ Instead you can insert actual λ characters using
   :tag "Selfeval Face"
   :group 'racket-faces)
 
-;; Local Variables:
-;; coding: utf-8
-;; comment-column: 40
-;; indent-tabs-mode: nil
-;; require-final-newline: t
-;; show-trailing-whitespace: t
-;; End:
-
 (provide 'racket-custom)
 
 ;; racket-custom.el ends here

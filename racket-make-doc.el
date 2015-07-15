@@ -243,12 +243,4 @@
                        nil nil)))
     (buffer-substring-no-properties (point-min) (point-max))))
 
-;; Local Variables:
-;; coding: utf-8
-;; comment-column: 40
-;; indent-tabs-mode: nil
-;; require-final-newline: t
-;; show-trailing-whitespace: t
-;; End:
-
 ;;; racket-make-doc.el ends here

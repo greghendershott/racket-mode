@@ -262,11 +262,3 @@
   (check-equal? (find-definition "display") 'kernel)
   (check-match (find-definition "displayln")
                (list* (pregexp "/racket/private/misc\\.rkt$") _)))
-
-;; Local Variables:
-;; coding: utf-8
-;; comment-column: 40
-;; indent-tabs-mode: nil
-;; require-final-newline: t
-;; show-trailing-whitespace: t
-;; End:

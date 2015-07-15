@@ -219,12 +219,4 @@ can turn it off by setting `input-method-highlight-flag' to nil via
 
 (provide 'racket-unicode-input-method)
 
-;; Local Variables:
-;; coding: utf-8
-;; comment-column: 40
-;; indent-tabs-mode: nil
-;; require-final-newline: t
-;; show-trailing-whitespace: t
-;; End:
-
 ;;; racket-unicode-input-method.el ends here

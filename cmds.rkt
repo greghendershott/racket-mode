@@ -743,11 +743,3 @@
           (list 'def/uses def-beg def-end tweaked-uses)))
       ;; Append both lists and print as Elisp values.
       (elisp-println (append infos defs/uses)))))
-
-;; Local Variables:
-;; coding: utf-8
-;; comment-column: 40
-;; indent-tabs-mode: nil
-;; require-final-newline: t
-;; show-trailing-whitespace: t
-;; End:
