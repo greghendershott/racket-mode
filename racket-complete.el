@@ -71,9 +71,10 @@ See `racket--invalidate-completion-cache' and
 
 (eval-after-load "company"
   '(progn
-     (defvar company-echo-delay nil) ;byte compiler
-     (defvar company-backends nil) ;byte compiler
-     (declare-function company-begin-backend (sym))
+     (defvar company-echo-delay nil)    ;byte compiler
+     (defvar company-backends nil)      ;byte compiler
+     (declare-function company-mode          ext:"company.el")
+     (declare-function company-begin-backend ext:"company.el" (sym))
      (defun racket-company-backend (command &optional arg &rest ignore)
        (interactive (list 'interactive))
        (cl-case command
