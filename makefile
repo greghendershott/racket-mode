@@ -1,6 +1,10 @@
-EMACS=$(shell if [ -z "`which emacs`" ]; then echo "Emacs executable not found"; exit 1; else echo emacs; fi)
+ifdef @$(EMACSBIN)
+  EMACSBIN = @$(EMACSBIN)
+else
+  EMACSBIN = $(shell if [ -z "`which emacs`" ]; then echo "Emacs executable not found"; exit 1; else echo emacs; fi)
+endif
 
-BATCHEMACS=${EMACS} --batch --no-site-file -q -eval '(progn (add-to-list (quote load-path) "${PWD}/") (package-initialize))'
+BATCHEMACS = $(EMACSBIN) --batch --no-site-file -q -eval '(progn (add-to-list (quote load-path) "${PWD}/") (package-initialize))'
 
 BYTECOMP = $(BATCHEMACS) -eval '(progn (require (quote bytecomp)) (setq byte-compile-warnings t) (setq byte-compile-error-on-warn t))' -f batch-byte-compile
 
@@ -10,6 +14,11 @@ default:
 help:
 	@echo "Targets: clean, compile, deps, doc, test, test-racket, test-elisp"
 
+show-versions:
+	racket --version
+	echo `which $(EMACSBIN)`
+	$(EMACSBIN) --version
+
 clean:
 	-rm *.elc
 
@@ -17,6 +26,7 @@ clean:
 	$(BYTECOMP) $<
 
 compile: clean \
+	show-versions\
 	racket-bug-report.elc \
 	racket-common.elc \
 	racket-collection.elc \
@@ -38,7 +48,7 @@ compile: clean \
 # deps automatically as a result of our Package-Requires in
 # racket-mode.el)
 deps:
-	$(BATCHEMACS) -eval '(progn (add-to-list (quote package-archives) (cons "melpa" "http://melpa.org/packages/")) (package-initialize) (package-refresh-contents) (package-install (quote dash)) (package-install (quote faceup)) (package-install (quote s)))'
+	$(BATCHEMACS) -eval '(progn (add-to-list (quote package-archives) (cons "melpa" "http://melpa.org/packages/")) (package-initialize) (package-refresh-contents) (package-install (quote faceup)) (package-install (quote s)))'
 
 doc:
 	$(BATCHEMACS) -l racket-make-doc.el -f racket-make-doc/write-reference-file
