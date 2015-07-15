@@ -19,6 +19,8 @@
 (require 'cl-lib)
 (require 'racket-custom)
 (require 'racket-repl)
+(declare-function racket--get-def-file+line "racket-edit.el" (sym))
+(declare-function racket--do-describe                        (sym pop-to))
 
 (make-variable-buffer-local
  (defvar racket--namespace-symbols nil
@@ -69,6 +71,9 @@ See `racket--invalidate-completion-cache' and
 
 (eval-after-load "company"
   '(progn
+     (defvar company-echo-delay nil) ;byte compiler
+     (defvar company-backends nil) ;byte compiler
+     (declare-function company-begin-backend (sym))
      (defun racket-company-backend (command &optional arg &rest ignore)
        (interactive (list 'interactive))
        (cl-case command

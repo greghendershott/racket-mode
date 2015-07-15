@@ -37,7 +37,7 @@
 (defun racket-tests/see-rx (rx)
   (accept-process-output nil 1)
   (sit-for 0.1)
-  (looking-back rx))
+  (looking-back rx (point-min)))
 
 (defun racket-tests/see (str)
   (racket-tests/see-rx (regexp-quote str)))

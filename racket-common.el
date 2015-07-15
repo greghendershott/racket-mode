@@ -24,6 +24,8 @@
 (require 'racket-keywords-and-builtins)
 (require 'racket-font-lock)
 (require 'racket-indent)
+(declare-function racket-complete-at-point "racket-complete.el" (&optional predicate))
+(declare-function racket-eldoc-function    "racket-complete.el" ())
 
 (defvar racket-mode-syntax-table
   (let ((st (make-syntax-table))
@@ -416,6 +418,10 @@ will work as usual.)"
 
 (eval-after-load 'paredit
   '(progn
+     (defvar paredit-mode-map nil) ;byte compiler
+     (declare-function paredit-open-round  'paredit)
+     (declare-function paredit-open-square 'paredit)
+     (declare-function paredit-open-curly  'paredit)
      (defvar racket--paredit-original-open-bracket-binding
        (lookup-key paredit-mode-map (kbd "["))
        "The previous `paredit-mode-map' binding for [. We don't

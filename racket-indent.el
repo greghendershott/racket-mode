@@ -247,7 +247,8 @@ To handle nested items, search `backward-up-list' up to
                         ;; form -- provided it's the first form on
                         ;; the line.
                         (when (and (zerop count)
-                                   (looking-back (rx bol (* (syntax whitespace)))))
+                                   (looking-back (rx bol (* (syntax whitespace)))
+                                                 containing-form-start))
                           (setq non-distinguished-column (current-column)))
                         t)
                     (error nil))))
