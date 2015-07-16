@@ -10,7 +10,6 @@ env:
   - EMACS=emacs24 RACKET_VERSION=6.1.1
   - EMACS=emacs24 RACKET_VERSION=6.2
   - EMACS=emacs24 RACKET_VERSION=HEAD
-  - EMACS=emacs24 RACKET_VERSION=SCOPE_SNAPSHOT
   # Emacs snapshot
   - EMACS=emacs-snapshot RACKET_VERSION=5.3.5
   - EMACS=emacs-snapshot RACKET_VERSION=5.3.6
@@ -20,14 +19,11 @@ env:
   - EMACS=emacs-snapshot RACKET_VERSION=6.1.1
   - EMACS=emacs-snapshot RACKET_VERSION=6.2
   - EMACS=emacs-snapshot RACKET_VERSION=HEAD
-  - EMACS=emacs-snapshot RACKET_VERSION=SCOPE_SNAPSHOT
 
 matrix:
   allow_failures:
     - env: EMACS=emacs24 RACKET_VERSION=HEAD
-    - env: EMACS=emacs24 RACKET_VERSION=SCOPE_SNAPSHOT
     - env: EMACS=emacs-snapshot RACKET_VERSION=HEAD
-    - env: EMACS=emacs-snapshot RACKET_VERSION=SCOPE_SNAPSHOT
   fast_finish: true
 
 before_install:
