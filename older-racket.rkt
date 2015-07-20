@@ -90,4 +90,4 @@
   (check-false (hash-empty? (hash 'key 'value))))
 
 (define hash-empty?
-  (dynamic-require 'racket/base 'hash-empty?
+  (dynamic-require 'racket/base 'hash-empty? (λ () our-hash-empty?)))
