@@ -336,13 +336,14 @@ Returns the buffer in which the description was written."
       ;; -- which messes up the indentation of s-expressions including
       ;; contracts. So replace &nbsp with `spc' in the source HTML,
       ;; and replace `spc' with " " after shr-insert-document outputs.
-      (shr-insert-document
-       (with-temp-buffer
-         (insert html)
-         (goto-char (point-min))
-         (while (re-search-forward "&nbsp;" nil t)
-           (replace-match spc t t))
-         (libxml-parse-html-region (point-min) (point-max))))
+      (let ((shr-use-fonts nil))
+        (shr-insert-document
+         (with-temp-buffer
+           (insert html)
+           (goto-char (point-min))
+           (while (re-search-forward "&nbsp;" nil t)
+             (replace-match spc t t))
+           (libxml-parse-html-region (point-min) (point-max)))))
       (goto-char (point-min))
       (while (re-search-forward spc nil t)
         (replace-match " " t t)))
@@ -373,16 +374,15 @@ Returns the buffer in which the description was written."
 
 (defvar racket-describe-mode-map
   (let ((m (make-sparse-keymap)))
-    (set-keymap-parent m nil)
+    (set-keymap-parent m special-mode-map)
     (mapc (lambda (x)
             (define-key m (kbd (car x)) (cadr x)))
-          '(("q"       quit-window)
-            ("<tab>"   racket-describe--next-button)
+          '(("<tab>"   racket-describe--next-button)
             ("S-<tab>" racket-describe--prev-button)))
     m)
   "Keymap for Racket Describe mode.")
 
-(define-derived-mode racket-describe-mode fundamental-mode
+(define-derived-mode racket-describe-mode special-mode
   "RacketDescribe"
   "Major mode for describing Racket functions.
 \\{racket-describe-mode-map}"
