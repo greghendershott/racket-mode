@@ -16,7 +16,10 @@
 ;; level. That way, if someone sets "all other" loggers to e.g. debug,
 ;; these won't get noisy. They need to be specifically cranked up.
 (define logger-levels (make-hasheq '([cm-accomplice . warning]
-                                     [GC . info])))
+                                     [GC . info]
+                                     [module-prefetch . warning]
+                                     [optimizer . info]
+                                     [sequence-specialization . info])))
 
 (define racket-log-file (build-path (find-system-path 'temp-dir) "racket-log"))
 (with-output-to-file racket-log-file #:exists 'truncate void)
@@ -48,7 +51,7 @@
            (loop)))))))
 
 (define (show-logger-levels)
-  (define wid 20)
+  (define wid 30)
   (define (pr k v)
     (printf "; ~a ~a\n"
             (~a k
