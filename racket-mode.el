@@ -86,9 +86,7 @@ http://www.gnu.org/licenses/ for details.")
      ("M-C-."       racket-visit-module)
      ("M-,"         racket-unvisit)
      ("C-c C-f"     racket-fold-all-tests)
-     ("C-c C-u"     racket-unfold-all-tests)
-     ("M-["         racket-align)
-     ("M-{"         racket-unalign)))
+     ("C-c C-u"     racket-unfold-all-tests)))
   "Keymap for Racket mode. Inherits from `lisp-mode-shared-map'.")
 
 (easy-menu-define racket-mode-menu racket-mode-map

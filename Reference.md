@@ -541,7 +541,7 @@ can turn it off by setting `input-method-highlight-flag` to nil via
 `M-x customize-variable`.
 
 ### racket-align
-<kbd>M-[</kbd>
+<kbd>M-x racket-align</kbd>
 
 Align values in the same column.
 
@@ -601,7 +601,7 @@ usual. For example:
 See also: [`racket-unalign`](#racket-unalign).
 
 ### racket-unalign
-<kbd>M-{</kbd>
+<kbd>M-x racket-unalign</kbd>
 
 The opposite of [`racket-align`](#racket-align).
 
