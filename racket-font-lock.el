@@ -216,7 +216,8 @@ the let form.) The font-lock will kick in after you type the
 closing paren. Or if you use electric-pair-mode, paredit, or
 simillar, it will already be there."
   (while (re-search-forward "(let" limit t)
-    (when (racket--inside-complete-sexp)
+    (when (and (not (looking-at "/ec"))
+               (racket--inside-complete-sexp))
       ;; Check for named let
       (when (looking-at (rx (+ space) (+ (or (syntax word) (syntax symbol)))))
         (forward-sexp 1)
