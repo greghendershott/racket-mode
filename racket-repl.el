@@ -212,16 +212,26 @@ running no particular file as with the `,top` command."
 
 If no buffer is visting the file, `find-file' it in `other-window'.
 
-If the REPL is running no file (if the prompt is `>`), do nothing."
+If the REPL is running no file -- if the prompt is `>` -- use the
+most recent `racket-mode' buffer, if any."
   (interactive)
   (let ((path (racket-repl-file-name)))
-    (unless path
-      (user-error "The REPL is not running any file"))
-    (let ((buffer (find-buffer-visiting path)))
-      (if buffer
-          (pop-to-buffer buffer t)
-        (other-window 1)
-        (find-file path)))))
+    (if path
+        (let ((buffer (find-buffer-visiting path)))
+          (if buffer
+              (pop-to-buffer buffer t)
+            (other-window 1)
+            (find-file path)))
+      (let ((buffer (racket--most-recent-racket-mode-buffer)))
+        (unless buffer
+          (user-error "There are no racket-mode buffers"))
+        (pop-to-buffer buffer t)))))
+
+(defun racket--most-recent-racket-mode-buffer ()
+  (cl-some (lambda (b)
+             (with-current-buffer b
+               (and (eq major-mode 'racket-mode) b)))
+           (buffer-list)))
 
 (defun racket--repl-eval (expression)
   "Eval EXPRESSION in the *Racket REPL* buffer.
