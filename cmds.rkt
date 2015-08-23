@@ -216,7 +216,8 @@
 ;;; misc other commands
 
 (define (syms)
-  (elisp-println (map symbol->string (namespace-mapped-symbols))))
+  (elisp-println (sort (map symbol->string (namespace-mapped-symbols))
+                       string<?)))
 
 (define (def sym)
   (elisp-println (find-definition (symbol->string sym))))
