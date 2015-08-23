@@ -16,10 +16,10 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
-(require 'racket-util)
-(require 'racket-repl)
 (require 'ido)
 (require 'tq)
+(require 'racket-repl)
+(require 'racket-complete) ;for `racket--symbol-at-point-or-prompt'
 (require 'racket-custom) ;for `racket-racket-program'
 
 

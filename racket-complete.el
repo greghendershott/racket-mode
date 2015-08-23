@@ -17,6 +17,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'cl-lib)
+(require 'ido)
 (require 'racket-custom)
 (require 'racket-repl)
 (declare-function racket--get-def-file+line "racket-edit.el" (sym))
@@ -75,6 +76,49 @@ See `racket--invalidate-completion-cache' and
                  :company-docsig #'racket-get-type
                  :company-doc-buffer #'racket--do-describe
                  :company-location #'racket--get-def-file+line)))))
+
+
+;;; racket--xxx-at-point-or-prompt
+
+(defun racket--symbol-at-point-or-prompt (force-prompt-p prompt)
+  "Helper for functions that want symbol-at-point, or, to prompt
+when there is no symbol-at-point or FORCE-PROMPT-P is true. The
+prompt uses `read-from-minibuffer'."
+  (racket--x-at-point-or-prompt force-prompt-p
+                                prompt
+                                #'read-from-minibuffer))
+
+(defun racket--identifier-at-point-or-prompt (force-prompt-p prompt)
+  "Helper for functions that want symbol-at-point, or, to prompt
+when there is no symbol-ant-point or FORCE-PROMPT-P is true. The
+prompt uses `racket--read-identifier'."
+  (racket--x-at-point-or-prompt force-prompt-p
+                                prompt
+                                #'racket--read-identifier))
+
+(defun racket--x-at-point-or-prompt (force-prompt-p prompt reader)
+  "Helper for functions that want symbol-at-point, or, to prompt
+when there is no symbol-at-point or FORCE-PROMPT-P is true. The
+prompt uses READER, which must be a function like
+`read-from-minibuffer'."
+  (let ((sap (symbol-at-point)))
+    (if (or force-prompt-p (not sap))
+        (let ((s (funcall reader prompt (and sap (symbol-name sap)))))
+          (if (equal "" (s-trim s))
+              nil
+            s))
+      sap)))
+
+(defun racket--read-identifier (prompt default)
+  "Do `ido-completing-read with `racket--get-namespace-symbols'."
+  (ido-completing-read prompt
+                       (racket--get-namespace-symbols)
+                       nil      ;predicate
+                       nil      ;require-match
+                       default  ;initial
+                       nil      ;history
+                       default))
+
 
 ;;; types (i.e. TR types, contracts, and/or function signatures)
 

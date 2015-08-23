@@ -43,20 +43,6 @@
     (pop-to-buffer b t t)
     (setq truncate-lines t)))
 
-
-;;; racket--symbol-at-point-or-prompt
-
-(defun racket--symbol-at-point-or-prompt (prefix prompt)
-  "Helper for functions that want symbol-at-point, or, to prompt
-when there is no symbol-at-point or prefix is true."
-  (let ((sap (symbol-at-point)))
-    (if (or prefix (not sap))
-        (let ((s (read-from-minibuffer prompt (if sap (symbol-name sap) ""))))
-          (if (equal "" (s-trim s))
-              nil
-            s))
-      sap)))
-
 ;;; racket--easy-keymap-define
 
 (defun racket--easy-keymap-define (spec)

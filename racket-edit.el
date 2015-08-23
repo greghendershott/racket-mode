@@ -209,7 +209,8 @@ list, as opposed to `'lexical`).
 Note: If the definition is from Racket's `#%kernel` module, it
 will tell you so but won't visit the definition site."
   (interactive "P")
-  (let ((sym (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")))
+  (let ((sym (racket--identifier-at-point-or-prompt prefix
+                                                    "Visit definition of: ")))
     (when sym
       (racket--do-visit-def-or-mod "def" sym))))
 
@@ -268,7 +269,8 @@ variant of racket/help.)
 With a C-u prefix, prompts for the identifier or quoted string,
 instead of looking at point."
   (interactive "P")
-  (let ((sym (racket--symbol-at-point-or-prompt prefix "Racket help for: ")))
+  (let ((sym (racket--identifier-at-point-or-prompt prefix
+                                                    "Racket help for: ")))
     (when sym
       (racket--repl-cmd/string (format ",doc %s" sym)))))
 
@@ -315,7 +317,8 @@ bottom of the buffer are Emacs buttons (which you may navigate among
 using <kbd>TAB</kbd> for visiting the definition or opening the full
 browser documentation (if any)."
   (interactive "P")
-  (let ((sym (racket--symbol-at-point-or-prompt prefix "Describe: ")))
+  (let ((sym (racket--identifier-at-point-or-prompt prefix
+                                                    "Describe: ")))
     (when sym
       (racket--do-describe sym t))))
 
