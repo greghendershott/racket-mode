@@ -33,21 +33,22 @@
   (current-load-relative-directory dir)
   ;; Make src-loc->string provide full pathnames
   (show-full-path-in-errors)
-  ;; Custodian for the user REPL.
-  (define user-cust (make-custodian))
-  (define user-cust-box (make-custodian-box user-cust #t))
+  ;; Custodian for the REPL.
+  (define repl-cust (make-custodian))
   (when mem-limit
-    (custodian-limit-memory user-cust
+    (custodian-limit-memory repl-cust
                             (inexact->exact (round (* 1024 1024 mem-limit)))
-                            user-cust))
+                            repl-cust))
   ;; If racket/gui/base isn't loaded, the current-eventspace parameter
   ;; doesn't exist, so make a "dummy" parameter of that name.
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
+
+  ;; Create REPL thread
   (define repl-thread
     (parameterize* ;; Use `parameterize*` because the order matters.
         (;; FIRST: current-custodian and current-namespace, so in
          ;; effect for later parameterizations.
-         [current-custodian user-cust]
+         [current-custodian repl-cust]
          [current-namespace ((txt/gui make-base-namespace make-gui-namespace))]
          ;; OTHERS:
          [compile-enforce-module-constants #f]
@@ -61,14 +62,15 @@
          ;; LAST: `current-eventspace` because `make-eventspace`
          ;; creates an event handler thread -- now. We want that
          ;; thread to inherit the parameterizations above. (Otherwise
-         ;; in the non-gui case, we call `thread` inside the
-         ;; parameterize* form, so that's fine.)
+         ;; in the non-gui case, we call `thread` below in the body of
+         ;; the parameterize* form, so that's fine.)
          [current-eventspace ((txt/gui void make-eventspace))])
       ;; Some context-levels need some state to be reset.
       (match context-level
         ['profile (clear-profile-info!)]
         ['coverage (clear-test-coverage-info!)]
         [_ (void)])
+
       ;; repl-thunk will be called from another thread -- either a plain
       ;; thread when racket/gui/base is not (yet) instantiated, or, from
       ;; (eventspace-handler-thread (current-eventspace)).
@@ -96,26 +98,26 @@
           ;; Note that read-eval-print-loop catches all non-break
           ;; exceptions.
           (read-eval-print-loop)))
+
       ;; Main thread: Run repl-thunk on a plain thread, or, on the
       ;; eventspace thread via queue-callback. Return the thread.
       (define t/v ((txt/gui thread    queue-callback           ) repl-thunk))
       (define thd ((txt/gui (λ _ t/v) eventspace-handler-thread) (current-eventspace)))
       thd))
-  ;; Main thread: Wait for message from REPL thread channel, or, user
-  ;; custodian box event. Also catch breaks, in which case we
-  ;; break-thread the repl thread so display-exn runs there.
+
+  ;; Main thread: Wait for message from REPL thread on channel. Also
+  ;; catch breaks, in which case we (a) break the REPL thread so
+  ;; display-exn runs there, and (b) continue from the break instead
+  ;; of re-running so that the REPL environment is maintained.
   (define msg
-    (with-handlers ([exn:break? (λ _ (break-thread repl-thread) (sleep) 'break)])
-      (match (sync the-channel user-cust-box)
-        [(? custodian-box?)
-         (display-commented
-          (format "Exceeded the ~a MB memory limit you set.\n" mem-limit))
-         'break]
-        [msg msg])))
-  (custodian-shutdown-all user-cust)
+    (call-with-exception-handler
+     (match-lambda
+       [(exn:break msg marks continue) (break-thread repl-thread) (continue)]
+       [e e])
+     (λ () (sync the-channel))))
+  (custodian-shutdown-all repl-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match msg
-    ['break        (run (struct-copy rerun rr [path #f]))]
     [(? rerun? x)  (run x)]
     [(? load-gui?) (require-gui) (run rr)]))
 
