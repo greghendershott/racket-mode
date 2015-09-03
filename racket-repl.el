@@ -168,7 +168,7 @@ Commands that don't want the REPL to be displayed can instead use
   "Path to run.rkt")
 
 (defvar racket--repl-command-output-file
-  (make-temp-file "racket-mode-command-ouput-file")
+  (make-temp-file "racket-mode-command-ouput-file-")
   "File used to collect output from commands used by racket-mode.")
 
 (defun racket--repl-ensure-buffer-and-process (&optional display)
