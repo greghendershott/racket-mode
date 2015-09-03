@@ -6,4 +6,4 @@
   . ((indent-tabs-mode . t)))
  (prog-mode
   . ((comment-column . 40)
-     (fill-column    . 78))))
+     (fill-column    . 70))))
