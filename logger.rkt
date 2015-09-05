@@ -1,9 +1,10 @@
-#lang racket/base
+#lang at-exp racket/base
 
 (require racket/match
          racket/list
          racket/format
-         racket/string)
+         racket/string
+         "util.rkt")
 
 (provide start-log-receiver
          log-display)
@@ -41,13 +42,12 @@
          (let loop ()
            (match (sync r)
              [(vector l m v name)
-              ;; To stderr
-              (eprintf "; [~a] ~a\n" l m)
-              (flush-output)
+              (define s @~a{[@l] @m})
+              (display-commented s)
+              (flush-output (current-error-port))
               ;; To /tmp/racket-log (can `tail -f' it)
               (with-output-to-file racket-log-file #:exists 'append
-                                   (lambda ()
-                                     (display (format "[~a] ~a\n" l m))))])
+                (λ () (displayln s)))])
            (loop)))))))
 
 (define (show-logger-levels)
