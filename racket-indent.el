@@ -344,6 +344,7 @@ doesn't hurt to do so."
           (c-declare 0)
           (c-lambda 2)
           (call-with-input-file defun)
+          (call-with-input-file* defun)
           (call-with-output-file defun)
           (call-with-output-file* defun)
           (case 1)
