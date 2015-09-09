@@ -10,7 +10,8 @@
          log-display)
 
 (define current-log-receiver-thread (make-parameter #f))
-(define global-logger (current-logger))
+(define global-logger (make-logger))
+(current-logger global-logger)
 (define other-level 'fatal)
 
 ;; Default a couple specific loggers one notch above their "noisy"
