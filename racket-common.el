@@ -357,7 +357,7 @@ Returns \"[\" or nil."
                (backward-sexp post-backward-sexps)
                (when (or (racket--in-string-or-comment (point) pt)
                          (looking-at-p regexp))
-                 "["))
+                 ?\[))
            (error nil)))))
 
 (defun racket-smart-open-bracket ()
@@ -386,19 +386,25 @@ To force insert `[`, use `quoted-insert': \\[quoted-insert] [.
 Combined with `racket-insert-closing-bracket', this means that
 you can press the unshifted `[` and `]` keys to get whatever
 delimiters follow the Racket conventions for these forms. (When
-`paredit-mode' is active, you need not even press `]`. This calls
-`paredit-open-round' or `paredit-open-square' so that paredit
-will work as usual.)"
+`electric-pair-mode' or `paredit-mode' is active, you need not
+even press `]`."
   (interactive)
-  (let ((ch (or (and (not racket-smart-open-bracket-enable) "[")
+  (let ((ch (or (and (not racket-smart-open-bracket-enable) ?\[)
                 (cl-some (lambda (xs)
                            (apply #'racket--smart-open-bracket-helper xs))
                          racket--smart-open-bracket-data)
                 (racket--previous-sexp-open)
-                "(")))
+                ?\()))
     (if (fboundp 'racket--paredit-aware-open)
         (racket--paredit-aware-open ch)
-      (insert ch))))
+      (racket--self-insert ch))))
+
+(defun racket--self-insert (event)
+  "Simulate a `self-insert-command' of EVENT
+Using this intead of `insert' allows self-insert hooks to run,
+which is important for things like `'electric-pair-mode'."
+  (let ((last-command-event event)) ;set this for hooks
+    (self-insert-command (prefix-numeric-value nil))))
 
 (defun racket--in-string-or-comment (from to)
   "See if point is in a string or comment, without moving point."
@@ -455,11 +461,11 @@ When `paredit-mode' is active, use its functions (such as
 this isn't defined unless paredit is loaded, so check for its
 existence using `fboundp'."
        (let ((paredit-active (and (boundp 'paredit-mode) paredit-mode)))
-         (cond ((not paredit-active) (insert ch))
-               ((equal ch "(")       (paredit-open-round))
-               ((equal ch "[")       (paredit-open-square))
-               ((equal ch "{")       (paredit-open-curly))
-               (t                    (insert ch)))))))
+         (cond ((not paredit-active) (racket--self-insert ch))
+               ((equal ch ?\()       (paredit-open-round))
+               ((equal ch ?\[)       (paredit-open-square))
+               ((equal ch ?\{)       (paredit-open-curly))
+               (t                    (racket--self-insert ch)))))))
 
 ;;; Cycle paren shapes
 
