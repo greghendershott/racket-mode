@@ -418,8 +418,9 @@ which is important for things like `'electric-pair-mode'."
     (condition-case ()
         (progn
           (backward-sexp)
-          (let ((ch (buffer-substring-no-properties (point) (1+ (point)))))
-            (when (member ch '("(" "[" "{")) ch)))
+          (let* ((str (buffer-substring-no-properties (point) (1+ (point))))
+                 (ch (string-to-char str)))
+            (when (member ch '(?\( ?\[ ?\{)) ch)))
       (error nil))))
 
 (eval-after-load 'paredit
