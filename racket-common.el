@@ -420,7 +420,7 @@ which is important for things like `'electric-pair-mode'."
           (backward-sexp)
           (let* ((str (buffer-substring-no-properties (point) (1+ (point))))
                  (ch (string-to-char str)))
-            (when (member ch '(?\( ?\[ ?\{)) ch)))
+            (when (memq ch '(?\( ?\[ ?\{)) ch)))
       (error nil))))
 
 (eval-after-load 'paredit
@@ -463,9 +463,9 @@ this isn't defined unless paredit is loaded, so check for its
 existence using `fboundp'."
        (let ((paredit-active (and (boundp 'paredit-mode) paredit-mode)))
          (cond ((not paredit-active) (racket--self-insert ch))
-               ((equal ch ?\()       (paredit-open-round))
-               ((equal ch ?\[)       (paredit-open-square))
-               ((equal ch ?\{)       (paredit-open-curly))
+               ((eq ch ?\()          (paredit-open-round))
+               ((eq ch ?\[)          (paredit-open-square))
+               ((eq ch ?\{)          (paredit-open-curly))
                (t                    (racket--self-insert ch)))))))
 
 ;;; Cycle paren shapes
