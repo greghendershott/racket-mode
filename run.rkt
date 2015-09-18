@@ -1,6 +1,9 @@
 #lang racket/base
 
 (require racket/cmdline
+         racket/contract/base
+         racket/contract/region
+         racket/format
          racket/match
          racket/runtime-path
          racket/pretty
@@ -10,6 +13,7 @@
          "gui.rkt"
          "instrument.rkt"
          "logger.rkt"
+         "mod.rkt"
          "older-racket.rkt"
          "util.rkt")
 
@@ -25,8 +29,8 @@
     (run rerun-default)))
 
 (define (run rr) ;rerun? -> void?
-  (match-define (rerun maybe-path-str mem-limit pretty-print? context-level) rr)
-  (define-values (path dir) (path-string->path&dir maybe-path-str))
+  (match-define (rerun maybe-mod mem-limit pretty-print? context-level) rr)
+  (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
   ;; Always set current-directory and current-load-relative-directory
   ;; to match the source file.
   (current-directory dir)
@@ -82,18 +86,19 @@
         ;; 1. Start logger display thread.
         (start-log-receiver)
         ;; 2. If module, load its lang info, require, and enter its namespace.
-        (when (and path (module-path? path))
+        (when mod-path
           (parameterize ([current-module-name-resolver repl-module-name-resolver])
             ;; exn:fail? during module load => re-run with "empty" module
             (with-handlers ([exn? (λ (x)
                                     (display-exn x)
-                                    (put/stop (struct-copy rerun rr [path #f])))])
-              (maybe-load-language-info path)
-              (namespace-require path)
-              (current-namespace (module->namespace path))
+                                    (put/stop (struct-copy rerun rr [maybe-mod #f])))])
+              (maybe-warn-about-submodules mod-path context-level)
+              (maybe-load-language-info mod-path)
+              (dynamic-require mod-path #f)
+              (current-namespace (module->namespace mod-path))
               (check-top-interaction))))
         ;; 3. read-eval-print-loop
-        (parameterize ([current-prompt-read (make-prompt-read path)]
+        (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
                        [current-module-name-resolver repl-module-name-resolver])
           ;; Note that read-eval-print-loop catches all non-break
           ;; exceptions.
@@ -158,28 +163,6 @@
          (unless (gui-required?)
            (put/stop (load-gui))))
        (orig-resolver mp rmp stx load?)])))
-
-;; path-string? -> (values (or/c #f path?) path?)
-(define (path-string->path&dir path-str)
-  (define path (and path-str
-                    (not (equal? path-str ""))
-                    (string? path-str)
-                    (path-str->existing-file-path path-str)))
-  (define dir (cond [path (define-values (base _ __) (split-path path))
-                          (cond [(eq? base 'relative) (current-directory)]
-                                [else base])]
-                    [else (current-directory)]))
-  (values path dir))
-
-;; path-string? -> (or/c #f path?)
-(define (path-str->existing-file-path path-str)
-  (define (not-found s)
-    (eprintf "; ~a not found\n" s)
-    #f)
-  (with-handlers ([exn:fail? (λ (_) (not-found path-str))])
-    (define path (expand-user-path (string->path path-str)))
-    (cond [(file-exists? path) path]
-          [else (not-found (path->string path))])))
 
 ;; Note: The `dynamic-require`s seem to be necessary otherwise
 ;; file/convertible's convertible? always returns #f. Which seeems to

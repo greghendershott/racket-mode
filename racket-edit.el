@@ -58,10 +58,11 @@ Others are available only as a command in the REPL.
 
 - `,help`: See these commands.
 
-- `,top`: Reset the REPL to \"no file\" (i.e. a base namespace).
+- `,top`: Reset the REPL to an empty module (i.e. a racket/base namespace).
 
-- `,run <file>`: Run the file. What `racket-run' uses. Either
-  `\"file.rkt\"` is `file.rkt` OK.
+- `,run <module>` : What `racket-run' uses.
+  - `<module> = <file> | (<file> <submodule-id> ...)`
+  - `<file> = file.rkt | /path/to/file.rkt | \"file.rkt\" | \"/path/to/file.rkt\"`
 
 - `,exit`: Exit Racket. Handy in a `#lang` like r5rs where the
   `exit` procedure is not available. (Regardless of how Racket
@@ -92,9 +93,14 @@ Others are available only as a command in the REPL.
                       'high
                     racket-error-context)))
 
-(defun racket--do-run (context-level)
+(defun racket--do-run (context-level &optional what-to-run)
   "Helper function for `racket-run'-like commands.
-Supplies CONTEXT-LEVEL to the back-end ,run command; see run.rkt."
+
+Supplies CONTEXT-LEVEL to the back-end ,run command; see run.rkt.
+
+If supplied, WHAT-TO-RUN should be a buffer filename, or a cons
+of a file name to a list of submodule symbols. Otherwise, the
+`racket--what-to-run' is used."
   (unless (eq major-mode 'racket-mode)
     (error "Current buffer is not a racket-mode buffer"))
   (when (or (buffer-modified-p)
@@ -103,11 +109,31 @@ Supplies CONTEXT-LEVEL to the back-end ,run command; see run.rkt."
   (remove-overlays (point-min) (point-max) 'racket-uncovered-overlay)
   (racket--invalidate-completion-cache)
   (racket--invalidate-type-cache)
-  (racket--repl-eval (format ",run %s %s %s %s\n"
-                             (racket--quoted-buffer-file-name)
+  (racket--repl-eval (format ",run %S %s %s %s\n"
+                             (or what-to-run (racket--what-to-run))
                              racket-memory-limit
                              racket-pretty-print
                              context-level)))
+
+(defun racket--what-to-run ()
+  (cons (buffer-file-name) (racket--submod-path)))
+
+(defun racket--submod-path ()
+  "List of module names that point is within, from outer to inner."
+  (let ((xs nil))
+    (condition-case ()
+        (save-excursion
+          (while t
+            (when (looking-at (rx ?\(
+                                  (or "module " "module* " "module+ ")
+                                  (group (+ (or (syntax symbol)
+                                                (syntax word))))))
+              (add-to-list 'xs
+                           (intern (match-string-no-properties 1))
+                           t
+                           #'ignore)) ;i.e. never equal, always add
+            (backward-up-list)))
+      (error (reverse xs)))))
 
 (defun racket-run-and-switch-to-repl (&optional errortracep)
   "This is `racket-run' followed by `racket-switch-to-repl'.
@@ -123,10 +149,10 @@ Otherwise follows the `racket-error-context' setting."
   (interactive)
   (racket--shell (concat racket-racket-program
                          " "
-                         (racket--quoted-buffer-file-name))))
+                         (shell-quote-argument (buffer-file-name)))))
 
 (defun racket-test (&optional coverage)
-  "Do `(require (submod \".\" test))` in `*Racket REPL*` buffer.
+  "Run the `test` submodule.
 
 With prefix, runs with coverage instrumentation and highlights
 uncovered code.
@@ -147,11 +173,8 @@ See also:
   (interactive "P")
   (message (if coverage "Running tests with coverage instrumentation enabled..."
              "Running tests..."))
-  (racket--do-run (if coverage 'coverage racket-error-context))
-  (racket--repl-eval (format "%S\n"
-                             `(begin
-                               (require (submod "." test))
-                               (flush-output (current-output-port)))))
+  (racket--do-run (if coverage 'coverage racket-error-context)
+                  (list 'submod (buffer-file-name) 'test))
   (if (not coverage)
       (message "Tests done.")
     (message "Checking coverage results...")
@@ -174,7 +197,7 @@ To run <file>'s `test` submodule."
   (interactive)
   (racket--shell (concat racket-raco-program
                          " test -x "
-                         (racket--quoted-buffer-file-name))))
+                         (shell-quote-argument (buffer-file-name)))))
 
 (defun racket--shell (cmd)
   (let ((w (selected-window)))
@@ -994,18 +1017,6 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
               (up-list)
             (forward-sexp)))
       (scan-error nil))))
-
-
-;;; misc
-
-(defun racket--quoted-buffer-file-name ()
-  "`shell-quote-argument' ∘ `buffer-file-name'
-
-Generally this should be used instead of plain
-`buffer-file-name'. For example this will handle path names
-containing spaces by escaping them."
-  (shell-quote-argument (buffer-file-name)))
-
 
 (provide 'racket-edit)
 

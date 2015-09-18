@@ -1,7 +1,8 @@
 #lang racket/base
 
 (require racket/match
-         racket/contract)
+         racket/contract
+         "mod.rkt")
 
 (provide the-channel
          (struct-out msg)
@@ -46,7 +47,7 @@
 (define-struct/contract msg ())
 (define-struct/contract [load-gui msg] ())
 (define-struct/contract [rerun msg]
-  ([path          (or/c #f path-string?)]
+  ([maybe-mod     (or/c #f mod?)]
    [memory-limit  (or/c #f exact-positive-integer?)]
    [pretty-print? boolean?]
    [context-level context-level?]))

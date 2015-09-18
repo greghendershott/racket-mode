@@ -52,10 +52,11 @@ Others are available only as a command in the REPL.
 
 - `,help`: See these commands.
 
-- `,top`: Reset the REPL to "no file" (i.e. a base namespace).
+- `,top`: Reset the REPL to an empty module (i.e. a racket/base namespace).
 
-- `,run <file>`: Run the file. What [`racket-run`](#racket-run) uses. Either
-  `"file.rkt"` is `file.rkt` OK.
+- `,run <module>` : What [`racket-run`](#racket-run) uses.
+  - `<module> = <file> | (<file> <submodule-id> ...)`
+  - `<file> = file.rkt | /path/to/file.rkt | "file.rkt" | "/path/to/file.rkt"`
 
 - `,exit`: Exit Racket. Handy in a `#lang` like r5rs where the
   `exit` procedure is not available. (Regardless of how Racket
@@ -134,7 +135,7 @@ during initialization.
 ### racket-test
 <kbd>&lt;C-f5&gt;</kbd> or <kbd>C-c C-t</kbd>
 
-Do `(require (submod "." test))` in `*Racket REPL*` buffer.
+Run the `test` submodule.
 
 With prefix, runs with coverage instrumentation and highlights
 uncovered code.
@@ -454,9 +455,8 @@ To force insert `[`, use `quoted-insert`: C-q [.
 Combined with [`racket-insert-closing-bracket`](#racket-insert-closing-bracket), this means that
 you can press the unshifted `[` and `]` keys to get whatever
 delimiters follow the Racket conventions for these forms. (When
-`paredit-mode` is active, you need not even press `]`. This calls
-`paredit-open-round` or `paredit-open-square` so that paredit
-will work as usual.)
+`electric-pair-mode` or `paredit-mode` is active, you need not
+even press `]`.
 
 ### racket-cycle-paren-shapes
 <kbd>C-c C-p</kbd>
