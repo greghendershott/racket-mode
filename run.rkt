@@ -117,7 +117,7 @@
   (define msg
     (call-with-exception-handler
      (match-lambda
-       [(or (? exn:break:terminate?) (? exn:break:hang-up?)) (void)]
+       [(and (or (? exn:break:terminate?) (? exn:break:hang-up?)) e) e]
        [(exn:break msg marks continue) (break-thread repl-thread) (continue)]
        [e e])
      (λ () (sync the-channel))))
