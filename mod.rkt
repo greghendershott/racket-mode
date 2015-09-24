@@ -127,25 +127,25 @@
 ;; forms when errortrace is enabled.
 (module+ check
   (define x 42))
-(define can-enter-module+-namespace?
+(define (can-enter-module+-namespace?)
+  (define mp (quote-module-path check))
+  (dynamic-require mp #f)
   (with-handlers ([exn:fail? (λ _ #f)])
-    (define mp (quote-module-path check))
-    (dynamic-require mp)
     (eval 'x (module->namespace mp))
     #t))
 
 (define warned? #f)
 (define/contract (maybe-warn-about-submodules mp context)
   (-> (or/c #f module-path?) symbol? any)
-  (when (pair? mp) ;submodule?
-    (unless (or warned?
-                can-enter-module+-namespace?
-                (memq context '(low medium)))
-      (set! warned? #t)
-      (display-commented
-       @~a{Note: The submodule @mp will be evaluated.
-                 However your Racket version is old. You will be unable to
-                 use the REPL to examine definitions in the body of a module+
-                 or (module _ #f ___) form when errortrace is enabled. Set the
-                 Emacs variable racket-error-context to 'low or 'medium, or,
-                 upgrade Racket.}))))
+  (unless (or warned?
+              (not (pair? mp)) ;not submodule
+              (memq context '(low medium))
+              (can-enter-module+-namespace?))
+    (set! warned? #t)
+    (display-commented
+     @~a{Note: @~v[@mp] will be evaluated.
+               However your Racket version is old. You will be unable to
+               use the REPL to examine definitions in the body of a module+
+               or (module* _ #f ___) form when errortrace is enabled. Either
+               upgrade Racket, or, set the Emacs variable racket-error-context
+               to 'low or 'medium.})))
