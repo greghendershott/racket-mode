@@ -197,6 +197,7 @@
 (defun racket-insert-lambda ()
   (interactive)
   (insert-char racket-lambda-char 1))
+(put 'racket-insert-lambda 'delete-selection t)
 
 
 ;;; Automatically insert matching \?) \?] or \?}
@@ -226,14 +227,18 @@
 (defun racket-insert-closing-paren (&optional prefix)
   (interactive "P")
   (racket--insert-closing prefix ?\)))
+(put 'racket-insert-closing-paren 'delete-selection t)
 
 (defun racket-insert-closing-bracket (&optional prefix)
   (interactive "P")
   (racket--insert-closing prefix ?\]))
+(put 'racket-insert-closing-bracket 'delete-selection t)
 
 (defun racket-insert-closing-brace (&optional prefix)
   (interactive "P")
   (racket--insert-closing prefix ?\}))
+(put 'racket-insert-closing-brace 'delete-selection t)
+
 
 ;;; Smart open bracket
 
@@ -398,6 +403,7 @@ even press `]`."
     (if (fboundp 'racket--paredit-aware-open)
         (racket--paredit-aware-open ch)
       (racket--self-insert ch))))
+(put 'racket-smart-open-bracket 'delete-selection t)
 
 (defun racket--self-insert (event)
   "Simulate a `self-insert-command' of EVENT
