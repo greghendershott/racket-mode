@@ -738,8 +738,14 @@
       (define ht-defs/uses (make-hash))
       (for ([x (in-list xs)])
         (match x
-          [(vector 'syncheck:add-arrow/name-dup
-                   def-beg def-end use-beg use-end _ _ _ _)
+          [(or (vector 'syncheck:add-arrow/name-dup
+                       def-beg def-end
+                       use-beg use-end
+                       _ _ _ _)
+               (vector 'syncheck:add-arrow/name-dup/pxpy
+                       def-beg def-end _ _
+                       use-beg use-end _ _
+                       _ _ _ _))
            (hash-update! ht-defs/uses
                          (list (add1 def-beg) (add1 def-end))
                          (λ (v) (set-add v (list (add1 use-beg) (add1 use-end))))
