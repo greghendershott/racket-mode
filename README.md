@@ -135,6 +135,15 @@ racket-unicode-input-method-enable</kbd>.
 
 ### Completion
 
+The usual `M-x complete-symbol` -- bound by default to
+<kbd>C-M-i</kbd> -- works, drawing on all symbols in the current
+Racket namespace.
+
+> Tip: When you first visit a .rkt file, or edit it to change its
+> `require`s, you may need to `racket-run` it to make the symbols
+> available. Otherwise, you may get "stale" symbols, or just those
+> from `racket/base`.
+
 To have <kbd>TAB</kbd> do completion as well as indent, add the
 following to your Emacs init file:
 
