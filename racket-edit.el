@@ -119,6 +119,19 @@ of a file name to a list of submodule symbols. Otherwise, the
   (cons (buffer-file-name) (racket--submod-path)))
 
 (defun racket--submod-path ()
+  (and (racket--lang-p)
+       (racket--modules-at-point)))
+
+(defun racket--lang-p ()
+  "Is #lang the first sexpr in the file?"
+  (save-excursion
+    (goto-char 0)
+    (ignore-errors
+      (forward-sexp)
+      (backward-sexp)
+      (looking-at (rx "#lang")))))
+
+(defun racket--modules-at-point ()
   "List of module names that point is within, from outer to inner."
   (let ((xs nil))
     (condition-case ()
