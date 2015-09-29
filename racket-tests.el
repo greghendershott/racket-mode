@@ -24,8 +24,9 @@
 ;;; Utility functions for "integration" testing
 
 (defun racket-tests/type (typing)
-  (execute-kbd-macro (string-to-vector typing))
-  (redisplay))
+  (let ((blink-matching-paren nil)) ;suppress "Matches " messages
+    (execute-kbd-macro (string-to-vector typing))
+    (redisplay)))
 
 (defun racket-tests/press (binding)
   (racket-tests/type (edmacro-parse-keys binding)))
@@ -116,7 +117,8 @@ FILE is interpreted as relative to this source directory."
 (defun racket-tests/brackets (smartp input expected)
   (with-temp-buffer
     (racket-mode)
-    (let ((racket-smart-open-bracket-enable smartp))
+    (let ((racket-smart-open-bracket-enable smartp)
+          (blink-matching-paren nil)) ;suppress "Matches " messages
       (mapc (lambda (x)
               (cond ((eq x ?\[) (racket-smart-open-bracket))
                     ((eq x ?\]) (racket-insert-closing-bracket))
