@@ -35,9 +35,15 @@
   (racket-tests/press binding))
 
 (defun racket-tests/see-rx (rx)
-  (accept-process-output nil 1)
-  (sit-for 0.1)
-  (looking-back rx (point-min)))
+  (let ((one-second-attempts (if (getenv "TRAVIS_CI")
+                                 (* 15 60)
+                               30)))
+    ;; Although using cl-some like this is weird, cl-loop is weirder IMHO
+    (cl-some (lambda (_x)
+               (accept-process-output (racket--get-repl-buffer-process) 1)
+               (sit-for 0.1)
+               (looking-back rx (point-min)))
+             (make-list one-second-attempts nil))))
 
 (defun racket-tests/see (str)
   (racket-tests/see-rx (regexp-quote str)))
@@ -54,8 +60,6 @@
 (ert-deftest racket-tests/repl ()
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
   (racket-repl)
-  (accept-process-output (racket--get-repl-buffer-process)
-                         (if (getenv "TRAVIS_CI") 3000 5))
   (with-current-buffer (get-buffer "*Racket REPL*")
     (let ((tab-always-indent 'complete))
       ;; Welcome

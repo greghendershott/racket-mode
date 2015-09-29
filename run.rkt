@@ -20,7 +20,7 @@
 (module+ main
   (command-line #:args (command-output-file)
                 (current-command-output-file command-output-file))
-  ;; Emacs on Windows comint-mode needs buffering disabled
+  ;; Emacs on Windows comint-mode needs buffering disabled.
   (when (eq? (system-type 'os) 'windows)
     (file-stream-buffer-mode (current-output-port) 'none))
   (display (banner))
