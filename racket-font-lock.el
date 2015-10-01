@@ -219,25 +219,28 @@ simillar, it will already be there."
     (ignore-errors
       (when (and (not (looking-at "/ec"))
                  (racket--inside-complete-sexp))
-        ;; Check for named let
-        (when (looking-at (rx (+ space) (+ (or (syntax word) (syntax symbol)))))
-          (forward-sexp 1)
-          (backward-sexp 1)
-          (racket--font-lock-this-sexpr font-lock-function-name-face))
-        (down-list 1) ;to the open paren of the first binding form
-        (while (ignore-errors
-                 (down-list 1) ;to the id or list of id's
-                 (if (not (looking-at "[([{]"))
-                     (racket--font-lock-this-sexpr font-lock-variable-name-face)
-                   ;; list of ids, e.g. let-values
-                   (down-list 1)    ;to first id
-                   (cl-loop
-                    do (racket--font-lock-this-sexpr font-lock-variable-name-face)
-                    while (ignore-errors (forward-sexp 1) (backward-sexp 1) t))
-                   (backward-up-list))
-                 (backward-up-list) ;to open paren of this binding form
-                 (forward-sexp 1)   ;to open paren of next binding form
-                 t)))))
+        ;; Resume search before this let's bindings list, so we can
+        ;; check rhs of bindings for more lets.
+        (save-excursion
+          ;; Check for named let
+          (when (looking-at (rx (+ space) (+ (or (syntax word) (syntax symbol)))))
+            (forward-sexp 1)
+            (backward-sexp 1)
+            (racket--font-lock-this-sexpr font-lock-function-name-face))
+          (down-list 1) ;to the open paren of the first binding form
+          (while (ignore-errors
+                   (down-list 1) ;to the id or list of id's
+                   (if (not (looking-at "[([{]"))
+                       (racket--font-lock-this-sexpr font-lock-variable-name-face)
+                     ;; list of ids, e.g. let-values
+                     (down-list 1)    ;to first id
+                     (cl-loop
+                      do (racket--font-lock-this-sexpr font-lock-variable-name-face)
+                      while (ignore-errors (forward-sexp 1) (backward-sexp 1) t))
+                     (backward-up-list))
+                   (backward-up-list) ;to open paren of this binding form
+                   (forward-sexp 1)   ;to open paren of next binding form
+                   t))))))
   nil)
 
 (defun racket--inside-complete-sexp ()
