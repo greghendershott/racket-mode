@@ -1,4 +1,4 @@
-#lang racket/base
+#lang at-exp racket/base
 
 (require (only-in errortrace/errortrace-key
                   errortrace-key)
@@ -9,9 +9,12 @@
                   stacktrace^
                   stacktrace@
                   stacktrace-imports^)
+         racket/format
          racket/match
          racket/unit
-         "older-racket.rkt") ;for hash-clear!
+         syntax/parse
+         "older-racket.rkt"
+         "util.rkt")
 
 (provide make-instrumented-eval-handler
          error-context-display-depth
@@ -81,13 +84,20 @@
                                              [expanded-stx expanded-e])
                                 (annotate-top expanded-e
                                               (namespace-base-phase)))])
-              ;; (local-require racket/pretty)
-              ;; (pretty-write (list (syntax->datum top-e)
-              ;;                     "=>"
-              ;;                     (syntax->datum expanded-e)
-              ;;                     "=>"
-              ;;                     (syntax->datum annotated)))
+              (warn-about-time-apply expanded-e)
               (orig-eval annotated))])))]))
+
+(define (warn-about-time-apply stx)
+  (syntax-parse stx
+    #:datum-literals (#%app time-apply)
+    [(#%app time-apply . _)
+     (display-commented
+      @~a{Warning: time or time-apply used in errortrace annotated code.
+                   For meaningful timings, use command-line racket instead!})
+       #t]
+    [(ss ...) (for/or ([stx (in-list (syntax->list #'(ss ...)))])
+                  (warn-about-time-apply stx))]
+    [_ #f]))
 
 
 ;;; Better stack traces ("basic errortrace")
