@@ -285,6 +285,7 @@ contents into a buffer."
 
 (defun racket--send-region-to-repl (start end)
   "Internal function to send the region to the Racket REPL.
+
 Before sending the region, calls `racket-repl' and
 `racket--repl-forget-errors'. Afterwards calls
 `racket--repl-show-and-move-to-end'."
@@ -319,11 +320,21 @@ Before sending the region, calls `racket-repl' and
                                (point)))
 
 (defun racket--repl-forget-errors ()
-  "Forget existing compilation mode errors in the REPL.
-Although they remain clickable, `next-error' and `previous-error'
-will ignore them."
+  "Forget existing errors in the REPL.
+
+Although they remain clickable they will be ignored by
+`next-error' and `previous-error'"
   (with-current-buffer racket--repl-buffer-name
-    (compilation-forget-errors)))
+    (compilation-forget-errors)
+    ;; `compilation-forget-errors' may have just set
+    ;; `compilation-messages-start' to a marker at position 1. But in
+    ;; that case process output (including error messages) will be
+    ;; inserted ABOVE the marker, in which case `next-error' won't see
+    ;; them. Instead use a non-marker position like 1 or use nil.
+    (when (and (markerp compilation-messages-start)
+               (equal (marker-position compilation-messages-start) 1)
+               (equal (marker-buffer compilation-messages-start) (current-buffer)))
+      (setq compilation-messages-start nil))))
 
 (defun racket--repl-show-and-move-to-end ()
   "Make the Racket REPL visible, and move point to end.
