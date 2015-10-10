@@ -500,7 +500,7 @@ existence using `fboundp'."
 (defun racket-backward-up-list ()
   "Like `backward-up-list' but also works when point is in a string literal."
   (interactive)
-  (while (in-string-p)
+  (while (nth 3 (syntax-ppss)) ;i.e. the now-deprecated `in-string-p'
     (backward-char))
   (backward-up-list))
 
