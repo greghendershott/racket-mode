@@ -145,7 +145,7 @@ of a file name to a list of submodule symbols. Otherwise, the
                            (intern (match-string-no-properties 1))
                            t
                            #'ignore)) ;i.e. never equal, always add
-            (backward-up-list)))
+            (racket-backward-up-list))) ;works when point is in a string
       (error (reverse xs)))))
 
 (defun racket-run-and-switch-to-repl (&optional errortracep)
