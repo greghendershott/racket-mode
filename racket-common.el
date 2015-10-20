@@ -240,15 +240,9 @@ Inserted text should replace the selection unless a mode like
 
 With a prefix, insert the typed character as-is."
   (interactive "P")
-  (let* ((open-pt (and (not prefix)
-                       (save-excursion
-                         (ignore-errors (backward-up-list) (point)))))
-         (open-char (and open-pt
-                         (aref (buffer-substring-no-properties open-pt
-                                                               (1+ open-pt))
-                               0)))
-         (close-pair (and open-char (assq open-char racket--matching-parens)))
-         (close-char (and close-pair (cdr close-pair))))
+  (let* ((open-char  (and (not prefix) (racket--open-paren #'backward-up-list)))
+         (close-pair (and open-char    (assq open-char racket--matching-parens)))
+         (close-char (and close-pair   (cdr close-pair))))
     (racket--self-insert (or close-char last-command-event))))
 
 (racket--set-delete-selection-property-for-parens 'racket-insert-closing)
@@ -364,20 +358,19 @@ With a prefix, insert the typed character as-is."
                                           regexp)
   "Is point is a subform (of a known form REGEXP) that should open with '['.
 
-Returns \"[\" or nil."
+Returns '[' or nil."
+
   (and (save-excursion
-         (condition-case ()
-             (progn (backward-sexp pre-backward-sexps) t)
-           (error nil)))
+         (ignore-errors
+           (backward-sexp pre-backward-sexps) t))
        (save-excursion
-         (condition-case ()
-             (let ((pt (point)))
-               (racket-backward-up-list) ;works even in strings
-               (backward-sexp post-backward-sexps)
-               (when (or (racket--in-string-or-comment (point) pt)
-                         (looking-at-p regexp))
-                 ?\[))
-           (error nil)))))
+         (ignore-errors
+           (let ((pt (point)))
+             (racket-backward-up-list) ;works even in strings
+             (backward-sexp post-backward-sexps)
+             (when (or (racket--in-string-or-comment (point) pt)
+                       (looking-at-p regexp))
+               ?\[))))))
 
 (defun racket-smart-open-bracket ()
   "Automatically insert a `(` or a `[` as appropriate.
@@ -412,30 +405,13 @@ even press `]`."
                 (cl-some (lambda (xs)
                            (apply #'racket--smart-open-bracket-helper xs))
                          racket--smart-open-bracket-data)
-                (racket--previous-sexp-open)
+                (racket--open-paren #'backward-sexp)
                 ?\()))
     (if (fboundp 'racket--paredit-aware-open)
         (racket--paredit-aware-open ch)
       (racket--self-insert ch))))
 
 (racket--set-delete-selection-property-for-parens 'racket-smart-open-bracket)
-
-(defun racket--in-string-or-comment (from to)
-  "See if point is in a string or comment, without moving point."
-  (save-excursion
-    (let ((parse (parse-partial-sexp from to)))
-      (or (elt parse 3)
-          (elt parse 4)))))
-
-(defun racket--previous-sexp-open ()
-  (save-excursion
-    (condition-case ()
-        (progn
-          (backward-sexp)
-          (let* ((str (buffer-substring-no-properties (point) (1+ (point))))
-                 (ch (string-to-char str)))
-            (when (memq ch '(?\( ?\[ ?\{)) ch)))
-      (error nil))))
 
 (eval-after-load 'paredit
   '(progn
@@ -445,9 +421,10 @@ even press `]`."
      (declare-function paredit-open-curly  'paredit)
      (defvar racket--paredit-original-open-bracket-binding
        (lookup-key paredit-mode-map (kbd "["))
-       "The previous `paredit-mode-map' binding for [. We don't
-assume it's `paredit-open-square', in case someone else is doing
-this, too.")
+       "The previous `paredit-mode-map' binding for [.
+Rather than assuming that it's `paredit-open-square', we store
+the actual value. This seems like the right thing to do in case
+someone else is doing similar hackery.")
 
      (add-hook 'paredit-mode-hook
                (lambda ()
@@ -462,7 +439,8 @@ must intercept [ and decide whether to call `paredit-open-round'
 or `paredit-open-square'. To do so it must modify
 `paredit-mode-map', which affects all major modes. Therefore we
 check whether the current buffer's major mode is `racket-mode'.
-If not we call `racket--paredit-original-open-bracket-binding'."
+If not we call the function in the variable
+`racket--paredit-original-open-bracket-binding'."
        (interactive)
        (if (eq major-mode 'racket-mode)
            (racket-smart-open-bracket)
@@ -472,15 +450,16 @@ If not we call `racket--paredit-original-open-bracket-binding'."
        "A paredit-aware helper for `racket-smart-open-bracket'.
 
 When `paredit-mode' is active, use its functions (such as
-`paredit-open-round') instead of directly `insert'ing. Note: This
-this isn't defined unless paredit is loaded, so check for its
-existence using `fboundp'."
+`paredit-open-round') Note: This function isn't defined unless
+paredit is loaded, so check for this function's existence using
+`fboundp'."
        (let ((paredit-active (and (boundp 'paredit-mode) paredit-mode)))
          (cond ((not paredit-active) (racket--self-insert ch))
                ((eq ch ?\()          (paredit-open-round))
                ((eq ch ?\[)          (paredit-open-square))
                ((eq ch ?\{)          (paredit-open-curly))
                (t                    (racket--self-insert ch)))))))
+
 
 ;;; Cycle paren shapes
 
@@ -503,14 +482,6 @@ existence using `fboundp'."
         (delete-char 1)
         (insert (car new))))))
 
-;;; Misc
-
-(defun racket-backward-up-list ()
-  "Like `backward-up-list' but also works when point is in a string literal."
-  (interactive)
-  (while (nth 3 (syntax-ppss)) ;i.e. the now-deprecated `in-string-p'
-    (backward-char))
-  (backward-up-list))
 
 ;;; racket--beginning-of-defun
 
@@ -540,6 +511,34 @@ existence using `fboundp'."
     (when old
       (goto-char old)
       t)))
+
+
+;;; Misc
+
+(defun racket-backward-up-list ()
+  "Like `backward-up-list' but also works when point is in a string literal."
+  (interactive)
+  (while (nth 3 (syntax-ppss)) ;i.e. the now-deprecated `in-string-p'
+    (backward-char))
+  (backward-up-list))
+
+(defun racket--in-string-or-comment (from to)
+  "See if point is in a string or comment, without moving point."
+  (save-excursion
+    (let ((parse (parse-partial-sexp from to)))
+      (or (nth 3 parse)
+          (nth 4 parse)))))
+
+(defun racket--open-paren (back-func)
+  "Use BACK-FUNC to find an opening ( [ or { if any.
+BACK-FUNC should be something like #'backward-sexp or #'backward-up-list."
+  (save-excursion
+    (ignore-errors
+      (funcall back-func)
+      (let* ((str (buffer-substring-no-properties (point) (1+ (point))))
+             (ch (string-to-char str)))
+        (when (memq ch '(?\( ?\[ ?\{)) ch)))))
+
 
 (provide 'racket-common)
 
