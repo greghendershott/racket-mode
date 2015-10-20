@@ -146,7 +146,7 @@
        (1 font-lock-keyword-face nil t)
        (2 font-lock-function-name-face nil t))
       ))
-  "Parens, modules, function/variable identifiers, Typed Racket types.")
+  "Parens, modules, function/variable identifiers, syntax-")
 
 (defconst racket-font-lock-keywords-3
   (eval-when-compile
