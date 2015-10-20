@@ -200,44 +200,58 @@
 (put 'racket-insert-lambda 'delete-selection t)
 
 
+;;; racket--self-insert
+
+(defun racket--self-insert (event)
+  "Simulate a `self-insert-command' of EVENT.
+
+Using this intead of `insert' allows self-insert hooks to run,
+which is important for things like `'electric-pair-mode'.
+
+A command using this should probably set its 'delete-selection
+property to t so that `delete-selection-mode' works:
+
+  (put 'racket-command 'delete-selection t)
+
+If necessary the value of the property can be a function, as done
+by `racket--set-delete-selection-property-for-parens'."
+  (let ((last-command-event event)) ;set this for hooks
+    (self-insert-command (prefix-numeric-value nil))))
+
+(defun racket--set-delete-selection-property-for-parens (command)
+  "Set `delete-selection-mode' property for commands that insert parens.
+Inserted text should replace the selection unless a mode like
+`electric-pair-mode' is enabled."
+  (put command
+       'delete-selection
+       (lambda ()
+         (not (memq 'electric-pair-mode minor-mode-list)))))
+
+
 ;;; Automatically insert matching \?) \?] or \?}
 
-(defvar racket-matching-parens
+(defconst racket--matching-parens
   '(( ?\( . ?\) )
     ( ?\[ . ?\] )
     ( ?\{ . ?\} )))
 
-(defun racket--insert-closing (prefix char)
-  (insert char)
-  (unless prefix
-    (let ((open-pt (condition-case nil
-                       (scan-sexps (point) -1)
-                     (error (beep) nil))))
-      (when open-pt
-        (let* ((open-char
-                (aref (buffer-substring-no-properties open-pt (1+ open-pt)) 0))
-               (close-pair (assoc open-char racket-matching-parens)))
-          (when close-pair
-            (let ((close-char (cdr close-pair)))
-              (when (not (= close-char char))
-                (call-interactively 'delete-backward-char)
-                (insert close-char))))))))
-  (when blink-paren-function (funcall blink-paren-function)))
+(defun racket-insert-closing (&optional prefix)
+  "Insert a matching closing delimiter.
 
-(defun racket-insert-closing-paren (&optional prefix)
+With a prefix, insert the typed character as-is."
   (interactive "P")
-  (racket--insert-closing prefix ?\)))
-(put 'racket-insert-closing-paren 'delete-selection t)
+  (let* ((open-pt (and (not prefix)
+                       (save-excursion
+                         (ignore-errors (backward-up-list) (point)))))
+         (open-char (and open-pt
+                         (aref (buffer-substring-no-properties open-pt
+                                                               (1+ open-pt))
+                               0)))
+         (close-pair (and open-char (assq open-char racket--matching-parens)))
+         (close-char (and close-pair (cdr close-pair))))
+    (racket--self-insert (or close-char last-command-event))))
 
-(defun racket-insert-closing-bracket (&optional prefix)
-  (interactive "P")
-  (racket--insert-closing prefix ?\]))
-(put 'racket-insert-closing-bracket 'delete-selection t)
-
-(defun racket-insert-closing-brace (&optional prefix)
-  (interactive "P")
-  (racket--insert-closing prefix ?\}))
-(put 'racket-insert-closing-brace 'delete-selection t)
+(racket--set-delete-selection-property-for-parens 'racket-insert-closing)
 
 
 ;;; Smart open bracket
@@ -388,7 +402,7 @@ expression, uses the same kind of delimiter.
 
 To force insert `[`, use `quoted-insert': \\[quoted-insert] [.
 
-Combined with `racket-insert-closing-bracket', this means that
+Combined with `racket-insert-closing' this means that
 you can press the unshifted `[` and `]` keys to get whatever
 delimiters follow the Racket conventions for these forms. (When
 `electric-pair-mode' or `paredit-mode' is active, you need not
@@ -403,14 +417,8 @@ even press `]`."
     (if (fboundp 'racket--paredit-aware-open)
         (racket--paredit-aware-open ch)
       (racket--self-insert ch))))
-(put 'racket-smart-open-bracket 'delete-selection t)
 
-(defun racket--self-insert (event)
-  "Simulate a `self-insert-command' of EVENT
-Using this intead of `insert' allows self-insert hooks to run,
-which is important for things like `'electric-pair-mode'."
-  (let ((last-command-event event)) ;set this for hooks
-    (self-insert-command (prefix-numeric-value nil))))
+(racket--set-delete-selection-property-for-parens 'racket-smart-open-bracket)
 
 (defun racket--in-string-or-comment (from to)
   "See if point is in a string or comment, without moving point."

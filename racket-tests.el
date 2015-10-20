@@ -121,21 +121,30 @@ FILE is interpreted as relative to this source directory."
           (blink-matching-paren nil)) ;suppress "Matches " messages
       (mapc (lambda (x)
               (cond ((eq x ?\[) (racket-smart-open-bracket))
-                    ((eq x ?\]) (racket-insert-closing-bracket))
-                    (t (insert x))))
+                    ((eq x ?\]) (racket-insert-closing))
+                    (t          (racket--self-insert x))))
             input)
       (equal (buffer-substring-no-properties (point-min) (point-max))
              expected))))
 
 (ert-deftest racket-tests/smart-open-bracket ()
   "Type a `cond` form with `racket-smart-open-bracket-enable' both t and nil.
+Also try with `electric-pair-mode' both on and off.
+
 Currently this is really just a regression test for bug #81. This
 could be expanded into a series of exhaustive tests of all the
 special forms it handles."
   (let ((before "[cond [[f x] #t][else #f]]")
-        (after  "(cond [(f x) #t][else #f])"))
+        (after  "(cond [(f x) #t][else #f])")
+        (orig-electricp electric-pair-mode))
+    (electric-pair-mode -1)
     (should (racket-tests/brackets nil before before))
-    (should (racket-tests/brackets t   before after))))
+    (should (racket-tests/brackets t   before after))
+    (electric-pair-mode 1)
+    (should (racket-tests/brackets nil before before))
+    (should (racket-tests/brackets t   before after))
+    ;; Restore in case running interactively with ERT
+    (electric-pair-mode (if orig-electricp 1 -1))))
 
 (provide 'racket-tests)
 
