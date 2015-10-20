@@ -33,7 +33,7 @@
 ;; 'kernel, or #f.
 (define (find-signature str)
   (match (source str)
-    [(list _  'kernel) #f]
+    [(list _  'kernel) '("defined in #%kernel, signature unavailable")]
     [(list id (? path? where))
      (match (signature-in-stx id (file->syntax where #:expand? #f))
        [(? syntax? stx) (syntax->datum stx)]
@@ -136,10 +136,10 @@
         stx
         #f))
   (syntax-case* stx
-                (module #%module-begin define-values define-syntaxes
-                        define define/contract
-                        define-syntax struct define-struct)
-                syntax-e=?
+      (module #%module-begin define-values define-syntaxes
+              define define/contract
+              define-syntax struct define-struct)
+      syntax-e=?
     [(module _ _ (#%module-begin . stxs))
      (ormap (λ (stx) (define-in-stx sym stx))
             (syntax->list #'stxs))]
@@ -156,24 +156,31 @@
     [(define-struct (s _) . _)      (eq-sym? #'s) stx]
     [(struct s . _)                 (eq-sym? #'s) stx]
     [(struct (s _) . _)             (eq-sym? #'s) stx]
-    [_ #f]))
+    [_                              #f]))
 
+;; Given a symbol? and syntax?, return syntax? corresponding to the
+;; function definition signature. Note that we do NOT want stx to be
+;; run through `expand`.
 (define (signature-in-stx sym stx) ;;symbol? syntax? -> (or/c #f list?)
   (define (eq-sym? stx)
     (if (eq? sym (syntax-e stx))
         stx
         #f))
   (syntax-case* stx
-                (module #%module-begin define-values define-syntaxes
-                        define define/contract
-                        define-syntax struct define-struct)
-                syntax-e=?
-    [(module _ _ (#%module-begin . stxs)) (ormap (λ (stx)
-                                                   (signature-in-stx sym stx))
-                                                 (syntax->list #'stxs))]
-    [(define          (s . as) . _)       (eq-sym? #'s) #'(s . as)]
-    [(define/contract (s . as) . _)       (eq-sym? #'s) #'(s . as)]
-    [_                                    #f]))
+      (module #%module-begin define define/contract case-lambda)
+      syntax-e=?
+    [(module _ _ (#%module-begin . stxs))
+     (ormap (λ (stx)
+              (signature-in-stx sym stx))
+            (syntax->list #'stxs))]
+    [(module _ _ . stxs)
+     (ormap (λ (stx)
+              (signature-in-stx sym stx))
+            (syntax->list #'stxs))]
+    [(define          (s . as) . _)               (eq-sym? #'s) #'(s . as)]
+    [(define/contract (s . as) . _)               (eq-sym? #'s) #'(s . as)]
+    [(define s (case-lambda [(ass ...) . _] ...)) (eq-sym? #'s) #'((s ass ...) ...)]
+    [_                                            #f]))
 
 ;; Given a symbol? and syntax?, return syntax? corresponding to the
 ;; contracted provide. Note that we do NOT want stx to be run through
@@ -206,7 +213,7 @@
               [(struct (s _) _ ...) (eq-sym? #'s) stx]
               [(rename _ s _)       (eq-sym? #'s) stx]
               [(s _)                (eq-sym? #'s) stx]
-              [_ #f]))]
+              [_                    #f]))]
          ;; Only care about contracting provides.
          ;; [s (eq-sym? #'s) stx]
          [_ #f]))]
