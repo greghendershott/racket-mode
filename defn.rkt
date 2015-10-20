@@ -267,5 +267,9 @@
   (when (string<=? (version) "6.0")
     (current-namespace (module->namespace defn.rkt)))
   (check-equal? (find-definition "display") 'kernel)
+  (check-equal? (find-signature "display")
+                '("defined in #%kernel, signature unavailable"))
   (check-match (find-definition "displayln")
-               (list* (pregexp "/racket/private/misc\\.rkt$") _)))
+               (list* (pregexp "/racket/private/misc\\.rkt$") _))
+  (check-equal? (find-signature "displayln")
+                '((displayln v) (displayln v p)))) ;case-lambda defn
