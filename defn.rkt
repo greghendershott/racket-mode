@@ -29,8 +29,8 @@
        [_               (list (path->string where) 1 0)])]
     [_ #f]))
 
-;; Try to find the definition of `str`, returning its signature,
-;; 'kernel, or #f.
+;; Try to find the definition of `str`, returning its signature or #f.
+;; When defined in 'kernel, returns a form saying so, not #f.
 (define (find-signature str)
   (match (source str)
     [(list _  'kernel) '("defined in #%kernel, signature unavailable")]
@@ -131,10 +131,7 @@
 ;; however the syntax will be closer to what a human expects --
 ;; e.g. `(define (f x) x)` instead of `(define-values (f) (lambda (x) x))`.
 (define (define-in-stx sym stx) ;;symbol? syntax? -> syntax?
-  (define (eq-sym? stx)
-    (if (eq? sym (syntax-e stx))
-        stx
-        #f))
+  (define eq-sym? (make-eq-sym? sym))
   (syntax-case* stx
       (module #%module-begin define-values define-syntaxes
               define define/contract
@@ -162,10 +159,7 @@
 ;; function definition signature. Note that we do NOT want stx to be
 ;; run through `expand`.
 (define (signature-in-stx sym stx) ;;symbol? syntax? -> (or/c #f list?)
-  (define (eq-sym? stx)
-    (if (eq? sym (syntax-e stx))
-        stx
-        #f))
+  (define eq-sym? (make-eq-sym? sym))
   (syntax-case* stx
       (module #%module-begin define define/contract case-lambda)
       syntax-e=?
@@ -188,13 +182,10 @@
 ;; any). ** This is currently not used. If we ever add a
 ;; `find-provision` function, it would use this.
 (define (contracting-provide-in-stx sym stx) ;;symbol? syntax? -> syntax?
-  (define (eq-sym? stx)
-    (if (eq? sym (syntax-e stx))
-        stx
-        #f))
+  (define eq-sym? (make-eq-sym? sym))
   (syntax-case* stx
-                (module #%module-begin provide provide/contract)
-                syntax-e=?
+      (module #%module-begin provide provide/contract)
+      syntax-e=?
     [(module _ _ (#%module-begin . ss))
      (ormap (λ (stx) (contracting-provide-in-stx sym stx))
             (syntax->list #'ss))]
@@ -223,13 +214,10 @@
 ;; syntax for the ORIGINAL identifier (before being contracted and/or
 ;; renamed).
 (define (renaming-provide-in-stx sym stx) ;;symbol? syntax? -> syntax?
-  (define (eq-sym? stx)
-    (if (eq? sym (syntax-e stx))
-        stx
-        #f))
+  (define eq-sym? (make-eq-sym? sym))
   (syntax-case* stx
-                (module #%module-begin provide provide/contract)
-                syntax-e=?
+      (module #%module-begin provide provide/contract)
+      syntax-e=?
     [(module _ _ (#%module-begin . ss))
      (ormap (λ (stx) (renaming-provide-in-stx sym stx))
             (syntax->list #'ss))]
@@ -258,6 +246,9 @@
 ;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
 (define (syntax-e=? a b)
   (equal? (syntax-e a) (syntax-e b)))
+
+(define ((make-eq-sym? sym) stx)
+  (and (eq? sym (syntax-e stx)) stx))
 
 (module+ test
   (require racket/list
