@@ -254,25 +254,33 @@ Prepends a `#` to make it `#,command`. This causes output to be
 redirected to `racket--repl-command-output-file'. When that file
 comes into existence, the command has completed and we read its
 contents into a buffer."
-  (racket--repl-ensure-buffer-and-process)
-  (when (file-exists-p racket--repl-command-output-file)
-    (delete-file racket--repl-command-output-file))
-  (comint-send-string (racket--get-repl-buffer-process)
-                      (concat "#" command "\n")) ;e.g. #,command
-  (let ((deadline (+ (float-time) (or timeout racket--repl-command-timeout))))
+  (let* ((deadline (+ (float-time) (or timeout racket--repl-command-timeout)))
+         (update-interval 0.5)
+         (pr (make-progress-reporter "Waiting for Racket..."
+                                     nil nil nil nil update-interval)))
+    (progress-reporter-update pr)
+    (racket--repl-ensure-buffer-and-process)
+    (progress-reporter-update pr)
+    (when (file-exists-p racket--repl-command-output-file)
+      (delete-file racket--repl-command-output-file))
+    (comint-send-string (racket--get-repl-buffer-process)
+                        (concat "#" command "\n")) ;e.g. #,command
     (while (and (not (file-exists-p racket--repl-command-output-file))
                 (< (float-time) deadline))
+      (progress-reporter-update pr)
       (accept-process-output (get-buffer-process racket--repl-buffer-name)
-                             (- deadline (float-time)))
-      (sit-for 0))) ;let REPL output be drawn
-  (unless (file-exists-p racket--repl-command-output-file)
-    (error "Command timed out"))
-  (let ((buf (get-buffer-create " *Racket Command Output*")))
-    (with-current-buffer buf
-      (erase-buffer)
-      (insert-file-contents racket--repl-command-output-file)
-      (delete-file racket--repl-command-output-file))
-    buf))
+                             update-interval)
+      (sit-for 0)) ;let REPL output be drawn
+    (unless (file-exists-p racket--repl-command-output-file)
+      (error "Racket did not respond in time"))
+    (let ((buf (get-buffer-create " *Racket Command Output*")))
+      (with-current-buffer buf
+        (progress-reporter-update pr)
+        (erase-buffer)
+        (insert-file-contents racket--repl-command-output-file)
+        (progress-reporter-update pr)
+        (delete-file racket--repl-command-output-file))
+      buf)))
 
 (defun racket--repl-cmd/string (command &optional timeout)
   (with-current-buffer (racket--repl-cmd/buffer command timeout)
