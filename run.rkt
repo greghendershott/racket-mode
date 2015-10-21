@@ -69,12 +69,6 @@
          ;; in the non-gui case, we call `thread` below in the body of
          ;; the parameterize* form, so that's fine.)
          [current-eventspace ((txt/gui void make-eventspace))])
-      ;; Some context-levels need some state to be reset.
-      (match context-level
-        ['profile (clear-profile-info!)]
-        ['coverage (clear-test-coverage-info!)]
-        [_ (void)])
-
       ;; repl-thunk will be called from another thread -- either a plain
       ;; thread when racket/gui/base is not (yet) instantiated, or, from
       ;; (eventspace-handler-thread (current-eventspace)).
@@ -121,6 +115,10 @@
        [(exn:break msg marks continue) (break-thread repl-thread) (continue)]
        [e e])
      (λ () (sync the-channel))))
+  (match context-level
+    ['profile  (clear-profile-info!)]
+    ['coverage (clear-test-coverage-info!)]
+    [_         (void)])
   (custodian-shutdown-all repl-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match msg
