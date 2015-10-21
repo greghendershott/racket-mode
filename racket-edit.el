@@ -364,51 +364,56 @@ POP-TO should be t for the former (in which case some buttons are
 added) and nil for the latter.
 
 Returns the buffer in which the description was written."
-  (with-current-buffer (get-buffer-create "*Racket Describe*")
-    (racket-describe-mode)
-    (read-only-mode -1)
-    (erase-buffer)
-    (let ((html (racket--repl-cmd/string (format ",describe %s" sym)))
-          (spc (string #x2020))) ;unlikely character (hopefully)
-      ;; Emacs shr renderer removes leading &nbsp; from <td> elements
-      ;; -- which messes up the indentation of s-expressions including
-      ;; contracts. So replace &nbsp with `spc' in the source HTML,
-      ;; and replace `spc' with " " after shr-insert-document outputs.
+  (let* ((bufname "*Racket Describe*")
+         (html (racket--repl-cmd/string (format ",describe %s" sym)))
+         ;; Emacs shr renderer removes leading &nbsp; from <td> elements
+         ;; -- which messes up the indentation of s-expressions including
+         ;; contracts. So replace &nbsp with `spc' in the source HTML,
+         ;; and replace `spc' with " " after shr-insert-document outputs.
+         (spc (string #x2020)) ;unlikely character (hopefully)
+         (dom (with-temp-buffer
+                (insert html)
+                (goto-char (point-min))
+                (while (re-search-forward "&nbsp;" nil t)
+                  (replace-match spc t t))
+                (libxml-parse-html-region (point-min) (point-max))))
+         ;; Work around what seems to be a bug with shr -- inserting
+         ;; elements out of order, when an existing Racket Describe buffer
+         ;; hasn't had a quit-window -- by re-creating the bufer.
+         (buf (get-buffer bufname))
+         (_   (and buf (kill-buffer buf)))
+         (buf (get-buffer-create bufname)))
+    (with-current-buffer buf
+      (racket-describe-mode)
+      (read-only-mode -1)
+      (erase-buffer)
       (let ((shr-use-fonts nil))
-        (shr-insert-document
-         (with-temp-buffer
-           (insert html)
-           (goto-char (point-min))
-           (while (re-search-forward "&nbsp;" nil t)
-             (replace-match spc t t))
-           (libxml-parse-html-region (point-min) (point-max)))))
+        (shr-insert-document dom))
       (goto-char (point-min))
       (while (re-search-forward spc nil t)
-        (replace-match " " t t)))
-    (goto-char (point-max))
-    (when pop-to
-      (insert-text-button
-       "Definition"
-       'action
-       `(lambda (btn)
-          (racket--do-visit-def-or-mod
-           "def"
-           ,(substring-no-properties (format "%s" sym)))))
-      (insert "   ")
-      (insert-text-button
-       "Documentation in Browser"
-       'action
-       `(lambda (btn)
-          (racket--repl-cmd/buffer
-           ,(substring-no-properties (format ",doc %s\n" sym)))))
-      (insert "          [q]uit"))
-    (read-only-mode 1)
-    (goto-char (point-min))
-    (display-buffer (current-buffer) t)
-    (when pop-to
-      (pop-to-buffer (current-buffer))
-      (message "Type TAB to move to links, 'q' to restore previous window"))
-    (current-buffer)))
+        (replace-match " " t t))
+      (goto-char (point-max))
+      (when pop-to
+        (insert-text-button "Definition"
+                            'action
+                            `(lambda (_btn)
+                               (racket--do-visit-def-or-mod
+                                "def"
+                                ,(substring-no-properties (format "%s" sym)))))
+        (insert "   ")
+        (insert-text-button "Documentation in Browser"
+                            'action
+                            `(lambda (_btn)
+                               (racket--repl-cmd/buffer
+                                ,(substring-no-properties (format ",doc %s\n" sym)))))
+        (insert "          [q]uit"))
+      (read-only-mode 1)
+      (goto-char (point-min))
+      (display-buffer (current-buffer) t)
+      (when pop-to
+        (pop-to-buffer (current-buffer))
+        (message "Type TAB to move to links, 'q' to restore previous window"))
+      (current-buffer))))
 
 (defvar racket-describe-mode-map
   (let ((m (make-sparse-keymap)))
