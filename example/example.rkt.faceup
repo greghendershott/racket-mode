@@ -101,18 +101,18 @@ comment
 
 |#»
 
-«x:#;(sexpr comment)»
+«m:#;»«x:(sexpr comment)»
 
 «m:;; »«x:Nested sexpr comments
 »
 «:racket-paren-face:(»«b:list» «:racket-selfeval-face:2»
-      «x:#;2»«:racket-paren-face:)»
+      «m:#;»«x:2»«:racket-paren-face:)»
 
 «:racket-paren-face:(»«b:list» «:racket-selfeval-face:1»
-      «x:#;4»
-      «x:#;(3)»«:racket-paren-face:)»
+      «m:#;»«x:4»
+      «m:#;»«x:(3)»«:racket-paren-face:)»
 
-«:racket-paren-face:(»«k:let» «:racket-paren-face:(»«x:#;[x #;1]»
+«:racket-paren-face:(»«k:let» «:racket-paren-face:(»«m:#;»«x:[x #;1]»
       «:racket-paren-face:[»«v:y» «:racket-selfeval-face:2»«:racket-paren-face:])»
   y«:racket-paren-face:)»
 

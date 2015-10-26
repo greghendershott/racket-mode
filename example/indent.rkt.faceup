@@ -293,3 +293,18 @@
             «:racket-selfeval-face:0»«:racket-paren-face:)]»
       «:racket-paren-face:[»h . «:racket-paren-face:(»#3«:racket-paren-face:(»«:racket-selfeval-face:0» «:racket-selfeval-face:1» «:racket-selfeval-face:2»«:racket-paren-face:)»
             «:racket-selfeval-face:0»«:racket-paren-face:)])»
+
+«m:;; »«x:Bug #136
+»
+«m:#;»«x:(list 1
+        #;2
+        3)»
+
+«:racket-paren-face:(»«b:list» «:racket-selfeval-face:1»
+      «m:#;»«x:(list 1
+              (let ([x 2]
+                    #;[y 3])
+                x)
+              3)»
+      «:racket-selfeval-face:2»
+      «:racket-selfeval-face:3»«:racket-paren-face:)»

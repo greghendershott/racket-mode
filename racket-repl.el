@@ -322,9 +322,16 @@ Before sending the region, calls `racket-repl' and
      (racket--send-region-to-repl (point) end))))
 
 (defun racket-send-last-sexp ()
-  "Send the previous sexp to the Racket REPL."
+  "Send the previous sexp to the Racket REPL.
+
+When the previous sexp is a sexp comment the sexp itself is sent,
+without the #; prefix."
   (interactive)
-  (racket--send-region-to-repl (save-excursion (backward-sexp) (point))
+  (racket--send-region-to-repl (save-excursion
+                                 (backward-sexp)
+                                 (if (looking-at "#;")
+                                     (+ (point) 2)
+                                   (point)))
                                (point)))
 
 (defun racket--repl-forget-errors ()

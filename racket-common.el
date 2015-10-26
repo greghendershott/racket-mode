@@ -71,7 +71,7 @@
     (modify-syntax-entry ?\\ "\\   " st)
 
     ;; Comment related
-    (modify-syntax-entry ?\; "< 2 " st) ;; both line ; and sexp #;
+    (modify-syntax-entry ?\; "<   " st) ;line comments but NOT sexp #;
     (modify-syntax-entry ?\n ">   " st)
 
     (modify-syntax-entry ?#  "w 14" st)
@@ -84,9 +84,18 @@
 
 (defconst racket-syntax-propertize-function
   (syntax-propertize-rules
-   ;; Handle sexp comments
+   ;; sexp comments should LOOK like comments but NOT ACT like
+   ;; comments: Give the #; itself the syntax class "prefix" [1], but
+   ;; allow the following sexp to get the usual syntaxes. That way
+   ;; things like indent and sexp nav work within the sexp. Only
+   ;; font-lock handles the sexp specially; see racket-font-lock.el.
+   ;;
+   ;; [1]: Although it's tempting to use punctuation -- so things like
+   ;; `backward-sexp' and `racket-send-last-sexp' ignore the #; --
+   ;; that would mess up indentation of things following the sexp
+   ;; comment. Instead special-case `racket-send-last-sexp'.
    ((rx "#;")
-    (0 (ignore (racket--syntax-propertize-sexp-comment))))
+    (0 "'"))
    ;; Treat "complex" reader literals as a single sexp for nav and
    ;; indent, by marking the stuff after the # as prefix syntax.
    ;; Racket predefines reader literals like #"" #rx"" #px"" #hash()
@@ -105,38 +114,6 @@
    ;; Treat |identifier with spaces| -- but not #|comment|# -- as word syntax
    ((rx (not (any ?#)) (group ?| (+ any) ?|) (not (any ?#)))
     (1 "w"))))
-
-(defconst racket--sexp-comment-syntax-table
-  (let ((st (make-syntax-table racket-mode-syntax-table)))
-    (modify-syntax-entry ?\; "." st)
-    (modify-syntax-entry ?\n " " st)
-    (modify-syntax-entry ?#  "'" st)
-    st))
-
-(defun racket--syntax-propertize-sexp-comment ()
-  (let* ((beg (match-beginning 0))
-         (state (save-excursion (save-match-data (syntax-ppss beg)))))
-    (unless (or (nth 3 state)           ;in a string
-                (nth 4 state))          ;in a comment
-      (save-excursion
-        (let ((end (condition-case err
-                       (let ((parse-sexp-lookup-properties nil)
-                             (parse-sexp-ignore-comments nil))
-                         (goto-char (+ 2 beg)) ;after the "#;"
-                         (forward-sexp 1)
-                         (point))
-                     (scan-error (nth 2 err))))) ;start of last complete sexp
-          (put-text-property beg (1+ beg)
-                             'syntax-table
-                             ;; 11 = comment-start. nil = no matching-char.
-                             '(11 . nil))
-          (put-text-property (1+ beg) (1- end)
-                             'syntax-table
-                             racket--sexp-comment-syntax-table)
-          (put-text-property (1- end) end
-                             'syntax-table
-                             ;; 12 = comment-end. nil = no matching-char.
-                             '(12 . nil)))))))
 
 (defun racket--variables-for-both-modes ()
   ;;; Syntax and font-lock stuff.
@@ -485,9 +462,8 @@ paredit is loaded, so check for this function's existence using
 
 ;;; racket--beginning-of-defun
 
-(defun racket--beginning-of-defun-function (arg)
+(defun racket--beginning-of-defun-function ()
   "Like `beginning-of-defun' but aware of Racket module forms."
-  (unless (= arg 1) (error "not yet implemented"))
   (let ((pt (point)))
     (ignore-errors (backward-sexp 1)) ;in case we're between top-level forms
     (if (racket--goto-beg-of-defun)
@@ -506,9 +482,9 @@ paredit is loaded, so check for this function's existence using
              (backward-up-list 1)
              t)
       nil)
-    (when (and older (looking-at "[([{]module[*+]?"))
+    (when (and older (looking-at (rx (syntax ?\() "module[*+]?")))
       (setq old older))
-    (when old
+    (when (and old (looking-at (rx (syntax ?\())))
       (goto-char old)
       t)))
 

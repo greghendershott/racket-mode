@@ -39,6 +39,13 @@
                    (group (1+ not-newline))))
        (2 font-lock-keyword-face nil t)
        (3 font-lock-variable-name-face nil t))
+
+      ;; #; sexp comments
+      ;;
+      ;; We don't put any comment syntax on these (that way things
+      ;; like indent and nav work within the sexp) they are solely
+      ;; font-locked as comments, here.
+      (,#'racket--font-lock-sexp-comments . font-lock-comment-face)
     ))
   "Strings, comments, #lang.")
 
@@ -201,6 +208,26 @@ doesn't really fit that.")
     racket-font-lock-keywords-level-3))
 
 
+;;; sexp comments
+
+(defun racket--font-lock-sexp-comments (limit)
+  "Font-lock sexp comments.
+
+Note that the syntax table does NOT show these as comments in
+order to let indent and nav work within the sexp. We merely
+font-lock them as comments."
+  (while (re-search-forward "#;" limit t)
+    (condition-case nil
+        (progn
+          (racket--region-set-face (- (point) 2)
+                                   (point)
+                                   font-lock-comment-delimiter-face)
+          (racket--sexp-set-face font-lock-comment-face))
+      (error (racket--region-set-face (- (point) 2)
+                                      (point)
+                                      font-lock-warning-face)))))
+
+
 ;;; let forms
 
 (defun racket--font-lock-let-identifiers (limit)
@@ -214,7 +241,7 @@ Note: This works only when the let form has a closing paren.
 code, this would mistakenly treat the existing code as part of
 the let form.) The font-lock will kick in after you type the
 closing paren. Or if you use electric-pair-mode, paredit, or
-simillar, it will already be there."
+similar, it will already be there."
   (while (re-search-forward "(let" limit t)
     (ignore-errors
       (when (and (not (looking-at "/ec"))
@@ -226,16 +253,16 @@ simillar, it will already be there."
           (when (looking-at (rx (+ space) (+ (or (syntax word) (syntax symbol)))))
             (forward-sexp 1)
             (backward-sexp 1)
-            (racket--font-lock-this-sexpr font-lock-function-name-face))
+            (racket--sexp-set-face font-lock-function-name-face))
           (down-list 1) ;to the open paren of the first binding form
           (while (ignore-errors
                    (down-list 1) ;to the id or list of id's
                    (if (not (looking-at "[([{]"))
-                       (racket--font-lock-this-sexpr font-lock-variable-name-face)
+                       (racket--sexp-set-face font-lock-variable-name-face)
                      ;; list of ids, e.g. let-values
                      (down-list 1)    ;to first id
                      (cl-loop
-                      do (racket--font-lock-this-sexpr font-lock-variable-name-face)
+                      do (racket--sexp-set-face font-lock-variable-name-face)
                       while (ignore-errors (forward-sexp 1) (backward-sexp 1) t))
                      (backward-up-list))
                    (backward-up-list) ;to open paren of this binding form
@@ -243,32 +270,60 @@ simillar, it will already be there."
                    t))))))
   nil)
 
+
+;;; racket--font-lock-extend-region
+
+(defvar font-lock-beg) ;from font-lock.el -- make compiler happy
+(defvar font-lock-end) ;from font-lock.el -- make compiler happy
+
+(defun racket--font-lock-extend-region ()
+  "Extend font lock region to top-level forms.
+
+A function for the variable `font-lock-extend-region-functions',
+Needed for things like sexp comments and let forms, because we
+need the whole form (if any).
+
+Extend variable `font-lock-beg' to `beginning-of-defun' and
+variable `font-lock-end' to `forward-sexp'."
+  (save-excursion
+    (let ((changed-beg-p (ignore-errors
+                           ;; beginning-of-defun moves point and is
+                           ;; not idempotent so start 1 after
+                           ;; font-lock-beg
+                           (goto-char (1+ font-lock-beg))
+                           (beginning-of-defun)
+                           (unless (<= font-lock-beg (point))
+                             (setq font-lock-beg (point))
+                             t)))
+          (changed-end-p (ignore-errors
+                           (forward-sexp 1)
+                           (unless (<= (point) font-lock-end)
+                             (setq font-lock-end (point))
+                             t))))
+      (or changed-beg-p changed-end-p))))
+
+
+;;; misc
+
 (defun racket--inside-complete-sexp ()
   "Return whether point is inside a complete sexp."
   (condition-case ()
       (save-excursion (backward-up-list) (forward-sexp 1) t)
     (error nil)))
 
-(defun racket--font-lock-this-sexpr (face)
-  "Set face to FACE, rear-nonsticky, for the sexp starting at point.
+(defun racket--sexp-set-face (face)
+  "Set 'face prop to FACE, rear-nonsticky, for the sexp starting at point.
 Moves point to the end of the sexp."
-  (let ((beg (point))
-        (end (progn (forward-sexp 1) (point))))
-    (add-text-properties beg end
-                         `(face ,face
-                           fontified t
-                           rear-nonsticky (face)))))
+  (racket--region-set-face (point) (progn (forward-sexp 1) (point)) face))
 
-(defvar font-lock-beg) ;from font-lock.el -- make compiler happy
+(defun racket--region-set-face (beg end face)
+  "Set 'face prop to FACE, rear-nonsticky, in the region BEG..END
+-- but only if not already set in the region."
+  (or (text-property-not-all beg end 'face nil)
+      (add-text-properties beg end
+                           `(face ,face
+                             rear-nonsticky (face)))))
 
-(defun racket--font-lock-extend-region ()
-  "Extend beginning of font lock region to beginning-of-defun.
-Needed to support let, because we need the whole form (if any)."
-  (beginning-of-defun)
-  (if (<= font-lock-beg (point))
-      nil
-    (setq font-lock-beg (point))
-    t))
 
 (provide 'racket-font-lock)
 
