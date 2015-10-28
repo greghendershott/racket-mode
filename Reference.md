@@ -177,6 +177,9 @@ Send the current definition to the Racket REPL.
 
 Send the previous sexp to the Racket REPL.
 
+When the previous sexp is a sexp comment the sexp itself is sent,
+without the #; prefix.
+
 ## Visit
 
 ### racket-visit-definition
@@ -261,28 +264,27 @@ See also: [`racket-visit-module`](#racket-visit-module) and [`racket-open-requir
 ### racket-describe
 <kbd>C-c C-.</kbd>
 
-Describes the function at point in a `*Racket Describe*` buffer.
+Describe the identifier at point in a `*Racket Describe*` buffer.
 
-The intent is to give a quick reminder or introduction to a
-function, regardless of whether it has installed documentation --
-and to do so within Emacs, without switching to a web browser
-window.
+The intent is to give a quick reminder or introduction to
+something, regardless of whether it has installed documentation
+-- and to do so within Emacs, without switching to a web browser.
 
-This buffer is also displayed when you use company-mode and press
-<kbd>C-h</kbd> in the pop up completion list.
+This buffer is also displayed when you use `company-mode` and
+press F1 or C-h in its pop up completion list.
 
-- If the function has installed Racket documentation, then a
+- If the identifier has installed Racket documentation, then a
   simplified version of the HTML is presented in the buffer,
   including the "blue box", documentation prose, and examples.
 
-- Otherwise, the function's signature -- e.g. `(name arg-1-name
-  arg-2-name)` is displayed. If the function has a Typed Racket
-  type, or has a contract, then that is also displayed.
+- Otherwise, if the identifier is a function, then its signature
+  is displayed, for example `(name arg-1-name arg-2-name)`. If it
+  has a Typed Racket type or a contract, that is also displayed.
 
-You can quit the buffer by pressing <kbd>q</kbd>. Also, at the
-bottom of the buffer are Emacs buttons (which you may navigate among
-using <kbd>TAB</kbd> for visiting the definition or opening the full
-browser documentation (if any).
+You can quit the buffer by pressing q. Also, at the bottom of the
+buffer are Emacs buttons -- which you may navigate among using
+TAB, and activate using RET -- for [`racket-visit-definition`](#racket-visit-definition) and
+[`racket-doc`](#racket-doc).
 
 ### racket-doc
 <kbd>C-c C-d</kbd>
@@ -452,7 +454,7 @@ expression, uses the same kind of delimiter.
 
 To force insert `[`, use `quoted-insert`: C-q [.
 
-Combined with [`racket-insert-closing-bracket`](#racket-insert-closing-bracket), this means that
+Combined with [`racket-insert-closing`](#racket-insert-closing) this means that
 you can press the unshifted `[` and `]` keys to get whatever
 delimiters follow the Racket conventions for these forms. (When
 `electric-pair-mode` or `paredit-mode` is active, you need not
@@ -719,9 +721,6 @@ Which system image viewer program to invoke upon M-x
 ### racket-pretty-print
 Use pretty-print instead of print in REPL.
 
-### racket-wait-for-prompt-timeout
-When REPL starts Racket process, how long to wait for Racket prompt.
-
 ## Other
 
 ### racket-indent-curly-as-sequence
@@ -747,9 +746,6 @@ C-M-y
 
 ### racket-smart-open-bracket-enable
 Use [`racket-smart-open-bracket`](#racket-smart-open-bracket) when `[` is pressed?
-
-### racket-use-company-mode
-Enable company-mode for racket-mode edit buffers?
 
 # Faces
 
