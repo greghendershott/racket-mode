@@ -147,13 +147,11 @@
     racket-images-keep-last
     racket-images-system-viewer
     racket-pretty-print
-    racket-wait-for-prompt-timeout
     "Other"
     racket-indent-curly-as-sequence
     racket-indent-sequence-depth
     racket-pretty-lambda
-    racket-smart-open-bracket-enable
-    racket-use-company-mode)
+    racket-smart-open-bracket-enable)
   "Variables to include in the Reference.")
 
 (defun racket-make-doc/variables ()

@@ -132,13 +132,6 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   :safe #'booleanp
   :group 'racket-repl)
 
-(defcustom racket-wait-for-prompt-timeout 30
-  "When REPL starts Racket process, how long to wait for Racket prompt."
-  :tag "Wait For Prompt Timeout"
-  :type 'number
-  :safe #'numberp
-  :group 'racket-repl)
-
 
 ;;; Other
 
@@ -183,13 +176,6 @@ Instead you can insert actual λ characters using
 (defcustom racket-smart-open-bracket-enable nil
   "Use `racket-smart-open-bracket' when `[` is pressed?"
   :tag "Smart Open Bracket Enable"
-  :type 'boolean
-  :safe #'booleanp
-  :group 'racket-other)
-
-(defcustom racket-use-company-mode t
-  "Enable company-mode for racket-mode edit buffers?"
-  :tag "Use Company Mode"
   :type 'boolean
   :safe #'booleanp
   :group 'racket-other)

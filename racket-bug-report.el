@@ -53,8 +53,7 @@
                           racket-indent-curly-as-sequence
                           racket-indent-sequence-depth
                           racket-pretty-lambda
-                          racket-smart-open-bracket-enable
-                          racket-use-company-mode)))))
+                          racket-smart-open-bracket-enable)))))
       ;; Show lists of enabled and disabled minor modes, each sorted by name.
       (let* ((minor-modes (cl-remove-duplicates
                            (append minor-mode-list
