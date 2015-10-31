@@ -289,19 +289,28 @@ contents into a buffer."
 (defun racket--repl-cmd/sexpr (command &optional timeout)
   (eval (read (racket--repl-cmd/string command timeout))))
 
-;;;
+;;; send to REPL
 
 (defun racket--send-region-to-repl (start end)
   "Internal function to send the region to the Racket REPL.
 
-Before sending the region, calls `racket-repl' and
-`racket--repl-forget-errors'. Afterwards calls
-`racket--repl-show-and-move-to-end'."
+Before sending the region, call `racket-repl' and
+`racket--repl-forget-errors'. Also insert a ?\n at the process
+mark so that output goes on a fresh line, not on the same line as
+the prompt.
+
+Afterwards call `racket--repl-show-and-move-to-end'."
   (when (and start end)
     (racket-repl t)
     (racket--repl-forget-errors)
-    (comint-send-region (racket--get-repl-buffer-process) start end)
-    (comint-send-string (racket--get-repl-buffer-process) "\n")
+    (let ((proc (racket--get-repl-buffer-process)))
+      (with-current-buffer racket--repl-buffer-name
+        (save-excursion
+          (goto-char (process-mark proc))
+          (insert ?\n)
+          (set-marker (process-mark proc) (point))))
+      (comint-send-region proc start end)
+      (comint-send-string proc "\n"))
     (racket--repl-show-and-move-to-end)))
 
 (defun racket-send-region (start end)
