@@ -337,7 +337,7 @@ without the #; prefix."
   (interactive)
   (racket--send-region-to-repl (save-excursion
                                  (backward-sexp)
-                                 (if (looking-at "#;")
+                                 (if (save-match-data (looking-at "#;"))
                                      (+ (point) 2)
                                    (point)))
                                (point)))
