@@ -286,20 +286,26 @@ need the whole form (if any).
 Extend variable `font-lock-beg' to `beginning-of-defun' and
 variable `font-lock-end' to `forward-sexp'."
   (save-excursion
-    (let ((changed-beg-p (ignore-errors
-                           ;; beginning-of-defun moves point and is
-                           ;; not idempotent so start 1 after
-                           ;; font-lock-beg
-                           (goto-char (1+ font-lock-beg))
-                           (beginning-of-defun)
-                           (unless (<= font-lock-beg (point))
-                             (setq font-lock-beg (point))
-                             t)))
-          (changed-end-p (ignore-errors
-                           (forward-sexp 1)
-                           (unless (<= (point) font-lock-end)
-                             (setq font-lock-end (point))
-                             t))))
+    (let ((changed-beg-p
+           (ignore-errors
+             ;; beginning-of-defun moves point and is not idempotent
+             ;; so start 1 after font-lock-beg
+             (goto-char (1+ font-lock-beg))
+             (beginning-of-defun)
+             ;; Find sexp comment start, if any, even if on some
+             ;; previous line.
+             (save-match-data
+               (re-search-backward (rx "#;" (*? (syntax comment-end)) point)
+                                   (point-min) t))
+             (unless (<= font-lock-beg (point))
+               (setq font-lock-beg (point))
+               t)))
+          (changed-end-p
+           (ignore-errors
+             (forward-sexp 1)
+             (unless (<= (point) font-lock-end)
+               (setq font-lock-end (point))
+               t))))
       (or changed-beg-p changed-end-p))))
 
 
