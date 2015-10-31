@@ -307,10 +307,9 @@ Before sending the region, calls `racket-repl' and
 (defun racket-send-region (start end)
   "Send the current region (if any) to the Racket REPL."
   (interactive "r")
-  (if (region-active-p)
-      (racket--send-region-to-repl start end)
-    (beep)
-    (message "No region.")))
+  (unless (region-active-p)
+    (user-error "No region"))
+  (racket--send-region-to-repl start end))
 
 (defun racket-send-definition ()
   "Send the current definition to the Racket REPL."
