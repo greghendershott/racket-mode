@@ -131,10 +131,9 @@
                     (cons 'font-lock-mark-block-function #'mark-defun)
                     (cons 'parse-sexp-lookup-properties t)
                     (cons 'font-lock-multiline t)
-                    (cons 'font-lock-extend-region-functions
-                          (unless (eq major-mode 'racket-repl-mode)
-                            (list #'font-lock-extend-region-wholelines
-                                  #'racket--font-lock-extend-region)))))
+                    (list 'font-lock-extend-region-functions
+                          #'font-lock-extend-region-wholelines
+                          #'racket--font-lock-extend-region)))
   ;; -----------------------------------------------------------------
   ;; Comments. Borrowed from lisp-mode
   (setq-local comment-start ";")
