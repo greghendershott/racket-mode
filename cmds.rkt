@@ -59,12 +59,14 @@
     ;; #,command redirect
     [(uq cmd)
      (eq? 'unsyntax (syntax-e #'uq))
-     (with-output-to-command-output-file
-       (λ () (handle-command #'cmd m)))]
+     (begin (with-output-to-command-output-file
+              (λ () (handle-command #'cmd m)))
+            #'(void))] ;avoid Typed Racket printing a type
     ;; ,command normal
     [(uq cmd)
      (eq? 'unquote (syntax-e #'uq))
-     (handle-command #'cmd m)]
+     (begin (handle-command #'cmd m)
+            #'(void))] ;avoid Typed Racket printing a type
     [_ stx]))
 
 (define (display-prompt str)
@@ -124,22 +126,21 @@
       [else (usage)])))
 
 (define (usage)
-  (void
-   (display-commented
-    @~a{Commands:
-        ,run <module> [<memory-limit-MB> [<pretty-print?> [<error-context>]]]
-           <module> = <file> | (<file> <submodule-id> ...)
-           <file> = file.rkt | /path/to/file.rkt | "file.rkt" | "/path/to/file.rkt"
-           <error-context> = low | medium | high
-        ,top [<memory-limit-MB> [<pretty-print?> [<error-context>]]]
-        ,exit
-        ,doc <identifier>|<string>
-        ,exp <stx>
-        ,exp+
-        ,exp! <stx>
-        ,pwd
-        ,cd <path>
-        ,log <opts> ...})))
+  (display-commented
+   @~a{Commands:
+       ,run <module> [<memory-limit-MB> [<pretty-print?> [<error-context>]]]
+       <module> = <file> | (<file> <submodule-id> ...)
+       <file> = file.rkt | /path/to/file.rkt | "file.rkt" | "/path/to/file.rkt"
+       <error-context> = low | medium | high
+       ,top [<memory-limit-MB> [<pretty-print?> [<error-context>]]]
+       ,exit
+       ,doc <identifier>|<string>
+       ,exp <stx>
+       ,exp+
+       ,exp! <stx>
+       ,pwd
+       ,cd <path>
+       ,log <opts> ...}))
 
 ;;; run, top, info
 
