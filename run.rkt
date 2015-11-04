@@ -179,14 +179,14 @@
               (print (convert v))
               (newline))))))
 
-(define (make-pretty-print-size-hook [orig (pretty-print-print-hook)])
+(define (make-pretty-print-size-hook [orig (pretty-print-size-hook)])
   (let ([convert? (dynamic-require image.rkt 'convert-image?)]
         [width (floor (/ (pretty-print-columns) 4))]) ;magic number? yep.
     (λ (value display? port)
       (cond [(convert? value) width]
             [else (orig value display? port)]))))
 
-(define (make-pretty-print-print-hook [orig (pretty-print-size-hook)])
+(define (make-pretty-print-print-hook [orig (pretty-print-print-hook)])
   (let ([convert? (dynamic-require image.rkt 'convert-image?)]
         [convert  (dynamic-require image.rkt 'convert-image)])
     (λ (value display? port)
