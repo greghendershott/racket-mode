@@ -7,7 +7,6 @@ helpful information you can copy and paste in your bug report.
 
 racket-mode depends on a few packages:
 
-- [`dash`](http://melpa.org/#/dash)
 - [`faceup`](http://melpa.org/#/faceup)
 - [`s`](http://melpa.org/#/s)
 
