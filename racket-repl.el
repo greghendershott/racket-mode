@@ -80,6 +80,14 @@ Commands that don't want the REPL to be displayed can instead use
   (unless noselect
     (select-window (get-buffer-window racket--repl-buffer-name))))
 
+(defconst racket--minimum-required-version "5.3.5"
+  "The minimum version of Racket required by run.rkt.
+
+Although some functionality may require an even newer version of
+Racket, run.rkt will handle that via `dynamic-require` and
+fallbacks. The version number here is a baseline for run.rkt to
+be able to load at all.")
+
 (defvar racket--run.rkt
   (expand-file-name "run.rkt"
                     (file-name-directory (or load-file-name (buffer-file-name))))
@@ -101,6 +109,7 @@ Never changes selected window."
   (if (comint-check-proc racket--repl-buffer-name)
       (when display
         (display-buffer racket--repl-buffer-name))
+    (racket--require-version racket--minimum-required-version)
     (with-current-buffer
         (make-comint racket--repl-buffer-name/raw ;w/o *stars*
                      racket-racket-program
@@ -116,6 +125,20 @@ Never changes selected window."
       (set-process-coding-system (get-buffer-process racket--repl-buffer-name)
                                  'utf-8 'utf-8)
       (racket-repl-mode))))
+
+(defun racket--version ()
+  "Get the `racket-racket-program' version as a string."
+  (with-temp-buffer
+    (shell-command (concat racket-racket-program " -e '(version)'")
+                   (current-buffer))
+    (eval (read (buffer-substring (point-min) (point-max))))))
+
+(defun racket--require-version (want)
+  "Require Racket to be version WANT or newer."
+  (let ((have (racket--version)))
+    (unless (or (string< want have) (string= want have))
+      (user-error "racket-mode requires Racket version %s but you have %s"
+                  want have))))
 
 (defun racket-repl-file-name ()
   "Return the file running in the buffer, or nil.
