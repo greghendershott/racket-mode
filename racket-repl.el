@@ -136,7 +136,7 @@ Never changes selected window."
 (defun racket--require-version (want)
   "Require Racket to be version WANT or newer."
   (let ((have (racket--version)))
-    (unless (or (string< want have) (string= want have))
+    (unless (version<= want have)
       (user-error "racket-mode requires Racket version %s but you have %s"
                   want have))))
 
