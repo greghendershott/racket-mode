@@ -222,11 +222,13 @@ font-lock them as comments."
         (progn
           (racket--region-set-face (- (point) 2)
                                    (point)
-                                   font-lock-comment-delimiter-face)
-          (racket--sexp-set-face font-lock-comment-face))
+                                   font-lock-comment-delimiter-face
+                                   t)
+          (racket--sexp-set-face font-lock-comment-face t))
       (error (racket--region-set-face (- (point) 2)
                                       (point)
-                                      font-lock-warning-face)))))
+                                      font-lock-warning-face
+                                      t)))))
 
 
 ;;; let forms
@@ -322,18 +324,25 @@ Allows #; to be followed by zero or more space or newline chars."
       (save-excursion (backward-up-list) (forward-sexp 1) t)
     (error nil)))
 
-(defun racket--sexp-set-face (face)
+(defun racket--sexp-set-face (face &optional forcep)
   "Set 'face prop to FACE, rear-nonsticky, for the sexp starting at point.
-Moves point to the end of the sexp."
-  (racket--region-set-face (point) (progn (forward-sexp 1) (point)) face))
+Unless FORCEP is t, does so only if not already set in the
+region.
 
-(defun racket--region-set-face (beg end face)
-  "Set 'face prop to FACE, rear-nonsticky, in the region BEG..END
--- but only if not already set in the region."
-  (or (text-property-not-all beg end 'face nil)
-      (add-text-properties beg end
-                           `(face ,face
-                             rear-nonsticky (face)))))
+Moves point to the end of the sexp."
+  (racket--region-set-face (point)
+                           (progn (forward-sexp 1) (point))
+                           face
+                           forcep))
+
+(defun racket--region-set-face (beg end face &optional forcep)
+  "Set 'face prop to FACE, rear-nonsticky, in the region BEG..END.
+Unless FORCEP is t, does so only if not already set in the
+region."
+  (when (or forcep (text-property-not-all beg end 'face nil))
+    (add-text-properties beg end
+                         `(face ,face
+                           rear-nonsticky (face)))))
 
 
 (provide 'racket-font-lock)
