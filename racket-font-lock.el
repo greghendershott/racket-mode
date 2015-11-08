@@ -358,7 +358,7 @@ Moves point to the end of the sexp."
   "Set 'face prop to FACE, rear-nonsticky, in the region BEG..END.
 Unless FORCEP is t, does so only if not already set in the
 region."
-  (when (or forcep (text-property-not-all beg end 'face nil))
+  (when (or forcep (not (text-property-not-all beg end 'face nil)))
     (add-text-properties beg end
                          `(face ,face
                            rear-nonsticky (face)))))
