@@ -116,6 +116,20 @@ comment
       «:racket-paren-face:[»«v:y» «:racket-selfeval-face:2»«:racket-paren-face:])»
   y«:racket-paren-face:)»
 
+«:racket-paren-face:(»«k:define» «v:x» «:racket-here-string-face:#<<FOO
+asdfasdf
+asdfasdf
+asdfasdf
+FOO
+»  «:racket-paren-face:)»
+
+«m:#;»«x:(define x #<<BAR
+asdfasdf
+asdfasdf
+asdfasdf
+BAR
+    )»
+
 |identifier with spaces|
 
 |;no comment|

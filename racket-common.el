@@ -84,43 +84,103 @@
 (defvar racket-mode-abbrev-table nil)
 (define-abbrev-table 'racket-mode-abbrev-table ())
 
-(defconst racket-syntax-propertize-function
-  (syntax-propertize-rules
-   ;; sexp comments should LOOK like comments but NOT ACT like
-   ;; comments: Give the #; itself the syntax class "prefix" [1], but
-   ;; allow the following sexp to get the usual syntaxes. That way
-   ;; things like indent and sexp nav work within the sexp. Only
-   ;; font-lock handles the sexp specially; see racket-font-lock.el.
-   ;;
-   ;; [1]: Although it's tempting to use punctuation -- so things like
-   ;; `backward-sexp' and `racket-send-last-sexp' ignore the #; --
-   ;; that would mess up indentation of things following the sexp
-   ;; comment. Instead special-case `racket-send-last-sexp'.
-   ((rx "#;")
-    (0 "'"))
-   ;; Treat "complex" reader literals as a single sexp for nav and
-   ;; indent, by marking the stuff after the # as prefix syntax.
-   ;; Racket predefines reader literals like #"" #rx"" #px"" #hash()
-   ;; #hasheq() #fx3(0 1 2) #s() and so on. I think these -- plus any
-   ;; user defined reader extensions -- can all be covered with the
-   ;; following general rx. Also it seems sufficient to look for just
-   ;; the opening delimiter pair -- the ( [ { or " -- here.
-   ((rx (group ?#
-               (zero-or-more (or (syntax symbol)
-                                 (syntax word))))
-        (or ?\" ?\( ?\[ ?\{))
-    (1 "'"))
-   ;; Treat '|symbol with spaces| as word syntax
-   ((rx ?' ?| (+ any) ?|)
-    (0 "w"))
-   ;; Treat |identifier with spaces| -- but not #|comment|# -- as word syntax
-   ((rx (not (any ?#)) (group ?| (+ any) ?|) (not (any ?#)))
-    (1 "w"))))
+(defun racket-syntax-propertize-function (start end)
+  (goto-char start)
+  (racket--syntax-propertize-here-string end)
+  (funcall
+   (syntax-propertize-rules
+    ;; here strings: The main responsibility here is to set the "|"
+    ;; char syntax around the "body" so it's treated as a string for
+    ;; indent, nav, font-lock. Think of the \n in #<<ID\n as the open
+    ;; | quote and the \n in ^ID\n as the close | quote.
+    ((rx "#<<" (group (+? (not (any blank ?\n)))) (group ?\n))
+     (2 (racket--syntax-propertize-open-here-string
+         (match-beginning 0)
+         (match-string-no-properties 1)
+         (match-beginning 2))))
+    ((rx (syntax string-delimiter))
+     (0 (ignore (racket--syntax-propertize-here-string end))))
+    ;; sexp comments should LOOK like comments but NOT ACT like
+    ;; comments: Give the #; itself the syntax class "prefix" [1], but
+    ;; allow the following sexp to get the usual syntaxes. That way
+    ;; things like indent and sexp nav work within the sexp. Only
+    ;; font-lock handles the sexp specially; see racket-font-lock.el.
+    ;;
+    ;; [1]: Although it's tempting to use punctuation -- so things like
+    ;; `backward-sexp' and `racket-send-last-sexp' ignore the #; --
+    ;; that would mess up indentation of things following the sexp
+    ;; comment. Instead special-case `racket-send-last-sexp'.
+    ((rx "#;")
+     (0 "'"))
+    ;; Treat "complex" reader literals as a single sexp for nav and
+    ;; indent, by marking the stuff after the # as prefix syntax.
+    ;; Racket predefines reader literals like #"" #rx"" #px"" #hash()
+    ;; #hasheq() #fx3(0 1 2) #s() and so on. I think these -- plus any
+    ;; user defined reader extensions -- can all be covered with the
+    ;; following general rx. Also it seems sufficient to look for just
+    ;; the opening delimiter pair -- the ( [ { or " -- here.
+    ((rx (group ?#
+                (zero-or-more (or (syntax symbol)
+                                  (syntax word))))
+         (or ?\" ?\( ?\[ ?\{))
+     (1 "'"))
+    ;; Treat '|symbol with spaces| as word syntax
+    ((rx ?' ?| (+ any) ?|)
+     (0 "w"))
+    ;; Treat |identifier with spaces| -- but not #|comment|# -- as word syntax
+    ((rx (not (any ?#)) (group ?| (+ any) ?|) (not (any ?#)))
+     (1 "w")))
+   (point)
+   end))
+
+(defun racket--syntax-propertize-open-here-string (start string eol)
+  "Determine the syntax of the \\n after a #<<HERE
+START is the position of #<<.
+STRING is the actual word used as delimiter (e.g. \"HERE\").
+EOL is the position of the \\n.
+Point is at the beginning of the next line.
+
+This sets the open | syntax and sets a 'racket-here-string
+property whose value is STRING. The close | syntax is set by
+`racket--syntax-propertize-here-string'."
+  (unless (save-excursion
+            (let ((ppss (syntax-ppss start)))
+              (or (nth 3 ppss) (nth 4 ppss))))
+    (let ((ppss (save-excursion (syntax-ppss eol))))
+      (if (nth 4 ppss)
+          ;; The \n not only starts the heredoc but also closes a comment.
+          ;; Let's close the comment just before the \n.
+          (put-text-property (1- eol) eol 'syntax-table '(12))) ;">"
+      (if (or (nth 5 ppss) (> (count-lines start eol) 1))
+          ;; If we matched several lines, make sure we refontify them
+          ;; together. Furthermore, if (nth 5 ppss) is non-nil (i.e.
+          ;; the \n is escaped), it means the right \n is actually
+          ;; further down. Don't bother fixing it now, but place a
+          ;; multiline property so that when jit-lock-context-*
+          ;; refontifies the rest of the buffer, it also refontifies
+          ;; the current line with it.
+          (put-text-property start (1+ eol) 'syntax-multiline t))
+      (put-text-property eol (1+ eol) 'racket-here-string string)
+      (goto-char (+ 3 start))
+      (string-to-syntax "|"))))
+
+(defun racket--syntax-propertize-here-string (end)
+  "If in a here string that ends before END, add | syntax for its close."
+  (let ((ppss (syntax-ppss)))
+    (when (eq t (nth 3 ppss)) ;t as opposed to ?" or ?'
+      (let ((key (get-text-property (nth 8 ppss) 'racket-here-string)))
+        (when (and key
+                   (re-search-forward (concat "^" (regexp-quote key) "\\(\n\\)")
+                                      end t))
+          (let ((eol (match-beginning 1)))
+            (put-text-property eol (1+ eol)
+                               'syntax-table
+                               (string-to-syntax "|"))))))))
 
 (defun racket--variables-for-both-modes ()
   ;;; Syntax and font-lock stuff.
   (set-syntax-table racket-mode-syntax-table)
-  (setq-local syntax-propertize-function racket-syntax-propertize-function)
+  (setq-local syntax-propertize-function #'racket-syntax-propertize-function)
   (setq-local multibyte-syntax-as-symbol t)
   (setq-local font-lock-defaults
               (list racket-font-lock-keywords ;keywords
@@ -133,6 +193,8 @@
                     (cons 'font-lock-mark-block-function #'mark-defun)
                     (cons 'parse-sexp-lookup-properties t)
                     (cons 'font-lock-multiline t)
+                    (cons 'font-lock-syntactic-face-function
+                          #'racket-font-lock-syntactic-face-function)
                     (list 'font-lock-extend-region-functions
                           #'font-lock-extend-region-wholelines
                           #'racket--font-lock-extend-region)))

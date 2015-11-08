@@ -25,6 +25,8 @@
 ;; a result, I'm defining `:tag`s AS IF `:prefix "racket-"` did work.
 ;; In other words defcustom of racket-foo-bar has a :tag "Foo Bar".
 
+(require 'sh-script) ;for sh-heredoc-face
+
 (defgroup racket nil
   "Editing and REPL for the Racket language."
   :group 'languages
@@ -225,11 +227,18 @@ Instead you can insert actual λ characters using
 
 (defconst racket-selfeval-face 'racket-selfeval-face)
 (defface racket-selfeval-face
-  '((t
-     (:foreground "SeaGreen")))
+  '((t (:foreground "SeaGreen")))
   "Face for self-evaluating expressions like numbers, symbols, strings."
   :tag "Selfeval Face"
   :group 'racket-faces)
+
+(defconst racket-here-string-face 'racket-here-string-face)
+(defface racket-here-string-face
+  '((t (:inherit sh-heredoc-face)))
+  "Face for self-evaluating expressions like numbers, symbols, strings."
+  :tag "Selfeval Face"
+  :group 'racket-faces)
+
 
 (provide 'racket-custom)
 

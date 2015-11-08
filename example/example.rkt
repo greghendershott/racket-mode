@@ -116,6 +116,20 @@ comment
       [y 2])
   y)
 
+(define x #<<FOO
+asdfasdf
+asdfasdf
+asdfasdf
+FOO
+  )
+
+#;(define x #<<BAR
+asdfasdf
+asdfasdf
+asdfasdf
+BAR
+    )
+
 |identifier with spaces|
 
 |;no comment|

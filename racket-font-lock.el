@@ -47,6 +47,13 @@
       ;; like indent and nav work within the sexp) they are solely
       ;; font-locked as comments, here.
       (,#'racket--font-lock-sexp-comments . font-lock-comment-face)
+
+      ;; #<< here strings
+      ;;
+      ;; We only handle the opening #<<ID here. The remainder is
+      ;; handled in `racket-font-lock-syntatic-face-function'.
+      (,(rx (group "#<<" (+? (not (any blank ?\n)))) ?\n)
+       (1 racket-here-string-face nil t))
     ))
   "Strings, comments, #lang.")
 
@@ -65,7 +72,7 @@
              (seq "#\\" (1+ (or (syntax word) (syntax symbol))))))
        . racket-selfeval-face)
 
-      ;; #rx #px. Needs `group'.
+      ;; #rx #px
       (,(rx (group (or "#rx" "#px")) ?\")
        1 racket-selfeval-face)
 
@@ -207,6 +214,18 @@ doesn't really fit that.")
     racket-font-lock-keywords-level-1
     racket-font-lock-keywords-level-2
     racket-font-lock-keywords-level-3))
+
+(defun racket-font-lock-syntactic-face-function (state)
+  (let ((q (nth 3 state)))
+    (if q
+        (let ((startpos (nth 8 state)))
+          (if (eq (char-after startpos) ?|)
+              nil ;a |...| symbol
+            (if (characterp q)
+                font-lock-string-face
+              racket-here-string-face)))
+      font-lock-comment-face)))
+
 
 
 ;;; sexp comments
