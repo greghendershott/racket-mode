@@ -24,6 +24,8 @@
 (require 'racket-keywords-and-builtins)
 (require 'racket-font-lock)
 (require 'racket-indent)
+(require 'racket-util)
+
 (declare-function racket-complete-at-point "racket-complete.el" (&optional predicate))
 (declare-function racket-eldoc-function    "racket-complete.el" ())
 
@@ -127,7 +129,7 @@
                     nil                       ;syntax-alist
                     nil                       ;syntax-begin
                     ;; Additional variables:
-                    (cons 'syntax-begin-function #'beginning-of-defun)
+                    (cons 'syntax-begin-function #'racket--module-level-form-start)
                     (cons 'font-lock-mark-block-function #'mark-defun)
                     (cons 'parse-sexp-lookup-properties t)
                     (cons 'font-lock-multiline t)
@@ -463,29 +465,11 @@ paredit is loaded, so check for this function's existence using
 
 (defun racket--beginning-of-defun-function ()
   "Like `beginning-of-defun' but aware of Racket module forms."
-  (let ((pt (point)))
-    (ignore-errors (backward-sexp 1)) ;in case we're between top-level forms
-    (if (racket--goto-beg-of-defun)
-        t
-      (goto-char pt)
-      nil)))
-
-(defun racket--goto-beg-of-defun ()
-  (let (old
-        older)
-    (while (ignore-errors
-             (setq older old)
-             (setq old (point))
-             ;; Do NOT use `racket-backward-up-list' because
-             ;; `in-string-p' calls `beginning-of-defun' -- us!
-             (backward-up-list 1)
-             t)
-      nil)
-    (when (and older (looking-at (rx (syntax ?\() "module[*+]?")))
-      (setq old older))
-    (when (and old (looking-at (rx (syntax ?\())))
-      (goto-char old)
-      t)))
+  (let ((orig (point)))
+    (pcase (racket--module-level-form-start)
+      ('nil (ignore-errors (backward-sexp 1)))
+      (pos  (goto-char pos)))
+    (/= orig (point))))
 
 
 ;;; Misc

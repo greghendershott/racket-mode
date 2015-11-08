@@ -17,6 +17,7 @@
 
 (require 'racket-custom)
 (require 'racket-keywords-and-builtins)
+(require 'racket-util)
 (require 'cl-lib)
 
 ;; Define 3 levels of font-lock, as documented in 23.6.5 "Levels of
@@ -277,36 +278,40 @@ similar, it will already be there."
 (defvar font-lock-end) ;from font-lock.el -- make compiler happy
 
 (defun racket--font-lock-extend-region ()
-  "Extend font lock region to top-level forms.
+  "Extend font lock region to module-level forms.
 
 A function for the variable `font-lock-extend-region-functions',
 Needed for things like sexp comments and let forms, because we
-need the whole form (if any).
-
-Extend variable `font-lock-beg' to `beginning-of-defun' and
-variable `font-lock-end' to `forward-sexp'."
+need to refontify the entire form (if any)."
   (save-excursion
-    (let ((changed-beg-p
-           (ignore-errors
-             ;; beginning-of-defun moves point and is not idempotent
-             ;; so start 1 after font-lock-beg
-             (goto-char (1+ font-lock-beg))
-             (beginning-of-defun)
-             ;; Find sexp comment start, if any, even if on some
-             ;; previous line.
-             (save-match-data
-               (re-search-backward (rx "#;" (*? (syntax comment-end)) point)
-                                   (point-min) t))
-             (unless (<= font-lock-beg (point))
-               (setq font-lock-beg (point))
-               t)))
-          (changed-end-p
-           (ignore-errors
-             (forward-sexp 1)
-             (unless (<= (point) font-lock-end)
-               (setq font-lock-end (point))
-               t))))
+    (let* ((changed-beg-p
+            (ignore-errors
+              (pcase (racket--module-level-form-start)
+                ('nil (backward-sexp 1)) ;helps after inserting ?\)
+                (pos  (goto-char pos)))
+              (racket--back-to-sexp-comment-start)
+              (unless (<= font-lock-beg (point))
+                (setq font-lock-beg (point))
+                t)))
+           (changed-end-p
+            (ignore-errors
+              (forward-sexp 1)
+              (unless (<= (point) font-lock-end)
+                (setq font-lock-end (point))
+                t))))
       (or changed-beg-p changed-end-p))))
+
+(defun racket--back-to-sexp-comment-start ()
+  "Go to sexp comment start (if any) before point.
+
+Allows #; to be followed by zero or more space or newline chars."
+  (let ((orig (point)))
+    (while (memq (char-before) '(32 ?\n))
+      (goto-char (1- (point))))
+    (goto-char
+     (if (equal "#;" (buffer-substring-no-properties (- (point) 2) (point)))
+         (- (point) 2)
+       orig))))
 
 
 ;;; misc

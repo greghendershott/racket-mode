@@ -18,7 +18,6 @@
 
 (require 's)
 
-
 ;;; trace
 
 (defvar racket--trace-enable nil)
@@ -67,6 +66,35 @@ strings."
                     keys)))
           spec)
     m))
+
+;;; racket--module-level-form-start
+
+(defun racket--module-level-form-start ()
+  "Start position of the module-level form point is within.
+
+A module-level form is the outermost form not nested in a Racket
+module form.
+
+If point is not within a module-level form, returns nil.
+
+If point is already exactly at the start of a module-level form,
+-- i.e. on the opening ?\( -- returns nil."
+  (save-excursion
+    (ignore-errors
+      ;; Escape string or comment, if any
+      (let* ((ppss (syntax-ppss))
+             (string-or-comment-start (nth 8 ppss)))
+        (when string-or-comment-start
+          (goto-char string-or-comment-start)))
+      ;; Back up lists until we reach the top or a Racket module form
+      (let ((result nil)
+            (parse-sexp-ignore-comments t))
+        (while (ignore-errors
+                 (goto-char (scan-lists (point) -1 1))
+                 (unless (looking-at (rx (syntax ?\() "module" (zero-or-one (any ?* ?+))))
+                   (setq result (point)))
+                 t))
+        result))))
 
 (provide 'racket-util)
 
