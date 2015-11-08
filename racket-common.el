@@ -477,16 +477,16 @@ paredit is loaded, so check for this function's existence using
 (defun racket-backward-up-list ()
   "Like `backward-up-list' but also works when point is in a string literal."
   (interactive)
-  (while (nth 3 (syntax-ppss)) ;i.e. the now-deprecated `in-string-p'
-    (backward-char))
-  (backward-up-list))
+  (let ((ppss (syntax-ppss)))
+    (when (nth 3 ppss)
+      (goto-char (nth 8 ppss))))
+  (backward-up-list 1))
 
 (defun racket--in-string-or-comment (from to)
   "See if point is in a string or comment, without moving point."
   (save-excursion
-    (let ((parse (parse-partial-sexp from to)))
-      (or (nth 3 parse)
-          (nth 4 parse)))))
+    (let ((state (parse-partial-sexp from to)))
+      (or (nth 3 state) (nth 4 state)))))
 
 (defun racket--open-paren (back-func)
   "Use BACK-FUNC to find an opening ( [ or { if any.
