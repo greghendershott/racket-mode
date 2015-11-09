@@ -308,8 +308,8 @@ need to refontify the entire form (if any)."
     (let* ((changed-beg-p
             (ignore-errors
               (pcase (racket--module-level-form-start)
-                ('nil (backward-sexp 1)) ;helps after inserting ?\)
-                (pos  (goto-char pos)))
+                (`() (backward-sexp 1)) ;helps after inserting ?\)
+                (pos (goto-char pos)))
               (racket--back-to-sexp-comment-start)
               (unless (<= font-lock-beg (point))
                 (setq font-lock-beg (point))

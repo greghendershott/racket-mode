@@ -529,8 +529,8 @@ paredit is loaded, so check for this function's existence using
   "Like `beginning-of-defun' but aware of Racket module forms."
   (let ((orig (point)))
     (pcase (racket--module-level-form-start)
-      ('nil (ignore-errors (backward-sexp 1)))
-      (pos  (goto-char pos)))
+      (`() (ignore-errors (backward-sexp 1)))
+      (pos (goto-char pos)))
     (/= orig (point))))
 
 
