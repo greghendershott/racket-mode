@@ -129,7 +129,7 @@ Never changes selected window."
 (defun racket--version ()
   "Get the `racket-racket-program' version as a string."
   (with-temp-buffer
-    (shell-command (concat racket-racket-program " -e '(version)'")
+    (shell-command (concat racket-racket-program " -e \"(version)\"")
                    (current-buffer))
     (eval (read (buffer-substring (point-min) (point-max))))))
 
