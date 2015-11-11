@@ -129,16 +129,21 @@ Never changes selected window."
 (defun racket--version ()
   "Get the `racket-racket-program' version as a string."
   (with-temp-buffer
-    (shell-command (concat racket-racket-program " -e '(version)'")
-                   (current-buffer))
+    (call-process racket-racket-program
+                  nil   ;infile: none
+                  t     ;destination: current-buffer
+                  nil   ;redisplay: no
+                  "-e"
+                  "(version)")
     (eval (read (buffer-substring (point-min) (point-max))))))
 
-(defun racket--require-version (want)
-  "Require Racket to be version WANT or newer."
+(defun racket--require-version (at-least)
+  "Raise a `user-error' unless Racket is version AT-LEAST."
   (let ((have (racket--version)))
-    (unless (version<= want have)
-      (user-error "racket-mode requires Racket version %s but you have %s"
-                  want have))))
+    (unless (version<= at-least have)
+      (user-error "racket-mode requires at least Racket version %s but you have %s"
+                  at-least have))
+    t))
 
 (defun racket-repl-file-name ()
   "Return the file running in the buffer, or nil.
