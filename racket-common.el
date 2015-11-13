@@ -76,7 +76,7 @@
     (modify-syntax-entry ?\; "<   " st) ;line comments but NOT sexp #;
     (modify-syntax-entry ?\n ">   " st)
 
-    (modify-syntax-entry ?#  "' 14" st)
+    (modify-syntax-entry ?#  "w 14" st)
     (modify-syntax-entry ?|  "_ 23bn" st)
 
     st))
