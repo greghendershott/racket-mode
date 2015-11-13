@@ -76,7 +76,7 @@
     (modify-syntax-entry ?\; "<   " st) ;line comments but NOT sexp #;
     (modify-syntax-entry ?\n ">   " st)
 
-    (modify-syntax-entry ?#  "w 14" st)
+    (modify-syntax-entry ?#  "w 14" st) ;not necessarily prefix
     (modify-syntax-entry ?|  "_ 23bn" st)
 
     st))
@@ -124,6 +124,9 @@
                                   (syntax word))))
          (or ?\" ?\( ?\[ ?\{))
      (1 "'"))
+    ;; Syntax quoting
+    ((rx ?# (or ?` ?' ?,))
+     (0 "'"))
     ;; Treat '|symbol with spaces| as word syntax
     ((rx ?' ?| (+ any) ?|)
      (0 "w"))
