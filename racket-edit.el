@@ -266,12 +266,6 @@ will tell you so but won't visit the definition site."
          (racket-run)
          (racket--do-visit-def-or-mod cmd sym)))))
 
-(defun racket--get-def-file+line (sym)
-  "For use by company-mode 'location option."
-  (pcase (racket--repl-cmd/sexpr (format ",def %s\n\n" sym))
-    (`(,path ,line ,_) (cons path line))
-    (_ nil)))
-
 (defun racket-visit-module (&optional prefix)
   "Visit definition of module at point, e.g. net/url or \"file.rkt\".
 
@@ -325,119 +319,6 @@ instead of looking at point."
          (pop-to-buffer-same-window buffer)
          (goto-char pt)))
     (message "Stack empty.")))
-
-
-;;; racket-describe-mode
-
-(defun racket-describe (&optional prefix)
-"Describe the identifier at point in a `*Racket Describe*` buffer.
-
-The intent is to give a quick reminder or introduction to
-something, regardless of whether it has installed documentation
--- and to do so within Emacs, without switching to a web browser.
-
-This buffer is also displayed when you use `company-mode' and
-press F1 or C-h in its pop up completion list.
-
-- If the identifier has installed Racket documentation, then a
-  simplified version of the HTML is presented in the buffer,
-  including the \"blue box\", documentation prose, and examples.
-
-- Otherwise, if the identifier is a function, then its signature
-  is displayed, for example `(name arg-1-name arg-2-name)`. If it
-  has a Typed Racket type or a contract, that is also displayed.
-
-You can quit the buffer by pressing q. Also, at the bottom of the
-buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for `racket-visit-definition' and
-`racket-doc'."
-  (interactive "P")
-  (let ((sym (racket--identifier-at-point-or-prompt prefix
-                                                    "Describe: ")))
-    (when sym
-      (racket--do-describe sym t))))
-
-(defun racket--do-describe (sym &optional pop-to)
-  "A helper for `racket-describe' and company-mode.
-
-POP-TO should be t for the former (in which case some buttons are
-added) and nil for the latter.
-
-Returns the buffer in which the description was written."
-  (let* ((bufname "*Racket Describe*")
-         (html (racket--repl-cmd/string (format ",describe %s" sym)))
-         ;; Emacs shr renderer removes leading &nbsp; from <td> elements
-         ;; -- which messes up the indentation of s-expressions including
-         ;; contracts. So replace &nbsp with `spc' in the source HTML,
-         ;; and replace `spc' with " " after shr-insert-document outputs.
-         (spc (string #x2020)) ;unlikely character (hopefully)
-         (dom (with-temp-buffer
-                (insert html)
-                (goto-char (point-min))
-                (while (re-search-forward "&nbsp;" nil t)
-                  (replace-match spc t t))
-                (libxml-parse-html-region (point-min) (point-max))))
-         ;; Work around what seems to be a bug with shr -- inserting
-         ;; elements out of order, when an existing Racket Describe buffer
-         ;; hasn't had a quit-window -- by re-creating the bufer.
-         (buf (get-buffer bufname))
-         (_   (and buf (kill-buffer buf)))
-         (buf (get-buffer-create bufname)))
-    (with-current-buffer buf
-      (racket-describe-mode)
-      (read-only-mode -1)
-      (erase-buffer)
-      (let ((shr-use-fonts nil))
-        (shr-insert-document dom))
-      (goto-char (point-min))
-      (while (re-search-forward spc nil t)
-        (replace-match " " t t))
-      (goto-char (point-max))
-      (when pop-to
-        (insert-text-button "Definition"
-                            'action
-                            `(lambda (_btn)
-                               (racket--do-visit-def-or-mod
-                                "def"
-                                ,(substring-no-properties (format "%s" sym)))))
-        (insert "   ")
-        (insert-text-button "Documentation in Browser"
-                            'action
-                            `(lambda (_btn)
-                               (racket--repl-cmd/buffer
-                                ,(substring-no-properties (format ",doc %s\n" sym)))))
-        (insert "          [q]uit"))
-      (read-only-mode 1)
-      (goto-char (point-min))
-      (display-buffer (current-buffer) t)
-      (when pop-to
-        (pop-to-buffer (current-buffer))
-        (message "Type TAB to move to links, 'q' to restore previous window"))
-      (current-buffer))))
-
-(defvar racket-describe-mode-map
-  (let ((m (make-sparse-keymap)))
-    (set-keymap-parent m special-mode-map)
-    (mapc (lambda (x)
-            (define-key m (kbd (car x)) (cadr x)))
-          '(("<tab>"   racket-describe--next-button)
-            ("S-<tab>" racket-describe--prev-button)))
-    m)
-  "Keymap for Racket Describe mode.")
-
-(define-derived-mode racket-describe-mode special-mode
-  "RacketDescribe"
-  "Major mode for describing Racket functions.
-\\{racket-describe-mode-map}"
-  (setq show-trailing-whitespace nil))
-
-(defun racket-describe--next-button ()
-  (interactive)
-  (forward-button 1 t t))
-
-(defun racket-describe--prev-button ()
-  (interactive)
-  (forward-button -1 t t))
 
 
 ;;; code folding
