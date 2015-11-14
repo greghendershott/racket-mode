@@ -29,10 +29,9 @@
 
 (defun racket-make-doc/write-reference-file ()
   (interactive)
-  (let ((backup-inhibited t))
-    (with-temp-buffer
-      (insert (racket-make-doc/reference))
-      (write-file racket-make-doc/Reference.md nil))))
+  (with-temp-buffer
+    (insert (racket-make-doc/reference))
+    (write-region nil nil racket-make-doc/Reference.md nil)))
 
 (defun racket-make-doc/reference ()
   (concat "# Reference\n\n"
