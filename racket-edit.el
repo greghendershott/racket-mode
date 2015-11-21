@@ -136,6 +136,7 @@ of a file name to a list of submodule symbols. Otherwise, the
   (let ((xs nil))
     (condition-case ()
         (save-excursion
+          (racket--escape-string-or-comment)
           (while t
             (when (looking-at (rx ?\(
                                   (or "module " "module* " "module+ ")
@@ -145,7 +146,7 @@ of a file name to a list of submodule symbols. Otherwise, the
                            (intern (match-string-no-properties 1))
                            t
                            #'ignore)) ;i.e. never equal, always add
-            (racket-backward-up-list))) ;works when point is in a string
+            (backward-up-list)))
       (error (reverse xs)))))
 
 (defun racket-run-and-switch-to-repl (&optional errortracep)
