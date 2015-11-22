@@ -1,54 +1,61 @@
-language: generic
+language: emacs-lisp
+
+sudo: false
 
 env:
-  # Emacs 24.3
-  - EMACS=emacs24 RACKET_VERSION=5.3.5
-  - EMACS=emacs24 RACKET_VERSION=5.3.6
-  - EMACS=emacs24 RACKET_VERSION=6.0
-  - EMACS=emacs24 RACKET_VERSION=6.0.1
-  - EMACS=emacs24 RACKET_VERSION=6.1
-  - EMACS=emacs24 RACKET_VERSION=6.1.1
-  - EMACS=emacs24 RACKET_VERSION=6.2
-  - EMACS=emacs24 RACKET_VERSION=HEAD
-  # Emacs snapshot
-  - EMACS=emacs-snapshot RACKET_VERSION=5.3.5
-  - EMACS=emacs-snapshot RACKET_VERSION=5.3.6
-  - EMACS=emacs-snapshot RACKET_VERSION=6.0
-  - EMACS=emacs-snapshot RACKET_VERSION=6.0.1
-  - EMACS=emacs-snapshot RACKET_VERSION=6.1
-  - EMACS=emacs-snapshot RACKET_VERSION=6.1.1
-  - EMACS=emacs-snapshot RACKET_VERSION=6.2
-  - EMACS=emacs-snapshot RACKET_VERSION=HEAD
+  global:
+    # Install Racket where sudo not required.
+    - RACKET_DIR="$HOME/racket"
+  matrix:
+    # Emacs 24.3
+    - EMACS_VERSION=24.3 RACKET_VERSION=5.3.5
+    - EMACS_VERSION=24.3 RACKET_VERSION=5.3.6
+    - EMACS_VERSION=24.3 RACKET_VERSION=6.0
+    - EMACS_VERSION=24.3 RACKET_VERSION=6.0.1
+    - EMACS_VERSION=24.3 RACKET_VERSION=6.1
+    - EMACS_VERSION=24.3 RACKET_VERSION=6.1.1
+    - EMACS_VERSION=24.3 RACKET_VERSION=6.2
+    - EMACS_VERSION=24.3 RACKET_VERSION=HEAD
+    # Emacs 24.5
+    - EMACS_VERSION=24.5 RACKET_VERSION=5.3.5
+    - EMACS_VERSION=24.5 RACKET_VERSION=5.3.6
+    - EMACS_VERSION=24.5 RACKET_VERSION=6.0
+    - EMACS_VERSION=24.5 RACKET_VERSION=6.0.1
+    - EMACS_VERSION=24.5 RACKET_VERSION=6.1
+    - EMACS_VERSION=24.5 RACKET_VERSION=6.1.1
+    - EMACS_VERSION=24.5 RACKET_VERSION=6.2
+    - EMACS_VERSION=24.5 RACKET_VERSION=HEAD
+    # Emacs snapshot. Because slow to make, test against only some key
+    # versions of Racket like latest stable and HEAD. Also list these
+    # jobs below under `allow_failures`, and use `fast_finish`.
+    - EMACS_VERSION=snapshot RACKET_VERSION=6.2
+    - EMACS_VERSION=snapshot RACKET_VERSION=HEAD
 
 matrix:
   allow_failures:
-    - env: EMACS=emacs24 RACKET_VERSION=HEAD
-    - env: EMACS=emacs-snapshot RACKET_VERSION=HEAD
+    - env: EMACS_VERSION=24.3 RACKET_VERSION=HEAD
+    - env: EMACS_VERSION=24.5 RACKET_VERSION=HEAD
+    - env: EMACS_VERSION=snapshot RACKET_VERSION=6.2
+    - env: EMACS_VERSION=snapshot RACKET_VERSION=HEAD
   fast_finish: true
 
 before_install:
+  ## Emacs
+  # Configure $PATH: Executables are installed to $HOME/bin
+  - export PATH="$HOME/bin:$PATH"
+  # Download the makefile to emacs-travis.mk
+  - wget 'https://raw.githubusercontent.com/flycheck/emacs-travis/master/emacs-travis.mk'
+  # Install Emacs (according to $EMACS_VERSION)
+  - make -f emacs-travis.mk install_emacs
+  # # Install Texinfo, if you need to build info manuals for your project
+  # - make -f emacs-travis.mk install_texinfo
+
   ## Racket
   - git clone https://github.com/greghendershott/travis-racket.git
   - cat travis-racket/install-racket.sh | bash # pipe to bash not sh!
-  - export PATH=/usr/racket/bin:$PATH
-
-  ## Emacs
-  - if [ "$EMACS" = 'emacs24' ]; then
-        sudo add-apt-repository -y ppa:cassou/emacs &&
-        sudo apt-get -qq update &&
-        sudo apt-get -qq -f install &&
-        sudo apt-get -qq install emacs24 &&
-        sudo apt-get -qq install emacs24-el;
-    fi
-  - if [ "$EMACS" = 'emacs-snapshot' ]; then
-        sudo add-apt-repository -y ppa:ubuntu-elisp/ppa &&
-        sudo apt-get -qq update &&
-        sudo apt-get -qq -f install &&
-        sudo apt-get -qq install emacs-snapshot &&
-        sudo apt-get -qq install emacs-snapshot-el;
-    fi
+  - export PATH="${RACKET_DIR}/bin:${PATH}" #install-racket.sh can't set for us
 
 script:
-  - make deps EMACSBIN=$EMACS
-  - make compile EMACSBIN=$EMACS
-  - make test EMACSBIN=$EMACS
+  - make deps
+  - make compile
+  - make test
