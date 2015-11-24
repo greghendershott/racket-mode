@@ -255,20 +255,17 @@ property to t so that `delete-selection-mode' works:
 
   (put 'racket-command 'delete-selection t)
 
-If necessary the value of the property can be a function, as done
-by `racket--set-delete-selection-property-for-parens'."
-  (let ((last-command-event event)) ;set this for hooks
-    (self-insert-command (prefix-numeric-value nil))))
+If necessary the value of the property can be a function, for
+example `racket--electric-pair-mode-not-active'."
+  (call-interactively #'self-insert-command nil (vector event)))
 
-(defun racket--set-delete-selection-property-for-parens (command)
-  "Set `delete-selection-mode' property for commands that insert parens.
-Inserted text should replace the selection unless a mode like
-`electric-pair-mode' is enabled."
-  (put command
-       'delete-selection
-       (lambda ()
-         (not (memq 'electric-pair-mode minor-mode-list)))))
-
+(defun racket--electric-pair-mode-not-active ()
+  "A suitable value for the 'delete-selection property of
+commands that insert parens: Inserted text should replace the
+selection unless a mode like `electric-pair-mode' is enabled, in
+which case the selection is to be wrapped in parens."
+  (not (and (boundp 'electric-pair-mode)
+            electric-pair-mode)))
 
 ;;; Automatically insert matching \?) \?] or \?}
 
@@ -287,7 +284,8 @@ With a prefix, insert the typed character as-is."
          (close-char (and close-pair   (cdr close-pair))))
     (racket--self-insert (or close-char last-command-event))))
 
-(racket--set-delete-selection-property-for-parens 'racket-insert-closing)
+(put 'racket-insert-closing 'delete-selection
+     #'racket--electric-pair-mode-not-active)
 
 
 ;;; Smart open bracket
@@ -459,7 +457,8 @@ even press `]`."
         (racket--paredit-aware-open ch)
       (racket--self-insert ch))))
 
-(racket--set-delete-selection-property-for-parens 'racket-smart-open-bracket)
+(put 'racket-smart-open-bracket 'delete-selection
+     #'racket--electric-pair-mode-not-active)
 
 (eval-after-load 'paredit
   '(progn
