@@ -262,7 +262,8 @@ property to t so that `delete-selection-mode' works:
 
 If necessary the value of the property can be a function, for
 example `racket--electric-pair-mode-not-active'."
-  (call-interactively #'self-insert-command nil (vector event)))
+  (let ((last-command-event event))     ;set this for hooks
+    (self-insert-command (prefix-numeric-value nil))))
 
 (defun racket--electric-pair-mode-not-active ()
   "A suitable value for the 'delete-selection property of
