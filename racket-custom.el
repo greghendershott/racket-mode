@@ -166,10 +166,9 @@ file-local variable."
   :group 'racket-other)
 
 (defcustom racket-pretty-lambda nil
-  "Display lambda keywords using λ. This is deprecated.
-Instead you can insert actual λ characters using
-\\<racket-mode-map>\\[racket-insert-lambda]
-`racket-insert-lambda'."
+  "Display lambda keywords using λ. This is DEPRECATED.
+Instead use `prettify-symbols-mode' in newer verisons of Emacs,
+or, use `racket-insert-lambda' to insert actual λ characters."
   :tag "Pretty Lambda"
   :type 'boolean
   :safe #'booleanp

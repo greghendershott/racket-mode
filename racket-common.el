@@ -29,6 +29,11 @@
 (declare-function racket-complete-at-point "racket-complete.el" (&optional predicate))
 (declare-function racket-eldoc-function    "racket-complete.el" ())
 
+(defvar racket-mode-abbrev-table nil)
+(define-abbrev-table 'racket-mode-abbrev-table ())
+
+;;; syntax-table and syntax-propertize-function
+
 (defvar racket-mode-syntax-table
   (let ((st (make-syntax-table))
 	(i 0))
@@ -80,9 +85,6 @@
     (modify-syntax-entry ?|  "_ 23bn" st)
 
     st))
-
-(defvar racket-mode-abbrev-table nil)
-(define-abbrev-table 'racket-mode-abbrev-table ())
 
 (defun racket-syntax-propertize-function (start end)
   (goto-char start)
@@ -180,7 +182,10 @@ property whose value is STRING. The close | syntax is set by
                                'syntax-table
                                (string-to-syntax "|"))))))))
 
+;;;
+
 (defun racket--variables-for-both-modes ()
+  "Set variables common to `racket-mode' and `racket-repl-mode'."
   ;;; Syntax and font-lock stuff.
   (set-syntax-table racket-mode-syntax-table)
   (setq-local syntax-propertize-function #'racket-syntax-propertize-function)
@@ -228,7 +233,8 @@ property whose value is STRING. The close | syntax is set by
   (setq-local indent-tabs-mode nil)
   (setq-local completion-at-point-functions (list #'racket-complete-at-point))
   (setq-local eldoc-documentation-function #'racket-eldoc-function)
-  (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function))
+  (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function)
+  (setq-local prettify-symbols-alist '(("lambda"  . ?λ))))
 
 
 ;;; Insert lambda char (like DrRacket)
