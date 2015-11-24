@@ -233,8 +233,7 @@ property whose value is STRING. The close | syntax is set by
   (setq-local indent-tabs-mode nil)
   (setq-local completion-at-point-functions (list #'racket-complete-at-point))
   (setq-local eldoc-documentation-function #'racket-eldoc-function)
-  (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function)
-  (setq-local prettify-symbols-alist '(("lambda"  . ?λ))))
+  (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function))
 
 
 ;;; Insert lambda char (like DrRacket)
