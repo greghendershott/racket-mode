@@ -740,8 +740,8 @@ special commands to navigate among the definition and its uses.
   :keymap (racket--easy-keymap-define
            '(("q"       racket-check-syntax-mode-quit)
              ("h"       racket-check-syntax-mode-help)
-             (("j" "TAB")    racket-check-syntax-mode-goto-next-def)
-             (("k" "S-TAB")  racket-check-syntax-mode-goto-prev-def)
+             (("j" "TAB")       racket-check-syntax-mode-goto-next-def)
+             (("k" "<backtab>") racket-check-syntax-mode-goto-prev-def)
              ("."       racket-check-syntax-mode-goto-def)
              ("n"       racket-check-syntax-mode-goto-next-use)
              ("p"       racket-check-syntax-mode-goto-prev-use)
