@@ -514,6 +514,33 @@ paredit is loaded, so check for this function's existence using
                (t                    (racket--self-insert ch)))))))
 
 
+;;; paredit and at-expressions
+
+(defun racket--at-expression-paredit-space-for-delimiter-predicate (endp delimiter)
+  "`paredit-mode' shouldn't insert space before [ or { in Racket at-expressions.
+
+This function is a suitable element for the list variable
+`paredit-space-for-delimiter-predicates'. "
+  (if (and (eq major-mode 'racket-mode)
+           (not endp))
+      (not (or
+            ;; @foo[ @foo{
+            (and (memq delimiter '(?\[ ?\{))
+                 (looking-back (rx ?@ (* (or (syntax word) (syntax symbol))))
+                               nil))
+            ;; @foo[]{
+            (and (eq delimiter ?\{)
+                 (looking-back (rx ?@ (* (or (syntax word) (syntax symbol)))
+                                   ?\[
+                                   (* (or (syntax word) (syntax symbol)))
+                                   ?\])
+                               nil))))
+    t))
+
+(eval-after-load 'paredit
+  '(add-hook 'paredit-space-for-delimiter-predicates
+             #'racket--at-expression-paredit-space-for-delimiter-predicate))
+
 ;;; Cycle paren shapes
 
 (defun racket-cycle-paren-shapes ()
