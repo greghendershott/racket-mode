@@ -44,6 +44,7 @@ http://www.gnu.org/licenses/ for details.")
 (defconst racket-mode-version "0.4")
 
 (require 'racket-edit)
+(require 'racket-imenu)
 (require 'racket-profile)
 (require 'racket-repl)
 (require 'racket-collection)
@@ -136,21 +137,9 @@ http://www.gnu.org/licenses/ for details.")
     ["Describe" racket-describe]
     ["Customize..." customize-mode]))
 
-(defvar racket-imenu-generic-expression
-  '((nil
-     "^(define\\s-+(?\\(\\sw+\\)" 1)
-    ("Struct"
-     "^(struct\\s-+\\(\\sw+\\)" 1)
-    ("Syntax"
-     "^(define-syntax\\s-+(?\\(\\sw+\\)" 1))
-  "Imenu generic expression for racket mode.  See `imenu-generic-expression'.")
-
 (defun racket--variables-imenu ()
-  (set (make-local-variable 'imenu-case-fold-search) t)
-  (set (make-local-variable 'imenu-generic-expression)
-       racket-imenu-generic-expression)
-  (set (make-local-variable 'imenu-syntax-alist)
-       '(("+-*/.<>=?!$%_&~^:" . "w"))))
+  (setq-local imenu-case-fold-search t)
+  (setq-local imenu-create-index-function #'racket--imenu-create-index-function))
 
 (defun racket--maybe-set-compile-command ()
   "Unless a makefile exists, `compile' should \"raco make `buffer-file-name'\"."

@@ -33,6 +33,7 @@ compile: clean \
 	racket-complete.elc \
 	racket-edit.elc \
 	racket-font-lock.elc \
+	racket-imenu.elc \
 	racket-indent.elc \
 	racket-keywords-and-builtins.elc \
 	racket-make-doc.elc \
