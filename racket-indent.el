@@ -429,6 +429,7 @@ doesn't hurt to do so."
           (quasisyntax/loc 1)
           (receive 2)
           (require/typed 1)
+          (require/typed/provide 1)
           (send* 1)
           (shared 1)
           (sigaction 1)
