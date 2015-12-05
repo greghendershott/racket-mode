@@ -48,11 +48,11 @@
 (define-struct/contract [load-gui msg] ())
 (define-struct/contract [rerun msg]
   ([maybe-mod     (or/c #f mod?)]
-   [memory-limit  (or/c #f exact-positive-integer?)]
+   [memory-limit  exact-nonnegative-integer?] ;0 = no limit
    [pretty-print? boolean?]
    [context-level context-level?]))
 
-(define rerun-default (rerun #f #f #f 'low))
+(define rerun-default (rerun #f 0 #f 'low))
 
 ;; To be called from REPL thread. Puts message for the main thread to
 ;; the channel, and blocks itself; main thread will kill the REPL

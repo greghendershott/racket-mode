@@ -195,7 +195,7 @@
      (current-mem mem)
      (current-pp? pp?)
      (go what)]
-    [(list what (? number? mem) (? boolean? pp?))
+    [(list what (? number? mem))
      (current-mem mem)
      (go what)]
     [(list what)

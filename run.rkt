@@ -39,7 +39,7 @@
   (show-full-path-in-errors)
   ;; Custodian for the REPL.
   (define repl-cust (make-custodian))
-  (when mem-limit
+  (when (< 0 mem-limit)
     (custodian-limit-memory repl-cust
                             (inexact->exact (round (* 1024 1024 mem-limit)))
                             repl-cust))

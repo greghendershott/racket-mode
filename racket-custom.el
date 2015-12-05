@@ -52,7 +52,8 @@
 
 (defcustom racket-memory-limit 2048
   "Terminate the Racket process if memory use exceeds this value in MB.
-Changes to this value take effect upon the next `racket-run'.
+Changes to this value take effect upon the next `racket-run'. A value
+of 0 means no limit.
 
 Caveat: This uses Racket's `custodian-limit-memory`, which does
 not enforce the limit exactly. Instead, the program will be
