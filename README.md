@@ -76,7 +76,7 @@ all these packages is to install the `drracket` package:
 $ raco pkg install drracket
 ```
 
-[homebrew recipe]: https://github.com/Homebrew/homebrew/blob/master/Library/Formula/plt-racket.rb
+[homebrew recipe]: https://github.com/Homebrew/homebrew/blob/master/Library/Formula/racket.rb
 
 ## Configure
 
