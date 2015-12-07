@@ -513,6 +513,24 @@ paredit is loaded, so check for this function's existence using
                ((eq ch ?\{)          (paredit-open-curly))
                (t                    (racket--self-insert ch)))))))
 
+;;; paredit and reader literals
+
+(defun racket--reader-literal-paredit-space-for-delimiter-predicate (endp delimiter)
+  "`paredit-mode' shouldn't insert space beteween # and open delimiters.
+
+Examples: #() #2() #fl() #hasheq  etc.
+
+This function is a suitable element for the list variable
+`paredit-space-for-delimiter-predicates'. "
+  (if (and (eq major-mode 'racket-mode)
+           (not endp))
+      (not (looking-back (rx ?# (* (or (syntax word) (syntax symbol))))
+                         nil))
+    t))
+
+(eval-after-load 'paredit
+  '(add-hook 'paredit-space-for-delimiter-predicates
+             #'racket--reader-literal-paredit-space-for-delimiter-predicate))
 
 ;;; paredit and at-expressions
 
