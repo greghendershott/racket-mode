@@ -184,6 +184,16 @@ property whose value is STRING. The close | syntax is set by
 
 ;;;
 
+(defun racket--mode-edits-racket-p ()
+  "Return non-nil if the current major mode is one that edits Racket code.
+
+This is intended to be used with commands that customize their
+behavior based on whether they are editing Racket, such as
+Paredit bindings, without each of those commands needing to have
+a list of all modes in which Racket is edited."
+  (or (eq major-mode 'racket-mode)
+      (eq major-mode 'racket-repl-mode)))
+
 (defun racket--variables-for-both-modes ()
   "Set variables common to `racket-mode' and `racket-repl-mode'."
   ;;; Syntax and font-lock stuff.
@@ -496,7 +506,7 @@ check whether the current buffer's major mode is `racket-mode'.
 If not we call the function in the variable
 `racket--paredit-original-open-bracket-binding'."
        (interactive)
-       (if (eq major-mode 'racket-mode)
+       (if (racket--mode-edits-racket-p)
            (racket-smart-open-bracket)
          (funcall racket--paredit-original-open-bracket-binding)))
 
@@ -523,7 +533,7 @@ Examples: #() #2() #fl() #hasheq  etc.
 
 This function is a suitable element for the list variable
 `paredit-space-for-delimiter-predicates'. "
-  (if (and (eq major-mode 'racket-mode)
+  (if (and (racket--mode-edits-racket-p)
            (not endp))
       (not (looking-back (rx ?# (* (or (syntax word) (syntax symbol))))
                          nil))
@@ -540,7 +550,7 @@ This function is a suitable element for the list variable
 
 This function is a suitable element for the list variable
 `paredit-space-for-delimiter-predicates'. "
-  (if (and (eq major-mode 'racket-mode)
+  (if (and (racket--mode-edits-racket-p)
            (not endp))
       (not (or
             ;; @foo[ @foo{
