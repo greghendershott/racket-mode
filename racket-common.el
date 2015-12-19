@@ -311,7 +311,8 @@ With a prefix, insert the typed character as-is."
                          "match"
                          "match*"
                          "syntax-parse"
-                         "syntax-rules")
+                         "syntax-rules"
+                         "new")
                      (or space line-end))))
       ;; syntax-case
       (3 0 ,(rx (seq "("
