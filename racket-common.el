@@ -310,19 +310,38 @@ With a prefix, insert the typed character as-is."
   (eval-when-compile
     `(;; cond-like
       (0 0 ,(rx (seq "("
-                     (or "cond"
+                     (or "augment"
+                         "augment-final"
+                         "augride"
+                         "cond"
+                         "field"
+                         "inherit"
+                         "inherit-field"
+                         "inherit/super"
+                         "inherit/inner"
+                         "init"
+                         "init-field"
                          "match-lambda"
                          "match-lambda*"
-                         "match-lambda**")
+                         "match-lambda**"
+                         "overment"
+                         "override"
+                         "override-final"
+                         "public"
+                         "pubment"
+                         "public-final"
+                         "rename-inner"
+                         "rename-super"
+                         "super-new")
                      (or space line-end))))
       ;; case-like
       (2 0 ,(rx (seq "("
                      (or "case"
+                         "new"
                          "match"
                          "match*"
                          "syntax-parse"
-                         "syntax-rules"
-                         "new")
+                         "syntax-rules")
                      (or space line-end))))
       ;; syntax-case
       (3 0 ,(rx (seq "("
@@ -445,6 +464,8 @@ By default, inserts a `(`. Inserts a `[` in the following cases:
     `syntax-rules` clauses.
 
   - `for`-like bindings and `for/fold` accumulators.
+
+  - `class` declaration syntax, such as `init` and `inherit`.
 
 When the previous s-expression in a sequence is a compound
 expression, uses the same kind of delimiter.
