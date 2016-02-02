@@ -21,6 +21,7 @@
 (require 'racket-repl)
 (require 'racket-complete) ;for `racket--symbol-at-point-or-prompt'
 (require 'racket-custom) ;for `racket-racket-program'
+(require 'racket-util)
 
 
 ;;; racket-find-collection
@@ -134,7 +135,8 @@ See also: `racket-visit-module' and `racket-open-require-path'."
 
 (defvar racket-find-module-path-completions-rkt
   (expand-file-name "find-module-path-completions.rkt"
-                    (file-name-directory (or load-file-name (buffer-file-name))))
+                    (file-name-directory (or load-file-name
+                                             (racket--buffer-file-name))))
   "Path to find-module-path-completions.rkt")
 
 (defun racket--orp/begin ()

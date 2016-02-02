@@ -90,7 +90,8 @@ be able to load at all.")
 
 (defvar racket--run.rkt
   (expand-file-name "run.rkt"
-                    (file-name-directory (or load-file-name (buffer-file-name))))
+                    (file-name-directory (or load-file-name
+                                             (racket--buffer-file-name))))
   "Path to run.rkt")
 
 (defvar racket--repl-command-output-file

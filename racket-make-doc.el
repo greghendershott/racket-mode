@@ -17,6 +17,7 @@
 (require 'racket-mode)
 (require 'racket-profile)
 (require 'racket-edit)
+(require 'racket-util)
 (require 'racket-unicode-input-method)
 (require 'cl-lib)
 (require 's)
@@ -25,7 +26,8 @@
 
 (defvar racket-make-doc/Reference.md
   (expand-file-name "Reference.md"
-                    (file-name-directory (or load-file-name (buffer-file-name)))))
+                    (file-name-directory (or load-file-name
+                                             (racket--buffer-file-name)))))
 
 (defun racket-make-doc/write-reference-file ()
   (interactive)

@@ -17,9 +17,10 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'cl-lib)
+(require 'racket-util)
 
 (defconst racket--source-dir
-  (file-name-directory (or load-file-name (buffer-file-name))))
+  (file-name-directory (or load-file-name (racket--buffer-file-name))))
 
 ;;;###autoload
 (defun racket-bug-report ()

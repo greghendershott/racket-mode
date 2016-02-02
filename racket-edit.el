@@ -104,7 +104,8 @@ of a file name to a list of submodule symbols. Otherwise, the
   (unless (eq major-mode 'racket-mode)
     (error "Current buffer is not a racket-mode buffer"))
   (when (or (buffer-modified-p)
-            (and buffer-file-name (not (file-exists-p buffer-file-name))))
+            (and (racket--buffer-file-name)
+                 (not (file-exists-p (racket--buffer-file-name)))))
     (save-buffer))
   (remove-overlays (point-min) (point-max) 'racket-uncovered-overlay)
   (racket--invalidate-completion-cache)
@@ -116,7 +117,7 @@ of a file name to a list of submodule symbols. Otherwise, the
                              context-level)))
 
 (defun racket--what-to-run ()
-  (cons (buffer-file-name) (racket--submod-path)))
+  (cons (racket--buffer-file-name) (racket--submod-path)))
 
 (defun racket--submod-path ()
   (and (racket--lang-p)
@@ -163,7 +164,7 @@ Otherwise follows the `racket-error-context' setting."
   (interactive)
   (racket--shell (concat racket-racket-program
                          " "
-                         (shell-quote-argument (buffer-file-name)))))
+                         (shell-quote-argument (racket--buffer-file-name)))))
 
 (defun racket-test (&optional coverage)
   "Run the `test` submodule.
@@ -188,7 +189,7 @@ See also:
   (message (if coverage "Running tests with coverage instrumentation enabled..."
              "Running tests..."))
   (racket--do-run (if coverage 'coverage racket-error-context)
-                  (list 'submod (buffer-file-name) 'test))
+                  (list 'submod (racket--buffer-file-name) 'test))
   (if (not coverage)
       (message "Tests done.")
     (message "Checking coverage results...")
@@ -211,7 +212,7 @@ To run <file>'s `test` submodule."
   (interactive)
   (racket--shell (concat racket-raco-program
                          " test -x "
-                         (shell-quote-argument (buffer-file-name)))))
+                         (shell-quote-argument (racket--buffer-file-name)))))
 
 (defun racket--shell (cmd)
   (let ((w (selected-window)))
@@ -421,7 +422,7 @@ If so, try again."
                                             read-syntax))
                 `(expand-module/step
                   (string->path
-                   ,(substring-no-properties (buffer-file-name)))))))))
+                   ,(racket--buffer-file-name))))))))
 
 
 ;;; requires
@@ -481,7 +482,7 @@ See also: `racket-base-requires'."
          (new (and beg reqs
                    (racket--repl-cmd/string
                     (format ",requires/trim \"%s\" %S"
-                            (substring-no-properties (buffer-file-name))
+                            (racket--buffer-file-name)
                             reqs))))
          (new (and new
                    (condition-case () (read new)
@@ -527,7 +528,7 @@ such as changing `#lang typed/racket` to `#lang typed/racket/base`."
          (reqs (nth 1 result))
          (new (racket--repl-cmd/string
                (format ",requires/base \"%s\" %S"
-                       (substring-no-properties (buffer-file-name))
+                       (racket--buffer-file-name)
                        reqs)))
          (new (and new
                    (condition-case () (read new)

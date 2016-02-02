@@ -148,7 +148,7 @@ http://www.gnu.org/licenses/ for details.")
     (set (make-local-variable 'compile-command)
          (concat racket-raco-program
                  " make "
-                 buffer-file-name))))
+                 (racket--buffer-file-name)))))
 
 ;;;###autoload
 (define-derived-mode racket-mode prog-mode
