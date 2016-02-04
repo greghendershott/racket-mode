@@ -272,7 +272,7 @@
                (cons '#%top-interaction
                      `(if (has-contract? ,v)
                        (~a (contract-name (value-contract ,v)))
-                       (error)))))
+                       (error "")))))
             #:catch exn:fail? _
             #f)))
 
