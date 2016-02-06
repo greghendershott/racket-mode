@@ -179,6 +179,24 @@ Racket-mode supports four, increasing levels of font-lock:
    and `syntax/parse`. (This level effectively treats Racket as a
    language, instead of a language for making languages.)
 
+### paredit
+
+You may want to add keybindings to `paredit-mode-map`:
+
+- Bind <kbd>{</kbd> and <kbd>}</kbd> to `paredit-open-curly` and
+  `paredit-close-curly`, respectively.
+
+- Bind whatever keys you prefer for `paredit-wrap-square` and
+  `paredit-wrap-curly`.
+
+### smartparens
+
+To use the default configuration that smartparens provides for racket-mode, add to your Emacs init file:
+
+```
+(require 'smartparens-racket)
+```
+
 ## Documentation
 
 Within Emacs, use the usual help functions.
