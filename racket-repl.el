@@ -98,6 +98,10 @@ be able to load at all.")
   (make-temp-file "racket-mode-command-ouput-file-")
   "File used to collect output from commands used by racket-mode.")
 
+(defun racket--repl-live-p ()
+  "Does the Racket REPL buffer exist and have a live Racket process?"
+  (comint-check-proc racket--repl-buffer-name))
+
 (defun racket--repl-ensure-buffer-and-process (&optional display)
   "Ensure Racket REPL buffer exists and has live Racket process.
 

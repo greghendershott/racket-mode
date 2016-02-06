@@ -72,7 +72,7 @@ See `racket--invalidate-completion-cache' and
                  end
                  cmps
                  :predicate #'identity
-                 :company-docsig #'racket-get-type
+                 :company-docsig #'racket--get-type
                  :company-doc-buffer #'racket--do-describe
                  :company-location #'racket--get-def-file+line)))))
 
@@ -91,7 +91,7 @@ See `racket--invalidate-completion-cache' and
 (defun racket--invalidate-type-cache ()
   (setq racket--type-cache (make-hash-table :test 'eq)))
 
-(defun racket-get-type (str)
+(defun racket--get-type (str)
   (let* ((sym (intern str))
          (v (gethash sym racket--type-cache)))
     (or v
@@ -111,7 +111,7 @@ prompt uses `read-from-minibuffer'."
 
 (defun racket--identifier-at-point-or-prompt (force-prompt-p prompt)
   "Helper for functions that want symbol-at-point, or, to prompt
-when there is no symbol-ant-point or FORCE-PROMPT-P is true. The
+when there is no symbol-at-point or FORCE-PROMPT-P is true. The
 prompt uses `racket--read-identifier'."
   (racket--x-at-point-or-prompt force-prompt-p
                                 prompt
@@ -143,11 +143,12 @@ prompt uses READER, which must be a function like
 ;;; eldoc
 
 (defun racket-eldoc-function ()
-  (and (> (point) (point-min))
+  (and (racket--repl-live-p)
+       (> (point) (point-min))
        (save-excursion
          (condition-case nil
              ;; The char-before and looking-at checks below are to
-             ;; avoid calling `racket-get-type' when the sexp is
+             ;; avoid calling `racket--get-type' when the sexp is
              ;; quoted or when its first elem couldn't be a Racket
              ;; function name.
              (let* ((beg (progn
@@ -161,7 +162,7 @@ prompt uses READER, which must be a function like
                               (eq ?\s (char-syntax (char-after (point))))
                               end))
                     (sym (and beg end (buffer-substring-no-properties beg end)))
-                    (str (and sym (racket-get-type sym))))
+                    (str (and sym (racket--get-type sym))))
                str)
            (scan-error nil)))))
 
