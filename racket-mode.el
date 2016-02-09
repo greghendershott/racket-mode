@@ -142,9 +142,11 @@ http://www.gnu.org/licenses/ for details.")
   (setq-local imenu-create-index-function #'racket--imenu-create-index-function))
 
 (defun racket--maybe-set-compile-command ()
-  "Unless a makefile exists, `compile' should \"raco make `buffer-file-name'\"."
-  (unless (or (file-exists-p "makefile")
-              (file-exists-p "Makefile"))
+  "Unless a makefile exists, `compile' should be \"raco make `buffer-file-name'\"."
+  (unless (or
+           (null (buffer-file-name))
+           (file-exists-p "makefile")
+           (file-exists-p "Makefile"))
     (set (make-local-variable 'compile-command)
          (concat racket-raco-program
                  " make "
