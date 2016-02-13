@@ -141,15 +141,6 @@ http://www.gnu.org/licenses/ for details.")
   (setq-local imenu-case-fold-search t)
   (setq-local imenu-create-index-function #'racket--imenu-create-index-function))
 
-(defun racket--maybe-set-compile-command ()
-  "Unless a makefile exists, `compile' should \"raco make `buffer-file-name'\"."
-  (unless (or (file-exists-p "makefile")
-              (file-exists-p "Makefile"))
-    (set (make-local-variable 'compile-command)
-         (concat racket-raco-program
-                 " make "
-                 (racket--buffer-file-name)))))
-
 ;;;###autoload
 (define-derived-mode racket-mode prog-mode
   "Racket"
@@ -157,7 +148,6 @@ http://www.gnu.org/licenses/ for details.")
 \\{racket-mode-map}"
   (racket--variables-for-both-modes)
   (racket--variables-imenu)
-  (racket--maybe-set-compile-command)
   (hs-minor-mode t))
 
 ;;;###autoload
