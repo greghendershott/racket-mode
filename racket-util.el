@@ -99,8 +99,9 @@ find the start of a string or comment."
 ;;; racket--buffer-file-name
 
 (defun racket--buffer-file-name ()
-  "buffer-file-name can sometimes return propertized text. Ensure string"
-  (substring-no-properties (buffer-file-name)))
+  "`buffer-file-name' can sometimes return propertized text; ensure string or nil."
+  (and (buffer-file-name)
+       (substring-no-properties (buffer-file-name))))
 
 (provide 'racket-util)
 
