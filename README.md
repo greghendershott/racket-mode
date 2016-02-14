@@ -191,10 +191,12 @@ You may want to add keybindings to `paredit-mode-map`:
 
 ### smartparens
 
-To use the default configuration that smartparens provides for racket-mode, add to your Emacs init file:
+To use the default configuration that smartparens provides for Lisp
+modes generally and for racket-mode specifically, add to your Emacs
+init file:
 
 ```
-(require 'smartparens-racket)
+(require 'smartparens-config)
 ```
 
 ## Documentation
