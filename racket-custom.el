@@ -25,6 +25,7 @@
 ;; a result, I'm defining `:tag`s AS IF `:prefix "racket-"` did work.
 ;; In other words defcustom of racket-foo-bar has a :tag "Foo Bar".
 
+(require 'rx)
 (require 'sh-script) ;for sh-heredoc-face
 
 (defgroup racket nil
@@ -180,6 +181,18 @@ or, use `racket-insert-lambda' to insert actual λ characters."
   :tag "Smart Open Bracket Enable"
   :type 'boolean
   :safe #'booleanp
+  :group 'racket-other)
+
+(defcustom racket-module-forms
+  (rx (syntax ?\()
+      (or (seq "module" (zero-or-one (any ?* ?+)))
+          "library"))
+  "Regexp for the start of a `module`-like form.
+Affects what `beginning-of-defun' will move to.
+This is safe to set as a file-local variable."
+  :tag "Top Level Forms"
+  :type 'string
+  :safe #'stringp
   :group 'racket-other)
 
 

@@ -43,10 +43,12 @@
 
       ;; #; sexp comments
       ;;
-      ;; We don't put any comment syntax on these (that way things
-      ;; like indent and nav work within the sexp) they are solely
+      ;; We don't put any comment syntax on these -- that way things
+      ;; like indent and nav work within the sexp. They are solely
       ;; font-locked as comments, here.
-      (,#'racket--font-lock-sexp-comments . font-lock-comment-face)
+      (,#'racket--font-lock-sexp-comments
+       (1 font-lock-comment-delimiter-face t)
+       (2 font-lock-comment-face t))
 
       ;; #<< here strings
       ;;
@@ -236,18 +238,16 @@ doesn't really fit that.")
 Note that the syntax table does NOT show these as comments in
 order to let indent and nav work within the sexp. We merely
 font-lock them as comments."
-  (while (re-search-forward "#;" limit t)
-    (condition-case nil
-        (progn
-          (racket--region-set-face (- (point) 2)
-                                   (point)
-                                   font-lock-comment-delimiter-face
-                                   t)
-          (racket--sexp-set-face font-lock-comment-face t))
-      (error (racket--region-set-face (- (point) 2)
-                                      (point)
-                                      font-lock-warning-face
-                                      t)))))
+  (ignore-errors
+    (when (re-search-forward (rx (group-n 1 "#;" (* " "))
+                                 (group-n 2 (not (any " "))))
+                             limit t)
+      (let ((md (match-data)))
+        (goto-char (match-beginning 2))
+        (forward-sexp 1)
+        (setf (elt md 5) (point)) ;set (match-end 2)
+        (set-match-data md)
+        t))))
 
 
 ;;; let forms
@@ -276,6 +276,11 @@ similar, it will already be there."
             (forward-sexp 1)
             (backward-sexp 1)
             (racket--sexp-set-face font-lock-function-name-face))
+          ;; Set font-lock-multiline property on entire identifier
+          ;; list. Avoids need for font-lock-extend-region function.
+          (put-text-property (point)
+                             (save-excursion (forward-sexp 1) (point))
+                             'font-lock-multiline t)
           (down-list 1) ;to the open paren of the first binding form
           (while (ignore-errors
                    (down-list 1) ;to the id or list of id's
@@ -291,48 +296,6 @@ similar, it will already be there."
                    (forward-sexp 1)   ;to open paren of next binding form
                    t))))))
   nil)
-
-
-;;; racket--font-lock-extend-region
-
-(defvar font-lock-beg) ;from font-lock.el -- make compiler happy
-(defvar font-lock-end) ;from font-lock.el -- make compiler happy
-
-(defun racket--font-lock-extend-region ()
-  "Extend font lock region to module-level forms.
-
-A function for the variable `font-lock-extend-region-functions',
-Needed for things like sexp comments and let forms, because we
-need to refontify the entire form (if any)."
-  (save-excursion
-    (let* ((changed-beg-p
-            (ignore-errors
-              (pcase (racket--module-level-form-start)
-                (`() (backward-sexp 1)) ;helps after inserting ?\)
-                (pos (goto-char pos)))
-              (racket--back-to-sexp-comment-start)
-              (unless (<= font-lock-beg (point))
-                (setq font-lock-beg (point))
-                t)))
-           (changed-end-p
-            (ignore-errors
-              (forward-sexp 1)
-              (unless (<= (point) font-lock-end)
-                (setq font-lock-end (point))
-                t))))
-      (or changed-beg-p changed-end-p))))
-
-(defun racket--back-to-sexp-comment-start ()
-  "Go to sexp comment start (if any) before point.
-
-Allows #; to be followed by zero or more space or newline chars."
-  (let ((orig (point)))
-    (while (memq (char-before) '(32 ?\n))
-      (goto-char (1- (point))))
-    (goto-char
-     (if (equal "#;" (buffer-substring-no-properties (- (point) 2) (point)))
-         (- (point) 2)
-       orig))))
 
 
 ;;; misc
@@ -361,7 +324,8 @@ region."
   (when (or forcep (not (text-property-not-all beg end 'face nil)))
     (add-text-properties beg end
                          `(face ,face
-                           rear-nonsticky (face)))))
+                                ;;rear-nonsticky (face)
+                                ))))
 
 
 (provide 'racket-font-lock)

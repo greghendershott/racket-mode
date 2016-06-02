@@ -16,6 +16,8 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'racket-custom)
+(require 'rx)
 (require 's)
 
 ;;; trace
@@ -66,35 +68,6 @@ strings."
                     keys)))
           spec)
     m))
-
-;;; racket--module-level-form-start
-
-(defun racket--module-level-form-start ()
-  "Start position of the module-level form point is within.
-
-A module-level form is the outermost form not nested in a Racket
-module form.
-
-If point is not within a module-level form, returns nil.
-
-If point is already exactly at the start of a module-level form,
--- i.e. on the opening ?\( -- returns nil.
-
-If point is within a string or comment, returns nil.
-
-This is NOT suitable for the variable `syntax-begin-function'
-because it (i) doesn't move point, and (ii) doesn't know how to
-find the start of a string or comment."
-  (save-excursion
-    (ignore-errors
-      (let ((result nil)
-            (parse-sexp-ignore-comments t))
-        (while (ignore-errors
-                 (goto-char (scan-lists (point) -1 1))
-                 (unless (looking-at (rx (syntax ?\() "module" (zero-or-one (any ?* ?+))))
-                   (setq result (point)))
-                 t))
-        result))))
 
 ;;; racket--buffer-file-name
 
