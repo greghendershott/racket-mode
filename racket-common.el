@@ -283,6 +283,7 @@ which case the selection is to be wrapped in parens."
   (not (and (boundp 'electric-pair-mode)
             electric-pair-mode)))
 
+
 ;;; Automatically insert matching \?) \?] or \?}
 
 (defconst racket--matching-parens
@@ -293,9 +294,18 @@ which case the selection is to be wrapped in parens."
 (defun racket-insert-closing (&optional prefix)
   "Insert a matching closing delimiter.
 
-With a prefix, insert the typed character as-is."
+With a prefix, insert the typed character as-is.
+
+This is handy if you're not yet using `paredit-mode',
+`smartparens-mode', or simply `electric-pair-mode' added in Emacs
+24.5."
   (interactive "P")
-  (let* ((open-char  (and (not prefix) (racket--open-paren #'backward-up-list)))
+  (let* ((do-it (not (or prefix
+                         (and (string= "#\\"
+                                       (buffer-substring-no-properties
+                                        (- (point) 2) (point) )))
+                         (nth 3 (syntax-ppss)))))
+         (open-char  (and do-it        (racket--open-paren #'backward-up-list)))
          (close-pair (and open-char    (assq open-char racket--matching-parens)))
          (close-char (and close-pair   (cdr close-pair))))
     (racket--self-insert (or close-char last-command-event))))
