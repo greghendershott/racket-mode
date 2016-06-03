@@ -214,7 +214,7 @@ a list of all modes in which Racket is edited."
                           #'racket-font-lock-syntactic-face-function)
                     (list 'font-lock-extend-region-functions
                           #'font-lock-extend-region-wholelines
-                          #'racket--font-lock-extend-region)))
+                          #'font-lock-extend-region-multiline)))
   ;; -----------------------------------------------------------------
   ;; Comments. Borrowed from lisp-mode
   (setq-local comment-start ";")
@@ -623,6 +623,46 @@ This function is a suitable element for the list variable
       (`() (ignore-errors (backward-sexp 1)))
       (pos (goto-char pos)))
     (/= orig (point))))
+
+(defun racket--module-level-form-start ()
+  "Start position of the module-level form point is within.
+
+A module-level form is the outermost form not nested in a Racket
+module form.
+
+If point is not within a module-level form, returns nil.
+
+If point is already exactly at the start of a module-level form,
+-- i.e. on the opening ?\( -- returns nil.
+
+If point is within a string or comment, returns nil.
+
+This is NOT suitable for the variable `syntax-begin-function'
+because it (i) doesn't move point, and (ii) doesn't know how to
+find the start of a string or comment."
+  (save-excursion
+    (ignore-errors
+      (let ((pos nil)
+            (parse-sexp-ignore-comments t))
+        (while (ignore-errors
+                 (goto-char (scan-lists (point) -1 1))
+                 (unless (looking-at racket-module-forms)
+                   (setq pos (point)))
+                 t))
+        (and pos
+             (or (racket--sexp-comment-start pos)
+                 pos))))))
+
+(defun racket--sexp-comment-start (pos)
+  "Start pos of sexp comment (if any) immediately before POS.
+
+Allows #; to be followed by zero or more space or newline chars."
+  (save-excursion
+    (goto-char pos)
+    (while (memq (char-before) '(32 ?\n))
+      (goto-char (1- (point))))
+    (when (string= "#;" (buffer-substring-no-properties (- (point) 2) (point)))
+      (- (point) 2))))
 
 
 ;;; Misc
