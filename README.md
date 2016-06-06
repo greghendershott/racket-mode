@@ -217,8 +217,8 @@ many common cases:
   functions. There's no easy way to determine their "argument
   lists".
 
-A more satisfying experience is to use `racket-describe' or
-`racket-doc'.
+A more satisfying experience is to use `racket-describe` or
+`racket-doc`.
 
 ## Documentation
 
