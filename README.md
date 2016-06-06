@@ -199,6 +199,27 @@ init file:
 (require 'smartparens-config)
 ```
 
+### eldoc
+
+By default racket-mode sets `eldoc-documentation-function` to `nil` --
+no `eldoc-mode` support. You may set it to `racket-eldoc-function` in
+a `racket-mode-hook` if you really want to use `eldoc-mode` with
+Racket. But it is not a very satisfying experience because Racket is
+not a very "eldoc-friendly" language. Although racket-mode attempts
+to discover argument lists, contracts, or types this doesn't work in
+many common cases:
+
+- Many Racket functions are defined in `#%kernel`. There's no easy way
+  to determine their argument lists. Most are not `provide`d with a
+  contract.
+
+- Many of the interesting Racket forms are syntax (macros) not
+  functions. There's no easy way to determine their "argument
+  lists".
+
+A more satisfying experience is to use `racket-describe' or
+`racket-doc'.
+
 ## Documentation
 
 Within Emacs, use the usual help functions.

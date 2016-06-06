@@ -242,7 +242,7 @@ a list of all modes in which Racket is edited."
   (racket--set-indentation)
   (setq-local indent-tabs-mode nil)
   (setq-local completion-at-point-functions (list #'racket-complete-at-point))
-  (setq-local eldoc-documentation-function #'racket-eldoc-function)
+  (setq-local eldoc-documentation-function nil)
   (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function))
 
 

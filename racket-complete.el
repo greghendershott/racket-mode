@@ -143,6 +143,26 @@ prompt uses READER, which must be a function like
 ;;; eldoc
 
 (defun racket-eldoc-function ()
+  "A value suitable for the variable `eldoc-documentation-function'.
+
+By default racket-mode sets `eldoc-documentation-function' to nil
+-- no `eldoc-mode' support. You may set it to this function in a
+`racket-mode-hook' if you really want to use `eldoc-mode' with
+Racket. But it is not a very satisfying experience because Racket
+is not a very \"eldoc friendly\" language. Although racket-mode
+attempts to discover argument lists, contracts, or types this
+doesn't work in many common cases:
+
+- Many Racket functions are defined in #%kernel. There's no easy
+  way to determine their argument lists. Most are not provided
+  with a contract.
+
+- Many of the interesting Racket forms are syntax (macros) not
+  functions. There's no easy way to determine their \"argument
+  lists\".
+
+A more satisfying experience is to use `racket-describe' or
+`racket-doc'."
   (and (racket--repl-live-p)
        (> (point) (point-min))
        (save-excursion
