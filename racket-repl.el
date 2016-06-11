@@ -230,7 +230,8 @@ contents into a buffer."
         (erase-buffer)
         (insert-file-contents racket--repl-command-output-file)
         (progress-reporter-update pr)
-        (delete-file racket--repl-command-output-file))
+        (delete-file racket--repl-command-output-file)
+        (message "")) ;instead of (progress-reporter-done pr)
       buf)))
 
 (defun racket--repl-cmd/string (command &optional timeout)
