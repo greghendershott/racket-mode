@@ -246,6 +246,15 @@ a list of all modes in which Racket is edited."
   (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function))
 
 
+;;; Insert exists char
+(defconst racket-exists-char "∃"
+  "Character inserted by `racket-insert-exists'.")
+
+(defun racket-insert-exists ()
+  (interactive)
+  (insert-char racket-exists-char 1))
+(put 'racket-insert-exists 'delete-selection t)
+
 ;;; Insert lambda char (like DrRacket)
 
 (defconst racket-lambda-char (make-char 'greek-iso8859-7 107)
