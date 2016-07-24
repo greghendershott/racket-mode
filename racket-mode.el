@@ -114,7 +114,7 @@ http://www.gnu.org/licenses/ for details.")
     ("Tools"
      ["Profile" racket-profile]
      ["Check Syntax" racket-check-syntax-mode]
-     ["Error Trace" racket-errortrace])
+     ["Error Trace" racket-run-with-errortrace])
     "---"
     ["Comment" comment-dwim]
     ["Insert λ" racket-insert-lambda]
