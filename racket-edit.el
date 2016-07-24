@@ -93,7 +93,11 @@ Others are available only as a command in the REPL.
                       'high
                     racket-error-context)))
 
-(defun racket-errortrace ()
+
+(defun racket-run-with-errortrace ()
+  "Run with `racket-error-context' temporarily set to 'high. This
+is just `racket-run' with a C-u prefix. Defined as a function so
+it can be a menu target."
   (interactive)
   (racket-run t))
 
