@@ -164,8 +164,8 @@ Lisp function does not specify a special indentation."
         (progn
           (backward-prefix-chars)
           (current-column))
-      (let* ((head (buffer-substring (point) (progn (forward-sexp 1) (point))))
-             (method (get (intern-soft head) 'racket-indent-function)))
+      (let* ((head   (buffer-substring (point) (progn (forward-sexp 1) (point))))
+             (method (racket--get-indent-function-method head)))
         (cond ((racket--align-sequence-with-head)
                (goto-char open-pos)
                (1+ (current-column)))
@@ -180,6 +180,26 @@ Lisp function does not specify a special indentation."
                (racket--indent-specform method state indent-point normal-indent))
               (method
                (funcall method state indent-point normal-indent)))))))
+
+(defun racket--get-indent-function-method (head)
+  "Get property of racket- or scheme-indent-function.
+
+Ignores certain with-xxx indents defined by scheme-mode --
+because we automatically indent with- forms just like def forms.
+However if a _user_ has defined their own legacy scheme-mode
+indents for _other_ with- forms, those _will_ be used. We only
+ignore a short list defined by scheme-mode itself."
+  (let ((sym (intern-soft head)))
+    (or (get sym 'racket-indent-function)
+        (and (not (memq sym '(with-mode
+                              with-input-from-file
+                              with-input-from-port
+                              with-output-to-file
+                              with-output-to-port
+                              with-input-from-string
+                              with-output-to-string
+                              with-values)))
+             (get sym 'scheme-indent-function)))))
 
 (defun racket--align-sequence-with-head ()
   "Indent items with the head item for certain sequences?
