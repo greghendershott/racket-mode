@@ -84,7 +84,13 @@ to this:
     (test-case foo
       blah
       blah)
-"
+
+If `racket-indent-function` has no property for a symbol,
+`scheme-indent-function` is also considered (although the with-x
+indents defined by `scheme-mode` are ignored). This is only to
+help people who may have extensive `scheme-indent-function`
+settings, particularly in the form of file or dir local
+variables. Otherwise prefer `racket-indent-function`."
   (interactive)
   ;; `calculate-lisp-indent' expects plain `beginning-of-defun'
   (let ((beginning-of-defun-function nil))

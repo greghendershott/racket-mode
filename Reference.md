@@ -428,6 +428,12 @@ to this:
       blah
       blah)
 
+If `racket-indent-function` has no property for a symbol,
+`scheme-indent-function` is also considered (although the with-x
+indents defined by `scheme-mode` are ignored). This is only to
+help people who may have extensive `scheme-indent-function`
+settings, particularly in the form of file or dir local
+variables. Otherwise prefer `racket-indent-function`.
 
 ### racket-smart-open-bracket
 <kbd>[</kbd>
@@ -449,6 +455,8 @@ By default, inserts a `(`. Inserts a `[` in the following cases:
 
   - `for`-like bindings and `for/fold` accumulators.
 
+  - `class` declaration syntax, such as `init` and `inherit`.
+
 When the previous s-expression in a sequence is a compound
 expression, uses the same kind of delimiter.
 
@@ -468,7 +476,13 @@ In an s-expression, move to the opening, and cycle the shape among () [] {}
 ### racket-backward-up-list
 <kbd>C-M-u</kbd>
 
-Like `backward-up-list` but also works when point is in a string literal.
+Like `backward-up-list` but works when point is in a string or comment.
+
+Typically you should not use this command in Emacs Lisp --
+especially not repeatedly. Instead, initially use
+[`racket--escape-string-or-comment`](#racket--escape-string-or-comment) to move to the start of a
+string or comment, if any, then use normal `backward-up-list`
+repeatedly.
 
 ### racket-check-syntax-mode
 <kbd>M-x racket-check-syntax-mode</kbd>
@@ -494,7 +508,7 @@ n		racket-check-syntax-mode-goto-next-use
 p		racket-check-syntax-mode-goto-prev-use
 q		racket-check-syntax-mode-quit
 r		racket-check-syntax-mode-rename
-S-TAB		racket-check-syntax-mode-goto-prev-def
+<backtab>	racket-check-syntax-mode-goto-prev-def
 
 
 ```
@@ -674,7 +688,8 @@ Pathname of the raco executable.
 
 ### racket-memory-limit
 Terminate the Racket process if memory use exceeds this value in MB.
-Changes to this value take effect upon the next [`racket-run`](#racket-run).
+Changes to this value take effect upon the next [`racket-run`](#racket-run). A value
+of 0 means no limit.
 
 Caveat: This uses Racket's `custodian-limit-memory`, which does
 not enforce the limit exactly. Instead, the program will be
@@ -739,10 +754,9 @@ indentation noticeably slower. This is safe to set as a
 file-local variable.
 
 ### racket-pretty-lambda
-Display lambda keywords using λ. This is deprecated.
-Instead you can insert actual λ characters using
-C-M-y
-[`racket-insert-lambda`](#racket-insert-lambda).
+Display lambda keywords using λ. This is DEPRECATED.
+Instead use `prettify-symbols-mode` in newer verisons of Emacs,
+or, use [`racket-insert-lambda`](#racket-insert-lambda) to insert actual λ characters.
 
 ### racket-smart-open-bracket-enable
 Use [`racket-smart-open-bracket`](#racket-smart-open-bracket) when `[` is pressed?
