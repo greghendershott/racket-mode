@@ -1,6 +1,6 @@
 ;;; racket-unicode-input-method.el --- Racket Unicode helper functions
 
-;; Copyright (c) 2015 by Greg Hendershott
+;; Copyright (c) 2015-2016 by Greg Hendershott
 ;; Portions Copyright (c) 2010-2011 by Roel van Dijk
 
 ;; Author: Greg Hendershott

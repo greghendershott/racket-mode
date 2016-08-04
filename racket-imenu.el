@@ -1,6 +1,6 @@
 ;;; racket-imenu.el
 
-;; Copyright (c) 2013-2015 by Greg Hendershott.
+;; Copyright (c) 2013-2016 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott

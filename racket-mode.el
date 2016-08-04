@@ -1,6 +1,6 @@
 ;;; racket-mode.el --- Major mode for Racket language.
 
-;; Copyright (c) 2013-2015 by Greg Hendershott.
+;; Copyright (c) 2013-2016 by Greg Hendershott.
 
 ;; Package: racket-mode
 ;; Package-Requires: ((emacs "24.3") (faceup "0.0.2") (s "1.9.0"))
@@ -30,7 +30,7 @@
 ;;; Code:
 
 (defconst racket-mode-copyright
-  "Copyright (c) 2013-2015 by Greg Hendershott. Portions Copyright (c) Free Software Foundation and Copyright (c) 2002-2012 Neil Van Dyke.")
+  "Copyright (c) 2013-2016 by Greg Hendershott. Portions Copyright (c) Free Software Foundation and Copyright (c) 2002-2012 Neil Van Dyke.")
 
 (defconst racket-mode-legal-notice
   "This is free software; you can redistribute it and/or modify it under the

@@ -1,6 +1,6 @@
 ;;; racket-tests.el --- Major mode for Racket language.
 
-;; Copyright (c) 2013-2015 by Greg Hendershott.
+;; Copyright (c) 2013-2016 by Greg Hendershott.
 
 ;; License:
 ;; This is free software; you can redistribute it and/or modify it
