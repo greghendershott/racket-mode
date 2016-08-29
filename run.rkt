@@ -18,8 +18,9 @@
          "util.rkt")
 
 (module+ main
-  (command-line #:args (command-output-file)
-                (current-command-output-file command-output-file))
+  (match (current-command-line-arguments)
+    [(vector file) (current-command-output-file file)]
+    [v (error "Expected exactly one command-line argument for command output file\ngiven:" v)])
   ;; Emacs on Windows comint-mode needs buffering disabled.
   (when (eq? (system-type 'os) 'windows)
     (file-stream-buffer-mode (current-output-port) 'none))
@@ -29,7 +30,11 @@
     (run rerun-default)))
 
 (define (run rr) ;rerun? -> void?
-  (match-define (rerun maybe-mod mem-limit pretty-print? context-level) rr)
+  (match-define (rerun maybe-mod
+                       mem-limit
+                       pretty-print?
+                       context-level
+                       cmd-line-args) rr)
   (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
   ;; Always set current-directory and current-load-relative-directory
   ;; to match the source file.
@@ -73,13 +78,15 @@
       ;; thread when racket/gui/base is not (yet) instantiated, or, from
       ;; (eventspace-handler-thread (current-eventspace)).
       (define (repl-thunk)
-        ;; 0. Set current-print and pretty-print hooks.
+        ;; 0. Command line arguments
+        (current-command-line-arguments cmd-line-args)
+        ;; 1. Set current-print and pretty-print hooks.
         (current-print (make-print-handler pretty-print?))
         (pretty-print-print-hook (make-pretty-print-print-hook))
         (pretty-print-size-hook (make-pretty-print-size-hook))
-        ;; 1. Start logger display thread.
+        ;; 2. Start logger display thread.
         (start-log-receiver)
-        ;; 2. If module, load its lang info, require, and enter its namespace.
+        ;; 3. If module, load its lang info, require, and enter its namespace.
         (when mod-path
           (parameterize ([current-module-name-resolver repl-module-name-resolver])
             ;; exn:fail? during module load => re-run with "empty" module
@@ -91,7 +98,7 @@
               (dynamic-require mod-path #f)
               (current-namespace (module->namespace mod-path))
               (check-top-interaction))))
-        ;; 3. read-eval-print-loop
+        ;; 4. read-eval-print-loop
         (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
                        [current-module-name-resolver repl-module-name-resolver])
           ;; Note that read-eval-print-loop catches all non-break

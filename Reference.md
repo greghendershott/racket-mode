@@ -23,11 +23,15 @@
 
 Save and evaluate the buffer in REPL, much like DrRacket's Run.
 
+If point is within a submodule form, the REPL "enters" that
+submodule (uses its language info and namespace).
+
 When you run again, the file is evaluated from scratch -- the
 custodian releases resources like threads and the evaluation
 environment is reset to the contents of the file. In other words,
 like DrRacket, this provides the predictability of a "static"
-baseline, plus some interactive exploration.
+baseline, plus the ability to explore interatively using the
+REPL.
 
 See also [`racket-run-and-switch-to-repl`](#racket-run-and-switch-to-repl), which is even more like
 DrRacket's Run because it selects the REPL window (gives it the
@@ -66,10 +70,10 @@ Others are available only as a command in the REPL.
 - `,doc <symbol-or-string>`: Look for `<symbol-or-string>` in
   Racket's documentation. What [`racket-doc`](#racket-doc) uses.
 
-- `,cd`, `,pwd`: Change and show [`current-directory`].
+- `,cd`, `,pwd`: Change and show `current-directory`.
 
 - `,log` controls the log output level, overall, as well as for
-  specific named loggers created with [`define-logger`].
+  specific named loggers created with `define-logger`.
 
     - `,log`: Show the current levels.
 
@@ -716,6 +720,29 @@ Tip: Regardless of this setting, you can enable 'high errortrace
 for a specific [`racket-run`](#racket-run) using a C-u prefix. This lets you
 normally run with a faster setting, and temporarily re-run to get
 a more-helpful error message.
+
+### racket-user-command-line-arguments
+List of command-line arguments to supply to your Racket program.
+
+Accessible in your Racket program in the usual way -- the
+parameter `current-command-line-arguments` and friends.
+
+The value must be an unquoted list of strings such as:
+
+    ("-f" "bar")
+
+but NOT:
+
+    '("-f" "bar")
+    (list "-f" "bar")
+
+This is an Emacs buffer-local variable -- convenient to set as a
+file local variable. For example at the end of your .rkt file:
+
+    ;; Local Variables:
+    ;; racket-user-command-line-arguments: ("-f" "bar")
+    ;; End:
+
 
 ## REPL
 

@@ -50,9 +50,10 @@
   ([maybe-mod     (or/c #f mod?)]
    [memory-limit  exact-nonnegative-integer?] ;0 = no limit
    [pretty-print? boolean?]
-   [context-level context-level?]))
+   [context-level context-level?]
+   [cmd-line-args (vectorof string?)]))
 
-(define rerun-default (rerun #f 0 #f 'low))
+(define rerun-default (rerun #f 0 #f 'low #()))
 
 ;; To be called from REPL thread. Puts message for the main thread to
 ;; the channel, and blocks itself; main thread will kill the REPL

@@ -128,11 +128,17 @@
 (define (usage)
   (display-commented
    @~a{Commands:
-       ,run <module> [<memory-limit-MB> [<pretty-print?> [<error-context>]]]
-       <module> = <file> | (<file> <submodule-id> ...)
-       <file> = file.rkt | /path/to/file.rkt | "file.rkt" | "/path/to/file.rkt"
-       <error-context> = low | medium | high
-       ,top [<memory-limit-MB> [<pretty-print?> [<error-context>]]]
+       ,run <module> [<mem-limit-MB> [<pretty-print?> [<error-context> [<cmd-line>]]]]
+       ,top          [<mem-limit-MB> [<pretty-print?> [<error-context> [<cmd-line>]]]]
+         <module> = <file>
+                  | (<file> <submodule-id> ...)
+         <file> = file.rkt
+                | /path/to/file.rkt
+                | "file.rkt" | "/path/to/file.rkt"
+         <error-context> = low
+                         | medium
+                         | high
+         <cmd-line> = (listof string?) e.g. '("-f" "foo" "--bar" "baz")
        ,exit
        ,doc <identifier>|<string>
        ,exp <stx>
@@ -167,6 +173,7 @@
 
 (define current-pp? (make-parameter-ish #t))
 (define current-ctx-lvl (make-parameter-ish 'low)) ;context-level?
+(define current-args (make-parameter-ish (vector)))
 
 (define (run-or-top which)
   ;; Support both the ,run and ,top commands. Latter has no first path
@@ -182,10 +189,18 @@
       (put/stop (rerun maybe-mod
                        (current-mem)
                        (current-pp?)
-                       (current-ctx-lvl)))))
+                       (current-ctx-lvl)
+                       (current-args)))))
   (match (match which
            ['run (read-line->reads)]
            ['top (cons #f (read-line->reads))]) ;i.e. what = #f
+    [(list what (? number? mem) (? boolean? pp?) (? context-level? ctx)
+           (? (or/c #f (listof string?)) args))
+     (current-args (list->vector (or args (list)))) ;Elisp () = nil => #f
+     (current-mem mem)
+     (current-pp? pp?)
+     (current-ctx-lvl ctx)
+     (go what)]
     [(list what (? number? mem) (? boolean? pp?) (? context-level? ctx))
      (current-mem mem)
      (current-pp? pp?)
@@ -200,8 +215,7 @@
      (go what)]
     [(list what)
      (go what)]
-    [_
-     (usage)]))
+    [_ (usage)]))
 
 (define (read-line->reads)
   (reads-from-string (read-line)))
@@ -221,6 +235,7 @@
   (displayln @~a{Memory Limit:   @(current-mem)
                  Pretty Print:   @(current-pp?)
                  Error Context:  @(current-ctx-lvl)
+                 Command Line:   @(current-args)
                  Command Output: @(current-command-output-file)}))
 
 ;;; misc other commands
