@@ -253,7 +253,7 @@ To run <file>'s `test` submodule."
 (defun racket--shell (cmd)
   (let ((w (selected-window)))
     (save-buffer)
-    (let ((rw (get-buffer-window "*shell*")))
+    (let ((rw (get-buffer-window "*shell*" t)))
       (if rw
           (select-window rw)
         (other-window -1)))
