@@ -316,7 +316,7 @@ Although they remain clickable they will be ignored by
 Keep original window selected."
   (display-buffer racket--repl-buffer-name)
   (save-selected-window
-    (select-window (get-buffer-window racket--repl-buffer-name))
+    (select-window (get-buffer-window racket--repl-buffer-name t))
     (comint-show-maximum-output)))
 
 ;;; Inline images in REPL
