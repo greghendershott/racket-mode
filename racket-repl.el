@@ -30,6 +30,20 @@
 (defconst racket--repl-buffer-name
   (concat "*" racket--repl-buffer-name/raw "*")
   "The actual buffer name as created by comint-mode")
+
+(defmacro with-racket-repl-buffer (&rest body)
+  "Execute the forms in BODY with `racket-repl-mode' temporarily current.
+The value returned is the value of the last form in BODY --
+unless no `racket-repl-mode' buffer exists, in which case no BODY
+forms are evaluated and nil is returned. See also
+`with-current-buffer'."
+  (declare (indent 0) (debug t))
+  (let ((repl-buffer (make-symbol "repl-buffer")))
+    `(let ((,repl-buffer (get-buffer racket--repl-buffer-name)))
+       (when ,repl-buffer
+         (with-current-buffer ,repl-buffer
+           ,@body)))))
+
 (defun racket--get-repl-buffer-process ()
   (get-buffer-process racket--repl-buffer-name))
 
@@ -158,6 +172,11 @@ running no particular file as with the `,top` command."
   (when (comint-check-proc racket--repl-buffer-name)
     (racket--repl-cmd/sexpr ",path")))
 
+(defun racket--in-repl-or-its-file-p ()
+  "Is current-buffer `racket-repl-mode' or buffer for file active in it?"
+  (or (eq (current-buffer) (get-buffer racket--repl-buffer-name))
+      (string= (buffer-file-name) (racket-repl-file-name))))
+
 (defun racket-repl-switch-to-edit ()
   "Switch to the window for the buffer of the file running in the REPL.
 
@@ -256,7 +275,7 @@ Afterwards call `racket--repl-show-and-move-to-end'."
     (racket-repl t)
     (racket--repl-forget-errors)
     (let ((proc (racket--get-repl-buffer-process)))
-      (with-current-buffer racket--repl-buffer-name
+      (with-racket-repl-buffer
         (save-excursion
           (goto-char (process-mark proc))
           (insert ?\n)
@@ -299,7 +318,7 @@ without the #; prefix."
 
 Although they remain clickable they will be ignored by
 `next-error' and `previous-error'"
-  (with-current-buffer racket--repl-buffer-name
+  (with-racket-repl-buffer
     (compilation-forget-errors)
     ;; `compilation-forget-errors' may have just set
     ;; `compilation-messages-start' to a marker at position 1. But in

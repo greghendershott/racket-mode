@@ -22,22 +22,30 @@
 (require 'racket-repl)
 (require 'shr)
 
+;;; namespace symbols i.e. completion candidates
+
 (make-variable-buffer-local
  (defvar racket--namespace-symbols nil
-   "A cache of Racket namespace symbols.
+   "A cache of the list of all Racket namespace symbols.
+
+This var is local to each buffer, including the REPL buffer.
 
 See `racket--invalidate-completion-cache' and
 `racket--get-namespace-symbols'."))
 
 (defun racket--invalidate-completion-cache ()
-  "Empties `racket--namespace-symbols'."
-  (setq racket--namespace-symbols nil))
+  "Both current `racket-mode' buffer and `racket-repl-mode' buffer (if any)."
+  (setq racket--namespace-symbols nil)
+  (with-racket-repl-buffer
+    (setq racket--namespace-symbols nil)))
 
 (defun racket--get-namespace-symbols ()
   "Get Racket namespace symbols from the cache or from the Racket process."
   (unless racket--namespace-symbols
-    (setq racket--namespace-symbols
-          (racket--repl-cmd/sexpr ",syms")))
+    (if (racket--in-repl-or-its-file-p)
+        (setq racket--namespace-symbols
+              (racket--repl-cmd/sexpr ",syms"))
+      (error "Completions not available until you `racket-run' this buffer")))
   racket--namespace-symbols)
 
 (defun racket--complete-prefix (prefix)
@@ -82,22 +90,27 @@ See `racket--invalidate-completion-cache' and
     (`(,path ,line ,_) (cons path line))
     (_ nil)))
 
-;;; types (i.e. TR types, contracts, and/or function signatures)
+;;; "types" (i.e. TR types, contracts, and/or function signatures)
 
-(defvar racket--type-cache (make-hash-table :test 'eq)
-  "Memoize ,type commands in Racket REPL.
- `racket-run' should call `racket-invalidate-type-cache'.")
+(make-variable-buffer-local
+ (defvar racket--type-cache (make-hash-table :test #'eq)
+   "Memoize ,type commands in Racket REPL.
+
+`racket-run' should call `racket-invalidate-type-cache'."))
 
 (defun racket--invalidate-type-cache ()
-  (setq racket--type-cache (make-hash-table :test 'eq)))
+  (setq racket--type-cache (make-hash-table :test #'eq))
+  (with-racket-repl-buffer
+    (setq racket--type-cache (make-hash-table :test #'eq))))
 
 (defun racket--get-type (str)
   (let* ((sym (intern str))
          (v (gethash sym racket--type-cache)))
     (or v
-        (let ((v (racket--repl-cmd/sexpr (concat ",type " str))))
-          (puthash sym v racket--type-cache)
-          v))))
+        (and (racket--in-repl-or-its-file-p)
+             (let ((v (racket--repl-cmd/sexpr (concat ",type " str))))
+               (puthash sym v racket--type-cache)
+               v)))))
 
 ;;; at-point
 
