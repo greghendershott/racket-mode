@@ -15,6 +15,7 @@
 (require 'ert)
 (require 'racket-mode)
 (require 'racket-repl)
+(require 'racket-edit)
 (require 'edmacro)
 (require 'faceup)
 (require 'racket-common)
@@ -63,7 +64,10 @@
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
   (racket-repl)
   (with-racket-repl-buffer
-    (let ((tab-always-indent 'complete))
+    (let ((tab-always-indent 'complete)
+          (racket--repl-command-connect-timeout (* 15 60))
+          (racket-command-port 55556)
+          (racket-command-timeout (* 15 60)))
       ;; Welcome
       (should (racket-tests/see-rx (concat "Welcome to Racket v[0-9.]+\n"
                                            (regexp-quote "\uFEFF> "))))
@@ -86,7 +90,10 @@
 ;;; Run
 
 (ert-deftest racket-tests/run ()
-  (let* ((pathname (make-temp-file "test" nil ".rkt"))
+  (let* ((racket--repl-command-connect-timeout (* 15 60))
+         (racket-command-port 55556)
+         (racket-command-timeout (* 15 60))
+         (pathname (make-temp-file "test" nil ".rkt"))
          (name     (file-name-nondirectory pathname))
          (code "#lang racket/base\n(define x 42)\nx\n"))
     (write-region code nil pathname nil 'no-wrote-file-message)
@@ -96,13 +103,17 @@
     (with-racket-repl-buffer
       (should (racket-tests/see (concat "\n" name "\uFEFF> "))))
     ;; racket-check-syntax-mode
-    (racket-check-syntax-mode 1)
-    (goto-char (point-min))
-    (racket-check-syntax-mode-goto-next-def)
-    (should (looking-at "racket/base"))
-    (racket-check-syntax-mode-goto-next-use)
-    (should (looking-at "define"))
-    (racket-check-syntax-mode 0)
+    (when (version<= "6.2" (racket--version))
+      (let ((racket--check-syntax-start-timeout (if (getenv "TRAVIS_CI")
+                                                    (* 15 60)
+                                                  racket--check-syntax-start-timeout)))
+        (racket-check-syntax-mode 1))
+      (goto-char (point-min))
+      (racket-check-syntax-mode-goto-next-def)
+      (should (looking-at "racket/base"))
+      (racket-check-syntax-mode-goto-next-use)
+      (should (looking-at "define"))
+      (racket-check-syntax-mode 0))
     ;; Exit
     ;; (with-racket-repl-buffer
     ;;   (racket-tests/type&press "(exit)" "RET"))

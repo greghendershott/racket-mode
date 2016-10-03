@@ -108,10 +108,6 @@ be able to load at all.")
                                              (racket--buffer-file-name))))
   "Path to run.rkt")
 
-(defvar racket--repl-command-output-file
-  (make-temp-file "racket-mode-command-ouput-file-")
-  "File used to collect output from commands used by racket-mode.")
-
 (defun racket--repl-live-p ()
   "Does the Racket REPL buffer exist and have a live Racket process?"
   (comint-check-proc racket--repl-buffer-name))
@@ -130,11 +126,12 @@ Never changes selected window."
         (display-buffer racket--repl-buffer-name))
     (racket--require-version racket--minimum-required-version)
     (with-current-buffer
-        (make-comint racket--repl-buffer-name/raw ;w/o *stars*
-                     racket-racket-program
-                     nil
-                     racket--run.rkt
-                     racket--repl-command-output-file)
+        (with-temp-message "Starting Racket process..."
+         (make-comint racket--repl-buffer-name/raw ;w/o *stars*
+                      racket-racket-program
+                      nil
+                      racket--run.rkt
+                      (number-to-string racket-command-port)))
       ;; Display now so users see startup and banner sooner.
       (when display
         (display-buffer (current-buffer)))
@@ -143,18 +140,20 @@ Never changes selected window."
       ;; the racket--repl-eval functions.
       (set-process-coding-system (get-buffer-process racket--repl-buffer-name)
                                  'utf-8 'utf-8)
-      (racket-repl-mode))))
+      (racket-repl-mode)
+      (racket--repl-command-connect))))
 
 (defun racket--version ()
   "Get the `racket-racket-program' version as a string."
-  (with-temp-buffer
-    (call-process racket-racket-program
-                  nil   ;infile: none
-                  t     ;destination: current-buffer
-                  nil   ;redisplay: no
-                  "-e"
-                  "(version)")
-    (eval (read (buffer-substring (point-min) (point-max))))))
+  (with-temp-message "Checking Racket version..."
+    (with-temp-buffer
+      (call-process racket-racket-program
+                    nil                  ;infile: none
+                    t                    ;destination: current-buffer
+                    nil                  ;redisplay: no
+                    "-e"
+                    "(version)")
+      (eval (read (buffer-substring (point-min) (point-max)))))))
 
 (defun racket--require-version (at-least)
   "Raise a `user-error' unless Racket is version AT-LEAST."
@@ -164,13 +163,75 @@ Never changes selected window."
                   at-least have))
     t))
 
+(defvar racket--repl-command-process nil)
+(defvar racket--repl-command-connect-timeout 30)
+
+(defun racket--repl-command-connect ()
+  "Connect to the Racket command server.
+If already connected, disconnects then connects again."
+  (racket--repl-command-disconnect)
+  (with-temp-message "Connecting to command server..."
+    ;; The command server may not be ready -- Racket itself and our
+    ;; backend are still starting up -- so retry until timeout.
+    (with-timeout (racket--repl-command-connect-timeout
+                   (error "Could not connect to command server"))
+      (while (not racket--repl-command-process)
+        (condition-case ()
+            (setq racket--repl-command-process
+                  (let ((process-connection-type nil)) ;use pipe not pty
+                    (open-network-stream "racket-command"
+                                         (get-buffer-create "*racket-command-output*")
+                                         "127.0.0.1"
+                                         racket-command-port)))
+          (error (sit-for 0.1)))))))
+
+(defun racket--repl-command-disconnect ()
+  "Disconnect from the Racket command server. "
+  (when racket--repl-command-process
+    (with-temp-message "Deleting existing connection to command server..."
+      (delete-process racket--repl-command-process)
+      (setq racket--repl-command-process nil))))
+
+(defun racket--repl-command (fmt &rest xs)
+  "Send command to the Racket process and return the response sexp.
+Do not prefix the command with a `,'. Not necessary to append \n."
+  (racket--repl-ensure-buffer-and-process)
+  (let ((proc racket--repl-command-process))
+    (unless proc
+      (error "Command server process is nil"))
+    (with-current-buffer (process-buffer proc)
+      (delete-region (point-min) (point-max))
+      (process-send-string proc
+                           (concat (apply #'format (cons fmt xs))
+                                   "\n"))
+      (with-timeout (racket-command-timeout
+                     (error "Command server timeout"))
+        ;; While command server running and not yet complete sexp
+        (while (and (memq (process-status proc) '(open run))
+                    (or (= (point) (point-min))
+                        (condition-case ()
+                            (progn
+                              (goto-char (point-min))
+                              (forward-list 1)
+                              nil)
+                          (scan-error t))))
+          (accept-process-output nil 0.1)))
+      (cond ((not (memq (process-status proc) '(open run)))
+             (error "Racket command process: died"))
+            ((= (point-min) (point))
+             (error "Racket command process: Empty response"))
+            (t
+             (let ((result (buffer-substring (point-min) (point-max))))
+               (delete-region (point-min) (point-max))
+               (eval (read result))))))))
+
 (defun racket-repl-file-name ()
   "Return the file running in the buffer, or nil.
 
 The result can be nil if the REPL is not started, or if it is
 running no particular file as with the `,top` command."
   (when (comint-check-proc racket--repl-buffer-name)
-    (racket--repl-cmd/sexpr ",path")))
+    (racket--repl-command "path")))
 
 (defun racket--in-repl-or-its-file-p ()
   "Is current-buffer `racket-repl-mode' or buffer for file active in it?"
@@ -203,62 +264,15 @@ most recent `racket-mode' buffer, if any."
                (and (eq major-mode 'racket-mode) b)))
            (buffer-list)))
 
-(defun racket--repl-eval (expression)
-  "Eval EXPRESSION in the *Racket REPL* buffer.
+(defun racket--repl-eval (fmt &rest vs)
+  "Eval expression in the *Racket REPL* buffer.
 Allow Racket process output to be displayed, and show the window.
 Intended for use by things like ,run command."
   (racket-repl t)
   (racket--repl-forget-errors)
-  (comint-send-string (racket--get-repl-buffer-process) expression)
+  (comint-send-string (racket--get-repl-buffer-process)
+                      (apply #'format (cons fmt vs)))
   (racket--repl-show-and-move-to-end))
-
-(defconst racket--repl-command-timeout 10
-  "Default timeout when none supplied to `racket--repl-cmd/buffer' and friends.")
-
-(defun racket--repl-cmd/buffer (command &optional timeout)
-  "Send COMMAND capturing its input in the returned buffer.
-
-Expects COMMAND to already include the comma/unquote prefix: `,command`.
-
-Prepends a `#` to make it `#,command`. This causes output to be
-redirected to `racket--repl-command-output-file'. When that file
-comes into existence, the command has completed and we read its
-contents into a buffer."
-  (let* ((deadline (+ (float-time) (or timeout racket--repl-command-timeout)))
-         (update-interval 0.5)
-         (pr (make-progress-reporter "Waiting for Racket..."
-                                     nil nil nil nil update-interval)))
-    (progress-reporter-update pr)
-    (racket--repl-ensure-buffer-and-process)
-    (progress-reporter-update pr)
-    (when (file-exists-p racket--repl-command-output-file)
-      (delete-file racket--repl-command-output-file))
-    (comint-send-string (racket--get-repl-buffer-process)
-                        (concat "#" command "\n")) ;e.g. #,command
-    (while (and (not (file-exists-p racket--repl-command-output-file))
-                (< (float-time) deadline))
-      (progress-reporter-update pr)
-      (accept-process-output (get-buffer-process racket--repl-buffer-name)
-                             update-interval)
-      (sit-for 0)) ;let REPL output be drawn
-    (unless (file-exists-p racket--repl-command-output-file)
-      (error "Racket did not respond in time"))
-    (let ((buf (get-buffer-create " *Racket Command Output*")))
-      (with-current-buffer buf
-        (progress-reporter-update pr)
-        (erase-buffer)
-        (insert-file-contents racket--repl-command-output-file)
-        (progress-reporter-update pr)
-        (delete-file racket--repl-command-output-file)
-        (message "")) ;instead of (progress-reporter-done pr)
-      buf)))
-
-(defun racket--repl-cmd/string (command &optional timeout)
-  (with-current-buffer (racket--repl-cmd/buffer command timeout)
-    (buffer-substring (point-min) (point-max))))
-
-(defun racket--repl-cmd/sexpr (command &optional timeout)
-  (eval (read (racket--repl-cmd/string command timeout))))
 
 ;;; send to REPL
 

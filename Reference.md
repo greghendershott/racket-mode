@@ -666,18 +666,6 @@ Macro expand again the previous expansion done by one of:
 - [`racket-expand-last-sexp`](#racket-expand-last-sexp)
 - [`racket-expand-again`](#racket-expand-again)
 
-### racket-gui-macro-stepper
-<kbd>M-x racket-gui-macro-stepper</kbd>
-
-Run the DrRacket GUI macro stepper.
-
-Runs on the active region, if any, else the entire buffer.
-
-EXPERIMENTAL: May be changed or removed.
-
-BUGGY: The first-ever invocation might not display a GUI window.
-If so, try again.
-
 # Variables
 
 > Note: You may also set these via Customize.
@@ -686,6 +674,12 @@ If so, try again.
 
 ### racket-racket-program
 Pathname of the racket executable.
+
+### racket-command-port
+Port number for Racket REPL command server.
+
+### racket-command-timeout
+Timeout for Racket REPL command server.
 
 ### racket-raco-program
 Pathname of the raco executable.
@@ -727,7 +721,15 @@ List of command-line arguments to supply to your Racket program.
 Accessible in your Racket program in the usual way -- the
 parameter `current-command-line-arguments` and friends.
 
-The value must be an unquoted list of strings such as:
+This is an Emacs buffer-local variable -- convenient to set as a
+file local variable. For example at the end of your .rkt file:
+
+    ;; Local Variables:
+    ;; racket-user-command-line-arguments: ("-f" "bar")
+    ;; End:
+
+Set this way the value must be an unquoted list of strings such
+as:
 
     ("-f" "bar")
 
@@ -735,13 +737,6 @@ but NOT:
 
     '("-f" "bar")
     (list "-f" "bar")
-
-This is an Emacs buffer-local variable -- convenient to set as a
-file local variable. For example at the end of your .rkt file:
-
-    ;; Local Variables:
-    ;; racket-user-command-line-arguments: ("-f" "bar")
-    ;; End:
 
 
 ## REPL

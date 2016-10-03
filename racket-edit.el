@@ -111,7 +111,15 @@ it can be a menu target."
 Accessible in your Racket program in the usual way -- the
 parameter `current-command-line-arguments` and friends.
 
-The value must be an unquoted list of strings such as:
+This is an Emacs buffer-local variable -- convenient to set as a
+file local variable. For example at the end of your .rkt file:
+
+    ;; Local Variables:
+    ;; racket-user-command-line-arguments: (\"-f\" \"bar\")
+    ;; End:
+
+Set this way the value must be an unquoted list of strings such
+as:
 
     (\"-f\" \"bar\")
 
@@ -119,13 +127,6 @@ but NOT:
 
     '(\"-f\" \"bar\")
     (list \"-f\" \"bar\")
-
-This is an Emacs buffer-local variable -- convenient to set as a
-file local variable. For example at the end of your .rkt file:
-
-    ;; Local Variables:
-    ;; racket-user-command-line-arguments: (\"-f\" \"bar\")
-    ;; End:
 ")
 
 (defun racket--do-run (context-level &optional what-to-run)
@@ -145,12 +146,12 @@ of a file name to a list of submodule symbols. Otherwise, the
   (remove-overlays (point-min) (point-max) 'racket-uncovered-overlay)
   (racket--invalidate-completion-cache)
   (racket--invalidate-type-cache)
-  (racket--repl-eval (format ",run %S %s %s %s %S\n"
-                             (or what-to-run (racket--what-to-run))
-                             racket-memory-limit
-                             racket-pretty-print
-                             context-level
-                             racket-user-command-line-arguments)))
+  (racket--repl-eval ",run %S %s %s %s %S\n"
+                     (or what-to-run (racket--what-to-run))
+                     racket-memory-limit
+                     racket-pretty-print
+                     context-level
+                     racket-user-command-line-arguments))
 
 (defun racket--what-to-run ()
   (cons (racket--buffer-file-name) (racket--submod-path)))
@@ -226,10 +227,13 @@ See also:
              "Running tests..."))
   (racket--do-run (if coverage 'coverage racket-error-context)
                   (list 'submod (racket--buffer-file-name) 'test))
+  (message "Waiting for Racket prompt...")
+  (while (not (racket--repl-command "prompt"))
+    (sit-for 0.5))
   (if (not coverage)
       (message "Tests done.")
     (message "Checking coverage results...")
-    (let ((xs (racket--repl-cmd/sexpr ",get-uncovered")))
+    (let ((xs (racket--repl-command "get-uncovered")))
       (dolist (x xs)
         (let ((beg (car x))
               (end (cdr x)))
@@ -290,7 +294,7 @@ will tell you so but won't visit the definition site."
 
 (defun racket--do-visit-def-or-mod (cmd sym)
   "CMD must be \"def\" or \"mod\". SYM must be `symbolp`."
-  (pcase (racket--repl-cmd/sexpr (format ",%s %s\n\n" cmd sym))
+  (pcase (racket--repl-command "%s %s" cmd sym)
     (`(,path ,line ,col)
      (racket--push-loc)
      (find-file path)
@@ -340,7 +344,7 @@ instead of looking at point."
   (let ((sym (racket--identifier-at-point-or-prompt prefix
                                                     "Racket help for: ")))
     (when sym
-      (racket--repl-cmd/string (format ",doc %s" sym)))))
+      (racket--repl-command "doc %s" sym))))
 
 (defvar racket--loc-stack '())
 
@@ -435,31 +439,6 @@ Otherwise, expands once. You may use `racket-expand-again'."
   (interactive)
   (comint-send-string (racket--get-repl-buffer-process) ",exp+\n"))
 
-(defun racket-gui-macro-stepper ()
-  "Run the DrRacket GUI macro stepper.
-
-Runs on the active region, if any, else the entire buffer.
-
-EXPERIMENTAL: May be changed or removed.
-
-BUGGY: The first-ever invocation might not display a GUI window.
-If so, try again."
-  (interactive)
-  (save-buffer)
-  (racket--repl-eval
-   (format "%S\n"
-           `(begin
-             (require macro-debugger/stepper racket/port)
-             ,(if (region-active-p)
-                  `(expand/step
-                    (with-input-from-string ,(buffer-substring-no-properties
-                                              (region-beginning)
-                                              (region-end))
-                                            read-syntax))
-                `(expand-module/step
-                  (string->path
-                   ,(racket--buffer-file-name))))))))
-
 
 ;;; requires
 
@@ -489,15 +468,12 @@ file using `#lang`. It does *not* work for `require`s inside
 
 See also: `racket-trim-requires' and `racket-base-requires'."
   (interactive)
-  (let* ((result (racket--kill-top-level-requires))
-         (beg (nth 0 result))
-         (reqs (nth 1 result))
-         (new (and beg reqs
-                   (racket--repl-cmd/string
-                    (format ",requires/tidy %S" reqs)))))
-    (when new
-      (goto-char beg)
-      (insert (concat (read new) "\n")))))
+  (let* ((reqs (racket--top-level-requires 'find))
+         (new (and reqs
+                   (racket--repl-command "requires/tidy %S" reqs))))
+    (when (not (string-equal "" new))
+      (goto-char (racket--top-level-requires 'kill))
+      (insert (concat new "\n")))))
 
 (defun racket-trim-requires ()
   "Like `racket-tidy-requires' but also deletes unused modules.
@@ -512,20 +488,16 @@ file using `#lang`. It does *not* work for `require`s inside
 See also: `racket-base-requires'."
   (interactive)
   (when (buffer-modified-p) (save-buffer))
-  (let* ((result (racket--kill-top-level-requires))
-         (beg (nth 0 result))
-         (reqs (nth 1 result))
-         (new (and beg reqs
-                   (racket--repl-cmd/string
-                    (format ",requires/trim \"%s\" %S"
-                            (racket--buffer-file-name)
-                            reqs))))
-         (new (and new
-                   (condition-case () (read new)
-                     (error (revert-buffer t t t) ;restore original requires
-                            (error "Can't do, source file has error"))))))
-    (when new
-      (goto-char beg)
+  (let* ((reqs (racket--top-level-requires 'find))
+         (new (and reqs
+                   (racket--repl-command
+                    "requires/trim \"%s\" %S"
+                    (racket--buffer-file-name)
+                    reqs))))
+    (when (not new)
+      (error "Can't do, source file has error"))
+    (goto-char (racket--top-level-requires 'kill))
+    (when (not (string-equal "" new))
       (insert (concat new "\n")))))
 
 (defun racket-base-requires ()
@@ -557,51 +529,35 @@ such as changing `#lang typed/racket` to `#lang typed/racket/base`."
   (unless (racket--buffer-start-re "^#lang.*? racket$")
     (error "File does not use use #lang racket. Cannot change."))
   (when (buffer-modified-p) (save-buffer))
-  (let* ((result (racket--kill-top-level-requires))
-         (beg (or (nth 0 result)
-                  (save-excursion
-                    (goto-char 0) (forward-line 1) (insert "\n") (point))))
-         (reqs (nth 1 result))
-         (new (racket--repl-cmd/string
-               (format ",requires/base \"%s\" %S"
-                       (racket--buffer-file-name)
-                       reqs)))
-         (new (and new
-                   (condition-case () (read new)
-                     (error (revert-buffer t t t) ;restore original requires
-                            (error "Can't do, source file has error"))))))
-    (when new
-      (goto-char beg)
-      (insert (concat new "\n")))
+  (let* ((reqs (racket--top-level-requires 'find))
+         (new (racket--repl-command
+               "requires/base \"%s\" %S"
+               (racket--buffer-file-name)
+               reqs)))
+    (when (not new)
+      (error "Source file has error"))
     (goto-char (point-min))
     (re-search-forward "^#lang.*? racket$")
-    (insert "/base")))
+    (insert "/base")
+    (goto-char (or (racket--top-level-requires 'kill)
+                   (progn (insert "\n") (point))))
+    (when (not (string= "" new))
+      (insert (concat new "\n")))))
 
 (defun racket--buffer-start-re (re)
   (save-excursion
-    (condition-case ()
-        (progn
-          (goto-char (point-min))
-          (re-search-forward re)
-          t)
-      (error nil))))
+    (ignore-errors
+      (goto-char (point-min))
+      (re-search-forward re)
+      t)))
 
-(defun racket--kill-top-level-requires ()
-  "Delete all top-level `require`s. Return list with two results:
+(defun racket--top-level-requires (what)
+  "Identify all top-level requires and do WHAT.
 
-The first element is point where the first require was found, or
-nil.
+When WHAT is 'find, returns the top-level require forms.
 
-The second element is a list of require s-expressions found.
-
-Note: This only works for requires at the top level of a source
-file using `#lang`. It does *not* work for `require`s inside
-`module` forms.
-
-Note: It might work better to shift this work into Racket code,
-and have it return a list of file offsets and replacements. Doing
-so would make it easier to match require forms syntactically
-instead of textually, and handle module and submodule forms."
+When WHAT is 'kill, kill the top-level requires, returning the
+location of the first one."
   (save-excursion
     (goto-char (point-min))
     (let ((first-beg nil)
@@ -613,9 +569,10 @@ instead of textually, and handle module and submodule forms."
                (sexpr (read str)))
           (unless first-beg (setq first-beg beg))
           (setq requires (cons sexpr requires))
-          (kill-sexp -1)
-          (delete-blank-lines)))
-      (list first-beg requires))))
+          (when (eq 'kill what)
+            (kill-sexp -1)
+            (delete-blank-lines))))
+      (if (eq 'kill what) first-beg requires))))
 
 
 ;;; racket-check-syntax
@@ -775,26 +732,33 @@ special commands to navigate among the definition and its uses.
 "
   :lighter " CheckSyntax"
   :keymap (racket--easy-keymap-define
-           '(("q"       racket-check-syntax-mode-quit)
-             ("h"       racket-check-syntax-mode-help)
+           '(("q"               racket-check-syntax-mode-quit)
+             ("h"               racket-check-syntax-mode-help)
              (("j" "TAB")       racket-check-syntax-mode-goto-next-def)
              (("k" "<backtab>") racket-check-syntax-mode-goto-prev-def)
-             ("."       racket-check-syntax-mode-goto-def)
-             ("n"       racket-check-syntax-mode-goto-next-use)
-             ("p"       racket-check-syntax-mode-goto-prev-use)
-             ("r"       racket-check-syntax-mode-rename)))
+             ("."               racket-check-syntax-mode-goto-def)
+             ("n"               racket-check-syntax-mode-goto-next-use)
+             ("p"               racket-check-syntax-mode-goto-prev-use)
+             ("r"               racket-check-syntax-mode-rename)))
   (unless (eq major-mode 'racket-mode)
     (setq racket-check-syntax-mode nil)
-    (error "racket-check-syntax-mode only works with racket-mode"))
+    (user-error "racket-check-syntax-mode only works with racket-mode"))
   (racket--check-syntax-stop)
   (when racket-check-syntax-mode
     (racket--check-syntax-start)))
 
+(defvar racket--check-syntax-start-timeout 30)
+
 (defun racket--check-syntax-start ()
-  (racket-run) ;ensure REPL is evaluating this buffer
   (message "Analyzing...")
-  (let ((xs (racket--repl-cmd/sexpr (format ",check-syntax\n\n") 30)))
+  (let ((xs (let ((racket-command-timeout racket--check-syntax-start-timeout))
+              (racket--repl-command "check-syntax \"%s\""
+                                    (buffer-file-name)))))
     (unless xs
+      (racket-check-syntax-mode 0)
+      (user-error "No bindings found"))
+    (unless (listp xs)
+      (racket-check-syntax-mode 0)
       (error "Requires a newer version of Racket."))
     (with-silent-modifications
       (dolist (x xs)

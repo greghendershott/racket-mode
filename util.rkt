@@ -4,7 +4,8 @@
                      syntax/parse))
 
 (provide display-commented
-         with-dynamic-requires)
+         with-dynamic-requires
+         box-swap!)
 
 (define (display-commented str)
   (eprintf "; ~a\n"
@@ -15,3 +16,11 @@
     [(_ ([lib:id id:id] ...+) body:expr ...+)
      #'(let ([id (dynamic-require 'lib 'id)] ...)
          body ...)]))
+
+(define (box-swap! box f . args)
+  (let loop ()
+    (let* ([old (unbox box)]
+           [new (apply f old args)])
+      (if (box-cas! box old new)
+          new
+          (loop)))))

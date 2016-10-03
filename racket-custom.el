@@ -43,6 +43,20 @@
   :risky t
   :group 'racket)
 
+(defcustom racket-command-port 55555
+  "Port number for Racket REPL command server."
+  :tag "Command Port"
+  :type 'integer
+  :risky t
+  :group 'racket)
+
+(defcustom racket-command-timeout 3
+  "Timeout for Racket REPL command server."
+  :tag "Command Timeout"
+  :type 'integer
+  :risky t
+  :group 'racket)
+
 (defcustom racket-raco-program (cond (racket--winp "Raco.exe")
                                      (t            "raco"))
   "Pathname of the raco executable."

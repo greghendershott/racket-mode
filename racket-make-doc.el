@@ -89,8 +89,7 @@
     racket-expand-region
     racket-expand-definition
     racket-expand-last-sexp
-    racket-expand-again
-    racket-gui-macro-stepper)
+    racket-expand-again)
   "Commands to include in the Reference.")
 
 (defun racket-make-doc/commands ()
@@ -139,6 +138,8 @@
 (defconst racket-make-doc/variables
   '("General"
     racket-racket-program
+    racket-command-port
+    racket-command-timeout
     racket-raco-program
     racket-memory-limit
     racket-error-context

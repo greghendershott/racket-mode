@@ -4,14 +4,17 @@
          macro-debugger/analysis/check-requires
          racket/contract/base
          racket/contract/region
+         racket/file
          racket/format
          racket/function
          racket/list
          racket/match
+         racket/path
          racket/port
          racket/pretty
          racket/set
          racket/string
+         racket/tcp
          syntax/modresolve
          (only-in xml xexpr->string)
          "channel.rkt"
@@ -24,48 +27,93 @@
          "try-catch.rkt"
          "util.rkt")
 
-(provide make-prompt-read
-         current-command-output-file
+(provide start-command-server
+         attach-command-server
+         make-prompt-read
          display-prompt)
 
 (module+ test
   (require rackunit))
 
-;; Commands intended for use programmatically by racket-mode may
-;; output their results to a file whose name is the value of the
-;; current-command-output-file parameter. This avoids mixing with
-;; stdout and stderr, which ultimately is not very reliable. How does
-;; racket-mode know when the file is ready to be read? 1. racket-mode
-;; deletes the file, calls us, and waits for the file to exist. 2. We
-;; direct the command's output to a temporary file (on the same fs),
-;; then when the command has finished, rename the temp file to
-;; current-command-output-file. This way, racket-mode knows that as
-;; soon as the file exists again, the command is finished and its
-;; output is ready to be read from the file.
-(define current-command-output-file (make-parameter #f))
-(define (with-output-to-command-output-file f)
-  (cond [(current-command-output-file)
-         (define tmp-file (path-add-suffix (current-command-output-file) ".tmp"))
-         (with-output-to-file tmp-file #:exists 'replace f)
-         (rename-file-or-directory tmp-file (current-command-output-file) #t)]
-        [else (f)]))
+;; Emacs Lisp needs to send us commands and get responses.
+;;
+;; There are a few ways to do this.
+;;
+;; 0. Vanilla "inferior-mode" stdin/stdout. Commands are sent to stdin
+;;    -- "typed invisibly at the REPL prompt" -- and responses go to
+;;    stdout. Mixing command I/O with the user's Racket program I/O
+;;    works better than you might expect -- but worse than you want.
+;;
+;;    Unmixing output is the biggest challenge. Traditionally a comint
+;;    filter proc will try to extract everything up to a sentinel like
+;;    the next REPL prompt. But it can accidentally match user program
+;;    output that resembles the sentinel. (Real example: The ,describe
+;;    command returns HTML that happens to contain `\ntag>`.)
+;;
+;;    Input is also a problem. If the user's program reads from stdin,
+;;    it might eat a command. Or if it runs for awhile; commands are
+;;    blocked.
+;;
+;;    TL;DR: Command traffic should be out of band not mixed in stdin
+;;    and stdout.
+;;
+;; 1. Use files. Originally I addressed the mixed-output side by
+;;    having commands output responses to a file. (Stdout only
+;;    contains regular Racket output and appears directly in REPL
+;;    buffer as usual.) This didn't address mixed input. Although
+;;    using a command input file could have worked (and did work in
+;;    experiments), instead...
+;;
+;; 2. Use sockets. Now the status quo. Note that this is _not_ a
+;;    "network REPL". The socket server is solely for command input
+;;    and output. There is no redirection of user's Racket program
+;;    I/O, and it is still handled by Emacs' comint-mode in the usual
+;;    manner.
+
+(define command-server-ns (make-base-namespace))
+(define command-server-path #f)
+
+(define (attach-command-server ns path)
+  (set! command-server-ns ns)
+  (set! command-server-path path))
+
+(define (start-command-server port)
+  (void
+   (thread
+    (λ ()
+      (define listener (tcp-listen port 4 #t))
+      (let connect ()
+        (define-values (in out) (tcp-accept listener))
+        (parameterize ([current-input-port in]
+                       [current-output-port out])
+          (define fail (λ _ (elisp-println #f)))
+          (let loop ()
+            (match (read-syntax)
+              [(? eof-object?) (void)]
+              [stx (with-handlers ([exn:fail? fail])
+                     (parameterize ([current-namespace command-server-ns])
+                       (handle-command stx command-server-path fail)))
+                   (flush-output)
+                   (loop)])))
+        (close-input-port in)
+        (close-output-port out)
+        (connect))))))
+
+(define at-prompt (box 0))
+(define (at-prompt?) (positive? (unbox at-prompt)))
 
 (define/contract ((make-prompt-read m))
   (-> (or/c #f mod?) (-> any))
   (display-prompt (maybe-mod->prompt-string m))
   (define in ((current-get-interaction-input-port)))
-  (define stx ((current-read-interaction) (object-name in) in))
+  (define stx (dynamic-wind
+                (λ _ (box-swap! at-prompt add1))
+                (λ _ ((current-read-interaction) (object-name in) in))
+                (λ _ (box-swap! at-prompt sub1))))
   (syntax-case stx ()
-    ;; #,command redirect
-    [(uq cmd)
-     (eq? 'unsyntax (syntax-e #'uq))
-     (begin (with-output-to-command-output-file
-              (λ () (handle-command #'cmd m)))
-            #'(void))] ;avoid Typed Racket printing a type
-    ;; ,command normal
     [(uq cmd)
      (eq? 'unquote (syntax-e #'uq))
-     (begin (handle-command #'cmd m)
+     (begin (handle-command #'cmd m usage)
             #'(void))] ;avoid Typed Racket printing a type
     [_ stx]))
 
@@ -74,8 +122,10 @@
   (fresh-line)
   (display str)
   ;; Use a character unlikely to appear in normal output. Makes it
-  ;; easier for Emacs comint-regexp-prompt not to match program output
-  ;; by mistake.
+  ;; easier for Emacs comint-regexp-prompt to avoid matching program
+  ;; output by mistake. (This used to be very important: We mixed
+  ;; command output with stdout and a comint filter proc had to un-mix
+  ;; it. Today it mainly just helps comint-{previous next}-prompt.)
   (display #\uFEFF) ;ZERO WIDTH NON-BREAKING SPACE
   (display "> ")
   (flush-output)
@@ -83,47 +133,48 @@
 
 (define (elisp-read)
   ;; Elisp prints '() as 'nil. Reverse that. (Assumption: Although
-  ;; some Elisp code puns nil/() also to mean "false", _our_ Elisp
-  ;; code _won't_ do that.)
+  ;; some Elisp code puns nil/() also to mean "false" -- _our_ Elisp
+  ;; code _won't_ do that when sending us commands.)
   (match (read)
     ['nil '()]
     [x x]))
 
-(define/contract (handle-command cmd-stx m)
-  (-> syntax? (or/c #f mod?) any)
+(define/contract (handle-command cmd-stx m unknown-command)
+  (-> syntax? (or/c #f mod?) (-> any) any)
   (define-values (dir file mod-path) (maybe-mod->dir/file/rmp m))
   (define path (and file (build-path dir file)))
   (let ([read elisp-read])
     (case (syntax-e cmd-stx)
       ;; These commands are intended to be used by either the user or
       ;; racket-mode.
-      [(run) (run-or-top 'run)]
-      [(top) (run-or-top 'top)]
-      [(doc) (doc (read-syntax))]
-      [(exp) (exp1 (read))]
-      [(exp+) (exp+)]
-      [(exp!) (exp! (read))]
-      [(log) (log-display (map string->symbol (string-split (read-line))))]
-      [(pwd) (display-commented (~v (current-directory)))]
-      [(cd) (cd (~a (read)))]
-      [(exit) (exit)]
-      [(info) (info)]
+      [(run)             (run-or-top 'run)]
+      [(top)             (run-or-top 'top)]
+      [(doc)             (doc (read-syntax))]
+      [(exp)             (exp1 (read))]
+      [(exp+)            (exp+)]
+      [(exp!)            (exp! (read))]
+      [(log)             (log-display (map string->symbol (string-split (read-line))))]
+      [(pwd)             (display-commented (~v (current-directory)))]
+      [(cd)              (cd (~a (read)))]
+      [(exit)            (exit)]
+      [(info)            (info)]
       ;; These remaining commands are intended to be used by
       ;; racket-mode, only.
-      [(path) (elisp-println (and path (path->string path)))]
-      [(syms) (syms)]
-      [(def) (def-loc (read))]
-      [(describe) (describe (read-syntax))]
-      [(mod) (mod-loc (read) mod-path)]
-      [(type) (type (read))]
-      [(requires/tidy) (requires/tidy (read))]
-      [(requires/trim) (requires/trim (read) (read))]
-      [(requires/base) (requires/base (read) (read))]
+      [(path)            (elisp-println path)]
+      [(prompt)          (elisp-println (and (at-prompt?) (or path 'top)))]
+      [(syms)            (syms)]
+      [(def)             (def-loc (read))]
+      [(describe)        (describe (read-syntax))]
+      [(mod)             (mod-loc (read) mod-path)]
+      [(type)            (type (read))]
+      [(requires/tidy)   (requires/tidy (read))]
+      [(requires/trim)   (requires/trim (read) (read))]
+      [(requires/base)   (requires/base (read) (read))]
       [(find-collection) (find-collection (read))]
-      [(get-profile) (get-profile)]
-      [(get-uncovered) (get-uncovered path)]
-      [(check-syntax) (check-syntax path)]
-      [else (usage)])))
+      [(get-profile)     (get-profile)]
+      [(get-uncovered)   (get-uncovered path)]
+      [(check-syntax)    (check-syntax (string->path (read)))]
+      [else              (unknown-command)])))
 
 (define (usage)
   (display-commented
@@ -196,10 +247,10 @@
            ['top (cons #f (read-line->reads))]) ;i.e. what = #f
     [(list what (? number? mem) (? boolean? pp?) (? context-level? ctx)
            (? (or/c #f (listof string?)) args))
-     (current-args (list->vector (or args (list)))) ;Elisp () = nil => #f
      (current-mem mem)
      (current-pp? pp?)
      (current-ctx-lvl ctx)
+     (current-args (list->vector (or args (list)))) ;Elisp () = nil => #f
      (go what)]
     [(list what (? number? mem) (? boolean? pp?) (? context-level? ctx))
      (current-mem mem)
@@ -235,8 +286,7 @@
   (displayln @~a{Memory Limit:   @(current-mem)
                  Pretty Print:   @(current-pp?)
                  Error Context:  @(current-ctx-lvl)
-                 Command Line:   @(current-args)
-                 Command Output: @(current-command-output-file)}))
+                 Command Line:   @(current-args)}))
 
 ;;; misc other commands
 
@@ -310,7 +360,8 @@
 ;; for Typed Racket type or a contract, if any.
 
 (define (describe stx)
-  (display (describe* stx)))
+  (write (describe* stx))
+  (newline))
 
 (define (describe* _stx)
   (define stx (namespace-syntax-introduce _stx))
@@ -332,6 +383,7 @@
     [#t             't]
     [(? list? xs)   (map ->elisp xs)]
     [(cons x y)     (cons (->elisp x) (->elisp y))]
+    [(? path? v)    (path->string v)]
     [v              v]))
 
 (module+ test
@@ -347,7 +399,9 @@
             (λ () (find-help (namespace-syntax-introduce stx))))
      [(pregexp "Sending to web browser") #t])
    #:catch exn:fail? _
-   (search-for (list (~a (syntax->datum stx))))))
+   (search-for (list (~a (syntax->datum stx)))))
+  ;; Need some command response
+  (elisp-println "Sent to web browser"))
 
 (define (cd s)
   (let ([old-wd (current-directory)])
@@ -725,53 +779,54 @@
 ;;; check-syntax
 
 (define check-syntax
-  (let* ([show-content (try (let ([f (dynamic-require 'drracket/check-syntax
-                                                      'show-content)])
-                              ;; Ensure correct position info for
-                              ;; Unicode like λ. show-content probably
-                              ;; ought to do this itself, but work
-                              ;; around that.
-                              (λ (path)
-                                (parameterize ([port-count-lines-enabled #t])
-                                  (f path))))
-                            #:catch exn:fail? _ (λ _ '()))])
+  (let ([show-content (try (let ([f (dynamic-require 'drracket/check-syntax
+                                                     'show-content)])
+                             ;; Ensure correct position info for
+                             ;; Unicode like λ. show-content probably
+                             ;; ought to do this itself, but work
+                             ;; around that.
+                             (λ (path)
+                               (parameterize ([port-count-lines-enabled #t])
+                                 (f path))))
+                           #:catch exn:fail? _ (λ _ (elisp-println 'not-supported)))])
+    ;; Note: Adjust all positions to 1-based Emacs `point' values.
     (λ (path)
-      ;; Note: Adjust all positions to 1-based Emacs `point' values.
-      ;; Get all the data.
-      (define xs (remove-duplicates (show-content path)))
-      ;; Extract the add-mouse-over-status items into a list.
-      (define infos
-        (remove-duplicates
-         (filter values
-                 (for/list ([x (in-list xs)])
-                   (match x
-                     [(vector 'syncheck:add-mouse-over-status beg end str)
-                      (list 'info (add1 beg) (add1 end) str)]
-                     [_ #f])))))
-      ;; Consolidate the add-arrow/name-dup items into a hash table
-      ;; with one item per definition. The key is the definition
-      ;; position. The value is the set of its uses.
-      (define ht-defs/uses (make-hash))
-      (for ([x (in-list xs)])
-        (match x
-          [(or (vector 'syncheck:add-arrow/name-dup
-                       def-beg def-end
-                       use-beg use-end
-                       _ _ _ _)
-               (vector 'syncheck:add-arrow/name-dup/pxpy
-                       def-beg def-end _ _
-                       use-beg use-end _ _
-                       _ _ _ _))
-           (hash-update! ht-defs/uses
-                         (list (add1 def-beg) (add1 def-end))
-                         (λ (v) (set-add v (list (add1 use-beg) (add1 use-end))))
-                         (set))]
-          [_ #f]))
-      ;; Convert the hash table into a list, sorting the usage positions.
-      (define defs/uses
-        (for/list ([(def uses) (in-hash ht-defs/uses)])
-          (match-define (list def-beg def-end) def)
-          (define tweaked-uses (sort (set->list uses) < #:key car))
-          (list 'def/uses def-beg def-end tweaked-uses)))
-      ;; Append both lists and print as Elisp values.
-      (elisp-println (append infos defs/uses)))))
+      (parameterize ([current-load-relative-directory (path-only path)])
+        ;; Get all the data.
+        (define xs (remove-duplicates (show-content path)))
+        ;; Extract the add-mouse-over-status items into a list.
+        (define infos
+          (remove-duplicates
+           (filter values
+                   (for/list ([x (in-list xs)])
+                     (match x
+                       [(vector 'syncheck:add-mouse-over-status beg end str)
+                        (list 'info (add1 beg) (add1 end) str)]
+                       [_ #f])))))
+        ;; Consolidate the add-arrow/name-dup items into a hash table
+        ;; with one item per definition. The key is the definition
+        ;; position. The value is the set of its uses.
+        (define ht-defs/uses (make-hash))
+        (for ([x (in-list xs)])
+          (match x
+            [(or (vector 'syncheck:add-arrow/name-dup
+                         def-beg def-end
+                         use-beg use-end
+                         _ _ _ _)
+                 (vector 'syncheck:add-arrow/name-dup/pxpy
+                         def-beg def-end _ _
+                         use-beg use-end _ _
+                         _ _ _ _))
+             (hash-update! ht-defs/uses
+                           (list (add1 def-beg) (add1 def-end))
+                           (λ (v) (set-add v (list (add1 use-beg) (add1 use-end))))
+                           (set))]
+            [_ #f]))
+        ;; Convert the hash table into a list, sorting the usage positions.
+        (define defs/uses
+          (for/list ([(def uses) (in-hash ht-defs/uses)])
+            (match-define (list def-beg def-end) def)
+            (define tweaked-uses (sort (set->list uses) < #:key car))
+            (list 'def/uses def-beg def-end tweaked-uses)))
+        ;; Append both lists and print as Elisp values.
+        (elisp-println (append infos defs/uses))))))

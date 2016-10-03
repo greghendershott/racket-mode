@@ -44,7 +44,7 @@ See `racket--invalidate-completion-cache' and
   (unless racket--namespace-symbols
     (if (racket--in-repl-or-its-file-p)
         (setq racket--namespace-symbols
-              (racket--repl-cmd/sexpr ",syms"))
+              (racket--repl-command "syms"))
       (error "Completions not available until you `racket-run' this buffer")))
   racket--namespace-symbols)
 
@@ -86,7 +86,7 @@ See `racket--invalidate-completion-cache' and
 
 (defun racket--get-def-file+line (sym)
   "Return a value suitable for use as :company-location."
-  (pcase (racket--repl-cmd/sexpr (format ",def %s\n\n" sym))
+  (pcase (racket--repl-command "def %s" sym)
     (`(,path ,line ,_) (cons path line))
     (_ nil)))
 
@@ -108,7 +108,7 @@ See `racket--invalidate-completion-cache' and
          (v (gethash sym racket--type-cache)))
     (or v
         (and (racket--in-repl-or-its-file-p)
-             (let ((v (racket--repl-cmd/sexpr (concat ",type " str))))
+             (let ((v (racket--repl-command (concat "type " str))))
                (puthash sym v racket--type-cache)
                v)))))
 
@@ -237,7 +237,7 @@ added) and nil for the latter.
 
 Returns the buffer in which the description was written."
   (let* ((bufname "*Racket Describe*")
-         (html (racket--repl-cmd/string (format ",describe %s" sym)))
+         (html (racket--repl-command "describe %s" sym))
          ;; Emacs shr renderer removes leading &nbsp; from <td> elements
          ;; -- which messes up the indentation of s-expressions including
          ;; contracts. So replace &nbsp with `spc' in the source HTML,
@@ -276,8 +276,9 @@ Returns the buffer in which the description was written."
         (insert-text-button "Documentation in Browser"
                             'action
                             `(lambda (_btn)
-                               (racket--repl-cmd/buffer
-                                ,(substring-no-properties (format ",doc %s\n" sym)))))
+                               (racket--repl-command
+                                "doc %s"
+                                ,(substring-no-properties (format "%s" sym)))))
         (insert "          [q]uit"))
       (read-only-mode 1)
       (goto-char (point-min))

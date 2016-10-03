@@ -50,8 +50,8 @@ See also: `racket-visit-module' and `racket-open-require-path'."
   (interactive "P")
   (let ((coll  (racket--symbol-at-point-or-prompt prefix "Collection name: ")))
     (when coll
-      (let ((paths (racket--repl-cmd/sexpr (format ",find-collection \"%s\"\n"
-                                                   coll))))
+      (let ((paths (racket--repl-command "find-collection \"%s\""
+                                         coll)))
         (cond ((eq 'find-collection-not-installed paths)
                ;; FIXME? Offer to run this for them?
                (error "Run `raco pkg install raco-find-collection'"))

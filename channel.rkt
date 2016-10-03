@@ -4,7 +4,7 @@
          racket/contract
          "mod.rkt")
 
-(provide the-channel
+(provide main-channel
          (struct-out msg)
          (struct-out load-gui)
          (struct-out rerun)
@@ -42,8 +42,8 @@
 (define (profile/coverage-level? v)
   (memq? v profile/coverage-levels))
 
-;; Messages via a channel from the repl thread to the main thread.
-(define the-channel (make-channel))
+;; Messages to the main thread via a channel
+(define main-channel (make-channel))
 (define-struct/contract msg ())
 (define-struct/contract [load-gui msg] ())
 (define-struct/contract [rerun msg]
@@ -63,5 +63,5 @@
 ;; the channel, and blocks itself; main thread will kill the REPL
 ;; thread. Effectively "exit the thread with a return value".
 (define (put/stop v) ;; msg? -> void?
-  (channel-put the-channel v)
+  (channel-put main-channel v)
   (void (sync never-evt)))

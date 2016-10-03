@@ -18,8 +18,9 @@
 
 (module+ main
   (match (current-command-line-arguments)
-    [(vector file) (current-command-output-file file)]
-    [v (error "Expected exactly one command-line argument for command output file\ngiven:" v)])
+    [(vector port) (start-command-server (string->number port))]
+    [v             (displayln "Expected exactly one argument: command port")
+                   (exit)])
   ;; Emacs on Windows comint-mode needs buffering disabled.
   (when (eq? (system-type 'os) 'windows)
     (file-stream-buffer-mode (current-output-port) 'none))
@@ -97,7 +98,9 @@
               (dynamic-require mod-path #f)
               (current-namespace (module->namespace mod-path))
               (check-top-interaction))))
-        ;; 4. read-eval-print-loop
+        ;; 4. Tell command server to use our namespace and module.
+        (attach-command-server (current-namespace) maybe-mod)
+        ;; 5. read-eval-print-loop
         (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
                        [current-module-name-resolver repl-module-name-resolver])
           ;; Note that read-eval-print-loop catches all non-break
@@ -120,7 +123,7 @@
        [(and (or (? exn:break:terminate?) (? exn:break:hang-up?)) e) e]
        [(exn:break msg marks continue) (break-thread repl-thread) (continue)]
        [e e])
-     (λ () (sync the-channel))))
+     (λ () (sync main-channel))))
   (match context-level
     ['profile  (clear-profile-info!)]
     ['coverage (clear-test-coverage-info!)]
