@@ -14,6 +14,7 @@
 
 (require 'ert)
 (require 'racket-mode)
+(require 'racket-repl)
 (require 'edmacro)
 (require 'faceup)
 (require 'racket-common)
@@ -61,7 +62,7 @@
 (ert-deftest racket-tests/repl ()
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
   (racket-repl)
-  (with-current-buffer (get-buffer "*Racket REPL*")
+  (with-racket-repl-buffer
     (let ((tab-always-indent 'complete))
       ;; Welcome
       (should (racket-tests/see-rx (concat "Welcome to Racket v[0-9.]+\n"
@@ -81,6 +82,34 @@
       ;; Exit
       (racket-tests/type&press "(exit)" "RET")
       (should (racket-tests/see "Process Racket REPL finished\n")))))
+
+;;; Run
+
+(ert-deftest racket-tests/run ()
+  (let* ((pathname (make-temp-file "test" nil ".rkt"))
+         (name     (file-name-nondirectory pathname)))
+    (write-region "#lang racket/base\n(define x 42)\nx\n"
+                  nil
+                  pathname
+                  nil
+                  'silent)
+    (find-file pathname)
+    (racket-run)
+    ;; see expected prompt
+    (with-racket-repl-buffer
+      (should (racket-tests/see (concat "\n" name "\uFEFF> "))))
+    ;; racket-check-syntax-mode
+    (racket-check-syntax-mode)
+    (goto-char (point-min))
+    (racket-tests/press "j")
+    (should (looking-at "racket/base"))
+    (racket-tests/press "n")
+    (should (looking-at "define"))
+    (racket-check-syntax-mode)
+    ;; Exit
+    ;; (with-racket-repl-buffer
+    ;;   (racket-tests/type&press "(exit)" "RET"))
+    (delete-file pathname)))
 
 ;;; Indentation
 
