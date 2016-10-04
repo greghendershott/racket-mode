@@ -52,7 +52,7 @@
 
 (defun racket-tests/explain-see (str)
   `(actual . ,(buffer-substring-no-properties
-               (max (point-min) (- (point) (length str)))
+               (point-min)
                (point))))
 (put 'racket-tests/see-rx 'ert-explainer #'racket-tests/explain-see)
 (put 'racket-tests/see    'ert-explainer #'racket-tests/explain-see)
@@ -87,25 +87,22 @@
 
 (ert-deftest racket-tests/run ()
   (let* ((pathname (make-temp-file "test" nil ".rkt"))
-         (name     (file-name-nondirectory pathname)))
-    (write-region "#lang racket/base\n(define x 42)\nx\n"
-                  nil
-                  pathname
-                  nil
-                  'silent)
+         (name     (file-name-nondirectory pathname))
+         (code "#lang racket/base\n(define x 42)\nx\n"))
+    (write-region code nil pathname nil 'no-wrote-file-message)
     (find-file pathname)
     (racket-run)
     ;; see expected prompt
     (with-racket-repl-buffer
       (should (racket-tests/see (concat "\n" name "\uFEFF> "))))
     ;; racket-check-syntax-mode
-    (racket-check-syntax-mode)
+    (racket-check-syntax-mode 1)
     (goto-char (point-min))
-    (racket-tests/press "j")
+    (racket-check-syntax-mode-goto-next-def)
     (should (looking-at "racket/base"))
-    (racket-tests/press "n")
+    (racket-check-syntax-mode-goto-next-use)
     (should (looking-at "define"))
-    (racket-check-syntax-mode)
+    (racket-check-syntax-mode 0)
     ;; Exit
     ;; (with-racket-repl-buffer
     ;;   (racket-tests/type&press "(exit)" "RET"))
