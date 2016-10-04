@@ -28,7 +28,7 @@ major mode for a Racket REPL. The edit/run experience is similar to
 - Correct indentation of Racket forms, including `for/fold` and
   `for*/fold`.
 
-- Compatible with **Emacs 24.3+** and **Racket 5.3.5+**.
+- Compatible with **Emacs 24.3+** and **Racket 6.0+**.
 
 - [More](Reference.md).
 

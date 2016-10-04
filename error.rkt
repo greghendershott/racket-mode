@@ -3,10 +3,11 @@
 (require racket/match
          racket/runtime-path
          racket/string
+         setup/collects
+         setup/dirs
          "fresh-line.rkt"
          "instrument.rkt"
-         "util.rkt"
-         "older-racket.rkt")
+         "util.rkt")
 
 (provide display-exn
          our-error-display-handler

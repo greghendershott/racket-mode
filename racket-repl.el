@@ -94,7 +94,7 @@ Commands that don't want the REPL to be displayed can instead use
   (unless noselect
     (select-window (get-buffer-window racket--repl-buffer-name t))))
 
-(defconst racket--minimum-required-version "5.3.5"
+(defconst racket--minimum-required-version "6.0"
   "The minimum version of Racket required by run.rkt.
 
 Although some functionality may require an even newer version of

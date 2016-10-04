@@ -13,7 +13,6 @@
          racket/match
          racket/unit
          syntax/parse
-         "older-racket.rkt"
          "util.rkt")
 
 (provide make-instrumented-eval-handler

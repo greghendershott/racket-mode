@@ -14,7 +14,6 @@
          "instrument.rkt"
          "logger.rkt"
          "mod.rkt"
-         "older-racket.rkt"
          "util.rkt")
 
 (module+ main
