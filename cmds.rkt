@@ -154,7 +154,7 @@
 ;; want to call collect-garbage IFF the new limit is less than the old
 ;; one or less than the current actual usage.
 (define current-mem
-  (let ([old #f])
+  (let ([old 0])
     (case-lambda
       [() old]
       [(new)

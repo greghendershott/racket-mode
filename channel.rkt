@@ -51,7 +51,11 @@
    [memory-limit  exact-nonnegative-integer?] ;0 = no limit
    [pretty-print? boolean?]
    [context-level context-level?]
-   [cmd-line-args (vectorof string?)]))
+   ;; The following contract is the weaker `vector?` instead of
+   ;; `(vectorof string?)` because latter fails under Racket 6.0 and
+   ;; 6.1 when the value is accessed from the struct and passed to
+   ;; `current-command-line-arguments`. WAT.
+   [cmd-line-args vector?]))
 
 (define rerun-default (rerun #f 0 #f 'low #()))
 
