@@ -223,15 +223,12 @@ See also:
 - `racket-unfold-all-tests'
 "
   (interactive "P")
-  (message (if coverage "Running tests with coverage instrumentation enabled..."
-             "Running tests..."))
   (racket--do-run (if coverage 'coverage racket-error-context)
                   (list 'submod (racket--buffer-file-name) 'test))
-  (message "Waiting for Racket prompt...")
-  (while (not (racket--repl-command "prompt"))
-    (sit-for 0.5))
-  (if (not coverage)
-      (message "Tests done.")
+  (when coverage
+    (message "Running tests with coverage instrumentation enabled...")
+    (while (not (racket--repl-command "prompt"))
+      (sit-for 0.5))
     (message "Checking coverage results...")
     (let ((xs (racket--repl-command "get-uncovered")))
       (dolist (x xs)
@@ -243,7 +240,7 @@ See also:
             (overlay-put o 'face font-lock-warning-face))))
       (if (not xs)
           (message "Coverage complete.")
-        (message (format "Missing coverage in %s places." (length xs)))
+        (message (format "Missing coverage in %s place(s)." (length xs)))
         (goto-char (car (car xs)))))))
 
 (defun racket-raco-test ()
