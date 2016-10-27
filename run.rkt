@@ -146,10 +146,10 @@
     (for ([config (in-list configs)])
       ((dynamic-require (vector-ref config 0)
                         (vector-ref config 1))
-       (vector-ref config 2)))
-    (define cr-submod `(submod ,path configure-runtime))
-    (when (module-declared? cr-submod)
-      (dynamic-require cr-submod #f))))
+       (vector-ref config 2))))
+  (define cr-submod `(submod ,path configure-runtime))
+  (when (module-declared? cr-submod)
+    (dynamic-require cr-submod #f)))
 
 (define (check-top-interaction)
   ;; Check that the lang defines #%top-interaction
