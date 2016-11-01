@@ -43,9 +43,10 @@ major mode for a Racket REPL. The edit/run experience is similar to
 
 - Pull requests from smarter/wiser people are welcome.
 
-- Please report issues [here][issues].
+- Please report issues [here][issue], including the output from `M-x
+  racket-bug-report`.
 
-[issues]: https://www.github.com/greghendershott/racket-mode/issues
+[issue]: https://www.github.com/greghendershott/racket-mode/issues
 [Geiser]: http://www.nongnu.org/geiser/
 
 ## Install
@@ -64,6 +65,20 @@ from [MELPA]. <kbd>M-x package-install</kbd>, `racket-mode`.
 >              '("melpa" . "http://melpa.org/packages/")
 >              t)
 > ```
+
+## Update
+
+Be aware that Emacs package updates don't necessarily fully update
+Emacs' state. An example symptom is an "invalid function" error
+message. You might need to restart Emacs. In some cases, you might
+even need to:
+
+1. Uninstall racket-mode
+2. Exit and restart Emacs
+3. Install racket-mode
+
+If you still experience a problem, please `M-x racket-bug-report` and
+submit an [issue].
 
 ### Minimal Racket
 

@@ -29,6 +29,12 @@
   (unless (memq major-mode '(racket-mode racket-repl-mode))
     (user-error "Please run this from a racket-mode or racket-repl-mode buffer."))
   (with-help-window "*racket-mode bug report*"
+    (princ "TIP: If you get an `invalid function' error, be aware that Emacs package\n")
+    (princ "updates don't necessarily fully update Emacs' state.  In some cases, you\n")
+    (princ "might even need to:\n\n")
+    (princ  "  1. Uninstall racket-mode\n")
+    (princ  "  2. Exit and restart Emacs\n")
+    (princ  "  3. Install racket-mode\n\n\n")
     (princ "Please copy and paste this into your bug report at:\n\n")
     (princ "  https://github.com/greghendershott/racket-mode/issues/new\n\n")
     (princ "```\n")
