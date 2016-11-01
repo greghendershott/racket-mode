@@ -210,10 +210,7 @@ Do not prefix the command with a `,'. Not necessary to append \n."
         (while (and (memq (process-status proc) '(open run))
                     (or (= (point) (point-min))
                         (condition-case ()
-                            (progn
-                              (goto-char (point-min))
-                              (forward-list 1)
-                              nil)
+                            (progn (scan-lists (point-min) 1 0) nil)
                           (scan-error t))))
           (accept-process-output nil 0.1)))
       (cond ((not (memq (process-status proc) '(open run)))
