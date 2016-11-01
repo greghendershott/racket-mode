@@ -147,7 +147,10 @@
       ((dynamic-require (vector-ref config 0)
                         (vector-ref config 1))
        (vector-ref config 2))))
-  (define cr-submod `(submod ,path configure-runtime))
+  (define cr-submod `(submod ,@(match path
+                                 [(list 'submod sub-paths ...) sub-paths]
+                                 [_ (list path)])
+                             configure-runtime))
   (when (module-declared? cr-submod)
     (dynamic-require cr-submod #f)))
 
