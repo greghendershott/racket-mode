@@ -216,19 +216,17 @@ a list of all modes in which Racket is edited."
                           #'font-lock-extend-region-wholelines
                           #'font-lock-extend-region-multiline)))
   ;; -----------------------------------------------------------------
-  ;; Comments. Borrowed from lisp-mode
+  ;; Comments. Mostly borrowed from lisp-mode and/or scheme-mode
   (setq-local comment-start ";")
   (setq-local comment-add 1)            ;default to `;;' in comment-region
-  ;; Look within the line for a ; following an even number of backslashes
-  ;; after either a non-backslash or the line beginning:
-  (setq-local comment-start-skip
-              "\\(\\(^\\|[^\\\\\n]\\)\\(\\\\\\\\\\)*\\)\\(;+\\|#|\\) *")
+  (setq-local comment-start-skip ";+ *")
+  (setq-local comment-multi-line t) ;for auto-fill-mode and #||# comments
   ;; Font lock mode uses this only when it knows a comment is starting:
   (setq-local font-lock-comment-start-skip ";+ *")
   (setq-local parse-sexp-ignore-comments t)
+  (setq-local comment-column 40)
   ;; -----------------------------------------------------------------
   ;;; Misc
-  (setq-local comment-column 40)
   (setq-local local-abbrev-table racket-mode-abbrev-table)
   (setq-local paragraph-start (concat "$\\|" page-delimiter))
   (setq-local paragraph-separate paragraph-start)
