@@ -66,6 +66,19 @@ from [MELPA]. <kbd>M-x package-install</kbd>, `racket-mode`.
 >              t)
 > ```
 
+### Minimal Racket
+
+If you have installed the minimal Racket distribution (for example by
+using the [homebrew recipe]): `racket-mode` needs some additional
+packages (like `errortrace` and `macro-debugger`). A simple way to get
+all these packages is to install the `drracket` package:
+
+```shell
+$ raco pkg install drracket
+```
+
+[homebrew recipe]: https://github.com/Homebrew/homebrew/blob/master/Library/Formula/racket.rb
+
 ## Update
 
 Be aware that Emacs package updates don't necessarily fully update
@@ -79,19 +92,6 @@ even need to:
 
 If you still experience a problem, please `M-x racket-bug-report` and
 submit an [issue].
-
-### Minimal Racket
-
-If you have installed the minimal Racket distribution (for example by
-using the [homebrew recipe]): `racket-mode` needs some additional
-packages (like `errortrace` and `macro-debugger`). A simple way to get
-all these packages is to install the `drracket` package:
-
-```shell
-$ raco pkg install drracket
-```
-
-[homebrew recipe]: https://github.com/Homebrew/homebrew/blob/master/Library/Formula/racket.rb
 
 ## Configure
 
