@@ -58,7 +58,11 @@
         (;; FIRST: current-custodian and current-namespace, so in
          ;; effect for later parameterizations.
          [current-custodian repl-cust]
-         [current-namespace ((txt/gui make-base-namespace make-gui-namespace))]
+         [current-namespace (if mod-path
+                                ((txt/gui make-base-empty-namespace
+                                          make-gui-empty-namespace))
+                                ((txt/gui make-base-namespace
+                                          make-gui-namespace)))]
          ;; OTHERS:
          [compile-enforce-module-constants #f]
          [compile-context-preservation-enabled (not (eq? context-level 'low))]
