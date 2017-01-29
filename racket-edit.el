@@ -595,7 +595,7 @@ location of the first one."
 
 (defun racket--point-entered (old new)
   (pcase (get-text-property new 'help-echo)
-    (s (message s)))
+    (s (message "%s" s)))
   (pcase (get-text-property new 'racket-check-syntax-def)
     ((and uses `((,beg ,end) . ,_))
      (pcase (get-text-property beg 'racket-check-syntax-use)
