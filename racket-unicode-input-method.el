@@ -84,6 +84,8 @@ can turn it off by setting `input-method-highlight-flag' to nil via
 (quail-define-rules
  ;; Typed Racket
  ("All"              ["∀"])
+ ("Union"            ["U"])
+ ("Intersection"     ["∩"])
  ;; These would be nice except no such aliases provided by racket/contract.
  ;; ("->"               ["→"])
  ;; ("case->"           ["case→"])
