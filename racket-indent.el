@@ -483,6 +483,7 @@ doesn't hurt to do so."
           (syntax-case 2)
           (syntax-case* 3)
           (syntax-rules 1)
+          (syntax-id-rules 1)
           (syntax-parse 1)
           (syntax-parser 0)
           (syntax-parameterize 1)
