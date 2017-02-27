@@ -1,10 +1,8 @@
 #lang at-exp racket/base
 
-(require help/help-utils
-         macro-debugger/analysis/check-requires
+(require macro-debugger/analysis/check-requires
          racket/contract/base
          racket/contract/region
-         racket/file
          racket/format
          racket/function
          racket/list
@@ -20,6 +18,7 @@
          "channel.rkt"
          "defn.rkt"
          "fresh-line.rkt"
+         "help.rkt"
          "instrument.rkt"
          "logger.rkt"
          "mod.rkt"
@@ -391,17 +390,15 @@
                   (λ () (elisp-print '(1 #t nil () (a . b)))))
                 "'(1 t nil nil (a . b))"))
 
-;;; misc
+;;; doc / help
 
 (define (doc stx)
-  (try
-   (match (with-output-to-string
-            (λ () (find-help (namespace-syntax-introduce stx))))
-     [(pregexp "Sending to web browser") #t])
-   #:catch exn:fail? _
-   (search-for (list (~a (syntax->datum stx)))))
+  (or (find-help (namespace-syntax-introduce stx))
+      (perform-search (~a (syntax->datum stx))))
   ;; Need some command response
   (elisp-println "Sent to web browser"))
+
+;; cd
 
 (define (cd s)
   (let ([old-wd (current-directory)])

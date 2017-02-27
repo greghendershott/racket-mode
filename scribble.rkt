@@ -12,7 +12,8 @@
                   element
                   xexpr->string))
 
-(provide scribble-doc/html)
+(provide scribble-doc/html
+         binding->path+anchor)
 
 (module+ test
   (require rackunit))
