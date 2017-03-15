@@ -264,9 +264,14 @@ code, this would mistakenly treat the existing code as part of
 the let form.) The font-lock will kick in after you type the
 closing paren. Or if you use electric-pair-mode, paredit, or
 similar, it will already be there."
-  (while (re-search-forward "(let" limit t)
+  (while (re-search-forward
+          (rx (syntax open-parenthesis)
+              (* (syntax whitespace))
+              (group-n 1 "let" (* (or (syntax word) (syntax symbol)))))
+          limit
+          t)
     (ignore-errors
-      (when (and (not (looking-at "/ec"))
+      (when (and (not (member (match-string-no-properties 1) '("let/ec" "let/cc")))
                  (racket--inside-complete-sexp))
         ;; Resume search before this let's bindings list, so we can
         ;; check rhs of bindings for more lets.
