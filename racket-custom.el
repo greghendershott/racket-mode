@@ -50,7 +50,7 @@
   :risky t
   :group 'racket)
 
-(defcustom racket-command-timeout 3
+(defcustom racket-command-timeout 10
   "Timeout for Racket REPL command server."
   :tag "Command Timeout"
   :type 'integer
