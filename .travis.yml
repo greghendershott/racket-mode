@@ -2,6 +2,10 @@ language: emacs-lisp
 
 sudo: false
 
+cache:
+  - directories:
+      - "$HOME/emacs"
+
 env:
   global:
     # Install Racket where sudo not required.
@@ -27,7 +31,7 @@ env:
     - EMACS_VERSION=24.5 RACKET_VERSION=6.7
     - EMACS_VERSION=24.5 RACKET_VERSION=6.8
     - EMACS_VERSION=24.5 RACKET_VERSION=HEAD
-    # Emacs 25 RC2
+    # Emacs 25.1
     - EMACS_VERSION=25.1 RACKET_VERSION=6.0
     - EMACS_VERSION=25.1 RACKET_VERSION=6.1
     - EMACS_VERSION=25.1 RACKET_VERSION=6.2
