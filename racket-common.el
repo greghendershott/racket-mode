@@ -364,7 +364,8 @@ This is handy if you're not yet using `paredit-mode',
       ;; In addition to the obvious suspects with 'let' in the name,
       ;; handles forms like 'parameterize', 'with-handlers', 'for',
       ;; and 'for/fold' accumulator bindings.
-      (0 1 ,(rx (seq (or "for"
+      (0 1 ,(rx (seq (or "define"
+                         "for"
                          "for/list"
                          "for/vector"
                          "for/hash"
@@ -399,6 +400,7 @@ This is handy if you're not yet using `paredit-mode',
                          "for*/sum"
                          "for*/product"
                          "fluid-let"
+                         "lambda"
                          "let"
                          "let*"
                          "let*-values"
