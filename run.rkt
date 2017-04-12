@@ -26,7 +26,8 @@
     (file-stream-buffer-mode (current-output-port) 'none))
   (display (banner))
   (flush-output)
-  (parameterize ([error-display-handler our-error-display-handler])
+  (parameterize ([error-display-handler our-error-display-handler]
+                 [current-command-line-arguments '#()])
     (run rerun-default)))
 
 (define (run rr) ;rerun? -> void?
