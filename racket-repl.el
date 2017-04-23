@@ -226,14 +226,23 @@ Do not prefix the command with a `,'. Not necessary to append \n."
   "Return the file running in the buffer, or nil.
 
 The result can be nil if the REPL is not started, or if it is
-running no particular file as with the `,top` command."
+running no particular file as with the `,top` command.
+
+On Windows this will replace \ with / in an effort to match the
+Unix style names used by Emacs on Windows."
   (when (comint-check-proc racket--repl-buffer-name)
-    (racket--repl-command "path")))
+    (let ((path (racket--repl-command "path")))
+      (and path
+           (cl-case system-type
+             (windows-nt (subst-char-in-string ?\\ ?/ path))
+             (otherwise  path))))))
 
 (defun racket--in-repl-or-its-file-p ()
   "Is current-buffer `racket-repl-mode' or buffer for file active in it?"
-  (or (eq (current-buffer) (get-buffer racket--repl-buffer-name))
-      (string= (buffer-file-name) (racket-repl-file-name))))
+  (or (eq (current-buffer)
+          (get-buffer racket--repl-buffer-name))
+      (string-equal (racket--buffer-file-name)
+                    (racket-repl-file-name))))
 
 (defun racket-repl-switch-to-edit ()
   "Switch to the window for the buffer of the file running in the REPL.

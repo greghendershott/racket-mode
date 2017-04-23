@@ -17,8 +17,6 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'racket-custom)
-(require 'rx)
-(require 's)
 
 ;;; trace
 
@@ -72,7 +70,7 @@ strings."
 ;;; racket--buffer-file-name
 
 (defun racket--buffer-file-name ()
-  "`buffer-file-name' can sometimes return propertized text; ensure string or nil."
+  "Like `buffer-file-name' but always a non-propertized string."
   (and (buffer-file-name)
        (substring-no-properties (buffer-file-name))))
 

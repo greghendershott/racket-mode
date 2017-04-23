@@ -21,6 +21,7 @@
 (require 'racket-custom)
 (require 'racket-repl)
 (require 'shr)
+(require 's)
 
 ;;; namespace symbols i.e. completion candidates
 
