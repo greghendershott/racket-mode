@@ -358,12 +358,6 @@ Keep original window selected."
     (select-window (get-buffer-window racket--repl-buffer-name t))
     (comint-show-maximum-output)))
 
-(defun racket-repl-break ()
-  "Like `comint-interrupt-subjob' but avoids its problem with read-only prompts."
-  (interactive)
-  (goto-char (point-max))
-  (comint-interrupt-subjob))
-
 ;;; Inline images in REPL
 
 (defvar racket-image-cache-dir nil)
@@ -437,7 +431,6 @@ With prefix arg, open the N-th last shown image."
      (")"               racket-insert-closing)
      ("]"               racket-insert-closing)
      ("}"               racket-insert-closing)
-     ("C-c C-c"         racket-repl-break)
      ("C-c C-e x"       racket-expand-definition)
      ("C-c C-e e"       racket-expand-last-sexp)
      ("C-c C-e r"       racket-expand-region)
@@ -479,7 +472,7 @@ With prefix arg, open the N-th last shown image."
   (racket--variables-for-both-modes)
   (setq-local comint-prompt-regexp (rx (regexp "^[^>\n]*") "\ufeff> "))
   (setq-local comint-use-prompt-regexp t)
-  (setq-local comint-prompt-read-only t)
+  (setq-local comint-prompt-read-only nil)
   (setq-local mode-line-process nil)
   (setq-local comint-input-filter #'racket-repl--input-filter)
   (add-hook 'comint-output-filter-functions #'racket-repl--output-filter nil t)
