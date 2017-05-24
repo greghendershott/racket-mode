@@ -35,8 +35,11 @@
     (princ  "  1. Uninstall racket-mode\n")
     (princ  "  2. Exit and restart Emacs\n")
     (princ  "  3. Install racket-mode\n\n\n")
-    (princ "Please copy and paste this into your bug report at:\n\n")
+    (princ "When you submit a bug report at:\n\n")
     (princ "  https://github.com/greghendershott/racket-mode/issues/new\n\n")
+    (princ "Please copy and paste ALL OF THE FOLLOWING LINES from\n")
+    (princ "`<details>' through `</details>':\n\n\n")
+    (princ "<details>\n")
     (princ "```\n")
     (cl-labels ((id-val (id) (list id
                                    (condition-case () (symbol-value id)
@@ -72,8 +75,9 @@
                                            (format "%s" (car b)))))))
         (cl-labels ((f (x) (list (car x)))) ;car as a list so pp line-wraps
           (pp `(enabled-minor-modes  ,@(mapcar #'f (cl-remove-if-not #'cadr sorted))))
-          (pp `(disabled-minor-modes ,@(mapcar #'f (cl-remove-if     #'cadr sorted))))))
-      (princ "```\n"))))
+          (pp `(disabled-minor-modes ,@(mapcar #'f (cl-remove-if     #'cadr sorted)))))))
+    (princ "```\n")
+    (princ "</details>\n")))
 
 (provide 'racket-bug-report)
 
