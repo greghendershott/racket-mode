@@ -2,6 +2,9 @@
 
 ;;; NOTE: After changing this file you will need to M-x faceup-write-file
 ;;; to regenerate the .faceup test comparison file.
+;;;
+;;; NOTE: You may need to disable certain features -- for example
+;;; global-paren-face-mode -- during the M-x faceup-write-file.
 
 #lang racket
 

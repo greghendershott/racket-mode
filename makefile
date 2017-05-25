@@ -38,6 +38,7 @@ compile: clean \
 	racket-keywords-and-builtins.elc \
 	racket-make-doc.elc \
 	racket-mode.elc \
+	racket-ppss.elc \
 	racket-profile.elc \
 	racket-repl.elc \
 	racket-tests.elc \

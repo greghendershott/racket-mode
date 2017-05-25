@@ -2,6 +2,9 @@
 
 ;;; NOTE: After changing this file you will need to M-x faceup-write-file
 ;;; to regenerate the .faceup test comparison file.
+;;;
+;;; NOTE: You may need to disable certain features -- for example
+;;; global-paren-face-mode -- during the M-x faceup-write-file.
 
 ;;; Quoted list
 
@@ -221,10 +224,10 @@
 
 ;; for/fold typed, type on same line
 (for/fold : T
-          ([a 0]
-           [b 0])
-          ([x 0]
-           [y 0])
+    ([a 0]
+     [b 0])
+    ([x 0]
+     [y 0])
   #t)
 
 ;; for/fold typed, type on different line
@@ -308,3 +311,15 @@
               3)
       2
       3)
+
+;; Bug #243
+(cond [x y
+         z]
+      [(= a x) y
+               z])
+
+;; Bug #262
+(define-metafunction λL
+  ∪ : (x ...) ... -> (x ...)
+  [(∪ any_ls ...)
+   ,(apply append (term (any_ls ...)))])

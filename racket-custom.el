@@ -168,7 +168,7 @@ This is safe to set as a file-local variable."
   :group 'racket-other)
 
 (defcustom racket-indent-sequence-depth 0
-  "To what depth should `racket--align-sequence-to-head' search.
+  "To what depth should `racket-indent-line' search.
 This affects the indentation of forms like `` '()` `() #() `` --
 and `{}` if `racket-indent-curly-as-sequence' is t -- but not
 `` #'() #`() ,() ,@() ``. A zero value disables, giving the

@@ -2,6 +2,9 @@
 »
 «m:;;; »«x:NOTE: After changing this file you will need to M-x faceup-write-file
 »«m:;;; »«x:to regenerate the .faceup test comparison file.
+»«m:;;;»«x:
+»«m:;;; »«x:NOTE: You may need to disable certain features -- for example
+»«m:;;; »«x:global-paren-face-mode -- during the M-x faceup-write-file.
 »
 «m:;;; »«x:Quoted list
 »
@@ -221,10 +224,10 @@
 
 «m:;; »«x:for/fold typed, type on same line
 »«:racket-paren-face:(»«k:for/fold» «b::» T
-          «:racket-paren-face:([»a «:racket-selfeval-face:0»«:racket-paren-face:]»
-           «:racket-paren-face:[»b «:racket-selfeval-face:0»«:racket-paren-face:])»
-          «:racket-paren-face:([»x «:racket-selfeval-face:0»«:racket-paren-face:]»
-           «:racket-paren-face:[»y «:racket-selfeval-face:0»«:racket-paren-face:])»
+    «:racket-paren-face:([»a «:racket-selfeval-face:0»«:racket-paren-face:]»
+     «:racket-paren-face:[»b «:racket-selfeval-face:0»«:racket-paren-face:])»
+    «:racket-paren-face:([»x «:racket-selfeval-face:0»«:racket-paren-face:]»
+     «:racket-paren-face:[»y «:racket-selfeval-face:0»«:racket-paren-face:])»
   «:racket-selfeval-face:#t»«:racket-paren-face:)»
 
 «m:;; »«x:for/fold typed, type on different line
@@ -308,3 +311,15 @@
               3)»
       «:racket-selfeval-face:2»
       «:racket-selfeval-face:3»«:racket-paren-face:)»
+
+«m:;; »«x:Bug #243
+»«:racket-paren-face:(»«k:cond» «:racket-paren-face:[»x y
+         z«:racket-paren-face:]»
+      «:racket-paren-face:[(»«b:=» a x«:racket-paren-face:)» y
+               z«:racket-paren-face:])»
+
+«m:;; »«x:Bug #262
+»«:racket-paren-face:(»define-metafunction «v:λL
+»  ∪ «b::» «:racket-paren-face:(»x «k:...»«:racket-paren-face:)» «k:...» «b:->» «:racket-paren-face:(»x «k:...»«:racket-paren-face:)»
+  «:racket-paren-face:[(»∪ any_ls «k:...»«:racket-paren-face:)»
+   ,«:racket-paren-face:(»«k:apply» «b:append» «:racket-paren-face:(»term «:racket-paren-face:(»any_ls «k:...»«:racket-paren-face:)))])»
