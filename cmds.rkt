@@ -324,9 +324,9 @@
 (define (type-or-contract v) ;any/c -> (or/c #f string?)
   ;; 1. Try using Typed Racket's REPL simplified type.
   (try (match (with-output-to-string
-                  (λ ()
-                    ((current-eval)
-                     (cons '#%top-interaction v))))
+                (λ ()
+                  ((current-eval)
+                   (cons '#%top-interaction v))))
          [(pregexp "^- : (.*) \\.\\.\\..*\n" (list _ t)) t]
          [(pregexp "^- : (.*)\n$"            (list _ t)) t])
        #:catch exn:fail? _
@@ -679,12 +679,12 @@
       (if first? "" (make-string indent #\space)))
     (define (prn-form pre this more)
       (define new-indent (+ indent (+ 2 (string-length pre))))
-       (printf "~a(~a " (indent-string) pre)
-       (prn this #t new-indent)
-       (for ([x more])
-         (newline)
-         (prn x #f new-indent))
-       (display ")"))
+      (printf "~a(~a " (indent-string) pre)
+      (prn this #t new-indent)
+      (for ([x more])
+        (newline)
+        (prn x #f new-indent))
+      (display ")"))
     (match x
       [(list 'require)
        (void)]

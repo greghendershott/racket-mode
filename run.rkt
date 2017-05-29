@@ -154,7 +154,7 @@
   (define cr-submod `(submod ,@(match path
                                  [(list 'submod sub-paths ...) sub-paths]
                                  [_ (list path)])
-                             configure-runtime))
+                      configure-runtime))
   (when (module-declared? cr-submod)
     (dynamic-require cr-submod #f)))
 
