@@ -339,8 +339,8 @@ variant of racket/help.)
 With a C-u prefix, prompts for the identifier or quoted string,
 instead of looking at point."
   (interactive "P")
-  (let ((sym (racket--identifier-at-point-or-prompt prefix
-                                                    "Racket help for: ")))
+  (let ((sym (racket--symbol-at-point-or-prompt prefix
+                                                "Racket help for: ")))
     (when sym
       (racket--repl-command "doc %s" sym))))
 
