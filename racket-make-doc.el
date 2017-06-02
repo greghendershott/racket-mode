@@ -36,16 +36,17 @@
     (write-region nil nil racket-make-doc/Reference.md nil)))
 
 (defun racket-make-doc/reference ()
-  (concat "# Reference\n\n"
-          (racket-make-doc/toc)
-          "# Commands\n\n"
-          (racket-make-doc/commands)
-          "# Variables\n\n"
-          "> Note: You may also set these via Customize.\n\n"
-          (racket-make-doc/variables)
-          "# Faces\n\n"
-          "> Note: You may also set these via Customize.\n\n"
-          (racket-make-doc/faces)))
+  (let ((text-quoting-style 'grave))
+    (concat "# Reference\n\n"
+            (racket-make-doc/toc)
+            "# Commands\n\n"
+            (racket-make-doc/commands)
+            "# Variables\n\n"
+            "> Note: You may also set these via Customize.\n\n"
+            (racket-make-doc/variables)
+            "# Faces\n\n"
+            "> Note: You may also set these via Customize.\n\n"
+            (racket-make-doc/faces))))
 
 ;;; Commands
 

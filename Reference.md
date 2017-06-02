@@ -118,13 +118,13 @@ Major mode for results of [`racket-profile`](#racket-profile).
 key             binding
 ---             -------
 
-RET		racket--profile-visit
-,		racket--profile-sort
-g		racket--profile-refresh
-n		racket--profile-next
-p		racket--profile-prev
-q		racket--profile-quit
-z		racket--profile-show-zero
+RET             racket--profile-visit
+,               racket--profile-sort
+g               racket--profile-refresh
+n               racket--profile-next
+p               racket--profile-prev
+q               racket--profile-quit
+z               racket--profile-show-zero
 
 
 ```
@@ -503,16 +503,16 @@ special commands to navigate among the definition and its uses.
 key             binding
 ---             -------
 
-TAB		racket-check-syntax-mode-goto-next-def
-.		racket-check-syntax-mode-goto-def
-h		racket-check-syntax-mode-help
-j		racket-check-syntax-mode-goto-next-def
-k		racket-check-syntax-mode-goto-prev-def
-n		racket-check-syntax-mode-goto-next-use
-p		racket-check-syntax-mode-goto-prev-use
-q		racket-check-syntax-mode-quit
-r		racket-check-syntax-mode-rename
-<backtab>	racket-check-syntax-mode-goto-prev-def
+TAB             racket-check-syntax-mode-goto-next-def
+.               racket-check-syntax-mode-goto-def
+h               racket-check-syntax-mode-help
+j               racket-check-syntax-mode-goto-next-def
+k               racket-check-syntax-mode-goto-prev-def
+n               racket-check-syntax-mode-goto-next-use
+p               racket-check-syntax-mode-goto-prev-use
+q               racket-check-syntax-mode-quit
+r               racket-check-syntax-mode-rename
+<backtab>       racket-check-syntax-mode-goto-prev-def
 
 
 ```
@@ -556,12 +556,12 @@ other examples:
 To see a table of all key sequences use `M-x
 describe-input-method <RET> racket-unicode`.
 
-If you don’t like the highlighting of partially matching tokens you
+If you don't like the highlighting of partially matching tokens you
 can turn it off by setting `input-method-highlight-flag` to nil via
 `M-x customize-variable`.
 
 ### racket-align
-<kbd>M-x racket-align</kbd>
+<kbd>M-]</kbd>
 
 Align values in the same column.
 
@@ -621,7 +621,7 @@ usual. For example:
 See also: [`racket-unalign`](#racket-unalign).
 
 ### racket-unalign
-<kbd>M-x racket-unalign</kbd>
+<kbd>M-}</kbd>
 
 The opposite of [`racket-align`](#racket-align).
 
