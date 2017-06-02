@@ -342,12 +342,16 @@
 
 (define (sig-and/or-type stx)
   (define dat (syntax->datum stx))
-  (define s (or (sig dat) (~a dat)))
+  (define s (sig dat))
   (define t (type-or-contract stx))
   (xexpr->string
    `(div ()
-     (p () ,s)
-     ,@(if t `((pre () ,t)) `())
+     (h1 () ,(or s (~a dat)))
+     ,(cond [(not (or s t))
+             `(p ()
+               (em ()  "(Found no documentation, signature, type, or contract.)"))]
+            [t `(pre () ,t)]
+            [else ""])
      (br ()))))
 
 ;;; describe
