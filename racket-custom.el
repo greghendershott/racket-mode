@@ -33,10 +33,22 @@
   :group 'languages
   :link '(url-link :tag "README on GitHub" "https://github.com/greghendershott/racket-mode/blob/master/README.md"))
 
+;; This should be _before_ the `defcustom' of `racket-program' (see
+;; note in doc for `define-obsolete-variable-alias').
+(define-obsolete-variable-alias
+  'racket-racket-program
+  'racket-program
+  "2017-06-02")
+
+(make-obsolete-variable
+  'racket-raco-program
+  "You need only set `racket-program' to the Racket executable pathname."
+  "2017-06-02")
+
 (defvar racket--winp (string-match "windows" (symbol-name system-type)))
 
-(defcustom racket-racket-program (cond (racket--winp "Racket.exe")
-                                       (t            "racket"))
+(defcustom racket-program (cond (racket--winp "Racket.exe")
+                                (t            "racket"))
   "Pathname of the racket executable."
   :tag "Racket Program"
   :type '(file :must-match t)
@@ -54,14 +66,6 @@
   "Timeout for Racket REPL command server."
   :tag "Command Timeout"
   :type 'integer
-  :risky t
-  :group 'racket)
-
-(defcustom racket-raco-program (cond (racket--winp "Raco.exe")
-                                     (t            "raco"))
-  "Pathname of the raco executable."
-  :tag "Raco Program"
-  :type '(file :must-match t)
   :risky t
   :group 'racket)
 

@@ -51,8 +51,7 @@
                           system-type
                           major-mode
                           racket--source-dir
-                          racket-racket-program
-                          racket-raco-program
+                          racket-program
                           racket-memory-limit
                           racket-error-context
                           racket-history-filter-regexp

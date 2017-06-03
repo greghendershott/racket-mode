@@ -138,10 +138,9 @@
 
 (defconst racket-make-doc/variables
   '("General"
-    racket-racket-program
+    racket-program
     racket-command-port
     racket-command-timeout
-    racket-raco-program
     racket-memory-limit
     racket-error-context
     racket-user-command-line-arguments

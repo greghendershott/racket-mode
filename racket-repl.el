@@ -128,7 +128,7 @@ Never changes selected window."
     (with-current-buffer
         (with-temp-message "Starting Racket process..."
          (make-comint racket--repl-buffer-name/raw ;w/o *stars*
-                      racket-racket-program
+                      racket-program
                       nil
                       racket--run.rkt
                       (number-to-string racket-command-port)))
@@ -144,10 +144,10 @@ Never changes selected window."
       (racket--repl-command-connect))))
 
 (defun racket--version ()
-  "Get the `racket-racket-program' version as a string."
+  "Get the `racket-program' version as a string."
   (with-temp-message "Checking Racket version..."
     (with-temp-buffer
-      (call-process racket-racket-program
+      (call-process racket-program
                     nil                  ;infile: none
                     t                    ;destination: current-buffer
                     nil                  ;redisplay: no

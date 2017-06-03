@@ -672,7 +672,7 @@ Macro expand again the previous expansion done by one of:
 
 ## General
 
-### racket-racket-program
+### racket-program
 Pathname of the racket executable.
 
 ### racket-command-port
@@ -680,9 +680,6 @@ Port number for Racket REPL command server.
 
 ### racket-command-timeout
 Timeout for Racket REPL command server.
-
-### racket-raco-program
-Pathname of the raco executable.
 
 ### racket-memory-limit
 Terminate the Racket process if memory use exceeds this value in MB.

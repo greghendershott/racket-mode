@@ -200,7 +200,7 @@ Otherwise follows the `racket-error-context' setting."
 (defun racket-racket ()
   "Do `racket <file>` in `*shell*` buffer."
   (interactive)
-  (racket--shell (concat racket-racket-program
+  (racket--shell (concat racket-program
                          " "
                          (shell-quote-argument (racket--buffer-file-name)))))
 
@@ -248,8 +248,8 @@ See also:
   "Do `raco test -x <file>` in `*shell*` buffer.
 To run <file>'s `test` submodule."
   (interactive)
-  (racket--shell (concat racket-raco-program
-                         " test -x "
+  (racket--shell (concat racket-program
+                         "-l raco test -x "
                          (shell-quote-argument (racket--buffer-file-name)))))
 
 (defun racket--shell (cmd)

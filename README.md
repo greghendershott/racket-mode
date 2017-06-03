@@ -95,26 +95,23 @@ submit an [issue].
 
 ## Configure
 
-To start, there are only two [variables](Reference.md#variables) you
+To start, there is only one [variable](Reference.md#variables) you
 _might_ need to set:
 
-- `racket-racket-program` is the name or pathname of the Racket
-  executable. This defaults to `Racket.exe` on Windows else `racket`.
+- `racket-program` is the name or pathname of the Racket executable.
+  It defaults to `Racket.exe` on Windows else `racket`.
 
-- `racket-raco-program` is the name or pathname of the Raco
-  executable. This defaults to `Raco.exe` on Windows else `raco`.
+On Windows or Linux, this default will probably work for you.
 
-On Windows or Linux, these defaults will probably work for you.
-
-On OS X, downloading Racket doesn't add its `bin` directory to your
+On macOS, downloading Racket doesn't add its `bin` directory to your
 `PATH`. Even after you add it, GUI Emacs doesn't automatically use
 your path (unless you use the handy [exec-path-from-shell] package).
-Therefore you may want to set both of these to be full pathames like
-`/usr/racket/bin/racket` and `/usr/racket/bin/raco`.
+Therefore you may want to set `racket-program` to a full pathame like
+`/usr/racket/bin/racket`.
 
 [exec-path-from-shell]: http://melpa.org/#/exec-path-from-shell
 
-You can `setq` these directly in your Emacs init file (`~/.emacs` or
+You can `setq` this directly in your Emacs init file (`~/.emacs` or
 `~/.emacs.d/init.el`), or, use <kbd>M-x Customize</kbd>, as you
 prefer.
 
