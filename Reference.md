@@ -606,8 +606,8 @@ of "couples". A couple is:
 - A list of two or more sexprs: `[sexpr val sexpr ...]`
 - Two sexprs: `sexpr val`.
 
-Each `val` moves to the same column and is `indent-sexp`-ed (in
-case it is a multi-line form).
+Each `val` moves to the same column and is
+`prog-indent-sexp`-ed (in case it is a multi-line form).
 
 For example with point on the `[` before `a`:
 
@@ -656,8 +656,8 @@ See also: [`racket-unalign`](#racket-unalign).
 
 The opposite of [`racket-align`](#racket-align).
 
-Effectively does M-x `just-one-space` and `indent-sexp` for each
-couple's value.
+Effectively does M-x `just-one-space` and `prog-indent-sexp` for
+each couple's value.
 
 ## Macro expand
 

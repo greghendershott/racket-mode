@@ -817,8 +817,8 @@ of \"couples\". A couple is:
 - A list of two or more sexprs: `[sexpr val sexpr ...]`
 - Two sexprs: `sexpr val`.
 
-Each `val` moves to the same column and is `indent-sexp'-ed (in
-case it is a multi-line form).
+Each `val` moves to the same column and is
+`prog-indent-sexp'-ed (in case it is a multi-line form).
 
 For example with point on the `[` before `a`:
 
@@ -877,20 +877,20 @@ See also: `racket-unalign'."
       (racket--for-each-couple listp
                                (lambda ()
                                  (indent-to max-col)
-                                 (indent-sexp))))))
+                                 (prog-indent-sexp))))))
 
 (defun racket-unalign ()
   "The opposite of `racket-align'.
 
-Effectively does M-x `just-one-space' and `indent-sexp' for each
-couple's value."
+Effectively does M-x `just-one-space' and `prog-indent-sexp' for
+each couple's value."
   (interactive)
   (save-excursion
     (let ((listp (eq ?\( (char-syntax (char-after)))))
       (racket--for-each-couple listp
                                (lambda ()
                                  (just-one-space)
-                                 (indent-sexp))))))
+                                 (prog-indent-sexp))))))
 
 (defun racket--for-each-couple (listp f)
   "Move point to each value sexp of a couple, and `funcall' F.
