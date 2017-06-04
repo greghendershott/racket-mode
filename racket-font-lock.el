@@ -15,10 +15,12 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'cl-lib)
 (require 'racket-custom)
 (require 'racket-keywords-and-builtins)
+(require 'racket-ppss)
 (require 'racket-util)
-(require 'cl-lib)
+
 
 ;; Define 3 levels of font-lock, as documented in 23.6.5 "Levels of
 ;; Font Lock". User may control using `font-lock-maximum-decoration'.
@@ -215,9 +217,9 @@ doesn't really fit that.")
     racket-font-lock-keywords-level-3))
 
 (defun racket-font-lock-syntactic-face-function (state)
-  (let ((q (nth 3 state)))
+  (let ((q (racket--ppss-string-p state)))
     (if q
-        (let ((startpos (nth 8 state)))
+        (let ((startpos (racket--ppss-string/comment-start state)))
           (if (eq (char-after startpos) ?|)
               nil ;a |...| symbol
             (if (characterp q)

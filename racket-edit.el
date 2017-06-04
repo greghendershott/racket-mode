@@ -124,7 +124,7 @@ If supplied, WHAT-TO-RUN should be a buffer filename, or a cons
 of a file name to a list of submodule symbols. Otherwise, the
 `racket--what-to-run' is used."
   (unless (eq major-mode 'racket-mode)
-    (error "Current buffer is not a racket-mode buffer"))
+    (user-error "Current buffer is not a racket-mode buffer"))
   (when (or (buffer-modified-p)
             (and (racket--buffer-file-name)
                  (not (file-exists-p (racket--buffer-file-name)))))
@@ -171,7 +171,7 @@ of a file name to a list of submodule symbols. Otherwise, the
                            t
                            #'ignore)) ;i.e. never equal, always add
             (backward-up-list)))
-      (error (reverse xs)))))
+      (scan-error (reverse xs)))))
 
 (defun racket-run-and-switch-to-repl (&optional errortracep)
   "This is `racket-run' followed by `racket-switch-to-repl'.
@@ -215,19 +215,17 @@ See also:
     (message "Running tests with coverage instrumentation enabled...")
     (while (not (racket--repl-command "prompt"))
       (sit-for 0.5))
-    (message "Checking coverage results...")
-    (let ((xs (racket--repl-command "get-uncovered")))
-      (dolist (x xs)
-        (let ((beg (car x))
-              (end (cdr x)))
-          (let ((o (make-overlay beg end)))
-            (overlay-put o 'name 'racket-uncovered-overlay)
-            (overlay-put o 'priority 100)
-            (overlay-put o 'face font-lock-warning-face))))
-      (if (not xs)
-          (message "Coverage complete.")
-        (message (format "Missing coverage in %s place(s)." (length xs)))
-        (goto-char (car (car xs)))))))
+    (message "Processing coverage results...")
+    (pcase (racket--repl-command "get-uncovered")
+      ((and xs `((,beg0 . ,_) . ,_))
+       (dolist (x xs)
+         (let ((o (make-overlay (car x) (cdr x))))
+           (overlay-put o 'name 'racket-uncovered-overlay)
+           (overlay-put o 'priority 100)
+           (overlay-put o 'face font-lock-warning-face)))
+       (message "Missing coverage in %s place(s)." (length xs))
+       (goto-char beg0))
+      (_ (message "Full coverage.")))))
 
 (defun racket-raco-test ()
   "Do `raco test -x <file>` in `*shell*` buffer.
@@ -240,17 +238,15 @@ To run <file>'s `test` submodule."
 (defun racket--shell (cmd)
   (let ((w (selected-window)))
     (save-buffer)
-    (let ((rw (get-buffer-window "*shell*" t)))
-      (if rw
-          (select-window rw)
-        (other-window -1)))
-    (message (concat cmd "..."))
-    (shell)
-    (pop-to-buffer-same-window "*shell*")
-    (comint-send-string "*shell*" (concat cmd "\n"))
-    (select-window w)
-    (sit-for 3)
-    (message nil)))
+    (pcase (get-buffer-window "*shell*" t)
+      (`() (other-window -1))
+      (win (select-window win)))
+    (with-temp-message cmd
+      (shell)
+      (pop-to-buffer-same-window "*shell*")
+      (comint-send-string "*shell*" (concat cmd "\n"))
+      (select-window w)
+      (sit-for 3))))
 
 
 ;;; visiting defs and mods
@@ -382,12 +378,10 @@ With C-u prefix, expands fully.
 
 Otherwise, expands once. You may use `racket-expand-again'."
   (interactive "rP")
-  (if (region-active-p)
-      (progn
-        (racket--repl-send-expand-command prefix)
-        (racket--send-region-to-repl start end))
-    (beep)
-    (message "No region.")))
+  (unless (region-active-p)
+    (user-error "No region"))
+  (racket--repl-send-expand-command prefix)
+  (racket--send-region-to-repl start end))
 
 (defun racket-expand-definition (&optional prefix)
   "Like `racket-send-definition', but macro expand.
@@ -454,7 +448,7 @@ See also: `racket-trim-requires' and `racket-base-requires'."
   (let* ((reqs (racket--top-level-requires 'find))
          (new (and reqs
                    (racket--repl-command "requires/tidy %S" reqs))))
-    (when (not (string-equal "" new))
+    (unless (string-equal "" new)
       (goto-char (racket--top-level-requires 'kill))
       (insert (concat new "\n")))))
 
@@ -477,10 +471,10 @@ See also: `racket-base-requires'."
                     "requires/trim \"%s\" %S"
                     (racket--buffer-file-name)
                     reqs))))
-    (when (not new)
-      (error "Can't do, source file has error"))
+    (unless new
+      (user-error "Can't do, source file has error"))
     (goto-char (racket--top-level-requires 'kill))
-    (when (not (string-equal "" new))
+    (unless (string-equal "" new)
       (insert (concat new "\n")))))
 
 (defun racket-base-requires ()
@@ -508,23 +502,23 @@ Note: Currently this only helps change `#lang racket` to
 such as changing `#lang typed/racket` to `#lang typed/racket/base`."
   (interactive)
   (when (racket--buffer-start-re "^#lang.*? racket/base$")
-    (error "Already using #lang racket/base. Nothing to change."))
+    (user-error "Already using #lang racket/base. Nothing to change."))
   (unless (racket--buffer-start-re "^#lang.*? racket$")
-    (error "File does not use use #lang racket. Cannot change."))
+    (user-error "File does not use use #lang racket. Cannot change."))
   (when (buffer-modified-p) (save-buffer))
   (let* ((reqs (racket--top-level-requires 'find))
          (new (racket--repl-command
                "requires/base \"%s\" %S"
                (racket--buffer-file-name)
                reqs)))
-    (when (not new)
-      (error "Source file has error"))
+    (unless new
+      (user-error "Source file has error"))
     (goto-char (point-min))
     (re-search-forward "^#lang.*? racket$")
     (insert "/base")
     (goto-char (or (racket--top-level-requires 'kill)
                    (progn (insert "\n") (point))))
-    (when (not (string= "" new))
+    (unless (string= "" new)
       (insert (concat new "\n")))))
 
 (defun racket--buffer-start-re (re)

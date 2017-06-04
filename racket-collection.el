@@ -48,35 +48,35 @@ Also handy is the `flx-ido' package from MELPA.
 
 See also: `racket-visit-module' and `racket-open-require-path'."
   (interactive "P")
-  (let ((coll  (racket--symbol-at-point-or-prompt prefix "Collection name: ")))
-    (when coll
-      (let ((paths (racket--repl-command "find-collection \"%s\""
-                                         coll)))
-        (cond ((eq 'find-collection-not-installed paths)
-               ;; FIXME? Offer to run this for them?
-               (error "Run `raco pkg install raco-find-collection'"))
-              ((not paths)
-               (error (format "Collection `%s' not found" coll)))
-              ((= 1 (length paths))
-               (racket--find-file-in-dir (car paths)))
-              (t
-               (let ((done nil))
-                 (while (not done)
-                   ;; `(ido-find-file-in-dir (ido-completing-read paths))`
-                   ;; -- except we want to let the user press C-g inside
-                   ;; ido-find-file-in-dir to back up and pick a different
-                   ;; module path.
-                   (let ((dir (ido-completing-read "Directory: " paths)))
-                     (condition-case ()
-                         (progn (racket--find-file-in-dir dir)
-                                (setq done t))
-                       (quit nil)))))))))))
+  (pcase (racket--symbol-at-point-or-prompt prefix "Collection name: ")
+    (`() nil)
+    (coll
+     (pcase (racket--repl-command "find-collection \"%s\"" coll)
+       (`find-collection-not-installed
+        ;; FIXME? Offer to run this for them?
+        (user-error "Run `raco pkg install raco-find-collection'"))
+       (`()
+        (user-error (format "Collection `%s' not found" coll)))
+       (`(,path)
+        (racket--find-file-in-dir path))
+       (paths
+        (let ((done nil))
+          (while (not done)
+            ;; `(ido-find-file-in-dir (ido-completing-read paths))`
+            ;; -- except we want to let the user press C-g inside
+            ;; ido-find-file-in-dir to back up and pick a different
+            ;; module path.
+            (let ((dir (ido-completing-read "Directory: " paths)))
+              (condition-case ()
+                  (progn (racket--find-file-in-dir dir)
+                         (setq done t))
+                (quit nil))))))))))
 
 (defun racket--find-file-in-dir (dir)
   "Like `ido-find-file-in-dir', but allows C-d to `dired' as does `ido-find-file'."
   (ido-file-internal ido-default-file-method nil dir))
 
-
+
 ;;; racket-open-require-path
 
 
@@ -191,7 +191,7 @@ error, it will just never return any matches."
   ;; We do NOT initialize `racket--orp/input' or `racket--orp/matches'
   ;; here. Like DrR, we remember from last time invoked. We DO
   ;; initialize them in racket--orp/quit i.e. user presses C-g.
-  (add-hook 'minibuffer-setup-hook 'racket--orp/minibuffer-setup)
+  (add-hook 'minibuffer-setup-hook #'racket--orp/minibuffer-setup)
   (condition-case ()
       (progn
         (read-from-minibuffer "Open require path: "
@@ -205,8 +205,8 @@ error, it will just never return any matches."
   (racket--orp/end))
 
 (defun racket--orp/minibuffer-setup ()
-  (add-hook 'pre-command-hook  'racket--orp/pre-command  nil t)
-  (add-hook 'post-command-hook 'racket--orp/post-command nil t)
+  (add-hook 'pre-command-hook  #'racket--orp/pre-command  nil t)
+  (add-hook 'post-command-hook #'racket--orp/post-command nil t)
   (when racket--orp/active
     (racket--orp/draw-matches)))
 

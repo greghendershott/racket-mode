@@ -24,6 +24,7 @@
 (require 'racket-keywords-and-builtins)
 (require 'racket-font-lock)
 (require 'racket-indent)
+(require 'racket-ppss)
 (require 'racket-util)
 
 (declare-function racket-complete-at-point "racket-complete.el" (&optional predicate))
@@ -152,20 +153,21 @@ property whose value is STRING. The close | syntax is set by
 `racket--syntax-propertize-here-string'."
   (unless (save-excursion
             (let ((ppss (syntax-ppss start)))
-              (or (nth 3 ppss) (nth 4 ppss))))
+              (or (racket--ppss-string-p ppss)
+                  (racket--ppss-comment-p ppss))))
     (let ((ppss (save-excursion (syntax-ppss eol))))
-      (if (nth 4 ppss)
+      (if (racket--ppss-comment-p ppss)
           ;; The \n not only starts the heredoc but also closes a comment.
           ;; Let's close the comment just before the \n.
           (put-text-property (1- eol) eol 'syntax-table '(12))) ;">"
-      (if (or (nth 5 ppss) (> (count-lines start eol) 1))
+      (if (or (racket--ppss-quote-p ppss)
+              (< 1 (count-lines start eol)))
           ;; If we matched several lines, make sure we refontify them
-          ;; together. Furthermore, if (nth 5 ppss) is non-nil (i.e.
-          ;; the \n is escaped), it means the right \n is actually
-          ;; further down. Don't bother fixing it now, but place a
-          ;; multiline property so that when jit-lock-context-*
-          ;; refontifies the rest of the buffer, it also refontifies
-          ;; the current line with it.
+          ;; together. Furthermore, if the \n is quoted, it means the
+          ;; right \n is actually further down. Don't bother fixing it
+          ;; now, but place a multiline property so that when
+          ;; jit-lock-context-* refontifies the rest of the buffer, it
+          ;; also refontifies the current line with it.
           (put-text-property start (1+ eol) 'syntax-multiline t))
       (put-text-property eol (1+ eol) 'racket-here-string string)
       (goto-char (+ 3 start))
@@ -174,8 +176,9 @@ property whose value is STRING. The close | syntax is set by
 (defun racket--syntax-propertize-here-string (end)
   "If in a here string that ends before END, add | syntax for its close."
   (let ((ppss (syntax-ppss)))
-    (when (eq t (nth 3 ppss)) ;t as opposed to ?" or ?'
-      (let ((key (get-text-property (nth 8 ppss) 'racket-here-string)))
+    (when (eq (racket--ppss-string-p ppss) t) ;t as opposed to ?" or ?'
+      (let ((key (get-text-property (racket--ppss-string/comment-start ppss)
+                                    'racket-here-string)))
         (when (and key
                    (re-search-forward (concat "^" (regexp-quote key) "\\(\n\\)")
                                       end t))
@@ -306,7 +309,7 @@ This is handy if you're not yet using `paredit-mode',
                          (and (string= "#\\"
                                        (buffer-substring-no-properties
                                         (- (point) 2) (point) )))
-                         (nth 3 (syntax-ppss)))))
+                         (racket--ppss-string-p (syntax-ppss)))))
          (open-char  (and do-it        (racket--open-paren #'backward-up-list)))
          (close-pair (and open-char    (assq open-char racket--matching-parens)))
          (close-char (and close-pair   (cdr close-pair))))
@@ -496,7 +499,8 @@ even press `]`."
                        (let ((pt (point)))
                          (beginning-of-defun)
                          (let ((state (parse-partial-sexp (point) pt)))
-                           (or (nth 3 state) (nth 4 state)))))
+                           (or (racket--ppss-string-p state)
+                               (racket--ppss-comment-p state)))))
                      ?\[)
                 (cl-some (lambda (xs)
                            (apply #'racket--smart-open-bracket-helper xs))
@@ -603,26 +607,32 @@ This function is a suitable element for the list variable
   '(add-hook 'paredit-space-for-delimiter-predicates
              #'racket--at-expression-paredit-space-for-delimiter-predicate))
 
+
 ;;; Cycle paren shapes
 
+(defconst racket--paren-shapes
+  '( (?\( ?\[ ?\] )
+     (?\[ ?\{ ?\} )
+     (?\{ ?\( ?\) ))
+  "This is not user-configurable because we expect them have to
+  have actual ?\( and ?\) char syntax.")
+
 (defun racket-cycle-paren-shapes ()
-  "In an s-expression, move to the opening, and cycle the shape among () [] {}"
+  "Cycle the sexpr among () [] {}."
   (interactive)
   (save-excursion
-    (unless (looking-at-p (rx (any "([{")))
+    (unless (eq ?\( (char-syntax (char-after)))
       (backward-up-list))
-    (let ((pt (point))
-          (new (cond ((looking-at-p (rx "(")) (cons "[" "]"))
-                     ((looking-at-p (rx "[")) (cons "{" "}"))
-                     ((looking-at-p (rx "{")) (cons "(" ")"))
-                     (t (beep) nil))))
-      (when new
-        (forward-sexp)
-        (backward-delete-char 1)
-        (insert (cdr new))
-        (goto-char pt)
-        (delete-char 1)
-        (insert (car new))))))
+    (pcase (assq (char-after) racket--paren-shapes)
+      (`(,_ ,open ,close)
+       (delete-char 1)
+       (insert open)
+       (backward-char 1)
+       (forward-sexp 1)
+       (backward-delete-char 1)
+       (insert close))
+      (_
+       (user-error "Don't know that paren shape")))))
 
 
 ;;; racket--beginning-of-defun
@@ -687,10 +697,9 @@ parses from the start of the buffer. Although `syntax-ppss' uses
 a cache, that is invalidated after any changes to the buffer. As
 a result, the worst case would be to call this function after
 every character is inserted to a buffer."
-  (let* ((ppss (syntax-ppss))
-         (string-or-comment-start (nth 8 ppss)))
-    (when string-or-comment-start
-      (goto-char string-or-comment-start))))
+  (pcase (racket--ppss-string/comment-start (syntax-ppss))
+    (`() nil)
+    (pos (goto-char pos))))
 
 (defun racket-backward-up-list ()
   "Like `backward-up-list' but works when point is in a string or comment.
@@ -710,9 +719,9 @@ BACK-FUNC should be something like #'backward-sexp or #'backward-up-list."
   (save-excursion
     (ignore-errors
       (funcall back-func)
-      (let* ((str (buffer-substring-no-properties (point) (1+ (point))))
-             (ch (string-to-char str)))
-        (when (memq ch '(?\( ?\[ ?\{)) ch)))))
+      (let ((ch (char-after)))
+        (and (eq ?\( (char-syntax ch))
+             ch)))))
 
 
 (provide 'racket-common)

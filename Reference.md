@@ -506,7 +506,7 @@ even press `]`.
 ### racket-cycle-paren-shapes
 <kbd>C-c C-p</kbd>
 
-In an s-expression, move to the opening, and cycle the shape among () [] {}
+Cycle the sexpr among () [] {}.
 
 ### racket-backward-up-list
 <kbd>C-M-u</kbd>
