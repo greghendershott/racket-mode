@@ -386,7 +386,7 @@ images in 'racket-image-cache-dir'."
   (with-silent-modifications
     (save-excursion
       (goto-char (point-min))
-      (while (re-search-forward "\"#<Image: \\([-+./_0-9a-zA-Z]+\\)>\"" nil t)
+      (while (re-search-forward  "\"#<Image: \\(.+racket-image-.+\\.png\\)>\"" nil t)
         ;; can't pass a filename to create-image because emacs might
         ;; not display it before it gets deleted (race condition)
         (let* ((file (match-string 1))
