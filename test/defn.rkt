@@ -70,7 +70,6 @@
                (list (pregexp "defn-examples.rkt$") 32 20))
   (check-false (find-signature "contracted-by-macro"))
 
-
   ;; This is (roughly) a test of opening a Racket source file and
   ;; doing M-. on every non-list sexpr: Call find-definition on each
   ;; sexpr. Not-found (#f) is fine. But fail test for (list _ 1 0) --
@@ -87,9 +86,9 @@
       (if (list? v)
           (for-each walk v)
           (match (find v)
-                    [(list where 1 0)
-                     (fail @~a{can't find definition of `@|v|` in @where})]
-                    [_ (void)])))
+            [(list where 1 0)
+             (fail @~a{can't find definition of `@|v|` in @where})]
+            [_ (void)])))
     (walk
      (with-module-reading-parameterization
        ;; Why read not read-syntax? Because we only care about the
