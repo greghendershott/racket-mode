@@ -56,6 +56,8 @@
     racket-racket
     racket-profile
     racket-profile-mode
+    racket-logger
+    racket-logger-mode
     "Test"
     racket-test
     racket-raco-test
@@ -154,7 +156,8 @@
     racket-indent-curly-as-sequence
     racket-indent-sequence-depth
     racket-pretty-lambda
-    racket-smart-open-bracket-enable)
+    racket-smart-open-bracket-enable
+    racket-logger-config)
   "Variables to include in the Reference.")
 
 (defun racket-make-doc/variables ()

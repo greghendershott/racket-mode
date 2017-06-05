@@ -154,7 +154,6 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   :safe #'booleanp
   :group 'racket-repl)
 
-
 ;;; Other
 
 (defgroup racket-other nil
@@ -213,6 +212,37 @@ This is safe to set as a file-local variable."
   :safe #'stringp
   :group 'racket-other)
 
+(defcustom racket-logger-config
+  '((cm-accomplice           . warning)
+    (GC                      . info)
+    (module-prefetch         . warning)
+    (optimizer               . info)
+    (racket/contract         . warning)
+    (sequence-specialization . info)
+    (*                       . fatal))
+  "Configuration of `racket-logger-mode' topics and levels
+
+The topic '* respresents the default level used for topics not
+assigned a level. Otherwise, the topic symbols are the same as
+used by Racket's `define-logger`.
+
+The levels are those used by Racket's logging system: 'debug,
+'info, 'warning, 'error, 'fatal.
+
+For more information see:
+  <https://docs.racket-lang.org/reference/logging.html>
+
+The default value sets some known \"noisy\" topics to be one
+level quieter. That way you can set the '* topic to a level like
+'debug and not get overhwelmed by these noisy topics."
+  :tag "Logger Configuration"
+  :type '(alist :key-type symbol :value-type symbol)
+  :safe (lambda (xs)
+          (cl-every (lambda (x)
+                      (and (symbolp (car x))
+                           (symbolp (cdr x))))
+                    xs))
+  :group 'racket-other)
 
 ;;; Faces
 
@@ -222,54 +252,83 @@ This is safe to set as a file-local variable."
   :group 'faces
   :group 'racket)
 
-(defconst racket-check-syntax-def-face 'racket-check-syntax-def-face)
-(defface racket-check-syntax-def-face
-  '((t
-     (:foreground "Black" :background "SeaGreen1" :weight bold)))
+(defmacro defface-racket (id facespec docstr tag)
+  `(progn
+     (defconst ,id ',id)
+     (defface ,id
+       ,facespec
+       ,docstr
+       :tag ,tag
+       :group 'racket-faces)))
+
+(defface-racket racket-check-syntax-def-face
+  '((t (:foreground "Black" :background "SeaGreen1" :weight bold)))
   "Face `racket-check-syntax' uses to highlight definitions."
-  :tag "Check Syntax Def Face"
-  :group 'racket-faces)
+  "Check Syntax Def Face")
 
-(defconst racket-check-syntax-use-face 'racket-check-syntax-use-face)
-(defface racket-check-syntax-use-face
-  '((t
-     (:foreground "Black" :background "PaleGreen1" :slant italic)))
+(defface-racket racket-check-syntax-use-face
+  '((t (:foreground "Black" :background "PaleGreen1" :slant italic)))
   "Face `racket-check-syntax' uses to highlight uses."
-  :tag "Check Syntax Use Face"
-  :group 'racket-faces)
+  "Check Syntax Use Face")
 
-(defconst racket-keyword-argument-face 'racket-keyword-argument-face)
-(defface racket-keyword-argument-face
+(defface-racket racket-keyword-argument-face
   '((((background dark))
      (:foreground "IndianRed"))
     (((background light))
      (:foreground "Red3")))
   "Face for `#:keyword` arguments."
-  :tag "Keyword Argument Face"
-  :group 'racket-faces)
+  "Keyword Argument Face")
 
-(defconst racket-paren-face 'racket-paren-face)
-(defface racket-paren-face
+(defface-racket racket-paren-face
   (let ((fg (face-foreground 'default)))
     `((t (:foreground ,fg))))
   "Face for `() [] {}`."
-  :tag "Paren Face"
-  :group 'racket-faces)
+  "Paren Face")
 
-(defconst racket-selfeval-face 'racket-selfeval-face)
-(defface racket-selfeval-face
+(defface-racket racket-selfeval-face
   '((t (:foreground "SeaGreen")))
   "Face for self-evaluating expressions like numbers, symbols, strings."
-  :tag "Selfeval Face"
-  :group 'racket-faces)
+  "Selfeval Face")
 
-(defconst racket-here-string-face 'racket-here-string-face)
-(defface racket-here-string-face
+(defface-racket racket-here-string-face
   '((t (:inherit sh-heredoc-face)))
   "Face for self-evaluating expressions like numbers, symbols, strings."
-  :tag "Selfeval Face"
-  :group 'racket-faces)
+  "Here String Face")
 
+(defface-racket racket-logger-config-face
+  '((t (:inherit font-lock-comment-face :slant italic)))
+  "Face for `racket-logger-mode' configuration."
+  "Racket Logger Config Face")
+
+(defface-racket racket-logger-topic-face
+  '((t (:inherit font-lock-function-name-face :slant italic)))
+  "Face for `racket-logger-mode' topics."
+  "Racket Logger Config Face")
+
+(defface-racket racket-logger-fatal-face
+  '((t (:foreground "Red" :weight bold)))
+  "Face for `racket-logger-mode' fatal level."
+  "Racket Logger Fatal Face")
+
+(defface-racket racket-logger-error-face
+  '((t (:foreground "Red1")))
+  "Face for `racket-logger-mode' error level."
+  "Racket Logger Error Face")
+
+(defface-racket racket-logger-warning-face
+  '((t (:foreground "DarkOrange1")))
+  "Face for `racket-logger-mode' warning level."
+  "Racket Logger Warning Face")
+
+(defface-racket racket-logger-info-face
+  '((t (:foreground "SkyBlue3")))
+  "Face for `racket-logger-mode' info level."
+  "Racket Logger Info Face")
+
+(defface-racket racket-logger-debug-face
+  '((t (:foreground "LightSlateBlue")))
+  "Face for `racket-logger-mode' debug level."
+  "Racket Logger Debug Face")
 
 (provide 'racket-custom)
 

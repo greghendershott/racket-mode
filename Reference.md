@@ -72,28 +72,13 @@ Others are available only as a command in the REPL.
 
 - `,cd`, `,pwd`: Change and show `current-directory`.
 
-- `,log` controls the log output level, overall, as well as for
-  specific named loggers created with `define-logger`.
-
-    - `,log`: Show the current levels.
-
-    - `,log <logger> <level>`: Set a logger to show at least level
-      `none`, `fatal`, `error`, `warning`, `info`, or `debug`.
-
-    - `,log <logger> <level>`: Set a logger to use the default
-      level.
-
-    - `,log <level>`: Set the default level for all other loggers
-      not specified individually.
-
-
 ### racket-racket
 <kbd>&lt;C-M-f5&gt;</kbd>
 
 Do `racket <file>` in `*shell*` buffer.
 
 ### racket-profile
-<kbd>C-c C-l</kbd>
+<kbd>C-c C-o</kbd>
 
 Runs with profiling instrumentation and shows results.
 
@@ -132,6 +117,58 @@ z               racket--profile-show-zero
 
 In addition to any hooks its parent mode `special-mode` might have run,
 this mode runs the hook [`racket-profile-mode-hook`](#racket-profile-mode-hook), as the final step
+during initialization.
+
+### racket-logger
+<kbd>C-c C-l</kbd>
+
+Create the [`racket-logger-mode`](#racket-logger-mode) buffer and connect to logger output.
+
+If the [`racket-repl-mode`](#racket-repl-mode) buffer is displayed in a window, split
+that window and put the logger in the bottom window. Otherwise,
+use `pop-to-buffer`.
+
+### racket-logger-mode
+<kbd>M-x racket-logger-mode</kbd>
+
+Major mode for Racket logger output.
+
+The customization variable [`racket-logger-config`](#racket-logger-config) determines the
+levels for topics. During a session you may change topic levels
+using [`racket-logger-topic-level`](#racket-logger-topic-level), bound to
+"M-x racket-logger-topic-level".
+
+For more information see:
+  <https://docs.racket-lang.org/reference/logging.html>
+
+```
+key             binding
+---             -------
+
+SPC             scroll-up-command
+-               negative-argument
+0 .. 9          digit-argument
+<               beginning-of-buffer
+>               end-of-buffer
+?               describe-mode
+g               racket-logger-clear
+h               describe-mode
+l               racket-logger-level
+n               racket-logger-next-item
+p               racket-logger-previous-item
+q               quit-window
+w               racket-logger-toggle-truncate-lines
+x               racket-logger-exit
+DEL             scroll-down-command
+S-SPC           scroll-down-command
+<remap>         Prefix Command
+
+
+```
+
+
+In addition to any hooks its parent mode `special-mode` might have run,
+this mode runs the hook [`racket-logger-mode-hook`](#racket-logger-mode-hook), as the final step
 during initialization.
 
 ## Test
@@ -475,7 +512,7 @@ even press `]`.
 ### racket-cycle-paren-shapes
 <kbd>C-c C-p</kbd>
 
-In an s-expression, move to the opening, and cycle the shape among () [] {}
+Cycle the sexpr among () [] {}.
 
 ### racket-backward-up-list
 <kbd>C-M-u</kbd>
@@ -561,7 +598,7 @@ can turn it off by setting `input-method-highlight-flag` to nil via
 `M-x customize-variable`.
 
 ### racket-align
-<kbd>M-]</kbd>
+<kbd>M-x racket-align</kbd>
 
 Align values in the same column.
 
@@ -575,8 +612,8 @@ of "couples". A couple is:
 - A list of two or more sexprs: `[sexpr val sexpr ...]`
 - Two sexprs: `sexpr val`.
 
-Each `val` moves to the same column and is `indent-sexp`-ed (in
-case it is a multi-line form).
+Each `val` moves to the same column and is
+`prog-indent-sexp`-ed (in case it is a multi-line form).
 
 For example with point on the `[` before `a`:
 
@@ -621,12 +658,12 @@ usual. For example:
 See also: [`racket-unalign`](#racket-unalign).
 
 ### racket-unalign
-<kbd>M-}</kbd>
+<kbd>M-x racket-unalign</kbd>
 
 The opposite of [`racket-align`](#racket-align).
 
-Effectively does M-x `just-one-space` and `indent-sexp` for each
-couple's value.
+Effectively does M-x `just-one-space` and `prog-indent-sexp` for
+each couple's value.
 
 ## Macro expand
 
@@ -779,6 +816,23 @@ or, use [`racket-insert-lambda`](#racket-insert-lambda) to insert actual λ char
 
 ### racket-smart-open-bracket-enable
 Use [`racket-smart-open-bracket`](#racket-smart-open-bracket) when `[` is pressed?
+
+### racket-logger-config
+Configuration of [`racket-logger-mode`](#racket-logger-mode) topics and levels
+
+The topic '* respresents the default level used for topics not
+assigned a level. Otherwise, the topic symbols are the same as
+used by Racket's `define-logger`.
+
+The levels are those used by Racket's logging system: 'debug,
+'info, 'warning, 'error, 'fatal.
+
+For more information see:
+  <https://docs.racket-lang.org/reference/logging.html>
+
+The default value sets some known "noisy" topics to be one
+level quieter. That way you can set the '* topic to a level like
+'debug and not get overhwelmed by these noisy topics.
 
 # Faces
 

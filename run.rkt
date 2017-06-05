@@ -18,7 +18,8 @@
 
 (module+ main
   (match (current-command-line-arguments)
-    [(vector port) (start-command-server (string->number port))]
+    [(vector port) (start-command-server (string->number port))
+                   (start-logger-server (add1 (string->number port)))]
     [v             (displayln "Expected exactly one argument: command port")
                    (exit)])
   ;; Emacs on Windows comint-mode needs buffering disabled.
@@ -88,9 +89,7 @@
         (current-print (make-print-handler pretty-print?))
         (pretty-print-print-hook (make-pretty-print-print-hook))
         (pretty-print-size-hook (make-pretty-print-size-hook))
-        ;; 2. Start logger display thread.
-        (start-log-receiver)
-        ;; 3. If module, load its lang info, require, and enter its namespace.
+        ;; 2. If module, load its lang info, require, and enter its namespace.
         (when mod-path
           (parameterize ([current-module-name-resolver repl-module-name-resolver])
             ;; exn:fail? during module load => re-run with "empty" module
@@ -102,9 +101,9 @@
               (dynamic-require mod-path #f)
               (current-namespace (module->namespace mod-path))
               (check-top-interaction))))
-        ;; 4. Tell command server to use our namespace and module.
+        ;; 3. Tell command server to use our namespace and module.
         (attach-command-server (current-namespace) maybe-mod)
-        ;; 5. read-eval-print-loop
+        ;; 4. read-eval-print-loop
         (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
                        [current-module-name-resolver repl-module-name-resolver])
           ;; Note that read-eval-print-loop catches all non-break

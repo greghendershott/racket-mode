@@ -20,7 +20,6 @@
          "fresh-line.rkt"
          "help.rkt"
          "instrument.rkt"
-         "logger.rkt"
          "mod.rkt"
          "scribble.rkt"
          "try-catch.rkt"
@@ -152,7 +151,6 @@
       [(exp)             (exp1 (read))]
       [(exp+)            (exp+)]
       [(exp!)            (exp! (read))]
-      [(log)             (log-display (map string->symbol (string-split (read-line))))]
       [(pwd)             (display-commented (~v (current-directory)))]
       [(cd)              (cd (~a (read)))]
       [(exit)            (exit)]
@@ -173,6 +171,8 @@
       [(get-profile)     (get-profile)]
       [(get-uncovered)   (get-uncovered path)]
       [(check-syntax)    (check-syntax (string->path (read)))]
+      ;; Obsolete
+      [(log)             (display-commented "Use M-x racket-logger instead")]
       [else              (unknown-command)])))
 
 (define (usage)
@@ -195,8 +195,7 @@
        ,exp+
        ,exp! <stx>
        ,pwd
-       ,cd <path>
-       ,log <opts> ...}))
+       ,cd <path>}))
 
 ;;; run, top, info
 

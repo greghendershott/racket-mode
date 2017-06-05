@@ -167,14 +167,14 @@ Never changes selected window."
 (defvar racket--repl-command-connect-timeout 30)
 
 (defun racket--repl-command-connect ()
-  "Connect to the Racket command server.
+  "Connect to the Racket command process.
 If already connected, disconnects then connects again."
   (racket--repl-command-disconnect)
-  (with-temp-message "Connecting to command server..."
+  (with-temp-message "Connecting to command process..."
     ;; The command server may not be ready -- Racket itself and our
     ;; backend are still starting up -- so retry until timeout.
     (with-timeout (racket--repl-command-connect-timeout
-                   (error "Could not connect to command server"))
+                   (error "Could not connect to command process"))
       (while (not racket--repl-command-process)
         (condition-case ()
             (setq racket--repl-command-process
@@ -186,9 +186,9 @@ If already connected, disconnects then connects again."
           (error (sit-for 0.1)))))))
 
 (defun racket--repl-command-disconnect ()
-  "Disconnect from the Racket command server. "
+  "Disconnect from the Racket command process."
   (when racket--repl-command-process
-    (with-temp-message "Deleting existing connection to command server..."
+    (with-temp-message "Deleting existing connection to command process..."
       (delete-process racket--repl-command-process)
       (setq racket--repl-command-process nil))))
 
@@ -198,14 +198,14 @@ Do not prefix the command with a `,'. Not necessary to append \n."
   (racket--repl-ensure-buffer-and-process)
   (let ((proc racket--repl-command-process))
     (unless proc
-      (error "Command server process is nil"))
+      (error "Command process is nil"))
     (with-current-buffer (process-buffer proc)
       (delete-region (point-min) (point-max))
       (process-send-string proc
                            (concat (apply #'format (cons fmt xs))
                                    "\n"))
       (with-timeout (racket-command-timeout
-                     (error "Command server timeout"))
+                     (error "Command process timeout"))
         ;; While command server running and not yet complete sexp
         (while (and (memq (process-status proc) '(open run))
                     (or (= (point) (point-min))
@@ -441,13 +441,14 @@ With prefix arg, open the N-th last shown image."
      ("M-."             racket-visit-definition)
      ("C-M-."           racket-visit-module)
      ("M-,"             racket-unvisit)
-     ("C-c C-z"         racket-repl-switch-to-edit)))
+     ("C-c C-z"         racket-repl-switch-to-edit)
+     ("C-c C-l"         racket-logger)))
   "Keymap for Racket REPL mode.")
 
 (easy-menu-define racket-repl-mode-menu racket-repl-mode-map
   "Menu for Racket REPL mode."
   '("Racket"
-    ["Insert λ" racket-insert-lambda]
+    ["Insert Lambda" racket-insert-lambda] ;λ in string breaks menu
     ["Indent Region" indent-region]
     ["Cycle Paren Shapes" racket-cycle-paren-shapes]
     ("Macro Expand"

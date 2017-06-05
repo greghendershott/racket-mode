@@ -1,89 +1,50 @@
 #lang at-exp racket/base
 
 (require racket/match
-         racket/list
          racket/format
-         racket/string
-         "util.rkt")
+         racket/tcp)
 
-(provide start-log-receiver
-         log-display)
+(provide start-logger-server)
 
-(define current-log-receiver-thread (make-parameter #f))
 (define global-logger (make-logger))
 (current-logger global-logger)
-(define other-level 'fatal)
 
-;; Default a couple specific loggers one notch above their "noisy"
-;; level. That way, if someone sets "all other" loggers to e.g. debug,
-;; these won't get noisy. They need to be specifically cranked up.
-(define logger-levels (make-hasheq '([cm-accomplice . warning]
-                                     [GC . info]
-                                     [module-prefetch . warning]
-                                     [optimizer . info]
-                                     [sequence-specialization . info])))
+(define (start-logger-server port)
+  (void (thread (logger-thread port))))
 
-(define racket-log-file (build-path (find-system-path 'temp-dir) "racket-log"))
-(with-output-to-file racket-log-file #:exists 'truncate void)
+(define ((logger-thread port))
+  (define listener (tcp-listen port 4 #t))
+  (let accept ()
+    (define-values (in out) (tcp-accept listener))
+    ;; Assumption: Any network fail means the client has disconnected,
+    ;; therefore we should go back to waiting to accept a connection.
+    (with-handlers ([exn:fail:network? void])
+      (let wait ([receiver never-evt])
+        ;; Assumption: Our Emacs code will write complete sexprs,
+        ;; therefore when `in` becomes ready `read` will return
+        ;; without blocking.
+        (match (sync in receiver)
+          [(? input-port? in) (match (read in)
+                                [(? eof-object?) (void)]
+                                [v               (wait (make-receiver v))])]
+          [(vector l m v _) (displayln @~a{[@l] @m} out)
+                            (flush-output out)
+                            (wait receiver)])))
+    (close-input-port in)
+    (close-output-port out)
+    (accept)))
 
-(define (update-log-receiver)
-  (show-logger-levels)
-  (start-log-receiver))
+(define (make-receiver alist)
+  (apply make-log-receiver (list* global-logger
+                                  (alist->spec alist))))
 
-(define (start-log-receiver)
-  (cond [(current-log-receiver-thread) => kill-thread])
-  (let* ([args (append (list global-logger)
-                       (flatten (for/list ([(k v) logger-levels])
-                                  (list v k)))
-                       (list other-level))]
-         [r (apply make-log-receiver args)])
-    (current-log-receiver-thread
-     (thread
-      (λ ()
-         (let loop ()
-           (match (sync r)
-             [(vector l m v name)
-              (define s @~a{[@l] @m})
-              (display-commented s)
-              (flush-output (current-error-port))
-              ;; To /tmp/racket-log (can `tail -f' it)
-              (with-output-to-file racket-log-file #:exists 'append
-                (λ () (displayln s)))])
-           (loop)))))))
-
-(define (show-logger-levels)
-  (define wid 30)
-  (define (pr k v)
-    (printf "; ~a ~a\n"
-            (~a k
-                #:min-width wid
-                #:max-width wid
-                #:limit-marker "...")
-            v))
-  (pr "Logger" "Level")
-  (pr (make-string wid #\-) "-------")
-  (for ([(k v) logger-levels])
-    (pr k v))
-  (pr "[all other]" other-level)
-  (printf "; Writing ~v.\n" racket-log-file))
-
-(define (log-display specs)
-  (match specs
-    [(list) (show-logger-levels)]
-    [(list (and level (or 'none 'fatal 'error 'warning 'info 'debug)))
-     (set! other-level level)
-     (update-log-receiver)]
-    [(list logger 'default)
-     (hash-remove! logger-levels logger)
-     (update-log-receiver)]
-    [(list logger (and level (or 'none 'fatal 'error 'warning 'info 'debug)))
-     (hash-set! logger-levels logger level)
-     (update-log-receiver)]
-    [_ (eprintf
-        (string-join
-         '("; Usage:"
-           ",log                  -- show the levels currently in effect."
-           ",log <logger> <level> -- set logger to level debug|info|warning|error|fatal|none"
-           ",log <logger> default -- set logger to use the default, 'all other' level."
-           ",log <level>          -- set the default level, for 'all other' loggers.\n")
-         "\n; "))]))
+;; Convert from ([logger . level] ...) alist to the format used by
+;; make-log-receiver: (level logger ... ... default-level). In the
+;; alist, treat the logger '* as the default level.
+(define (alist->spec xs) ;(Listof (Pairof Symbol Symbol)) -> (Listof Symbol)
+  (for/fold ([spec '()])
+            ([x (in-list xs)])
+    (append spec
+            (match x
+              [(cons '*     level) (list level)]
+              [(cons logger level) (list level logger)]))))

@@ -77,22 +77,7 @@ Others are available only as a command in the REPL.
 - `,doc <symbol-or-string>`: Look for `<symbol-or-string>` in
   Racket's documentation. What `racket-doc' uses.
 
-- `,cd`, `,pwd`: Change and show `current-directory`.
-
-- `,log` controls the log output level, overall, as well as for
-  specific named loggers created with `define-logger`.
-
-    - `,log`: Show the current levels.
-
-    - `,log <logger> <level>`: Set a logger to show at least level
-      `none`, `fatal`, `error`, `warning`, `info`, or `debug`.
-
-    - `,log <logger> <level>`: Set a logger to use the default
-      level.
-
-    - `,log <level>`: Set the default level for all other loggers
-      not specified individually.
-"
+- `,cd`, `,pwd`: Change and show `current-directory`."
   (interactive "P")
   (racket--do-run (if errortracep
                       'high
