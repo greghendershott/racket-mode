@@ -132,7 +132,7 @@
       (module #%module-begin define-values define-syntaxes
               define define/contract
               define-syntax struct define-struct)
-      syntax-e=?
+      syntax-e-eq?
     [(module _ _ (#%module-begin . stxs))
      (ormap (λ (stx) (definition sym stx))
             (syntax->list #'stxs))]
@@ -158,7 +158,7 @@
   (define eq-sym? (make-eq-sym? sym))
   (syntax-case* stx
       (module #%module-begin define define/contract case-lambda)
-      syntax-e=?
+      syntax-e-eq?
     [(module _ _ (#%module-begin . stxs))
      (ormap (λ (stx)
               (signature sym stx))
@@ -181,7 +181,7 @@
   (define eq-sym? (make-eq-sym? sym))
   (syntax-case* stx
       (module #%module-begin provide provide/contract)
-      syntax-e=?
+      syntax-e-eq?
     [(module _ _ (#%module-begin . ss))
      (ormap (λ (stx) (contracting-provide sym stx))
             (syntax->list #'ss))]
@@ -192,10 +192,10 @@
          [_     #f]))]
     [(provide . stxs)
      (for/or ([stx (syntax->list #'stxs)])
-       (syntax-case* stx (contract-out) syntax-e=?
+       (syntax-case* stx (contract-out) syntax-e-eq?
          [(contract-out . stxs)
           (for/or ([stx (syntax->list #'stxs)])
-            (syntax-case* stx (rename struct) syntax-e=?
+            (syntax-case* stx (rename struct) syntax-e-eq?
               [(struct s _ ...)     (eq-sym? #'s) stx]
               [(struct (s _) _ ...) (eq-sym? #'s) stx]
               [(rename _ s _)       (eq-sym? #'s) stx]
@@ -213,7 +213,7 @@
   (define eq-sym? (make-eq-sym? sym))
   (syntax-case* stx
       (module #%module-begin provide provide/contract)
-      syntax-e=?
+      syntax-e-eq?
     [(module _ _ (#%module-begin . ss))
      (ormap (λ (stx) (renaming-provide sym stx))
             (syntax->list #'ss))]
@@ -224,24 +224,24 @@
          [_     #f]))]
     [(provide . stxs)
      (for/or ([stx (syntax->list #'stxs)])
-       (syntax-case* stx (contract-out rename-out) syntax-e=?
+       (syntax-case* stx (contract-out rename-out) syntax-e-eq?
          [(contract-out . stxs)
           (for/or ([stx (syntax->list #'stxs)])
-            (syntax-case* stx (rename) syntax-e=?
+            (syntax-case* stx (rename) syntax-e-eq?
               [(rename orig s _) (eq-sym? #'s) #'orig]
               [(s _)             (eq-sym? #'s) #'s]
               [_                 #f]))]
          [(rename-out . stxs)
           (for/or ([stx (syntax->list #'stxs)])
-            (syntax-case* stx () syntax-e=?
+            (syntax-case* stx () syntax-e-eq?
               [(orig s) (eq-sym? #'s) #'orig]
               [_        #f]))]
          [_ #f]))]
     [_ #f]))
 
 ;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
-(define (syntax-e=? a b)
-  (equal? (syntax-e a) (syntax-e b)))
+(define (syntax-e-eq? a b)
+  (eq? (syntax-e a) (syntax-e b)))
 
 (define ((make-eq-sym? sym) stx)
   (and (eq? sym (syntax-e stx)) stx))
