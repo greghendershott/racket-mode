@@ -15,9 +15,6 @@
 (provide scribble-doc/html
          binding->path+anchor)
 
-(module+ test
-  (require rackunit))
-
 ;;; Extract Scribble documentation as modified HTML suitable for
 ;;; Emacs' shr renderer.
 
@@ -57,14 +54,21 @@
     [xs     `(div () ,@xs)]))
 
 (module+ test
-  ;; Examples
-  (check-not-false (scribble-doc/xexpr #'print))        ;procedure
-  (check-not-false (scribble-doc/xexpr #'match))        ;syntax
-  (check-not-false (scribble-doc/xexpr #'current-eval)) ;parameter
-  (check-not-false (scribble-doc/xexpr #'struct-out))   ;indented subitem
-  (check-not-false (scribble-doc/xexpr #'xref-binding->definition-tag))
-  (check-not-false (scribble-doc/xexpr #'lambda)) ;deftogether 1of2
-  (check-not-false (scribble-doc/xexpr #'λ)))     ;deftogether 2of2
+  (require rackunit)
+  (test-case "procedure"
+   (check-not-false (scribble-doc/xexpr #'print)))
+  (test-case "syntax"
+    (check-not-false (scribble-doc/xexpr #'match)))
+  (test-case "parameter"
+    (check-not-false (scribble-doc/xexpr #'current-eval)))
+  (test-case "indented sub-item"
+    (check-not-false (scribble-doc/xexpr #'struct-out)))
+  (test-case "deftogether"
+    (test-case "1 of 2"
+      (check-not-false (scribble-doc/xexpr #'lambda)))
+    (test-case "2 of 2"
+      (check-not-false (scribble-doc/xexpr #'λ))))
+  (check-not-false (scribble-doc/xexpr #'xref-binding->definition-tag)))
 
 (define (main-elements x)
   (match x
@@ -119,21 +123,21 @@
 ;; Note: Emacs shr renderer removes leading spaces and nbsp from <td>
 ;; elements -- which messes up the alignment of s-expressions
 ;; including contracts. But actually, the best place to address that
-;; is up in Elisp, not here -- replace nbsp in the HTML with some
+;; is up in Elisp, not here -- replace &nbsp; in the HTML with some
 ;; temporary character, then replace that character in the shr output.
 (define (massage-xexpr x)
   (define kind-xexprs '())
   (define provide-xexprs '())
   (define (walk x)
     (match x
-      ;; The "Provided by" title/tooltip. Store it to prepend.
+      ;; The "Provided" title/tooltip. Set aside for later.
       [`(span ([title ,(and s (pregexp "^Provided from:"))]) . ,xs)
        (set! provide-xexprs (list s))
        `(span () ,@(map walk xs))]
       ;; The HTML for the "kind" (e.g. procedure or syntax or
       ;; parameter) comes before the rest of the bluebox. Simple HTML
-      ;; renderers like shr don't handle this well. Store it to
-      ;; prepend.
+      ;; renderers like shr don't handle this well. Set aside for
+      ;; later.
       [`(div ([class "RBackgroundLabel SIEHidden"])
          (div ([class "RBackgroundLabelInner"]) (p () . ,xs)))
        (set! kind-xexprs xs)
@@ -141,8 +145,8 @@
       ;; Bold RktValDef, which is the name of the thing.
       [`(a ([class ,(pregexp "RktValDef|RktStxDef")] . ,_) . ,xs)
        `(b () ,@(map walk xs))]
-      ;; Kill links. Due the problem with "open" and file: links on OSX,
-      ;; these won't work.
+      ;; Kill links. (Often these won't work anyway -- e.g. due to
+      ;; problems with "open" and file: links on macOS.)
       [`(a ,_ . ,xs)
        `(span () ,@(map walk xs))]
       ;; Kill "see also" notes, since they're N/A w/o links.
@@ -155,10 +159,10 @@
        `(span () ,@(map walk xs))]
       [`(p ([class "RForeground"]) . ,xs)
        `(div () ,@(map walk xs))]
-      ;; Let's italicize all RktXXX classes.
+      ;; Let's italicize all RktXXX classes except RktPn.
       [`(span ([class ,(pregexp "^Rkt(?!Pn)")]) . ,xs)
        `(i () ,@(map walk xs))]
-      ;; Misc: Leave as-is.
+      ;; Misc element: Just walk kids.
       [`(,tag ,attrs . ,xs)
        `(,tag ,attrs ,@(map walk xs))]
       [x x]))
