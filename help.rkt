@@ -3,6 +3,7 @@
 (require (only-in help/help-utils find-help)
          (only-in help/search perform-search)
          json
+         net/url
          racket/contract
          racket/file
          racket/format
@@ -57,10 +58,10 @@
 (define (find-help/mac stx)
   (let-values ([(path anchor) (binding->path+anchor stx)])
     (and path anchor
-         (let ([path (path->string (path->complete-path path))])
-           (browse-file-url/mac @~a{file://@|path|#@anchor}
-                                (force mac-browser))))))
-
+         (let ([path-url (path->url (path->complete-path path))])
+           (browse-file-url/mac
+            (url->string (struct-copy url path-url [fragment anchor]))
+            (force mac-browser))))))
 (define osascript (delay/sync (find-executable-path "osascript" #f)))
 (define (browse-file-url/mac file-url browser)
   ;; Note: Unlike `send-url/mac`, we also do an "activate" to show the
