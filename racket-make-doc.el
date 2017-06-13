@@ -178,8 +178,17 @@
 
 (defconst racket-make-doc/faces
   '(racket-keyword-argument-face
-    racket-paren-face
-    racket-selfeval-face)
+    racket-selfeval-face
+    racket-here-string-face
+    racket-check-syntax-def-face
+    racket-check-syntax-use-face
+    racket-logger-config-face
+    racket-logger-topic-face
+    racket-logger-fatal-face
+    racket-logger-error-face
+    racket-logger-warning-face
+    racket-logger-info-face
+    racket-logger-debug-face)
   "Faces to include in the Reference.")
 
 (defun racket-make-doc/faces ()

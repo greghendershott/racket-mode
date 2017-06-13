@@ -279,11 +279,10 @@ level quieter. That way you can set the '* topic to a level like
   "Face for `#:keyword` arguments."
   "Keyword Argument Face")
 
-(defface-racket racket-paren-face
-  (let ((fg (face-foreground 'default)))
-    `((t (:foreground ,fg))))
-  "Face for `() [] {}`."
-  "Paren Face")
+(define-obsolete-face-alias
+ 'racket-paren-face
+ "Instead use the `paren-face' package: <https://melpa.org/#/paren-face>."
+ "2017-06-13")
 
 (defface-racket racket-selfeval-face
   '((t (:foreground "SeaGreen")))

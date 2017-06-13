@@ -127,9 +127,6 @@
 (defconst racket-font-lock-keywords-2
   (eval-when-compile
     `(
-      ;; paren
-      (,(rx (any "[](){}")) . racket-paren-face)
-
       ;; def* -- variables
       (,(rx "(def" (0+ (not (any " "))) (1+ " ")
             (group (1+ (not (any "( ")))))

@@ -136,7 +136,7 @@ Major mode for Racket logger output.
 The customization variable [`racket-logger-config`](#racket-logger-config) determines the
 levels for topics. During a session you may change topic levels
 using [`racket-logger-topic-level`](#racket-logger-topic-level), bound to
-"M-x racket-logger-topic-level".
+"l".
 
 For more information see:
   <https://docs.racket-lang.org/reference/logging.html>
@@ -145,23 +145,15 @@ For more information see:
 key             binding
 ---             -------
 
-SPC             scroll-up-command
--               negative-argument
-0 .. 9          digit-argument
-<               beginning-of-buffer
->               end-of-buffer
-?               describe-mode
+C-c             Prefix Command
 g               racket-logger-clear
-h               describe-mode
-l               racket-logger-level
+l               racket-logger-topic-level
 n               racket-logger-next-item
 p               racket-logger-previous-item
-q               quit-window
-w               racket-logger-toggle-truncate-lines
+w               toggle-truncate-lines
 x               racket-logger-exit
-DEL             scroll-down-command
-S-SPC           scroll-down-command
-<remap>         Prefix Command
+
+C-c C-z         racket-repl
 
 
 ```
@@ -326,6 +318,8 @@ You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
 TAB, and activate using RET -- for [`racket-visit-definition`](#racket-visit-definition) and
 [`racket-doc`](#racket-doc).
+
+(fn &optional PREFIX)
 
 ### racket-doc
 <kbd>C-c C-d</kbd>
@@ -512,7 +506,7 @@ even press `]`.
 ### racket-cycle-paren-shapes
 <kbd>C-c C-p</kbd>
 
-Cycle the sexpr among () [] {}.
+In an s-expression, move to the opening, and cycle the shape among () [] {}
 
 ### racket-backward-up-list
 <kbd>C-M-u</kbd>
@@ -598,7 +592,7 @@ can turn it off by setting `input-method-highlight-flag` to nil via
 `M-x customize-variable`.
 
 ### racket-align
-<kbd>M-x racket-align</kbd>
+<kbd>M-]</kbd>
 
 Align values in the same column.
 
@@ -612,8 +606,8 @@ of "couples". A couple is:
 - A list of two or more sexprs: `[sexpr val sexpr ...]`
 - Two sexprs: `sexpr val`.
 
-Each `val` moves to the same column and is
-`prog-indent-sexp`-ed (in case it is a multi-line form).
+Each `val` moves to the same column and is `indent-sexp`-ed (in
+case it is a multi-line form).
 
 For example with point on the `[` before `a`:
 
@@ -658,12 +652,12 @@ usual. For example:
 See also: [`racket-unalign`](#racket-unalign).
 
 ### racket-unalign
-<kbd>M-x racket-unalign</kbd>
+<kbd>M-}</kbd>
 
 The opposite of [`racket-align`](#racket-align).
 
-Effectively does M-x `just-one-space` and `prog-indent-sexp` for
-each couple's value.
+Effectively does M-x `just-one-space` and `indent-sexp` for each
+couple's value.
 
 ## Macro expand
 
@@ -800,7 +794,7 @@ This is indirectly disabled if [`racket-indent-sequence-depth`](#racket-indent-s
 This is safe to set as a file-local variable.
 
 ### racket-indent-sequence-depth
-To what depth should [`racket--align-sequence-to-head`](#racket--align-sequence-to-head) search.
+To what depth should [`racket-indent-line`](#racket-indent-line) search.
 This affects the indentation of forms like `` '()` `() #() `` --
 and `{}` if [`racket-indent-curly-as-sequence`](#racket-indent-curly-as-sequence) is t -- but not
 `` #'() #`() ,() ,@() ``. A zero value disables, giving the
@@ -841,9 +835,41 @@ level quieter. That way you can set the '* topic to a level like
 ### racket-keyword-argument-face
 Face for `#:keyword` arguments.
 
-### racket-paren-face
-Face for `() [] {}`.
-
 ### racket-selfeval-face
 Face for self-evaluating expressions like numbers, symbols, strings.
+
+### racket-here-string-face
+Face for self-evaluating expressions like numbers, symbols, strings.
+
+### racket-paren-face
+No documentation.
+
+
+
+### racket-check-syntax-def-face
+Face [`racket-check-syntax`](#racket-check-syntax) uses to highlight definitions.
+
+### racket-check-syntax-use-face
+Face [`racket-check-syntax`](#racket-check-syntax) uses to highlight uses.
+
+### racket-logger-config-face
+Face for [`racket-logger-mode`](#racket-logger-mode) configuration.
+
+### racket-logger-topic-face
+Face for [`racket-logger-mode`](#racket-logger-mode) topics.
+
+### racket-logger-fatal-face
+Face for [`racket-logger-mode`](#racket-logger-mode) fatal level.
+
+### racket-logger-error-face
+Face for [`racket-logger-mode`](#racket-logger-mode) error level.
+
+### racket-logger-warning-face
+Face for [`racket-logger-mode`](#racket-logger-mode) warning level.
+
+### racket-logger-info-face
+Face for [`racket-logger-mode`](#racket-logger-mode) info level.
+
+### racket-logger-debug-face
+Face for [`racket-logger-mode`](#racket-logger-mode) debug level.
 
