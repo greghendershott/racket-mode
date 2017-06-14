@@ -27,7 +27,6 @@
 (require 'racket-util)
 
 (declare-function racket-complete-at-point "racket-complete.el" (&optional predicate))
-(declare-function racket-eldoc-function    "racket-complete.el" ())
 
 (defvar racket-mode-abbrev-table nil)
 (define-abbrev-table 'racket-mode-abbrev-table ())
@@ -120,7 +119,7 @@
     ;; #hasheq() #fx3(0 1 2) #s() and so on. I think these -- plus any
     ;; user defined reader extensions -- can all be covered with the
     ;; following general rx. Also it seems sufficient to look for just
-    ;; the opening delimiter pair -- the ( [ { or " -- here.
+    ;; the opening delimiter -- the ( [ { or " -- here.
     ((rx (group ?#
                 (zero-or-more (or (syntax symbol)
                                   (syntax word))))
@@ -191,15 +190,18 @@ This is intended to be used with commands that customize their
 behavior based on whether they are editing Racket, such as
 Paredit bindings, without each of those commands needing to have
 a list of all modes in which Racket is edited."
-  (or (eq major-mode 'racket-mode)
-      (eq major-mode 'racket-repl-mode)))
+  (memq major-mode '(racket-mode racket-repl-mode)))
 
-(defun racket--variables-for-both-modes ()
+(defun racket--common-variables ()
   "Set variables common to `racket-mode' and `racket-repl-mode'."
-  ;;; Syntax and font-lock stuff.
+  ;;; Syntax
   (set-syntax-table racket-mode-syntax-table)
-  (setq-local syntax-propertize-function #'racket-syntax-propertize-function)
   (setq-local multibyte-syntax-as-symbol t)
+  (setq-local parse-sexp-ignore-comments t)
+  (setq-local syntax-propertize-function #'racket-syntax-propertize-function)
+  (syntax-propertize (point-max)) ;for e.g. paredit: see issue #222
+  ;; -----------------------------------------------------------------
+  ;; Font-lock
   (setq-local font-lock-defaults
               (list racket-font-lock-keywords ;keywords
                     nil                       ;keywords-only?
@@ -218,13 +220,12 @@ a list of all modes in which Racket is edited."
   ;; -----------------------------------------------------------------
   ;; Comments. Mostly borrowed from lisp-mode and/or scheme-mode
   (setq-local comment-start ";")
-  (setq-local comment-add 1)            ;default to `;;' in comment-region
+  (setq-local comment-add 1)        ;default to `;;' in comment-region
   (setq-local comment-start-skip ";+ *")
+  (setq-local comment-column 40)
   (setq-local comment-multi-line t) ;for auto-fill-mode and #||# comments
   ;; Font lock mode uses this only when it knows a comment is starting:
   (setq-local font-lock-comment-start-skip ";+ *")
-  (setq-local parse-sexp-ignore-comments t)
-  (setq-local comment-column 40)
   ;; -----------------------------------------------------------------
   ;; Indent
   (setq-local indent-line-function #'racket-indent-line)
@@ -238,7 +239,6 @@ a list of all modes in which Racket is edited."
   (setq-local paragraph-ignore-fill-prefix t)
   (setq-local fill-paragraph-function #'lisp-fill-paragraph)
   (setq-local adaptive-fill-mode nil)
-  (setq-local parse-sexp-ignore-comments t)
   (setq-local outline-regexp ";;; \\|(....")
   (setq-local completion-at-point-functions (list #'racket-complete-at-point))
   (setq-local eldoc-documentation-function nil)

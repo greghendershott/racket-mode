@@ -470,7 +470,7 @@ With prefix arg, open the N-th last shown image."
 (define-derived-mode racket-repl-mode comint-mode "Racket-REPL"
   "Major mode for Racket REPL.
 \\{racket-repl-mode-map}"
-  (racket--variables-for-both-modes)
+  (racket--common-variables)
   (setq-local comint-prompt-regexp (rx (regexp "^[^>\n]*") "\ufeff> "))
   (setq-local comint-use-prompt-regexp t)
   (setq-local comint-prompt-read-only nil)

@@ -152,7 +152,7 @@ http://www.gnu.org/licenses/ for details.")
   "Racket"
   "Major mode for editing Racket.
 \\{racket-mode-map}"
-  (racket--variables-for-both-modes)
+  (racket--common-variables)
   (racket--variables-imenu)
   (hs-minor-mode t))
 
