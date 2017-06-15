@@ -156,6 +156,9 @@ BAR
     (cond [(pair? x) (car x)]
           [else x])))
 
+;; Issue 261
+"@|widget-id|" @|foo|
+
 (define (foo)
   (let ([x 10])
     #t)

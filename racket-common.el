@@ -131,8 +131,11 @@
     ;; Treat '|symbol with spaces| as word syntax
     ((rx ?' ?| (+ any) ?|)
      (0 "w"))
-    ;; Treat |identifier with spaces| -- but not #|comment|# -- as word syntax
-    ((rx (not (any ?#)) (group ?| (+ any) ?|) (not (any ?#)))
+    ;; Treat |identifier with spaces| -- but not #|comment|# -- as
+    ;; word syntax
+    ((rx (not (any ?#))
+         (group ?| (+? (not (any "|\r\n"))) ?|)
+         (not (any ?#)))
      (1 "w")))
    (point)
    end))

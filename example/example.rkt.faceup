@@ -156,6 +156,9 @@ BAR
     («k:cond» [(«b:pair?» x) («b:car» x)]
           [«k:else» x])))
 
+«m:;; »«x:Issue 261
+»«s:"@|widget-id|"» @|foo|
+
 («k:define» («f:foo»)
   («k:let» ([«v:x» «:racket-selfeval-face:10»])
     «:racket-selfeval-face:#t»)
