@@ -242,17 +242,17 @@ own level, therefore will follow the level specified for the
          (topic  (pcase topic
                    ("" "*")
                    (v  v)))
-         (topic  (intern-soft topic))
+         (topic  (intern topic))
          (levels '("fatal" "error" "warning" "info" "debug"))
          (level  (ido-completing-read
                   (format "Level for topic `%s': " topic)
                   (if (eq topic '*) levels (cons "*" levels))
                   nil t nil nil
-                  (format "%s" (racket-logger--topic-level topic ""))))
+                  (format "%s" (racket-logger--topic-level topic "*"))))
          (level  (pcase level
                    (""  nil)
                    ("*" nil)
-                   (v   (intern-soft v)))))
+                   (v   (intern v)))))
     (if level
         (racket-logger--set topic level)
       (racket-logger--unset topic))))
