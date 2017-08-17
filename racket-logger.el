@@ -64,11 +64,11 @@ For more information see:
 (defconst racket-logger-font-lock-keywords
   (eval-when-compile
     `((,#'racket--font-lock-config . racket-logger-config-face)
-      (,(rx bol "[fatal]")         . racket-logger-fatal-face)
-      (,(rx bol "[error]")         . racket-logger-error-face)
+      (,(rx bol "[  fatal]")       . racket-logger-fatal-face)
+      (,(rx bol "[  error]")       . racket-logger-error-face)
       (,(rx bol "[warning]")       . racket-logger-warning-face)
-      (,(rx bol "[info]")          . racket-logger-info-face)
-      (,(rx bol "[debug]")         . racket-logger-debug-face)
+      (,(rx bol "[   info]")       . racket-logger-info-face)
+      (,(rx bol "[  debug]")       . racket-logger-debug-face)
       (,(rx bol ?\[ (+? anything) ?\] space
             (group (+? anything) ?:) space)
        1 racket-logger-topic-face))))
@@ -243,10 +243,11 @@ own level, therefore will follow the level specified for the
                    ("" "*")
                    (v  v)))
          (topic  (intern topic))
-         (levels '("fatal" "error" "warning" "info" "debug"))
+         (levels (list "fatal" "error" "warning" "info" "debug"))
+         (levels (if (eq topic '*) levels (cons "*" levels)))
          (level  (ido-completing-read
                   (format "Level for topic `%s': " topic)
-                  (if (eq topic '*) levels (cons "*" levels))
+                  levels
                   nil t nil nil
                   (format "%s" (racket-logger--topic-level topic "*"))))
          (level  (pcase level

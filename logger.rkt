@@ -27,12 +27,31 @@
           [(? input-port? in) (match (read in)
                                 [(? eof-object?) (void)]
                                 [v               (wait (make-receiver v))])]
-          [(vector l m v _) (displayln @~a{[@l] @m} out)
-                            (flush-output out)
-                            (wait receiver)])))
+          [(vector level message _v topic)
+           ;; Ensure `topic` is in the message -- it's not always, even
+           ;; when `topic` is not #f. Also, supply "*" for #f topic.
+           (let ([message
+                  (match* [topic message]
+                    [[topic (pregexp (format "^~a: " (regexp-quote (~a topic))))]
+                     message]
+                    [[topic m]
+                     (format "~a: ~a" (or topic "*") message)])])
+             (displayln @~a{@(label level) @message} out)
+             (flush-output out)
+             (wait receiver))])))
     (close-input-port in)
     (close-output-port out)
     (accept)))
+
+(define (label level)
+  ;; justify
+  (case level
+    [(debug)   "[  debug]"]
+    [(info)    "[   info]"]
+    [(warning) "[warning]"]
+    [(error)   "[  error]"]
+    [(fatal)   "[  fatal]"]
+    [else      @~a{[level]}]))
 
 (define (make-receiver alist)
   (apply make-log-receiver (list* global-logger

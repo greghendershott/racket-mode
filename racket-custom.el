@@ -217,7 +217,7 @@ This is safe to set as a file-local variable."
     (GC                      . info)
     (module-prefetch         . warning)
     (optimizer               . info)
-    (racket/contract         . warning)
+    (racket/contract         . error)
     (sequence-specialization . info)
     (*                       . fatal))
   "Configuration of `racket-logger-mode' topics and levels
