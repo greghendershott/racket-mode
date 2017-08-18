@@ -17,6 +17,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'cl-lib)
+(require 'racket-util)
 (require 'racket-custom)
 (require 'racket-ppss)
 
@@ -37,6 +38,27 @@
 ;; (`racket--calculate-indent') in our `indent-line-function',
 ;; `racket-indent-line'. That just directly calls
 ;; `racket-indent-function'.
+
+;; Having said all that, we still have the matter of `paredit-mode'.
+;; It directly calls `lisp-indent-line' instead of `indent-function'.
+;; And, it directly calls `indent-sexp' instead of `prog-indent-sep'.
+;; Therefore it gets `lisp-mode' indent, not ours. To address this,
+;; advise those two functions to do the right thing when one of our
+;; major modes is active.
+(defun racket--lisp-indent-line-advice (orig &rest args)
+  "When `racket--mode-edits-racket-p' instead use `racket-indent-line'."
+  (apply (if (racket--mode-edits-racket-p) #'racket-indent-line orig)
+         args))
+(defun racket--indent-sexp-advice (orig &rest args)
+  "When `racket--mode-edits-racket-p' instead use `prog-indent-sexp'."
+  (apply (if (racket--mode-edits-racket-p) #'prog-indent-sexp orig)
+         args))
+;; I don't want to muck with the old `defadvice' for this. Instead use
+;; `advice-add' in Emacs 24.4+. Although we still support Emacs 24.3,
+;; not sure how much longer; I'm OK having it silently not work.
+(when (fboundp 'advice-add)
+  (advice-add 'lisp-indent-line :around #'racket--lisp-indent-line-advice)
+  (advice-add 'indent-sexp :around #'racket--indent-sexp-advice))
 
 (defun racket-indent-line (&optional whole-exp)
   "Indent current line as Racket code.

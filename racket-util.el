@@ -76,4 +76,13 @@ strings."
 
 (provide 'racket-util)
 
+(defun racket--mode-edits-racket-p ()
+  "Return non-nil if the current major mode is one that edits Racket code.
+
+This is intended to be used with commands that customize their
+behavior based on whether they are editing Racket, such as
+Paredit bindings, without each of those commands needing to have
+a list of all modes in which Racket is edited."
+  (memq major-mode '(racket-mode racket-repl-mode)))
+
 ;; racket-util.el ends here
