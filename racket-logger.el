@@ -199,7 +199,7 @@ use `pop-to-buffer'."
     (racket-logger--connect)))
 
 (defconst racket-logger--item-rx
-  (rx bol ?\[ (or "fatal" "error" "warning" "info" "debug") ?\] space))
+  (rx bol ?\[ (0+ space) (or "fatal" "error" "warning" "info" "debug") ?\] space))
 
 (defun racket-logger-next-item (&optional count)
   "Move point N items forward.
