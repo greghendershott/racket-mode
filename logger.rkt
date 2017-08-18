@@ -40,8 +40,6 @@
   (display (label level))
   (display " ")
   (display (ensure-topic-in-message topic message))
-  (display " ")
-  (display message)
   (newline))
 
 (define (ensure-topic-in-message topic message)
@@ -50,6 +48,15 @@
      message]
     [message-without-topic
      (format "~a: ~a" (or topic "*") message-without-topic)]))
+
+(module+ test
+  (require rackunit)
+  (check-equal? (ensure-topic-in-message 'topic "topic: message")
+                "topic: message")
+  (check-equal? (ensure-topic-in-message 'topic "message")
+                "topic: message")
+  (check-equal? (ensure-topic-in-message #f "message")
+                "*: message"))
 
 (define (label level)
   ;; justify
