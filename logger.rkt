@@ -28,20 +28,28 @@
                                 [(? eof-object?) (void)]
                                 [v               (wait (make-receiver v))])]
           [(vector level message _v topic)
-           ;; Ensure `topic` is in the message -- it's not always, even
-           ;; when `topic` is not #f. Also, supply "*" for #f topic.
-           (let ([message
-                  (match* [topic message]
-                    [[topic (pregexp (format "^~a: " (regexp-quote (~a topic))))]
-                     message]
-                    [[topic m]
-                     (format "~a: ~a" (or topic "*") message)])])
-             (displayln @~a{@(label level) @message} out)
-             (flush-output out)
-             (wait receiver))])))
+           (parameterize ([current-output-port out])
+             (display-log level topic message)
+             (flush-output))
+           (wait receiver)])))
     (close-input-port in)
     (close-output-port out)
     (accept)))
+
+(define (display-log level topic message)
+  (display (label level))
+  (display " ")
+  (display (ensure-topic-in-message topic message))
+  (display " ")
+  (display message)
+  (newline))
+
+(define (ensure-topic-in-message topic message)
+  (match message
+    [(pregexp (format "^~a: " (regexp-quote (~a topic))))
+     message]
+    [message-without-topic
+     (format "~a: ~a" (or topic "*") message-without-topic)]))
 
 (define (label level)
   ;; justify
