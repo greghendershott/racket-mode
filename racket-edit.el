@@ -30,32 +30,42 @@
 (defun racket-run (&optional errortracep)
   "Save and evaluate the buffer in REPL, much like DrRacket's Run.
 
-If point is within a submodule form, the REPL \"enters\" that
-submodule (uses its language info and namespace).
+With a C-u prefix, uses errortrace for improved stack traces.
+Otherwise follows the `racket-error-context' setting.
+
+If point is within a Racket `module` form, the REPL \"enters\"
+that submodule (uses its language info and namespace).
 
 When you run again, the file is evaluated from scratch -- the
 custodian releases resources like threads and the evaluation
 environment is reset to the contents of the file. In other words,
 like DrRacket, this provides the predictability of a \"static\"
-baseline, plus the ability to explore interatively using the
+baseline, plus the ability to explore interactively using the
 REPL.
 
 See also `racket-run-and-switch-to-repl', which is even more like
 DrRacket's Run because it selects the REPL window (gives it the
 focus), too.
 
-With a C-u prefix, uses errortrace for improved stack traces.
-Otherwise follows the `racket-error-context' setting.
+If your source file has a syntax or runtime error, a \"skeleton\"
+of your file is evaluated to get identifiers from module
+languages, `require`s, and definitions. That way, things like
+completion and `racket-describe' are more likely to work while
+you edit the file to fix the error. If not even the \"skeleton\"
+evaluation succeeds, you'll have only identifiers provided by
+racket/base, until you fix the error and run again.
 
 Output in the `*Racket REPL*` buffer that describes a file and
-position is automatically \"linkified\". To visit, move point
-there and press <kdb>RET</kbd>, mouse click, or use a
-Compilation mode command such as \\[next-error] (next error).
-Examples of such text include:
+position is automatically \"linkified\". Examples of such text
+include:
 
 - Racket error messages.
 - `rackunit` test failure location messages.
 - `print`s of `#<path>` objects.
+
+To visit these locations, move point there and press RET or mouse
+click. Or, use the standard `next-error' and `previous-error'
+commands.
 
 In the `*Racket REPL*` buffer you can issue some special
 commands. Some of them are the foundation for Emacs commands.

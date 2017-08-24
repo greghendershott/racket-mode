@@ -67,13 +67,15 @@
                  (context-item->string x))
                "\n"))
 
-(define-runtime-path run.rkt "run.rkt")
+(define-runtime-path run.rkt       "run.rkt")
+(define-runtime-path namespace.rkt "namespace.rkt")
 (define (system-context? ci)
   (match-define (cons id src) ci)
   (or (not src)
       (let ([src (srcloc-source src)])
         (and (path? src)
              (or (equal? src run.rkt)
+                 (equal? src namespace.rkt)
                  (under-system-path? src))))))
 
 (define (under-system-path? path)

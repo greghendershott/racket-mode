@@ -14,6 +14,7 @@
          "instrument.rkt"
          "logger.rkt"
          "mod.rkt"
+         "namespace.rkt"
          "util.rkt")
 
 (module+ main
@@ -89,17 +90,18 @@
         (current-print (make-print-handler pretty-print?))
         (pretty-print-print-hook (make-pretty-print-print-hook))
         (pretty-print-size-hook (make-pretty-print-size-hook))
-        ;; 2. If module, load its lang info, require, and enter its namespace.
-        (when mod-path
+        ;; 2. If module, require and enter its namespace, etc.
+        (when (and maybe-mod mod-path)
           (parameterize ([current-module-name-resolver repl-module-name-resolver])
-            ;; exn:fail? during module load => re-run with "empty" module
+            ;; When exn:fail? during module load, re-run with "empty"
+            ;; module. Note: Unlikely now that we're using
+            ;; dynamic-require/some-namespace.
             (with-handlers ([exn? (λ (x)
                                     (display-exn x)
                                     (put/stop (struct-copy rerun rr [maybe-mod #f])))])
+              (current-namespace (dynamic-require/some-namespace maybe-mod))
               (maybe-warn-about-submodules mod-path context-level)
               (maybe-load-language-info mod-path)
-              (dynamic-require mod-path #f)
-              (current-namespace (module->namespace mod-path))
               (check-top-interaction))))
         ;; 3. Tell command server to use our namespace and module.
         (attach-command-server (current-namespace) maybe-mod)
@@ -140,22 +142,23 @@
 (define (maybe-load-language-info path)
   ;; Load language-info (if any) and do configure-runtime.
   ;; Important for langs like Typed Racket.
-  (define info (module->language-info path #t))
-  (when info
-    (define get-info ((dynamic-require (vector-ref info 0)
-                                       (vector-ref info 1))
-                      (vector-ref info 2)))
-    (define configs (get-info 'configure-runtime '()))
-    (for ([config (in-list configs)])
-      ((dynamic-require (vector-ref config 0)
-                        (vector-ref config 1))
-       (vector-ref config 2))))
-  (define cr-submod `(submod ,@(match path
-                                 [(list 'submod sub-paths ...) sub-paths]
-                                 [_ (list path)])
-                      configure-runtime))
-  (when (module-declared? cr-submod)
-    (dynamic-require cr-submod #f)))
+  (with-handlers ([exn:fail? void])
+    (define info (module->language-info path #t))
+    (when info
+      (define get-info ((dynamic-require (vector-ref info 0)
+                                         (vector-ref info 1))
+                        (vector-ref info 2)))
+      (define configs (get-info 'configure-runtime '()))
+      (for ([config (in-list configs)])
+        ((dynamic-require (vector-ref config 0)
+                          (vector-ref config 1))
+         (vector-ref config 2))))
+    (define cr-submod `(submod ,@(match path
+                                   [(list 'submod sub-paths ...) sub-paths]
+                                   [_ (list path)])
+                        configure-runtime))
+    (when (module-declared? cr-submod)
+      (dynamic-require cr-submod #f))))
 
 (define (check-top-interaction)
   ;; Check that the lang defines #%top-interaction
