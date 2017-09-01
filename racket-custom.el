@@ -305,27 +305,27 @@ level quieter. That way you can set the '* topic to a level like
   "Racket Logger Config Face")
 
 (defface-racket racket-logger-fatal-face
-  '((t (:foreground "Red" :weight bold)))
+  '((t (:inherit error :weight bold)))
   "Face for `racket-logger-mode' fatal level."
   "Racket Logger Fatal Face")
 
 (defface-racket racket-logger-error-face
-  '((t (:foreground "Red1")))
+  '((t (:inherit error)))
   "Face for `racket-logger-mode' error level."
   "Racket Logger Error Face")
 
 (defface-racket racket-logger-warning-face
-  '((t (:foreground "DarkOrange1")))
+  '((t (:inherit warning)))
   "Face for `racket-logger-mode' warning level."
   "Racket Logger Warning Face")
 
 (defface-racket racket-logger-info-face
-  '((t (:foreground "SkyBlue3")))
+  '((t (:inherit font-lock-string-face)))
   "Face for `racket-logger-mode' info level."
   "Racket Logger Info Face")
 
 (defface-racket racket-logger-debug-face
-  '((t (:foreground "LightSlateBlue")))
+  '((t (:inherit font-lock-constant-face)))
   "Face for `racket-logger-mode' debug level."
   "Racket Logger Debug Face")
 
