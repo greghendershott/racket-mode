@@ -166,22 +166,44 @@ of a file name to a list of submodule symbols. Otherwise, the
       (looking-at (rx "#lang")))))
 
 (defun racket--modules-at-point ()
-  "List of module names that point is within, from outer to inner."
+  "List of module names that point is within, from outer to inner.
+Ignores module forms nested (at any depth) in any sort of plain
+or syntax quoting, because those won't be valid Racket syntax."
   (let ((xs nil))
     (condition-case ()
         (save-excursion
-          (racket--escape-string-or-comment)
-          (while t
-            (when (looking-at (rx ?\(
-                                  (or "module " "module* " "module+ ")
-                                  (group (+ (or (syntax symbol)
-                                                (syntax word))))))
-              (add-to-list 'xs
-                           (intern (match-string-no-properties 1))
-                           t
-                           #'ignore)) ;i.e. never equal, always add
-            (backward-up-list)))
-      (scan-error (reverse xs)))))
+          (save-match-data
+            (racket--escape-string-or-comment)
+            (while t
+              (when (racket--looking-at-module-form)
+                (push (intern (match-string-no-properties 1)) xs))
+              (when (racket--looking-at-quoted-form)
+                (push nil xs))
+              (backward-up-list))))
+      (scan-error xs))
+    (racket--take-while xs #'identity)))
+
+(defun racket--looking-at-module-form ()
+  "Sets match data group 1 to the module name."
+  (looking-at (rx ?\(
+                  (or "module" "module*" "module+")
+                  (1+ " ")
+                  (group (+ (or (syntax symbol)
+                                (syntax word)))))))
+
+(defun racket--looking-at-quoted-form ()
+  (or (memq (char-before) '(?\' ?\` ?\,))
+      (and (eq (char-before (1- (point))) ?\,)
+           (eq (char-before) ?\@))
+      (looking-at
+       (rx ?\(
+           (or "quote" "quasiquote"
+               "unquote" "unquote-splicing"
+               "quote-syntax"
+               "syntax" "syntax/loc"
+               "quasisyntax" "quasisyntax/loc"
+               "unsyntax" "unsyntax-splicing")
+           " "))))
 
 (defun racket-run-and-switch-to-repl (&optional errortracep)
   "This is `racket-run' followed by `racket-switch-to-repl'.

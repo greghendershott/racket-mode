@@ -18,6 +18,50 @@
 
 (require 'racket-custom)
 
+(defun racket--easy-keymap-define (spec)
+  "Make a sparse keymap with the bindings in SPEC.
+
+This is simply a way to DRY many calls to `define-key'.
+
+SPEC is
+  (list (list key-or-keys fn) ...)
+
+where key-or-keys is either a string given to `kbd', or (for the
+case where multiple keys bind to the same command) a list of such
+strings."
+  (let ((m (make-sparse-keymap)))
+    (mapc (lambda (x)
+            (let ((keys (if (listp (car x))
+                            (car x)
+                          (list (car x))))
+                  (fn (cadr x)))
+              (mapc (lambda (key)
+                      (define-key m (kbd key) fn))
+                    keys)))
+          spec)
+    m))
+
+(defun racket--buffer-file-name ()
+  "Like `buffer-file-name' but always a non-propertized string."
+  (and (buffer-file-name)
+       (substring-no-properties (buffer-file-name))))
+
+(defun racket--mode-edits-racket-p ()
+  "Return non-nil if the current major mode is one that edits Racket code.
+
+This is intended to be used with commands that customize their
+behavior based on whether they are editing Racket, such as
+Paredit bindings, without each of those commands needing to have
+a list of all modes in which Racket is edited."
+  (memq major-mode '(racket-mode racket-repl-mode)))
+
+(defun racket--take-while (xs pred)
+  (pcase xs
+    (`()         `())
+    (`(,x . ,xs) (if (funcall pred x)
+                     (cons x (racket--take-while xs pred))
+                   `()))))
+
 ;;; trace
 
 (defvar racket--trace-enable nil)
@@ -42,47 +86,7 @@
     (pop-to-buffer b t t)
     (setq truncate-lines t)))
 
-;;; racket--easy-keymap-define
-
-(defun racket--easy-keymap-define (spec)
-  "Make a sparse keymap with the bindings in SPEC.
-
-This is simply a way to DRY many calls to `define-key'.
-
-SPEC is
-  (list (list key-or-keys fn) ...)
-
-where key-or-keys is either a string given to `kbd', or (for the
-case where multiple keys bind to the same command) a list of such
-strings."
-  (let ((m (make-sparse-keymap)))
-    (mapc (lambda (x)
-            (let ((keys (if (listp (car x))
-                            (car x)
-                          (list (car x))))
-                  (fn (cadr x)))
-              (mapc (lambda (key)
-                      (define-key m (kbd key) fn))
-                    keys)))
-          spec)
-    m))
-
-;;; racket--buffer-file-name
-
-(defun racket--buffer-file-name ()
-  "Like `buffer-file-name' but always a non-propertized string."
-  (and (buffer-file-name)
-       (substring-no-properties (buffer-file-name))))
 
 (provide 'racket-util)
-
-(defun racket--mode-edits-racket-p ()
-  "Return non-nil if the current major mode is one that edits Racket code.
-
-This is intended to be used with commands that customize their
-behavior based on whether they are editing Racket, such as
-Paredit bindings, without each of those commands needing to have
-a list of all modes in which Racket is edited."
-  (memq major-mode '(racket-mode racket-repl-mode)))
 
 ;; racket-util.el ends here
