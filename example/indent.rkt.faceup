@@ -319,7 +319,7 @@
                z])
 
 «m:;; »«x:Bug #262
-»(define-metafunction «v:λL
-»  ∪ «b::» (x «k:...») «k:...» «b:->» (x «k:...»)
+»(define-metafunction «v:λL»
+  ∪ «b::» (x «k:...») «k:...» «b:->» (x «k:...»)
   [(∪ any_ls «k:...»)
    ,(«k:apply» «b:append» (term (any_ls «k:...»)))])

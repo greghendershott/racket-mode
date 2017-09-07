@@ -27,6 +27,8 @@
 
 (define-values (1st-var 2nd-var) (values 1 2))
 
+(define-thing foo)  ;bug 276
+
 ;; let: font-lock identifiers
 
 (let ([foo 10]

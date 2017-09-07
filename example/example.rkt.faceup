@@ -27,6 +27,8 @@
 
 («k:define-values» («v:1st-var 2nd-var») («b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»))
 
+(define-thing «v:foo»)  «m:;»«x:bug 276
+»
 «m:;; »«x:let: font-lock identifiers
 »
 («k:let» ([«v:foo» «:racket-selfeval-face:10»]

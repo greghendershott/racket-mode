@@ -30,6 +30,11 @@
 ;; matchers that will yield the same result (unless they need to be
 ;; tried in a certain order).
 
+;; Note: This relies on our character syntax already having been
+;; applied. For example a Racket identifier like `|name with spaces|`
+;; will already have word/symbol syntax on everything including the
+;; pipe and space chars.
+
 (defconst racket-font-lock-keywords-0
   (eval-when-compile
     `(
@@ -130,22 +135,32 @@
   (eval-when-compile
     `(
       ;; def* -- variables
-      (,(rx "(def" (0+ (not (any " "))) (1+ " ")
-            (group (1+ (not (any "( ")))))
+      (,(rx (syntax open-parenthesis)
+            "def" (0+ (or (syntax word) (syntax symbol)))
+            (1+ space)
+            (group (1+ (or (syntax word) (syntax symbol)))))
        1 font-lock-variable-name-face)
-      (,(rx "(define-values" (0+ " ") "(" (group (1+ (not (any "(")))) ")")
+      (,(rx (syntax open-parenthesis)
+            "define-values"
+            (1+ space)
+            (syntax open-parenthesis)
+            (group (1+ (or (syntax word) (syntax symbol) space)))
+            (syntax close-parenthesis))
        1 font-lock-variable-name-face)
 
       ;; def* -- functions
-      (,(rx "(def" (0+ (or (syntax word) (syntax symbol))) (1+ " ")
-            (+ "(") (group (1+ (or (syntax word) (syntax symbol)))))
+      (,(rx (syntax open-parenthesis)
+            "def" (0+ (or (syntax word) (syntax symbol)))
+            (1+ space)
+            (1+ (syntax open-parenthesis)) ;1+ b/c curried define
+            (group (1+ (or (syntax word) (syntax symbol)))))
        1 font-lock-function-name-face)
 
       ;; let identifiers
       (,#'racket--font-lock-let-identifiers . font-lock-variable-name-face)
 
       ;; module and module*
-      (,(rx "("
+      (,(rx (syntax open-parenthesis)
             (group "module" (? "*"))
             (1+ space)
             (group (1+ (or (syntax word) (syntax symbol))))
@@ -155,7 +170,7 @@
        (2 font-lock-function-name-face nil t)
        (3 font-lock-variable-name-face nil t))
       ;; module+
-      (,(rx "("
+      (,(rx (syntax open-parenthesis)
             (group "module+")
             (1+ space)
             (group (1+ (or (syntax word) (syntax symbol)))))
