@@ -32,7 +32,9 @@
 (define (display-srclocs exn)
   (when (exn:srclocs? exn)
     (let* ([srclocs ((exn:srclocs-accessor exn) exn)]
-           [srclocs (cond [(or (exn:fail:read? exn)
+           [srclocs (cond [(null? srclocs)
+                           '()] ;srclocs doesn't necessarily have elements
+                          [(or (exn:fail:read? exn)
                                (exn:fail:contract:variable? exn))
                            (cdr srclocs)] ;1st one already in exn-message
                           [(exn:fail:syntax? exn)
@@ -140,7 +142,13 @@
    "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
   (check-equal?
    (fully-qualify-error-path "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
-   "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f"))
+   "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
+  (let ([o (open-output-string)])
+    (parameterize ([current-error-port o])
+      (display-srclocs (make-exn:fail:read "..."
+                                           (current-continuation-marks)
+                                           '())))
+    (check-equal? (get-output-string o) "")))
 
 (define maybe-suggest-packages
   (with-handlers ([exn:fail? (λ _ void)])
