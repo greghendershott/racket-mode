@@ -92,7 +92,7 @@
   (pretty-print (map symbol->string (sort xs symbol<=?))))
 
 ;; Run these to print, copy and paste into racket-keywords-and-builtins.el
+;; (prn types)
 ;; (prn keywords)
 ;; (prn builtins1)
 ;; (prn builtins2)
-;; (prn types)
