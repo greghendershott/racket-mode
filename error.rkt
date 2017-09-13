@@ -33,17 +33,18 @@
   (when (exn:srclocs? exn)
     (define srclocs
       (match ((exn:srclocs-accessor exn) exn)
+        ;; Some exceptions like exn:fail:read? include the first
+        ;; srcloc in exn-message -- don't show it again.
         [(cons _ xs)
          #:when (or (exn:fail:read? exn)
                     (exn:fail:contract:variable? exn))
          xs]
-
+        ;; Some exceptions like exn:fail:syntax? with Typed Racket
+        ;; include _all_ in exn-message -- don't show _any_.
         [_
          #:when (exn:fail:syntax? exn)
          '()]
-
         [xs xs]))
-
     (for ([s (in-list srclocs)])
       (display-commented (source-location->string s)))))
 
