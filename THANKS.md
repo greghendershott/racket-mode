@@ -1,38 +1,9 @@
 # Contributors
 
-Thanks to the following contributors.
+Thanks to everyone who has contributed:
 
-## Pull Requests
-
-- [@antoineB](https://github.com/antoineB)
-- [@zenspider](https://github.com/zenspider)
-- [@mswift42](https://github.com/mswift42)
-- [@yasuyk](https://github.com/yasuyk)
-- [@purcell](https://github.com/purcell)
-- [@DonRyuDragoni](https://github.com/DonRyuDragoni)
-- [@tonyg](https://github.com/tonyg)
-- [@3rdLaw](https://github.com/3rdLaw)
-- [@syohex](https://github.com/syohex)
-- [@vkz](https://github.com/vkz)
-- [@cpitclaudel](https://github.com/cpitclaudel)
-
-## Issues
-
-- [@philnguyen](https://github.com/philnguyen)
-- [@jasonhemann](https://github.com/jasonhemann)
-- [@mattearnshaw](https://github.com/mattearnshaw)
-- [@stamourv](https://github.com/stamourv)
-- [@samth](https://github.com/samth)
-- [@egreglee](https://github.com/egreglee)
-- [@dented42](https://github.com/dented42)
-- [@JohnGurin](https://github.com/JohnGurin)
-- [@daFlyingDutchman](https://github.com/daFlyingDutchman)
-- [@technomancy](https://github.com/technomancy)
-- [@florence](https://github.com/florence)
-- [@gozes](https://github.com/gozes)
-- [@acarrico](https://github.com/acarrico)
-- [@bremner](https://github.com/bremner)
-- [@stchang](https://github.com/stchang)
+- [Pull Requests](https://github.com/greghendershott/racket-mode/graphs/contributors)
+- [Issues](https://github.com/greghendershott/racket-mode/issues?utf8=%E2%9C%93&q=is%3Aissue)
 
 # Acknowledgements
 
