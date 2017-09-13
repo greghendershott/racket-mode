@@ -31,15 +31,21 @@
 
 (define (display-srclocs exn)
   (when (exn:srclocs? exn)
-    (let* ([srclocs ((exn:srclocs-accessor exn) exn)]
-           [srclocs (cond [(or (exn:fail:read? exn)
-                               (exn:fail:contract:variable? exn))
-                           (cdr srclocs)] ;1st one already in exn-message
-                          [(exn:fail:syntax? exn)
-                           '()] ;all in exn-message, e.g. Typed Racket
-                          [else srclocs])])
-      (for ([srcloc srclocs])
-        (display-commented (source-location->string srcloc))))))
+    (define srclocs
+      (match ((exn:srclocs-accessor exn) exn)
+        [(cons _ xs)
+         #:when (or (exn:fail:read? exn)
+                    (exn:fail:contract:variable? exn))
+         xs]
+
+        [_
+         #:when (exn:fail:syntax? exn)
+         '()]
+
+        [xs xs]))
+
+    (for ([s (in-list srclocs)])
+      (display-commented (source-location->string s)))))
 
 (define (display-context exn)
   (cond [(instrumenting-enabled)
@@ -140,7 +146,13 @@
    "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
   (check-equal?
    (fully-qualify-error-path "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
-   "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f"))
+   "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
+  (let ([o (open-output-string)])
+    (parameterize ([current-error-port o])
+      (display-srclocs (make-exn:fail:read "..."
+                                           (current-continuation-marks)
+                                           '())))
+    (check-equal? (get-output-string o) "")))
 
 (define maybe-suggest-packages
   (with-handlers ([exn:fail? (λ _ void)])
