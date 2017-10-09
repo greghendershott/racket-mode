@@ -99,6 +99,8 @@
     (write-region code nil pathname nil 'no-wrote-file-message)
     (find-file pathname)
     (racket-run)
+    (while (not (comint-check-proc racket--repl-buffer-name))
+      (sit-for 0.5))
     ;; see expected prompt
     (with-racket-repl-buffer
       (should (racket-tests/see (concat "\n" name "\uFEFF> "))))
