@@ -264,7 +264,7 @@ See also:
 To run <file>'s `test` submodule."
   (interactive)
   (racket--shell (concat racket-program
-                         "-l raco test -x "
+                         " -l raco test -x "
                          (shell-quote-argument (racket--buffer-file-name)))))
 
 (defun racket--shell (cmd)
