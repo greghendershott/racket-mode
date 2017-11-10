@@ -99,9 +99,9 @@
             (with-handlers ([exn? (λ (x)
                                     (display-exn x)
                                     (put/stop (struct-copy rerun rr [maybe-mod #f])))])
+              (maybe-load-language-info mod-path) ;FIRST: see #281
               (current-namespace (dynamic-require/some-namespace maybe-mod))
               (maybe-warn-about-submodules mod-path context-level)
-              (maybe-load-language-info mod-path)
               (check-top-interaction))))
         ;; 3. Tell command server to use our namespace and module.
         (attach-command-server (current-namespace) maybe-mod)
