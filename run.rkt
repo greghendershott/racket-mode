@@ -1,4 +1,4 @@
-#lang at-exp racket/base
+#lang racket/base
 
 (require racket/cmdline
          racket/contract/base
@@ -164,8 +164,7 @@
   ;; Check that the lang defines #%top-interaction
   (unless (memq '#%top-interaction (namespace-mapped-symbols))
     (display-commented
-     @~a{Because the language used by this module provides no `#%top-interaction'
-         you will be unable to evaluate expressions here in the REPL.})))
+     "Because the language used by this module provides no `#%top-interaction\n you will be unable to evaluate expressions here in the REPL.")))
 
 ;; Catch attempt to load racket/gui/base for the first time.
 (define repl-module-name-resolver
