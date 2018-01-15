@@ -1,6 +1,7 @@
 language: emacs-lisp
 
-sudo: false
+# See https://github.com/flycheck/emacs-travis/issues/13
+sudo: required
 
 cache:
   - directories:
