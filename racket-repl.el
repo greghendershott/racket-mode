@@ -473,7 +473,7 @@ With prefix arg, open the N-th last shown image."
   (racket--common-variables)
   (setq-local comint-prompt-regexp (rx (regexp "^[^>\n]*") "\ufeff> "))
   (setq-local comint-use-prompt-regexp t)
-  (setq-local comint-prompt-read-only nil)
+  (setq-local comint-prompt-read-only t)
   (setq-local mode-line-process nil)
   (setq-local comint-input-filter #'racket-repl--input-filter)
   (add-hook 'comint-output-filter-functions #'racket-repl--output-filter nil t)
