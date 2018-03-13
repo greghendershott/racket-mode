@@ -849,7 +849,7 @@ Face for `#:keyword` arguments.
 Face for self-evaluating expressions like numbers, symbols, strings.
 
 ### racket-here-string-face
-Face for self-evaluating expressions like numbers, symbols, strings.
+Face for here-strings.
 
 ### racket-check-syntax-def-face
 Face [`racket-check-syntax`](#racket-check-syntax) uses to highlight definitions.
