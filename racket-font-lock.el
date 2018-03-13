@@ -86,7 +86,7 @@
        1 racket-selfeval-face)
 
       ;; Some self-eval constants
-      (,(regexp-opt '("#t" "#f" "+inf.0" "-inf.0" "+nan.0") 'symbols)
+      (,(regexp-opt '("#t" "#true" "#f" "#false" "+inf.0" "-inf.0" "+nan.0") 'symbols)
        . racket-selfeval-face)
 
       ;; Numeric literals including Racket reader hash prefixes.
