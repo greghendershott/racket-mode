@@ -329,8 +329,6 @@ buffer are Emacs buttons -- which you may navigate among using
 TAB, and activate using RET -- for [`racket-visit-definition`](#racket-visit-definition) and
 [`racket-doc`](#racket-doc).
 
-(fn &optional PREFIX)
-
 ### racket-doc
 <kbd>C-c C-d</kbd>
 
@@ -849,7 +847,7 @@ Face for `#:keyword` arguments.
 Face for self-evaluating expressions like numbers, symbols, strings.
 
 ### racket-here-string-face
-Face for self-evaluating expressions like numbers, symbols, strings.
+Face for here strings.
 
 ### racket-check-syntax-def-face
 Face [`racket-check-syntax`](#racket-check-syntax) uses to highlight definitions.

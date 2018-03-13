@@ -291,7 +291,7 @@ level quieter. That way you can set the '* topic to a level like
 
 (defface-racket racket-here-string-face
   '((t (:inherit sh-heredoc-face)))
-  "Face for self-evaluating expressions like numbers, symbols, strings."
+  "Face for here strings."
   "Here String Face")
 
 (defface-racket racket-logger-config-face
