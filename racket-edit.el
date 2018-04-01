@@ -139,7 +139,7 @@ of a file name to a list of submodule symbols. Otherwise, the
             (and (racket--buffer-file-name)
                  (not (file-exists-p (racket--buffer-file-name)))))
     (save-buffer))
-  (remove-overlays (point-min) (point-max) 'racket-uncovered-overlay)
+  (remove-overlays (point-min) (point-max) 'name 'racket-uncovered-overlay)
   (racket--invalidate-completion-cache)
   (racket--invalidate-type-cache)
   (racket--repl-eval ",run %S %s %s %s %S\n"
