@@ -152,6 +152,16 @@ of a file name to a list of submodule symbols. Otherwise, the
 (defun racket--what-to-run ()
   (cons (racket--buffer-file-name) (racket--submod-path)))
 
+(defun racket--what-to-run-with-submod (submod)
+  "Gives the ,run information for `submod' within the current module.
+
+If you're in submodule called `submod' already, runs the current module."
+  (let ((prefix (racket--what-to-run)))
+    (cons 'submod
+          (if (eq (last prefix) submod)
+              prefix
+            (append prefix (list submod))))))
+
 (defun racket--submod-path ()
   (and (racket--lang-p)
        (racket--modules-at-point)))
@@ -214,6 +224,20 @@ Otherwise follows the `racket-error-context' setting."
   (racket-run errortracep)
   (racket-repl))
 
+(defun racket-run-main (&optional errortracep)
+  "Run the `main` submodule.
+
+This is sort-of like how `racket-test' is `racket-run' for the
+`test` submodule of your current module.
+
+With a C-u prefix, uses errortrace for improved stack traces.
+Otherwise follows the `racket-error-context' setting."
+  (interactive "P")
+  (racket--do-run (if errortracep
+                      'high
+                    racket-error-context)
+                  (racket--what-to-run-with-submod 'main)))
+
 (defun racket-racket ()
   "Do `racket <file>` in `*shell*` buffer."
   (interactive)
@@ -233,6 +257,8 @@ Put your tests in a `test` submodule. For example:
       (require rackunit)
       (check-true #t))
 
+If you are in a `test' submodule, runs it.
+
 rackunit test failure messages show the location. You may use
 `next-error' to jump to the location of each failing test.
 
@@ -242,7 +268,7 @@ See also:
 "
   (interactive "P")
   (racket--do-run (if coverage 'coverage racket-error-context)
-                  (list 'submod (racket--buffer-file-name) 'test))
+                  (racket--what-to-run-with-submod 'test))
   (when coverage
     (message "Running tests with coverage instrumentation enabled...")
     (while (not (racket--repl-command "prompt"))
