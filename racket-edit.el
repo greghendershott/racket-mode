@@ -257,7 +257,7 @@ Put your tests in a `test` submodule. For example:
       (require rackunit)
       (check-true #t))
 
-If you are in a `test' submodule, runs it.
+If you are in a `test' submodule, runs the current submodule.
 
 rackunit test failure messages show the location. You may use
 `next-error' to jump to the location of each failing test.
