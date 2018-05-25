@@ -158,7 +158,7 @@ of a file name to a list of submodule symbols. Otherwise, the
 If you're in submodule called `submod' already, runs the current module."
   (let ((prefix (racket--what-to-run)))
     (cons 'submod
-          (if (eq (last prefix) submod)
+          (if (equal (last prefix) (list submod))
               prefix
             (append prefix (list submod))))))
 
