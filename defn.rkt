@@ -69,24 +69,24 @@
                    [(symbol? v)     (sym->id v)]
                    [(identifier? v) v]))
   (match (identifier-binding id)
-    [(list source-mpi source-id
+    [(list source-mpi         source-id
            nominal-source-mpi nominal-source-id
            source-phase import-phase nominal-export-phase)
-     (define (mpi->path mpi)
-       (match (resolved-module-path-name (module-path-index-resolve mpi))
-         [(? path-string? path)        path]
-         ['#%kernel                    'kernel]
-         [(? symbol? sym)              (sym->path sym)]
-         [(list (? symbol? sym) _ ...) (sym->path sym)]
-         [_                            #f]))
      (list (cons source-id         (mpi->path source-mpi))
            (cons nominal-source-id (mpi->path nominal-source-mpi)))]
     [_ #f]))
 
-;; When module source is 'sym or '(sym sym1 ...) treat it as "sym.rkt"
-;; in the current-load-relative-directory.
-(define (sym->path sym)
-  (build-path (current-load-relative-directory) (format "~a.rkt" sym)))
+(define (mpi->path mpi)
+  (match (resolved-module-path-name (module-path-index-resolve mpi))
+    [(? path-string? path) path]
+    [(or v (cons v _))
+     (cond [(and (symbol? v)
+                 (regexp-match? #px"^#%" (symbol->string v)))
+            'kernel]
+           [(symbol? v)
+            (build-path (current-load-relative-directory)
+                        (format "~a.rkt" v))]
+           [else #f])]))
 
 ;; Return a syntax object (or #f) for the contents of `file`.
 (define (file->syntax file #:expand? expand?)
@@ -95,8 +95,8 @@
                  [current-namespace (make-base-namespace)])
     (define stx (with-handlers ([exn:fail? (const #f)])
                   (with-module-reading-parameterization
-                   (thunk
-                    (with-input-from-file file read-syntax/count-lines)))))
+                    (thunk
+                     (with-input-from-file file read-syntax/count-lines)))))
     (if expand?
         (expand stx) ;expand while current-load-relative-directory is set
         stx)))
