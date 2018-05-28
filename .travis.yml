@@ -12,41 +12,39 @@ env:
     # Install Racket where sudo not required.
     - RACKET_DIR="$HOME/racket"
   matrix:
-    # Emacs 24.3. To keep the matrix from growing too big/slow, test
-    # only against recent versions of Racket. (Hopefully any problems
-    # with older Rackets will be discovered elsewhere in the matrix
-    # when testing with newer Emacs. Anyway, we're likely to drop
-    # support for Emacs 24.3 soon.)
-    - EMACS_VERSION=24.3 RACKET_VERSION=6.10
+    ##################################################################
+    # To keep the matrix from growing too big/slow, test older Emacs #
+    # only against very newer Rackets. (Hopefully any problems with  #
+    # older Rackets will be discovered elsewhere in the matrix when  #
+    # testing with newer Emacs.)                                     #
+    ##################################################################
+    # Emacs 24.3
+    - EMACS_VERSION=24.3 RACKET_VERSION=6.12
     - EMACS_VERSION=24.3 RACKET_VERSION=HEAD
     # Emacs 24.5
-    - EMACS_VERSION=24.5 RACKET_VERSION=6.0
-    - EMACS_VERSION=24.5 RACKET_VERSION=6.1
-    - EMACS_VERSION=24.5 RACKET_VERSION=6.2
-    - EMACS_VERSION=24.5 RACKET_VERSION=6.3
-    - EMACS_VERSION=24.5 RACKET_VERSION=6.5
-    - EMACS_VERSION=24.5 RACKET_VERSION=6.6
-    - EMACS_VERSION=24.5 RACKET_VERSION=6.7
-    - EMACS_VERSION=24.5 RACKET_VERSION=6.8
-    - EMACS_VERSION=24.5 RACKET_VERSION=6.9
-    - EMACS_VERSION=24.5 RACKET_VERSION=6.10
+    - EMACS_VERSION=24.5 RACKET_VERSION=6.12
     - EMACS_VERSION=24.5 RACKET_VERSION=HEAD
     # Emacs 25.1
-    - EMACS_VERSION=25.1 RACKET_VERSION=6.0
-    - EMACS_VERSION=25.1 RACKET_VERSION=6.1
-    - EMACS_VERSION=25.1 RACKET_VERSION=6.2
-    - EMACS_VERSION=25.1 RACKET_VERSION=6.3
-    - EMACS_VERSION=25.1 RACKET_VERSION=6.5
-    - EMACS_VERSION=25.1 RACKET_VERSION=6.6
-    - EMACS_VERSION=25.1 RACKET_VERSION=6.7
-    - EMACS_VERSION=25.1 RACKET_VERSION=6.8
-    - EMACS_VERSION=25.1 RACKET_VERSION=6.9
-    - EMACS_VERSION=25.1 RACKET_VERSION=6.10
+    - EMACS_VERSION=25.1 RACKET_VERSION=6.12
     - EMACS_VERSION=25.1 RACKET_VERSION=HEAD
+    # Emacs 26.1
+    - EMACS_VERSION=26.1 RACKET_VERSION=6.0
+    - EMACS_VERSION=26.1 RACKET_VERSION=6.1
+    - EMACS_VERSION=26.1 RACKET_VERSION=6.2
+    - EMACS_VERSION=26.1 RACKET_VERSION=6.3
+    - EMACS_VERSION=26.1 RACKET_VERSION=6.5
+    - EMACS_VERSION=26.1 RACKET_VERSION=6.6
+    - EMACS_VERSION=26.1 RACKET_VERSION=6.7
+    - EMACS_VERSION=26.1 RACKET_VERSION=6.8
+    - EMACS_VERSION=26.1 RACKET_VERSION=6.9
+    - EMACS_VERSION=26.1 RACKET_VERSION=6.10
+    - EMACS_VERSION=26.1 RACKET_VERSION=6.11
+    - EMACS_VERSION=26.1 RACKET_VERSION=6.12
+    - EMACS_VERSION=26.1 RACKET_VERSION=HEAD
     # Emacs snapshot. Because slow to make, test against only some key
     # versions of Racket like latest stable and HEAD. Also list these
     # jobs below under `allow_failures`, and use `fast_finish`.
-    - EMACS_VERSION=snapshot RACKET_VERSION=6.10
+    - EMACS_VERSION=snapshot RACKET_VERSION=6.12
     - EMACS_VERSION=snapshot RACKET_VERSION=HEAD
 
 matrix:
@@ -55,8 +53,9 @@ matrix:
     - env: EMACS_VERSION=24.3 RACKET_VERSION=HEAD
     - env: EMACS_VERSION=24.5 RACKET_VERSION=HEAD
     - env: EMACS_VERSION=25.1 RACKET_VERSION=HEAD
+    - env: EMACS_VERSION=26.1 RACKET_VERSION=HEAD
     # bleeding edge Emacs
-    - env: EMACS_VERSION=snapshot RACKET_VERSION=6.10
+    - env: EMACS_VERSION=snapshot RACKET_VERSION=6.12
     - env: EMACS_VERSION=snapshot RACKET_VERSION=HEAD
   fast_finish: true
 
