@@ -53,6 +53,7 @@
 (defconst racket-make-doc/commands
   '("Run"
     racket-run
+    racket-run-main
     racket-racket
     racket-profile
     racket-profile-mode

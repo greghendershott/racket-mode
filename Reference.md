@@ -82,6 +82,17 @@ Others are available only as a command in the REPL.
 
 - `,cd`, `,pwd`: Change and show `current-directory`.
 
+### racket-run-main
+<kbd>C-c RET</kbd>
+
+Run the `main` submodule.
+
+This is sort-of like how [`racket-test`](#racket-test) is [`racket-run`](#racket-run) for the
+`test` submodule of your current module.
+
+With a C-u prefix, uses errortrace for improved stack traces.
+Otherwise follows the [`racket-error-context`](#racket-error-context) setting.
+
 ### racket-racket
 <kbd>&lt;C-M-f5&gt;</kbd>
 
@@ -188,6 +199,8 @@ Put your tests in a `test` submodule. For example:
     (module+ test
       (require rackunit)
       (check-true #t))
+
+If you are in a `test` submodule, runs it.
 
 rackunit test failure messages show the location. You may use
 `next-error` to jump to the location of each failing test.
@@ -328,6 +341,8 @@ You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
 TAB, and activate using RET -- for [`racket-visit-definition`](#racket-visit-definition) and
 [`racket-doc`](#racket-doc).
+
+(fn &optional PREFIX)
 
 ### racket-doc
 <kbd>C-c C-d</kbd>
