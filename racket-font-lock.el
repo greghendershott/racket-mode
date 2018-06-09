@@ -193,12 +193,11 @@
             (group "lambda")
             (or word-end symbol-end))
        1
-       (if racket-pretty-lambda
-           (progn (compose-region (match-beginning 1)
-                                  (match-end       1)
-                                  racket-lambda-char)
-                  nil)
-         font-lock-keyword-face)
+       (ignore
+        (when racket-pretty-lambda
+          (compose-region (match-beginning 1)
+                          (match-end       1)
+                          racket-lambda-char)))
        nil t)
       ))
   "Function/variable identifiers, Typed Racket types.
