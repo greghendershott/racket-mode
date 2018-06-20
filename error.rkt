@@ -1,6 +1,7 @@
-#lang racket/base
+#lang at-exp racket/base
 
-(require racket/match
+(require racket/format
+         racket/match
          racket/runtime-path
          racket/string
          setup/collects
@@ -159,18 +160,32 @@
   (with-handlers ([exn:fail? (λ _ void)])
     (with-dynamic-requires ([racket/base exn:missing-module?]
                             [racket/base exn:missing-module-accessor]
-                            [pkg/lib pkg-catalog-suggestions-for-module])
+                            [pkg/db      get-catalogs]
+                            [pkg/lib     pkg-catalog-suggestions-for-module])
       (λ (exn)
         (when (exn:missing-module? exn)
-          (define mod ((exn:missing-module-accessor exn) exn))
-          (match (pkg-catalog-suggestions-for-module mod)
-            [(list) void]
-            [(list p)
-             (display-commented (format "Try `raco pkg install ~a`?" p))]
-            [(? list? ps)
-             (display-commented (format "Try `raco pkg install` one of ~a?"
-                                        (string-join ps ", ")))]
-            [_ void]))))))
+          (match (get-catalogs)
+            [(list)
+             (display-commented
+              @~a{-----
+                  Can't suggest packages to install, because pkg/db get-catalogs is '().
+                  To configure:
+                  1. Start DrRacket.
+                  2. Choose "File | Package Mananger".
+                  3. Click "Available from Catalog".
+                  4. When prompted, click "Update".
+                  -----})]
+            [_
+             (define mod ((exn:missing-module-accessor exn) exn))
+             (match (pkg-catalog-suggestions-for-module mod)
+               [(list) void]
+               [(list p)
+                (display-commented
+                 @~a{Try "raco pkg install @|p|" ?})]
+               [(? list? ps)
+                (display-commented
+                 @~a{Try "raco pkg install" one of @(string-join ps ", ") ?})]
+               [_ void])]))))))
 
 (module+ test
   ;; Point of this test is older Rackets where the with-handlers
