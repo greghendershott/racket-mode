@@ -81,7 +81,7 @@ See `racket--invalidate-completion-cache' and
                  end
                  cmps
                  :predicate #'identity
-                 :company-docsig #'racket--get-type
+                 ;; racket--get-type is too slow for :company-docsig
                  :company-doc-buffer #'racket--do-describe
                  :company-location #'racket--get-def-file+line)))))
 
