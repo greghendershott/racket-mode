@@ -151,8 +151,9 @@ Never changes selected window."
       (goto-char (point-min))
       ;; Welcome to Racket v6.12.
       ;; Welcome to Racket v7.0.0.6.
-      (re-search-forward "[0-9]+\\(?:\\.[0-9]+\\)*")
-      (match-string 0))))
+      (save-match-data
+        (re-search-forward "[0-9]+\\(?:\\.[0-9]+\\)*")
+        (match-string 0)))))
 
 (defun racket--require-version (at-least)
   "Raise a `user-error' unless Racket is version AT-LEAST."
