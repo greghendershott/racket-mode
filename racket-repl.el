@@ -147,13 +147,12 @@ Never changes selected window."
   "Get the `racket-program' version as a string."
   (with-temp-message "Checking Racket version..."
     (with-temp-buffer
-      (call-process racket-program
-                    nil                  ;infile: none
-                    t                    ;destination: current-buffer
-                    nil                  ;redisplay: no
-                    "-e"
-                    "(version)")
-      (eval (read (buffer-substring (point-min) (point-max)))))))
+      (call-process racket-program nil t nil "--version")
+      (goto-char (point-min))
+      ;; Welcome to Racket v6.12.
+      ;; Welcome to Racket v7.0.0.6.
+      (re-search-forward "[0-9]+\\(?:\\.[0-9]+\\)*")
+      (match-string 0))))
 
 (defun racket--require-version (at-least)
   "Raise a `user-error' unless Racket is version AT-LEAST."
