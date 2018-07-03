@@ -1,6 +1,6 @@
-;;; racket-tests.el --- Major mode for Racket language.
+;;; racket-tests.el
 
-;; Copyright (c) 2013-2016 by Greg Hendershott.
+;; Copyright (c) 2013-2018 by Greg Hendershott.
 
 ;; License:
 ;; This is free software; you can redistribute it and/or modify it
@@ -19,6 +19,7 @@
 (require 'edmacro)
 (require 'faceup)
 (require 'racket-common)
+(require 'racket-custom)
 
 (defconst racket-tests/here-dir (faceup-this-file-directory)
   "The directory this file is located in.")
@@ -51,7 +52,7 @@
 (defun racket-tests/see (str)
   (racket-tests/see-rx (regexp-quote str)))
 
-(defun racket-tests/explain-see (str)
+(defun racket-tests/explain-see (_str)
   `(actual . ,(buffer-substring-no-properties
                (point-min)
                (point))))
@@ -62,12 +63,12 @@
 
 (ert-deftest racket-tests/repl ()
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
-  (racket-repl)
-  (with-racket-repl-buffer
-    (let ((tab-always-indent 'complete)
-          (racket--repl-command-connect-timeout (* 15 60))
-          (racket-command-port 55556)
-          (racket-command-timeout (* 15 60)))
+  (let ((tab-always-indent 'complete)
+        (racket--repl-command-connect-timeout (* 15 60))
+        (racket-command-port (1+ racket-command-port))
+        (racket-command-timeout (* 15 60)))
+    (racket-repl)
+    (with-racket-repl-buffer
       ;; Welcome
       (should (racket-tests/see-rx (concat "Welcome to Racket v[0-9.]+\n"
                                            (regexp-quote "\uFEFF> "))))
@@ -91,7 +92,7 @@
 
 (ert-deftest racket-tests/run ()
   (let* ((racket--repl-command-connect-timeout (* 15 60))
-         (racket-command-port 55556)
+         (racket-command-port (1+ racket-command-port))
          (racket-command-timeout (* 15 60))
          (pathname (make-temp-file "test" nil ".rkt"))
          (name     (file-name-nondirectory pathname))
