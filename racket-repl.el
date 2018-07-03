@@ -1,6 +1,6 @@
-;;; racket-repl.el
+;;; racket-repl.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2016 by Greg Hendershott.
+;; Copyright (c) 2013-2018 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 ;; Image portions Copyright (C) 2012 Jose Antonio Ortega Ruiz.
 
@@ -23,6 +23,7 @@
 (require 'comint)
 (require 'compile)
 (require 'easymenu)
+(require 'tq)
 
 (defconst racket--repl-buffer-name/raw
   "Racket REPL"
@@ -126,7 +127,9 @@ Never changes selected window."
         (display-buffer racket--repl-buffer-name))
     (racket--require-version racket--minimum-required-version)
     (with-current-buffer
-        (with-temp-message "Starting Racket process..."
+        (with-temp-message (format "Starting %s to run racket-mode %s ..."
+                                   racket-program
+                                   racket--run.rkt)
          (make-comint racket--repl-buffer-name/raw ;w/o *stars*
                       racket-program
                       nil
@@ -141,11 +144,11 @@ Never changes selected window."
       (set-process-coding-system (get-buffer-process racket--repl-buffer-name)
                                  'utf-8 'utf-8)
       (racket-repl-mode)
-      (racket--repl-command-connect))))
+      (racket--repl-command-connect-start))))
 
 (defun racket--version ()
   "Get the `racket-program' version as a string."
-  (with-temp-message "Checking Racket version..."
+  (with-temp-message "Checking Racket version ..."
     (with-temp-buffer
       (call-process racket-program nil t nil "--version")
       (goto-char (point-min))
@@ -163,64 +166,118 @@ Never changes selected window."
                   at-least have))
     t))
 
-(defvar racket--repl-command-process nil)
-(defvar racket--repl-command-connect-timeout 30)
+(defvar racket--repl-command-tq nil
+  "A `tq' object when connection to the command server is established.")
+(defvar racket--repl-command-connecting-timer nil
+  "For `run-with-timer' to retry connection attempts.")
+(defvar racket--repl-command-connect-timeout 30
+  "How long should `racket--repl-command-finish' wait.")
 
-(defun racket--repl-command-connect ()
-  "Connect to the Racket command process.
-If already connected, disconnects then connects again."
+(defun racket--repl-command-connect-start ()
+  "Start to connect to the Racket command process.
+
+If already connected, disconnects first.
+
+The command server may might not be ready to accept connections,
+because Racket itself and our backend are still starting up. As a
+result, this will keep attempting to connect \"in the
+background\" using `run-with-timer'. So after calling this, call
+`racket--repl-command-connect-finish' to wait for the connection
+to be established."
   (racket--repl-command-disconnect)
-  (with-temp-message "Connecting to command process..."
-    ;; The command server may not be ready -- Racket itself and our
-    ;; backend are still starting up -- so retry until timeout.
-    (with-timeout (racket--repl-command-connect-timeout
-                   (error "Could not connect to command process"))
-      (while (not racket--repl-command-process)
-        (condition-case ()
-            (setq racket--repl-command-process
-                  (let ((process-connection-type nil)) ;use pipe not pty
-                    (open-network-stream "racket-command"
-                                         (get-buffer-create "*racket-command-output*")
-                                         "127.0.0.1"
-                                         racket-command-port)))
-          (error (sit-for 0.1)))))))
+  (setq
+   racket--repl-command-connecting-timer
+   (run-with-timer
+    0.5                                 ;initial delay
+    0.1                                 ;repeat interval
+    (lambda ()
+      ;; If `open-network-stream' fails, we return from this
+      ;; repeating timer lambda. Else if it succeeds, we
+      ;; `cancel-timer'.
+      (ignore-errors
+        (let ((proc
+               (let ((process-connection-type nil)) ;use pipe not pty
+                 (open-network-stream "racket-command"
+                                      nil
+                                      "127.0.0.1"
+                                      racket-command-port))))
+          (setq racket--repl-command-tq (tq-create proc))
+          (set-process-filter proc
+                              (lambda (_proc string)
+                                (racket--repl-command-process-filter
+                                 racket--repl-command-tq
+                                 string)))
+          (cancel-timer racket--repl-command-connecting-timer)
+          (setq racket--repl-command-connecting-timer nil)))))))
+
+(defun racket--repl-command-connect-finish ()
+  "Waits until connection established."
+  (with-timeout (racket--repl-command-connect-timeout
+                 (cancel-timer racket--repl-command-connecting-timer)
+                 (setq racket--repl-command-connecting-timer nil)
+                 (error "Could not connect to racket-mode command process"))
+   (while (not racket--repl-command-tq)
+     (message "Still trying to connect to racket-mode command process on port %s ..."
+              racket-command-port)
+     (sit-for 0.2))))
 
 (defun racket--repl-command-disconnect ()
   "Disconnect from the Racket command process."
-  (when racket--repl-command-process
-    (with-temp-message "Deleting existing connection to command process..."
-      (delete-process racket--repl-command-process)
-      (setq racket--repl-command-process nil))))
+  (when racket--repl-command-tq
+    (with-temp-message "Deleting existing connection to command process ..."
+      (tq-close racket--repl-command-tq)
+      (setq racket--repl-command-tq nil))))
+
+(defun racket--repl-command-process-filter (tq string)
+  "Like `tq-filter' and `tq-process-buffer' but using sexps not regexps."
+  (let ((buffer (tq-buffer tq)))
+    (when (buffer-live-p buffer)
+      (with-current-buffer buffer
+        (if (tq-queue-empty tq)
+            (delete-region (point-min) (point-max)) ;spurious
+          (goto-char (point-max))
+          (insert string)
+          (goto-char (point-min))
+          (condition-case ()
+              (progn
+                (forward-sexp 1)
+                (let ((sexp (buffer-substring (point-min) (point))))
+                  (delete-region (point-min) (point))
+                  (unwind-protect
+                      (ignore-errors
+                        (funcall (tq-queue-head-fn tq)
+                                 (eval (read sexp))))
+                    (tq-queue-pop tq))))
+            (scan-error nil)))))))
+
+(defun racket--repl-command-async (callback fmt &rest xs)
+  "Send command to the Racket process and give `callback' the response sexp.
+Do not prefix the command with a `,'. Not necessary to append \n."
+  (racket--repl-ensure-buffer-and-process nil)
+  (racket--repl-command-connect-finish)
+  (tq-enqueue racket--repl-command-tq
+              (concat (apply #'format (cons fmt xs)) "\n")
+              'n/a
+              'n/a
+              callback
+              t))
 
 (defun racket--repl-command (fmt &rest xs)
-  "Send command to the Racket process and return the response sexp.
-Do not prefix the command with a `,'. Not necessary to append \n."
-  (racket--repl-ensure-buffer-and-process)
-  (let ((proc racket--repl-command-process))
-    (unless proc
-      (error "Command process is nil"))
-    (with-current-buffer (process-buffer proc)
-      (delete-region (point-min) (point-max))
-      (process-send-string proc
-                           (concat (apply #'format (cons fmt xs))
-                                   "\n"))
-      (with-timeout (racket-command-timeout
-                     (error "Command process timeout"))
-        ;; While command server running and not yet complete sexp
-        (while (and (memq (process-status proc) '(open run))
-                    (or (= (point) (point-min))
-                        (condition-case ()
-                            (progn (scan-lists (point-min) 1 0) nil)
-                          (scan-error t))))
-          (accept-process-output nil 0.1)))
-      (cond ((not (memq (process-status proc) '(open run)))
-             (error "Racket command process: died"))
-            ((= (point-min) (point))
-             (error "Racket command process: Empty response"))
-            (t
-             (let ((result (buffer-substring (point-min) (point-max))))
-               (delete-region (point-min) (point-max))
-               (eval (read result))))))))
+  "Send command to the Racket process, await and return the response sexp.
+Do not prefix the command with a `,'. Not necessary to append \n.
+
+Really just a wrapper around `racket--repl-command-async'."
+  (let* ((awaiting 'RACKET-REPL-AWAITING)
+         (result awaiting))
+    (apply #'racket--repl-command-async
+           (lambda (v) (setq result v))
+           fmt
+           xs)
+    (with-timeout (racket-command-timeout
+                   (error "Command process timeout"))
+      (while (eq result awaiting)
+        (sit-for 0.1))
+      result)))
 
 (defun racket-repl-file-name ()
   "Return the file running in the buffer, or nil.
@@ -414,7 +471,7 @@ With prefix arg, open the N-th last shown image."
                        (nth (- n 1) images))
       (error "There aren't %d recent images" n))))
 
-(defun racket-repl--output-filter (txt)
+(defun racket-repl--output-filter (_txt)
   (racket-repl--replace-images))
 
 ;;; racket-repl-mode
