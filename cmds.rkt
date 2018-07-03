@@ -170,6 +170,7 @@
       [(get-profile)     (get-profile)]
       [(get-uncovered)   (get-uncovered path)]
       [(check-syntax)    (check-syntax (string->path (read)))]
+      [(eval-sexp)       (eval-sexp (read))]
       ;; Obsolete
       [(log)             (display-commented "Use M-x racket-logger instead")]
       [else              (unknown-command)])))
@@ -829,3 +830,21 @@
             (list 'def/uses def-beg def-end tweaked-uses)))
         ;; Append both lists and print as Elisp values.
         (elisp-println (append infos defs/uses))))))
+
+;;; eval-sexp
+
+(define original-output-port (current-output-port))
+
+(define (eval-sexp sexp)
+  (elisp-println
+   (with-handlers ([exn:fail? exn-message])
+     (define (do-it)
+       ;; Any side-effect output (e.g. `display`) should go to the
+       ;; original output port. The TCP output port should only get
+       ;; the result we elisp-println.
+       (parameterize ([current-output-port original-output-port])
+         ((current-eval) sexp)))
+     (define results (call-with-values do-it list))
+     (string-join (map ~v results)
+                  "\n"))))
+

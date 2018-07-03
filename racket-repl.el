@@ -383,12 +383,27 @@ Afterwards call `racket--repl-show-and-move-to-end'."
 When the previous sexp is a sexp comment the sexp itself is sent,
 without the #; prefix."
   (interactive)
-  (racket--send-region-to-repl (save-excursion
-                                 (backward-sexp)
-                                 (if (save-match-data (looking-at "#;"))
-                                     (+ (point) 2)
-                                   (point)))
+  (racket--send-region-to-repl (racket--repl-last-sexp-start)
                                (point)))
+
+(defun racket-eval-last-sexp ()
+  "Eval the previous sexp asynchronously and `message' the result."
+  (interactive)
+  (racket--repl-command-async
+   #'message
+   (concat "eval-sexp "
+           (buffer-substring-no-properties (racket--repl-last-sexp-start)
+                                           (point)))))
+
+(defun racket--repl-last-sexp-start ()
+  (save-excursion
+    (condition-case ()
+        (progn
+          (backward-sexp)
+          (if (save-match-data (looking-at "#;"))
+              (+ (point) 2)
+            (point)))
+      (scan-error (user-error "There isn't a complete s-expression before point")))))
 
 (defun racket--repl-forget-errors ()
   "Forget existing errors in the REPL.
