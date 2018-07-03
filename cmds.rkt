@@ -68,12 +68,10 @@
 ;;    I/O, and it is still handled by Emacs' comint-mode in the usual
 ;;    manner.
 
-(define command-server-ns (make-base-namespace))
-(define command-server-path #f)
+(define command-server-ns+path (cons (make-base-namespace) #f))
 
 (define (attach-command-server ns path)
-  (set! command-server-ns ns)
-  (set! command-server-path path))
+  (set! command-server-ns+path (cons ns path)))
 
 (define (start-command-server port)
   (void
@@ -89,8 +87,9 @@
             (match (read-syntax)
               [(? eof-object?) (void)]
               [stx (with-handlers ([exn:fail? fail])
-                     (parameterize ([current-namespace command-server-ns])
-                       (handle-command stx command-server-path fail)))
+                     (match-define (cons ns path) command-server-ns+path)
+                     (parameterize ([current-namespace ns])
+                       (handle-command stx path fail)))
                    (flush-output)
                    (loop)])))
         (close-input-port in)
