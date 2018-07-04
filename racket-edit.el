@@ -477,12 +477,12 @@ file using `#lang`. It does *not* work for `require`s inside
 
 See also: `racket-trim-requires' and `racket-base-requires'."
   (interactive)
-  (let* ((reqs (racket--top-level-requires 'find))
-         (new (and reqs
-                   (racket--repl-command "requires/tidy %S" reqs))))
-    (unless (string-equal "" new)
-      (goto-char (racket--top-level-requires 'kill))
-      (insert (concat new "\n")))))
+  (let ((reqs (racket--top-level-requires 'find)))
+    (when reqs
+      (let ((new (racket--repl-command "requires/tidy %S" reqs)))
+        (unless (string-equal "" new)
+          (goto-char (racket--top-level-requires 'kill))
+          (insert (concat new "\n")))))))
 
 (defun racket-trim-requires ()
   "Like `racket-tidy-requires' but also deletes unused modules.
@@ -497,17 +497,17 @@ file using `#lang`. It does *not* work for `require`s inside
 See also: `racket-base-requires'."
   (interactive)
   (when (buffer-modified-p) (save-buffer))
-  (let* ((reqs (racket--top-level-requires 'find))
-         (new (and reqs
-                   (racket--repl-command
-                    "requires/trim \"%s\" %S"
-                    (racket--buffer-file-name)
-                    reqs))))
-    (unless new
-      (user-error "Can't do, source file has error"))
-    (goto-char (racket--top-level-requires 'kill))
-    (unless (string-equal "" new)
-      (insert (concat new "\n")))))
+  (let ((reqs (racket--top-level-requires 'find)))
+    (when reqs
+      (let ((new (racket--repl-command
+                  "requires/trim \"%s\" %S"
+                  (racket--buffer-file-name)
+                  reqs)))
+        (unless new
+          (user-error "Can't do, source file has error"))
+        (goto-char (racket--top-level-requires 'kill))
+        (unless (string-equal "" new)
+          (insert (concat new "\n")))))))
 
 (defun racket-base-requires ()
   "Change from `#lang racket` to `#lang racket/base`.
