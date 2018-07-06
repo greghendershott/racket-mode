@@ -1,7 +1,7 @@
 #lang at-exp racket/base
 
-(require macro-debugger/analysis/check-requires
-         openssl/md5
+(require file/md5
+         macro-debugger/analysis/check-requires
          racket/contract/base
          racket/contract/region
          racket/format
@@ -80,9 +80,10 @@
 
 (define (maybe-mod->md5 m)
   (define-values (dir file _) (maybe-mod->dir/file/rmp m))
-  (match (and file (build-path dir file))
-    [#f   ""]
-    [path (call-with-input-file* path md5)]))
+  (if file
+      (call-with-input-file* (build-path dir file)
+        (compose bytes->string/utf-8 md5))
+      ""))
 
 (define (start-command-server port)
   (void
