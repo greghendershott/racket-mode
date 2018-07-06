@@ -135,10 +135,7 @@ of a file name to a list of submodule symbols. Otherwise, the
 `racket--what-to-run' is used."
   (unless (eq major-mode 'racket-mode)
     (user-error "Current buffer is not a racket-mode buffer"))
-  (when (or (buffer-modified-p)
-            (and (racket--buffer-file-name)
-                 (not (file-exists-p (racket--buffer-file-name)))))
-    (save-buffer))
+  (racket--save-if-changed)
   (remove-overlays (point-min) (point-max) 'name 'racket-uncovered-overlay)
   (racket--invalidate-completion-cache)
   (racket--invalidate-type-cache)
@@ -148,6 +145,12 @@ of a file name to a list of submodule symbols. Otherwise, the
                      racket-pretty-print
                      context-level
                      racket-user-command-line-arguments))
+
+(defun racket--save-if-changed ()
+  (when (or (buffer-modified-p)
+            (and (racket--buffer-file-name)
+                 (not (file-exists-p (racket--buffer-file-name)))))
+    (save-buffer)))
 
 (defun racket--what-to-run ()
   (cons (racket--buffer-file-name) (racket--submod-path)))
@@ -268,8 +271,8 @@ To run <file>'s `test` submodule."
                          (shell-quote-argument (racket--buffer-file-name)))))
 
 (defun racket--shell (cmd)
+  (racket--save-if-changed)
   (let ((w (selected-window)))
-    (save-buffer)
     (pcase (get-buffer-window "*shell*" t)
       (`() (other-window -1))
       (win (select-window win)))
@@ -496,7 +499,7 @@ file using `#lang`. It does *not* work for `require`s inside
 
 See also: `racket-base-requires'."
   (interactive)
-  (when (buffer-modified-p) (save-buffer))
+  (racket--save-if-changed)
   (let* ((reqs (racket--top-level-requires 'find))
          (new (and reqs
                    (racket--repl-command
@@ -537,7 +540,7 @@ such as changing `#lang typed/racket` to `#lang typed/racket/base`."
     (user-error "Already using #lang racket/base. Nothing to change."))
   (unless (racket--buffer-start-re "^#lang.*? racket$")
     (user-error "File does not use use #lang racket. Cannot change."))
-  (when (buffer-modified-p) (save-buffer))
+  (racket--save-if-changed)
   (let* ((reqs (racket--top-level-requires 'find))
          (new (racket--repl-command
                "requires/base \"%s\" %S"
