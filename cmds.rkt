@@ -1,6 +1,7 @@
 #lang at-exp racket/base
 
 (require macro-debugger/analysis/check-requires
+         openssl/md5
          racket/contract/base
          racket/contract/region
          racket/format
@@ -68,10 +69,20 @@
 ;;    I/O, and it is still handled by Emacs' comint-mode in the usual
 ;;    manner.
 
-(define command-server-ns+path (cons (make-base-namespace) #f))
+(struct context (ns maybe-mod md5))
 
-(define (attach-command-server ns path)
-  (set! command-server-ns+path (cons ns path)))
+(define command-server-context (context (make-base-namespace) #f ""))
+
+(define/contract (attach-command-server ns maybe-mod)
+  (-> namespace? (or/c #f mod?) any)
+  (set! command-server-context
+        (context ns maybe-mod (maybe-mod->md5 maybe-mod))))
+
+(define (maybe-mod->md5 m)
+  (define-values (dir file _) (maybe-mod->dir/file/rmp m))
+  (match (and file (build-path dir file))
+    [#f   ""]
+    [path (call-with-input-file* path md5)]))
 
 (define (start-command-server port)
   (void
@@ -87,9 +98,9 @@
             (match (read-syntax)
               [(? eof-object?) (void)]
               [stx (with-handlers ([exn:fail? fail])
-                     (match-define (cons ns path) command-server-ns+path)
+                     (match-define (context ns maybe-mod md5) command-server-context)
                      (parameterize ([current-namespace ns])
-                       (handle-command stx path fail)))
+                       (handle-command stx maybe-mod md5 fail)))
                    (flush-output)
                    (loop)])))
         (close-input-port in)
@@ -110,7 +121,7 @@
   (syntax-case stx ()
     [(uq cmd)
      (eq? 'unquote (syntax-e #'uq))
-     (begin (handle-command #'cmd m usage)
+     (begin (handle-command #'cmd m "N/A" usage)
             #'(void))] ;avoid Typed Racket printing a type
     [_ stx]))
 
@@ -136,8 +147,8 @@
     ['nil '()]
     [x x]))
 
-(define/contract (handle-command cmd-stx m unknown-command)
-  (-> syntax? (or/c #f mod?) (-> any) any)
+(define/contract (handle-command cmd-stx m md5 unknown-command)
+  (-> syntax? (or/c #f mod?) string? (-> any) any)
   (define-values (dir file mod-path) (maybe-mod->dir/file/rmp m))
   (define path (and file (build-path dir file)))
   (let ([read elisp-read])
@@ -157,7 +168,7 @@
       ;; These remaining commands are intended to be used by
       ;; racket-mode, only.
       [(path)            (elisp-println path)]
-      [(prompt)          (elisp-println (and (at-prompt?) (or path 'top)))]
+      [(prompt)          (elisp-println (and (at-prompt?) (cons (or path 'top) md5)))]
       [(syms)            (syms)]
       [(def)             (def-loc (read))]
       [(describe)        (describe (read-syntax))]

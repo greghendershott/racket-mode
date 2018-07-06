@@ -306,22 +306,6 @@ will tell you so but won't visit the definition site."
     (when sym
       (racket--do-visit-def-or-mod "def" sym))))
 
-(defun racket--do-visit-def-or-mod (cmd sym)
-  "CMD must be \"def\" or \"mod\". SYM must be `symbolp`."
-  (pcase (racket--repl-command "%s %s" cmd sym)
-    (`(,path ,line ,col)
-     (racket--push-loc)
-     (find-file path)
-     (goto-char (point-min))
-     (forward-line (1- line))
-     (forward-char col)
-     (message "Type M-, to return"))
-    (`kernel
-     (message "`%s' defined in #%%kernel -- source not available." sym))
-    (_ (when (y-or-n-p "Not found. Run current buffer and try again? ")
-         (racket-run)
-         (racket--do-visit-def-or-mod cmd sym)))))
-
 (defun racket-visit-module (&optional prefix)
   "Visit definition of module at point, e.g. net/url or \"file.rkt\".
 
@@ -338,6 +322,38 @@ See also: `racket-find-collection'."
                 (read-from-minibuffer "Visit module: " (or v ""))
               v)))
     (racket--do-visit-def-or-mod "mod" v)))
+
+(defun racket--do-visit-def-or-mod (cmd sym)
+  "CMD must be \"def\" or \"mod\". SYM must be `symbolp`."
+  (unless (racket--repl-at-prompt-for-our-buffer-p)
+    (when (y-or-n-p "Run current buffer first? ")
+      (racket--run-and-wait-for-prompt)))
+  (pcase (racket--repl-command "%s %s" cmd sym)
+    (`(,path ,line ,col)
+     (racket--push-loc)
+     (find-file path)
+     (goto-char (point-min))
+     (forward-line (1- line))
+     (forward-char col)
+     (message "Type M-, to return"))
+    (`kernel
+     (message "`%s' defined in #%%kernel -- source not available." sym))
+    (_
+     (message "Not found."))))
+
+(defun racket--repl-at-prompt-for-our-buffer-p ()
+  "Is the REPL at a prompt, and evaluated for our buffer contents?"
+  (equal (racket--repl-command "prompt")
+         (cons (buffer-file-name) (md5 (current-buffer)))))
+
+(defun racket--run-and-wait-for-prompt ()
+  "Do `racket-run', then wait for the prompt to match our .rkt file."
+  (racket-run)
+  (with-timeout (racket-command-timeout
+                 (error "Command timeout waiting for racket-run to finish"))
+    (while (not (racket--repl-at-prompt-for-our-buffer-p))
+      (message "Waiting for prompt...")
+      (sit-for 0.1))))
 
 (defun racket-doc (&optional prefix)
   "View documentation of the identifier or string at point.
