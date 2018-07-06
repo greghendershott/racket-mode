@@ -232,15 +232,20 @@ Visit definition of symbol at point.
 
 Use M-x racket-unvisit to return.
 
-Note: Only finds symbols defined in the current namespace. You
-may need to invoke [`racket-run`](#racket-run) on the current buffer, first.
+Please keep in mind the following limitations:
 
-Note: Only visits the definition of module level identifiers (i.e.
-things for which Racket's `identifier-binding` function returns a
-list, as opposed to `'lexical`).
+- Only finds symbols defined in the current namespace. You may
+  need to [`racket-run`](#racket-run) the current buffer, first.
 
-Note: If the definition is from Racket's `#%kernel` module, it
-will tell you so but won't visit the definition site.
+- Only visits the definition of module level identifiers --
+  things for which Racket's `identifier-binding` function returns
+  information. This does _not_ include things such as
+  local (nested) function definitions or racket/class member
+  functions. To find those in the same file, uses a normal Emacs
+  text search function like `isearch-forward`.
+
+- If the definition is from Racket's `#%kernel` module, it will
+  tell you so but won't visit the definition site.
 
 ### racket-visit-module
 <kbd>C-M-.</kbd>
