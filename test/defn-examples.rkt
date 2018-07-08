@@ -2,10 +2,7 @@
 
 (require racket/contract)
 
-;; For tests of defn.rkt.
-;;
-;; Until I can figure out how to make this work as a submodule of its
-;; `test` submodule.
+;; Examples for test/defn.rkt.
 
 (define (plain x) x)
 (provide plain)
@@ -31,4 +28,22 @@
     (provide (contract-out [name (-> any/c any)]))))
 (contracted-definer contracted-by-macro)
 
+;; This is here to try to trip naive matching, by having a definition
+;; of `sub` that is not actually provided, unlike the one in the `sub`
+;; module just below.
+(module red-herring racket/base
+  (define (sub) #f))
 
+(module sub racket/base
+  (define (sub x) x)
+  (provide sub
+           (rename-out [sub sub/renamed])))
+(require 'sub)
+(provide sub sub/renamed)
+
+;; Likewise, another case of naive matching:
+(module red-herring-2 racket/base
+  (define (foo) #f))
+
+(define (foo x) x)
+(provide foo)

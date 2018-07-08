@@ -1,7 +1,8 @@
 #lang racket/base
 
 (require racket/contract
-         racket/function
+         (only-in racket/format ~a)
+         racket/list
          racket/match
          syntax/modread)
 
@@ -20,8 +21,8 @@
 ;; name, line and column, 'kernel, or #f if not found.
 (define (find-definition str)
   (match (find-definition/stx str)
-    [(cons stx where)
-     (list (path->string (or (syntax-source stx) where))
+    [(list* stx file submods)
+     (list (path->string (or (syntax-source stx) file))
            (or (syntax-line stx) 1)
            (or (syntax-column stx) 0))]
     [v v]))
@@ -31,39 +32,46 @@
 (define (find-signature str)
   (match (find-definition/stx str)
     ['kernel '("defined in #%kernel, signature unavailable")]
-    [(cons stx where)
-     (match (signature (syntax-e stx) (file->syntax where #:expand? #f))
+    [(list* id-stx file submods)
+     (define file-stx (file->syntax file))
+     (define sub-stx (submodule file submods file-stx))
+     (match (signature (syntax-e id-stx) sub-stx)
        [(? syntax? stx) (syntax->datum stx)]
        [_ #f])]
     [v v]))
 
-(define (find-definition/stx str)
-  ;; (-> string? (or/c #f 'kernel (cons/c syntax? path?)))
+(define/contract (find-definition/stx str)
+  (-> string?
+      (or/c #f 'kernel (cons/c syntax? (cons/c path? (listof symbol?)))))
   (match (identifier-binding* str)
     [(? list? xs)
-     (for/or ([x (in-list xs)])
+     (define ht (make-hash)) ;cache in case source repeated
+     (for/or ([x (in-list (remove-duplicates xs))])
        (match x
          [(cons id 'kernel) 'kernel]
-         [(cons id (? path? where))
-          (define expanded (file->syntax where #:expand? #t))
-          (define stx
-            (or (definition id expanded)
-                ;; Handle rename + contract
-                (match (renaming-provide id (file->syntax where #:expand? #f))
-                  [(? syntax? stx) (definition (syntax-e stx) expanded)]
-                  [_ #f])))
-          (and stx
-               (cons stx where))]))]
+         [(list* id file submods)
+          (define file-stx (hash-ref! ht file
+                                      (λ () (file->syntax file expand))))
+          (define sub-stx (submodule file submods file-stx))
+          (match (definition id sub-stx)
+            [#f  #f]
+            [stx (list* stx file submods)])]))]
     [_ #f]))
 
-;; A wrapper for identifier-binding. Keep in mind that unfortunately
-;; it can't report the definition id in the case of a contract-out and
-;; a rename-out, both. For `(provide (contract-out [rename orig new
-;; contract]))` it reports (1) the contract-wrapper as the id, and (2)
-;; `new` as the nominal-id -- but NOT (3) `orig`.
+;; Distill identifier-binding to what we need. Also handle the case
+;; where (provide (contract-out [rename orig new])) generates a
+;; differently named wrapper function, by using object-name to
+;; discover the name of the original wrapped function.
 (define/contract (identifier-binding* v)
   (-> (or/c string? symbol? identifier?)
-      (or/c #f (listof (cons/c symbol? (or/c path? 'kernel #f)))))
+      (or/c #f
+            (listof (cons/c symbol?
+                            (or/c 'kernel
+                                  (cons/c path-string? (listof symbol?)))))))
+  (define (real-name id)
+    (or (object-name (with-handlers ([exn:fail? (λ _ #f)])
+                       (eval (namespace-symbol->identifier id))))
+        id))
   (define sym->id namespace-symbol->identifier)
   (define id (cond [(string? v)     (sym->id (string->symbol v))]
                    [(symbol? v)     (sym->id v)]
@@ -72,41 +80,95 @@
     [(list source-mpi         source-id
            nominal-source-mpi nominal-source-id
            source-phase import-phase nominal-export-phase)
-     (list (cons source-id         (mpi->path source-mpi))
-           (cons nominal-source-id (mpi->path nominal-source-mpi)))]
+     (list (cons (real-name source-id)         (mpi->path source-mpi))
+           (cons (real-name nominal-source-id) (mpi->path nominal-source-mpi)))]
     [_ #f]))
 
-(define (mpi->path mpi)
+(define/contract (mpi->path mpi)
+  (-> module-path-index?
+      (or/c 'kernel
+            (cons/c path-string? (listof symbol?))))
+  (define (hash-bang-symbol? v)
+    (and (symbol? v)
+         (regexp-match? #px"^#%" (symbol->string v))))
   (match (resolved-module-path-name (module-path-index-resolve mpi))
-    [(? path-string? path) path]
-    [(or v (cons v _))
-     (cond [(and (symbol? v)
-                 (regexp-match? #px"^#%" (symbol->string v)))
-            'kernel]
-           [(symbol? v)
-            (build-path (current-load-relative-directory)
-                        (format "~a.rkt" v))]
-           [else #f])]))
+    [(? hash-bang-symbol?) 'kernel]
+    [(? path-string? path) (list path)]
+    [(? symbol? sym) (list (build-path (current-load-relative-directory)
+                                       (~a sym ".rkt")))]
+    [(list (? path-string? path) (? symbol? subs) ...)
+     (list* path subs)]))
 
-;; Return a syntax object (or #f) for the contents of `file`.
-(define (file->syntax file #:expand? expand?)
+;; Return a syntax object or #f for the contents of `file`. The
+;; resulting syntax is applied to `k` while the parameters
+;; current-load-relative-directory and current-namespace are still set
+;; appropriately.
+(define/contract (file->syntax file [k values])
+  (->* (path-string?)
+       ((-> syntax? syntax?))
+       (or/c #f syntax?))
   (define-values (base _ __) (split-path file))
   (parameterize ([current-load-relative-directory base]
                  [current-namespace (make-base-namespace)])
-    (define stx (with-handlers ([exn:fail? (const #f)])
-                  (with-module-reading-parameterization
-                    (thunk
-                     (with-input-from-file file read-syntax/count-lines)))))
-    (if expand?
-        (expand stx) ;expand while current-load-relative-directory is set
-        stx)))
+    (with-handlers ([exn:fail? (λ _ #f)])
+      (k
+       (with-module-reading-parameterization
+         (λ ()
+           (with-input-from-file file read-syntax/count-lines)))))))
 
 (define (read-syntax/count-lines)
   (port-count-lines! (current-input-port))
   (read-syntax))
 
-;; Given a symbol? and syntax?, return syntax? corresponding to the
-;; definition.
+;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
+(define (syntax-e-eq? a b)
+  (eq? (syntax-e a) (syntax-e b)))
+
+(define ((make-eq-sym? sym) stx)
+  (and (eq? sym (syntax-e stx)) stx))
+
+(define (file-module file)
+  (match (path->string (last (explode-path file)))
+    [(pregexp "(.+?)\\.rkt$" (list _ v)) (string->symbol v)]))
+
+;; Return bodies (wrapped in begin) of the module indicated by
+;; file and sub-mod-syms.
+(define (submodule file sub-mod-syms stx)
+  (submodule* (cons (file-module file) sub-mod-syms) stx))
+
+(define (submodule* mods stx)
+  (match-define (cons this more) mods)
+  (define (subs stxs)
+    (if (empty? more)
+        #`(begin . #,stxs)
+         (ormap (λ (stx) (submodule* more stx))
+                (syntax->list stxs))))
+  (syntax-case* stx (module #%module-begin) syntax-e-eq?
+    [(module name _ (#%module-begin . stxs))
+     (eq? this (syntax-e #'name))
+     (subs #'stxs)]
+    [(module name _ . stxs)
+     (eq? this (syntax-e #'name))
+     (subs #'stxs)]
+    [_ #f]))
+
+(module+ test
+  (require rackunit)
+  (check-equal? (syntax->datum
+                 (submodule "/path/to/file.rkt" '(a b c)
+                            #'(module file racket
+                                (module a racket
+                                  (module not-b racket #f)
+                                  (module b racket
+                                    (module not-c racket #f)
+                                    (module c racket "bingo")
+                                    (module not-c racket #f))
+                                  (module not-b racket #f)))))
+                '(begin "bingo")))
+
+;; Given a symbol and syntax, return syntax corresponding to the
+;; definition. Intentionally does NOT walk into module forms, so, give
+;; us the module bodies wrapped in begin.
 ;;
 ;; If `stx` is expanded we can find things defined via definer
 ;; macros.
@@ -117,7 +179,7 @@
 (define (definition sym stx) ;;symbol? syntax? -> syntax?
   (define eq-sym? (make-eq-sym? sym))
   ;; This is a hack to handle definer macros that neglect to set
-  ;; srcloc properly using syntx/loc or (format-id ___ #:source __):
+  ;; srcloc properly using syntax/loc or (format-id ___ #:source __):
   ;; If the stx lacks srcloc and its parent stx has srcloc, return the
   ;; parent stx instead. Caveats: 1. Assumes caller only cares about
   ;; the srcloc. 2. We only check immediate parent. 3. We only use
@@ -129,11 +191,11 @@
         stx
         s))
   (syntax-case* stx
-      (module #%module-begin define-values define-syntaxes
-              define define/contract
-              define-syntax struct define-struct)
+      (begin define-values define-syntaxes
+             define define/contract
+             define-syntax struct define-struct)
       syntax-e-eq?
-    [(module _ _ (#%module-begin . stxs))
+    [(begin . stxs)
      (ormap (λ (stx) (definition sym stx))
             (syntax->list #'stxs))]
     [(define          (s . _) . _)  (eq-sym? #'s) stx]
@@ -151,97 +213,20 @@
     [(struct (s _) . _)             (eq-sym? #'s) stx]
     [_                              #f]))
 
-;; Given a symbol? and syntax?, return syntax? corresponding to the
-;; function definition signature. Note that we do NOT want stx to be
-;; run through `expand`.
+;; Given a symbol and syntax, return syntax corresponding to the
+;; function definition signature. The input syntax should NOT be
+;; `expand`ed. This intentionally does NOT walk into module forms, so,
+;; give us the module bodies wrapped in begin.
+
 (define (signature sym stx) ;;symbol? syntax? -> (or/c #f list?)
   (define eq-sym? (make-eq-sym? sym))
   (syntax-case* stx
-      (module #%module-begin define define/contract case-lambda)
+      (begin define define/contract case-lambda)
       syntax-e-eq?
-    [(module _ _ (#%module-begin . stxs))
-     (ormap (λ (stx)
-              (signature sym stx))
-            (syntax->list #'stxs))]
-    [(module _ _ . stxs)
-     (ormap (λ (stx)
-              (signature sym stx))
+    [(begin . stxs)
+     (ormap (λ (stx) (signature sym stx))
             (syntax->list #'stxs))]
     [(define          (s . as) . _)               (eq-sym? #'s) #'(s . as)]
     [(define/contract (s . as) . _)               (eq-sym? #'s) #'(s . as)]
     [(define s (case-lambda [(ass ...) . _] ...)) (eq-sym? #'s) #'((s ass ...) ...)]
     [_                                            #f]))
-
-;; Given a symbol? and syntax?, return syntax? corresponding to the
-;; contracted provide. Note that we do NOT want stx to be run through
-;; `expand` because we want the original contract definitions (if
-;; any). ** This is currently not used. If we ever add a
-;; `find-provision` function, it would use this.
-(define (contracting-provide sym stx) ;;symbol? syntax? -> syntax?
-  (define eq-sym? (make-eq-sym? sym))
-  (syntax-case* stx
-      (module #%module-begin provide provide/contract)
-      syntax-e-eq?
-    [(module _ _ (#%module-begin . ss))
-     (ormap (λ (stx) (contracting-provide sym stx))
-            (syntax->list #'ss))]
-    [(provide/contract . stxs)
-     (for/or ([stx (syntax->list #'stxs)])
-       (syntax-case stx ()
-         [(s _) (eq-sym? #'s) stx]
-         [_     #f]))]
-    [(provide . stxs)
-     (for/or ([stx (syntax->list #'stxs)])
-       (syntax-case* stx (contract-out) syntax-e-eq?
-         [(contract-out . stxs)
-          (for/or ([stx (syntax->list #'stxs)])
-            (syntax-case* stx (rename struct) syntax-e-eq?
-              [(struct s _ ...)     (eq-sym? #'s) stx]
-              [(struct (s _) _ ...) (eq-sym? #'s) stx]
-              [(rename _ s _)       (eq-sym? #'s) stx]
-              [(s _)                (eq-sym? #'s) stx]
-              [_                    #f]))]
-         ;; Only care about contracting provides.
-         ;; [s (eq-sym? #'s) stx]
-         [_ #f]))]
-    [_ #f]))
-
-;; Find sym in a contracting and/or renaming provide, and return the
-;; syntax for the ORIGINAL identifier (before being contracted and/or
-;; renamed).
-(define (renaming-provide sym stx) ;;symbol? syntax? -> syntax?
-  (define eq-sym? (make-eq-sym? sym))
-  (syntax-case* stx
-      (module #%module-begin provide provide/contract)
-      syntax-e-eq?
-    [(module _ _ (#%module-begin . ss))
-     (ormap (λ (stx) (renaming-provide sym stx))
-            (syntax->list #'ss))]
-    [(provide/contract . stxs)
-     (for/or ([stx (syntax->list #'stxs)])
-       (syntax-case stx ()
-         [(s _) (eq-sym? #'s)]
-         [_     #f]))]
-    [(provide . stxs)
-     (for/or ([stx (syntax->list #'stxs)])
-       (syntax-case* stx (contract-out rename-out) syntax-e-eq?
-         [(contract-out . stxs)
-          (for/or ([stx (syntax->list #'stxs)])
-            (syntax-case* stx (rename) syntax-e-eq?
-              [(rename orig s _) (eq-sym? #'s) #'orig]
-              [(s _)             (eq-sym? #'s) #'s]
-              [_                 #f]))]
-         [(rename-out . stxs)
-          (for/or ([stx (syntax->list #'stxs)])
-            (syntax-case* stx () syntax-e-eq?
-              [(orig s) (eq-sym? #'s) #'orig]
-              [_        #f]))]
-         [_ #f]))]
-    [_ #f]))
-
-;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
-(define (syntax-e-eq? a b)
-  (eq? (syntax-e a) (syntax-e b)))
-
-(define ((make-eq-sym? sym) stx)
-  (and (eq? sym (syntax-e stx)) stx))

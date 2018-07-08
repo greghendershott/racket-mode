@@ -38,37 +38,52 @@
   ;; Tests for specific locations in defn-examples.rkt
 
   (check-match (find-definition "plain")
-               (list (pregexp "defn-examples.rkt$") 10 9))
+               (list (pregexp "defn-examples.rkt$") 7 9))
   (check-equal? (find-signature "plain")
                 '(plain x))
 
   (check-match (find-definition "renamed")
-               (list (pregexp "defn-examples.rkt$") 10 9))
+               (list (pregexp "defn-examples.rkt$") 7 9))
   (check-equal? (find-signature "renamed")
                 '(plain x))
 
   (check-match (find-definition "contracted1")
-               (list (pregexp "defn-examples.rkt$") 14 9))
+               (list (pregexp "defn-examples.rkt$") 11 9))
   (check-equal? (find-signature "contracted1")
                 '(contracted1 x))
 
   (check-match (find-definition "contracted2")
-               (list (pregexp "defn-examples.rkt$") 16 9))
+               (list (pregexp "defn-examples.rkt$") 13 9))
   (check-equal? (find-signature "contracted2")
                 '(contracted2 x))
 
   (check-match (find-definition "contracted/renamed")
-               (list (pregexp "defn-examples.rkt$") 19 9))
+               (list (pregexp "defn-examples.rkt$") 16 9))
   (check-equal? (find-signature "contracted/renamed")
                 '(c/r x))
 
   (check-match (find-definition "plain-by-macro")
-               (list (pregexp "defn-examples.rkt$") 26 15))
+               (list (pregexp "defn-examples.rkt$") 23 15))
   (check-false (find-signature "plain-by-macro"))
 
   (check-match (find-definition "contracted-by-macro")
-               (list (pregexp "defn-examples.rkt$") 32 20))
+               (list (pregexp "defn-examples.rkt$") 29 20))
   (check-false (find-signature "contracted-by-macro"))
+
+  (check-match (find-definition "sub")
+               (list (pregexp "defn-examples.rkt$") 38 11))
+  (check-equal? (find-signature "sub")
+                '(sub x))
+
+  (check-match (find-definition "sub/renamed")
+               (list (pregexp "defn-examples.rkt$") 38 11))
+  (check-equal? (find-signature "sub/renamed")
+                '(sub x))
+
+  (check-match (find-definition "foo")
+               (list (pregexp "defn-examples.rkt$") 48 9))
+  (check-equal? (find-signature "foo")
+                '(foo x))
 
   ;; This is (roughly) a test of opening a Racket source file and
   ;; doing M-. on every non-list sexpr: Call find-definition on each
