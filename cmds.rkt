@@ -1,7 +1,6 @@
 #lang at-exp racket/base
 
-(require file/md5
-         macro-debugger/analysis/check-requires
+(require macro-debugger/analysis/check-requires
          racket/contract/base
          racket/contract/region
          racket/format
@@ -21,6 +20,7 @@
          "fresh-line.rkt"
          "help.rkt"
          "instrument.rkt"
+         "md5.rkt"
          "mod.rkt"
          "scribble.rkt"
          "try-catch.rkt"
@@ -75,14 +75,13 @@
 
 (define/contract (attach-command-server ns maybe-mod)
   (-> namespace? (or/c #f mod?) any)
-  (set! command-server-context
-        (context ns maybe-mod (maybe-mod->md5 maybe-mod))))
+  (define md5 (maybe-mod->md5 maybe-mod))
+  (set! command-server-context (context ns maybe-mod md5)))
 
 (define (maybe-mod->md5 m)
   (define-values (dir file _) (maybe-mod->dir/file/rmp m))
-  (if file
-      (call-with-input-file* (build-path dir file)
-        (compose bytes->string/utf-8 md5))
+  (if (and dir file)
+      (file->md5 (build-path dir file))
       ""))
 
 (define (start-command-server port)
