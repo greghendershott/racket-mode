@@ -182,14 +182,29 @@
            (put/stop (load-gui))))
        (orig-resolver mp rmp stx load?)])))
 
+(define (make-print-handler pretty-print?)
+  (cond [pretty-print? our-pretty-print-handler]
+        [else (make-plain-print-handler)]))
+
+(define (our-pretty-print-handler v)
+  (cond [(void? v)   (void)]
+        [(syntax? v) (pretty-print-syntax v)]
+        [else        (pretty-print v)]))
+
+(define (pretty-print-syntax v)
+  (pretty-print
+   (list
+    (string->symbol
+     (format "syntax:~a:~a:~a"
+             (or (syntax-source v) "")
+             (match (syntax-column v) [#f ""] [n (add1 n)])
+             (or (syntax-line v) "")))
+    (syntax->datum v))))
+
 ;; Note: The `dynamic-require`s seem to be necessary otherwise
 ;; file/convertible's convertible? always returns #f. Which seeems to
 ;; be a namespace issue that I don't understand.
 (define-runtime-path image.rkt "image.rkt")
-
-(define (make-print-handler pretty-print?)
-  (cond [pretty-print? pretty-print-handler]
-        [else (make-plain-print-handler)]))
 
 (define (make-plain-print-handler)
   (let ([convert (dynamic-require image.rkt 'convert-image)])
