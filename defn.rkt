@@ -4,7 +4,7 @@
          (only-in racket/format ~a)
          racket/list
          racket/match
-         syntax/modread)
+         "syntax.rkt")
 
 (provide
  (contract-out
@@ -51,7 +51,7 @@
          [(cons id 'kernel) 'kernel]
          [(list* id file submods)
           (define file-stx (hash-ref! ht file
-                                      (λ () (file->syntax file expand))))
+                                      (λ () (file->expanded-syntax file))))
           (define sub-stx (submodule file submods file-stx))
           (match (definition id sub-stx)
             [#f  #f]
@@ -98,27 +98,6 @@
                                        (~a sym ".rkt")))]
     [(list (? path-string? path) (? symbol? subs) ...)
      (list* path subs)]))
-
-;; Return a syntax object or #f for the contents of `file`. The
-;; resulting syntax is applied to `k` while the parameters
-;; current-load-relative-directory and current-namespace are still set
-;; appropriately.
-(define/contract (file->syntax file [k values])
-  (->* (path-string?)
-       ((-> syntax? syntax?))
-       (or/c #f syntax?))
-  (define-values (base _ __) (split-path file))
-  (parameterize ([current-load-relative-directory base]
-                 [current-namespace (make-base-namespace)])
-    (with-handlers ([exn:fail? (λ _ #f)])
-      (k
-       (with-module-reading-parameterization
-         (λ ()
-           (with-input-from-file file read-syntax/count-lines)))))))
-
-(define (read-syntax/count-lines)
-  (port-count-lines! (current-input-port))
-  (read-syntax))
 
 ;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
 (define (syntax-e-eq? a b)

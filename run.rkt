@@ -15,6 +15,7 @@
          "logger.rkt"
          "mod.rkt"
          "namespace.rkt"
+         "syntax.rkt"
          "util.rkt")
 
 (module+ main
@@ -91,8 +92,12 @@
         (pretty-print-print-hook (make-pretty-print-print-hook))
         (pretty-print-size-hook (make-pretty-print-size-hook))
         ;; 2. If module, require and enter its namespace, etc.
+        (init-expanded-syntax-cache maybe-mod)
         (when (and maybe-mod mod-path)
-          (parameterize ([current-module-name-resolver repl-module-name-resolver])
+          (parameterize ([current-module-name-resolver repl-module-name-resolver]
+                         [current-eval (make-expanded-syntax-caching-eval
+                                        (current-eval)
+                                        maybe-mod)])
             ;; When exn:fail? during module load, re-run with "empty"
             ;; module. Note: Unlikely now that we're using
             ;; dynamic-require/some-namespace.
@@ -102,7 +107,8 @@
               (maybe-load-language-info mod-path) ;FIRST: see #281
               (current-namespace (dynamic-require/some-namespace maybe-mod))
               (maybe-warn-about-submodules mod-path context-level)
-              (check-top-interaction))))
+              (check-top-interaction)
+              (maybe-cache-expanded-syntax maybe-mod))))
         ;; 3. Tell command server to use our namespace and module.
         (attach-command-server (current-namespace) maybe-mod)
         ;; 4. read-eval-print-loop
