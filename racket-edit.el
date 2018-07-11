@@ -330,9 +330,12 @@ See also: `racket-find-collection'."
 
 (defun racket--do-visit-def-or-mod (cmd sym)
   "CMD must be \"def\" or \"mod\". SYM must be `symbolp`."
-  (unless (racket--repl-at-prompt-for-our-buffer-p)
-    (when (y-or-n-p "Run current buffer first? ")
-      (racket--run-and-wait-for-prompt)))
+  (cl-case major-mode
+    (racket-repl-mode (racket--repl-ensure-buffer-and-process))
+    (racket-mode      (unless (racket--repl-at-prompt-for-our-buffer-p)
+                        (when (y-or-n-p "Run current buffer first? ")
+                          (racket--run-and-wait-for-prompt))))
+    (otherwise        (user-error "Requires racket-mode or racket-repl-mode")))
   (pcase (racket--repl-command "%s %s" cmd sym)
     (`(,path ,line ,col)
      (racket--push-loc)
