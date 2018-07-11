@@ -25,14 +25,14 @@
 
 ;;; namespace symbols i.e. completion candidates
 
-(make-variable-buffer-local
- (defvar racket--namespace-symbols nil
-   "A cache of the list of all Racket namespace symbols.
+(defvar-local racket--namespace-symbols nil
+  "A cache of the list of all Racket namespace symbols.
 
 This var is local to each buffer, including the REPL buffer.
 
-See `racket--invalidate-completion-cache' and
-`racket--get-namespace-symbols'."))
+`racket-run' should call `racket--invalidate-completion-cache'.
+
+See `racket--get-namespace-symbols'.")
 
 (defun racket--invalidate-completion-cache ()
   "Both current `racket-mode' buffer and `racket-repl-mode' buffer (if any)."
@@ -93,13 +93,15 @@ See `racket--invalidate-completion-cache' and
 
 ;;; "types" (i.e. TR types, contracts, and/or function signatures)
 
-(make-variable-buffer-local
- (defvar racket--type-cache (make-hash-table :test #'eq)
-   "Memoize ,type commands in Racket REPL.
+(defvar-local racket--type-cache (make-hash-table :test #'eq)
+  "Memoize \",type\" commands in Racket REPL.
 
-`racket-run' should call `racket-invalidate-type-cache'."))
+This var is local to each buffer, including the REPL buffer.
+
+`racket-run' should call `racket-invalidate-type-cache'.")
 
 (defun racket--invalidate-type-cache ()
+  "Both current `racket-mode' buffer and `racket-repl-mode' buffer (if any)."
   (setq racket--type-cache (make-hash-table :test #'eq))
   (with-racket-repl-buffer
     (setq racket--type-cache (make-hash-table :test #'eq))))
