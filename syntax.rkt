@@ -9,9 +9,9 @@
 
 (provide file->syntax
          file->expanded-syntax
-         init-expanded-syntax-cache
-         make-expanded-syntax-caching-eval
-         maybe-cache-expanded-syntax)
+         before-run
+         make-eval-handler
+         after-run)
 
 ;; Return a syntax object or #f for the contents of `file`. The
 ;; resulting syntax is applied to `k` while the parameters
@@ -43,12 +43,12 @@
 ;; Call this early in a file run, _before_ any evaluation. If it's not
 ;; the same file as before, we empty the cache -- to free up memory.
 ;; If it's the same file, we keep the cache.
-(define (init-expanded-syntax-cache maybe-mod)
+(define (before-run maybe-mod)
   (unless (equal? last-mod maybe-mod)
     (hash-clear! cache)
     (set! last-mod maybe-mod)))
 
-(define ((make-expanded-syntax-caching-eval orig-eval maybe-mod) e)
+(define ((make-eval-handler orig-eval maybe-mod) e)
   (cond [(and (syntax? e)
               (syntax-source e)
               (path-string? (syntax-source e))
@@ -58,7 +58,7 @@
          (orig-eval expanded-stx)]
         [else (orig-eval e)]))
 
-(define (maybe-cache-expanded-syntax maybe-mod)
+(define (after-run maybe-mod)
   ;; When the rkt file being run has a compiled zo that was used, then
   ;; our eval-hander above won't expand and cache any syntax. That
   ;; means when the user does a command that needs expanded syntax
