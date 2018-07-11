@@ -6,20 +6,15 @@
          racket/match
          "syntax.rkt")
 
-(provide
- (contract-out
-  [find-definition
-   (-> string?
-       (or/c #f 'kernel (list/c path-string?
-                                natural-number/c
-                                natural-number/c)))]
-  [find-signature
-   (-> string?
-       (or/c #f pair?))]))
+(provide find-definition
+         find-signature)
+
+(define location/c (list/c path-string? natural-number/c natural-number/c))
 
 ;; Try to find the definition of `str`, returning a list with the file
 ;; name, line and column, 'kernel, or #f if not found.
-(define (find-definition str)
+(define/contract (find-definition str)
+  (-> string? (or/c #f 'kernel location/c))
   (match (find-definition/stx str)
     [(list* stx file submods)
      (list (path->string (or (syntax-source stx) file))
@@ -29,7 +24,8 @@
 
 ;; Try to find the definition of `str`, returning its signature or #f.
 ;; When defined in 'kernel, returns a form saying so, not #f.
-(define (find-signature str)
+(define/contract (find-signature str)
+  (-> string? (or/c #f pair?))
   (match (find-definition/stx str)
     ['kernel '("defined in #%kernel, signature unavailable")]
     [(list* id-stx file submods)
