@@ -88,6 +88,7 @@
     racket-unicode-input-method-enable
     racket-align
     racket-unalign
+    racket-complete-at-point
     "Macro expand"
     racket-expand-region
     racket-expand-definition
@@ -103,7 +104,8 @@
   (if (stringp s)
       (format "## %s\n\n" s)
     (concat (format "### %s\n" s)
-            (racket-make-doc/bindings-as-kbd s)
+            (and (interactive-form s)
+                 (racket-make-doc/bindings-as-kbd s))
             (racket-make-doc/tweak-quotes
              (racket-make-doc/linkify
               (or (documentation s) "No documentation.\n\n")))

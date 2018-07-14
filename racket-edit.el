@@ -296,18 +296,18 @@ Please keep in mind the following limitations:
 - Only finds symbols defined in the current namespace. You may
   need to `racket-run' the current buffer, first.
 
-- Only visits the definition of module level identifiers --
+- Only visits the definition of module-level identifiers --
   things for which Racket's `identifier-binding` function returns
   information. This does _not_ include things such as
-  local (nested) function definitions or racket/class member
-  functions. To find those in the same file, uses a normal Emacs
-  text search function like `isearch-forward'.
+  local (nested) function definitions or `racket/class` member
+  functions. To find those in the same file, you'll need to use a
+  normal Emacs text search function like `isearch-forward'.
 
-- If the definition is from Racket's `#%kernel` module, it will
-  tell you so but won't visit the definition site."
+- If the definition is found in Racket's `#%kernel` module, it
+  will tell you so but won't visit the definition site."
   (interactive "P")
-  (let ((sym (racket--identifier-at-point-or-prompt prefix
-                                                    "Visit definition of: ")))
+  (let ((sym (racket--symbol-at-point-or-prompt prefix
+                                                "Visit definition of: ")))
     (when sym
       (racket--do-visit-def-or-mod "def" sym))))
 

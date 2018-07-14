@@ -237,15 +237,15 @@ Please keep in mind the following limitations:
 - Only finds symbols defined in the current namespace. You may
   need to [`racket-run`](#racket-run) the current buffer, first.
 
-- Only visits the definition of module level identifiers --
+- Only visits the definition of module-level identifiers --
   things for which Racket's `identifier-binding` function returns
   information. This does _not_ include things such as
-  local (nested) function definitions or racket/class member
-  functions. To find those in the same file, uses a normal Emacs
-  text search function like `isearch-forward`.
+  local (nested) function definitions or `racket/class` member
+  functions. To find those in the same file, you'll need to use a
+  normal Emacs text search function like `isearch-forward`.
 
-- If the definition is from Racket's `#%kernel` module, it will
-  tell you so but won't visit the definition site.
+- If the definition is found in Racket's `#%kernel` module, it
+  will tell you so but won't visit the definition site.
 
 ### racket-visit-module
 <kbd>C-M-.</kbd>
@@ -671,6 +671,20 @@ The opposite of [`racket-align`](#racket-align).
 
 Effectively does M-x `just-one-space` and `prog-indent-sexp` for
 each couple's value.
+
+### racket-complete-at-point
+Default value for the variable `completion-at-point-functions`.
+
+Completion candidates are drawn from the namespace symbols
+resulting from the most recent [`racket-run`](#racket-run) of each .rkt file. If
+a file has never been run, candidates default to values also used
+for font-lock -- an assortment of symbols from common Racket
+modules such as `racket`, `typed/racket`, and `syntax/parse`.
+
+Returns extra :company-doc-buffer and :company-location
+properties for use by the `company-mode` backend `company-capf`
+-- but not :company-docsig, because it is frequently impossible
+to supply this quickly enough or at all.
 
 ## Macro expand
 

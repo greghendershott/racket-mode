@@ -20,6 +20,7 @@
 (require 'ido)
 (require 'racket-custom)
 (require 'racket-repl)
+(require 'racket-keywords-and-builtins)
 (require 'shr)
 (require 's)
 
@@ -40,50 +41,63 @@ See `racket--get-namespace-symbols'.")
   (with-racket-repl-buffer
     (setq racket--namespace-symbols nil)))
 
-(defun racket--get-namespace-symbols ()
-  "Get Racket namespace symbols from the cache or from the Racket process."
+(defun racket--completion-candidates ()
+  "Completion candidates, as a list of list of strings.
+ Gets from the cache, or if nil from the Racket process, or if
+ that's not running from the `defconst' lists of strings we use
+ for font-lock. To support the last case -- while avoiding
+ `append' and allocation of such large lists of strings -- is why
+ we always return a list of list of strings."
   (unless racket--namespace-symbols
-    (if (racket--in-repl-or-its-file-p)
-        (setq racket--namespace-symbols
-              (racket--repl-command "syms"))
-      (error "Completions not available until you `racket-run' this buffer")))
-  racket--namespace-symbols)
+    (when (racket--in-repl-or-its-file-p)
+      (setq racket--namespace-symbols
+            (list (racket--repl-command "syms")))))
+  (or racket--namespace-symbols
+      (list racket-type-list
+            racket-keywords
+            racket-builtins-1-of-2
+            racket-builtins-2-of-2)))
 
-(defun racket--complete-prefix (prefix)
-  (all-completions prefix (racket--get-namespace-symbols)))
+(defun racket--completion-candidates-for-prefix (prefix)
+  (cl-reduce (lambda (results strs)
+               (append results (all-completions prefix strs)))
+             (racket--completion-candidates)
+             :initial-value ()))
 
-(defun racket--complete-prefix-begin ()
-  (save-excursion (skip-syntax-backward "^-()>")
-                  (point)))
+(defun racket-complete-at-point (&optional _predicate)
+  "Default value for the variable `completion-at-point-functions'.
 
-(defun racket--complete-prefix-end (beg)
-  (unless (or (eq beg (point-max))
-              (member (char-syntax (char-after beg)) '(?\" ?\( ?\))))
-    (let ((pos (point)))
+Completion candidates are drawn from the namespace symbols
+resulting from the most recent `racket-run' of each .rkt file. If
+a file has never been run, candidates default to values also used
+for font-lock -- an assortment of symbols from common Racket
+modules such as `racket`, `typed/racket`, and `syntax/parse`.
+
+Returns extra :company-doc-buffer and :company-location
+properties for use by the `company-mode' backend `company-capf'
+-- but not :company-docsig, because it is frequently impossible
+to supply this quickly enough or at all."
+  (let ((beg (save-excursion (skip-syntax-backward "^-()>") (point))))
+    (unless (or (eq beg (point-max))
+                (member (char-syntax (char-after beg)) '(?\" ?\( ?\))))
       (condition-case nil
           (save-excursion
             (goto-char beg)
             (forward-sexp 1)
-            (when (>= (point) pos)
-              (point)))
-        (scan-error pos)))))
-
-(defun racket-complete-at-point (&optional _predicate)
-  (with-syntax-table racket-mode-syntax-table ;probably don't need this??
-    (let* ((beg    (racket--complete-prefix-begin))
-           (end    (or (racket--complete-prefix-end beg) beg))
-           (prefix (and (> end beg) (buffer-substring-no-properties beg end)))
-           (cmps   (and prefix (completion-table-dynamic
-                                (lambda (_)
-                                  (racket--complete-prefix prefix))))))
-      (and cmps
-           (list beg
-                 end
-                 cmps
-                 :predicate #'identity
-                 ;; racket--get-type is too slow for :company-docsig
-                 :company-doc-buffer #'racket--do-describe
-                 :company-location #'racket--get-def-file+line)))))
+            (let ((end (point)))
+              (and
+               (<= (+ beg 2) end) ;prefix at least 2 chars
+               (list beg
+                     end
+                     (completion-table-dynamic
+                      (lambda (_)
+                        (racket--completion-candidates-for-prefix
+                         (buffer-substring-no-properties beg end))))
+                     :predicate #'identity
+                     ;; racket--get-type is too slow for :company-docsig
+                     :company-doc-buffer #'racket--do-describe
+                     :company-location #'racket--get-def-file+line))))
+        (scan-error nil)))))
 
 (defun racket--get-def-file+line (sym)
   "Return a value suitable for use as :company-location."
@@ -121,40 +135,14 @@ This var is local to each buffer, including the REPL buffer.
   "Helper for functions that want symbol-at-point, or, to prompt
 when there is no symbol-at-point or FORCE-PROMPT-P is true. The
 prompt uses `read-from-minibuffer'."
-  (racket--x-at-point-or-prompt force-prompt-p
-                                prompt
-                                #'read-from-minibuffer))
-
-(defun racket--identifier-at-point-or-prompt (force-prompt-p prompt)
-  "Helper for functions that want symbol-at-point, or, to prompt
-when there is no symbol-at-point or FORCE-PROMPT-P is true. The
-prompt uses `racket--read-identifier'."
-  (racket--x-at-point-or-prompt force-prompt-p
-                                prompt
-                                #'racket--read-identifier))
-
-(defun racket--x-at-point-or-prompt (force-prompt-p prompt reader)
-  "Helper for functions that want symbol-at-point, or, to prompt
-when there is no symbol-at-point or FORCE-PROMPT-P is true. The
-prompt uses READER, which must be a function like
-`read-from-minibuffer'."
   (let ((sap (symbol-at-point)))
     (if (or force-prompt-p (not sap))
-        (let ((s (funcall reader prompt (and sap (symbol-name sap)))))
+        (let ((s (read-from-minibuffer prompt
+                                       (and sap (symbol-name sap)))))
           (if (equal "" (s-trim s))
               nil
             s))
       sap)))
-
-(defun racket--read-identifier (prompt default)
-  "Do `ido-completing-read with `racket--get-namespace-symbols'."
-  (ido-completing-read prompt
-                       (racket--get-namespace-symbols)
-                       nil      ;predicate
-                       nil      ;require-match
-                       default  ;initial
-                       nil      ;history
-                       default))
 
 ;;; eldoc
 
@@ -227,8 +215,8 @@ buffer are Emacs buttons -- which you may navigate among using
 TAB, and activate using RET -- for `racket-visit-definition' and
 `racket-doc'."
   (interactive "P")
-  (let ((sym (racket--identifier-at-point-or-prompt prefix
-                                                    "Describe: ")))
+  (let ((sym (racket--symbol-at-point-or-prompt prefix
+                                                "Describe: ")))
     (when sym
       (racket--do-describe sym t))))
 
