@@ -1,6 +1,6 @@
 ;;; racket-make-doc.el --- Major mode for Racket language.
 
-;; Copyright (c) 2013-2016 by Greg Hendershott.
+;; Copyright (c) 2013-2018 by Greg Hendershott.
 
 ;; License:
 ;; This is free software; you can redistribute it and/or modify it
