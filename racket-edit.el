@@ -504,37 +504,42 @@ file using `#lang`. It does *not* work for `require`s inside
 
 See also: `racket-trim-requires' and `racket-base-requires'."
   (interactive)
-  (let* ((reqs (racket--top-level-requires 'find))
-         (new (and reqs
-                   (racket--repl-command "requires/tidy %S" reqs))))
-    (unless (string-equal "" new)
-      (goto-char (racket--top-level-requires 'kill))
-      (insert (concat new "\n")))))
+  (unless (eq major-mode 'racket-mode)
+    (user-error "Current buffer is not a racket-mode buffer"))
+  (pcase (racket--top-level-requires 'find)
+    (`nil (user-error "The file module has no requires; nothing to do"))
+    (reqs (pcase (racket--repl-command "requires/tidy %S" reqs)
+            ("" nil)
+            (new (goto-char (racket--top-level-requires 'kill))
+                 (insert (concat new "\n")))))))
 
 (defun racket-trim-requires ()
-  "Like `racket-tidy-requires' but also deletes unused modules.
+  "Like `racket-tidy-requires' but also deletes unnecessary requires.
 
 Note: This only works when the source file can be evaluated with
 no errors.
 
 Note: This only works for requires at the top level of a source
 file using `#lang`. It does *not* work for `require`s inside
-`module` forms.
+`module` forms. Furthermore, it is not smart about `module+` or
+`module*` forms -- it may delete top level requires that are
+actually needed by such submodules.
 
 See also: `racket-base-requires'."
   (interactive)
-  (racket--save-if-changed)
-  (let* ((reqs (racket--top-level-requires 'find))
-         (new (and reqs
-                   (racket--repl-command
-                    "requires/trim \"%s\" %S"
-                    (racket--buffer-file-name)
-                    reqs))))
-    (unless new
-      (user-error "Can't do, source file has error"))
-    (goto-char (racket--top-level-requires 'kill))
-    (unless (string-equal "" new)
-      (insert (concat new "\n")))))
+  (unless (eq major-mode 'racket-mode)
+    (user-error "Current buffer is not a racket-mode buffer"))
+  (when (racket--ok-with-module+*)
+   (racket--save-if-changed)
+   (pcase (racket--top-level-requires 'find)
+     (`nil (user-error "The file module has no requires; nothing to do"))
+     (reqs (pcase (racket--repl-command "requires/trim \"%s\" %S"
+                                        (racket--buffer-file-name)
+                                        reqs)
+             (`nil (user-error "Syntax error in source file"))
+             (""   (goto-char (racket--top-level-requires 'kill)))
+             (new  (goto-char (racket--top-level-requires 'kill))
+                   (insert (concat new "\n"))))))))
 
 (defun racket-base-requires ()
   "Change from `#lang racket` to `#lang racket/base`.
@@ -554,31 +559,42 @@ no errors.
 
 Note: This only works for requires at the top level of a source
 file using `#lang`. It does *not* work for `require`s inside
-`module` forms.
+`module` forms. Furthermore, it is not smart about `module+` or
+`module*` forms -- it may delete top level requires that are
+actually needed by such submodules.
 
 Note: Currently this only helps change `#lang racket` to
 `#lang racket/base`. It does *not* help with other similar conversions,
 such as changing `#lang typed/racket` to `#lang typed/racket/base`."
   (interactive)
+  (unless (eq major-mode 'racket-mode)
+    (user-error "Current buffer is not a racket-mode buffer"))
   (when (racket--buffer-start-re "^#lang.*? racket/base$")
     (user-error "Already using #lang racket/base. Nothing to change."))
   (unless (racket--buffer-start-re "^#lang.*? racket$")
     (user-error "File does not use use #lang racket. Cannot change."))
-  (racket--save-if-changed)
-  (let* ((reqs (racket--top-level-requires 'find))
-         (new (racket--repl-command
-               "requires/base \"%s\" %S"
-               (racket--buffer-file-name)
-               reqs)))
-    (unless new
-      (user-error "Source file has error"))
+  (when (racket--ok-with-module+*)
+    (racket--save-if-changed)
+    (let ((reqs (racket--top-level-requires 'find)))
+      (pcase (racket--repl-command "requires/base \"%s\" %S"
+                                   (racket--buffer-file-name)
+                                   reqs)
+        (`nil (user-error "Syntax error in source file"))
+        (new (goto-char (point-min))
+             (re-search-forward "^#lang.*? racket$")
+             (insert "/base")
+             (goto-char (or (racket--top-level-requires 'kill)
+                            (progn (insert "\n\n") (point))))
+             (unless (string= "" new)
+               (insert (concat new "\n"))))))))
+
+(defun racket--ok-with-module+* ()
+  (save-excursion
     (goto-char (point-min))
-    (re-search-forward "^#lang.*? racket$")
-    (insert "/base")
-    (goto-char (or (racket--top-level-requires 'kill)
-                   (progn (insert "\n") (point))))
-    (unless (string= "" new)
-      (insert (concat new "\n")))))
+    (or (not (re-search-forward (rx ?\( "module" (or "+" "*")) nil t))
+        (prog1
+            (y-or-n-p "Analysis will be unreliable due to module+ or module* forms -- proceed anyway? ")
+          (message "")))))
 
 (defun racket--buffer-start-re (re)
   (save-excursion

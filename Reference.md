@@ -395,14 +395,16 @@ See also: [`racket-trim-requires`](#racket-trim-requires) and [`racket-base-requ
 ### racket-trim-requires
 <kbd>M-x racket-trim-requires</kbd>
 
-Like [`racket-tidy-requires`](#racket-tidy-requires) but also deletes unused modules.
+Like [`racket-tidy-requires`](#racket-tidy-requires) but also deletes unnecessary requires.
 
 Note: This only works when the source file can be evaluated with
 no errors.
 
 Note: This only works for requires at the top level of a source
 file using `#lang`. It does *not* work for `require`s inside
-`module` forms.
+`module` forms. Furthermore, it is not smart about `module+` or
+`module*` forms -- it may delete top level requires that are
+actually needed by such submodules.
 
 See also: [`racket-base-requires`](#racket-base-requires).
 
@@ -426,7 +428,9 @@ no errors.
 
 Note: This only works for requires at the top level of a source
 file using `#lang`. It does *not* work for `require`s inside
-`module` forms.
+`module` forms. Furthermore, it is not smart about `module+` or
+`module*` forms -- it may delete top level requires that are
+actually needed by such submodules.
 
 Note: Currently this only helps change `#lang racket` to
 `#lang racket/base`. It does *not* help with other similar conversions,
