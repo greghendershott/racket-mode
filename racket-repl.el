@@ -61,23 +61,60 @@ forms are evaluated and nil is returned. See also
         (backward-sexp)
         (buffer-substring (point) end)))))
 
+(defconst rx-whitespace-or-comment
+  (rx (1+ (or (syntax whitespace)
+              (syntax comment-start)
+              (syntax comment-end)))))
+
 (defun racket-repl-eval-or-newline-and-indent ()
-  "If complete sexpr, eval in Racket. Else do `racket-newline-and-indent'."
+  "Evaluate or `newline-and-indent'.
+
+If you've supplied a complete s-expression, it is submitted to
+Racket to be evaluated. Otherwise, this does
+`newline-and-indent`.
+
+- This is most useful when you are _not_ using something like
+  Paredit: Until you type the closing paren, you can use RET to
+  `newline-and-indent'.
+
+- If you _are_ using something like Paredit: You will probably
+  always have a complete s-expression. To enter one s-expression
+  over multiple lines, use something like C-j.
+
+If you supply more than one s-expression, only the first is
+evaluated by Racket. The remainder move down to the next prompt,
+where you can evalute the next one by pressing RET again."
   (interactive)
   (let ((proc (get-buffer-process (current-buffer))))
-    (cond ((not proc) (user-error "Current buffer has no process"))
-          ((not (eq "" (racket--get-old-input)))
-           (condition-case nil
-               (let* ((beg (marker-position (process-mark proc)))
-                      (end (save-excursion
-                             (goto-char beg)
-                             (forward-list) ;scan-error unless complete sexpr
-                             (point))))
-                 (comint-send-input)
-                 ;; Remove comint-highlight-input face applied to
-                 ;; input. I don't like how that looks.
-                 (remove-text-properties beg end '(font-lock-face comint-highlight-input)))
-             (scan-error (newline-and-indent)))))))
+    (unless proc (user-error "Current buffer has no process"))
+    (condition-case nil
+        (let* ((beg (marker-position (process-mark proc)))
+               (end (save-excursion
+                      (goto-char beg)
+                      (forward-list 1) ;scan-error unless complete sexpr
+                      (point))))
+          (unless (or (equal beg end)
+                      (all-space-p beg end))
+            (goto-char end)
+            (let ((comint-eol-on-send nil))
+              (comint-send-input))
+            ;; Remove comint-highlight-input face applied to
+            ;; input. I don't like how that looks.
+            (remove-text-properties beg end '(font-lock-face comint-highlight-input))
+            ;; If there was any trailing space after the sexpr just
+            ;; sent, it's now sitting at the prompt, possibly before
+            ;; more sexprs. Delete it.
+            (goto-char (marker-position (process-mark proc)))
+            (save-match-data
+              (when (looking-at rx-whitespace-or-comment)
+                (delete-region (match-beginning 0) (match-end 0))))))
+      (scan-error (newline-and-indent)))))
+
+(defun all-space-p (beg end)
+  (save-excursion
+    (goto-char beg)
+    (save-match-data
+      (equal end (re-search-forward rx-whitespace-or-comment end t)))))
 
 ;;;###autoload
 (defun racket-repl (&optional noselect)
@@ -342,8 +379,8 @@ Intended for use by things like ,run command."
 (defun racket--send-region-to-repl (start end)
   "Internal function to send the region to the Racket REPL.
 
-Before sending the region, call `racket-repl' and
-`racket--repl-forget-errors'. Also insert a ?\n at the process
+Before sending the region, calls `racket-repl' and
+`racket--repl-forget-errors'. Also inserts a ?\n at the process
 mark so that output goes on a fresh line, not on the same line as
 the prompt.
 
