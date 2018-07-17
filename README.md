@@ -69,7 +69,7 @@ On Windows or Linux, this default will probably work for you.
 On macOS, downloading Racket doesn't add its `bin` directory to your
 `PATH`. Even after you add it, GUI Emacs doesn't automatically use
 your path (unless you use the handy [exec-path-from-shell] package).
-Therefore you may want to set `racket-program` to a full pathame like
+Therefore you may want to set `racket-program` to a full pathname like
 `/usr/racket/bin/racket`.
 
 [exec-path-from-shell]: http://melpa.org/#/exec-path-from-shell
@@ -205,7 +205,9 @@ Within Emacs, use the usual help functions.
 - To see help about a specific command, for example `racket-run`, type
   <kbd>C-h f</kbd> and then <kbd>racket-run</kbd>.
 
-Here on GitHub you can browse the [Reference](Reference.md).
+Here on GitHub you can browse the [Reference](Reference.md), which is
+simply a markdown file generated from the same doc strings you see in
+Emacs help.
 
 ## Contributing
 
