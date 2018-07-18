@@ -83,7 +83,7 @@ Racket to be evaluated. Otherwise, this does
 
 If you supply more than one s-expression, only the first is
 evaluated by Racket. The remainder move down to the next prompt,
-where you can evalute the next one by pressing RET again."
+where you can evaluate the next one by pressing RET again."
   (interactive)
   (let ((proc (get-buffer-process (current-buffer))))
     (unless proc (user-error "Current buffer has no process"))
