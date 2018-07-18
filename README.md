@@ -15,7 +15,8 @@ Compatible with **Emacs 24.3+** and **Racket 6.0+**.
 ## Install
 
 The recommended way to use `racket-mode` is to install the package
-from [MELPA]. <kbd>M-x package-install</kbd>, `racket-mode`.
+from [MELPA]. <kbd>M-x</kbd> `package-install` <kbd>RET</kbd>
+`racket-mode` <kbd>RET</kbd>.
 
 [MELPA]: http://melpa.org/
 
