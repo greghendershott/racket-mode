@@ -33,7 +33,7 @@ from [MELPA]. <kbd>M-x</kbd> `package-install` <kbd>RET</kbd>
 ### Minimal Racket
 
 If you have installed the minimal Racket distribution (for example by
-using the [homebrew recipe]): `racket-mode` needs some additional
+using the [homebrew formula]): `racket-mode` needs some additional
 packages (like `errortrace` and `macro-debugger`). A simple way to get
 all these packages is to install the `drracket` package:
 
@@ -41,7 +41,7 @@ all these packages is to install the `drracket` package:
 $ raco pkg install drracket
 ```
 
-[homebrew recipe]: https://github.com/Homebrew/homebrew/blob/master/Library/Formula/racket.rb
+[homebrew formula]: https://github.com/Homebrew/homebrew-core/blob/master/Formula/minimal-racket.rb
 
 ## Update
 
