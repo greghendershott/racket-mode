@@ -161,6 +161,9 @@ BAR
 «m:;; »«x:Issue 261
 »«s:"@|widget-id|"» @|foo|
 
+«m:;; »«x:Issue 298
+»(«k:define» «v:x» («k:begin» «s:"|"» '\|))
+
 («k:define» («f:foo»)
   («k:let» ([«v:x» «:racket-selfeval-face:10»])
     «:racket-selfeval-face:#t»)

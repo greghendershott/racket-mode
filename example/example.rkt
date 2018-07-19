@@ -161,6 +161,9 @@ BAR
 ;; Issue 261
 "@|widget-id|" @|foo|
 
+;; Issue 298
+(define x (begin "|" '\|))
+
 (define (foo)
   (let ([x 10])
     #t)

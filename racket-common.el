@@ -135,7 +135,7 @@
     ;; Treat |identifier with spaces| -- but not #|comment|# -- as
     ;; word syntax
     ((rx (not (any ?#))
-         (group ?| (+? (not (any "|\r\n"))) ?|)
+         (group ?| (+? (not (any "|\"\r\n"))) ?|)
          (not (any ?#)))
      (1 "w")))
    (point)
