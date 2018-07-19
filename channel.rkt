@@ -45,8 +45,9 @@
 ;; Messages to the main thread via a channel
 (define main-channel (make-channel))
 (define-struct/contract msg ())
-(define-struct/contract [load-gui msg] ())
-(define-struct/contract [rerun msg]
+(define-struct/contract (load-gui msg)
+  ([in-repl? boolean?]))
+(define-struct/contract (rerun msg)
   ([maybe-mod     (or/c #f mod?)]
    [memory-limit  exact-nonnegative-integer?] ;0 = no limit
    [pretty-print? boolean?]

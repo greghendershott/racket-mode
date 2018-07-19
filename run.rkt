@@ -5,8 +5,9 @@
          racket/contract/region
          racket/format
          racket/match
-         racket/runtime-path
          racket/pretty
+         racket/runtime-path
+         racket/string
          "channel.rkt"
          "cmds.rkt"
          "error.rkt"
@@ -94,7 +95,7 @@
         ;; 2. If module, require and enter its namespace, etc.
         (stx-cache:before-run maybe-mod)
         (when (and maybe-mod mod-path)
-          (parameterize ([current-module-name-resolver repl-module-name-resolver]
+          (parameterize ([current-module-name-resolver module-name-resolver-for-run]
                          [current-eval (stx-cache:make-eval-handler (current-eval)
                                                                     maybe-mod)])
             ;; When exn:fail? during module load, re-run with "empty"
@@ -112,7 +113,7 @@
         (attach-command-server (current-namespace) maybe-mod)
         ;; 4. read-eval-print-loop
         (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
-                       [current-module-name-resolver repl-module-name-resolver])
+                       [current-module-name-resolver module-name-resolver-for-repl])
           ;; Note that read-eval-print-loop catches all non-break
           ;; exceptions.
           (read-eval-print-loop)))
@@ -141,8 +142,8 @@
   (custodian-shutdown-all repl-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match msg
-    [(? rerun? x)  (run x)]
-    [(? load-gui?) (require-gui) (run rr)]))
+    [(? rerun? v) (run v)]
+    [(load-gui v) (require-gui v) (run rr)]))
 
 (define (maybe-load-language-info path)
   ;; Load language-info (if any) and do configure-runtime.
@@ -172,20 +173,21 @@
      "Because the language used by this module provides no #%top-interaction\n you will be unable to evaluate expressions here in the REPL.")))
 
 ;; Catch attempt to load racket/gui/base for the first time.
-(define repl-module-name-resolver
+(define (make-module-name-resolver repl?)
   (let ([orig-resolver (current-module-name-resolver)])
+    (define (resolve mp rmp stx load?)
+      (when (and load? (memq mp '(racket/gui/base
+                                  racket/gui/dynamic
+                                  scheme/gui/base)))
+        (unless (gui-required?)
+          (put/stop (load-gui repl?))))
+      (orig-resolver mp rmp stx load?))
     (case-lambda
-      [(rmp ns)
-       (orig-resolver rmp ns)]
-      [(mp rmp stx)
-       (repl-module-name-resolver mp rmp stx #t)]
-      [(mp rmp stx load?)
-       (when (and load? (memq mp '(racket/gui/base
-                                   racket/gui/dynamic
-                                   scheme/gui/base)))
-         (unless (gui-required?)
-           (put/stop (load-gui))))
-       (orig-resolver mp rmp stx load?)])))
+      [(rmp ns)           (orig-resolver rmp ns)]
+      [(mp rmp stx)       (resolve mp rmp stx #t)]
+      [(mp rmp stx load?) (resolve mp rmp stx load?)])))
+(define module-name-resolver-for-run  (make-module-name-resolver #f))
+(define module-name-resolver-for-repl (make-module-name-resolver #t))
 
 (define (make-print-handler pretty-print?)
   (cond [pretty-print? our-pretty-print-handler]
