@@ -59,13 +59,18 @@
 (put 'racket-tests/see-rx 'ert-explainer #'racket-tests/explain-see)
 (put 'racket-tests/see    'ert-explainer #'racket-tests/explain-see)
 
+(defun racket-tests/next-free-port ()
+  ;; (1+ racket-command-port) is used by the logging server so skip
+  ;; that, too!
+  (+ racket-command-port 2))
+
 ;;; REPL
 
 (ert-deftest racket-tests/repl ()
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
   (let ((tab-always-indent 'complete)
         (racket--repl-command-connect-timeout (* 15 60))
-        (racket-command-port (1+ racket-command-port))
+        (racket-command-port (racket-tests/next-free-port))
         (racket-command-timeout (* 15 60)))
     (racket-repl)
     (with-racket-repl-buffer
@@ -92,7 +97,7 @@
 
 (ert-deftest racket-tests/run ()
   (let* ((racket--repl-command-connect-timeout (* 15 60))
-         (racket-command-port (1+ racket-command-port))
+         (racket-command-port (racket-tests/next-free-port))
          (racket-command-timeout (* 15 60))
          (pathname (make-temp-file "test" nil ".rkt"))
          (name     (file-name-nondirectory pathname))
