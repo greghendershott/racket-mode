@@ -20,6 +20,7 @@
 (require 'faceup)
 (require 'racket-common)
 (require 'racket-custom)
+(require 'racket-repl)
 
 (defconst racket-tests/here-dir (faceup-this-file-directory)
   "The directory this file is located in.")
@@ -83,9 +84,9 @@
       (racket-tests/press "RET")
       (should (racket-tests/see "#<procedure:with-input-from-file>\n\uFEFF> "))
       ;; Multiline expression indent
-      (racket-tests/type&press "(if 1" "RET")
+      (racket-tests/type&press "(if 1" "C-j")
       (should (racket-tests/see "(if 1\n      "))
-      (racket-tests/type&press "2" "RET")
+      (racket-tests/type&press "2" "C-j")
       (should (racket-tests/see "2\n      "))
       (racket-tests/type&press "3)" "RET")
       (should (racket-tests/see "3)\n2\n\uFEFF> "))

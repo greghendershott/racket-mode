@@ -69,20 +69,48 @@
 ;;    I/O, and it is still handled by Emacs' comint-mode in the usual
 ;;    manner.
 
-(struct context (ns maybe-mod md5))
+(define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
 
-(define command-server-context (context (make-base-namespace) #f ""))
+(define-struct/contract context
+  ([ns          namespace?]
+   [maybe-mod   (or/c #f mod?)]
+   [md5         string?]
+   [submit-pred (or/c #f drracket:submit-predicate/c)]))
+
+(define command-server-context (context (make-base-namespace) #f "" #f))
 
 (define/contract (attach-command-server ns maybe-mod)
   (-> namespace? (or/c #f mod?) any)
-  (define md5 (maybe-mod->md5 maybe-mod))
-  (set! command-server-context (context ns maybe-mod md5)))
+  (set! command-server-context
+        (context ns
+                 maybe-mod
+                 (maybe-mod->md5 maybe-mod)
+                 (get-repl-submit-predicate maybe-mod))))
 
 (define (maybe-mod->md5 m)
   (define-values (dir file _) (maybe-mod->dir/file/rmp m))
   (if (and dir file)
       (file->md5 (build-path dir file))
       ""))
+
+;; <https://docs.racket-lang.org/tools/lang-languages-customization.html#(part._.R.E.P.L_.Submit_.Predicate)>
+(define/contract (get-repl-submit-predicate m)
+  (-> (or/c #f mod?) (or/c #f drracket:submit-predicate/c))
+  (define-values (dir file rmp) (maybe-mod->dir/file/rmp m))
+  (define path (and dir file (build-path dir file)))
+  (and path rmp
+       (or (match (with-input-from-file (build-path dir file) read-language)
+             [(? procedure? get-info)
+              (match (get-info 'drracket:submit-predicate #f)
+                [#f #f]
+                [v  v])]
+             [_ #f])
+           (with-handlers ([exn:fail? (λ _ #f)])
+             (match (module->language-info rmp #t)
+               [(vector mp name val)
+                (define get-info ((dynamic-require mp name) val))
+                (get-info 'drracket:submit-predicate #f)]
+               [_ #f])))))
 
 (define (start-command-server port)
   (void
@@ -91,18 +119,18 @@
       (define listener (tcp-listen port 4 #t))
       (let connect ()
         (define-values (in out) (tcp-accept listener))
-        (parameterize ([current-input-port in]
-                       [current-output-port out])
-          (define fail (λ _ (elisp-println #f)))
-          (let loop ()
-            (match (read-syntax)
-              [(? eof-object?) (void)]
-              [stx (with-handlers ([exn:fail? fail])
-                     (match-define (context ns maybe-mod md5) command-server-context)
-                     (parameterize ([current-namespace ns])
-                       (handle-command stx maybe-mod md5 fail)))
-                   (flush-output)
-                   (loop)])))
+        (let read-and-handle-a-command ()
+          (match (elisp-read in)
+            [(? eof-object?) (void)]
+            [sexp (define result
+                    (with-handlers ([exn:fail? (λ (exn) `(error ,(exn-message exn)))])
+                      (parameterize ([current-namespace
+                                      (context-ns command-server-context)])
+                        `(ok ,(handle-command sexp command-server-context)))))
+                  (parameterize ([current-output-port out])
+                    (elisp-println result)
+                    (flush-output))
+                  (read-and-handle-a-command)]))
         (close-input-port in)
         (close-output-port out)
         (connect))))))
@@ -110,20 +138,64 @@
 (define at-prompt (box 0))
 (define (at-prompt?) (positive? (unbox at-prompt)))
 
-(define/contract ((make-prompt-read m))
+(define/contract (make-prompt-read m)
   (-> (or/c #f mod?) (-> any))
-  (display-prompt (maybe-mod->prompt-string m))
+  ;; A channel to which a thread puts interactions that it reads using
+  ;; the current-read-interaction handler. This can be set by a lang
+  ;; from its configure-runtime, so, this should be compatible with
+  ;; any lang, even non-sexpr langs.
+  (define chan (make-channel))
   (define in ((current-get-interaction-input-port)))
-  (define stx (dynamic-wind
-                (λ _ (box-swap! at-prompt add1))
-                (λ _ ((current-read-interaction) (object-name in) in))
-                (λ _ (box-swap! at-prompt sub1))))
-  (syntax-case stx ()
-    [(uq cmd)
-     (eq? 'unquote (syntax-e #'uq))
-     (begin (handle-command #'cmd m "N/A" usage)
-            #'(void))] ;avoid Typed Racket printing a type
-    [_ stx]))
+  (define (read-interaction/put-channel)
+    (define (read-interaction)
+      ;; Note about trying to solve issue #305. datalog/lang expects
+      ;; each interaction to be EOF terminated. This seems to be a
+      ;; DrRacket convention (?). We could make that work here if we
+      ;; composed open-input-string with read-line. But that would
+      ;; fail for valid multi-line expressions in langs like
+      ;; racket/base e.g. "(+ 1\n2)". We could have Emacs
+      ;; racket-repl-submit append some marker that lets us know to
+      ;; combine multiple lines here -- but we'd have to be careful to
+      ;; eat the marker and avoid combining lines when the user is
+      ;; entering input for their own program that uses `read-line`
+      ;; etc. Trying to be clever here is maybe not smart. I _think_
+      ;; the safest thing is for each lang like datalog to implement
+      ;; current-read-interaction like it says on the tin -- it can
+      ;; parse just one expression/statement from a normal, "infinite"
+      ;; input port; if that means the lang parser has to be tweaked
+      ;; for a single-expression/statement mode of usage, so be it.
+      (with-handlers ([exn:fail? values])
+        ((current-read-interaction) (object-name in) in)))
+    (match (read-interaction)
+      ;; The following eof-object? clause is here only for
+      ;; datalog/lang/configure-runtime.rkt. It's `the-read` returns
+      ;; eof if char-ready? is false. WAT. Why doesn't it just block
+      ;; like a normal read-interaction handler? Catch this and wait
+      ;; for more input to be available before calling it again.
+      [(? eof-object?) (sync in)] ;only for datalog/lang
+      [(? exn:fail? e) (channel-put chan e)] ;raise in other thread
+      [v (channel-put chan v)])
+    (read-interaction/put-channel))
+  (thread read-interaction/put-channel)
+  ;; The prompt-read handler.
+  (define (prompt-read)
+    (define v
+      ;; Only display prompt when an interaction isn't available very
+      ;; soon. A tiny non-zero timeout gives the interaction reading
+      ;; thread a chance to run, increasing chance we needn't display
+      ;; prompt. See issue #311.
+      (match (sync/timeout 0.01 chan)
+        [#f
+         (display-prompt (maybe-mod->prompt-string m))
+         (dynamic-wind
+           (λ _ (box-swap! at-prompt add1))
+           (λ _ (channel-get chan))
+           (λ _ (box-swap! at-prompt sub1)))]
+        [v v]))
+    (when (exn:fail? v)
+      (raise v))
+    v)
+  prompt-read)
 
 (define (display-prompt str)
   (flush-output (current-error-port))
@@ -139,186 +211,114 @@
   (flush-output)
   (zero-column!))
 
-(define (elisp-read)
-  ;; Elisp prints '() as 'nil. Reverse that. (Assumption: Although
-  ;; some Elisp code puns nil/() also to mean "false" -- _our_ Elisp
-  ;; code _won't_ do that when sending us commands.)
-  (match (read)
-    ['nil '()]
-    [x x]))
+(define/contract (handle-command sexpr the-context)
+  (-> pair? context? any/c)
+  (match-define (context _ns maybe-mod md5 submit-pred) the-context)
+  (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
+  (define path (and dir file (build-path dir file)))
+  ;; Note: Intentionally no "else" match clause -- let caller handle
+  ;; exn and supply a consistent exn response format.
+  (match sexpr
+    [`(run ,what ,mem ,pp? ,ctx ,args) (run what mem pp? ctx args)]
+    [`(path)                           path]
+    [`(prompt)                         (and (at-prompt?) (cons (or path 'top) md5))]
+    [`(syms)                           (syms)]
+    [`(def ,str)                       (find-definition str)]
+    [`(mod ,sym)                       (find-module sym dir mod-path)]
+    [`(describe ,str)                  (describe str)]
+    [`(doc ,str)                       (doc str)]
+    [`(exp ,v)                         (exp1 v)]
+    [`(exp+)                           (exp+)]
+    [`(exp! ,v)                        (exp! v)]
+    [`(type ,v)                        (type v)]
+    [`(requires/tidy ,reqs)            (requires/tidy reqs)]
+    [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
+    [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]
+    [`(find-collection ,str)           (find-collection str)]
+    [`(get-profile)                    (get-profile)]
+    [`(get-uncovered)                  (get-uncovered path)]
+    [`(check-syntax ,path-str)         (check-syntax path-str)]
+    [`(eval ,v)                        (eval-command v)]
+    [`(repl-submit? ,str ,eos?)        (repl-submit? submit-pred str eos?)]
+    [`(exit)                           (exit)]))
 
-(define/contract (handle-command cmd-stx m md5 unknown-command)
-  (-> syntax? (or/c #f mod?) string? (-> any) any)
-  (define-values (dir file mod-path) (maybe-mod->dir/file/rmp m))
-  (define path (and file (build-path dir file)))
-  (let ([read elisp-read])
-    (case (syntax-e cmd-stx)
-      ;; These commands are intended to be used by either the user or
-      ;; racket-mode.
-      [(run)             (run-or-top 'run)]
-      [(top)             (run-or-top 'top)]
-      [(doc)             (doc (read-syntax))]
-      [(exp)             (exp1 (read))]
-      [(exp+)            (exp+)]
-      [(exp!)            (exp! (read))]
-      [(pwd)             (display-commented (~v (current-directory)))]
-      [(cd)              (cd (~a (read)))]
-      [(exit)            (exit)]
-      [(info)            (info)]
-      ;; These remaining commands are intended to be used by
-      ;; racket-mode, only.
-      [(path)            (elisp-println path)]
-      [(prompt)          (elisp-println (and (at-prompt?) (cons (or path 'top) md5)))]
-      [(syms)            (syms)]
-      [(def)             (def-loc (read))]
-      [(describe)        (describe (read-syntax))]
-      [(mod)             (mod-loc (read) mod-path)]
-      [(type)            (type (read))]
-      [(requires/tidy)   (requires/tidy (read))]
-      [(requires/trim)   (requires/trim (read) (read))]
-      [(requires/base)   (requires/base (read) (read))]
-      [(find-collection) (find-collection (read))]
-      [(get-profile)     (get-profile)]
-      [(get-uncovered)   (get-uncovered path)]
-      [(check-syntax)    (check-syntax (string->path (read)))]
-      [(eval-sexp)       (eval-sexp (read))]
-      ;; Obsolete
-      [(log)             (display-commented "Use M-x racket-logger instead")]
-      [else              (unknown-command)])))
+;;; read/print Emacs Lisp values
 
-(define (usage)
-  (display-commented
-   @~a{Commands:
-       ,run <module> [<mem-limit-MB> [<pretty-print?> [<error-context> [<cmd-line>]]]]
-       ,top          [<mem-limit-MB> [<pretty-print?> [<error-context> [<cmd-line>]]]]
-         <module> = <file>
-                  | (<file> <submodule-id> ...)
-         <file> = file.rkt
-                | /path/to/file.rkt
-                | "file.rkt" | "/path/to/file.rkt"
-         <error-context> = low
-                         | medium
-                         | high
-         <cmd-line> = (listof string?) e.g. '("-f" "foo" "--bar" "baz")
-       ,exit
-       ,doc <identifier>|<string>
-       ,exp <stx>
-       ,exp+
-       ,exp! <stx>
-       ,pwd
-       ,cd <path>}))
+(define (elisp-read in)
+  (elisp->racket (read in)))
 
-;;; run, top, info
+(define (elisp-println v)
+  (elisp-print v)
+  (newline))
 
-;; Parameter-like interface, but we don't want thread-local. We do
-;; want to call collect-garbage IFF the new limit is less than the old
-;; one or less than the current actual usage.
-(define current-mem
-  (let ([old 0])
-    (case-lambda
-      [() old]
-      [(new)
-       (and old new
-            (or (< new old)
-                (< (* new 1024 1024) (current-memory-use)))
-            (collect-garbage))
-       (set! old new)])))
+(define (elisp-print v)
+  (print (racket->elisp v)))
 
-;; Likewise: Want parameter signature but NOT thread-local.
-(define-syntax-rule (make-parameter-ish init)
-  (let ([old init])
-    (case-lambda
-      [() old]
-      [(new) (set! old new)])))
+(define elisp-bool/c (or/c #t '()))
+(define (as-racket-bool v)
+  ;; elisp->racket "de-puns" 'nil as '() -- not #f. Use this helper to
+  ;; treat as a boolean.
+  (and v (not (null? v))))
 
-(define current-pp? (make-parameter-ish #t))
-(define current-ctx-lvl (make-parameter-ish 'low)) ;context-level?
-(define current-args (make-parameter-ish (vector)))
+(define (elisp->racket v)
+  (match v
+    ['nil           '()] ;not #f -- see as-racket-bool
+    ['t             #t]
+    [(? list? xs)   (map elisp->racket xs)]
+    [(cons x y)     (cons (elisp->racket x) (elisp->racket y))]
+    [v              v]))
 
-(define (run-or-top which)
-  ;; Support both the ,run and ,top commands. Latter has no first path
-  ;; arg, but otherwise they share subsequent optional args. (Note:
-  ;; The complexity here is from the desire to let user type simply
-  ;; e.g. ",top" or ",run file" and use the existing values for the
-  ;; omitted args. We're intended mainly to be used from Emacs, which
-  ;; can/does always supply all the args. But, may as well make it
-  ;; convenient for human users, too.)
-  (define (go what)
-    (define maybe-mod (->mod/existing what))
-    (when (or maybe-mod (eq? 'top which))
-      (put/stop (rerun maybe-mod
-                       (current-mem)
-                       (current-pp?)
-                       (current-ctx-lvl)
-                       (current-args)))))
-  (match (match which
-           ['run (read-line->reads)]
-           ['top (cons #f (read-line->reads))]) ;i.e. what = #f
-    [(list what (? number? mem) (? boolean? pp?) (? context-level? ctx)
-           (? (or/c #f (listof string?)) args))
-     (current-mem mem)
-     (current-pp? pp?)
-     (current-ctx-lvl ctx)
-     (current-args (list->vector (or args (list)))) ;Elisp () = nil => #f
-     (go what)]
-    [(list what (? number? mem) (? boolean? pp?) (? context-level? ctx))
-     (current-mem mem)
-     (current-pp? pp?)
-     (current-ctx-lvl ctx)
-     (go what)]
-    [(list what (? number? mem) (? boolean? pp?))
-     (current-mem mem)
-     (current-pp? pp?)
-     (go what)]
-    [(list what (? number? mem))
-     (current-mem mem)
-     (go what)]
-    [(list what)
-     (go what)]
-    [_ (usage)]))
+(define (racket->elisp v)
+  (match v
+    [(or #f (list)) 'nil]
+    [#t             't]
+    [(? list? xs)   (map racket->elisp xs)]
+    [(cons x y)     (cons (racket->elisp x) (racket->elisp y))]
+    [(? path? v)    (path->string v)]
+    [v              v]))
 
-(define (read-line->reads)
-  (reads-from-string (read-line)))
+(module+ test
+  (check-equal? (with-output-to-string
+                  (λ () (elisp-print '(1 #t nil () (a . b)))))
+                "'(1 t nil nil (a . b))"))
 
-(define (reads-from-string s)
-  (with-input-from-string s reads))
+;;; commands
 
-(define (reads)
-  (match (read)
-    [(? eof-object?) (list)]
-    ['t              (cons #t (reads))] ;in case from elisp
-    ['nil            (cons #f (reads))] ;in case from elisp
-    [x               (cons x (reads))]))
+(define/contract (run what mem pp ctx args)
+  (-> list? number? elisp-bool/c context-level? list?
+      list?)
+  (put (rerun (->mod/existing what)
+              mem
+              (as-racket-bool pp)
+              ctx
+              (list->vector args)))
+  what)
 
-;; This really just for my own use debugging. Not documented.
-(define (info)
-  (displayln @~a{Memory Limit:   @(current-mem)
-                 Pretty Print:   @(current-pp?)
-                 Error Context:  @(current-ctx-lvl)
-                 Command Line:   @(current-args)}))
-
-;;; misc other commands
+(define/contract (repl-submit? submit-pred text eos)
+  (-> (or/c #f drracket:submit-predicate/c) string? elisp-bool/c (or/c 'default #t #f))
+  (if submit-pred
+      (submit-pred (open-input-string text) (as-racket-bool eos))
+      'default))
 
 (define (syms)
-  (elisp-println (sort (map symbol->string (namespace-mapped-symbols))
-                       string<?)))
+  (sort (map symbol->string (namespace-mapped-symbols))
+        string<?))
 
-(define (def-loc sym)
-  (elisp-println (find-definition (symbol->string sym))))
+(define/contract (find-module str dir rmp)
+  (-> string? absolute-path? relative-module-path?
+      (or/c #f (list/c path-string? number? number?)))
+  (parameterize ([current-load-relative-directory dir])
+    (or (mod-loc* str rmp)
+        (mod-loc* (string->symbol str) rmp))))
 
-(define (mod-loc v rel)
-  (define (mod-loc* mod rel)
-    (define path (with-handlers ([exn:fail? (λ _ #f)])
-                   (resolve-module-path mod rel)))
-    (and path
-         (file-exists? path)
-         (list (path->string path) 1 0)))
-  (elisp-println (cond [(module-path? v) (mod-loc* v rel)]
-                       [(symbol? v)      (mod-loc* (symbol->string v) rel)]
-                       [else             #f])))
+(define (mod-loc* v rmp)
+  (match (with-handlers ([exn:fail? (λ _ #f)])
+           (resolve-module-path v rmp))
+    [(? path-string? path) #:when (file-exists? path) (list (path->string path) 1 0)]
+    [_ #f]))
 
-(define (type v) ;; the ,type command.  rename this??
-  (elisp-println (type-or-sig v)))
+(define (type v)
+  (type-or-sig v))
 
 (define (type-or-sig v)
   (or (type-or-contract v)
@@ -372,65 +372,32 @@
 ;; (because the argument names have explanatory value), and also look
 ;; for Typed Racket type or a contract, if any.
 
-(define (describe stx)
-  (write (describe* stx))
-  (newline))
-
-(define (describe* _stx)
-  (define stx (namespace-syntax-introduce _stx))
+(define/contract (describe str)
+  (-> string? string?)
+  (define stx (namespace-symbol->identifier (string->symbol str)))
   (or (scribble-doc/html stx)
       (sig-and/or-type stx)))
 
-;;; print elisp values
-
-(define (elisp-println v)
-  (elisp-print v)
-  (newline))
-
-(define (elisp-print v)
-  (print (->elisp v)))
-
-(define (->elisp v)
-  (match v
-    [(or #f (list)) 'nil]
-    [#t             't]
-    [(? list? xs)   (map ->elisp xs)]
-    [(cons x y)     (cons (->elisp x) (->elisp y))]
-    [(? path? v)    (path->string v)]
-    [v              v]))
-
-(module+ test
-  (check-equal? (with-output-to-string
-                  (λ () (elisp-print '(1 #t nil () (a . b)))))
-                "'(1 t nil nil (a . b))"))
-
 ;;; doc / help
 
-(define (doc stx)
-  (or (find-help (namespace-syntax-introduce stx))
-      (perform-search (~a (syntax->datum stx))))
-  ;; Need some command response
-  (elisp-println "Sent to web browser"))
-
-;; cd
-
-(define (cd s)
-  (let ([old-wd (current-directory)])
-    (current-directory s)
-    (unless (directory-exists? (current-directory))
-      (display-commented (format "~v doesn't exist." (current-directory)))
-      (current-directory old-wd))
-    (display-commented (format "In ~v" (current-directory)))))
+(define/contract (doc str)
+  (-> string? #t)
+  (or (find-help (namespace-symbol->identifier (string->symbol str)))
+      (perform-search str))
+  #t)
 
 ;;; syntax expansion
 
 (define last-stx #f)
 
-(define (exp1 stx)
-  (set! last-stx (expand-once stx))
-  (pp-stx last-stx))
+(define/contract (exp1 str)
+  (-> string? #t)
+  (set! last-stx (expand-once (string->namespace-syntax str)))
+  (pp-stx last-stx)
+  #t)
 
-(define (exp+)
+(define/contract (exp+)
+  (-> #t)
   (when last-stx
     (define this-stx (expand-once last-stx))
     (cond [(equal? (syntax->datum last-stx) (syntax->datum this-stx))
@@ -438,11 +405,13 @@
            (set! last-stx #f)]
           [else
            (pp-stx this-stx)
-           (set! last-stx this-stx)])))
+           (set! last-stx this-stx)]))
+  #t)
 
-(define (exp! stx)
+(define/contract (exp! str)
+  (-> string? #t)
   (set! last-stx #f)
-  (pp-stx (expand stx)))
+  (pp-stx (expand (string->namespace-syntax str))))
 
 (define (pp-stx stx)
   (newline)
@@ -450,13 +419,27 @@
                 (current-output-port)
                 1))
 
+(define (string->namespace-syntax str)
+  (namespace-syntax-introduce
+   (read-syntax "string->namespace-syntax" (open-input-string str))))
+
+;;; eval-commmand
+
+(define/contract (eval-command str)
+  (-> string? string?)
+  (define results
+    (call-with-values (λ ()
+                        ((current-eval) (string->namespace-syntax str)))
+                      list))
+  (string-join (map ~v results) "\n"))
+
 ;;; requires
 
 ;; requires/tidy : (listof require-sexpr) -> require-sexpr
 (define (requires/tidy reqs)
   (let* ([reqs (combine-requires reqs)]
          [reqs (group-requires reqs)])
-    (elisp-println (require-pretty-format reqs))))
+    (require-pretty-format reqs)))
 
 ;; requires/trim : path-string? (listof require-sexpr) -> require-sexpr
 ;;
@@ -480,7 +463,7 @@
                                    [else req]))
                            reqs)]
          [reqs (group-requires reqs)])
-    (elisp-println (require-pretty-format reqs))))
+    (require-pretty-format reqs)))
 
 ;; Use `bypass` to help convert from `#lang racket` to `#lang
 ;; racket/base` plus explicit requires.
@@ -512,7 +495,7 @@
                            reqs)]
          [reqs (append reqs adds)]
          [reqs (group-requires reqs)])
-    (elisp-println (require-pretty-format reqs))))
+    (require-pretty-format reqs)))
 
 ;; show-requires* : Like show-requires but accepts a path-string? that
 ;; need not already be a module path.
@@ -716,45 +699,44 @@
 
 ;;; find-collection
 
-(define (do-find-collection str)
-  (match (with-handlers ([exn:fail? (λ _ #f)])
-           (and ;;#f ;<-- un-comment to exercise fallback path
-            (dynamic-require 'find-collection/find-collection
-                             'find-collection-dir)))
-    [#f 'find-collection-not-installed]
-    [f  (map path->string (f str))]))
-
-(define find-collection (compose elisp-println do-find-collection))
+(define/contract (find-collection sym)
+  (-> symbol? (or/c 'find-collection-not-installed #f (listof string?)))
+  (define str (symbol->string sym))
+  (and (path-string? str)
+       (match (with-handlers ([exn:fail? (λ _ #f)])
+                (and ;;#f ;<-- un-comment to exercise fallback path
+                 (dynamic-require 'find-collection/find-collection
+                                  'find-collection-dir)))
+         [#f 'find-collection-not-installed]
+         [f  (map path->string (f str))])))
 
 ;;; profile
 
 (define (get-profile)
-  (elisp-println
-   ;; TODO: Filter files from racket-mode itself, b/c just noise?
-   (for/list ([x (in-list (get-profile-info))])
-     (match-define (list count msec name stx _ ...) x)
-     (list count
-           msec
-           (and name (symbol->string name))
-           (and (syntax-source stx) (path? (syntax-source stx))
-                (path->string (syntax-source stx)))
-           (syntax-position stx)
-           (and (syntax-position stx) (syntax-span stx)
-                (+ (syntax-position stx) (syntax-span stx)))))))
+  ;; TODO: Filter files from racket-mode itself, b/c just noise?
+  (for/list ([x (in-list (get-profile-info))])
+    (match-define (list count msec name stx _ ...) x)
+    (list count
+          msec
+          (and name (symbol->string name))
+          (and (syntax-source stx) (path? (syntax-source stx))
+               (path->string (syntax-source stx)))
+          (syntax-position stx)
+          (and (syntax-position stx) (syntax-span stx)
+               (+ (syntax-position stx) (syntax-span stx))))))
 
 ;;; coverage
 
 (define (get-uncovered file)
-  (elisp-println
-   (consolidate-coverage-ranges
-    (for*/list ([x (in-list (get-test-coverage-info))]
-                [covered? (in-value (first x))]
-                #:when (not covered?)
-                [src (in-value (second x))]
-                #:when (equal? file src)
-                [pos (in-value (third x))]
-                [span (in-value (fourth x))])
-      (cons pos (+ pos span))))))
+  (consolidate-coverage-ranges
+   (for*/list ([x (in-list (get-test-coverage-info))]
+               [covered? (in-value (first x))]
+               #:when (not covered?)
+               [src (in-value (second x))]
+               #:when (equal? file src)
+               [pos (in-value (third x))]
+               [span (in-value (fourth x))])
+     (cons pos (+ pos span)))))
 
 (define (consolidate-coverage-ranges xs)
   (remove-duplicates (sort xs < #:key car)
@@ -799,9 +781,10 @@
                              (λ (path)
                                (parameterize ([port-count-lines-enabled #t])
                                  (f path))))
-                           #:catch exn:fail? _ (λ _ (elisp-println 'not-supported)))])
+                           #:catch exn:fail? _ (λ _ 'not-supported))])
     ;; Note: Adjust all positions to 1-based Emacs `point' values.
-    (λ (path)
+    (λ (path-str)
+      (define path (string->path path-str))
       (parameterize ([current-load-relative-directory (path-only path)])
         ;; Get all the data.
         (define xs (remove-duplicates (show-content path)))
@@ -840,22 +823,4 @@
             (define tweaked-uses (sort (set->list uses) < #:key car))
             (list 'def/uses def-beg def-end tweaked-uses)))
         ;; Append both lists and print as Elisp values.
-        (elisp-println (append infos defs/uses))))))
-
-;;; eval-sexp
-
-(define original-output-port (current-output-port))
-
-(define (eval-sexp sexp)
-  (elisp-println
-   (with-handlers ([exn:fail? exn-message])
-     (define (do-it)
-       ;; Any side-effect output (e.g. `display`) should go to the
-       ;; original output port. The TCP output port should only get
-       ;; the result we elisp-println.
-       (parameterize ([current-output-port original-output-port])
-         ((current-eval) sexp)))
-     (define results (call-with-values do-it list))
-     (string-join (map ~v results)
-                  "\n"))))
-
+        (append infos defs/uses)))))

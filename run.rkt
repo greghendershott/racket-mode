@@ -20,18 +20,40 @@
          "util.rkt")
 
 (module+ main
-  (match (current-command-line-arguments)
-    [(vector port) (start-command-server (string->number port))
-                   (start-logger-server (add1 (string->number port)))]
-    [v             (displayln "Expected exactly one argument: command port")
-                   (exit)])
+  (define-values (command-port run-info)
+    (match (current-command-line-arguments)
+      [(vector port)
+       (values (string->number port)
+               rerun-default)]
+      [(vector port run-command)
+       (values (string->number port)
+               (match (read (open-input-string run-command))
+                 ;; TODO: Share similar code with cmds.rkt
+                 [(list 'run
+                        (and (or 'nil (? list?)) what)
+                        (? number? mem)
+                        (and (or 't 'nil #t #f) pp?)
+                        (and (or 'low 'medium 'high 'coverage 'profile) ctx)
+                        (and (or 'nil (? list?)) args))
+                  (rerun (if (eq? what 'nil) #f (->mod/existing what))
+                         mem
+                         (and pp? (not (eq? pp? 'nil)))
+                         ctx
+                         (case args [(nil) (vector)] [else (list->vector args)]))]
+                 [v (eprintf "Bad arguments: ~v => ~v\n" run-command v)
+                    (exit)]))]
+      [v
+       (eprintf "Bad arguments: ~v\n" v)
+       (exit)]))
+  (start-command-server command-port)
+  (start-logger-server (add1 command-port))
   ;; Emacs on Windows comint-mode needs buffering disabled.
   (when (eq? (system-type 'os) 'windows)
     (file-stream-buffer-mode (current-output-port) 'none))
   (display (banner))
   (flush-output)
   (parameterize ([error-display-handler our-error-display-handler])
-    (run rerun-default)))
+    (run run-info)))
 
 (define (run rr) ;rerun? -> void?
   (match-define (rerun maybe-mod
@@ -104,7 +126,7 @@
             (with-handlers ([exn? (λ (x)
                                     (display-exn x)
                                     (put/stop (struct-copy rerun rr [maybe-mod #f])))])
-              (maybe-load-language-info mod-path) ;FIRST: see #281
+              (maybe-configure-runtime mod-path) ;FIRST: see #281
               (current-namespace (dynamic-require/some-namespace maybe-mod))
               (maybe-warn-about-submodules mod-path context-level)
               (check-top-interaction))))
@@ -142,26 +164,25 @@
   (custodian-shutdown-all repl-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match msg
-    [(? rerun? v) (run v)]
-    [(load-gui v) (require-gui v) (run rr)]))
+    [(? rerun? new-rr) (run new-rr)]
+    [(load-gui repl?)  (require-gui repl?) (run rr)]))
 
-(define (maybe-load-language-info path)
-  ;; Load language-info (if any) and do configure-runtime.
+(define (maybe-configure-runtime mod-path)
+  ;; Do configure-runtime when available.
   ;; Important for langs like Typed Racket.
   (with-handlers ([exn:fail? void])
-    (define info (module->language-info path #t))
-    (when info
-      (define get-info ((dynamic-require (vector-ref info 0)
-                                         (vector-ref info 1))
-                        (vector-ref info 2)))
-      (define configs (get-info 'configure-runtime '()))
-      (for ([config (in-list configs)])
-        ((dynamic-require (vector-ref config 0)
-                          (vector-ref config 1))
-         (vector-ref config 2))))
-    (define cr-submod `(submod ,@(match path
-                                   [(list 'submod sub-paths ...) sub-paths]
-                                   [_ (list path)])
+    (match (module->language-info mod-path #t)
+      [(vector mp name val)
+       (define get-info ((dynamic-require mp name) val))
+       (define configs (get-info 'configure-runtime '()))
+       (for ([config (in-list configs)])
+         (match-let ([(vector mp name val) config])
+           ((dynamic-require mp name) val)))]
+      [_ (void)])
+    (define cr-submod `(submod
+                        ,@(match mod-path
+                            [(list 'submod sub-paths ...) sub-paths]
+                            [_ (list mod-path)])
                         configure-runtime))
     (when (module-declared? cr-submod)
       (dynamic-require cr-submod #f))))

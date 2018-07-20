@@ -23,6 +23,7 @@
 (require 'racket-keywords-and-builtins)
 (require 'shr)
 (require 's)
+(declare-function racket--do-visit-def-or-mod "racket-edit.el")
 
 ;;; namespace symbols i.e. completion candidates
 
@@ -51,7 +52,7 @@ See `racket--get-namespace-symbols'.")
   (unless racket--namespace-symbols
     (when (racket--in-repl-or-its-file-p)
       (setq racket--namespace-symbols
-            (list (racket--repl-command "syms")))))
+            (list (racket--repl-command '(syms))))))
   (or racket--namespace-symbols
       (list racket-type-list
             racket-keywords
@@ -101,7 +102,7 @@ to supply this quickly enough or at all."
 
 (defun racket--get-def-file+line (sym)
   "Return a value suitable for use as :company-location."
-  (pcase (racket--repl-command "def %s" sym)
+  (pcase (racket--repl-command `(def ,sym))
     (`(,path ,line ,_) (cons path line))
     (_ nil)))
 
@@ -125,20 +126,20 @@ This var is local to each buffer, including the REPL buffer.
          (v (gethash sym racket--type-cache)))
     (or v
         (and (racket--in-repl-or-its-file-p)
-             (let ((v (racket--repl-command (concat "type " str))))
-               (puthash sym v racket--type-cache)
-               v)))))
+             (let ((v (racket--repl-command `(type ,str))))
+               (puthash sym v racket--type-cache) v)))))
 
 ;;; at-point
 
 (defun racket--symbol-at-point-or-prompt (force-prompt-p prompt)
   "Helper for functions that want symbol-at-point, or, to prompt
 when there is no symbol-at-point or FORCE-PROMPT-P is true. The
-prompt uses `read-from-minibuffer'."
-  (let ((sap (symbol-at-point)))
+prompt uses `read-from-minibuffer'. Returns `stringp' not
+`symbolp' to simplify using the result in a sexpr that can be
+passed to Racket backend. Likewise text properties are stripped."
+  (let ((sap (thing-at-point 'symbol t)))
     (if (or force-prompt-p (not sap))
-        (let ((s (read-from-minibuffer prompt
-                                       (and sap (symbol-name sap)))))
+        (let ((s (read-from-minibuffer prompt sap)))
           (if (equal "" (s-trim s))
               nil
             s))
@@ -215,12 +216,11 @@ buffer are Emacs buttons -- which you may navigate among using
 TAB, and activate using RET -- for `racket-visit-definition' and
 `racket-doc'."
   (interactive "P")
-  (let ((sym (racket--symbol-at-point-or-prompt prefix
-                                                "Describe: ")))
-    (when sym
-      (racket--do-describe sym t))))
+  (pcase (racket--symbol-at-point-or-prompt prefix "Describe: ")
+    (`nil nil)
+    (str (racket--do-describe str t))))
 
-(defun racket--do-describe (sym &optional pop-to)
+(defun racket--do-describe (str &optional pop-to)
   "A helper for `racket-describe' and company-mode.
 
 POP-TO should be t for the former (in which case some buttons are
@@ -228,7 +228,7 @@ added) and nil for the latter.
 
 Returns the buffer in which the description was written."
   (let* ((bufname "*Racket Describe*")
-         (html (racket--repl-command "describe %s" sym))
+         (html (racket--repl-command `(describe ,str)))
          ;; Emacs shr renderer removes leading &nbsp; from <td> elements
          ;; -- which messes up the indentation of s-expressions including
          ;; contracts. So replace &nbsp with `spc' in the source HTML,
@@ -259,17 +259,13 @@ Returns the buffer in which the description was written."
       (when pop-to
         (insert-text-button "Definition"
                             'action
-                            `(lambda (_btn)
-                               (racket--do-visit-def-or-mod
-                                "def"
-                                ,(substring-no-properties (format "%s" sym)))))
+                            (lambda (_btn)
+                              (racket--do-visit-def-or-mod 'def str)))
         (insert "   ")
         (insert-text-button "Documentation in Browser"
                             'action
-                            `(lambda (_btn)
-                               (racket--repl-command
-                                "doc %s"
-                                ,(substring-no-properties (format "%s" sym)))))
+                            (lambda (_btn)
+                              (racket--repl-command `(doc ,str))))
         (insert "          [q]uit"))
       (read-only-mode 1)
       (goto-char (point-min))

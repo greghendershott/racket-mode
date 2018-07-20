@@ -45,10 +45,10 @@ delete compiled/*.zo files."
     (message "Running with profiling instrumentation...")
     (racket--do-run 'profile)
     (message "Waiting for Racket prompt...")
-    (while (not (racket--repl-command "prompt"))
+    (while (not (racket--repl-command `(prompt)))
       (sit-for 0.5))
     (message "Getting results...")
-    (setq racket--profile-results (racket--repl-command "get-profile"))
+    (setq racket--profile-results (racket--repl-command `(get-profile)))
     (setq racket--profile-sort-col 1)
     (with-current-buffer (get-buffer-create "*Racket Profile*")
       (racket-profile-mode)
@@ -58,7 +58,7 @@ delete compiled/*.zo files."
 
 (defun racket--profile-refresh ()
   (interactive)
-  (setq racket--profile-results (racket--repl-command "get-profile"))
+  (setq racket--profile-results (racket--repl-command `(get-profile)))
   (racket--profile-draw))
 
 (defun racket--profile-draw ()

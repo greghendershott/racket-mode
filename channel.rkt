@@ -12,7 +12,8 @@
          context-level?
          instrument-level?
          profile/coverage-level?
-         put/stop)
+         put/stop
+         put)
 
 ;; Definitions for the context-level member of rerun
 
@@ -66,3 +67,7 @@
 (define (put/stop v) ;; msg? -> void?
   (channel-put main-channel v)
   (void (sync never-evt)))
+
+;; To be called from command server thread.
+(define (put v)
+  (channel-put main-channel v))

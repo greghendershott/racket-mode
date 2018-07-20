@@ -51,7 +51,7 @@ See also: `racket-visit-module' and `racket-open-require-path'."
   (pcase (racket--symbol-at-point-or-prompt prefix "Collection name: ")
     (`() nil)
     (coll
-     (pcase (racket--repl-command "find-collection \"%s\"" coll)
+     (pcase (racket--repl-command `(find-collection ,coll))
        (`find-collection-not-installed
         ;; FIXME? Offer to run this for them?
         (user-error "Run `raco pkg install raco-find-collection'"))
