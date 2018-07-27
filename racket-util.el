@@ -62,6 +62,17 @@ a list of all modes in which Racket is edited."
                      (cons x (racket--take-while xs pred))
                    `()))))
 
+(defun racket--thing-at-point (thing &optional no-properties)
+  "Like `thing-at-point' in Emacs 25+: Optional arg NO-PROPERTIES.
+Someday when we no longer support Emacs 24, we could delete this
+and callers just use `thing-at-point'."
+  (pcase (thing-at-point thing)
+    ((and (guard no-properties)
+          (pred stringp)
+          str)
+     (substring-no-properties str))
+    (v v)))
+
 ;;; trace
 
 (defvar racket--trace-enable nil)

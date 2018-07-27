@@ -137,7 +137,7 @@ when there is no symbol-at-point or FORCE-PROMPT-P is true. The
 prompt uses `read-from-minibuffer'. Returns `stringp' not
 `symbolp' to simplify using the result in a sexpr that can be
 passed to Racket backend. Likewise text properties are stripped."
-  (let ((sap (thing-at-point 'symbol t)))
+  (let ((sap (racket--thing-at-point 'symbol t)))
     (if (or force-prompt-p (not sap))
         (let ((s (read-from-minibuffer prompt sap)))
           (if (equal "" (s-trim s))

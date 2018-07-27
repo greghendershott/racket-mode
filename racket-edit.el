@@ -292,7 +292,7 @@ namespace is active.
 
 See also: `racket-find-collection'."
   (interactive "P")
-  (let* ((v (thing-at-point 'filename t)) ;matches both net/url and "file.rkt"
+  (let* ((v (racket--thing-at-point 'filename t)) ;matches both net/url and "file.rkt"
          (v (if (or prefix (not v))
                 (read-from-minibuffer "Visit module: " (or v ""))
               v)))
