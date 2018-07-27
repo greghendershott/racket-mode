@@ -443,7 +443,7 @@ Otherwise, expands once. You may use `racket-expand-again'."
           (beg  (funcall get-begin))
           (end  (funcall get-end))
           (text (buffer-substring-no-properties beg end)))
-     (racket--repl-command-async (list cmd text)))))
+     (racket--repl-command (list cmd text)))))
 
 (defun racket-expand-again ()
   "Macro expand again the previous expansion done by one of:
