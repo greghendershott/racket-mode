@@ -438,7 +438,7 @@ Otherwise, expands once. You may use `racket-expand-again'."
                        (lambda () (forward-sexp) (point))))
 
 (defun racket--edit-expand (prefix get-begin get-end)
-  (save-mark-and-excursion
+  (save-excursion
    (let* ((cmd  (if prefix 'exp! 'exp))
           (beg  (funcall get-begin))
           (end  (funcall get-end))
