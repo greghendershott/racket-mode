@@ -36,6 +36,7 @@ compile: clean \
 	racket-imenu.elc \
 	racket-indent.elc \
 	racket-keywords-and-builtins.elc \
+	racket-logger.elc \
 	racket-make-doc.elc \
 	racket-mode.elc \
 	racket-ppss.elc \

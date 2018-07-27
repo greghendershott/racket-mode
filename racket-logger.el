@@ -1,4 +1,4 @@
-;;; racket-logger.el
+;;; racket-logger.el -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2013-2016 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
@@ -43,6 +43,32 @@
     ["Clear and Reconnect" racket-logger-clear]
     ["Exit Logger" racket-logger-exit]))
 
+(defconst racket-logger-font-lock-keywords
+  (eval-when-compile
+    `((,#'racket--font-lock-config . racket-logger-config-face)
+      (,(rx bol "[  fatal]")       . racket-logger-fatal-face)
+      (,(rx bol "[  error]")       . racket-logger-error-face)
+      (,(rx bol "[warning]")       . racket-logger-warning-face)
+      (,(rx bol "[   info]")       . racket-logger-info-face)
+      (,(rx bol "[  debug]")       . racket-logger-debug-face)
+      (,(rx bol ?\[ (+? anything) ?\] space
+            (group (+? anything) ?:) space)
+       1 racket-logger-topic-face))))
+
+(defconst racket-logger--print-config-prefix
+  "racket-logger-config:\n")
+
+(defun racket--font-lock-config (limit)
+  "Handle multi-line font-lock of the configuration info."
+  (ignore-errors
+    (when (re-search-forward (concat "^" racket-logger--print-config-prefix) limit t)
+      (let ((md (match-data)))
+        (goto-char (match-end 0))
+        (forward-sexp 1)
+        (setf (elt md 1) (point)) ;; set (match-end 0)
+        (set-match-data md)
+        t))))
+
 (define-derived-mode racket-logger-mode special-mode "Racket-Logger"
   "Major mode for Racket logger output.
 \\<racket-logger-mode-map>
@@ -60,29 +86,6 @@ For more information see:
 "
   (setq-local font-lock-defaults (list racket-logger-font-lock-keywords))
   (setq-local truncate-lines t))
-
-(defconst racket-logger-font-lock-keywords
-  (eval-when-compile
-    `((,#'racket--font-lock-config . racket-logger-config-face)
-      (,(rx bol "[  fatal]")       . racket-logger-fatal-face)
-      (,(rx bol "[  error]")       . racket-logger-error-face)
-      (,(rx bol "[warning]")       . racket-logger-warning-face)
-      (,(rx bol "[   info]")       . racket-logger-info-face)
-      (,(rx bol "[  debug]")       . racket-logger-debug-face)
-      (,(rx bol ?\[ (+? anything) ?\] space
-            (group (+? anything) ?:) space)
-       1 racket-logger-topic-face))))
-
-(defun racket--font-lock-config (limit)
-  "Handle multi-line font-lock of the configuration info."
-  (ignore-errors
-    (when (re-search-forward (concat "^" racket-logger--print-config-prefix) limit t)
-      (let ((md (match-data)))
-        (goto-char (match-end 0))
-        (forward-sexp 1)
-        (setf (elt md 1) (point)) ;; set (match-end 0)
-        (set-match-data md)
-        t))))
 
 (defvar racket-logger--buffer-name "*Racket Logger*")
 (defvar racket-logger--process nil)
@@ -117,9 +120,6 @@ For more information see:
       (set-process-sentinel racket-logger--process (lambda (_p _c)))
       (delete-process racket-logger--process)
       (setq racket-logger--process nil))))
-
-(defconst racket-logger--print-config-prefix
-  "racket-logger-config:\n")
 
 (defun racket-logger--activate-config ()
   "Send config to Racket process, and, display it in the buffer."
