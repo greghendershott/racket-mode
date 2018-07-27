@@ -3,6 +3,7 @@
 (require macro-debugger/analysis/check-requires
          racket/contract/base
          racket/contract/region
+         racket/file
          racket/format
          racket/function
          racket/list
@@ -12,6 +13,7 @@
          racket/pretty
          racket/set
          racket/string
+         racket/system
          racket/tcp
          syntax/modresolve
          (only-in xml xexpr->string)
@@ -230,6 +232,8 @@
     [`(exp ,v)                         (exp1 v)]
     [`(exp+)                           (exp+)]
     [`(exp! ,v)                        (exp! v)]
+    [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
+    [`(macro-stepper/next)             (macro-stepper/next)]
     [`(type ,v)                        (type v)]
     [`(requires/tidy ,reqs)            (requires/tidy reqs)]
     [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
@@ -411,7 +415,8 @@
 (define/contract (exp! str)
   (-> string? #t)
   (set! last-stx #f)
-  (pp-stx (expand (string->namespace-syntax str))))
+  (pp-stx (expand (string->namespace-syntax str)))
+  #t)
 
 (define (pp-stx stx)
   (newline)
@@ -419,9 +424,84 @@
                 (current-output-port)
                 1))
 
-(define (string->namespace-syntax str)
-  (namespace-syntax-introduce
-   (read-syntax "string->namespace-syntax" (open-input-string str))))
+;;; macro-stepper
+
+(define step-proc #f)
+(define step-num 0)
+(define step-last-after "")
+
+(define step-proc/c (-> (or/c #f (cons/c string? string?))))
+
+(define/contract (make-stepper str into-base?)
+  (-> string? elisp-bool/c step-proc/c)
+  ;; If the dynamic-require fails, just let it bubble up.
+  (define stepper-text (dynamic-require 'macro-debugger/stepper-text 'stepper-text))
+  (define raw-step (stepper-text (string->namespace-syntax str)
+                                 (if (as-racket-bool into-base?)
+                                     (const #t) (not-in-base))))
+  (define/contract (step) step-proc/c
+    (define out (open-output-string))
+    (parameterize ([current-output-port out])
+      (cond [(raw-step 'next)
+             (set! step-num (add1 step-num))
+             (match-define (list title before after)
+               (step-parts (get-output-string out)))
+             (set! step-last-after after)
+             (cons (~a step-num ": " title)
+                   (diff-text before after))]
+            [else #f])))
+  step)
+
+(define/contract (macro-stepper str into-base?)
+  (-> string? elisp-bool/c (cons/c (or/c 'final string?) string?))
+  (set! step-proc (make-stepper str into-base?))
+  (set! step-num 0)
+  (macro-stepper/next))
+
+(define/contract (macro-stepper/next)
+  (-> (cons/c (or/c 'final string?) string?))
+  (unless step-proc
+    (error 'macro-stepper "Nothing to expand"))
+  (or (step-proc)
+      (begin0 (cons 'final step-last-after)
+          (set! step-proc #f)
+          (set! step-num 0)
+          (set! step-last-after ""))))
+
+;; Borrowed from xrepl.
+(define not-in-base
+  (λ () (let ([base-stxs #f])
+          (unless base-stxs
+            (set! base-stxs ; all ids that are bound to a syntax in racket/base
+                  (parameterize ([current-namespace (make-base-namespace)])
+                    (let-values ([(vals stxs) (module->exports 'racket/base)])
+                      (map (λ (s) (namespace-symbol->identifier (car s)))
+                           (cdr (assq 0 stxs)))))))
+          (λ (id) (not (ormap (λ (s) (free-identifier=? id s)) base-stxs))))))
+
+(define (step-parts str)
+  (match str
+    [(pregexp "^(.+?)\n(.+?)\n +==>\n(.+?)\n+$"
+              (list _ title before after))
+     (list title before after)]))
+
+(define (diff-text before-text after-text)
+  (define template "racket-mode-syntax-diff-~a")
+  (define (make-temporary-file-with-text str)
+    (define file (make-temporary-file template))
+    (with-output-to-file file #:mode 'text #:exists 'replace
+      (λ () (displayln str)))
+    file)
+  (define before-file (make-temporary-file-with-text before-text))
+  (define after-file  (make-temporary-file-with-text after-text))
+  (define out (open-output-string))
+  (begin0 (parameterize ([current-output-port out])
+            (system (format "diff -U 3 ~a ~a" before-file after-file))
+            (match (get-output-string out)
+              ["" " <empty diff>\n"]
+              [(pregexp "\n(@@.+@@\n.+)$" (list _ v)) v]))
+    (delete-file before-file)
+    (delete-file after-file)))
 
 ;;; eval-commmand
 

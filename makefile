@@ -42,6 +42,7 @@ compile: clean \
 	racket-ppss.elc \
 	racket-profile.elc \
 	racket-repl.elc \
+	racket-stepper.elc \
 	racket-tests.elc \
 	racket-unicode-input-method.elc \
 	racket-util.elc

@@ -5,7 +5,8 @@
 
 (provide display-commented
          with-dynamic-requires
-         box-swap!)
+         box-swap!
+         string->namespace-syntax)
 
 (define (display-commented str)
   (eprintf "; ~a\n"
@@ -24,3 +25,7 @@
       (if (box-cas! box old new)
           new
           (loop)))))
+
+(define (string->namespace-syntax str)
+  (namespace-syntax-introduce
+   (read-syntax "string->namespace-syntax" (open-input-string str))))
