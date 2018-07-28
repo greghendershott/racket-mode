@@ -692,41 +692,78 @@ to supply this quickly enough or at all.
 
 ## Macro expand
 
+### racket-stepper-mode
+<kbd>M-x racket-stepper-mode</kbd>
+
+Major mode for Racket stepper output.
+
+Used by the commands [`racket-expand-file`](#racket-expand-file),
+[`racket-expand-definition`](#racket-expand-definition), [`racket-expand-region`](#racket-expand-region), and
+[`racket-expand-last-sexp`](#racket-expand-last-sexp).
+
+
+
+```
+key             binding
+---             -------
+
+RET		racket-stepper-step
+j		racket-stepper-next-item
+k		racket-stepper-previous-item
+n		racket-stepper-next-item
+p		racket-stepper-previous-item
+
+
+```
+
+
+In addition to any hooks its parent mode `special-mode` might have run,
+this mode runs the hook [`racket-stepper-mode-hook`](#racket-stepper-mode-hook), as the final step
+during initialization.
+
+### racket-expand-file
+<kbd>C-c C-e f</kbd>
+
+Expand the [`racket-mode`](#racket-mode) buffer's file in [`racket-stepper-mode`](#racket-stepper-mode).
+
+Uses the `macro-debugger` package to do the expansion.
+
+You do _not_ need to [`racket-run`](#racket-run) the file first; the namespace
+active in the REPL is not used.
+
+If the file is non-trivial and/or is not compiled to a .zo
+bytecode file, then it may take many seconds before the original
+form is displayed and you can start stepping. During this time,
+Emacs will not be blocked -- but other [`racket-mode`](#racket-mode) or
+[`racket-repl-mode`](#racket-repl-mode) commands might block until this command
+completes.
+
+With a prefix, also expands syntax from racket/base -- which can
+result in very many expansion steps.
+
 ### racket-expand-region
 <kbd>C-c C-e r</kbd>
 
-Like [`racket-send-region`](#racket-send-region), but macro expand.
+Expand the active region using [`racket-stepper-mode`](#racket-stepper-mode).
 
-With C-u prefix, expands fully.
-
-Otherwise, expands once. You may use [`racket-expand-again`](#racket-expand-again).
+Uses Racket's `expand-once` in the namespace from the most recent
+[`racket-run`](#racket-run).
 
 ### racket-expand-definition
 <kbd>C-c C-e x</kbd>
 
-Like [`racket-send-definition`](#racket-send-definition), but macro expand.
+Expand the definition around point using [`racket-stepper-mode`](#racket-stepper-mode).
 
-With C-u prefix, expands fully.
-
-Otherwise, expands once. You may use [`racket-expand-again`](#racket-expand-again).
+Uses Racket's `expand-once` in the namespace from the most recent
+[`racket-run`](#racket-run).
 
 ### racket-expand-last-sexp
 <kbd>C-c C-e e</kbd>
 
-Like [`racket-send-last-sexp`](#racket-send-last-sexp), but macro expand.
+Expand the sexp before point using [`racket-stepper-mode`](#racket-stepper-mode).
 
-With C-u prefix, expands fully.
-
-Otherwise, expands once. You may use [`racket-expand-again`](#racket-expand-again).
-
-### racket-expand-again
-<kbd>C-c C-e a</kbd>
-
-Macro expand again the previous expansion done by one of:
-- [`racket-expand-region`](#racket-expand-region)
-- [`racket-expand-definition`](#racket-expand-definition)
-- [`racket-expand-last-sexp`](#racket-expand-last-sexp)
-- [`racket-expand-again`](#racket-expand-again)
+Uses Racket's `expand-once` in the namespace from the most recent
+[`racket-run`](#racket-run).
 
 # Variables
 

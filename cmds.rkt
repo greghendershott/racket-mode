@@ -25,6 +25,7 @@
          "md5.rkt"
          "mod.rkt"
          "scribble.rkt"
+         "syntax.rkt"
          "try-catch.rkt"
          "util.rkt")
 
@@ -229,12 +230,9 @@
     [`(mod ,sym)                       (find-module sym maybe-mod)]
     [`(describe ,str)                  (describe str)]
     [`(doc ,str)                       (doc str)]
-    [`(exp ,v)                         (exp1 v)]
-    [`(exp+)                           (exp+)]
-    [`(exp! ,v)                        (exp! v)]
+    [`(type ,v)                        (type v)]
     [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
     [`(macro-stepper/next)             (macro-stepper/next)]
-    [`(type ,v)                        (type v)]
     [`(requires/tidy ,reqs)            (requires/tidy reqs)]
     [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
     [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]
@@ -414,83 +412,80 @@
       (perform-search str))
   #t)
 
-;;; syntax expansion
-
-(define last-stx #f)
-
-(define/contract (exp1 str)
-  (-> string? #t)
-  (set! last-stx (expand-once (string->namespace-syntax str)))
-  (pp-stx last-stx)
-  #t)
-
-(define/contract (exp+)
-  (-> #t)
-  (when last-stx
-    (define this-stx (expand-once last-stx))
-    (cond [(equal? (syntax->datum last-stx) (syntax->datum this-stx))
-           (display-commented "Already fully expanded.")
-           (set! last-stx #f)]
-          [else
-           (pp-stx this-stx)
-           (set! last-stx this-stx)]))
-  #t)
-
-(define/contract (exp! str)
-  (-> string? #t)
-  (set! last-stx #f)
-  (pp-stx (expand (string->namespace-syntax str)))
-  #t)
-
-(define (pp-stx stx)
-  (newline)
-  (pretty-print (syntax->datum stx)
-                (current-output-port)
-                1))
-
 ;;; macro-stepper
 
-(define step-proc #f)
-(define step-num 0)
-(define step-last-after "")
+(define step-thunk/c (-> (cons/c (or/c 'original string? 'final) string?)))
+(define step-thunk #f)
 
-(define step-proc/c (-> (or/c #f (cons/c string? string?))))
-
-(define/contract (make-stepper str into-base?)
-  (-> string? elisp-bool/c step-proc/c)
-  ;; If the dynamic-require fails, just let it bubble up.
-  (define stepper-text (dynamic-require 'macro-debugger/stepper-text 'stepper-text))
-  (define raw-step (stepper-text (string->namespace-syntax str)
-                                 (if (as-racket-bool into-base?)
-                                     (const #t) (not-in-base))))
-  (define/contract (step) step-proc/c
-    (define out (open-output-string))
-    (parameterize ([current-output-port out])
-      (cond [(raw-step 'next)
-             (set! step-num (add1 step-num))
-             (match-define (list title before after)
-               (step-parts (get-output-string out)))
-             (set! step-last-after after)
-             (cons (~a step-num ": " title)
-                   (diff-text before after))]
-            [else #f])))
+(define/contract (make-expr-stepper str)
+  (-> string? step-thunk/c)
+  (define step-num #f)
+  (define last-stx (string->namespace-syntax str))
+  (define (step)
+    (cond [(not step-num)
+           (set! step-num 0)
+           (cons 'original (pretty-format-syntax last-stx))]
+          [else
+           (define this-stx (expand-once last-stx))
+           (cond [(not (equal? (syntax->datum last-stx)
+                               (syntax->datum this-stx)))
+                  (begin0
+                      (cons (~a step-num ": expand-once")
+                            (diff-text (pretty-format-syntax last-stx)
+                                       (pretty-format-syntax this-stx)
+                                       #:unified 3))
+                    (set! last-stx this-stx))]
+                 [else
+                  (cons 'final (pretty-format-syntax this-stx))])]))
   step)
 
-(define/contract (macro-stepper str into-base?)
-  (-> string? elisp-bool/c (cons/c (or/c 'final string?) string?))
-  (set! step-proc (make-stepper str into-base?))
-  (set! step-num 0)
+(define/contract (make-file-stepper path into-base?)
+  (-> (and/c path-string? absolute-path?) boolean? step-thunk/c)
+  ;; If the dynamic-require fails, just let it bubble up.
+  (define stepper-text (dynamic-require 'macro-debugger/stepper-text 'stepper-text))
+  (define stx (file->syntax path))
+  (define-values (dir _name _dir) (split-path path))
+  (define raw-step (parameterize ([current-load-relative-directory dir])
+                     (stepper-text stx
+                                   (if into-base? (const #t) (not-in-base)))))
+  (define step-num #f)
+  (define step-last-after "")
+  (define/contract (step) step-thunk/c
+    (cond [(not step-num)
+           (set! step-num 0)
+           (cons 'original
+                 (pretty-format-syntax stx))]
+          [else
+           (define out (open-output-string))
+           (parameterize ([current-output-port out])
+             (cond [(raw-step 'next)
+                    (set! step-num (add1 step-num))
+                    (match-define (list title before after)
+                      (step-parts (get-output-string out)))
+                    (set! step-last-after after)
+                    (cons (~a step-num ": " title)
+                          (diff-text before after #:unified 3))]
+                   [else
+                    (cons 'final step-last-after)]))]))
+  step)
+
+(define/contract (macro-stepper what into-base?)
+  (-> (or/c (cons/c 'expr string?) (cons/c 'file path-string?)) elisp-bool/c
+      (cons/c 'original string?))
+  (set! step-thunk
+        (match what
+          [(cons 'expr str)  (make-expr-stepper str)]
+          [(cons 'file path) (make-file-stepper path (as-racket-bool into-base?))]))
   (macro-stepper/next))
 
 (define/contract (macro-stepper/next)
-  (-> (cons/c (or/c 'final string?) string?))
-  (unless step-proc
+  (-> (cons/c (or/c 'original 'final string?) string?))
+  (unless step-thunk
     (error 'macro-stepper "Nothing to expand"))
-  (or (step-proc)
-      (begin0 (cons 'final step-last-after)
-          (set! step-proc #f)
-          (set! step-num 0)
-          (set! step-last-after ""))))
+  (define v (step-thunk))
+  (when (eq? 'final (car v))
+    (set! step-thunk #f))
+  v)
 
 ;; Borrowed from xrepl.
 (define not-in-base
@@ -509,7 +504,7 @@
               (list _ title before after))
      (list title before after)]))
 
-(define (diff-text before-text after-text)
+(define (diff-text before-text after-text #:unified [-U 3])
   (define template "racket-mode-syntax-diff-~a")
   (define (make-temporary-file-with-text str)
     (define file (make-temporary-file template))
@@ -520,12 +515,15 @@
   (define after-file  (make-temporary-file-with-text after-text))
   (define out (open-output-string))
   (begin0 (parameterize ([current-output-port out])
-            (system (format "diff -U 3 ~a ~a" before-file after-file))
+            (system (format "diff -U ~a ~a ~a" -U before-file after-file))
             (match (get-output-string out)
               ["" " <empty diff>\n"]
               [(pregexp "\n(@@.+@@\n.+)$" (list _ v)) v]))
     (delete-file before-file)
     (delete-file after-file)))
+
+(define (pretty-format-syntax stx)
+  (pretty-format #:mode 'write (syntax->datum stx)))
 
 ;;; eval-commmand
 

@@ -118,12 +118,6 @@ is used."
   (racket--repl-run (or what-to-run (racket--what-to-run))
                     context-level))
 
-(defun racket--save-if-changed ()
-  (when (or (buffer-modified-p)
-            (and (racket--buffer-file-name)
-                 (not (file-exists-p (racket--buffer-file-name)))))
-    (save-buffer)))
-
 (defun racket--what-to-run ()
   (cons (racket--buffer-file-name) (racket--submod-path)))
 
@@ -398,61 +392,6 @@ instead of looking at point."
   "Unfold (show) all test submodules."
   (interactive)
   (racket--for-all-tests "Unfolded" 'hs-show-block))
-
-
-;;; macro expansion
-
-(defun racket-expand-region (start end &optional prefix)
-  "Like `racket-send-region', but macro expand.
-
-With C-u prefix, expands fully.
-
-Otherwise, expands once. You may use `racket-expand-again'."
-  (interactive "rP")
-  (unless (region-active-p)
-    (user-error "No region"))
-  (racket--edit-expand prefix
-                       #'region-beginning
-                       #'region-end))
-
-(defun racket-expand-definition (&optional prefix)
-  "Like `racket-send-definition', but macro expand.
-
-With C-u prefix, expands fully.
-
-Otherwise, expands once. You may use `racket-expand-again'."
-  (interactive "P")
-  (racket--edit-expand prefix
-                       (lambda () (beginning-of-defun) (point))
-                       (lambda () (end-of-defun) (point))))
-
-(defun racket-expand-last-sexp (&optional prefix)
-  "Like `racket-send-last-sexp', but macro expand.
-
-With C-u prefix, expands fully.
-
-Otherwise, expands once. You may use `racket-expand-again'."
-  (interactive "P")
-  (racket--edit-expand prefix
-                       (lambda () (backward-sexp) (point))
-                       (lambda () (forward-sexp) (point))))
-
-(defun racket--edit-expand (prefix get-begin get-end)
-  (save-excursion
-   (let* ((cmd  (if prefix 'exp! 'exp))
-          (beg  (funcall get-begin))
-          (end  (funcall get-end))
-          (text (buffer-substring-no-properties beg end)))
-     (racket--repl-command (list cmd text)))))
-
-(defun racket-expand-again ()
-  "Macro expand again the previous expansion done by one of:
-- `racket-expand-region'
-- `racket-expand-definition'
-- `racket-expand-last-sexp'
-- `racket-expand-again'"
-  (interactive)
-  (racket--repl-command-async `(exp+)))
 
 
 ;;; requires

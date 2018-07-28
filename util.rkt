@@ -28,4 +28,4 @@
 
 (define (string->namespace-syntax str)
   (namespace-syntax-introduce
-   (read-syntax "string->namespace-syntax" (open-input-string str))))
+   (read-syntax #f (open-input-string str))))

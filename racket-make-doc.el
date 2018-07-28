@@ -90,10 +90,11 @@
     racket-unalign
     racket-complete-at-point
     "Macro expand"
+    racket-stepper-mode
+    racket-expand-file
     racket-expand-region
     racket-expand-definition
-    racket-expand-last-sexp
-    racket-expand-again)
+    racket-expand-last-sexp)
   "Commands to include in the Reference.")
 
 (defun racket-make-doc/commands ()

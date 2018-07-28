@@ -68,10 +68,10 @@ http://www.gnu.org/licenses/ for details.")
      ("M-C-x"       racket-send-definition)
      ("C-x C-e"     racket-send-last-sexp)
      ("C-c C-r"     racket-send-region)
+     ("C-c C-e f"   racket-expand-file)
      ("C-c C-e x"   racket-expand-definition)
      ("C-c C-e e"   racket-expand-last-sexp)
      ("C-c C-e r"   racket-expand-region)
-     ("C-c C-e a"   racket-expand-again)
      ("C-c C-x C-f" racket-open-require-path)
      ("TAB"         indent-for-tab-command)
      ("M-C-u"       racket-backward-up-list)
@@ -108,11 +108,10 @@ http://www.gnu.org/licenses/ for details.")
      ["Definition" racket-send-definition]
      ["Last S-Expression" racket-send-last-sexp])
     ("Macro Expand"
+     ["File" racket-expand-file]
      ["Region" racket-expand-region  :active (region-active-p)]
      ["Definition" racket-expand-definition]
-     ["Last S-Expression" racket-expand-last-sexp]
-     "---"
-     ["Again" racket-expand-again])
+     ["Last S-Expression" racket-expand-last-sexp])
     ["Switch to REPL" racket-repl]
     ("Tools"
      ["Profile" racket-profile]

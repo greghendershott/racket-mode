@@ -46,6 +46,12 @@ strings."
   (and (buffer-file-name)
        (substring-no-properties (buffer-file-name))))
 
+(defun racket--save-if-changed ()
+  (when (or (buffer-modified-p)
+            (and (racket--buffer-file-name)
+                 (not (file-exists-p (racket--buffer-file-name)))))
+    (save-buffer)))
+
 (defun racket--mode-edits-racket-p ()
   "Return non-nil if the current major mode is one that edits Racket code.
 
@@ -96,7 +102,6 @@ and callers just use `thing-at-point'."
   (let ((b (get-buffer-create "*Racket Trace*")))
     (pop-to-buffer b t t)
     (setq truncate-lines t)))
-
 
 (provide 'racket-util)
 

@@ -21,11 +21,12 @@
 (require 'racket-common)
 (require 'racket-custom)
 (require 'racket-repl)
+(require 'racket-util)
 
 ;; Need to define this before racket-stepper-mode
 (defvar racket-stepper-mode-map
   (racket--easy-keymap-define
-   '(("s" racket-stepper-step)
+   '((("C-m")   racket-stepper-step)
      (("n" "j") racket-stepper-next-item)
      (("p" "k") racket-stepper-previous-item))))
 
@@ -38,13 +39,19 @@
 
 (defconst racket-stepper-font-lock-keywords
   (eval-when-compile
-    `((,(rx bol alphanumeric (zero-or-more any) eol) . font-lock-function-name-face)
+    `((,(rx bol "! " (zero-or-more any) eol) . font-lock-warning-face)
+      (,(rx bol alphanumeric (zero-or-more any) eol) . font-lock-function-name-face)
       (,(rx bol "@@" (zero-or-more any) "@@" eol) . font-lock-comment-face)
       (,(rx bol "-" (zero-or-more any) eol) . 'diff-removed)
       (,(rx bol "+" (zero-or-more any) eol) . 'diff-added))))
 
 (define-derived-mode racket-stepper-mode special-mode "Racket-Stepper"
   "Major mode for Racket stepper output.
+
+Used by the commands `racket-expand-file',
+`racket-expand-definition', `racket-expand-region', and
+`racket-expand-last-sexp'.
+
 \\<racket-stepper-mode-map>
 
 ```
@@ -52,7 +59,7 @@
 ```
 "
   (setq header-line-format
-        "Press s to step. C-h m to see help.")
+        "Press RET to step. C-h m to see help.")
   (setq-local font-lock-defaults
               (list racket-stepper-font-lock-keywords
                     t)))        ;keywords only -- not strings/comments
@@ -61,54 +68,114 @@
 
 ;;; commands
 
-(defun racket-stepper (&optional into-base)
-  "Create the `racket-stepper-mode' buffer for the sexpr before point.
+(defun racket-expand-file (&optional into-base)
+  "Expand the `racket-mode' buffer's file in `racket-stepper-mode'.
 
-With a prefix, expands identifiers from racket/base, too -- but
-beware that expanding all the way to primitives can result in
-dozens or hundreds of expansion steps. "
+Uses the `macro-debugger` package to do the expansion.
+
+You do _not_ need to `racket-run' the file first; the namespace
+active in the REPL is not used.
+
+If the file is non-trivial and/or is not compiled to a .zo
+bytecode file, then it may take many seconds before the original
+form is displayed and you can start stepping. During this time,
+Emacs will not be blocked -- but other `racket-mode' or
+`racket-repl-mode' commands might block until this command
+completes.
+
+With a prefix, also expands syntax from racket/base -- which can
+result in very many expansion steps."
   (interactive "P")
-  ;; Get and expand text
-  (save-excursion
-    (let* ((beg    (progn (backward-sexp) (point)))
-           (end    (progn (forward-sexp) (point)))
-           (text   (buffer-substring-no-properties beg end))
-           (basep  (and into-base t))
-           (result (with-temp-message "Running macro stepper, please wait..."
-                     (let ((racket-command-timeout 30))
-                       (racket--repl-command `(macro-stepper ,text ,basep))))))
-      ;; Create buffer if necessary
-      (unless (get-buffer racket-stepper--buffer-name)
-        (with-current-buffer (get-buffer-create racket-stepper--buffer-name)
-          (racket-stepper-mode)))
-      ;; Give it a window if necessary
-      (unless (get-buffer-window racket-stepper--buffer-name)
-        (pop-to-buffer (get-buffer racket-stepper--buffer-name)))
-      ;; Select the stepper window and insert
-      (select-window (get-buffer-window racket-stepper--buffer-name))
-      (let ((inhibit-read-only t))
-        (delete-region (point-min) (point-max))
-        (insert "Original" "\n"
-                text "\n\n")
-        (racket-stepper--insert result)
-        (racket-stepper-next-item)))))
+  (unless (eq major-mode 'racket-mode)
+    (user-error "Only works in racket-mode buffer"))
+  (racket--save-if-changed)
+  (racket-stepper--start 'file (racket--buffer-file-name) into-base))
 
-(defun racket-stepper--insert (v)
+(defun racket-expand-region (start end &optional into-base)
+  "Expand the active region using `racket-stepper-mode'.
+
+Uses Racket's `expand-once` in the namespace from the most recent
+`racket-run'."
+  (interactive "rP")
+  (unless (region-active-p)
+    (user-error "No region"))
+  (racket-stepper--expand-text into-base
+                               (lambda ()
+                                 (cons start end))))
+
+(defun racket-expand-definition (&optional into-base)
+  "Expand the definition around point using `racket-stepper-mode'.
+
+Uses Racket's `expand-once` in the namespace from the most recent
+`racket-run'."
+  (interactive "P")
+  (racket-stepper--expand-text into-base
+                               (lambda ()
+                                 (save-excursion
+                                   (cons (progn (beginning-of-defun) (point))
+                                         (progn (end-of-defun)       (point)))))))
+
+(defun racket-expand-last-sexp (&optional into-base)
+  "Expand the sexp before point using `racket-stepper-mode'.
+
+Uses Racket's `expand-once` in the namespace from the most recent
+`racket-run'."
+  (interactive "P")
+  (racket-stepper--expand-text into-base
+                               (lambda ()
+                                 (save-excursion
+                                   (cons (progn (backward-sexp) (point))
+                                         (progn (forward-sexp)  (point)))))))
+
+(defun racket-stepper--expand-text (prefix get-region)
+  (pcase (funcall get-region)
+    (`(,beg . ,end)
+     (racket-stepper--start 'expr
+                            (buffer-substring-no-properties beg end)
+                            prefix))))
+
+(defun racket-stepper--start (which str into-base)
+  "Ensure buffer and issue initial command.
+WHICH should be 'expr or 'file.
+STR should be the expression or pathname.
+INTO-BASE is treated as a raw prefix arg and converted to boolp."
+  ;; Create buffer if necessary
+  (unless (get-buffer racket-stepper--buffer-name)
+    (with-current-buffer (get-buffer-create racket-stepper--buffer-name)
+      (racket-stepper-mode)))
+  ;; Give it a window if necessary
+  (unless (get-buffer-window racket-stepper--buffer-name)
+    (pop-to-buffer (get-buffer racket-stepper--buffer-name)))
+  ;; Select the stepper window and insert
+  (select-window (get-buffer-window racket-stepper--buffer-name))
+  (let ((inhibit-read-only t))
+    (delete-region (point-min) (point-max))
+    (insert "Starting macro expansion stepper... please wait...\n"))
+  (racket--repl-command-async `(macro-stepper (,which . ,str)
+                                              ,(and into-base t))
+                              #'racket-stepper--insert))
+
+(defun racket-stepper--insert (command-response)
   (with-current-buffer racket-stepper--buffer-name
     (let ((inhibit-read-only t))
       (goto-char (point-max))
-      (pcase v
-        (`(final . ,text)
-         (insert "Final\n" text))
-        (`(,label . ,diff)
-         (insert label "\n" diff "\n")))
+      (pcase command-response
+        (`(error ,message)
+         (insert "\n" "! " message "\n"))
+        (`(ok ,v)
+         (pcase v
+           (`(original . ,text)
+            (delete-region (point-min) (point-max))
+            (insert "Original\n" text "\n" "\n"))
+           (`(final    . ,text) (insert "Final\n" text "\n"))
+           (`(,label   . ,diff) (insert label "\n" diff "\n")))))
       (racket-stepper-previous-item)
       (recenter))))
 
 (defun racket-stepper-step ()
   (interactive)
-  (racket-stepper--insert
-   (racket--repl-command `(macro-stepper/next))))
+  (racket--repl-command-async `(macro-stepper/next)
+                              #'racket-stepper--insert))
 
 (defconst racket-stepper--item-rx
   (rx bol alphanumeric (zero-or-more any) eol))

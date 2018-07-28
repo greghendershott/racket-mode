@@ -355,7 +355,7 @@ If CALLBACK is not supplied or nil, defaults to `ignore'."
         (sit-for 0.1))
       (pcase result
         (`(ok ,v)    v)
-        (`(error ,m) (error m))))))
+        (`(error ,m) (error "%s" m))))))
 
 (defun racket-repl-file-name ()
   "Return the file running in the buffer, or nil.
@@ -576,10 +576,10 @@ With prefix arg, open the N-th last shown image."
      (")"               racket-insert-closing)
      ("]"               racket-insert-closing)
      ("}"               racket-insert-closing)
+     ("C-c C-e f"       racket-expand-file)
      ("C-c C-e x"       racket-expand-definition)
      ("C-c C-e e"       racket-expand-last-sexp)
      ("C-c C-e r"       racket-expand-region)
-     ("C-c C-e a"       racket-expand-again)
      ("M-C-y"           racket-insert-lambda)
      ("C-c C-d"         racket-doc)
      ("C-c C-."         racket-describe)
@@ -601,11 +601,10 @@ With prefix arg, open the N-th last shown image."
     ["Indent Region" indent-region]
     ["Cycle Paren Shapes" racket-cycle-paren-shapes]
     ("Macro Expand"
+     ["File" racket-expand-file]
      ["Region" racket-expand-region  :active (region-active-p)]
      ["Definition" racket-expand-definition]
-     ["Last S-Expression" racket-expand-last-sexp]
-     "---"
-     ["Again" racket-expand-again])
+     ["Last S-Expression" racket-expand-last-sexp])
     "---"
     ["Visit Definition" racket-visit-definition]
     ["Visit Module" racket-visit-module]
