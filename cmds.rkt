@@ -151,31 +151,10 @@
   (define in ((current-get-interaction-input-port)))
   (define (read-interaction/put-channel)
     (define (read-interaction)
-      ;; Note about trying to solve issue #305. datalog/lang expects
-      ;; each interaction to be EOF terminated. This seems to be a
-      ;; DrRacket convention (?). We could make that work here if we
-      ;; composed open-input-string with read-line. But that would
-      ;; fail for valid multi-line expressions in langs like
-      ;; racket/base e.g. "(+ 1\n2)". We could have Emacs
-      ;; racket-repl-submit append some marker that lets us know to
-      ;; combine multiple lines here -- but we'd have to be careful to
-      ;; eat the marker and avoid combining lines when the user is
-      ;; entering input for their own program that uses `read-line`
-      ;; etc. Trying to be clever here is maybe not smart. I _think_
-      ;; the safest thing is for each lang like datalog to implement
-      ;; current-read-interaction like it says on the tin -- it can
-      ;; parse just one expression/statement from a normal, "infinite"
-      ;; input port; if that means the lang parser has to be tweaked
-      ;; for a single-expression/statement mode of usage, so be it.
       (with-handlers ([exn:fail? values])
-        ((current-read-interaction) (object-name in) in)))
+        ((current-read-interaction) (object-name in) in))) ;[^1]
     (match (read-interaction)
-      ;; The following eof-object? clause is here only for
-      ;; datalog/lang/configure-runtime.rkt. It's `the-read` returns
-      ;; eof if char-ready? is false. WAT. Why doesn't it just block
-      ;; like a normal read-interaction handler? Catch this and wait
-      ;; for more input to be available before calling it again.
-      [(? eof-object?) (sync in)] ;only for datalog/lang
+      [(? eof-object?) (sync in)] ;[^2]
       [(? exn:fail? e) (channel-put chan e)] ;raise in other thread
       [v (channel-put chan v)])
     (read-interaction/put-channel))
@@ -184,7 +163,7 @@
   (define (prompt-read)
     (define v
       ;; Only display prompt when an interaction isn't available very
-      ;; soon. A tiny non-zero timeout gives the interaction reading
+      ;; soon. A tiny non-zero timeout gives the read-interaction
       ;; thread a chance to run, increasing chance we needn't display
       ;; prompt. See issue #311.
       (match (sync/timeout 0.01 chan)
@@ -199,6 +178,31 @@
       (raise v))
     v)
   prompt-read)
+;; "Footnote" comments about make-prompt-read and many attempts to fix
+;; issue #305.
+;;
+;; [^1]: datalog/lang expects each interaction to be EOF terminated.
+;;       This seems to be a DrRacket convention (?). We could make
+;;       that work here if we composed open-input-string with
+;;       read-line. But that would fail for valid multi-line
+;;       expressions in langs like racket/base e.g. "(+ 1\n2)". We
+;;       could have Emacs racket-repl-submit append some marker that
+;;       lets us know to combine multiple lines here -- but we'd have
+;;       to be careful to eat the marker and avoid combining lines
+;;       when the user is entering input for their own program that
+;;       uses `read-line` etc. Trying to be clever here is maybe not
+;;       smart. I _think_ the safest thing is for each lang like
+;;       datalog to implement current-read-interaction like it says on
+;;       the tin -- it can parse just one expression/statement from a
+;;       normal, "infinite" input port; if that means the lang parser
+;;       has to be tweaked for a single-expression/statement mode of
+;;       usage, so be it.
+;;
+;; [^2]: The eof-object? clause is here only for datalog/lang
+;;       configure-runtime.rkt. Its `the-read` returns eof if
+;;       char-ready? is false. WAT. Why doesn't it just block like a
+;;       normal read-interaction handler? Catch this and wait for more
+;;       input to be available before calling it again.
 
 (define (display-prompt str)
   (flush-output (current-error-port))
