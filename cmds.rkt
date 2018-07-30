@@ -131,7 +131,7 @@
                                       (context-ns command-server-context)])
                         `(ok ,(handle-command sexp command-server-context)))))
                   (parameterize ([current-output-port out])
-                    (elisp-println result)
+                    (elisp-writeln result)
                     (flush-output))
                   (read-and-handle-a-command)]))
         (close-input-port in)
@@ -248,17 +248,17 @@
     [`(repl-submit? ,str ,eos?)        (repl-submit? submit-pred str eos?)]
     [`(exit)                           (exit)]))
 
-;;; read/print Emacs Lisp values
+;;; read/write Emacs Lisp values
 
 (define (elisp-read in)
   (elisp->racket (read in)))
 
-(define (elisp-println v)
-  (elisp-print v)
+(define (elisp-writeln v)
+  (elisp-write v)
   (newline))
 
-(define (elisp-print v)
-  (print (racket->elisp v)))
+(define (elisp-write v)
+  (write (racket->elisp v)))
 
 (define elisp-bool/c (or/c #t '()))
 (define (as-racket-bool v)
@@ -285,8 +285,8 @@
 
 (module+ test
   (check-equal? (with-output-to-string
-                  (λ () (elisp-print '(1 #t nil () (a . b)))))
-                "'(1 t nil nil (a . b))"))
+                  (λ () (elisp-write '(1 #t nil () (a . b)))))
+                "(1 t nil nil (a . b))"))
 
 ;;; commands
 

@@ -328,7 +328,7 @@ wait for the connection to be established."
                   (delete-region (point-min) (point))
                   (unwind-protect
                       (ignore-errors
-                        (funcall (tq-queue-head-fn tq) (eval (read sexp))))
+                        (funcall (tq-queue-head-fn tq) (read sexp)))
                     (tq-queue-pop tq))))
             (scan-error nil)))))))
 
