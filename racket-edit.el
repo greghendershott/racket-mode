@@ -319,7 +319,7 @@ See also: `racket-find-collection'."
 (defun racket--repl-at-prompt-for-our-buffer-p ()
   "Is the REPL at a prompt, and evaluated for our buffer contents?"
   (equal (racket--repl-command `(prompt))
-         (cons (buffer-file-name) (md5 (current-buffer)))))
+         (cons (racket--buffer-file-name) (md5 (current-buffer)))))
 
 (defun racket--run-and-wait-for-prompt ()
   "Do `racket-run', then wait for the prompt to match our .rkt file."
