@@ -338,15 +338,26 @@ wait for the connection to be established."
             (scan-error nil)))))))
 
 (defun racket--repl-command-async (command-sexpr &optional callback)
-  "Send COMMAND-SEXPR and return. Eventually call CALLBACK with the response sexp.
-If CALLBACK is not supplied or nil, defaults to `ignore'."
+  "Send COMMAND-SEXPR and return. Later call CALLBACK with the response sexp.
+
+If CALLBACK is not supplied or nil, defaults to `ignore'.
+
+Otherwise CALLBACK is called after the command server returns a
+response. Because command responses are obtained from the dynamic
+extent of a `set-process-filter' proc -- which may have
+limitations on what it can or should do -- CALLBACK is not called
+immediately but instead using `run-at-time' with a very small
+delay."
   (racket--repl-ensure-buffer-and-process nil)
   (racket--repl-command-connect-finish)
   (tq-enqueue racket--repl-command-tq
               (format "%S\n" command-sexpr) ;\n just in case line-buffering
               'N/A ;we replace tq's process filter
-              'N/A ; "
-              (or callback #'ignore)
+              'N/A ;we replace tq's process filter
+              (if callback
+                  (lambda (response)
+                    (run-at-time 0.01 nil callback response))
+                #'ignore)
               t))
 
 (defun racket--repl-command (command-sexpr)
