@@ -119,7 +119,7 @@
   (-> (or/c #f mod?) string?)
   (match m
     [(mod _ _ (? path? file))     (~a file)]
-    [(mod _ _ (list* 'submod xs)) (string-join (map ~a xs) ":")]
+    [(mod _ _ (list* 'submod xs)) (string-join (map ~a xs) "/")]
     [#f                           ""]))
 
 ;; Check whether Racket is new enough (newer than 6.2.1) that
