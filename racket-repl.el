@@ -363,13 +363,13 @@ delay."
 (defun racket--repl-command (command-sexpr)
   "Send COMMAND-SEXPR. Await and return an 'ok response value, or raise `error'."
   (let* ((awaiting 'RACKET-REPL-AWAITING)
-         (result awaiting))
-    (racket--repl-command-async command-sexpr (lambda (v) (setq result v)))
+         (response awaiting))
+    (racket--repl-command-async command-sexpr (lambda (v) (setq response v)))
     (with-timeout (racket-command-timeout
                    (error "racket-command process timeout"))
-      (while (eq result awaiting)
+      (while (eq response awaiting)
         (sit-for 0.1))
-      (pcase result
+      (pcase response
         (`(ok ,v)    v)
         (`(error ,m) (error "%s" m))))))
 
