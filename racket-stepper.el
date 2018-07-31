@@ -155,20 +155,16 @@ INTO-BASE is treated as a raw prefix arg and converted to boolp."
                                               ,(and into-base t))
                               #'racket-stepper--insert))
 
-(defun racket-stepper--insert (command-response)
+(defun racket-stepper--insert (step)
   (with-current-buffer racket-stepper--buffer-name
     (let ((inhibit-read-only t))
       (goto-char (point-max))
-      (pcase command-response
-        (`(error ,message)
-         (insert "\n" "! " message "\n"))
-        (`(ok ,v)
-         (pcase v
-           (`(original . ,text)
-            (delete-region (point-min) (point-max))
-            (insert "Original\n" text "\n" "\n"))
-           (`(final    . ,text) (insert "Final\n" text "\n"))
-           (`(,label   . ,diff) (insert label "\n" diff "\n")))))
+      (pcase step
+        (`(original . ,text)
+         (delete-region (point-min) (point-max))
+         (insert "Original\n" text "\n" "\n"))
+        (`(final    . ,text) (insert "Final\n" text "\n"))
+        (`(,label   . ,diff) (insert label "\n" diff "\n")))
       (racket-stepper-previous-item)
       (recenter))))
 

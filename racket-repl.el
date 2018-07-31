@@ -337,7 +337,7 @@ wait for the connection to be established."
                     (tq-queue-pop tq))))
             (scan-error nil)))))))
 
-(defun racket--repl-command-async (command-sexpr &optional callback)
+(defun racket--repl-command-async-raw (command-sexpr &optional callback)
   "Send COMMAND-SEXPR and return. Later call CALLBACK with the response sexp.
 
 If CALLBACK is not supplied or nil, defaults to `ignore'.
@@ -360,18 +360,39 @@ delay."
                 #'ignore)
               t))
 
+(defun racket--repl-command-async (command-sexpr &optional callback)
+  "You probably want to use this instead of `racket--repl-command-async-raw'.
+CALLBACK is wrapped in a function that only returns the value in 'ok
+responses and handles 'error responses."
+  (racket--repl-command-async-raw
+   command-sexpr
+   (if callback
+       (lambda (response)
+         (pcase response
+           (`(ok ,v)    (funcall callback v))
+           ;; We use `message' not `error' here because: 1. It would
+           ;; show "error running timer:" which, although true, is
+           ;; confusing or at best N/A for end users. 2. More simply,
+           ;; we don't need to escape any call stack, we only need
+           ;; to ... not call the callback.
+           (`(error ,m) (message "%s" m))
+           (v           (message "Unknown command response: %S" v))))
+     #'ignore)))
+
 (defun racket--repl-command (command-sexpr)
   "Send COMMAND-SEXPR. Await and return an 'ok response value, or raise `error'."
   (let* ((awaiting 'RACKET-REPL-AWAITING)
          (response awaiting))
-    (racket--repl-command-async command-sexpr (lambda (v) (setq response v)))
+    (racket--repl-command-async-raw command-sexpr
+                                    (lambda (v) (setq response v)))
     (with-timeout (racket-command-timeout
                    (error "racket-command process timeout"))
       (while (eq response awaiting)
         (sit-for 0.1))
       (pcase response
         (`(ok ,v)    v)
-        (`(error ,m) (error "%s" m))))))
+        (`(error ,m) (error "%s" m))
+        (v           (error "Unknown command response: %S" v))))))
 
 (defun racket-repl-file-name ()
   "Return the file running in the buffer, or nil.
@@ -477,10 +498,8 @@ without the #; prefix."
    `(eval
      ,(buffer-substring-no-properties (racket--repl-last-sexp-start)
                                       (point)))
-   (lambda (result)
-     (pcase result
-       (`(ok ,v) (message "%s" v))
-       (`(error ,m) (message "error: %s" m))))))
+   (lambda (v)
+     (message "%s" v))))
 
 (defun racket--repl-last-sexp-start ()
   (save-excursion

@@ -47,24 +47,18 @@ delete compiled/*.zo files."
   (racket--do-run
    'profile
    nil
-   (lambda (response)
-     (pcase response
-       (`(ok ,_what)
-        (message "Getting profile results...")
-        (racket--repl-command-async
-         `(get-profile)
-         (lambda (response)
-           (pcase response
-             (`(ok ,results)
-              (message "")
-              (setq racket--profile-results results)
-              (setq racket--profile-sort-col 1)
-              (with-current-buffer (get-buffer-create "*Racket Profile*")
-                (racket-profile-mode)
-                (racket--profile-draw)
-                (pop-to-buffer (current-buffer))))
-             (`(error ,m) (error m))))))
-       (`(error ,m) (error m))))))
+   (lambda (_what)
+     (message "Getting profile results...")
+     (racket--repl-command-async
+      `(get-profile)
+      (lambda (results)
+        (message "")
+        (setq racket--profile-results results)
+        (setq racket--profile-sort-col 1)
+        (with-current-buffer (get-buffer-create "*Racket Profile*")
+          (racket-profile-mode)
+          (racket--profile-draw)
+          (pop-to-buffer (current-buffer))))))))
 
 (defun racket--profile-refresh ()
   (interactive)

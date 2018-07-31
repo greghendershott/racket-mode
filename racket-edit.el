@@ -224,29 +224,25 @@ See also:
       (racket--do-run
        'coverage
        mod-path
-       (lambda (response)
-         (pcase response
-           (`(ok ,_what)
-            (message "Getting coverage results...")
-            (racket--repl-command-async
-             `(get-uncovered)
-             (lambda (response)
-               (pcase response
-                 (`(ok ()) (message "Full coverage."))
-                 (`(ok ,(and xs `((,beg0 . ,_) . ,_)))
-                  (message "Missing coverage in %s place(s)." (length xs))
-                  ;; The following code doesn't seem to execute in
-                  ;; Emacs 26.1. Why?! Moving the `message` later
-                  ;; simply makes it not execute, either.
-                  (with-current-buffer buf
-                    (dolist (x xs)
-                      (let ((o (make-overlay (car x) (cdr x) buf)))
-                        (overlay-put o 'name 'racket-uncovered-overlay)
-                        (overlay-put o 'priority 100)
-                        (overlay-put o 'face font-lock-warning-face)))
-                    (goto-char beg0)))
-                 (`(error ,m) (error m))))))
-           (`(error ,m) (error m))))))))
+       (lambda (_what)
+         (message "Getting coverage results...")
+         (racket--repl-command-async
+          `(get-uncovered)
+          (lambda (xs)
+            (pcase xs
+              (`() (message "Full coverage."))
+              ((and xs `((,beg0 . ,_) . ,_))
+               (message "Missing coverage in %s place(s)." (length xs))
+               ;; The following code doesn't seem to execute in
+               ;; Emacs 26.1. Why?! Moving the `message` later
+               ;; simply makes it not execute, either.
+               (with-current-buffer buf
+                 (dolist (x xs)
+                   (let ((o (make-overlay (car x) (cdr x) buf)))
+                     (overlay-put o 'name 'racket-uncovered-overlay)
+                     (overlay-put o 'priority 100)
+                     (overlay-put o 'face font-lock-warning-face)))
+                 (goto-char beg0)))))))))))
 
 (defun racket-raco-test ()
   "Do `raco test -x <file>` in `*shell*` buffer.
@@ -749,7 +745,7 @@ special commands to navigate among the definition and its uses.
 
 (defun racket--check-syntax-start ()
   (message "Running check-syntax analysis...")
-  (racket--repl-command-async
+  (racket--repl-command-async-raw
    `(check-syntax ,(racket--buffer-file-name))
    (lambda (response)
      (pcase response
