@@ -19,6 +19,21 @@
          (prefix-in stx-cache: "syntax.rkt")
          "util.rkt")
 
+;; Main moving parts:
+;;
+;; 1. This main thread, which receives a couple messages on a channel
+;;    (see channel.rkt). One message is a `rerun` struct with info
+;;    about a new file/module to run. The main thread loops forever
+;;    (the `rerun` function tail calls itself forever). The special
+;;    case of racket/gui/base is handled with a custom module names
+;;    resolver and another message.
+;;
+;; 2. A thread created for each run; loads a module and goes into
+;;    a read-eval-print-loop.
+;;
+;; 3. A thread for a command server that listens on a TCP port (see
+;;    cmds.rkt). One of the commands is a `run` command.
+
 (module+ main
   (define-values (command-port run-info)
     (match (current-command-line-arguments)
@@ -39,7 +54,8 @@
                          mem
                          (and pp? (not (eq? pp? 'nil)))
                          ctx
-                         (case args [(nil) (vector)] [else (list->vector args)]))]
+                         (case args [(nil) (vector)] [else (list->vector args)])
+                         void)] ;ready-thunk N/A for startup run
                  [v (eprintf "Bad arguments: ~v => ~v\n" run-command v)
                     (exit)]))]
       [v
@@ -60,7 +76,8 @@
                        mem-limit
                        pretty-print?
                        context-level
-                       cmd-line-args) rr)
+                       cmd-line-args
+                       ready-thunk) rr)
   (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
   ;; Always set current-directory and current-load-relative-directory
   ;; to match the source file.
@@ -123,9 +140,12 @@
             ;; When exn:fail? during module load, re-run with "empty"
             ;; module. Note: Unlikely now that we're using
             ;; dynamic-require/some-namespace.
-            (with-handlers ([exn? (λ (x)
-                                    (display-exn x)
-                                    (put/stop (struct-copy rerun rr [maybe-mod #f])))])
+            (define (load-exn-handler exn)
+              (display-exn exn)
+              (channel-put message-to-main-thread-channel
+                           (struct-copy rerun rr [maybe-mod #f]))
+              (sync never-evt))
+            (with-handlers ([exn? load-exn-handler])
               (maybe-configure-runtime mod-path) ;FIRST: see #281
               (current-namespace (dynamic-require/some-namespace maybe-mod))
               (maybe-warn-about-submodules mod-path context-level)
@@ -133,6 +153,12 @@
         (stx-cache:after-run maybe-mod)
         ;; 3. Tell command server to use our namespace and module.
         (attach-command-server (current-namespace) maybe-mod)
+        ;; 3b. And call the read-thunk command-server gave us from a
+        ;; run command, so that it can send a response for the run
+        ;; command. Because the command server runs on a different
+        ;; thread, it is probably waiting with (sync some-channel) and
+        ;; the thunk will simply channel-put.
+        (ready-thunk)
         ;; 4. read-eval-print-loop
         (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
                        [current-module-name-resolver module-name-resolver-for-repl])
@@ -150,20 +176,20 @@
   ;; catch breaks, in which case we (a) break the REPL thread so
   ;; display-exn runs there, and (b) continue from the break instead
   ;; of re-running so that the REPL environment is maintained.
-  (define msg
+  (define message
     (call-with-exception-handler
      (match-lambda
        [(and (or (? exn:break:terminate?) (? exn:break:hang-up?)) e) e]
        [(exn:break msg marks continue) (break-thread repl-thread) (continue)]
        [e e])
-     (λ () (sync main-channel))))
+     (λ () (sync message-to-main-thread-channel))))
   (match context-level
     ['profile  (clear-profile-info!)]
     ['coverage (clear-test-coverage-info!)]
     [_         (void)])
   (custodian-shutdown-all repl-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
-  (match msg
+  (match message
     [(? rerun? new-rr) (run new-rr)]
     [(load-gui repl?)  (require-gui repl?) (run rr)]))
 
@@ -201,7 +227,9 @@
                                   racket/gui/dynamic
                                   scheme/gui/base)))
         (unless (gui-required?)
-          (put/stop (load-gui repl?))))
+          (channel-put message-to-main-thread-channel
+                       (load-gui repl?))
+          (sync never-evt)))
       (orig-resolver mp rmp stx load?))
     (case-lambda
       [(rmp ns)           (orig-resolver rmp ns)]

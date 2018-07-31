@@ -293,12 +293,19 @@
 (define/contract (run what mem pp ctx args)
   (-> list? number? elisp-bool/c context-level? list?
       list?)
-  (put (rerun (->mod/existing what)
-              mem
-              (as-racket-bool pp)
-              ctx
-              (list->vector args)))
-  what)
+  (define ready-channel (make-channel))
+  (channel-put message-to-main-thread-channel
+               (rerun (->mod/existing what)
+                      mem
+                      (as-racket-bool pp)
+                      ctx
+                      (list->vector args)
+                      (λ () (channel-put ready-channel what))))
+  ;; Waiting for this allows the command response to be used as the
+  ;; all-clear for additional commands that need the module load to be
+  ;; done and entering a REPL for that module. For example, to compose
+  ;; run with get-profile or get-uncovered.
+  (sync ready-channel))
 
 (define/contract (repl-submit? submit-pred text eos)
   (-> (or/c #f drracket:submit-predicate/c) string? elisp-bool/c (or/c 'default #t #f))
