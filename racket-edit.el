@@ -100,14 +100,18 @@ it can be a menu target."
   (interactive)
   (racket-run t))
 
-(defun racket--do-run (context-level &optional what-to-run callback)
+(defun racket--do-run (&optional context-level what-to-run callback)
   "Helper function for `racket-run'-like commands.
 
-Supplies CONTEXT-LEVEL to the back-end ,run command; see run.rkt.
+CONTEXT-LEVEL should be a valid value for the variable
+`racket-error-context', 'coverage, or 'profile, or if nil
+defaults to the variable `racket-error-context'.
 
-If supplied, WHAT-TO-RUN should be a cons of a file name to a
-list of submodule symbols. Otherwise, the `racket--what-to-run'
-is used."
+WHAT-TO-RUN should be a cons of a file name to a list of
+submodule symbols, or if nil then `racket--what-to-run' is used.
+
+CALLBACK is supplied to `racket--repl-run' and is used as the
+callback for `racket--repl-command-async'; it may be nil."
   (unless (eq major-mode 'racket-mode)
     (user-error "Current buffer is not a racket-mode buffer"))
   (racket--save-if-changed)
@@ -116,7 +120,7 @@ is used."
   (racket--invalidate-type-cache)
   (racket--repl-forget-errors)
   (racket--repl-run (or what-to-run (racket--what-to-run))
-                    context-level
+                    (or context-level racket-error-context)
                     callback))
 
 (defun racket--what-to-run ()
@@ -310,44 +314,38 @@ See also: `racket-find-collection'."
 
 (defun racket--do-visit-def-or-mod (cmd str)
   "CMD must be 'def or 'mod. STR must be `stringp`."
-  (cl-case major-mode
-    ((racket-repl-mode
-      racket-describe-mode)
-     (racket--repl-ensure-buffer-and-process))
-    (racket-mode
-     (unless (racket--repl-at-prompt-for-our-buffer-p)
-       (when (y-or-n-p "Run current buffer first? ")
-         (racket--run-and-wait-for-prompt))))
-    (otherwise (user-error "Requires racket-mode or racket-repl-mode")))
-  (pcase (racket--repl-command (list cmd str))
-    (`(,path ,line ,col)
-     (racket--push-loc)
-     (find-file path)
-     (goto-char (point-min))
-     (forward-line (1- line))
-     (forward-char col)
-     (message "Type M-, to return"))
-    (`kernel
-     (message "`%s' defined in #%%kernel -- source not available." str))
-    (_
-     (message "Not found."))))
+  (if (and (eq major-mode 'racket-mode)
+           (not (racket--repl-at-prompt-for-our-buffer-p))
+           (y-or-n-p "Run current buffer first? "))
+      (racket--do-run nil nil
+                      (lambda (response)
+                        (pcase response
+                          (`(ok ,_)    (racket--do-visit-def-or-mod cmd str))
+                          (`(error ,m) (error m)))))
+    (cl-case major-mode
+      (racket-mode
+       t)
+      ((racket-repl-mode racket-describe-mode)
+       (racket--repl-ensure-buffer-and-process))
+      (otherwise
+       (user-error "Requires racket-mode or racket-repl-mode")))
+    (pcase (racket--repl-command (list cmd str))
+      (`(,path ,line ,col)
+       (racket--push-loc)
+       (find-file path)
+       (goto-char (point-min))
+       (forward-line (1- line))
+       (forward-char col)
+       (message "Type M-, to return"))
+      (`kernel
+       (message "`%s' defined in #%%kernel -- source not available." str))
+      (_
+       (message "Not found.")))))
 
 (defun racket--repl-at-prompt-for-our-buffer-p ()
   "Is the REPL at a prompt, and evaluated for our buffer contents?"
   (equal (racket--repl-command `(prompt))
          (cons (racket--buffer-file-name) (md5 (current-buffer)))))
-
-(defun racket--run-and-wait-for-prompt ()
-  "Do `racket-run', then wait for the prompt to match our .rkt file.
-
-NOTE: This function should probably be deleted. Instead callers
-should use a completion callback for the run command."
-  (racket-run)
-  (with-timeout (racket-command-timeout
-                 (error "Command timeout waiting for racket-run to finish"))
-    (while (not (racket--repl-at-prompt-for-our-buffer-p))
-      (message "Waiting for prompt...")
-      (sit-for 0.1))))
 
 (defun racket-doc (&optional prefix)
   "View documentation of the identifier or string at point.
@@ -367,7 +365,7 @@ instead of looking at point."
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Racket help for: ")
     (`nil nil)
-    (str (racket--repl-command `(doc ,str)))))
+    (str (racket--repl-command-async `(doc ,str)))))
 
 (defvar racket--loc-stack '())
 
@@ -749,49 +747,54 @@ special commands to navigate among the definition and its uses.
   (when racket-check-syntax-mode
     (racket--check-syntax-start)))
 
-(defvar racket--check-syntax-start-timeout 30)
-
 (defun racket--check-syntax-start ()
-  (let ((xs (with-temp-message "Analyzing..."
-              (let ((racket-command-timeout racket--check-syntax-start-timeout))
-                (racket--repl-command `(check-syntax ,(racket--buffer-file-name)))))))
-    (unless xs
-      (racket-check-syntax-mode -1)
-      (user-error "No bindings found"))
-    (unless (listp xs)
-      (racket-check-syntax-mode -1)
-      (error "Requires a newer version of Racket."))
-    (with-silent-modifications
-      (dolist (x xs)
-        (pcase x
-          (`(,`info ,beg ,end ,str)
-           (put-text-property beg end 'help-echo str))
-          (`(,`def/uses ,def-beg ,def-end ,uses)
-           (add-text-properties def-beg
-                                def-end
-                                (list 'racket-check-syntax-def uses
-                                      'point-entered #'racket--point-entered
-                                      'point-left    #'racket--point-left))
-           (dolist (use uses)
-             (pcase-let* ((`(,use-beg ,use-end) use))
-               (add-text-properties use-beg
-                                    use-end
-                                    (list 'racket-check-syntax-use (list def-beg
-                                                                         def-end)
-                                          'point-entered #'racket--point-entered
-                                          'point-left    #'racket--point-left)))))))
-      (setq buffer-read-only t)
-      (setq header-line-format
-            "Check Syntax. Buffer is read-only. Press h for help, q to quit.")
-      ;; Make 'point-entered and 'point-left work in Emacs 25+. Note
-      ;; that this is somewhat of a hack -- I spent a lot of time
-      ;; trying to Do the Right Thing using the new
-      ;; cursor-sensor-mode, but could not get it to work
-      ;; satisfactorily. See:
-      ;; http://emacs.stackexchange.com/questions/29813/point-motion-strategy-for-emacs-25-and-older
-      (setq-local inhibit-point-motion-hooks nil)
-      ;; Go to next definition, as an affordance/hint what this does:
-      (racket-check-syntax-mode-goto-next-def))))
+  (message "Running check-syntax analysis...")
+  (racket--repl-command-async
+   `(check-syntax ,(racket--buffer-file-name))
+   (lambda (response)
+     (pcase response
+       (`(error ,m)
+        (racket-check-syntax-mode -1)
+        (error m))
+       (`(ok ())
+        (racket-check-syntax-mode -1)
+        (user-error "No bindings found"))
+       (`(ok ,xs)
+        (message "Marking up buffer...")
+        (racket--check-syntax-insert xs)
+        (message ""))))))
+
+(defun racket--check-syntax-insert (xs)
+  (with-silent-modifications
+    (dolist (x xs)
+      (pcase x
+        (`(,`info ,beg ,end ,str)
+         (put-text-property beg end 'help-echo str))
+        (`(,`def/uses ,def-beg ,def-end ,uses)
+         (add-text-properties def-beg
+                              def-end
+                              (list 'racket-check-syntax-def uses
+                                    'point-entered #'racket--point-entered
+                                    'point-left    #'racket--point-left))
+         (dolist (use uses)
+           (pcase-let* ((`(,use-beg ,use-end) use))
+             (add-text-properties use-beg
+                                  use-end
+                                  (list 'racket-check-syntax-use (list def-beg
+                                                                       def-end)
+                                        'point-entered #'racket--point-entered
+                                        'point-left    #'racket--point-left)))))))
+    (setq buffer-read-only t)
+    (setq header-line-format
+          "Check Syntax. Buffer is read-only. Press h for help, q to quit.")
+    ;; Make 'point-entered and 'point-left work in Emacs 25+. Note
+    ;; that this is somewhat of a hack -- I spent a lot of time trying
+    ;; to Do the Right Thing using the new cursor-sensor-mode, but
+    ;; could not get it to work satisfactorily. See:
+    ;; http://emacs.stackexchange.com/questions/29813/point-motion-strategy-for-emacs-25-and-older
+    (setq-local inhibit-point-motion-hooks nil)
+    ;; Go to next definition, as an affordance/hint what this does:
+    (racket-check-syntax-mode-goto-next-def)))
 
 (defun racket--check-syntax-stop ()
   (setq header-line-format nil)
