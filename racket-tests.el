@@ -27,6 +27,9 @@
 
 ;;; Utility functions for "integration" testing
 
+(defconst racket-tests/timeout (if (getenv "TRAVIS_CI") (* 15 60) 30)
+  "30 seconds locally, 15 minutes on Travis CI")
+
 (defun racket-tests/type (typing)
   (let ((blink-matching-paren nil)) ;suppress "Matches " messages
     (execute-kbd-macro (string-to-vector typing))
@@ -40,15 +43,10 @@
   (racket-tests/press binding))
 
 (defun racket-tests/see-rx (rx)
-  (let ((one-second-attempts (if (getenv "TRAVIS_CI")
-                                 (* 15 60)
-                               30)))
-    ;; Although using cl-some like this is weird, cl-loop is weirder IMHO
-    (cl-some (lambda (_x)
-               (accept-process-output (racket--get-repl-buffer-process) 1)
-               (sit-for 0.1)
-               (looking-back rx (point-min)))
-             (make-list one-second-attempts nil))))
+  (with-timeout (racket-tests/timeout nil)
+    (while (not (looking-back rx (point-min)))
+      (sit-for 1))
+    t))
 
 (defun racket-tests/see (str)
   (racket-tests/see-rx (regexp-quote str)))
@@ -70,9 +68,9 @@
 (ert-deftest racket-tests/repl ()
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
   (let ((tab-always-indent 'complete)
-        (racket--repl-command-connect-timeout (* 15 60))
+        (racket--repl-command-connect-timeout racket-tests/timeout)
         (racket-command-port (racket-tests/next-free-port))
-        (racket-command-timeout (* 15 60)))
+        (racket-command-timeout racket-tests/timeout))
     (racket-repl)
     (with-racket-repl-buffer
       ;; Welcome
@@ -97,9 +95,9 @@
 ;;; Run
 
 (ert-deftest racket-tests/run ()
-  (let* ((racket--repl-command-connect-timeout (* 15 60))
+  (let* ((racket--repl-command-connect-timeout racket-tests/timeout)
          (racket-command-port (racket-tests/next-free-port))
-         (racket-command-timeout (* 15 60))
+         (racket-command-timeout racket-tests/timeout)
          (pathname (make-temp-file "test" nil ".rkt"))
          (name     (file-name-nondirectory pathname))
          (code "#lang racket/base\n(define x 42)\nx\n"))
@@ -111,10 +109,10 @@
       (should (racket-tests/see (concat "\n" name "\uFEFF> "))))
     ;; racket-check-syntax-mode
     (when (version<= "6.2" (racket--version))
-      (let ((racket--check-syntax-start-timeout (if (getenv "TRAVIS_CI")
-                                                    (* 15 60)
-                                                  racket--check-syntax-start-timeout)))
-        (racket-check-syntax-mode 1))
+      (racket-check-syntax-mode 1)
+      ;; check-syntax-mode sets header-line-format, so wait for that:
+      (with-timeout (racket-tests/timeout)
+        (while (not header-line-format) (sit-for 1)))
       (goto-char (point-min))
       (racket-check-syntax-mode-goto-next-def)
       (should (looking-at "racket/base"))
