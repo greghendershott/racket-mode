@@ -1,4 +1,4 @@
-;;; racket-edit.el
+;;; racket-edit.el -*- lexical-binding: t -*-
 
 ;; Copyright (c) 2013-2018 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
@@ -302,7 +302,7 @@ See also: `racket-find-collection'."
      (unless (racket--repl-at-prompt-for-our-buffer-p)
        (when (y-or-n-p "Run current buffer first? ")
          (racket--run-and-wait-for-prompt))))
-    (otherwise        (user-error "Requires racket-mode or racket-repl-mode")))
+    (otherwise (user-error "Requires racket-mode or racket-repl-mode")))
   (pcase (racket--repl-command (list cmd str))
     (`(,path ,line ,col)
      (racket--push-loc)
@@ -584,7 +584,7 @@ location of the first one."
               (tooltip-show s))))
        (message "%s" s))))
   (pcase (get-text-property new 'racket-check-syntax-def)
-    ((and uses `((,beg ,end) . ,_))
+    ((and uses `((,beg ,_end) . ,_))
      (pcase (get-text-property beg 'racket-check-syntax-use)
        (`(,beg ,end) (racket--highlight beg end t)))
      (dolist (use uses)
@@ -606,7 +606,7 @@ location of the first one."
   "When point is on a use, go to its definition."
   (interactive)
   (pcase (get-text-property (point) 'racket-check-syntax-use)
-    (`(,beg ,end) (goto-char beg))))
+    (`(,beg ,_end) (goto-char beg))))
 
 (defun racket-check-syntax-mode-forward-use (amt)
   "When point is on a use, go AMT uses forward. AMT may be negative.
@@ -615,7 +615,7 @@ Moving before/after the first/last use wraps around.
 
 If point is instead on a definition, then go to its first use."
   (pcase (get-text-property (point) 'racket-check-syntax-use)
-    (`(,beg ,end)
+    (`(,beg ,_end)
      (pcase (get-text-property beg 'racket-check-syntax-def)
        (uses (let* ((pt (point))
                     (ix-this (cl-loop for ix from 0 to (1- (length uses))
@@ -629,7 +629,7 @@ If point is instead on a definition, then go to its first use."
                     (next (nth ix-next uses)))
                (goto-char (car next))))))
     (_ (pcase (get-text-property (point) 'racket-check-syntax-def)
-         (`((,beg ,end) . ,_) (goto-char beg))))))
+         (`((,beg ,_end) . ,_) (goto-char beg))))))
 
 (defun racket-check-syntax-mode-goto-next-use ()
   "When point is on a use, go to the next (sibling) use."
