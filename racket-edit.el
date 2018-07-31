@@ -100,7 +100,7 @@ it can be a menu target."
   (interactive)
   (racket-run t))
 
-(defun racket--do-run (context-level &optional what-to-run)
+(defun racket--do-run (context-level &optional what-to-run callback)
   "Helper function for `racket-run'-like commands.
 
 Supplies CONTEXT-LEVEL to the back-end ,run command; see run.rkt.
@@ -116,7 +116,8 @@ is used."
   (racket--invalidate-type-cache)
   (racket--repl-forget-errors)
   (racket--repl-run (or what-to-run (racket--what-to-run))
-                    context-level))
+                    context-level
+                    callback))
 
 (defun racket--what-to-run ()
   (cons (racket--buffer-file-name) (racket--submod-path)))
@@ -210,23 +211,38 @@ See also:
 - `racket-unfold-all-tests'
 "
   (interactive "P")
-  (racket--do-run (if coverage 'coverage racket-error-context)
-                  (list 'submod (racket--buffer-file-name) 'test))
-  (when coverage
-    (message "Running tests with coverage instrumentation enabled...")
-    (while (not (racket--repl-command `(prompt)))
-      (sit-for 0.5))
-    (message "Processing coverage results...")
-    (pcase (racket--repl-command `(get-uncovered))
-      ((and xs `((,beg0 . ,_) . ,_))
-       (dolist (x xs)
-         (let ((o (make-overlay (car x) (cdr x))))
-           (overlay-put o 'name 'racket-uncovered-overlay)
-           (overlay-put o 'priority 100)
-           (overlay-put o 'face font-lock-warning-face)))
-       (message "Missing coverage in %s place(s)." (length xs))
-       (goto-char beg0))
-      (_ (message "Full coverage.")))))
+  (let ((mod-path (list 'submod (racket--buffer-file-name) 'test))
+        (buf (current-buffer)))
+    (if (not coverage)
+        (racket--do-run racket-error-context
+                        mod-path)
+      (message "Running test submodule with coverage instrumentation...")
+      (racket--do-run
+       'coverage
+       mod-path
+       (lambda (response)
+         (pcase response
+           (`(ok ,_what)
+            (message "Getting coverage results...")
+            (racket--repl-command-async
+             `(get-uncovered)
+             (lambda (response)
+               (pcase response
+                 (`(ok ()) (message "Full coverage."))
+                 (`(ok ,(and xs `((,beg0 . ,_) . ,_)))
+                  (message "Missing coverage in %s place(s)." (length xs))
+                  ;; The following code doesn't seem to execute in
+                  ;; Emacs 26.1. Why?! Moving the `message` later
+                  ;; simply makes it not execute, either.
+                  (with-current-buffer buf
+                    (dolist (x xs)
+                      (let ((o (make-overlay (car x) (cdr x) buf)))
+                        (overlay-put o 'name 'racket-uncovered-overlay)
+                        (overlay-put o 'priority 100)
+                        (overlay-put o 'face font-lock-warning-face)))
+                    (goto-char beg0)))
+                 (`(error ,m) (error m))))))
+           (`(error ,m) (error m))))))))
 
 (defun racket-raco-test ()
   "Do `raco test -x <file>` in `*shell*` buffer.
@@ -322,7 +338,10 @@ See also: `racket-find-collection'."
          (cons (racket--buffer-file-name) (md5 (current-buffer)))))
 
 (defun racket--run-and-wait-for-prompt ()
-  "Do `racket-run', then wait for the prompt to match our .rkt file."
+  "Do `racket-run', then wait for the prompt to match our .rkt file.
+
+NOTE: This function should probably be deleted. Instead callers
+should use a completion callback for the run command."
   (racket-run)
   (with-timeout (racket-command-timeout
                  (error "Command timeout waiting for racket-run to finish"))

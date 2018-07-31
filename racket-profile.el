@@ -1,4 +1,4 @@
-;;; racket-profile.el
+;;; racket-profile.el -*- lexical-binding: t -*-
 
 ;; Copyright (c) 2013-2016 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
@@ -41,20 +41,30 @@ results.)
 Caveat: Only source files are instrumented. You may need to
 delete compiled/*.zo files."
   (interactive)
-  (when (eq major-mode 'racket-mode)
-    (message "Running with profiling instrumentation...")
-    (racket--do-run 'profile)
-    (message "Waiting for Racket prompt...")
-    (while (not (racket--repl-command `(prompt)))
-      (sit-for 0.5))
-    (message "Getting results...")
-    (setq racket--profile-results (racket--repl-command `(get-profile)))
-    (setq racket--profile-sort-col 1)
-    (with-current-buffer (get-buffer-create "*Racket Profile*")
-      (racket-profile-mode)
-      (racket--profile-draw)
-      (pop-to-buffer (current-buffer)))
-    (message "")))
+  (unless (eq major-mode 'racket-mode)
+    (user-error "Works only in a racket-mode buffer"))
+  (message "Running with profiling instrumentation...")
+  (racket--do-run
+   'profile
+   nil
+   (lambda (response)
+     (pcase response
+       (`(ok ,_what)
+        (message "Getting profile results...")
+        (racket--repl-command-async
+         `(get-profile)
+         (lambda (response)
+           (pcase response
+             (`(ok ,results)
+              (message "")
+              (setq racket--profile-results results)
+              (setq racket--profile-sort-col 1)
+              (with-current-buffer (get-buffer-create "*Racket Profile*")
+                (racket-profile-mode)
+                (racket--profile-draw)
+                (pop-to-buffer (current-buffer))))
+             (`(error ,m) (error m))))))
+       (`(error ,m) (error m))))))
 
 (defun racket--profile-refresh ()
   (interactive)
