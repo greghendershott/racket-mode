@@ -164,7 +164,7 @@ but NOT:
   "Does the Racket REPL buffer exist and have a live Racket process?"
   (comint-check-proc racket--repl-buffer-name))
 
-(defun racket--repl-run (what-to-run &optional context-level)
+(defun racket--repl-run (what-to-run &optional context-level callback)
   "Do an initial or subsequent run.
 
 WHAT-TO-RUN should be a cons of a file name to a list of
@@ -178,10 +178,15 @@ submodule symbols.
   server. If the server isn't live yet -- e.g. if Racket run.rkt
   are still starting up -- this _will_ block the Emacs UI."
   (let ((cmd (racket--repl-make-run-command what-to-run context-level)))
-    (if (not (racket--repl-live-p))
-        (racket--repl-ensure-buffer-and-process t cmd)
-      (racket--repl-command-async cmd)
-      (racket--repl-show-and-move-to-end))))
+    (cond ((racket--repl-live-p)
+           (racket--repl-command-async cmd callback)
+           (racket--repl-show-and-move-to-end))
+          (t
+           (when callback
+             ;; Not sure how to do a callback, here, unless maybe
+             ;; issuing a ``prompt` command?
+             (message "Warning: run command callback ignored for startup run"))
+           (racket--repl-ensure-buffer-and-process t cmd)))))
 
 (defun racket--repl-make-run-command (what-to-run &optional context-level)
   "Form a `run` command sexpr for the backend.
