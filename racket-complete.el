@@ -209,7 +209,7 @@ press F1 or C-h in its pop up completion list.
 
 - Otherwise, if the identifier is a function, then its signature
   is displayed, for example `(name arg-1-name arg-2-name)`. If it
-  has a Typed Racket type or a contract, that is also displayed.
+  has a contract or a Typed Racket type, that is also displayed.
 
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
