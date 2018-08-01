@@ -65,29 +65,7 @@ include:
 
 To visit these locations, move point there and press RET or mouse
 click. Or, use the standard `next-error' and `previous-error'
-commands.
-
-In the `*Racket REPL*` buffer you can issue some special
-commands. Some of them are the foundation for Emacs commands.
-Others are available only as a command in the REPL.
-
-- `,help`: See these commands.
-
-- `,top`: Reset the REPL to an empty module (i.e. a racket/base namespace).
-
-- `,run <module>` : What `racket-run' uses.
-  - `<module> = <file> | (<file> <submodule-id> ...)`
-  - `<file> = file.rkt | /path/to/file.rkt | \"file.rkt\" | \"/path/to/file.rkt\"`
-
-- `,exit`: Exit Racket. Handy in a `#lang` like r5rs where the
-  `exit` procedure is not available. (Regardless of how Racket
-  exits, the `*Racket REPL*` buffer is not killed and is reused
-  if you `racket-run' again.)
-
-- `,doc <symbol-or-string>`: Look for `<symbol-or-string>` in
-  Racket's documentation. What `racket-doc' uses.
-
-- `,cd`, `,pwd`: Change and show `current-directory`."
+commands."
   (interactive "P")
   (racket--do-run (if errortracep
                       'high
