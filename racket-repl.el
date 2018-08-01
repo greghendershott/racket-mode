@@ -79,7 +79,9 @@ end of an interactive expression/statement."
          (beg  (marker-position (process-mark proc)))
          (end  (point-max))
          (text (buffer-substring-no-properties beg end)))
-    (cl-case (racket--repl-command `(repl-submit? ,text t))
+    (cl-case (if racket-use-repl-submit-predicate
+                 (racket--repl-command `(repl-submit? ,text t))
+               'default)
       ((nil)
        (user-error "Not a complete expression, according to the current lang's submit-predicate."))
       ((t default)

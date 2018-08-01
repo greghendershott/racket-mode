@@ -154,6 +154,16 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   :safe #'booleanp
   :group 'racket-repl)
 
+(defcustom racket-use-repl-submit-predicate nil
+  "Should `racket-repl-submit' use a drracket:submit-predicate? A
+language can provide such a predicate, for example when the
+language syntax is not s-expressions. When t `racket-repl-submit'
+will use this to decide whether to submit your input, yet."
+  :tag "Use REPL Submit Predicate"
+  :type 'boolean
+  :safe #'booleanp
+  :group 'racket-repl)
+
 ;;; Other
 
 (defgroup racket-other nil
