@@ -131,9 +131,6 @@ See also:
               (`() (message "Full coverage."))
               ((and xs `((,beg0 . ,_) . ,_))
                (message "Missing coverage in %s place(s)." (length xs))
-               ;; The following code doesn't seem to execute in
-               ;; Emacs 26.1. Why?! Moving the `message` later
-               ;; simply makes it not execute, either.
                (with-current-buffer buf
                  (dolist (x xs)
                    (let ((o (make-overlay (car x) (cdr x) buf)))
