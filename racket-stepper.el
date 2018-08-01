@@ -166,7 +166,8 @@ INTO-BASE is treated as a raw prefix arg and converted to boolp."
         (`(final    . ,text) (insert "Final\n" text "\n"))
         (`(,label   . ,diff) (insert label "\n" diff "\n")))
       (racket-stepper-previous-item)
-      (recenter))))
+      (when (equal (selected-window) (get-buffer-window (current-buffer)))
+        (recenter)))))
 
 (defun racket-stepper-step ()
   (interactive)
