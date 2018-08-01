@@ -359,7 +359,13 @@ response. Because command responses are obtained from the dynamic
 extent of a `set-process-filter' proc -- which may have
 limitations on what it can or should do -- CALLBACK is not called
 immediately but instead using `run-at-time' with a very small
-delay."
+delay.
+
+Important: Do not assume that `current-buffer' is the same when
+CALLBACK is called, as it was when the command was sent. If you
+need to do something to do that original buffer, save the
+`current-buffer' in a `let' and use it in a `with-current-buffer'
+form."
   (racket--repl-ensure-buffer-and-process nil)
   (racket--repl-command-connect-finish)
   (tq-enqueue racket--repl-command-tq
@@ -374,22 +380,32 @@ delay."
 
 (defun racket--repl-command-async (command-sexpr &optional callback)
   "You probably want to use this instead of `racket--repl-command-async-raw'.
-CALLBACK is wrapped in a function that only returns the value in 'ok
-responses and handles 'error responses."
-  (racket--repl-command-async-raw
-   command-sexpr
-   (if callback
-       (lambda (response)
-         (pcase response
-           (`(ok ,v)    (funcall callback v))
-           ;; We use `message' not `error' here because: 1. It would
-           ;; show "error running timer:" which, although true, is
-           ;; confusing or at best N/A for end users. 2. More simply,
-           ;; we don't need to escape any call stack, we only need
-           ;; to ... not call the callback.
-           (`(error ,m) (message "%s" m))
-           (v           (message "Unknown command response: %S" v))))
-     #'ignore)))
+
+CALLBACK is only called for 'ok responses, with (ok v ...)
+unwrapped to (v ...).
+
+'error responses are handled here. Note: We use `message' not
+`error' here because:
+
+  1. It would show \"error running timer:\" which, although true,
+     is confusing or at best N/A for end users.
+
+  2. More simply, we don't need to escape any call stack, we only
+     need to ... not call the callback!
+
+The original value of `current-buffer' is temporarily restored
+during CALLBACK, because neglecting to do so is a likely
+mistake."
+  (let ((buf (current-buffer)))
+    (racket--repl-command-async-raw
+     command-sexpr
+     (if callback
+         (lambda (response)
+           (pcase response
+             (`(ok ,v)    (with-current-buffer buf (funcall callback v)))
+             (`(error ,m) (message "%s" m))
+             (v           (message "Unknown command response: %S" v))))
+       #'ignore))))
 
 (defun racket--repl-command (command-sexpr)
   "Send COMMAND-SEXPR. Await and return an 'ok response value, or raise `error'."
