@@ -690,7 +690,7 @@ Allows #; to be followed by zero or more space or newline chars."
 (defun racket--lang-p ()
   "Is #lang the first sexpr in the file?"
   (save-excursion
-    (goto-char 0)
+    (goto-char (point-min))
     (ignore-errors
       (forward-sexp)
       (backward-sexp)
