@@ -44,9 +44,9 @@ delete compiled/*.zo files."
   (unless (eq major-mode 'racket-mode)
     (user-error "Works only in a racket-mode buffer"))
   (message "Running with profiling instrumentation...")
-  (racket--do-run
-   'profile
+  (racket--repl-run
    nil
+   'profile
    (lambda (_what)
      (message "Getting profile results...")
      (racket--repl-command-async

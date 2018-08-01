@@ -47,10 +47,14 @@ strings."
        (substring-no-properties (buffer-file-name))))
 
 (defun racket--save-if-changed ()
+  (unless (eq major-mode 'racket-mode)
+    (user-error "Current buffer is not a racket-mode buffer"))
   (when (or (buffer-modified-p)
             (and (racket--buffer-file-name)
                  (not (file-exists-p (racket--buffer-file-name)))))
     (save-buffer)))
+
+(add-hook 'racket--repl-before-run-hook #'racket--save-if-changed)
 
 (defun racket--mode-edits-racket-p ()
   "Return non-nil if the current major mode is one that edits Racket code.

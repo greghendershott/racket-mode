@@ -164,11 +164,21 @@ but NOT:
   "Does the Racket REPL buffer exist and have a live Racket process?"
   (comint-check-proc racket--repl-buffer-name))
 
-(defun racket--repl-run (what-to-run &optional context-level callback)
+(defvar racket--repl-before-run-hook (list #'racket--repl-forget-errors))
+
+(defun racket--repl-run (&optional what-to-run context-level callback)
   "Do an initial or subsequent run.
 
 WHAT-TO-RUN should be a cons of a file name to a list of
-submodule symbols.
+submodule symbols. Or if nil, defaults to `racket--what-to-run'.
+
+CONTEXT-LEVEL should be a valid value for the variable
+`racket-error-context', 'coverage, or 'profile. Or if nil,
+defaults to the variable `racket-error-context'.
+
+CALLBACK is supplied to `racket--repl-run' and is used as the
+callback for `racket--repl-command-async'; it may be nil which is
+equivalent to #'ignore.
 
 - If the REPL is _not_ live, start our backend run.rkt passing
   the file to run as a command-line argument. The Emacs UI will
@@ -177,7 +187,9 @@ submodule symbols.
 - If the REPL _is_ live, send a run command to the backend's TCP
   server. If the server isn't live yet -- e.g. if Racket run.rkt
   are still starting up -- this _will_ block the Emacs UI."
-  (let ((cmd (racket--repl-make-run-command what-to-run context-level)))
+  (run-hook-with-args 'racket--repl-before-run-hook)
+  (let ((cmd (racket--repl-make-run-command (or what-to-run (racket--what-to-run))
+                                            (or context-level racket-error-context))))
     (cond ((racket--repl-live-p)
            (racket--repl-command-async cmd callback)
            (racket--repl-show-and-move-to-end))

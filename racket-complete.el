@@ -42,6 +42,8 @@ See `racket--get-namespace-symbols'.")
   (with-racket-repl-buffer
     (setq racket--namespace-symbols nil)))
 
+(add-hook 'racket--repl-before-run-hook #'racket--invalidate-completion-cache)
+
 (defun racket--completion-candidates ()
   "Completion candidates, as a list of list of strings.
  Gets from the cache, or if nil from the Racket process, or if
@@ -120,6 +122,8 @@ This var is local to each buffer, including the REPL buffer.
   (setq racket--type-cache (make-hash-table :test #'eq))
   (with-racket-repl-buffer
     (setq racket--type-cache (make-hash-table :test #'eq))))
+
+(add-hook 'racket--repl-before-run-hook #'racket--invalidate-type-cache)
 
 (defun racket--get-type (str)
   (let* ((sym (intern str))

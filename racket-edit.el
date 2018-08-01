@@ -67,9 +67,9 @@ To visit these locations, move point there and press RET or mouse
 click. Or, use the standard `next-error' and `previous-error'
 commands."
   (interactive "P")
-  (racket--do-run (if errortracep
-                      'high
-                    racket-error-context)))
+  (racket--repl-run (racket--what-to-run)
+                    (if errortracep 'high racket-error-context)
+                    nil))
 
 (defun racket-run-with-errortrace ()
   "Run with `racket-error-context' temporarily set to 'high.
@@ -77,85 +77,6 @@ This is just `racket-run' with a C-u prefix. Defined as a function so
 it can be a menu target."
   (interactive)
   (racket-run t))
-
-(defun racket--do-run (&optional context-level what-to-run callback)
-  "Helper function for `racket-run'-like commands.
-
-CONTEXT-LEVEL should be a valid value for the variable
-`racket-error-context', 'coverage, or 'profile, or if nil
-defaults to the variable `racket-error-context'.
-
-WHAT-TO-RUN should be a cons of a file name to a list of
-submodule symbols, or if nil then `racket--what-to-run' is used.
-
-CALLBACK is supplied to `racket--repl-run' and is used as the
-callback for `racket--repl-command-async'; it may be nil."
-  (unless (eq major-mode 'racket-mode)
-    (user-error "Current buffer is not a racket-mode buffer"))
-  (racket--save-if-changed)
-  (remove-overlays (point-min) (point-max) 'name 'racket-uncovered-overlay)
-  (racket--invalidate-completion-cache)
-  (racket--invalidate-type-cache)
-  (racket--repl-forget-errors)
-  (racket--repl-run (or what-to-run (racket--what-to-run))
-                    (or context-level racket-error-context)
-                    callback))
-
-(defun racket--what-to-run ()
-  (cons (racket--buffer-file-name) (racket--submod-path)))
-
-(defun racket--submod-path ()
-  (and (racket--lang-p)
-       (racket--modules-at-point)))
-
-(defun racket--lang-p ()
-  "Is #lang the first sexpr in the file?"
-  (save-excursion
-    (goto-char 0)
-    (ignore-errors
-      (forward-sexp)
-      (backward-sexp)
-      (looking-at (rx "#lang")))))
-
-(defun racket--modules-at-point ()
-  "List of module names that point is within, from outer to inner.
-Ignores module forms nested (at any depth) in any sort of plain
-or syntax quoting, because those won't be valid Racket syntax."
-  (let ((xs nil))
-    (condition-case ()
-        (save-excursion
-          (save-match-data
-            (racket--escape-string-or-comment)
-            (while t
-              (when (racket--looking-at-module-form)
-                (push (intern (match-string-no-properties 1)) xs))
-              (when (racket--looking-at-quoted-form)
-                (push nil xs))
-              (backward-up-list))))
-      (scan-error xs))
-    (racket--take-while xs #'identity)))
-
-(defun racket--looking-at-module-form ()
-  "Sets match data group 1 to the module name."
-  (looking-at (rx ?\(
-                  (or "module" "module*" "module+")
-                  (1+ " ")
-                  (group (+ (or (syntax symbol)
-                                (syntax word)))))))
-
-(defun racket--looking-at-quoted-form ()
-  (or (memq (char-before) '(?\' ?\` ?\,))
-      (and (eq (char-before (1- (point))) ?\,)
-           (eq (char-before) ?\@))
-      (looking-at
-       (rx ?\(
-           (or "quote" "quasiquote"
-               "unquote" "unquote-splicing"
-               "quote-syntax"
-               "syntax" "syntax/loc"
-               "quasisyntax" "quasisyntax/loc"
-               "unsyntax" "unsyntax-splicing")
-           " "))))
 
 (defun racket-run-and-switch-to-repl (&optional errortracep)
   "This is `racket-run' followed by `racket-switch-to-repl'.
@@ -196,12 +117,11 @@ See also:
   (let ((mod-path (list 'submod (racket--buffer-file-name) 'test))
         (buf (current-buffer)))
     (if (not coverage)
-        (racket--do-run racket-error-context
-                        mod-path)
+        (racket--repl-run mod-path)
       (message "Running test submodule with coverage instrumentation...")
-      (racket--do-run
-       'coverage
+      (racket--repl-run
        mod-path
+       'coverage
        (lambda (_what)
          (message "Getting coverage results...")
          (racket--repl-command-async
@@ -221,6 +141,11 @@ See also:
                      (overlay-put o 'priority 100)
                      (overlay-put o 'face font-lock-warning-face)))
                  (goto-char beg0)))))))))))
+
+(add-hook 'racket--repl-before-run-hook #'racket--remove-coverage-overlays)
+
+(defun racket--remove-coverage-overlays ()
+  (remove-overlays (point-min) (point-max) 'name 'racket-uncovered-overlay))
 
 (defun racket-raco-test ()
   "Do `raco test -x <file>` in `*shell*` buffer.
@@ -291,11 +216,9 @@ See also: `racket-find-collection'."
   (if (and (eq major-mode 'racket-mode)
            (not (racket--repl-at-prompt-for-our-buffer-p))
            (y-or-n-p "Run current buffer first? "))
-      (racket--do-run nil nil
-                      (lambda (response)
-                        (pcase response
-                          (`(ok ,_)    (racket--do-visit-def-or-mod cmd str))
-                          (`(error ,m) (error m)))))
+      (racket--repl-run nil nil
+                        (lambda (_what)
+                          (racket--do-visit-def-or-mod cmd str)))
     (cl-case major-mode
       (racket-mode
        t)
@@ -722,21 +645,23 @@ special commands to navigate among the definition and its uses.
     (racket--check-syntax-start)))
 
 (defun racket--check-syntax-start ()
-  (message "Running check-syntax analysis...")
-  (racket--repl-command-async-raw
-   `(check-syntax ,(racket--buffer-file-name))
-   (lambda (response)
-     (pcase response
-       (`(error ,m)
-        (racket-check-syntax-mode -1)
-        (error m))
-       (`(ok ())
-        (racket-check-syntax-mode -1)
-        (user-error "No bindings found"))
-       (`(ok ,xs)
-        (message "Marking up buffer...")
-        (racket--check-syntax-insert xs)
-        (message ""))))))
+  (let ((buf (current-buffer)))
+    (message "Running check-syntax analysis...")
+    (racket--repl-command-async-raw
+     `(check-syntax ,(racket--buffer-file-name))
+     (lambda (response)
+       (with-current-buffer buf
+        (pcase response
+          (`(error ,m)
+           (racket-check-syntax-mode -1)
+           (error m))
+          (`(ok ())
+           (racket-check-syntax-mode -1)
+           (user-error "No bindings found"))
+          (`(ok ,xs)
+           (message "Marking up buffer...")
+           (racket--check-syntax-insert xs)
+           (message ""))))))))
 
 (defun racket--check-syntax-insert (xs)
   (with-silent-modifications
