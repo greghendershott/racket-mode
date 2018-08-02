@@ -7,8 +7,8 @@ This provides a major mode to edit [Racket] source files, as well as a
 major mode for a Racket REPL. The edit/run experience is similar to
 [DrRacket].
 
-[Racket]: http://www.racket-lang.org/
-[DrRacket]: http://docs.racket-lang.org/drracket/
+[Racket]: https://www.racket-lang.org/
+[DrRacket]: https://docs.racket-lang.org/drracket/
 
 Compatible with **Emacs 24.3+** and **Racket 6.0+**.
 
@@ -18,7 +18,7 @@ The recommended way to use `racket-mode` is to install the package
 from [MELPA]. <kbd>M-x</kbd> `package-install` <kbd>RET</kbd>
 `racket-mode` <kbd>RET</kbd>.
 
-[MELPA]: http://melpa.org/
+[MELPA]: https://melpa.org/
 
 > **TIP**: To use MELPA add the following to your `~/.emacs` or
 > `~/.emacs.d/init.el`:
@@ -26,7 +26,7 @@ from [MELPA]. <kbd>M-x</kbd> `package-install` <kbd>RET</kbd>
 > ```
 > (require 'package)
 > (add-to-list 'package-archives
->              '("melpa" . "http://melpa.org/packages/")
+>              '("melpa" . "https://melpa.org/packages/")
 >              t)
 > ```
 
@@ -73,7 +73,7 @@ your path (unless you use the handy [exec-path-from-shell] package).
 Therefore you may want to set `racket-program` to a full pathname like
 `/usr/racket/bin/racket`.
 
-[exec-path-from-shell]: http://melpa.org/#/exec-path-from-shell
+[exec-path-from-shell]: https://melpa.org/#/exec-path-from-shell
 
 You can `setq` this directly in your Emacs init file (`~/.emacs` or
 `~/.emacs.d/init.el`), or, use <kbd>M-x Customize</kbd>, as you
@@ -227,5 +227,5 @@ Pull requests are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md).
 - Emacs' built-in scheme-mode major mode plus the minor modes [Quack]
   and/or [Geiser].
 
-[Quack]: http://www.neilvandyke.org/quack/
-[Geiser]: http://www.nongnu.org/geiser/
+[Quack]: https://www.neilvandyke.org/quack/
+[Geiser]: https://www.nongnu.org/geiser/
