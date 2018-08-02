@@ -68,7 +68,7 @@
 (ert-deftest racket-tests/repl ()
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
   (let ((tab-always-indent 'complete)
-        (racket--repl-command-connect-timeout racket-tests/timeout)
+        (racket--cmd-connect-timeout racket-tests/timeout)
         (racket-command-port (racket-tests/next-free-port))
         (racket-command-timeout racket-tests/timeout))
     (racket-repl)
@@ -95,7 +95,7 @@
 ;;; Run
 
 (ert-deftest racket-tests/run ()
-  (let* ((racket--repl-command-connect-timeout racket-tests/timeout)
+  (let* ((racket--cmd-connect-timeout racket-tests/timeout)
          (racket-command-port (racket-tests/next-free-port))
          (racket-command-timeout racket-tests/timeout)
          (pathname (make-temp-file "test" nil ".rkt"))

@@ -151,9 +151,9 @@ INTO-BASE is treated as a raw prefix arg and converted to boolp."
   (let ((inhibit-read-only t))
     (delete-region (point-min) (point-max))
     (insert "Starting macro expansion stepper... please wait...\n"))
-  (racket--repl-command-async `(macro-stepper (,which . ,str)
-                                              ,(and into-base t))
-                              #'racket-stepper--insert))
+  (racket--cmd/async `(macro-stepper (,which . ,str)
+                                     ,(and into-base t))
+                     #'racket-stepper--insert))
 
 (defun racket-stepper--insert (step)
   (with-current-buffer racket-stepper--buffer-name
@@ -171,8 +171,8 @@ INTO-BASE is treated as a raw prefix arg and converted to boolp."
 
 (defun racket-stepper-step ()
   (interactive)
-  (racket--repl-command-async `(macro-stepper/next)
-                              #'racket-stepper--insert))
+  (racket--cmd/async `(macro-stepper/next)
+                     #'racket-stepper--insert))
 
 (defconst racket-stepper--item-rx
   (rx bol alphanumeric (zero-or-more any) eol))

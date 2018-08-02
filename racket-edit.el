@@ -124,7 +124,7 @@ See also:
        'coverage
        (lambda (_what)
          (message "Getting coverage results...")
-         (racket--repl-command-async
+         (racket--cmd/async
           `(get-uncovered)
           (lambda (xs)
             (pcase xs
@@ -223,7 +223,7 @@ See also: `racket-find-collection'."
        (racket--repl-ensure-buffer-and-process))
       (otherwise
        (user-error "Requires racket-mode or racket-repl-mode")))
-    (pcase (racket--repl-command (list cmd str))
+    (pcase (racket--cmd/await (list cmd str))
       (`(,path ,line ,col)
        (racket--push-loc)
        (find-file path)
@@ -238,7 +238,7 @@ See also: `racket-find-collection'."
 
 (defun racket--repl-at-prompt-for-our-buffer-p ()
   "Is the REPL at a prompt, and evaluated for our buffer contents?"
-  (equal (racket--repl-command `(prompt))
+  (equal (racket--cmd/await `(prompt))
          (cons (racket--buffer-file-name) (md5 (current-buffer)))))
 
 (defun racket-doc (&optional prefix)
@@ -259,7 +259,7 @@ instead of looking at point."
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Racket help for: ")
     (`nil nil)
-    (str (racket--repl-command-async `(doc ,str)))))
+    (str (racket--cmd/async `(doc ,str)))))
 
 (defvar racket--loc-stack '())
 
@@ -337,7 +337,7 @@ See also: `racket-trim-requires' and `racket-base-requires'."
     (user-error "Current buffer is not a racket-mode buffer"))
   (pcase (racket--top-level-requires 'find)
     (`nil (user-error "The file module has no requires; nothing to do"))
-    (reqs (pcase (racket--repl-command `(requires/tidy ,reqs))
+    (reqs (pcase (racket--cmd/await `(requires/tidy ,reqs))
             ("" nil)
             (new (goto-char (racket--top-level-requires 'kill))
                  (insert (concat new "\n")))))))
@@ -362,9 +362,9 @@ See also: `racket-base-requires'."
    (racket--save-if-changed)
    (pcase (racket--top-level-requires 'find)
      (`nil (user-error "The file module has no requires; nothing to do"))
-     (reqs (pcase (racket--repl-command `(requires/trim
-                                          ,(racket--buffer-file-name)
-                                          ,reqs))
+     (reqs (pcase (racket--cmd/await `(requires/trim
+                                       ,(racket--buffer-file-name)
+                                       ,reqs))
              (`nil (user-error "Syntax error in source file"))
              (""   (goto-char (racket--top-level-requires 'kill)))
              (new  (goto-char (racket--top-level-requires 'kill))
@@ -405,9 +405,9 @@ such as changing `#lang typed/racket` to `#lang typed/racket/base`."
   (when (racket--ok-with-module+*)
     (racket--save-if-changed)
     (let ((reqs (racket--top-level-requires 'find)))
-      (pcase (racket--repl-command `(requires/base
-                                     ,(racket--buffer-file-name)
-                                     ,reqs))
+      (pcase (racket--cmd/await `(requires/base
+                                  ,(racket--buffer-file-name)
+                                  ,reqs))
         (`nil (user-error "Syntax error in source file"))
         (new (goto-char (point-min))
              (re-search-forward "^#lang.*? racket$")
@@ -644,7 +644,7 @@ special commands to navigate among the definition and its uses.
 (defun racket--check-syntax-start ()
   (let ((buf (current-buffer)))
     (message "Running check-syntax analysis...")
-    (racket--repl-command-async-raw
+    (racket--cmd/async-raw
      `(check-syntax ,(racket--buffer-file-name))
      (lambda (response)
        (with-current-buffer buf

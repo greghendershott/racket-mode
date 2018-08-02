@@ -54,7 +54,7 @@ See `racket--get-namespace-symbols'.")
   (unless racket--namespace-symbols
     (when (racket--in-repl-or-its-file-p)
       (setq racket--namespace-symbols
-            (list (racket--repl-command '(syms))))))
+            (list (racket--cmd/await '(syms))))))
   (or racket--namespace-symbols
       (list racket-type-list
             racket-keywords
@@ -104,7 +104,7 @@ to supply this quickly enough or at all."
 
 (defun racket--get-def-file+line (sym)
   "Return a value suitable for use as :company-location."
-  (pcase (racket--repl-command `(def ,sym))
+  (pcase (racket--cmd/await `(def ,sym))
     (`(,path ,line ,_) (cons path line))
     (_ nil)))
 
@@ -130,7 +130,7 @@ This var is local to each buffer, including the REPL buffer.
          (v (gethash sym racket--type-cache)))
     (or v
         (and (racket--in-repl-or-its-file-p)
-             (let ((v (racket--repl-command `(type ,str))))
+             (let ((v (racket--cmd/await `(type ,str))))
                (puthash sym v racket--type-cache) v)))))
 
 ;;; at-point
@@ -232,7 +232,7 @@ added) and nil for the latter.
 
 Returns the buffer in which the description was written."
   (let* ((bufname "*Racket Describe*")
-         (html (racket--repl-command `(describe ,str)))
+         (html (racket--cmd/await `(describe ,str)))
          ;; Emacs shr renderer removes leading &nbsp; from <td> elements
          ;; -- which messes up the indentation of s-expressions including
          ;; contracts. So replace &nbsp with `spc' in the source HTML,
@@ -269,7 +269,7 @@ Returns the buffer in which the description was written."
         (insert-text-button "Documentation in Browser"
                             'action
                             (lambda (_btn)
-                              (racket--repl-command `(doc ,str))))
+                              (racket--cmd/await `(doc ,str))))
         (insert "          [q]uit"))
       (read-only-mode 1)
       (goto-char (point-min))

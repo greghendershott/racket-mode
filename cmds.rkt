@@ -115,28 +115,46 @@
                 (get-info 'drracket:submit-predicate #f)]
                [_ #f])))))
 
+;; We accept a single TCP connection at a time.
+;;
+;; Commands requests are (nonce command param ...). A thread is spun
+;; off to handle each request, so that a long-running command won't
+;; block others. The nonce supplied with the request is returned with
+;; the response, so that the client can match the response with the
+;; request. The nonce needn't be random, just unique; an increasing
+;; integer is fine. Responses are either (nonce 'ok sexp) or (nonce
+;; 'error "message").
 (define (start-command-server port)
   (void
    (thread
-    (λ ()
-      (define listener (tcp-listen port 4 #t))
-      (let connect ()
-        (define-values (in out) (tcp-accept listener))
-        (let read-and-handle-a-command ()
-          (match (elisp-read in)
-            [(? eof-object?) (void)]
-            [sexp (define result
-                    (with-handlers ([exn:fail? (λ (exn) `(error ,(exn-message exn)))])
-                      (parameterize ([current-namespace
-                                      (context-ns command-server-context)])
-                        `(ok ,(handle-command sexp command-server-context)))))
-                  (parameterize ([current-output-port out])
-                    (elisp-writeln result)
-                    (flush-output))
-                  (read-and-handle-a-command)]))
-        (close-input-port in)
-        (close-output-port out)
-        (connect))))))
+    (thunk
+     (define listener (tcp-listen port 4 #t))
+     (let connect ()
+       (define-values (in out) (tcp-accept listener))
+       (define response-channel (make-channel))
+       (thread
+        (thunk
+         (let write-a-response ()
+           (elisp-writeln (channel-get response-channel) out)
+           (flush-output out)
+           (write-a-response))))
+       (let read-a-command ()
+         (match (elisp-read in)
+           [(? eof-object?) (void)]
+           [(cons nonce sexp)
+            (thread
+             (thunk
+              (channel-put
+               response-channel
+               (cons nonce
+                     (with-handlers ([exn:fail? (λ (e) `(error ,(exn-message e)))])
+                       (parameterize ([current-namespace
+                                       (context-ns command-server-context)])
+                         `(ok ,(handle-command sexp command-server-context))))))))
+            (read-a-command)]))
+       (close-input-port in)
+       (close-output-port out)
+       (connect))))))
 
 (define at-prompt (box 0))
 (define (at-prompt?) (positive? (unbox at-prompt)))
@@ -253,12 +271,12 @@
 (define (elisp-read in)
   (elisp->racket (read in)))
 
-(define (elisp-writeln v)
-  (elisp-write v)
-  (newline))
+(define (elisp-writeln v out)
+  (elisp-write v out)
+  (newline out))
 
-(define (elisp-write v)
-  (write (racket->elisp v)))
+(define (elisp-write v out)
+  (write (racket->elisp v) out))
 
 (define elisp-bool/c (or/c #t '()))
 (define (as-racket-bool v)
@@ -285,7 +303,8 @@
 
 (module+ test
   (check-equal? (with-output-to-string
-                  (λ () (elisp-write '(1 #t nil () (a . b)))))
+                  (λ () (elisp-write '(1 #t nil () (a . b))
+                                     (current-output-port))))
                 "(1 t nil nil (a . b))"))
 
 ;;; commands

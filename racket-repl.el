@@ -23,7 +23,6 @@
 (require 'comint)
 (require 'compile)
 (require 'easymenu)
-(require 'tq)
 
 (defconst racket--repl-buffer-name/raw
   "Racket REPL"
@@ -44,9 +43,6 @@ forms are evaluated and nil is returned. See also
        (when ,repl-buffer
          (with-current-buffer ,repl-buffer
            ,@body)))))
-
-(defun racket--get-repl-buffer-process ()
-  (get-buffer-process racket--repl-buffer-name))
 
 (defun racket-repl--input-filter (str)
   "Don't save anything matching `racket-history-filter-regexp'."
@@ -80,7 +76,7 @@ end of an interactive expression/statement."
          (end  (point-max))
          (text (buffer-substring-no-properties beg end)))
     (cl-case (if racket-use-repl-submit-predicate
-                 (racket--repl-command `(repl-submit? ,text t))
+                 (racket--cmd/await `(repl-submit? ,text t))
                'default)
       ((nil)
        (user-error "Not a complete expression, according to the current lang's submit-predicate."))
@@ -105,7 +101,7 @@ With a prefix, uses `comint-quit-subjob' to send a quit signal."
   (if quitp
       (comint-quit-subjob)
     (newline)
-    (racket--repl-command-async `(exit))))
+    (racket--cmd/async `(exit))))
 
 ;;;###autoload
 (defun racket-repl (&optional noselect)
@@ -179,7 +175,7 @@ CONTEXT-LEVEL should be a valid value for the variable
 defaults to the variable `racket-error-context'.
 
 CALLBACK is supplied to `racket--repl-run' and is used as the
-callback for `racket--repl-command-async'; it may be nil which is
+callback for `racket--cmd/async'; it may be nil which is
 equivalent to #'ignore.
 
 - If the REPL is _not_ live, start our backend run.rkt passing
@@ -193,7 +189,7 @@ equivalent to #'ignore.
   (let ((cmd (racket--repl-make-run-command (or what-to-run (racket--what-to-run))
                                             (or context-level racket-error-context))))
     (cond ((racket--repl-live-p)
-           (racket--repl-command-async cmd callback)
+           (racket--cmd/async cmd callback)
            (racket--repl-show-and-move-to-end))
           (t
            (when callback
@@ -241,15 +237,15 @@ Never changes selected window."
         (when display
           (display-buffer (current-buffer)))
         (message "Starting %s to run %s ..." racket-program racket--run.rkt)
-        ;; Ensure command queue is reset when racket process dies.
+        ;; Ensure command server connection closed when racket process dies.
         (set-process-sentinel proc
                               (lambda (_proc event)
                                 (with-racket-repl-buffer
                                   (insert (concat "Process Racket REPL " event)))
-                                (racket--repl-command-disconnect)))
+                                (racket--cmd-disconnect)))
         (set-process-coding-system proc 'utf-8 'utf-8) ;for e.g. λ
         (racket-repl-mode)
-        (racket--repl-command-connect-start)))))
+        (racket--cmd-connect-start)))))
 
 (defun racket--version ()
   "Get the `racket-program' version as a string."
@@ -271,26 +267,34 @@ Never changes selected window."
                   at-least have))
     t))
 
-(defvar racket--repl-command-tq nil
-  "A `tq' object when connection to the command server is established.")
+;;; Connection to command process
 
-(defvar racket--repl-command-connect-attempts 15)
-(defvar racket--repl-command-connect-timeout 15)
+(defvar racket--cmd-proc nil
+  "Process when connection to the command server is established.")
+(defvar racket--cmd-buf nil
+  "Process buffer when connection to the command server is established.")
+(defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
+  "A hash from nonce to callback function..")
+(defvar racket--cmd-nonce 0
+  "Increments for each command request we send.")
 
-(defun racket--repl-command-connect-start (&optional attempt)
+(defvar racket--cmd-connect-attempts 15)
+(defvar racket--cmd-connect-timeout 15)
+
+(defun racket--cmd-connect-start (&optional attempt)
   "Start to connect to the Racket command process.
 
 If already connected, disconnects first.
 
 The command server may might not be ready to accept connections,
 because Racket itself and our backend are still starting up.
-After calling this, call `racket--repl-command-connect-finish' to
+After calling this, call `racket--cmd-connect-finish' to
 wait for the connection to be established."
   (unless (featurep 'make-network-process '(:nowait t))
     (error "racket-mode needs Emacs to support the :nowait feature"))
   (let ((attempt (or attempt 1)))
     (when (= attempt 1)
-      (racket--repl-command-disconnect))
+      (racket--cmd-disconnect))
     (make-network-process
      :name    "racket-command"
      :host    "127.0.0.1"
@@ -300,58 +304,66 @@ wait for the connection to be established."
      (lambda (proc event)
        ;;(message "sentinel process %S event %S attempt %s" proc event attempt)
        (cond
-         ((string-match-p "^open" event)
-          (setq racket--repl-command-tq (tq-create proc))
-          (set-process-filter proc #'racket--repl-command-process-filter)
-          (message "Connected to %s process on port %s after %s attempt(s)"
-                   proc racket-command-port attempt))
-         ((string-match-p "^failed" event)
-          (delete-process proc)
-          (when (<= attempt racket--repl-command-connect-attempts)
-            (run-at-time 1.0 nil
-                         #'racket--repl-command-connect-start
-                         (1+ attempt))))
-         (t (racket--repl-command-disconnect)))))))
+        ((string-match-p "^open" event)
+         (setq racket--cmd-proc proc)
+         (setq racket--cmd-buf (generate-new-buffer " racket-command-process"))
+         (buffer-disable-undo racket--cmd-buf)
+         (set-process-filter proc #'racket--cmd-process-filter)
+         (message "Connected to %s process on port %s after %s attempt(s)"
+                  proc racket-command-port attempt))
+        ((string-match-p "^failed" event)
+         (delete-process proc)
+         (when (<= attempt racket--cmd-connect-attempts)
+           (run-at-time 1.0 nil
+                        #'racket--cmd-connect-start
+                        (1+ attempt))))
+        (t (racket--cmd-disconnect)))))))
 
-(defun racket--repl-command-connect-finish ()
-  (with-timeout (racket--repl-command-connect-timeout
+(defun racket--cmd-connect-finish ()
+  (with-timeout (racket--cmd-connect-timeout
                  (error "Could not connect to racket-command process on port %s"
                         racket-command-port))
-    (while (not racket--repl-command-tq)
+    (while (not racket--cmd-proc)
       (message "Still trying to connect to racket-command process on port %s ..."
                racket-command-port)
       (sit-for 0.2))))
 
-(defun racket--repl-command-disconnect ()
+(defun racket--cmd-disconnect ()
   "Disconnect from the Racket command process."
-  (when racket--repl-command-tq
-    (with-temp-message "Closing existing connection to racket-command process ..."
-      (tq-close racket--repl-command-tq)
-      (setq racket--repl-command-tq nil))))
+  (when racket--cmd-proc
+    ;; Sentinel calls us for "deleted" event, which we ourselves will
+    ;; trigger with the `delete-process' below. So set
+    ;; racket--cmd-proc nil before calling `delete-process'.
+    (let ((proc (prog1 racket--cmd-proc (setq racket--cmd-proc nil)))
+          (buf  (prog1 racket--cmd-buf  (setq racket--cmd-buf nil))))
+      (delete-process proc)
+      (kill-buffer buf))))
 
-(defun racket--repl-command-process-filter (_proc string)
-  "Like `tq-filter' and `tq-process-buffer' but using sexps not regexps."
-  (let* ((tq racket--repl-command-tq)
-         (buffer (tq-buffer tq)))
+(defun racket--cmd-process-filter (_proc string)
+  (let ((buffer racket--cmd-buf))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
-        (if (tq-queue-empty tq)
-            (delete-region (point-min) (point-max)) ;spurious
-          (goto-char (point-max))
-          (insert string)
-          (goto-char (point-min))
-          (condition-case ()
-              (progn
-                (forward-sexp 1)
-                (let ((sexp (buffer-substring (point-min) (point))))
-                  (delete-region (point-min) (point))
-                  (unwind-protect
-                      (ignore-errors
-                        (funcall (tq-queue-head-fn tq) (read sexp)))
-                    (tq-queue-pop tq))))
-            (scan-error nil)))))))
+        (goto-char (point-max))
+        (insert string)
+        (goto-char (point-min))
+        (while
+            (condition-case ()
+                (progn
+                  (forward-sexp 1)
+                  (let ((sexp (buffer-substring (point-min) (point))))
+                    (delete-region (point-min) (point))
+                    (ignore-errors
+                      (pcase (read sexp)
+                        (`(,nonce . ,response)
+                         (let ((callback (gethash nonce racket--cmd-nonce->callback)))
+                           (remhash nonce racket--cmd-nonce->callback)
+                           (when callback
+                             (run-at-time 0.001 nil callback response))
+                           t))
+                        (_ nil)))))
+              (scan-error nil)))))))
 
-(defun racket--repl-command-async-raw (command-sexpr &optional callback)
+(defun racket--cmd/async-raw (command-sexpr &optional callback)
   "Send COMMAND-SEXPR and return. Later call CALLBACK with the response sexp.
 
 If CALLBACK is not supplied or nil, defaults to `ignore'.
@@ -369,19 +381,16 @@ need to do something to do that original buffer, save the
 `current-buffer' in a `let' and use it in a `with-current-buffer'
 form."
   (racket--repl-ensure-buffer-and-process nil)
-  (racket--repl-command-connect-finish)
-  (tq-enqueue racket--repl-command-tq
-              (format "%S\n" command-sexpr) ;\n just in case line-buffering
-              'N/A ;we replace tq's process filter
-              'N/A ;we replace tq's process filter
-              (if callback
-                  (lambda (response)
-                    (run-at-time 0.01 nil callback response))
-                #'ignore)
-              t))
+  (racket--cmd-connect-finish)
+  (cl-incf racket--cmd-nonce)
+  (when callback
+    (puthash racket--cmd-nonce callback racket--cmd-nonce->callback))
+  (process-send-string racket--cmd-proc
+                       (format "%S\n" (cons racket--cmd-nonce
+                                            command-sexpr))))
 
-(defun racket--repl-command-async (command-sexpr &optional callback)
-  "You probably want to use this instead of `racket--repl-command-async-raw'.
+(defun racket--cmd/async (command-sexpr &optional callback)
+  "You probably want to use this instead of `racket--cmd/async-raw'.
 
 CALLBACK is only called for 'ok responses, with (ok v ...)
 unwrapped to (v ...).
@@ -399,7 +408,7 @@ The original value of `current-buffer' is temporarily restored
 during CALLBACK, because neglecting to do so is a likely
 mistake."
   (let ((buf (current-buffer)))
-    (racket--repl-command-async-raw
+    (racket--cmd/async-raw
      command-sexpr
      (if callback
          (lambda (response)
@@ -409,12 +418,12 @@ mistake."
              (v           (message "Unknown command response: %S" v))))
        #'ignore))))
 
-(defun racket--repl-command (command-sexpr)
+(defun racket--cmd/await (command-sexpr)
   "Send COMMAND-SEXPR. Await and return an 'ok response value, or raise `error'."
   (let* ((awaiting 'RACKET-REPL-AWAITING)
          (response awaiting))
-    (racket--repl-command-async-raw command-sexpr
-                                    (lambda (v) (setq response v)))
+    (racket--cmd/async-raw command-sexpr
+                           (lambda (v) (setq response v)))
     (with-timeout (racket-command-timeout
                    (error "racket-command process timeout"))
       (while (eq response awaiting)
@@ -423,6 +432,8 @@ mistake."
         (`(ok ,v)    v)
         (`(error ,m) (error "%s" m))
         (v           (error "Unknown command response: %S" v))))))
+
+;;; Misc
 
 (defun racket-repl-file-name ()
   "Return the file running in the buffer, or nil.
@@ -433,7 +444,7 @@ running no particular file as with the `,top` command.
 On Windows this will replace \ with / in an effort to match the
 Unix style names used by Emacs on Windows."
   (when (comint-check-proc racket--repl-buffer-name)
-    (let ((path (racket--repl-command `(path))))
+    (let ((path (racket--cmd/await `(path))))
       (and path
            (cl-case system-type
              (windows-nt (subst-char-in-string ?\\ ?/ path))
@@ -486,7 +497,7 @@ Afterwards call `racket--repl-show-and-move-to-end'."
   (when (and start end)
     (racket-repl t)
     (racket--repl-forget-errors)
-    (let ((proc (racket--get-repl-buffer-process)))
+    (let ((proc (get-buffer-process racket--repl-buffer-name)))
       (with-racket-repl-buffer
         (save-excursion
           (goto-char (process-mark proc))
@@ -507,10 +518,10 @@ Afterwards call `racket--repl-show-and-move-to-end'."
   "Send the current definition to the Racket REPL."
   (interactive)
   (save-excursion
-   (end-of-defun)
-   (let ((end (point)))
-     (beginning-of-defun)
-     (racket--send-region-to-repl (point) end))))
+    (end-of-defun)
+    (let ((end (point)))
+      (beginning-of-defun)
+      (racket--send-region-to-repl (point) end))))
 
 (defun racket-send-last-sexp ()
   "Send the previous sexp to the Racket REPL.
@@ -524,7 +535,7 @@ without the #; prefix."
 (defun racket-eval-last-sexp ()
   "Eval the previous sexp asynchronously and `message' the result."
   (interactive)
-  (racket--repl-command-async
+  (racket--cmd/async
    `(eval
      ,(buffer-substring-no-properties (racket--repl-last-sexp-start)
                                       (point)))
