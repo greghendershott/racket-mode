@@ -211,7 +211,8 @@ See also: `racket-find-collection'."
 (defun racket--do-visit-def-or-mod (cmd str)
   "CMD must be 'def or 'mod. STR must be `stringp`."
   (if (and (eq major-mode 'racket-mode)
-           (not (racket--repl-at-prompt-for-our-buffer-p))
+           (not (equal (racket--cmd/await `(path+md5))
+                       (cons (racket--buffer-file-name) (md5 (current-buffer)))))
            (y-or-n-p "Run current buffer first? "))
       (racket--repl-run nil nil
                         (lambda (_what)
@@ -235,11 +236,6 @@ See also: `racket-find-collection'."
        (message "`%s' defined in #%%kernel -- source not available." str))
       (_
        (message "Not found.")))))
-
-(defun racket--repl-at-prompt-for-our-buffer-p ()
-  "Is the REPL at a prompt, and evaluated for our buffer contents?"
-  (equal (racket--cmd/await `(prompt))
-         (cons (racket--buffer-file-name) (md5 (current-buffer)))))
 
 (defun racket-doc (&optional prefix)
   "View documentation of the identifier or string at point.

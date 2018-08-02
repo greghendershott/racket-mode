@@ -5,7 +5,6 @@
 
 (provide display-commented
          with-dynamic-requires
-         box-swap!
          string->namespace-syntax)
 
 (define (display-commented str)
@@ -17,14 +16,6 @@
     [(_ ([lib:id id:id] ...+) body:expr ...+)
      #'(let ([id (dynamic-require 'lib 'id)] ...)
          body ...)]))
-
-(define (box-swap! box f . args)
-  (let loop ()
-    (let* ([old (unbox box)]
-           [new (apply f old args)])
-      (if (box-cas! box old new)
-          new
-          (loop)))))
 
 (define (string->namespace-syntax str)
   (namespace-syntax-introduce

@@ -156,9 +156,6 @@
        (close-output-port out)
        (connect))))))
 
-(define at-prompt (box 0))
-(define (at-prompt?) (positive? (unbox at-prompt)))
-
 (define/contract (make-prompt-read m)
   (-> (or/c #f mod?) (-> any))
   ;; A channel to which a thread puts interactions that it reads using
@@ -187,10 +184,7 @@
       (match (sync/timeout 0.01 chan)
         [#f
          (display-prompt (maybe-mod->prompt-string m))
-         (dynamic-wind
-           (λ _ (box-swap! at-prompt add1))
-           (λ _ (channel-get chan))
-           (λ _ (box-swap! at-prompt sub1)))]
+         (channel-get chan)]
         [v v]))
     (when (exn:fail? v)
       (raise v))
@@ -245,8 +239,7 @@
   ;; exn and supply a consistent exn response format.
   (match sexpr
     [`(run ,what ,mem ,pp? ,ctx ,args) (run what mem pp? ctx args)]
-    [`(path)                           path]
-    [`(prompt)                         (and (at-prompt?) (cons (or path 'top) md5))]
+    [`(path+md5)                       (cons (or path 'top) md5)]
     [`(syms)                           (syms)]
     [`(def ,str)                       (find-definition str)]
     [`(mod ,sym)                       (find-module sym maybe-mod)]

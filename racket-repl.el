@@ -433,7 +433,7 @@ mistake."
 ;;; Misc
 
 (defun racket-repl-file-name ()
-  "Return the file running in the buffer, or nil.
+  "Return the file running in the REPL, or nil.
 
 The result can be nil if the REPL is not started, or if it is
 running no particular file as with the `,top` command.
@@ -441,11 +441,12 @@ running no particular file as with the `,top` command.
 On Windows this will replace \ with / in an effort to match the
 Unix style names used by Emacs on Windows."
   (when (comint-check-proc racket--repl-buffer-name)
-    (let ((path (racket--cmd/await `(path))))
-      (and path
-           (cl-case system-type
-             (windows-nt (subst-char-in-string ?\\ ?/ path))
-             (otherwise  path))))))
+    (pcase (racket--cmd/await `(path+md5))
+      (`(,(and (pred stringp) path) . ,_md5)
+       (cl-case system-type
+         (windows-nt (subst-char-in-string ?\\ ?/ path))
+         (otherwise  path)))
+      (_ nil))))
 
 (defun racket--in-repl-or-its-file-p ()
   "Is current-buffer `racket-repl-mode' or buffer for file active in it?"
@@ -462,17 +463,16 @@ If no buffer is visting the file, `find-file' it in `other-window'.
 If the REPL is running no file -- if the prompt is `>` -- use the
 most recent `racket-mode' buffer, if any."
   (interactive)
-  (let ((path (racket-repl-file-name)))
-    (if path
-        (let ((buffer (find-buffer-visiting path)))
-          (if buffer
-              (pop-to-buffer buffer t)
-            (other-window 1)
-            (find-file path)))
-      (let ((buffer (racket--most-recent-racket-mode-buffer)))
-        (unless buffer
-          (user-error "There are no racket-mode buffers"))
-        (pop-to-buffer buffer t)))))
+  (pcase (racket-repl-file-name)
+    (`() (let ((buffer (racket--most-recent-racket-mode-buffer)))
+           (unless buffer
+             (user-error "There are no racket-mode buffers"))
+           (pop-to-buffer buffer t)))
+    (path (let ((buffer (find-buffer-visiting path)))
+            (if buffer
+                (pop-to-buffer buffer t)
+              (other-window 1)
+              (find-file path))))))
 
 (defun racket--most-recent-racket-mode-buffer ()
   (cl-some (lambda (b)
