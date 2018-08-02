@@ -824,16 +824,14 @@
 
 ;;; find-collection
 
-(define/contract (find-collection sym)
-  (-> symbol? (or/c 'find-collection-not-installed #f (listof string?)))
-  (define str (symbol->string sym))
-  (and (path-string? str)
-       (match (with-handlers ([exn:fail? (λ _ #f)])
-                (and ;;#f ;<-- un-comment to exercise fallback path
-                 (dynamic-require 'find-collection/find-collection
-                                  'find-collection-dir)))
-         [#f 'find-collection-not-installed]
-         [f  (map path->string (f str))])))
+(define/contract (find-collection str)
+  (-> path-string? (or/c 'find-collection-not-installed #f (listof string?)))
+  (define fcd (with-handlers ([exn:fail:filesystem:missing-module?
+                               (λ _ (error 'find-collection
+                                           "For this to work, you need to `raco pkg install raco-find-collection`."))])
+                (dynamic-require 'find-collection/find-collection
+                                 'find-collection-dir)))
+  (map path->string (fcd str)))
 
 ;;; profile
 

@@ -52,9 +52,6 @@ See also: `racket-visit-module' and `racket-open-require-path'."
     (`() nil)
     (coll
      (pcase (racket--cmd/await `(find-collection ,coll))
-       (`find-collection-not-installed
-        ;; FIXME? Offer to run this for them?
-        (user-error "Run `raco pkg install raco-find-collection'"))
        (`()
         (user-error (format "Collection `%s' not found" coll)))
        (`(,path)
