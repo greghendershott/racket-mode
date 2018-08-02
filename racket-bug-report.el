@@ -19,9 +19,6 @@
 (require 'cl-lib)
 (require 'racket-util)
 
-(defconst racket--source-dir
-  (file-name-directory (or load-file-name (racket--buffer-file-name))))
-
 ;;;###autoload
 (defun racket-bug-report ()
   "Fill a buffer with data to make a racket-mode bug report."

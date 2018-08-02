@@ -133,17 +133,12 @@ See also: `racket-visit-module' and `racket-open-require-path'."
      (("SPC" "TAB" "C-v" "<next>" "M-v" "<prior>" "M-<" "<home>" "M->" "<end>")
       racket--orp/nop))))
 
-(defvar racket-find-module-path-completions-rkt
-  (expand-file-name "find-module-path-completions.rkt"
-                    (file-name-directory (or load-file-name
-                                             (racket--buffer-file-name))))
-  "Path to find-module-path-completions.rkt")
-
 (defun racket--orp/begin ()
   (let ((proc (start-process "racket-find-module-path-completions-process"
                              "*racket-find-module-path-completions*"
                              racket-program
-                             racket-find-module-path-completions-rkt)))
+                             (expand-file-name "find-module-path-completions.rkt"
+                                               racket--source-dir))))
     (setq racket--orp/tq (tq-create proc))))
 
 (defun racket--orp/request-tx-matches (input)

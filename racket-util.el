@@ -83,6 +83,13 @@ and callers just use `thing-at-point'."
      (substring-no-properties str))
     (v v)))
 
+(defconst racket--source-dir
+  (file-name-directory (or load-file-name (racket--buffer-file-name)))
+  "Path to our source files.
+When installed as a package, this can be found from the variable
+`load-file-name'. When developing interactively, get it from the
+.el buffer file name.")
+
 ;;; trace
 
 (defvar racket--trace-enable nil)

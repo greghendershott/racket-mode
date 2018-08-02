@@ -24,16 +24,11 @@
 
 ;;; Top
 
-(defvar racket-make-doc/Reference.md
-  (expand-file-name "Reference.md"
-                    (file-name-directory (or load-file-name
-                                             (racket--buffer-file-name)))))
-
 (defun racket-make-doc/write-reference-file ()
   (interactive)
   (with-temp-buffer
     (insert (racket-make-doc/reference))
-    (write-region nil nil racket-make-doc/Reference.md nil)))
+    (write-region nil nil (expand-file-name "Reference.md" racket--source-dir) nil)))
 
 (defun racket-make-doc/reference ()
   (let ((text-quoting-style 'grave))
