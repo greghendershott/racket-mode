@@ -79,6 +79,12 @@ You can `setq` this directly in your Emacs init file (`~/.emacs` or
 `~/.emacs.d/init.el`), or, use <kbd>M-x Customize</kbd>, as you
 prefer.
 
+### Start faster
+
+You can use <kbd>M-x racket-mode-start-faster</kbd> to make the Racket
+REPL start faster. [Read more](Reference.md#racket-mode-start-faster).
+
+
 ### Key bindings
 
 To customize things like key bindings, you can use `racket-mode-hook`

@@ -89,7 +89,9 @@
     racket-expand-file
     racket-expand-region
     racket-expand-definition
-    racket-expand-last-sexp)
+    racket-expand-last-sexp
+    "Other"
+    racket-mode-start-faster)
   "Commands to include in the Reference.")
 
 (defun racket-make-doc/commands ()

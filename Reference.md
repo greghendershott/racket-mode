@@ -8,6 +8,7 @@
     - [Learn](#learn)
     - [Edit](#edit)
     - [Macro expand](#macro-expand)
+    - [Other](#other)
 - [Variables](#variables)
     - [General](#general)
     - [REPL](#repl)
@@ -104,7 +105,7 @@ z		racket--profile-show-zero
 
 
 In addition to any hooks its parent mode `special-mode` might have run,
-this mode runs the hook [`racket-profile-mode-hook`](#racket-profile-mode-hook), as the final step
+this mode runs the hook [`racket-profile-mode-hook`](#racket-profile-mode-hook), as the final or penultimate step
 during initialization.
 
 ### racket-logger
@@ -148,7 +149,7 @@ C-c C-z		racket-repl
 
 
 In addition to any hooks its parent mode `special-mode` might have run,
-this mode runs the hook [`racket-logger-mode-hook`](#racket-logger-mode-hook), as the final step
+this mode runs the hook [`racket-logger-mode-hook`](#racket-logger-mode-hook), as the final or penultimate step
 during initialization.
 
 ## Test
@@ -305,7 +306,7 @@ press F1 or C-h in its pop up completion list.
 
 - Otherwise, if the identifier is a function, then its signature
   is displayed, for example `(name arg-1-name arg-2-name)`. If it
-  has a Typed Racket type or a contract, that is also displayed.
+  has a contract or a Typed Racket type, that is also displayed.
 
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
@@ -582,7 +583,7 @@ other examples:
 To see a table of all key sequences use `M-x
 describe-input-method <RET> racket-unicode`.
 
-If you don't like the highlighting of partially matching tokens you
+If you don’t like the highlighting of partially matching tokens you
 can turn it off by setting `input-method-highlight-flag` to nil via
 `M-x customize-variable`.
 
@@ -696,7 +697,7 @@ p		racket-stepper-previous-item
 
 
 In addition to any hooks its parent mode `special-mode` might have run,
-this mode runs the hook [`racket-stepper-mode-hook`](#racket-stepper-mode-hook), as the final step
+this mode runs the hook [`racket-stepper-mode-hook`](#racket-stepper-mode-hook), as the final or penultimate step
 during initialization.
 
 ### racket-expand-file
@@ -742,6 +743,33 @@ Expand the sexp before point using [`racket-stepper-mode`](#racket-stepper-mode)
 
 Uses Racket's `expand-once` in the namespace from the most recent
 [`racket-run`](#racket-run).
+
+## Other
+
+### racket-mode-start-faster
+<kbd>M-x racket-mode-start-faster</kbd>
+
+Compile racket-mode's .rkt files for faster startup.
+
+racket-mode is implemented as an Emacs Lisp "front end" that
+talks to a Racket process "back end". Because racket-mode is
+delivered as an Emacs package instead of a Racket package,
+installing it does _not_ do the `raco setup` that is normally
+done for Racket packages.
+
+This command will do a `raco make` of racket-mode's .rkt files,
+creating bytecode files in a `compiled/` subdirectory. As a
+result, when a [`racket-run`](#racket-run) or [`racket-repl`](#racket-repl) command must start
+the Racket process, it will start faster.
+
+If you run this command, _ever_, you should run it _again_ after:
+
+- Installing an updated version of racket-mode. Otherwise, you
+  might lose some of the speed-up.
+
+- Installing a new version of Racket and/or changing the value of
+  the variable [`racket-program`](#racket-program). Otherwise, you might get an
+  error message due to the bytecode being different versions.
 
 # Variables
 

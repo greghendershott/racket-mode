@@ -141,6 +141,7 @@ http://www.gnu.org/licenses/ for details.")
     "---"
     ["Racket Documentation" racket-doc]
     ["Describe" racket-describe]
+    ["Start Faster" racket-mode-optimize-startup]
     ["Customize..." customize-mode]))
 
 (defun racket--variables-imenu ()
@@ -161,6 +162,37 @@ http://www.gnu.org/licenses/ for details.")
   (add-to-list 'auto-mode-alist '("\\.rkt[dl]?\\'" . racket-mode))
   (modify-coding-system-alist 'file "\\.rkt[dl]?\\'"  'utf-8)
   (add-to-list 'interpreter-mode-alist '("racket" . racket-mode)))
+
+;;;###autoload
+(defun racket-mode-start-faster ()
+  "Compile racket-mode's .rkt files for faster startup.
+
+racket-mode is implemented as an Emacs Lisp \"front end\" that
+talks to a Racket process \"back end\". Because racket-mode is
+delivered as an Emacs package instead of a Racket package,
+installing it does _not_ do the `raco setup` that is normally
+done for Racket packages.
+
+This command will do a `raco make` of racket-mode's .rkt files,
+creating bytecode files in a `compiled/` subdirectory. As a
+result, when a `racket-run' or `racket-repl' command must start
+the Racket process, it will start faster.
+
+If you run this command, _ever_, you should run it _again_ after:
+
+- Installing an updated version of racket-mode. Otherwise, you
+  might lose some of the speed-up.
+
+- Installing a new version of Racket and/or changing the value of
+  the variable `racket-program'. Otherwise, you might get an
+  error message due to the bytecode being different versions."
+  (interactive)
+  (let* ((command (format "%s -l raco make -v %s"
+                          racket-program
+                          (expand-file-name "*.rkt" racket--source-dir)))
+         (prompt (format "Do `%s` " command)))
+    (when (y-or-n-p prompt)
+      (async-shell-command command))))
 
 (provide 'racket-mode)
 
