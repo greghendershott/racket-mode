@@ -135,8 +135,7 @@
         (stx-cache:before-run maybe-mod)
         (when (and maybe-mod mod-path)
           (parameterize ([current-module-name-resolver module-name-resolver-for-run]
-                         [current-eval (stx-cache:make-eval-handler (current-eval)
-                                                                    maybe-mod)])
+                         [current-eval (stx-cache:make-eval-handler maybe-mod)])
             ;; When exn:fail? during module load, re-run with "empty"
             ;; module. Note: Unlikely now that we're using
             ;; dynamic-require/some-namespace.

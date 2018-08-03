@@ -48,7 +48,7 @@
     (hash-clear! cache)
     (set! last-mod maybe-mod)))
 
-(define ((make-eval-handler orig-eval maybe-mod) e)
+(define ((make-eval-handler maybe-mod [orig-eval (current-eval)]) e)
   (cond [(and (syntax? e)
               (syntax-source e)
               (path-string? (syntax-source e))
