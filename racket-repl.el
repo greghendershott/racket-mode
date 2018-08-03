@@ -159,7 +159,8 @@ but NOT:
   "Does the Racket REPL buffer exist and have a live Racket process?"
   (comint-check-proc racket--repl-buffer-name))
 
-(defvar racket--repl-before-run-hook (list #'racket--repl-forget-errors))
+(defvar racket--repl-before-run-hook nil
+  "Thunks to do before each `racket--repl-run'.")
 
 (defun racket--repl-run (&optional what-to-run context-level callback)
   "Do an initial or subsequent run.
@@ -551,7 +552,6 @@ without the #; prefix."
 
 (defun racket--repl-forget-errors ()
   "Forget existing errors in the REPL.
-
 Although they remain clickable they will be ignored by
 `next-error' and `previous-error'"
   (with-racket-repl-buffer
@@ -565,6 +565,8 @@ Although they remain clickable they will be ignored by
                (equal (marker-position compilation-messages-start) 1)
                (equal (marker-buffer compilation-messages-start) (current-buffer)))
       (setq compilation-messages-start nil))))
+
+(add-hook 'racket--repl-before-run-hook #'racket--repl-forget-errors)
 
 (defun racket--repl-show-and-move-to-end ()
   "Make the Racket REPL visible, and move point to end.
