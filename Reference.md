@@ -711,11 +711,8 @@ You do _not_ need to [`racket-run`](#racket-run) the file first; the namespace
 active in the REPL is not used.
 
 If the file is non-trivial and/or is not compiled to a .zo
-bytecode file, then it may take many seconds before the original
-form is displayed and you can start stepping. During this time,
-Emacs will not be blocked -- but other [`racket-mode`](#racket-mode) or
-[`racket-repl-mode`](#racket-repl-mode) commands might block until this command
-completes.
+bytecode file, then it might take many seconds before the
+original form is displayed and you can start stepping.
 
 With a prefix, also expands syntax from racket/base -- which can
 result in very many expansion steps.
