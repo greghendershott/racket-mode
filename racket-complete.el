@@ -261,6 +261,7 @@ Returns the buffer in which the description was written."
         (replace-match " " t t))
       (goto-char (point-max))
       (when pop-to
+        (insert "\n")
         (insert-text-button "Definition"
                             'action
                             (lambda (_btn)
