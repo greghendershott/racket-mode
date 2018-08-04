@@ -31,7 +31,7 @@
     [(list* id-stx file submods)
      (define file-stx (file->syntax file))
      (define sub-stx (submodule file submods file-stx))
-     (match (signature (syntax-e id-stx) sub-stx)
+     (match ($signature (syntax-e id-stx) sub-stx)
        [(? syntax? stx) (syntax->datum stx)]
        [_ #f])]
     [v v]))
@@ -46,28 +46,30 @@
        (match x
          [(cons id 'kernel) 'kernel]
          [(list* id file submods)
-          (define file-stx (hash-ref! ht file
-                                      (λ () (file->expanded-syntax file))))
-          (define sub-stx (submodule file submods file-stx))
-          (match (definition id sub-stx)
+          (define (sub-stx file->stx)
+            (hash-ref! ht (cons file file->stx)
+                       (λ () (submodule file submods (file->stx file)))))
+          (match (or ($definition id (sub-stx file->expanded-syntax))
+                     (match ($renaming-provide id (sub-stx file->syntax))
+                       [(? syntax? s)
+                        ($definition (syntax-e s) (sub-stx file->expanded-syntax))]
+                       [_ #f]))
             [#f  #f]
             [stx (list* stx file submods)])]))]
     [_ #f]))
 
-;; Distill identifier-binding to what we need. Also handle the case
-;; where (provide (contract-out [rename orig new])) generates a
-;; differently named wrapper function, by using object-name to
-;; discover the name of the original wrapped function.
+;; Distill identifier-binding to what we need. Unfortunately it can't
+;; report the definition id in the case of a contract-out and a
+;; rename-out, both. For `(provide (contract-out [rename orig new
+;; contract]))` it reports (1) the contract-wrapper as the id, and (2)
+;; `new` as the nominal-id -- but NOT (3) `orig`. Instead the caller
+;; will need try using `renaming-provide`.
 (define/contract (identifier-binding* v)
   (-> (or/c string? symbol? identifier?)
       (or/c #f
             (listof (cons/c symbol?
                             (or/c 'kernel
                                   (cons/c path-string? (listof symbol?)))))))
-  (define (real-name id)
-    (or (object-name (with-handlers ([exn:fail? (λ _ #f)])
-                       (eval (namespace-symbol->identifier id))))
-        id))
   (define sym->id namespace-symbol->identifier)
   (define id (cond [(string? v)     (sym->id (string->symbol v))]
                    [(symbol? v)     (sym->id v)]
@@ -76,8 +78,8 @@
     [(list source-mpi         source-id
            nominal-source-mpi nominal-source-id
            source-phase import-phase nominal-export-phase)
-     (list (cons (real-name source-id)         (mpi->path source-mpi))
-           (cons (real-name nominal-source-id) (mpi->path nominal-source-mpi)))]
+     (list (cons source-id         (mpi->path source-mpi))
+           (cons nominal-source-id (mpi->path nominal-source-mpi)))]
     [_ #f]))
 
 (define/contract (mpi->path mpi)
@@ -151,7 +153,7 @@
 ;; If `stx` is not expanded, we will miss some things, however the
 ;; syntax will be closer to what a human expects -- e.g. `(define (f
 ;; x) x)` instead of `(define-values (f) (lambda (x) x))`.
-(define (definition sym stx) ;;symbol? syntax? -> syntax?
+(define ($definition sym stx) ;;symbol? syntax? -> syntax?
   (define eq-sym? (make-eq-sym? sym))
   ;; This is a hack to handle definer macros that neglect to set
   ;; srcloc properly using syntax/loc or (format-id ___ #:source __):
@@ -170,9 +172,8 @@
              define define/contract
              define-syntax struct define-struct)
       syntax-e-eq?
-    [(begin . stxs)
-     (ormap (λ (stx) (definition sym stx))
-            (syntax->list #'stxs))]
+    [(begin . stxs)                 (ormap (λ (stx) ($definition sym stx))
+                                           (syntax->list #'stxs))]
     [(define          (s . _) . _)  (eq-sym? #'s) stx]
     [(define/contract (s . _) . _)  (eq-sym? #'s) stx]
     [(define s . _)                 (eq-sym? #'s) stx]
@@ -192,16 +193,43 @@
 ;; function definition signature. The input syntax should NOT be
 ;; `expand`ed. This intentionally does NOT walk into module forms, so,
 ;; give us the module bodies wrapped in begin.
-
-(define (signature sym stx) ;;symbol? syntax? -> (or/c #f list?)
+(define ($signature sym stx) ;;symbol? syntax? -> (or/c #f list?)
   (define eq-sym? (make-eq-sym? sym))
-  (syntax-case* stx
-      (begin define define/contract case-lambda)
-      syntax-e-eq?
-    [(begin . stxs)
-     (ormap (λ (stx) (signature sym stx))
-            (syntax->list #'stxs))]
+  (syntax-case* stx (begin define define/contract case-lambda) syntax-e-eq?
+    [(begin . stxs)                               (ormap (λ (stx) ($signature sym stx))
+                                                         (syntax->list #'stxs))]
     [(define          (s . as) . _)               (eq-sym? #'s) #'(s . as)]
     [(define/contract (s . as) . _)               (eq-sym? #'s) #'(s . as)]
     [(define s (case-lambda [(ass ...) . _] ...)) (eq-sym? #'s) #'((s ass ...) ...)]
     [_                                            #f]))
+
+;; Find sym in a contracting and/or renaming provide, and return the
+;; syntax for the ORIGINAL identifier (before being contracted and/or
+;; renamed). The input syntax should NOT be expanded.
+(define ($renaming-provide sym stx) ;;symbol? syntax? -> syntax?
+  (define eq-sym? (make-eq-sym? sym))
+  (syntax-case* stx (begin provide provide/contract) syntax-e-eq?
+    [(begin . stxs)
+     (ormap (λ (stx) ($renaming-provide sym stx))
+            (syntax->list #'stxs))]
+    [(provide/contract . stxs)
+     (for/or ([stx (syntax->list #'stxs)])
+       (syntax-case stx ()
+         [(s _) (eq-sym? #'s)]
+         [_     #f]))]
+    [(provide . stxs)
+     (for/or ([stx (syntax->list #'stxs)])
+       (syntax-case* stx (contract-out rename-out) syntax-e-eq?
+         [(contract-out . stxs)
+          (for/or ([stx (syntax->list #'stxs)])
+            (syntax-case* stx (rename) syntax-e-eq?
+              [(rename orig s _) (eq-sym? #'s) #'orig]
+              [(s _)             (eq-sym? #'s) #'s]
+              [_                 #f]))]
+         [(rename-out . stxs)
+          (for/or ([stx (syntax->list #'stxs)])
+            (syntax-case* stx () syntax-e-eq?
+              [(orig s) (eq-sym? #'s) #'orig]
+              [_        #f]))]
+         [_ #f]))]
+    [_              #f]))

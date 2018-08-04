@@ -85,6 +85,12 @@
   (check-equal? (find-signature "foo")
                 '(foo x))
 
+  (check-match (find-definition "a-number")
+               (list (pregexp "defn-examples.rkt$") 52 8))
+
+  (check-match (find-definition "a-parameter")
+               (list (pregexp "defn-examples.rkt$") 54 8))
+
   ;; This is (roughly) a test of opening a Racket source file and
   ;; doing M-. on every non-list sexpr: Call find-definition on each
   ;; sexpr. Not-found (#f) is fine. But fail test for (list _ 1 0) --

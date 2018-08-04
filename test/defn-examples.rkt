@@ -47,3 +47,9 @@
 
 (define (foo x) x)
 (provide foo)
+
+;; Issue 317
+(define a-number 42)
+(provide a-number)
+(define a-parameter (make-parameter #f))
+(provide a-parameter)
