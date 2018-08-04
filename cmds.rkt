@@ -115,46 +115,63 @@
                 (get-info 'drracket:submit-predicate #f)]
                [_ #f])))))
 
-;; We accept a single TCP connection at a time.
+;; The command server accepts a single TCP connection at a time.
 ;;
-;; Commands requests are (nonce command param ...). A thread is spun
-;; off to handle each request, so that a long-running command won't
-;; block others. The nonce supplied with the request is returned with
-;; the response, so that the client can match the response with the
-;; request. The nonce needn't be random, just unique; an increasing
-;; integer is fine. Responses are either (nonce 'ok sexp) or (nonce
-;; 'error "message").
+;; Normally Emacs will make only one connection. If the user exits the
+;; REPL, then our entire Racket process exits. (Just in case, we have
+;; an accept-a-connection loop below. It handles any exns -- like
+;; exn:network -- not handled during command processing. It uses a
+;; custodian to clean up.)
+;;
+;; Command requests and responses "on the wire" are a subset of valid
+;; Emacs Lisp s-expressions: See elisp-read and elisp-write.
+;;
+;; Command requests are (nonce command param ...).
+;;
+;; A thread is spun off to handle each request, so that a long-running
+;; command won't block others. The nonce supplied with the request is
+;; returned with the response, so that the client can match the
+;; response with the request. The nonce needn't be random, just
+;; unique; an increasing integer is fine.
+;;
+;; Command responses are either (nonce 'ok sexp ...+) or (nonce 'error
+;; "message"). The latter normally can and should be displayed to the
+;; user in Emacs via error or message. We handle exn:fail? up here;
+;; generally we're fine letting Racket exceptions percolate up and be
+;; shown to the user
 (define (start-command-server port)
-  (void
-   (thread
-    (thunk
-     (define listener (tcp-listen port 4 #t))
-     (let connect ()
-       (define-values (in out) (tcp-accept listener))
-       (define response-channel (make-channel))
-       (thread
-        (thunk
-         (let write-a-response ()
-           (elisp-writeln (channel-get response-channel) out)
-           (flush-output out)
-           (write-a-response))))
-       (let read-a-command ()
-         (match (elisp-read in)
-           [(? eof-object?) (void)]
-           [(cons nonce sexp)
-            (thread
-             (thunk
-              (channel-put
-               response-channel
-               (cons nonce
-                     (with-handlers ([exn:fail? (λ (e) `(error ,(exn-message e)))])
-                       (parameterize ([current-namespace
-                                       (context-ns command-server-context)])
-                         `(ok ,(handle-command sexp command-server-context))))))))
-            (read-a-command)]))
-       (close-input-port in)
-       (close-output-port out)
-       (connect))))))
+  (thread
+   (thunk
+    (define listener (tcp-listen port 4 #t))
+    (let accept-a-connection ()
+      (define custodian (make-custodian))
+      (parameterize ([current-custodian custodian])
+        (with-handlers ([exn:fail? void])
+          (define-values (in out) (tcp-accept listener))
+          (define response-channel (make-channel))
+          (define ((do-command/put-response nonce sexp))
+            (channel-put
+             response-channel
+             (cons
+              nonce
+              (with-handlers ([exn:fail? (λ (e) `(error ,(exn-message e)))])
+                (parameterize ([current-namespace
+                                (context-ns command-server-context)])
+                  `(ok ,(command sexp command-server-context)))))))
+          (define (get/write-response)
+            (elisp-writeln (channel-get response-channel) out)
+            (flush-output out)
+            (get/write-response))
+          ;; With all the pieces defined, let's go:
+          (thread get/write-response)
+          (let read-a-command ()
+            (match (elisp-read in)
+              [(cons nonce sexp) (thread (do-command/put-response nonce sexp))
+                                 (read-a-command)]
+              [(? eof-object?)   (void)])))
+        (custodian-shutdown-all custodian))
+      (accept-a-connection))))
+  (void))
 
 (define/contract (make-prompt-read m)
   (-> (or/c #f mod?) (-> any))
@@ -230,7 +247,7 @@
   (flush-output)
   (zero-column!))
 
-(define/contract (handle-command sexpr the-context)
+(define/contract (command sexpr the-context)
   (-> pair? context? any/c)
   (match-define (context _ns maybe-mod md5 submit-pred) the-context)
   (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))

@@ -242,8 +242,9 @@ Never changes selected window."
                                   (insert (concat "Process Racket REPL " event)))
                                 (racket--cmd-disconnect)))
         (set-process-coding-system proc 'utf-8 'utf-8) ;for e.g. λ
-        (racket-repl-mode)
-        (racket--cmd-connect-start)))))
+        (racket-repl-mode))))
+  (unless (racket--cmd-connected-or-connecting-p)
+    (racket--cmd-connect-start)))
 
 (defun racket--version ()
   "Get the `racket-program' version as a string."
@@ -271,6 +272,8 @@ Never changes selected window."
   "Process when connection to the command server is established.")
 (defvar racket--cmd-buf nil
   "Process buffer when connection to the command server is established.")
+(defvar racket--cmd-connecting-p nil)
+
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
   "A hash from nonce to callback function..")
 (defvar racket--cmd-nonce 0
@@ -278,6 +281,9 @@ Never changes selected window."
 
 (defvar racket--cmd-connect-attempts 15)
 (defvar racket--cmd-connect-timeout 15)
+
+(defun racket--cmd-connected-or-connecting-p ()
+  (and (or racket--cmd-proc racket--cmd-connecting-p) t))
 
 (defun racket--cmd-connect-start (&optional attempt)
   "Start to connect to the Racket command process.
@@ -292,7 +298,8 @@ wait for the connection to be established."
     (error "racket-mode needs Emacs to support the :nowait feature"))
   (let ((attempt (or attempt 1)))
     (when (= attempt 1)
-      (racket--cmd-disconnect))
+      (racket--cmd-disconnect)
+      (setq racket--cmd-connecting-p t))
     (make-network-process
      :name    "racket-command"
      :host    "127.0.0.1"
@@ -324,7 +331,8 @@ wait for the connection to be established."
     (while (not racket--cmd-proc)
       (message "Still trying to connect to racket-command process on port %s ..."
                racket-command-port)
-      (sit-for 0.2))))
+      (sit-for 0.2))
+    (setq racket--cmd-connecting-p nil)))
 
 (defun racket--cmd-disconnect ()
   "Disconnect from the Racket command process."
@@ -335,7 +343,9 @@ wait for the connection to be established."
     (let ((proc (prog1 racket--cmd-proc (setq racket--cmd-proc nil)))
           (buf  (prog1 racket--cmd-buf  (setq racket--cmd-buf nil))))
       (delete-process proc)
-      (kill-buffer buf))))
+      (kill-buffer buf)
+      (clrhash racket--cmd-nonce->callback)
+      (setq racket--cmd-connecting-p nil))))
 
 (defun racket--cmd-process-filter (_proc string)
   (let ((buffer racket--cmd-buf))
