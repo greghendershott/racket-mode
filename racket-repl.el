@@ -391,7 +391,8 @@ form."
   (racket--repl-ensure-buffer-and-process nil)
   (racket--cmd-connect-finish)
   (cl-incf racket--cmd-nonce)
-  (when callback
+  (when (and callback
+             (not (equal callback #'ignore)))
     (puthash racket--cmd-nonce callback racket--cmd-nonce->callback))
   (process-send-string racket--cmd-proc
                        (format "%S\n" (cons racket--cmd-nonce
