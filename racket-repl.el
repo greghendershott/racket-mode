@@ -275,7 +275,7 @@ Never changes selected window."
 (defvar racket--cmd-connecting-p nil)
 
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
-  "A hash from nonce to callback function..")
+  "A hash from nonce to callback function.")
 (defvar racket--cmd-nonce 0
   "Increments for each command request we send.")
 
