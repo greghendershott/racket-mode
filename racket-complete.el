@@ -93,9 +93,7 @@ to supply this quickly enough or at all."
                (list beg
                      end
                      (completion-table-dynamic
-                      (lambda (_)
-                        (racket--completion-candidates-for-prefix
-                         (buffer-substring-no-properties beg end))))
+                      #'racket--completion-candidates-for-prefix)
                      :predicate #'identity
                      ;; racket--get-type is too slow for :company-docsig
                      :company-doc-buffer #'racket--do-describe
