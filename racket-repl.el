@@ -311,7 +311,8 @@ wait for the connection to be established."
        (cond
         ((string-match-p "^open" event)
          (setq racket--cmd-proc proc)
-         (setq racket--cmd-buf (generate-new-buffer " racket-command-process"))
+         (setq racket--cmd-buf (generate-new-buffer
+                                (concat " " (process-name proc))))
          (buffer-disable-undo racket--cmd-buf)
          (set-process-filter proc #'racket--cmd-process-filter)
          (message "Connected to %s process on port %s after %s attempt(s)"
