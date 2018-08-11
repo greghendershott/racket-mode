@@ -296,11 +296,12 @@
 
 (define (elisp->racket v)
   (match v
-    ['nil           '()] ;not #f -- see as-racket-bool
-    ['t             #t]
-    [(? list? xs)   (map elisp->racket xs)]
-    [(cons x y)     (cons (elisp->racket x) (elisp->racket y))]
-    [v              v]))
+    ['nil             '()] ;not #f -- see as-racket-bool
+    ['t               #t]
+    [(? list? xs)     (map elisp->racket xs)]
+    [(cons x y)       (cons (elisp->racket x) (elisp->racket y))]
+    [(vector s _ ...) s] ;Emacs strings can be #("string" . properties)
+    [v                v]))
 
 (define (racket->elisp v)
   (match v
