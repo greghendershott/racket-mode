@@ -436,7 +436,7 @@ mistake."
     (with-timeout (racket-command-timeout
                    (error "racket-command process timeout"))
       (while (eq response awaiting)
-        (sit-for 0.1))
+        (accept-process-output nil 0.001))
       (pcase response
         (`(ok ,v)    v)
         (`(error ,m) (error "%s" m))
