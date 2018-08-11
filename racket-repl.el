@@ -326,6 +326,7 @@ wait for the connection to be established."
 
 (defun racket--cmd-connect-finish ()
   (with-timeout (racket--cmd-connect-timeout
+                 (setq racket--cmd-connecting-p nil)
                  (error "Could not connect to racket-command process on port %s"
                         racket-command-port))
     (while (not racket--cmd-proc)
