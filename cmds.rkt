@@ -102,12 +102,13 @@
   (define-values (dir file rmp) (maybe-mod->dir/file/rmp m))
   (define path (and dir file (build-path dir file)))
   (and path rmp
-       (or (match (with-input-from-file (build-path dir file) read-language)
-             [(? procedure? get-info)
-              (match (get-info 'drracket:submit-predicate #f)
-                [#f #f]
-                [v  v])]
-             [_ #f])
+       (or (with-handlers ([exn:fail? (λ _ #f)])
+            (match (with-input-from-file (build-path dir file) read-language)
+              [(? procedure? get-info)
+               (match (get-info 'drracket:submit-predicate #f)
+                 [#f #f]
+                 [v  v])]
+              [_ #f]))
            (with-handlers ([exn:fail? (λ _ #f)])
              (match (module->language-info rmp #t)
                [(vector mp name val)
