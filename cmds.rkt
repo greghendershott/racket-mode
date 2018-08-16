@@ -18,6 +18,7 @@
          syntax/modresolve
          (only-in xml xexpr->string)
          "channel.rkt"
+         "debug.rkt"
          "defn.rkt"
          "fresh-line.rkt"
          "help.rkt"
@@ -160,7 +161,9 @@
                                 (context-ns command-server-context)])
                   `(ok ,(command sexp command-server-context)))))))
           (define (get/write-response)
-            (elisp-writeln (channel-get response-channel) out)
+            (elisp-writeln (sync response-channel
+                                 debug-notify-channel)
+                           out)
             (flush-output out)
             (get/write-response))
           ;; With all the pieces defined, let's go:
@@ -205,6 +208,9 @@
     [`(check-syntax ,path-str)         (check-syntax path-str)]
     [`(eval ,v)                        (eval-command v)]
     [`(repl-submit? ,str ,eos?)        (repl-submit? submit-pred str eos?)]
+    [`(debug-eval ,src ,l ,c ,p ,code) (debug-eval src l c p code)]
+    [`(debug-resume ,v)                (debug-resume v)]
+    [`(debug-disable)                  (debug-disable)]
     [`(exit)                           (exit)]))
 
 ;;; read/write Emacs Lisp values

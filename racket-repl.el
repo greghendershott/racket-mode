@@ -148,7 +148,7 @@ but NOT:
   (comint-check-proc racket--repl-buffer-name))
 
 (defvar racket--repl-before-run-hook nil
-  "Thunks to do before each `racket--repl-run'.")
+  "Thunks to do before each `racket--repl-run' -- except an initial run.")
 
 (defun racket--repl-run (&optional what-to-run context-level callback)
   "Do an initial or subsequent run.
@@ -171,10 +171,10 @@ equivalent to #'ignore.
 - If the REPL _is_ live, send a run command to the backend's TCP
   server. If the server isn't live yet -- e.g. if Racket run.rkt
   are still starting up -- this _will_ block the Emacs UI."
-  (run-hook-with-args 'racket--repl-before-run-hook)
   (let ((cmd (racket--repl-make-run-command (or what-to-run (racket--what-to-run))
                                             (or context-level racket-error-context))))
     (cond ((racket--repl-live-p)
+           (run-hook-with-args 'racket--repl-before-run-hook)
            (racket--cmd/async cmd callback)
            (racket--repl-show-and-move-to-end))
           (t
@@ -351,15 +351,20 @@ wait for the connection to be established."
                   (let ((sexp (buffer-substring (point-min) (point))))
                     (delete-region (point-min) (point))
                     (ignore-errors
-                      (pcase (read sexp)
-                        (`(,nonce . ,response)
-                         (let ((callback (gethash nonce racket--cmd-nonce->callback)))
-                           (remhash nonce racket--cmd-nonce->callback)
-                           (when callback
-                             (run-at-time 0.001 nil callback response))
-                           t))
-                        (_ nil)))))
+                      (racket--cmd-dispatch-response (read sexp))
+                      t)))
               (scan-error nil)))))))
+
+(defun racket--cmd-dispatch-response (response)
+  (pcase response
+    (`(debug-break . ,response)
+     (run-at-time 0.001 nil #'racket--on-debug-break response))
+    (`(,nonce . ,response)
+     (let ((callback (gethash nonce racket--cmd-nonce->callback)))
+       (when callback
+         (remhash nonce racket--cmd-nonce->callback)
+         (run-at-time 0.001 nil callback response))))
+    (_ nil)))
 
 (defun racket--cmd/async-raw (command-sexpr &optional callback)
   "Send COMMAND-SEXPR and return. Later call CALLBACK with the response sexp.
@@ -513,14 +518,26 @@ Afterwards call `racket--repl-show-and-move-to-end'."
     (user-error "No region"))
   (racket--send-region-to-repl start end))
 
-(defun racket-send-definition ()
+(defun racket-send-definition (&optional prefix)
   "Send the current definition to the Racket REPL."
-  (interactive)
+  (interactive "P")
   (save-excursion
     (end-of-defun)
     (let ((end (point)))
       (beginning-of-defun)
-      (racket--send-region-to-repl (point) end))))
+      (if prefix
+          (racket--cmd/async
+           (list 'debug-eval
+                 (racket--buffer-file-name)
+                 (line-number-at-pos)
+                 (current-column)
+                 (point)
+                 (buffer-substring-no-properties (point) end))
+           (lambda (_)
+             ;; TODO: Also set fringe, and/or set marker on function
+             ;; name to show it's debuggable.
+             (message "Now you can call the function in the REPL to step debug it.")))
+        (racket--send-region-to-repl (point) end)))))
 
 (defun racket-send-last-sexp ()
   "Send the previous sexp to the Racket REPL.
@@ -576,6 +593,106 @@ Keep original window selected."
   (save-selected-window
     (select-window (get-buffer-window racket--repl-buffer-name t))
     (comint-show-maximum-output)))
+
+;;; Debug breaks
+
+(defvar racket--debug-break-info nil)
+;; (U nil (cons break-id
+;;              (U (list 'before)
+;;                 (list 'after string-of-racket-write-values))))
+
+(defun racket--on-debug-break (response)
+  (pcase response
+    (`((,src . ,pos) ,vals)
+     (pcase (find-buffer-visiting src)
+       (`nil (other-window 1) (find-file src))
+       (buf  (pop-to-buffer buf)))
+     (goto-char pos)
+     (pcase vals
+       (`(,_id before)     (message "Break before expression"))
+       (`(,_id after ,str) (message "Break after expression: (values %s)" str)))
+     (setq racket--debug-break-info vals)
+     (racket-debug-mode 1))))
+
+(defun racket--debug-resume (next-break)
+  (unless racket--debug-break-info (user-error "Not debugging"))
+  (racket--cmd/async `(debug-resume (,next-break
+                                     ,racket--debug-break-info)))
+  (racket-debug-mode -1)
+  (setq racket--debug-break-info nil))
+
+(defun racket-debug-step ()
+  (interactive)
+  ;; TODO: With C-u prefix, prompt for new values to substitute
+  (racket--debug-resume 'all))
+
+(defun racket-debug-continue () ;i.e. "go"
+  (interactive)
+  ;; TODO: With C-u prefix, prompt for new values to substitute
+  (racket--debug-resume 'none))
+
+(defun racket-debug-disable ()
+  (interactive)
+  (racket--cmd/async `(debug-disable))
+  (racket-debug-mode -1)
+  (setq racket--debug-break-info nil))
+
+(add-hook 'racket--repl-before-run-hook #'racket-debug-disable)
+
+(defun racket-debug-help ()
+  (interactive)
+  (describe-function 'racket-debug-mode))
+
+(define-minor-mode racket-debug-mode
+  "Minor mode for debug breaks.
+
+How to debug:
+
+1. Put point in a function `define` form and C-u C-M-x to
+   \"instrument\" the function for step debugging. You can do
+   this for any number of functions.
+
+   You can even do this while stopped at a break. For exmaple, to
+   instrument a function you are about to call, so you can \"step
+   into\" it:
+
+     - M-. a.k.a. `racket-visit-definition'.
+     - C-u C-M-x to instrument the definition.
+     - M-, a.k.a. `racket-unvisit'.
+     - Continue stepping.
+
+   Keep in mind that instrumenting a function in another module,
+   doesn't actually change the definition in that module.
+   Instead, it defines an instrumented funtion of the same name,
+   in the module that the REPL is inside.
+
+   A `racket-run' will re-evaluate from the .rkt file contents,
+   removing all debug instrumentation -- just like it removes any
+   other changes made solely in the REPL.
+
+2. In the *Racket REPL* buffer, enter an expression that causes
+   the instrumented functions to be called, directly or
+   indirectly.
+
+3. When a break occurs, `racket-debug-mode` is activated so you
+   can use convenient keys. Also, the REPL prompt changes. In
+   this debug REPL, local variables are available for you to
+   reference and even to `set!`.
+
+
+```
+\\{racket-debug-mode-map}
+```
+"
+  :lighter " DEBUG"
+  :keymap (racket--easy-keymap-define
+           '((("n" "SPC") racket-debug-step)
+             ("c"         racket-debug-continue)
+             ("h"         racket-debug-help)))
+  (unless (eq major-mode 'racket-mode)
+    (setq racket-debug-mode nil)
+    (user-error "racket-debug-mode only works with racket-mode")))
+
 
 ;;; Inline images in REPL
 
