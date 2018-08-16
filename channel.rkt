@@ -1,7 +1,8 @@
 #lang racket/base
 
-(require racket/match
-         racket/contract
+(require racket/contract
+         racket/match
+         racket/set
          "mod.rkt")
 
 (provide message-to-main-thread-channel
@@ -11,7 +12,8 @@
          rerun-default
          context-level?
          instrument-level?
-         profile/coverage-level?)
+         profile/coverage-level?
+         debug-level?)
 
 
 ;;; Definitions for the context-level member of rerun
@@ -28,19 +30,16 @@
 (define context-levels
   `(low      ;compile-context-preservation-enabled #f
     medium   ;compile-context-preservation-enabled #t
-    ,@instrument-levels))
+    ,@instrument-levels
+    debug))
 
 (define-syntax-rule (memq? x xs)
-  (not (not (memq x xs))))
+  (and (memq x xs) #t))
 
-(define (context-level? v)
-  (memq? v context-levels))
-
-(define (instrument-level? v)
-  (memq? v instrument-levels))
-
-(define (profile/coverage-level? v)
-  (memq? v profile/coverage-levels))
+(define (context-level? v)          (memq? v context-levels))
+(define (instrument-level? v)       (memq? v instrument-levels))
+(define (profile/coverage-level? v) (memq? v profile/coverage-levels))
+(define (debug-level? v)            (eq? v 'debug))
 
 ;;; Messages to the main thread via a channel
 
@@ -61,6 +60,7 @@
    ;; 6.1 when the value is accessed from the struct and passed to
    ;; `current-command-line-arguments`. WAT.
    [cmd-line-args vector?]
+   [debug-files   (set/c path?)]
    [ready-thunk   (-> any/c)]))
 
 (define rerun-default (rerun #f
@@ -68,4 +68,5 @@
                              #f
                              'low
                              #()
+                             (set)
                              void))

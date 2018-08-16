@@ -15,6 +15,7 @@
 ;;; Generate a markdown format file for Reference documentation.
 
 (require 'racket-mode)
+(require 'racket-debug)
 (require 'racket-profile)
 (require 'racket-edit)
 (require 'racket-util)
@@ -53,6 +54,7 @@
     racket-profile-mode
     racket-logger
     racket-logger-mode
+    racket-debug-mode
     "Test"
     racket-test
     racket-raco-test
@@ -157,7 +159,9 @@
     racket-indent-sequence-depth
     racket-pretty-lambda
     racket-smart-open-bracket-enable
-    racket-logger-config)
+    racket-logger-config
+    "Experimental debugger"
+    racket-debuggable-files)
   "Variables to include in the Reference.")
 
 (defun racket-make-doc/variables ()

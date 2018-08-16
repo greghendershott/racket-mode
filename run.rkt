@@ -7,9 +7,11 @@
          racket/match
          racket/pretty
          racket/runtime-path
+         racket/set
          racket/string
          "channel.rkt"
          "cmds.rkt"
+         (only-in "debug.rkt" make-debug-eval-handler)
          "error.rkt"
          "gui.rkt"
          "instrument.rkt"
@@ -43,20 +45,15 @@
                rerun-default)]
       [(vector port run-command)
        (values (string->number port)
-               (match (read (open-input-string run-command))
-                 ;; TODO: Share similar code with cmds.rkt
-                 [(list 'run
-                        (and (or 'nil (? list?)) what)
-                        (? number? mem)
-                        (and (or 't 'nil #t #f) pp?)
-                        (and (or 'low 'medium 'high 'coverage 'profile) ctx)
-                        (and (or 'nil (? list?)) args))
-                  (rerun (if (eq? what 'nil) #f (->mod/existing what))
+               (match (elisp-read (open-input-string run-command))
+                 [(list 'run what mem pp ctx args dbgs)
+                  (rerun (->mod/existing what)
                          mem
-                         (and pp? (not (eq? pp? 'nil)))
+                         (as-racket-bool pp)
                          ctx
-                         (case args [(nil) (vector)] [else (list->vector args)])
-                         void)] ;ready-thunk N/A for startup run
+                         (list->vector args)
+                         (list->set (map string->path dbgs))
+                         void)]
                  [v (eprintf "Bad arguments: ~v => ~v\n" run-command v)
                     (exit)]))]
       [v
@@ -78,6 +75,7 @@
                        pretty-print?
                        context-level
                        cmd-line-args
+                       debug-files
                        ready-thunk) rr)
   (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
   ;; Always set current-directory and current-load-relative-directory
@@ -110,9 +108,10 @@
          ;; OTHERS:
          [compile-enforce-module-constants #f]
          [compile-context-preservation-enabled (not (eq? context-level 'low))]
-         [current-eval (if (instrument-level? context-level)
-                           (make-instrumented-eval-handler (current-eval))
-                           (current-eval))]
+         [current-eval
+          (cond [(debug-level? context-level) (make-debug-eval-handler debug-files)]
+                [(instrument-level? context-level)(make-instrumented-eval-handler)]
+                [else (current-eval)])]
          [instrumenting-enabled (instrument-level? context-level)]
          [profiling-enabled (eq? context-level 'profile)]
          [test-coverage-enabled (eq? context-level 'coverage)]
@@ -154,7 +153,7 @@
         (stx-cache:after-run maybe-mod)
         ;; 3. Tell command server to use our namespace and module.
         (attach-command-server (current-namespace) maybe-mod)
-        ;; 3b. And call the read-thunk command-server gave us from a
+        ;; 3b. And call the ready-thunk command-server gave us from a
         ;; run command, so that it can send a response for the run
         ;; command. Because the command server runs on a different
         ;; thread, it is probably waiting with (sync some-channel) and

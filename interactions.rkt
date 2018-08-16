@@ -57,7 +57,8 @@
   (flush-output)
   (zero-column!))
 
-;; "Footnote" comments about many attempts to fix issue #305.
+;; "Footnote" comments about make-prompt-read and many attempts to fix
+;; issue #305.
 ;;
 ;; [^1]: datalog/lang expects each interaction to be EOF terminated.
 ;;       This seems to be a DrRacket convention (?). We could make

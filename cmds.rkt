@@ -18,6 +18,7 @@
          syntax/modresolve
          (only-in xml xexpr->string)
          "channel.rkt"
+         "debug.rkt"
          "defn.rkt"
          "fresh-line.rkt"
          "help.rkt"
@@ -32,7 +33,9 @@
 
 (provide start-command-server
          attach-command-server
-         make-prompt-read)
+         make-prompt-read
+         elisp-read
+         as-racket-bool)
 
 (module+ test
   (require rackunit))
@@ -84,6 +87,7 @@
 
 (define/contract (attach-command-server ns maybe-mod)
   (-> namespace? (or/c #f mod?) any)
+  (set-debug-repl-namespace! ns)
   (set! command-server-context
         (context ns
                  maybe-mod
@@ -160,7 +164,9 @@
                                 (context-ns command-server-context)])
                   `(ok ,(command sexp command-server-context)))))))
           (define (get/write-response)
-            (elisp-writeln (channel-get response-channel) out)
+            (elisp-writeln (sync response-channel
+                                 debug-notify-channel)
+                           out)
             (flush-output out)
             (get/write-response))
           ;; With all the pieces defined, let's go:
@@ -176,7 +182,8 @@
 
 (define/contract ((make-prompt-read m))
   (-> (or/c #f mod?) (-> any))
-  (get-interaction (maybe-mod->prompt-string m)))
+  (begin0 (get-interaction (maybe-mod->prompt-string m))
+    (next-break 'all))) ;let debug-instrumented code break again
 
 (define/contract (command sexpr the-context)
   (-> pair? context? any/c)
@@ -186,26 +193,29 @@
   ;; Note: Intentionally no "else" match clause -- let caller handle
   ;; exn and supply a consistent exn response format.
   (match sexpr
-    [`(run ,what ,mem ,pp? ,ctx ,args) (run what mem pp? ctx args)]
-    [`(path+md5)                       (cons (or path 'top) md5)]
-    [`(syms)                           (syms)]
-    [`(def ,str)                       (find-definition str)]
-    [`(mod ,sym)                       (find-module sym maybe-mod)]
-    [`(describe ,str)                  (describe str)]
-    [`(doc ,str)                       (doc str)]
-    [`(type ,v)                        (type v)]
-    [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
-    [`(macro-stepper/next)             (macro-stepper/next)]
-    [`(requires/tidy ,reqs)            (requires/tidy reqs)]
-    [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
-    [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]
-    [`(find-collection ,str)           (find-collection str)]
-    [`(get-profile)                    (get-profile)]
-    [`(get-uncovered)                  (get-uncovered path)]
-    [`(check-syntax ,path-str)         (check-syntax path-str)]
-    [`(eval ,v)                        (eval-command v)]
-    [`(repl-submit? ,str ,eos?)        (repl-submit? submit-pred str eos?)]
-    [`(exit)                           (exit)]))
+    [`(run ,what ,mem ,pp? ,ctx ,args ,dbg) (run what mem pp? ctx args dbg)]
+    [`(path+md5)                            (cons (or path 'top) md5)]
+    [`(syms)                                (syms)]
+    [`(def ,str)                            (find-definition str)]
+    [`(mod ,sym)                            (find-module sym maybe-mod)]
+    [`(describe ,str)                       (describe str)]
+    [`(doc ,str)                            (doc str)]
+    [`(type ,v)                             (type v)]
+    [`(macro-stepper ,str ,into-base?)      (macro-stepper str into-base?)]
+    [`(macro-stepper/next)                  (macro-stepper/next)]
+    [`(requires/tidy ,reqs)                 (requires/tidy reqs)]
+    [`(requires/trim ,path-str ,reqs)       (requires/trim path-str reqs)]
+    [`(requires/base ,path-str ,reqs)       (requires/base path-str reqs)]
+    [`(find-collection ,str)                (find-collection str)]
+    [`(get-profile)                         (get-profile)]
+    [`(get-uncovered)                       (get-uncovered path)]
+    [`(check-syntax ,path-str)              (check-syntax path-str)]
+    [`(eval ,v)                             (eval-command v)]
+    [`(repl-submit? ,str ,eos?)             (repl-submit? submit-pred str eos?)]
+    [`(debug-eval ,src ,l ,c ,p ,code)      (debug-eval src l c p code)]
+    [`(debug-resume ,v)                     (debug-resume v)]
+    [`(debug-disable)                       (debug-disable)]
+    [`(exit)                                (exit)]))
 
 ;;; read/write Emacs Lisp values
 
@@ -241,18 +251,21 @@
     [(? list? xs)   (map racket->elisp xs)]
     [(cons x y)     (cons (racket->elisp x) (racket->elisp y))]
     [(? path? v)    (path->string v)]
+    [(? hash? v)    (for/list ([(k v) (in-hash v)])
+                      (cons (racket->elisp k) (racket->elisp v)))]
+    [(? set? v)     (map racket->elisp (set->list v))]
     [v              v]))
 
 (module+ test
   (check-equal? (with-output-to-string
-                  (λ () (elisp-write '(1 #t nil () (a . b))
+                  (λ () (elisp-write '(1 #t nil () (a . b) #hash((1 . 2) (3 . 4)))
                                      (current-output-port))))
-                "(1 t nil nil (a . b))"))
+                "(1 t nil nil (a . b) ((1 . 2) (3 . 4)))"))
 
 ;;; commands
 
-(define/contract (run what mem pp ctx args)
-  (-> list? number? elisp-bool/c context-level? list?
+(define/contract (run what mem pp ctx args dbgs)
+  (-> list? number? elisp-bool/c context-level? list? (listof path-string?)
       list?)
   (define ready-channel (make-channel))
   (channel-put message-to-main-thread-channel
@@ -261,6 +274,7 @@
                       (as-racket-bool pp)
                       ctx
                       (list->vector args)
+                      (list->set (map string->path dbgs))
                       (λ () (channel-put ready-channel what))))
   ;; Waiting for this allows the command response to be used as the
   ;; all-clear for additional commands that need the module load to be

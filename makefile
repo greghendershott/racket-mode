@@ -31,6 +31,7 @@ compile: clean \
 	racket-common.elc \
 	racket-collection.elc \
 	racket-complete.elc \
+	racket-debug.elc \
 	racket-edit.elc \
 	racket-font-lock.elc \
 	racket-imenu.elc \

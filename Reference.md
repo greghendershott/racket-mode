@@ -13,6 +13,7 @@
     - [General](#general)
     - [REPL](#repl)
     - [Other](#other)
+    - [Experimental debugger](#experimental-debugger)
 - [Faces](#faces)
 
 # Commands
@@ -22,10 +23,13 @@
 ### racket-run
 <kbd>C-c C-k</kbd> or <kbd>C-c C-c</kbd>
 
-Save and evaluate the buffer in REPL, much like DrRacket's Run.
+Save and evaluate the buffer in REPL.
 
-With a C-u prefix, uses errortrace for improved stack traces.
+With one C-u prefix, uses errortrace for improved stack traces.
 Otherwise follows the [`racket-error-context`](#racket-error-context) setting.
+
+With two C-u prefixes, instruments code for step debugging. See
+[`racket-debug-mode`](#racket-debug-mode) and the variable [`racket-debuggable-files`](#racket-debuggable-files).
 
 If point is within a Racket `module` form, the REPL "enters"
 that submodule (uses its language info and namespace).
@@ -151,6 +155,88 @@ C-c C-z		racket-repl
 In addition to any hooks its parent mode `special-mode` might have run,
 this mode runs the hook [`racket-logger-mode-hook`](#racket-logger-mode-hook), as the final or penultimate step
 during initialization.
+
+### racket-debug-mode
+<kbd>M-x racket-debug-mode</kbd>
+
+Minor mode for debug breaks.
+
+> This feature is **EXPERIMENTAL**!!! It is likely to have
+> significant limitations and bugs. You are welcome to open an
+> issue to provide feedback. Please understand that this feature
+> might never be improved -- it might even be removed someday if
+> it turns out to have too little value and/or too much cost.
+
+How to debug:
+
+1. "Instrument" code for step debugging. You can instrument
+   entire files, and also individual functions.
+
+   a. Entire Files
+
+      Choose [`racket-run`](#racket-run) with two prefixes -- C-u C-u C-c C-c. The
+      file will be instrumented for step debugging before it is run.
+      Also instrumented are files determined by the variable
+      [`racket-debuggable-files`](#racket-debuggable-files).
+
+      The run will break at the first breakable position.
+
+      Tip: After you run to completion and return to a normal
+      REPL prompt, the code remains instrumented. You may enter
+      expressions that evaluate instrumented code and it will
+      break so you can step debug again.
+
+   b. Function Definitions
+
+      Put point in a function `define` form and C-u C-M-x to
+      "instrument" the function for step debugging. Then in the
+      REPL, enter an expression that causes the instrumented
+      function to be run, directly or indirectly.
+
+      You can instrument any number of functions.
+
+      You can even instrument while stopped at a break. For
+      example, to instrument a function you are about to call, so
+      you can "step into" it:
+
+        - M-. a.k.a. [`racket-visit-definition`](#racket-visit-definition).
+        - C-u C-M-x to instrument the definition.
+        - M-, a.k.a. [`racket-unvisit`](#racket-unvisit).
+        - Continue stepping.
+
+      Limitation: Instrumenting a function `require`d from
+      another module won't redefine that function. Instead, it
+      attempts to define an instrumented function of the same
+      name, in the module the REPL is inside. The define will
+      fail if it needs definitions visible only in that other
+      module. In that case you'll probably need to use
+      entire-file instrumentation as described above.
+
+2. When a break occurs, the [`racket-repl-mode`](#racket-repl-mode) prompt changes. In
+   this debug REPL, local variables are available for you to use
+   and even to `set!`.
+
+   Also, in the [`racket-mode`](#racket-mode) buffer where the break is located,
+   [`racket-debug-mode`](#racket-debug-mode) is enabled. This minor mode makes the
+   buffer read-only, provides visual feedback -- about the break
+   position, local variable values, and result values -- and
+   provides shortcut keys:
+
+```
+key             binding
+---             -------
+
+SPC		racket-debug-step
+?		racket-debug-help
+c		racket-debug-continue
+h		racket-debug-run-to-here
+n		racket-debug-next-breakable
+o		racket-debug-step-over
+p		racket-debug-prev-breakable
+u		racket-debug-step-out
+
+
+```
 
 ## Test
 
@@ -898,6 +984,19 @@ For more information see:
 The default value sets some known "noisy" topics to be one
 level quieter. That way you can set the '* topic to a level like
 'debug and not get overhwelmed by these noisy topics.
+
+## Experimental debugger
+
+### racket-debuggable-files
+Used to tell [`racket-run`](#racket-run) what files may be instrumented for debugging.
+Must be a list of strings that are pathnames, such as from
+[`racket--buffer-file-name`](#racket--buffer-file-name), -or-, a function that returns such a
+list given the pathname of the file being run. If any path
+strings are relative, they are made absolute using
+`expand-file-name` with the directory of the file being run. The
+symbol 'run-file may be supplied in the list; it will be replaced
+with the pathname of the file being run. Safe to set as a
+file-local variable.
 
 # Faces
 

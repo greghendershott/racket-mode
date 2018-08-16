@@ -23,6 +23,15 @@
 (require 'comint)
 (require 'compile)
 (require 'easymenu)
+(require 'cl-lib)
+
+;; Don't (require 'racket-debug). Mutual dependency. Instead:
+(declare-function  racket--debug-send-definition "racket-debug" (beg end))
+(autoload         'racket--debug-send-definition "racket-debug")
+(declare-function  racket--debug-on-break        "racket-debug" (response))
+(autoload         'racket--debug-on-break        "racket-debug")
+(declare-function  racket--debuggable-files      "racket-debug" (file-to-run))
+(autoload         'racket--debuggable-files      "racket-debug")
 
 (defconst racket--repl-buffer-name/raw
   "Racket REPL"
@@ -148,7 +157,7 @@ but NOT:
   (comint-check-proc racket--repl-buffer-name))
 
 (defvar racket--repl-before-run-hook nil
-  "Thunks to do before each `racket--repl-run'.")
+  "Thunks to do before each `racket--repl-run' -- except an initial run.")
 
 (defun racket--repl-run (&optional what-to-run context-level callback)
   "Do an initial or subsequent run.
@@ -171,10 +180,10 @@ equivalent to #'ignore.
 - If the REPL _is_ live, send a run command to the backend's TCP
   server. If the server isn't live yet -- e.g. if Racket run.rkt
   are still starting up -- this _will_ block the Emacs UI."
-  (run-hook-with-args 'racket--repl-before-run-hook)
   (let ((cmd (racket--repl-make-run-command (or what-to-run (racket--what-to-run))
                                             (or context-level racket-error-context))))
     (cond ((racket--repl-live-p)
+           (run-hook-with-args 'racket--repl-before-run-hook)
            (racket--cmd/async cmd callback)
            (racket--repl-show-and-move-to-end))
           (t
@@ -187,11 +196,15 @@ equivalent to #'ignore.
 (defun racket--repl-make-run-command (what-to-run &optional context-level)
   "Form a `run` command sexpr for the backend.
 WHAT-TO-RUN may be nil, meaning just a `racket/base` namespace."
-  `(run ,what-to-run
-        ,racket-memory-limit
-        ,racket-pretty-print
-        ,(or context-level racket-error-context)
-        ,racket-user-command-line-arguments))
+  (let ((context-level (or context-level racket-error-context)))
+    (list 'run
+          what-to-run
+          racket-memory-limit
+          racket-pretty-print
+          context-level
+          racket-user-command-line-arguments
+          (when (and what-to-run (eq context-level 'debug))
+            (racket--debuggable-files (car what-to-run))))))
 
 (defun racket--repl-ensure-buffer-and-process (&optional display run-command)
   "Ensure Racket REPL buffer exists and has live Racket process.
@@ -351,15 +364,20 @@ wait for the connection to be established."
                   (let ((sexp (buffer-substring (point-min) (point))))
                     (delete-region (point-min) (point))
                     (ignore-errors
-                      (pcase (read sexp)
-                        (`(,nonce . ,response)
-                         (let ((callback (gethash nonce racket--cmd-nonce->callback)))
-                           (remhash nonce racket--cmd-nonce->callback)
-                           (when callback
-                             (run-at-time 0.001 nil callback response))
-                           t))
-                        (_ nil)))))
+                      (racket--cmd-dispatch-response (read sexp))
+                      t)))
               (scan-error nil)))))))
+
+(defun racket--cmd-dispatch-response (response)
+  (pcase response
+    (`(debug-break . ,response)
+     (run-at-time 0.001 nil #'racket--debug-on-break response))
+    (`(,nonce . ,response)
+     (let ((callback (gethash nonce racket--cmd-nonce->callback)))
+       (when callback
+         (remhash nonce racket--cmd-nonce->callback)
+         (run-at-time 0.001 nil callback response))))
+    (_ nil)))
 
 (defun racket--cmd/async-raw (command-sexpr &optional callback)
   "Send COMMAND-SEXPR and return. Later call CALLBACK with the response sexp.
@@ -513,14 +531,16 @@ Afterwards call `racket--repl-show-and-move-to-end'."
     (user-error "No region"))
   (racket--send-region-to-repl start end))
 
-(defun racket-send-definition ()
+(defun racket-send-definition (&optional prefix)
   "Send the current definition to the Racket REPL."
-  (interactive)
+  (interactive "P")
   (save-excursion
     (end-of-defun)
     (let ((end (point)))
       (beginning-of-defun)
-      (racket--send-region-to-repl (point) end))))
+      (if prefix
+          (racket--debug-send-definition (point) end)
+        (racket--send-region-to-repl (point) end)))))
 
 (defun racket-send-last-sexp ()
   "Send the previous sexp to the Racket REPL.
@@ -587,7 +607,7 @@ Keep original window selected."
        (file-directory-p racket-image-cache-dir)
        (let ((files (directory-files-and-attributes
                      racket-image-cache-dir t "racket-image-[0-9]*.png")))
-         (mapcar 'car
+         (mapcar #'car
                  (sort files (lambda (a b)
                                (< (float-time (nth 6 a))
                                   (float-time (nth 6 b)))))))))

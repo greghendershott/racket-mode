@@ -39,18 +39,14 @@
 (define expanded-stx (with-handlers ([exn:fail? (λ _ (make-parameter #f))])
                        (dynamic-require 'errortrace/stacktrace 'expanded-stx)))
 
-(define ((make-instrumented-eval-handler orig-eval) orig-exp)
+(define ((make-instrumented-eval-handler [orig-eval (current-eval)]) orig-exp)
   ;; This is modeled after the one in DrRacket.
   (cond
     [(or (not (instrumenting-enabled))
-         (compiled-expression? (if (syntax? orig-exp)
-                                   (syntax-e orig-exp)
-                                   orig-exp)))
+         (compiled-expression? (syntax-or-sexpr->sexpr orig-exp)))
      (orig-eval orig-exp)]
     [else
-     (let loop ([exp (if (syntax? orig-exp)
-                         orig-exp
-                         (namespace-syntax-introduce (datum->syntax #f orig-exp)))])
+     (let loop ([exp (syntax-or-sexpr->syntax orig-exp)])
        (let ([top-e (expand-syntax-to-top-form exp)])
          (syntax-case top-e (begin)
            [(begin expr ...)
