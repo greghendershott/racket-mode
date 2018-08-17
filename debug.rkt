@@ -36,8 +36,10 @@
                                 void ;record-top-level-identifier!
                                 (syntax-source stx)))
 
-(define break-when/c (or/c 'all 'none (cons/c path-string?
-                                              exact-positive-integer?)))
+(define nat/c exact-nonnegative-integer?)
+(define pos/c exact-positive-integer?)
+
+(define break-when/c (or/c 'all 'none (cons/c path-string? pos/c)))
 (define/contract next-break
   (case-> (-> break-when/c)
           (-> break-when/c void))
@@ -70,6 +72,16 @@
   (define pos (case before/after
                 [(before)    (syntax-position stx)]
                 [(after)  (+ (syntax-position stx) (syntax-span stx) -1)]))
+  (define locals
+    (for*/list ([binding  (in-list (mark-bindings top-mark))]
+                [stx      (in-value (first binding))]
+                [sym      (in-value (syntax->datum stx))]
+                [get/set! (in-value (second binding))])
+      (list (syntax-source stx)
+            (syntax-position stx)
+            (syntax-span stx)
+            sym
+            (~v (get/set!)))))
   ;; Start a debug repl on its own thread, because below we're going to
   ;; block indefinitely with (channel-get on-resume-channel), waiting for
   ;; the Emacs front end to issue a debug-resume command.
@@ -83,6 +95,7 @@
   (channel-put on-break-channel
                (list 'debug-break
                      (cons src pos)
+                     locals
                      (cons this-break-id
                            (case before/after
                              [(before) (list 'before)]
@@ -96,7 +109,13 @@
           [(list (== this-break-id) (or 'before 'after) vals-str)
            (read (open-input-string vals-str))]
           [_ (wait)])
-      (kill-thread repl-thread))))
+      (kill-thread repl-thread)
+      (newline))))
+
+(define break-id/c nat/c)
+(define/contract new-break-id
+  (-> break-id/c)
+  (let ([n 0]) (λ () (begin0 n (set! n (add1 n))))))
 
 (define/contract (debug-marks ccm)
   (-> continuation-mark-set? (listof mark/c))
@@ -146,9 +165,6 @@
 
 ;;; Command interface
 
-(define new-break-id
-  (let ([n 0]) (λ () (begin0 n (set! n (add1 n))))))
-
 (define breakables (make-hash))
 
 ;; Intended use is for `code` to be a function definition form. It
@@ -159,7 +175,7 @@
 ;; notification, since that's when the front end will need to
 ;; establish a minor mode.
 (define/contract (debug-eval source line col pos code)
-  (-> path-string? exact-positive-integer? exact-nonnegative-integer? exact-positive-integer? string? (listof exact-positive-integer?))
+  (-> path-string? pos/c nat/c pos/c string? (listof pos/c))
   (define in (open-input-string code))
   (port-count-lines! in)
   (set-port-next-location! in line col pos)
@@ -174,11 +190,11 @@
                 (list))
   (hash-ref breakables source))
 
-(define break-id/c exact-nonnegative-integer?)
+(define locals/c (listof (list/c string? pos/c pos/c symbol? string?)))
 (define break-vals/c (cons/c break-id/c
                              (or/c (list/c 'before)
                                    (list/c 'after string?))))
-(define on-break/c (list/c 'debug-break break-when/c break-vals/c))
+(define on-break/c (list/c 'debug-break break-when/c locals/c break-vals/c))
 (define/contract on-break-channel (channel/c on-break/c) (make-channel))
 
 (define resume-vals/c (cons/c break-id/c

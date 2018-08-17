@@ -596,6 +596,7 @@ Keep original window selected."
 
 ;;; Debug breaks
 
+(defvar racket--debug-break-locals nil)
 (defvar racket--debug-break-info nil)
 ;; (U nil (cons break-id
 ;;              (U (list 'before)
@@ -603,7 +604,7 @@ Keep original window selected."
 
 (defun racket--on-debug-break (response)
   (pcase response
-    (`((,src . ,pos) ,vals)
+    (`((,src . ,pos) ,locals ,vals)
      (pcase (find-buffer-visiting src)
        (`nil (other-window 1) (find-file src))
        (buf  (pop-to-buffer buf)))
@@ -611,6 +612,7 @@ Keep original window selected."
      (pcase vals
        (`(,_id before)     (message "Break before expression"))
        (`(,_id after ,str) (message "Break after expression: (values %s)" str)))
+     (setq racket--debug-break-locals locals)
      (setq racket--debug-break-info vals)
      (racket-debug-mode 1))))
 
@@ -619,6 +621,7 @@ Keep original window selected."
   (racket--cmd/async `(debug-resume (,next-break
                                      ,racket--debug-break-info)))
   (racket-debug-mode -1)
+  (setq racket--debug-break-locals nil)
   (setq racket--debug-break-info nil))
 
 (defun racket-debug-step ()
@@ -635,6 +638,7 @@ Keep original window selected."
   (interactive)
   (racket--cmd/async `(debug-disable))
   (racket-debug-mode -1)
+  (setq racket--debug-break-locals nil)
   (setq racket--debug-break-info nil))
 
 (add-hook 'racket--repl-before-run-hook #'racket-debug-disable)
@@ -642,6 +646,8 @@ Keep original window selected."
 (defun racket-debug-help ()
   (interactive)
   (describe-function 'racket-debug-mode))
+
+(defvar racket--debug-overlays nil)
 
 (define-minor-mode racket-debug-mode
   "Minor mode for debug breaks.
@@ -691,8 +697,21 @@ How to debug:
              ("h"         racket-debug-help)))
   (unless (eq major-mode 'racket-mode)
     (setq racket-debug-mode nil)
-    (user-error "racket-debug-mode only works with racket-mode")))
-
+    (user-error "racket-debug-mode only works with racket-mode"))
+  (if racket-debug-mode
+      (dolist (local racket--debug-break-locals)
+        (pcase-let* ((`(,_src ,pos ,span ,_name ,val) local)
+                     (o (make-overlay pos (+ pos span))))
+          (setq racket--debug-overlays (cons o racket--debug-overlays))
+          (overlay-put o 'name 'racket-debug-overlay)
+          (overlay-put o 'priority 100)
+          (overlay-put o 'face racket-debug-locals-face)
+          (overlay-put o 'after-string (propertize
+                                        (format "=%s" val)
+                                        'face racket-debug-locals-face))))
+    (dolist (o racket--debug-overlays)
+      (delete-overlay o))
+    (setq racket--debug-overlays nil)))
 
 ;;; Inline images in REPL
 

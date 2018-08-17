@@ -339,6 +339,11 @@ level quieter. That way you can set the '* topic to a level like
   "Face for `racket-logger-mode' debug level."
   "Racket Logger Debug Face")
 
+(defface-racket racket-debug-locals-face
+  '((t (:inherit font-lock-variable-name-face :weight bold)))
+  "Face for `racket-debug-mode' local variables."
+  "Racket Debug Locals Face")
+
 (provide 'racket-custom)
 
 ;; racket-custom.el ends here
