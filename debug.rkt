@@ -106,17 +106,11 @@
 ;;; Debug REPL
 
 (define ((repl src pos top-mark))
-  (define path (if (path? src) src (string->path src)))
-  (define mod-path (make-resolved-module-path path))
-  (define ns (module->namespace mod-path))
-  (define intro (make-syntax-introducer #t))
+  (define intro (make-syntax-introducer #t)) ;Racket 6.3+
   (define old-eval (current-eval))
-  (define (new-eval stx)
-    (old-eval (intro stx)))
-  (parameterize ([current-namespace   ns]
-                 [current-eval        new-eval]
+  (define (new-eval stx) (old-eval (intro stx)))
+  (parameterize ([current-eval        new-eval]
                  [current-prompt-read (prompt-read src pos top-mark)])
-    (newline) ;;FIXME: Why doesn't fresh-line work here?
     (read-eval-print-loop)))
 
 (define ((prompt-read src pos top-mark))
