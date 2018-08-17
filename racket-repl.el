@@ -610,29 +610,40 @@ Keep original window selected."
        (buf  (pop-to-buffer buf)))
      (goto-char pos)
      (pcase vals
-       (`(,_id before)     (message "Break before expression"))
-       (`(,_id after ,str) (message "Break after expression: (values %s)" str)))
+       (`(,_id before)   (message "Break before expression"))
+       (`(,_id after ,s) (message "Break after expression: (values %s" (substring s 1))))
      (setq racket--debug-break-locals locals)
      (setq racket--debug-break-info vals)
      (racket-debug-mode 1))))
 
-(defun racket--debug-resume (next-break)
+(defun racket--debug-resume (next-break value-prompt-p)
   (unless racket--debug-break-info (user-error "Not debugging"))
-  (racket--cmd/async `(debug-resume (,next-break
-                                     ,racket--debug-break-info)))
+  (let ((info (if value-prompt-p
+                  (racket--debug-prompt-for-new-values)
+                racket--debug-break-info)))
+    (racket--cmd/async `(debug-resume (,next-break ,info))))
   (racket-debug-mode -1)
   (setq racket--debug-break-locals nil)
   (setq racket--debug-break-info nil))
 
-(defun racket-debug-step ()
-  (interactive)
-  ;; TODO: With C-u prefix, prompt for new values to substitute
-  (racket--debug-resume 'all))
+(defun racket--debug-prompt-for-new-values ()
+  (pcase racket--debug-break-info
+    (`(,id before)
+     (pcase (read-from-minibuffer "Skip step, substituting values: " "()")
+       ((or `nil "" "()") `(,id before))
+       (str  `(,id before ,str))))
+    (`(,id after ,orig)
+     (pcase (read-from-minibuffer "Step, replacing result values: " orig)
+       ((or `nil "" "()") `(,id after ,orig))
+       (new  `(,id after ,new))))))
 
-(defun racket-debug-continue () ;i.e. "go"
-  (interactive)
-  ;; TODO: With C-u prefix, prompt for new values to substitute
-  (racket--debug-resume 'none))
+(defun racket-debug-step (&optional prefix)
+  (interactive "P")
+  (racket--debug-resume 'all prefix))
+
+(defun racket-debug-continue (&optional prefix)
+  (interactive "P")
+  (racket--debug-resume 'none prefix))
 
 (defun racket-debug-disable ()
   (interactive)
@@ -698,20 +709,41 @@ How to debug:
   (unless (eq major-mode 'racket-mode)
     (setq racket-debug-mode nil)
     (user-error "racket-debug-mode only works with racket-mode"))
-  (if racket-debug-mode
-      (dolist (local racket--debug-break-locals)
-        (pcase-let* ((`(,_src ,pos ,span ,_name ,val) local)
-                     (o (make-overlay pos (+ pos span))))
-          (setq racket--debug-overlays (cons o racket--debug-overlays))
-          (overlay-put o 'name 'racket-debug-overlay)
-          (overlay-put o 'priority 100)
-          (overlay-put o 'face racket-debug-locals-face)
-          (overlay-put o 'after-string (propertize
-                                        (format "=%s" val)
-                                        'face racket-debug-locals-face))))
+  (cond
+   (racket-debug-mode
+    (racket--make-debug-overlay
+     (point) (1+ (point))
+     'face racket-debug-break-face
+     'priority 99)
+    (dolist (local racket--debug-break-locals)
+      (pcase-let ((`(,_src ,pos ,span ,_name ,val) local))
+        (racket--make-debug-overlay
+         pos (+ pos span)
+         'after-string (propertize val 'face racket-debug-locals-face))))
+    (pcase racket--debug-break-info
+      (`(,_id after ,str)
+       (let ((eol (line-end-position)))
+         (racket--make-debug-overlay
+          (1- eol) eol
+          'after-string (propertize (concat "⇒ (values " (substring str 1))
+                                    'face racket-debug-result-face)))))
+    (read-only-mode 1))
+   (t
+    (read-only-mode -1)
     (dolist (o racket--debug-overlays)
       (delete-overlay o))
-    (setq racket--debug-overlays nil)))
+    (setq racket--debug-overlays nil))))
+
+(defun racket--make-debug-overlay (beg end &rest props)
+  (let ((o (make-overlay beg end)))
+    (setq racket--debug-overlays (cons o racket--debug-overlays))
+    (dolist (kv (seq-partition (list* 'name     'racket-debug-overlay
+                                      'priority 100
+                                      props)
+                               2))
+      (apply #'overlay-put o kv))
+    o))
+
 
 ;;; Inline images in REPL
 
@@ -723,7 +755,7 @@ How to debug:
        (file-directory-p racket-image-cache-dir)
        (let ((files (directory-files-and-attributes
                      racket-image-cache-dir t "racket-image-[0-9]*.png")))
-         (mapcar 'car
+         (mapcar #'car
                  (sort files (lambda (a b)
                                (< (float-time (nth 6 a))
                                   (float-time (nth 6 b)))))))))
