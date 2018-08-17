@@ -1,8 +1,7 @@
 #lang racket/base
 
 (provide fresh-line
-         zero-column!
-         display-prompt)
+         zero-column!)
 
 ;; Borrowed from xrepl
 
@@ -36,11 +35,3 @@
   (maybe-new-output-ports)
   (define-values [line col pos] (port-next-location last-output-port))
   (set-port-next-location! last-output-port line 0 pos))
-
-(define (display-prompt str)
-  (flush-output (current-error-port))
-  (fresh-line)
-  (display str)
-  (display "> ")
-  (flush-output)
-  (zero-column!))

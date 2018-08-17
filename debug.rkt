@@ -9,7 +9,7 @@
          racket/match
          racket/set
          racket/string
-         "fresh-line.rkt")
+         "interactions.rkt")
 
 (provide (rename-out [on-break-channel debug-notify-channel])
          debug-eval
@@ -116,8 +116,7 @@
 (define ((prompt-read src pos top-mark))
   (define-values (_base name _dir) (split-path src))
   (display-prompt (format "DEBUG:~a:~a" name pos))
-  (define in ((current-get-interaction-input-port)))
-  (define stx ((current-read-interaction) (object-name in) in))
+  (define stx (channel-get read-interactions-channel))
   (wrap-in-set!-transformers stx (mark-bindings top-mark)))
 
 (define (wrap-in-set!-transformers stx bindings)
