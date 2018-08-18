@@ -744,19 +744,19 @@ How to debug:
     (user-error "racket-debug-mode only works with racket-mode"))
   (cond
    (racket-debug-mode
-    (racket--make-debug-overlay
+    (racket--debug-make-overlay
      (point) (1+ (point))
      'face racket-debug-break-face
      'priority 99)
     (dolist (local racket--debug-break-locals)
       (pcase-let ((`(,_src ,pos ,span ,_name ,val) local))
-        (racket--make-debug-overlay
+        (racket--debug-make-overlay
          pos (+ pos span)
          'after-string (propertize val 'face racket-debug-locals-face))))
     (pcase racket--debug-break-info
       (`(,_id after ,str)
        (let ((eol (line-end-position)))
-         (racket--make-debug-overlay
+         (racket--debug-make-overlay
           (1- eol) eol
           'after-string (propertize (concat "⇒ (values " (substring str 1))
                                     'face racket-debug-result-face)))))
@@ -767,14 +767,13 @@ How to debug:
       (delete-overlay o))
     (setq racket--debug-overlays nil))))
 
-(defun racket--make-debug-overlay (beg end &rest props)
+(defun racket--debug-make-overlay (beg end &rest props)
   (let ((o (make-overlay beg end)))
-    (setq racket--debug-overlays (cons o racket--debug-overlays))
-    (dolist (kv (seq-partition (cl-list* 'name     'racket-debug-overlay
-                                         'priority 100
-                                         props)
-                               2))
-      (apply #'overlay-put o kv))
+    (push o racket--debug-overlays)
+    (overlay-put o 'name 'racket-debug-overlay)
+    (overlay-put o 'priority 100)
+    (while props
+      (overlay-put o (pop props) (pop props)))
     o))
 
 
