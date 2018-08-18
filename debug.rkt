@@ -50,10 +50,11 @@
 ;; If this returns #t, either break-before or break-after will be
 ;; called next.
 (define ((break? src) pos)
-  ;; (println (list 'break? src pos))
   (match (next-break)
-    [(or 'all (cons (== src) (== pos))) #t]
-    ['none                              #f]))
+    ['none                    #f]
+    ['all                     #t]
+    [(cons (== src) (== pos)) #t]
+    [_                        #f]))
 
 (define/contract (break-before top-mark ccm)
   (-> mark/c continuation-mark-set? (or/c #f (listof any/c)))
@@ -95,6 +96,7 @@
   (channel-put on-break-channel
                (list 'debug-break
                      (cons src pos)
+                     (breakable-positions-as-alist)
                      locals
                      (cons this-break-id
                            (case before/after
@@ -165,7 +167,13 @@
 
 ;;; Command interface
 
-(define breakables (make-hash))
+(define breakable-positions (make-hash))
+
+(define breakable-positions/c (listof (cons/c path-string? (listof pos/c))))
+(define/contract (breakable-positions-as-alist)
+  (-> breakable-positions/c)
+  (for/list ([(k v) (in-hash breakable-positions)])
+    (cons k v)))
 
 ;; Intended use is for `code` to be a function definition form. It
 ;; will be re-defined annotated for single stepping: When executed it
@@ -175,26 +183,30 @@
 ;; notification, since that's when the front end will need to
 ;; establish a minor mode.
 (define/contract (debug-eval source line col pos code)
-  (-> path-string? pos/c nat/c pos/c string? (listof pos/c))
+  (-> path-string? pos/c nat/c pos/c string? #t)
   (define in (open-input-string code))
   (port-count-lines! in)
   (set-port-next-location! in line col pos)
-  (define-values (annotated breakable-positions)
+  (define-values (annotated breakables)
     (annotate (expand (read-syntax source in))))
   (eval annotated)
   (next-break 'all)
-  (hash-update! breakables
+  (hash-update! breakable-positions
                 source
                 (λ (xs)
-                  (sort (remove-duplicates (append xs breakable-positions)) <))
+                  (sort (remove-duplicates (append xs breakables)) <))
                 (list))
-  (hash-ref breakables source))
+  #t)
 
 (define locals/c (listof (list/c string? pos/c pos/c symbol? string?)))
 (define break-vals/c (cons/c break-id/c
                              (or/c (list/c 'before)
                                    (list/c 'after string?))))
-(define on-break/c (list/c 'debug-break break-when/c locals/c break-vals/c))
+(define on-break/c (list/c 'debug-break
+                           break-when/c
+                           breakable-positions/c
+                           locals/c
+                           break-vals/c))
 (define/contract on-break-channel (channel/c on-break/c) (make-channel))
 
 (define resume-vals/c (cons/c break-id/c
@@ -213,5 +225,5 @@
 
 (define (debug-disable)
   (next-break 'none)
-  (for ([k (in-hash-keys breakables)])
-    (hash-remove! breakables k)))
+  (for ([k (in-hash-keys breakable-positions)])
+    (hash-remove! breakable-positions k)))

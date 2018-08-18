@@ -23,6 +23,7 @@
 (require 'comint)
 (require 'compile)
 (require 'easymenu)
+(require 'cl-lib)
 
 (defconst racket--repl-buffer-name/raw
   "Racket REPL"
@@ -596,6 +597,7 @@ Keep original window selected."
 
 ;;; Debug breaks
 
+(defvar racket--debug-break-positions nil)
 (defvar racket--debug-break-locals nil)
 (defvar racket--debug-break-info nil)
 ;; (U nil (cons break-id
@@ -604,7 +606,7 @@ Keep original window selected."
 
 (defun racket--on-debug-break (response)
   (pcase response
-    (`((,src . ,pos) ,locals ,vals)
+    (`((,src . ,pos) ,positions ,locals ,vals)
      (pcase (find-buffer-visiting src)
        (`nil (other-window 1) (find-file src))
        (buf  (pop-to-buffer buf)))
@@ -612,6 +614,7 @@ Keep original window selected."
      (pcase vals
        (`(,_id before)   (message "Break before expression"))
        (`(,_id after ,s) (message "Break after expression: (values %s" (substring s 1))))
+     (setq racket--debug-break-positions positions)
      (setq racket--debug-break-locals locals)
      (setq racket--debug-break-info vals)
      (racket-debug-mode 1))))
@@ -623,6 +626,7 @@ Keep original window selected."
                 racket--debug-break-info)))
     (racket--cmd/async `(debug-resume (,next-break ,info))))
   (racket-debug-mode -1)
+  (setq racket--debug-break-positions nil)
   (setq racket--debug-break-locals nil)
   (setq racket--debug-break-info nil))
 
@@ -645,10 +649,33 @@ Keep original window selected."
   (interactive "P")
   (racket--debug-resume 'none prefix))
 
+(defun racket-debug-run-to-here (&optional prefix)
+  (interactive)
+  (racket--debug-resume (cons (racket--buffer-file-name) (point)) prefix))
+
+(defun racket-debug-next-breakable ()
+  (interactive)
+  (racket--debug-goto-breakable t))
+
+(defun racket-debug-prev-breakable ()
+  (interactive)
+  (racket--debug-goto-breakable nil))
+
+(defun racket--debug-goto-breakable (forwardp)
+  (pcase (assoc (racket--buffer-file-name) racket--debug-break-positions)
+    (`(,_src . ,ps)
+     (let ((ps   (if forwardp ps (reverse ps)))
+           (pred (apply-partially (if forwardp #'< #'>) (point))))
+       (goto-char (pcase (cl-find-if pred ps)
+                    (`nil (car ps))
+                    (v    v)))))
+    (_ (user-error "No breakable positions in this buffer"))))
+
 (defun racket-debug-disable ()
   (interactive)
   (racket--cmd/async `(debug-disable))
   (racket-debug-mode -1)
+  (setq racket--debug-break-positions nil)
   (setq racket--debug-break-locals nil)
   (setq racket--debug-break-info nil))
 
@@ -663,13 +690,15 @@ Keep original window selected."
 (define-minor-mode racket-debug-mode
   "Minor mode for debug breaks.
 
+> This feature is **EXPERIMENTAL**.
+
 How to debug:
 
 1. Put point in a function `define` form and C-u C-M-x to
    \"instrument\" the function for step debugging. You can do
    this for any number of functions.
 
-   You can even do this while stopped at a break. For exmaple, to
+   You can even do this while stopped at a break. For example, to
    instrument a function you are about to call, so you can \"step
    into\" it:
 
@@ -678,14 +707,15 @@ How to debug:
      - M-, a.k.a. `racket-unvisit'.
      - Continue stepping.
 
-   Keep in mind that instrumenting a function in another module,
-   doesn't actually change the definition in that module.
-   Instead, it defines an instrumented funtion of the same name,
-   in the module that the REPL is inside.
+   A `racket-run' re-evaluates the .rkt file contents from
+   scratch, \"undoing\" changes made solely in the REPL --
+   including debug instrumentation.
 
-   A `racket-run' will re-evaluate from the .rkt file contents,
-   removing all debug instrumentation -- just like it removes any
-   other changes made solely in the REPL.
+   Limitation: Instrumenting a function `require`d from another
+   module won't change the definition in that module. Instead, it
+   attempts to define an instrumented function of the same name,
+   in the module the REPL is inside. The define may fail because
+   it needs definitions visible only in that other module.
 
 2. In the *Racket REPL* buffer, enter an expression that causes
    the instrumented functions to be called, directly or
@@ -703,9 +733,12 @@ How to debug:
 "
   :lighter " DEBUG"
   :keymap (racket--easy-keymap-define
-           '((("n" "SPC") racket-debug-step)
-             ("c"         racket-debug-continue)
-             ("h"         racket-debug-help)))
+           '(("SPC" racket-debug-step)
+             ("c"   racket-debug-continue)
+             ("n"   racket-debug-next-breakable)
+             ("p"   racket-debug-prev-breakable)
+             ("."   racket-debug-run-to-here)
+             ("h"   racket-debug-help)))
   (unless (eq major-mode 'racket-mode)
     (setq racket-debug-mode nil)
     (user-error "racket-debug-mode only works with racket-mode"))
@@ -737,9 +770,9 @@ How to debug:
 (defun racket--make-debug-overlay (beg end &rest props)
   (let ((o (make-overlay beg end)))
     (setq racket--debug-overlays (cons o racket--debug-overlays))
-    (dolist (kv (seq-partition (list* 'name     'racket-debug-overlay
-                                      'priority 100
-                                      props)
+    (dolist (kv (seq-partition (cl-list* 'name     'racket-debug-overlay
+                                         'priority 100
+                                         props)
                                2))
       (apply #'overlay-put o kv))
     o))
