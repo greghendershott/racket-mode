@@ -96,7 +96,7 @@
   (channel-put on-break-channel
                (list 'debug-break
                      (cons src pos)
-                     (breakable-positions-as-alist)
+                     breakable-positions
                      locals
                      (cons this-break-id
                            (case before/after
@@ -167,13 +167,8 @@
 
 ;;; Command interface
 
-(define breakable-positions (make-hash))
-
-(define breakable-positions/c (listof (cons/c path-string? (listof pos/c))))
-(define/contract (breakable-positions-as-alist)
-  (-> breakable-positions/c)
-  (for/list ([(k v) (in-hash breakable-positions)])
-    (cons k v)))
+(define breakable-positions/c (hash/c path-string? (listof pos/c)))
+(define/contract breakable-positions breakable-positions/c (make-hash))
 
 ;; Intended use is for `code` to be a function definition form. It
 ;; will be re-defined annotated for single stepping: When executed it

@@ -247,13 +247,15 @@
     [(? list? xs)   (map racket->elisp xs)]
     [(cons x y)     (cons (racket->elisp x) (racket->elisp y))]
     [(? path? v)    (path->string v)]
+    [(? hash? v)    (for/list ([(k v) (in-hash v)])
+                      (cons (racket->elisp k) (racket->elisp v)))]
     [v              v]))
 
 (module+ test
   (check-equal? (with-output-to-string
-                  (λ () (elisp-write '(1 #t nil () (a . b))
+                  (λ () (elisp-write '(1 #t nil () (a . b) #hash((1 . 2) (3 . 4)))
                                      (current-output-port))))
-                "(1 t nil nil (a . b))"))
+                "(1 t nil nil (a . b) ((1 . 2) (3 . 4)))"))
 
 ;;; commands
 
