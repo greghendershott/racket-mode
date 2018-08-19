@@ -178,10 +178,6 @@
 ;; Intended use is for `code` to be a function definition form. It
 ;; will be re-defined annotated for single stepping: When executed it
 ;; will call our break?, break-before, and break-after functions.
-;; Returns the list of breakable positions for front end UI (although,
-;; instead maybe should supply those via the on-break-channel
-;; notification, since that's when the front end will need to
-;; establish a minor mode.
 (define/contract (debug-eval source line col pos code)
   (-> path-string? pos/c nat/c pos/c string? #t)
   (define in (open-input-string code))
