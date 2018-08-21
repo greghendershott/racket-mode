@@ -179,7 +179,8 @@
 
 (define/contract ((make-prompt-read m))
   (-> (or/c #f mod?) (-> any))
-  (get-interaction (maybe-mod->prompt-string m)))
+  (begin0 (get-interaction (maybe-mod->prompt-string m))
+    (next-break 'all))) ;let debug-instrumented code break again
 
 (define/contract (command sexpr the-context)
   (-> pair? context? any/c)

@@ -17,7 +17,8 @@
          debug-eval
          debug-resume
          debug-disable
-         make-debug-eval-handler)
+         make-debug-eval-handler
+         next-break)
 
 ;; A gui-debugger/marks "mark" is a thunk that returns a
 ;; full-mark-struct -- although gui-debugger/marks doesn't provide
@@ -35,6 +36,7 @@
 
 (define (annotate stx)
   (define source (syntax-source stx))
+  (display-commented (format "Debug annotate ~v" source))
   (define-values (annotated breakables)
     (annotate-for-single-stepping stx
                                   break?
