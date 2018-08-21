@@ -24,13 +24,14 @@
 (require 'compile)
 (require 'easymenu)
 (require 'cl-lib)
-;; Avoid mutual dependency with racket-debug.el
+
+;; Don't (require 'racket-debug). Mutual dependency. Instead:
 (declare-function  racket--debug-send-definition "racket-debug" (beg end))
 (autoload         'racket--debug-send-definition "racket-debug")
 (declare-function  racket--debug-on-break        "racket-debug" (response))
 (autoload         'racket--debug-on-break        "racket-debug")
-(declare-function  racket--debug-files           "racket-debug" ())
-(autoload         'racket--debug-files           "racket-debug")
+(declare-function  racket--debuggable-files      "racket-debug" (file-to-run))
+(autoload         'racket--debuggable-files      "racket-debug")
 
 (defconst racket--repl-buffer-name/raw
   "Racket REPL"
@@ -195,12 +196,15 @@ equivalent to #'ignore.
 (defun racket--repl-make-run-command (what-to-run &optional context-level)
   "Form a `run` command sexpr for the backend.
 WHAT-TO-RUN may be nil, meaning just a `racket/base` namespace."
-  `(run ,what-to-run
-        ,racket-memory-limit
-        ,racket-pretty-print
-        ,(or context-level racket-error-context)
-        ,racket-user-command-line-arguments
-        ,(when what-to-run (cons (car what-to-run) (racket--debug-files)))))
+  (let ((context-level (or context-level racket-error-context)))
+    (list 'run
+          what-to-run
+          racket-memory-limit
+          racket-pretty-print
+          context-level
+          racket-user-command-line-arguments
+          (when (and what-to-run (eq context-level 'debug))
+            (racket--debuggable-files (car what-to-run))))))
 
 (defun racket--repl-ensure-buffer-and-process (&optional display run-command)
   "Ensure Racket REPL buffer exists and has live Racket process.
