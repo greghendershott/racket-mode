@@ -229,25 +229,23 @@
          (orig-eval v)]
         [else
          (define stx (syntax-or-sexpr->syntax v))
-         (define top-e (expand-syntax-to-top-form stx))
+         (define top-stx (expand-syntax-to-top-form stx))
          (cond [(set-member? files (syntax-source stx))
                 (next-break 'all)
                 (parameterize* ([current-eval orig-eval]
                                 [current-load/use-compiled
                                  (let ([orig (current-load/use-compiled)])
                                    (λ (file mod)
-                                     ;; This never seems to be called ???
-                                     (println `(our-load/use-compiled ,file ,mod))
                                      (cond [(set-member? files file)
                                             (load-module/annotate file mod)]
                                            [else
                                             (orig file mod)])))])
-                  (eval-syntax (annotate top-e)))]
-               [else (orig-eval top-e)])]))
+                  (eval-syntax (annotate (expand-syntax top-stx))))]
+               [else (orig-eval top-stx)])]))
 
 ;; This never seems to be called ???
 (define (load-module/annotate file m)
-  (println `(load-module/annotate ,file ,m))
+  (display-commented (format "~v" `(load-module/annotate ,file ,m)))
   (define-values (base _ __) (split-path file))
   (call-with-input-file* file
     (λ (in)
