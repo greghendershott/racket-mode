@@ -110,14 +110,17 @@
                            (case before/after
                              [(before) (list 'before)]
                              [(after)  (list 'after (~s vals))]))))
-  ;; Wait for debug-resume command to put to on-resume-channel.
-  ;; If wrong break ID, ignore and wait again.
+  ;; Wait for debug-resume command to put to on-resume-channel. If
+  ;; wrong break ID, ignore and wait again. Note that some Racket
+  ;; values are non-serializable -- e.g. #<output-port> -- in which
+  ;; case just eat the exn:fail:read and use the original `vals`.
   (let wait ()
     (begin0
         (match (channel-get on-resume-channel)
           [(list (== this-break-id) 'before) #f]
           [(list (== this-break-id) (or 'before 'after) vals-str)
-           (read (open-input-string vals-str))]
+           (with-handlers ([exn:fail:read? (λ _ vals)])
+             (read (open-input-string vals-str)))]
           [_ (wait)])
       (kill-thread repl-thread)
       (newline))))
