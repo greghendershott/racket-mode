@@ -1,7 +1,6 @@
 #lang racket/base
 
 (require (for-syntax racket/base)
-         gui-debugger/annotator
          gui-debugger/marks
          racket/contract
          racket/format
@@ -9,12 +8,16 @@
          racket/match
          racket/set
          racket/string
-         "interactions.rkt")
+         syntax/modread
+         "debug-annotator.rkt"
+         "interactions.rkt"
+         "util.rkt")
 
 (provide (rename-out [on-break-channel debug-notify-channel])
          debug-eval
          debug-resume
-         debug-disable)
+         debug-disable
+         make-debug-eval-handler)
 
 ;; A gui-debugger/marks "mark" is a thunk that returns a
 ;; full-mark-struct -- although gui-debugger/marks doesn't provide
@@ -27,17 +30,24 @@
 (define get/set!/c (case-> (-> any/c)
                            (-> any/c void)))
 
-(define (annotate stx)
-  (annotate-for-single-stepping stx
-                                break?
-                                break-before
-                                break-after
-                                void ;record-bound-identifier!
-                                void ;record-top-level-identifier!
-                                (syntax-source stx)))
+(define breakable-positions/c (hash/c path? (listof pos/c)))
+(define/contract breakable-positions breakable-positions/c (make-hash))
 
-(define nat/c exact-nonnegative-integer?)
-(define pos/c exact-positive-integer?)
+(define (annotate stx)
+  (define source (syntax-source stx))
+  (display-commented (format "Debug instrument ~v" source))
+  (define-values (annotated breakables)
+    (annotate-for-single-stepping stx
+                                  break?
+                                  break-before
+                                  break-after))
+  (hash-update! breakable-positions
+                source
+                (λ (xs)
+                  (sort (remove-duplicates (append xs breakables)) <))
+                (list))
+  (display-commented (format "~v" breakable-positions))
+  annotated)
 
 (define break-when/c (or/c 'all 'none (cons/c path-string? pos/c)))
 (define/contract next-break
@@ -167,29 +177,20 @@
 
 ;;; Command interface
 
-(define breakable-positions/c (hash/c path-string? (listof pos/c)))
-(define/contract breakable-positions breakable-positions/c (make-hash))
-
 ;; Intended use is for `code` to be a function definition form. It
 ;; will be re-defined annotated for single stepping: When executed it
 ;; will call our break?, break-before, and break-after functions.
-(define/contract (debug-eval source line col pos code)
+(define/contract (debug-eval source-str line col pos code)
   (-> path-string? pos/c nat/c pos/c string? #t)
+  (define source (string->path source-str))
   (define in (open-input-string code))
   (port-count-lines! in)
   (set-port-next-location! in line col pos)
-  (define-values (annotated breakables)
-    (annotate (expand (read-syntax source in))))
-  (eval annotated)
+  (eval (annotate (expand (read-syntax source in))))
   (next-break 'all)
-  (hash-update! breakable-positions
-                source
-                (λ (xs)
-                  (sort (remove-duplicates (append xs breakables)) <))
-                (list))
   #t)
 
-(define locals/c (listof (list/c string? pos/c pos/c symbol? string?)))
+(define locals/c (listof (list/c path-string? pos/c pos/c symbol? string?)))
 (define break-vals/c (cons/c break-id/c
                              (or/c (list/c 'before)
                                    (list/c 'after string?))))
@@ -218,3 +219,43 @@
   (next-break 'none)
   (for ([k (in-hash-keys breakable-positions)])
     (hash-remove! breakable-positions k)))
+
+
+;;; Make eval handler to instrument entire files
+
+(define eval-handler/c (-> any/c any))
+
+(define/contract ((make-debug-eval-handler files [orig-eval (current-eval)]) v)
+  (->* ((set/c path?)) (eval-handler/c) eval-handler/c)
+  (cond [(compiled-expression? (syntax-or-sexpr->sexpr v))
+         (orig-eval v)]
+        [else
+         (define stx (syntax-or-sexpr->syntax v))
+         (define top-e (expand-syntax-to-top-form stx))
+         (cond [(set-member? files (syntax-source stx))
+                (next-break 'all)
+                (parameterize* ([current-eval orig-eval]
+                                [current-load/use-compiled
+                                 (let ([orig (current-load/use-compiled)])
+                                   (λ (file mod)
+                                     (println `(our-load/use-compiled ,file ,mod))
+                                     (cond [(set-member? files file)
+                                            (load-module/annotate file mod)]
+                                           [else
+                                            (orig file mod)])))])
+                  (eval-syntax (annotate top-e)))]
+               [else (orig-eval top-e)])]))
+
+(define (load-module/annotate file m)
+  (println `(load-module/annotate ,file ,m))
+  (define-values (base _ __) (split-path file))
+  (call-with-input-file* file
+    (λ (in)
+      (port-count-lines! in)
+      (parameterize ([read-accept-compiled #f]
+                     [current-load-relative-directory base])
+        (with-module-reading-parameterization
+          (λ ()
+            (define e (parameterize ([current-namespace (make-base-namespace)])
+                        (expand (read-syntax file in))))
+            (eval (annotate (check-module-form e m file)))))))))

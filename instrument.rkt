@@ -39,7 +39,7 @@
 (define expanded-stx (with-handlers ([exn:fail? (λ _ (make-parameter #f))])
                        (dynamic-require 'errortrace/stacktrace 'expanded-stx)))
 
-(define ((make-instrumented-eval-handler orig-eval) orig-exp)
+(define ((make-instrumented-eval-handler [orig-eval (current-eval)]) orig-exp)
   ;; This is modeled after the one in DrRacket.
   (cond
     [(or (not (instrumenting-enabled))

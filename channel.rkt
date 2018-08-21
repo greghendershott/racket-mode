@@ -11,7 +11,8 @@
          rerun-default
          context-level?
          instrument-level?
-         profile/coverage-level?)
+         profile/coverage-level?
+         debug-level?)
 
 
 ;;; Definitions for the context-level member of rerun
@@ -28,19 +29,16 @@
 (define context-levels
   `(low      ;compile-context-preservation-enabled #f
     medium   ;compile-context-preservation-enabled #t
-    ,@instrument-levels))
+    ,@instrument-levels
+    debug))
 
 (define-syntax-rule (memq? x xs)
-  (not (not (memq x xs))))
+  (and (memq x xs) #t))
 
-(define (context-level? v)
-  (memq? v context-levels))
-
-(define (instrument-level? v)
-  (memq? v instrument-levels))
-
-(define (profile/coverage-level? v)
-  (memq? v profile/coverage-levels))
+(define (context-level? v)          (memq? v context-levels))
+(define (instrument-level? v)       (memq? v instrument-levels))
+(define (profile/coverage-level? v) (memq? v profile/coverage-levels))
+(define (debug-level? v)            (eq? v 'debug))
 
 ;;; Messages to the main thread via a channel
 

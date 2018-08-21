@@ -19,7 +19,25 @@
 (require 'easymenu)
 (require 'cl-lib)
 
+
+;;; IDEA: Use two minor modes:
+;;;
+;;; - racket-debuggable-mode means the file will be instrumented for
+;;;   debugging when racket-run-with-debugging is done. IOW this is
+;;;   the UI for selecting multiple files to debug. Also, this mode
+;;;   can have the "breakables" UX -- nav among breakbles, set one or
+;;;   more, etc.
+;;;
+;;; - racket-debug-break-mode is briefly enabled automatically in one
+;;;   buffer where a break has actually happened. Only this mode has
+;;;   the resume commands like step, continue, run-to-here.
+;;;
+;;; Likewise, change the `(debug-break __)` notification into
+;;; `(debug (breakables ___))` and `(debug (break ___)))`
+;;; notifications.
+
 (defvar racket--debug-break-positions nil)
+
 (defvar racket--debug-break-locals nil)
 (defvar racket--debug-break-info nil)
 ;; (U nil (cons break-id

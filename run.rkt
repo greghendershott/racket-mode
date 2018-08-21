@@ -7,9 +7,11 @@
          racket/match
          racket/pretty
          racket/runtime-path
+         racket/set
          racket/string
          "channel.rkt"
          "cmds.rkt"
+         (only-in "debug.rkt" make-debug-eval-handler)
          "error.rkt"
          "gui.rkt"
          "instrument.rkt"
@@ -110,9 +112,10 @@
          ;; OTHERS:
          [compile-enforce-module-constants #f]
          [compile-context-preservation-enabled (not (eq? context-level 'low))]
-         [current-eval (if (instrument-level? context-level)
-                           (make-instrumented-eval-handler (current-eval))
-                           (current-eval))]
+         [current-eval
+          (cond [(debug-level? context-level) (make-debug-eval-handler (set (string->path "/tmp/foo.rkt") (string->path "/tmp/bar.rkt")))]
+                [(instrument-level? context-level)(make-instrumented-eval-handler)]
+                [else (current-eval)])]
          [instrumenting-enabled (instrument-level? context-level)]
          [profiling-enabled (eq? context-level 'profile)]
          [test-coverage-enabled (eq? context-level 'coverage)]

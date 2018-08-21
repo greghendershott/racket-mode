@@ -27,7 +27,7 @@
 (require 'hideshow)
 (require 'tooltip)
 
-(defun racket-run (&optional errortracep)
+(defun racket-run (&optional prefix)
   "Save and evaluate the buffer in REPL, much like DrRacket's Run.
 
 With a C-u prefix, uses errortrace for improved stack traces.
@@ -68,7 +68,10 @@ click. Or, use the standard `next-error' and `previous-error'
 commands."
   (interactive "P")
   (racket--repl-run (racket--what-to-run)
-                    (if errortracep 'high racket-error-context)
+                    (pcase prefix
+                      (`(4)  'high)
+                      (`(16) 'debug)
+                      (_     racket-error-context))
                     nil))
 
 (defun racket-run-with-errortrace ()
@@ -76,15 +79,19 @@ commands."
 This is just `racket-run' with a C-u prefix. Defined as a function so
 it can be a menu target."
   (interactive)
-  (racket-run t))
+  (racket-run '(4)))
 
-(defun racket-run-and-switch-to-repl (&optional errortracep)
-  "This is `racket-run' followed by `racket-switch-to-repl'.
+(defun racket-run-with-debugging ()
+  "Run with `racket-error-context' temporarily set to 'debug.
+This is just `racket-run' with a double C-u prefix. Defined as a
+function so it can be a menu target."
+  (interactive)
+  (racket-run '(16)))
 
-With a C-u prefix, uses errortrace for improved stack traces.
-Otherwise follows the `racket-error-context' setting."
+(defun racket-run-and-switch-to-repl (&optional prefix)
+  "This is `racket-run' followed by `racket-switch-to-repl'."
   (interactive "P")
-  (racket-run errortracep)
+  (racket-run prefix)
   (racket-repl))
 
 (defun racket-racket ()
