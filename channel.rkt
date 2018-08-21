@@ -1,7 +1,8 @@
 #lang racket/base
 
-(require racket/match
-         racket/contract
+(require racket/contract
+         racket/match
+         racket/set
          "mod.rkt")
 
 (provide message-to-main-thread-channel
@@ -59,6 +60,7 @@
    ;; 6.1 when the value is accessed from the struct and passed to
    ;; `current-command-line-arguments`. WAT.
    [cmd-line-args vector?]
+   [debug-files   (set/c path?)]
    [ready-thunk   (-> any/c)]))
 
 (define rerun-default (rerun #f
@@ -66,4 +68,5 @@
                              #f
                              'low
                              #()
+                             (set)
                              void))

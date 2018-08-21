@@ -35,7 +35,6 @@
 
 (define (annotate stx)
   (define source (syntax-source stx))
-  (display-commented (format "Debug instrument ~v" source))
   (define-values (annotated breakables)
     (annotate-for-single-stepping stx
                                   break?
@@ -46,7 +45,6 @@
                 (λ (xs)
                   (sort (remove-duplicates (append xs breakables)) <))
                 (list))
-  (display-commented (format "~v" breakable-positions))
   annotated)
 
 (define break-when/c (or/c 'all 'none (cons/c path-string? pos/c)))
@@ -238,6 +236,7 @@
                                 [current-load/use-compiled
                                  (let ([orig (current-load/use-compiled)])
                                    (λ (file mod)
+                                     ;; This never seems to be called ???
                                      (println `(our-load/use-compiled ,file ,mod))
                                      (cond [(set-member? files file)
                                             (load-module/annotate file mod)]
@@ -246,6 +245,7 @@
                   (eval-syntax (annotate top-e)))]
                [else (orig-eval top-e)])]))
 
+;; This never seems to be called ???
 (define (load-module/annotate file m)
   (println `(load-module/annotate ,file ,m))
   (define-values (base _ __) (split-path file))

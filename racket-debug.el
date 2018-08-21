@@ -25,7 +25,7 @@
 ;;; - racket-debuggable-mode means the file will be instrumented for
 ;;;   debugging when racket-run-with-debugging is done. IOW this is
 ;;;   the UI for selecting multiple files to debug. Also, this mode
-;;;   can have the "breakables" UX -- nav among breakbles, set one or
+;;;   can have the "breakables" UX -- nav among breakables, set one or
 ;;;   more, etc.
 ;;;
 ;;; - racket-debug-break-mode is briefly enabled automatically in one
@@ -37,7 +37,6 @@
 ;;; notifications.
 
 (defvar racket--debug-break-positions nil)
-
 (defvar racket--debug-break-locals nil)
 (defvar racket--debug-break-info nil)
 ;; (U nil (cons break-id

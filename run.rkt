@@ -52,12 +52,16 @@
                         (? number? mem)
                         (and (or 't 'nil #t #f) pp?)
                         (and (or 'low 'medium 'high 'coverage 'profile) ctx)
-                        (and (or 'nil (? list?)) args))
+                        (and (or 'nil (? list?)) args)
+                        (and (or 'nil (? list?)) debug-files))
                   (rerun (if (eq? what 'nil) #f (->mod/existing what))
                          mem
                          (and pp? (not (eq? pp? 'nil)))
                          ctx
                          (case args [(nil) (vector)] [else (list->vector args)])
+                         (case debug-files
+                           [(nil) (set)]
+                           [else (list->set (map string->path debug-files))])
                          void)] ;ready-thunk N/A for startup run
                  [v (eprintf "Bad arguments: ~v => ~v\n" run-command v)
                     (exit)]))]
@@ -80,6 +84,7 @@
                        pretty-print?
                        context-level
                        cmd-line-args
+                       debug-files
                        ready-thunk) rr)
   (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
   ;; Always set current-directory and current-load-relative-directory
@@ -113,7 +118,7 @@
          [compile-enforce-module-constants #f]
          [compile-context-preservation-enabled (not (eq? context-level 'low))]
          [current-eval
-          (cond [(debug-level? context-level) (make-debug-eval-handler (set (string->path "/tmp/foo.rkt") (string->path "/tmp/bar.rkt")))]
+          (cond [(debug-level? context-level) (make-debug-eval-handler debug-files)]
                 [(instrument-level? context-level)(make-instrumented-eval-handler)]
                 [else (current-eval)])]
          [instrumenting-enabled (instrument-level? context-level)]

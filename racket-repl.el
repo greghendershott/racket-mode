@@ -29,6 +29,8 @@
 (autoload         'racket--debug-send-definition "racket-debug")
 (declare-function  racket--debug-on-break        "racket-debug" (response))
 (autoload         'racket--debug-on-break        "racket-debug")
+(declare-function  racket--debug-files           "racket-debug" ())
+(autoload         'racket--debug-files           "racket-debug")
 
 (defconst racket--repl-buffer-name/raw
   "Racket REPL"
@@ -197,7 +199,8 @@ WHAT-TO-RUN may be nil, meaning just a `racket/base` namespace."
         ,racket-memory-limit
         ,racket-pretty-print
         ,(or context-level racket-error-context)
-        ,racket-user-command-line-arguments))
+        ,racket-user-command-line-arguments
+        ,(when what-to-run (cons (car what-to-run) (racket--debug-files)))))
 
 (defun racket--repl-ensure-buffer-and-process (&optional display run-command)
   "Ensure Racket REPL buffer exists and has live Racket process.
