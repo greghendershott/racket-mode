@@ -45,24 +45,15 @@
                rerun-default)]
       [(vector port run-command)
        (values (string->number port)
-               (match (read (open-input-string run-command))
-                 ;; TODO: Share similar code with cmds.rkt
-                 [(list 'run
-                        (and (or 'nil (? list?)) what)
-                        (? number? mem)
-                        (and (or 't 'nil #t #f) pp?)
-                        (and (or 'low 'medium 'high 'coverage 'profile) ctx)
-                        (and (or 'nil (? list?)) args)
-                        (and (or 'nil (? list?)) debug-files))
-                  (rerun (if (eq? what 'nil) #f (->mod/existing what))
+               (match (elisp-read (open-input-string run-command))
+                 [(list 'run what mem pp ctx args dbgs)
+                  (rerun (->mod/existing what)
                          mem
-                         (and pp? (not (eq? pp? 'nil)))
+                         (as-racket-bool pp)
                          ctx
-                         (case args [(nil) (vector)] [else (list->vector args)])
-                         (case debug-files
-                           [(nil) (set)]
-                           [else (list->set (map string->path debug-files))])
-                         void)] ;ready-thunk N/A for startup run
+                         (list->vector args)
+                         (list->set (map string->path dbgs))
+                         void)]
                  [v (eprintf "Bad arguments: ~v => ~v\n" run-command v)
                     (exit)]))]
       [v

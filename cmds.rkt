@@ -33,7 +33,9 @@
 
 (provide start-command-server
          attach-command-server
-         make-prompt-read)
+         make-prompt-read
+         elisp-read
+         as-racket-bool)
 
 (module+ test
   (require rackunit))
