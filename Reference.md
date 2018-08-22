@@ -22,10 +22,13 @@
 ### racket-run
 <kbd>C-c C-k</kbd> or <kbd>C-c C-c</kbd>
 
-Save and evaluate the buffer in REPL, much like DrRacket's Run.
+Save and evaluate the buffer in REPL.
 
-With a C-u prefix, uses errortrace for improved stack traces.
+With one C-u prefix, uses errortrace for improved stack traces.
 Otherwise follows the [`racket-error-context`](#racket-error-context) setting.
+
+With two C-u prefixes, instruments code for step debugging. See
+[`racket-debug-mode`](#racket-debug-mode) and the variable [`racket-debuggable-files`](#racket-debuggable-files).
 
 If point is within a Racket `module` form, the REPL "enters"
 that submodule (uses its language info and namespace).
@@ -151,6 +154,73 @@ C-c C-z		racket-repl
 In addition to any hooks its parent mode `special-mode` might have run,
 this mode runs the hook [`racket-logger-mode-hook`](#racket-logger-mode-hook), as the final or penultimate step
 during initialization.
+
+### racket-debug-mode
+<kbd>M-x racket-debug-mode</kbd>
+
+Minor mode for debug breaks.
+
+> This feature is **EXPERIMENTAL**.
+
+How to debug:
+
+1. "Instrument" code for step debugging. You can instrument
+   entire files, and also individual functions.
+
+   a. Entire Files
+
+      Choose [`racket-run`](#racket-run) with two prefixes -- C-u C-u C-c C-c. The
+      file will be instrumented for step debugging before it is run.
+      Also instrumented are files determined by the variable
+      [`racket-debuggable-files`](#racket-debuggable-files).
+
+   b. Function Definitions
+
+      Put point in a function `define` form and C-u C-M-x to
+      "instrument" the function for step debugging. You can do
+      this for any number of functions.
+
+      You can even do this while stopped at a break. For example, to
+      instrument a function you are about to call, so you can "step
+      into" it:
+
+        - M-. a.k.a. [`racket-visit-definition`](#racket-visit-definition).
+        - C-u C-M-x to instrument the definition.
+        - M-, a.k.a. [`racket-unvisit`](#racket-unvisit).
+        - Continue stepping.
+
+      A [`racket-run`](#racket-run) re-evaluates the .rkt file contents from
+      scratch, "undoing" changes made solely in the REPL --
+      including debug instrumentation.
+
+      Limitation: Instrumenting a function `require`d from another
+      module won't redefine that function. Instead, it attempts to
+      define an instrumented function of the same name, in the
+      module the REPL is inside. The define will fail if it needs
+      definitions visible only in that other module.
+
+2. In the *Racket REPL* buffer, enter an expression that causes
+   instrumented functions to be called, directly or indirectly.
+
+3. When a break occurs, [`racket-debug-mode`](#racket-debug-mode) is activated so you
+   can use convenient keys. Also, the REPL prompt changes. In
+   this debug REPL, local variables are available for you to
+   reference and even to `set!`.
+
+
+```
+key             binding
+---             -------
+
+SPC		racket-debug-step
+?		racket-debug-help
+c		racket-debug-continue
+h		racket-debug-run-to-here
+n		racket-debug-next-breakable
+p		racket-debug-prev-breakable
+
+
+```
 
 ## Test
 

@@ -28,10 +28,13 @@
 (require 'tooltip)
 
 (defun racket-run (&optional prefix)
-  "Save and evaluate the buffer in REPL, much like DrRacket's Run.
+  "Save and evaluate the buffer in REPL.
 
-With a C-u prefix, uses errortrace for improved stack traces.
+With one C-u prefix, uses errortrace for improved stack traces.
 Otherwise follows the `racket-error-context' setting.
+
+With two C-u prefixes, instruments code for step debugging. See
+`racket-debug-mode' and the variable `racket-debuggable-files'.
 
 If point is within a Racket `module` form, the REPL \"enters\"
 that submodule (uses its language info and namespace).

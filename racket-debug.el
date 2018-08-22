@@ -190,34 +190,45 @@ file-local variable.")
 
 How to debug:
 
-1. Put point in a function `define` form and C-u C-M-x to
-   \"instrument\" the function for step debugging. You can do
-   this for any number of functions.
+1. \"Instrument\" code for step debugging. You can instrument
+   entire files, and also individual functions.
 
-   You can even do this while stopped at a break. For example, to
-   instrument a function you are about to call, so you can \"step
-   into\" it:
+   a. Entire Files
 
-     - M-. a.k.a. `racket-visit-definition'.
-     - C-u C-M-x to instrument the definition.
-     - M-, a.k.a. `racket-unvisit'.
-     - Continue stepping.
+      Choose `racket-run' with two prefixes -- C-u C-u C-c C-c. The
+      file will be instrumented for step debugging before it is run.
+      Also instrumented are files determined by the variable
+      `racket-debuggable-files'.
 
-   A `racket-run' re-evaluates the .rkt file contents from
-   scratch, \"undoing\" changes made solely in the REPL --
-   including debug instrumentation.
+   b. Function Definitions
 
-   Limitation: Instrumenting a function `require`d from another
-   module won't change the definition in that module. Instead, it
-   attempts to define an instrumented function of the same name,
-   in the module the REPL is inside. The define may fail because
-   it needs definitions visible only in that other module.
+      Put point in a function `define` form and C-u C-M-x to
+      \"instrument\" the function for step debugging. You can do
+      this for any number of functions.
+
+      You can even do this while stopped at a break. For example, to
+      instrument a function you are about to call, so you can \"step
+      into\" it:
+
+        - M-. a.k.a. `racket-visit-definition'.
+        - C-u C-M-x to instrument the definition.
+        - M-, a.k.a. `racket-unvisit'.
+        - Continue stepping.
+
+      A `racket-run' re-evaluates the .rkt file contents from
+      scratch, \"undoing\" changes made solely in the REPL --
+      including debug instrumentation.
+
+      Limitation: Instrumenting a function `require`d from another
+      module won't redefine that function. Instead, it attempts to
+      define an instrumented function of the same name, in the
+      module the REPL is inside. The define will fail if it needs
+      definitions visible only in that other module.
 
 2. In the *Racket REPL* buffer, enter an expression that causes
-   the instrumented functions to be called, directly or
-   indirectly.
+   instrumented functions to be called, directly or indirectly.
 
-3. When a break occurs, `racket-debug-mode` is activated so you
+3. When a break occurs, `racket-debug-mode' is activated so you
    can use convenient keys. Also, the REPL prompt changes. In
    this debug REPL, local variables are available for you to
    reference and even to `set!`.
@@ -227,7 +238,7 @@ How to debug:
 \\{racket-debug-mode-map}
 ```
 "
-  :lighter " DEBUG"
+  :lighter " Racket-DEBUG-BREAK"
   :keymap (racket--easy-keymap-define
            '(("SPC" racket-debug-step)
              ("c"   racket-debug-continue)
