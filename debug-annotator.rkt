@@ -23,56 +23,55 @@
 (provide annotate-for-single-stepping)
 
 (define (annotate-for-single-stepping stx break? break-before break-after)
-  (annotate-stx
-   stx
-   (λ (debug-info annotated raw is-tail?)
-     (let* ([start (syntax-position raw)]
-            [end (+ start (syntax-span raw) -1)]
-            [break? (break? (syntax-source raw))])
-       (if is-tail?
-           #`(let-values ([(value-list) #f])
-               (if (#%plain-app #,break? #,start)
-                   (set! value-list (#%plain-app
-                                     #,break-before
-                                     #,debug-info
-                                     (#%plain-app current-continuation-marks)))
-                   (#%plain-app void))
-               (if (#%plain-app not value-list)
-                   #,annotated
-                   (#%plain-app plain-apply values value-list)))
-           #`(let-values ([(value-list) #f])
-               (if (#%plain-app #,break? #,start)
-                   (set! value-list (#%plain-app
-                                     #,break-before
-                                     #,debug-info
-                                     (#%plain-app current-continuation-marks)))
-                   (#%plain-app void))
-               (if (#%plain-app not value-list)
-                   (#%plain-app
-                    call-with-values
-                    (#%plain-lambda () #,annotated)
-                    (case-lambda
-                      [(val) (if (#%plain-app #,break? #,end)
-                                 (#%plain-app
-                                  #,break-after
-                                  #,debug-info
-                                  (#%plain-app current-continuation-marks) val)
-                                 val)]
-                      [vals (if (#%plain-app
-                                 #,break? #,end)
+  (define (break-wrap debug-info annotated raw is-tail?)
+    (let* ([start  (syntax-position raw)]
+           [end    (+ start (syntax-span raw) -1)]
+           [break? (break? (syntax-source raw))])
+      (if is-tail?
+          #`(let-values ([(value-list) #f])
+              (if (#%plain-app #,break? #,start)
+                  (set! value-list (#%plain-app
+                                    #,break-before
+                                    #,debug-info
+                                    (#%plain-app current-continuation-marks)))
+                  (#%plain-app void))
+              (if (#%plain-app not value-list)
+                  #,annotated
+                  (#%plain-app plain-apply values value-list)))
+          #`(let-values ([(value-list) #f])
+              (if (#%plain-app #,break? #,start)
+                  (set! value-list (#%plain-app
+                                    #,break-before
+                                    #,debug-info
+                                    (#%plain-app current-continuation-marks)))
+                  (#%plain-app void))
+              (if (#%plain-app not value-list)
+                  (#%plain-app
+                   call-with-values
+                   (#%plain-lambda () #,annotated)
+                   (case-lambda
+                     [(val) (if (#%plain-app #,break? #,end)
                                 (#%plain-app
-                                 plain-apply
                                  #,break-after
                                  #,debug-info
-                                 (#%plain-app current-continuation-marks) vals)
-                                (#%plain-app plain-apply values vals))]))
-                   (if (#%plain-app #,break? #,end)
-                       (#%plain-app
-                        plain-apply #,break-after
-                        #,debug-info
-                        (#%plain-app current-continuation-marks)
-                        value-list)
-                       (#%plain-app plain-apply values value-list)))))))))
+                                 (#%plain-app current-continuation-marks) val)
+                                val)]
+                     [vals (if (#%plain-app
+                                #,break? #,end)
+                               (#%plain-app
+                                plain-apply
+                                #,break-after
+                                #,debug-info
+                                (#%plain-app current-continuation-marks) vals)
+                               (#%plain-app plain-apply values vals))]))
+                  (if (#%plain-app #,break? #,end)
+                      (#%plain-app
+                       plain-apply #,break-after
+                       #,debug-info
+                       (#%plain-app current-continuation-marks)
+                       value-list)
+                      (#%plain-app plain-apply values value-list)))))))
+  (annotate-stx stx break-wrap))
 
 (define (annotate-stx stx break-wrap [record-bound-id void] [record-top-level-id void])
   (define breakpoints (make-hasheq))
