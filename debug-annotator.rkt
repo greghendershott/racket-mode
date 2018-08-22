@@ -210,20 +210,22 @@
             (if letrec?
                 (quasisyntax/loc expr
                   (let ([old-bindings previous-bindings])
-                    (label (((debugger-local-bindings) (#%plain-lambda ()
-                                                                       (#%plain-app
-                                                                        list*
-                                                                        #,@local-debug-info
-                                                                        old-bindings)))
+                    (label (((debugger-local-bindings)
+                             (#%plain-lambda ()
+                                             (#%plain-app
+                                              list*
+                                              #,@local-debug-info
+                                              old-bindings)))
                             ((var ...) new-rhs/trans) ...)
                            #,@bodies)))
                 (quasisyntax/loc expr
                   (label (((var ...) new-rhs/trans) ...)
-                         (let ([debugger-local-bindings (#%plain-lambda ()
-                                                                        (#%plain-app
-                                                                         list*
-                                                                         #,@local-debug-info
-                                                                         previous-bindings))])
+                         (let ([debugger-local-bindings
+                                (#%plain-lambda ()
+                                                (#%plain-app
+                                                 list*
+                                                 #,@local-debug-info
+                                                 previous-bindings))])
                            #,@bodies))))))]))
 
     (define (lambda-clause-annotator clause)
