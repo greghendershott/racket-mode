@@ -238,12 +238,6 @@
   (flush-output (current-error-port))
   (fresh-line)
   (display str)
-  ;; Use a character unlikely to appear in normal output. Makes it
-  ;; easier for Emacs comint-regexp-prompt to avoid matching program
-  ;; output by mistake. (This used to be very important: We mixed
-  ;; command output with stdout and a comint filter proc had to un-mix
-  ;; it. Today it mainly just helps comint-{previous next}-prompt.)
-  (display #\uFEFF) ;ZERO WIDTH NON-BREAKING SPACE
   (display "> ")
   (flush-output)
   (zero-column!))

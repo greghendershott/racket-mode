@@ -48,15 +48,6 @@ forms are evaluated and nil is returned. See also
   "Don't save anything matching `racket-history-filter-regexp'."
   (not (string-match racket-history-filter-regexp str)))
 
-(defun racket--get-old-input ()
-  "Snarf the sexp ending at point."
-  (if (looking-back comint-prompt-regexp (line-beginning-position))
-      ""
-    (save-excursion
-      (let ((end (point)))
-        (backward-sexp)
-        (buffer-substring (point) end)))))
-
 (defalias 'racket-repl-eval-or-newline-and-indent #'racket-repl-submit)
 
 (defun racket-repl-submit (&optional prefix)
@@ -72,20 +63,17 @@ end of an interactive expression/statement."
   (interactive "P")
   (let* ((proc (get-buffer-process (current-buffer)))
          (_    (unless proc (user-error "Current buffer has no process")))
-         (beg  (marker-position (process-mark proc)))
-         (end  (point-max))
-         (text (buffer-substring-no-properties beg end)))
+         (text (substring-no-properties (funcall comint-get-old-input))))
     (cl-case (if racket-use-repl-submit-predicate
                  (racket--cmd/await `(repl-submit? ,text t))
                'default)
       ((nil)
        (user-error "Not a complete expression, according to the current lang's submit-predicate."))
       ((t default)
-       (goto-char end)
        (comint-send-input)
-       ;; Remove comint-highlight-input face that just overwrote our
-       ;; nice Racket font-lock.
-       (remove-text-properties beg end '(font-lock-face comint-highlight-input))
+       (remove-text-properties comint-last-input-start
+                               comint-last-input-end
+                               '(font-lock-face comint-highlight-input))
        ;; Hack for datalog/lang
        (when prefix (process-send-eof proc))))))
 
@@ -707,9 +695,9 @@ With prefix arg, open the N-th last shown image."
   "Major mode for Racket REPL.
 \\{racket-repl-mode-map}"
   (racket--common-variables)
-  (setq-local comint-prompt-regexp (rx (regexp "^[^>\n]*") "\ufeff> "))
-  (setq-local comint-use-prompt-regexp t)
-  (setq-local comint-prompt-read-only nil)
+  (setq-local comint-use-prompt-regexp nil)
+  (setq-local comint-prompt-read-only t)
+  (setq-local comint-scroll-show-maximum-output nil) ;t slow for big outputs
   (setq-local mode-line-process nil)
   (setq-local comint-input-filter #'racket-repl--input-filter)
   (add-hook 'comint-output-filter-functions #'racket-repl--output-filter nil t)
@@ -725,9 +713,7 @@ With prefix arg, open the N-th last shown image."
      ;;rackunit/text-ui test-suite
      ("^location:[ ]+\\(\\([^:]+\\):\\([0-9]+\\):\\([0-9]+\\)\\)" 2 3 4 2 1)
      ;; path struct
-     ("#<path:\\([^>]+\\)>" 1 nil nil 0)
-     ))
-  (setq-local comint-get-old-input #'racket--get-old-input))
+     ("#<path:\\([^>]+\\)>" 1 nil nil 0))))
 
 (provide 'racket-repl)
 

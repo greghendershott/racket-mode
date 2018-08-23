@@ -74,20 +74,19 @@
     (racket-repl)
     (with-racket-repl-buffer
       ;; Welcome
-      (should (racket-tests/see-rx (concat "Welcome to Racket v[0-9.]+\n"
-                                           (regexp-quote "\uFEFF> "))))
+      (should (racket-tests/see-rx "Welcome to Racket v[0-9.]+\n> "))
       ;; Completion
       (racket-tests/type&press "with-inp" "TAB")
       (should (racket-tests/see "with-input-from-file"))
       (racket-tests/press "RET")
-      (should (racket-tests/see "#<procedure:with-input-from-file>\n\uFEFF> "))
+      (should (racket-tests/see "#<procedure:with-input-from-file>\n> "))
       ;; Multiline expression indent
       (racket-tests/type&press "(if 1" "C-j")
       (should (racket-tests/see "(if 1\n      "))
       (racket-tests/type&press "2" "C-j")
       (should (racket-tests/see "2\n      "))
       (racket-tests/type&press "3)" "RET")
-      (should (racket-tests/see "3)\n2\n\uFEFF> "))
+      (should (racket-tests/see "3)\n2\n> "))
       ;; Exit
       (racket-tests/type&press "(exit)" "RET")
       (should (racket-tests/see "Process Racket REPL finished\n")))))
@@ -106,7 +105,7 @@
     (racket-run)
     ;; see expected prompt
     (with-racket-repl-buffer
-      (should (racket-tests/see (concat "\n" name "\uFEFF> "))))
+      (should (racket-tests/see (concat "\n" name "> "))))
     ;; racket-check-syntax-mode
     (when (version<= "6.2" (racket--version))
       (racket-check-syntax-mode 1)
