@@ -7,8 +7,12 @@
 
 ;; This is like gui-debugger/annotate except:
 ;;
-;; 1. Our annotate-stx does NOT add breaks to syntax sources not
-;;    matching the syntax it is given. See "***FIXED***" below.
+;; 0. Our annotate-stx does NOT add breaks to syntax sources not
+;;    matching the syntax it is given. See
+;;    https://github.com/racket/drracket/issues/230 and below.
+;;
+;; 1. Our module-annotate disarms/rearms module level expressions. See
+;;    https://github.com/racket/drracket/issues/231 and below.
 ;;
 ;; 2. "Modernize": Use racket/base not racket/scheme. Don't need
 ;;    opt-lambda.
@@ -54,7 +58,8 @@
                                 (#%plain-app
                                  #,break-after
                                  #,debug-info
-                                 (#%plain-app current-continuation-marks) val)
+                                 (#%plain-app current-continuation-marks)
+                                 val)
                                 val)]
                      [vals (if (#%plain-app
                                 #,break? #,end)
@@ -62,7 +67,8 @@
                                 plain-apply
                                 #,break-after
                                 #,debug-info
-                                (#%plain-app current-continuation-marks) vals)
+                                (#%plain-app current-continuation-marks)
+                                vals)
                                (#%plain-app plain-apply values vals))]))
                   (if (#%plain-app #,break? #,end)
                       (#%plain-app
@@ -100,9 +106,14 @@
                 #,(rearm
                    #'mb
                    #`(plain-module-begin
-                      #,@(map (lambda (e) (module-level-expr-iterator
-                                           e (list (syntax-e #'identifier)
-                                                   (syntax-source #'identifier))))
+                      #,@(map (lambda (e)
+                                ;; https://github.com/racket/drracket/issues/231
+                                (rearm
+                                 e
+                                 (module-level-expr-iterator
+                                  (disarm e)
+                                  (list (syntax-e #'identifier)
+                                        (syntax-source #'identifier)))))
                               (syntax->list #'module-level-exprs)))))))])]))
 
   (define (module-level-expr-iterator stx module-name)
@@ -160,7 +171,8 @@
       (let ([pos (syntax-position expr)]
             [src (syntax-source expr)])
         (and src pos
-             (equal? src (syntax-source stx)) ;***FIXED***
+             ;; https://github.com/racket/drracket/issues/230
+             (equal? src (syntax-source stx))
              (hash-ref breakpoints pos (lambda () #t))
              (kernel:kernel-syntax-case
               expr #f
