@@ -181,8 +181,8 @@
   ;; from its configure-runtime, so, this should be compatible with
   ;; any lang, even non-sexpr langs.
   (define chan (make-channel))
-  (define in ((current-get-interaction-input-port)))
   (define (read-interaction/put-channel)
+    (define in ((current-get-interaction-input-port)))
     (define (read-interaction)
       (with-handlers ([exn:fail? values])
         ((current-read-interaction) (object-name in) in))) ;[^1]
