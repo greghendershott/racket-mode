@@ -18,7 +18,12 @@
          debug-resume
          debug-disable
          make-debug-eval-handler
-         next-break)
+         next-break
+         set-debug-repl-namespace!)
+
+(define debug-repl-ns (make-base-namespace))
+(define (set-debug-repl-namespace! ns)
+  (set! debug-repl-ns ns))
 
 ;; A gui-debugger/marks "mark" is a thunk that returns a
 ;; full-mark-struct -- although gui-debugger/marks doesn't provide
@@ -96,7 +101,8 @@
   ;; Start a debug repl on its own thread, because below we're going to
   ;; block indefinitely with (channel-get on-resume-channel), waiting for
   ;; the Emacs front end to issue a debug-resume command.
-  (define repl-thread (thread (repl src pos top-mark)))
+  (define repl-thread (parameterize ([current-namespace debug-repl-ns])
+                        (thread (repl src pos top-mark))))
   ;; The on-break-channel is how we notify the Emacs front-end. This
   ;; is a synchronous channel-put but it should return fairly quickly,
   ;; as soon as the TCP command server gets and writes it. In other
@@ -156,6 +162,8 @@
   ;; include outer variables shadowed by inner ones. So use only the
   ;; first occurence of each identifier symbol we encounter. e.g. in
   ;; (let ([x _]) (let ([x _]) ___)) we want only the inner x.
+  (when (module-declared? 'typed/racket/base)
+    (display-commented "Note: Locals in REPL not yet implemented for typed/racket/base"))
   (define syms (mutable-seteq))
   (define bs
     (for*/list ([binding  (in-list bindings)]

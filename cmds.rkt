@@ -87,6 +87,7 @@
 
 (define/contract (attach-command-server ns maybe-mod)
   (-> namespace? (or/c #f mod?) any)
+  (set-debug-repl-namespace! ns)
   (set! command-server-context
         (context ns
                  maybe-mod
