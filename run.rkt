@@ -153,7 +153,7 @@
         (stx-cache:after-run maybe-mod)
         ;; 3. Tell command server to use our namespace and module.
         (attach-command-server (current-namespace) maybe-mod)
-        ;; 3b. And call the read-thunk command-server gave us from a
+        ;; 3b. And call the ready-thunk command-server gave us from a
         ;; run command, so that it can send a response for the run
         ;; command. Because the command server runs on a different
         ;; thread, it is probably waiting with (sync some-channel) and
