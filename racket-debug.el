@@ -141,6 +141,14 @@ file-local variable.")
   (interactive "P")
   (racket--debug-resume 'all prefix))
 
+(defun racket-debug-step-over (&optional prefix)
+  (interactive "P")
+  (racket--debug-resume 'over prefix))
+
+(defun racket-debug-step-out (&optional prefix)
+  (interactive "P")
+  (racket--debug-resume 'out prefix))
+
 (defun racket-debug-continue (&optional prefix)
   (interactive "P")
   (racket--debug-resume 'none prefix))
@@ -241,6 +249,8 @@ How to debug:
   :lighter " Racket-DEBUG-BREAK"
   :keymap (racket--easy-keymap-define
            '(("SPC" racket-debug-step)
+             ("o"   racket-debug-step-over)
+             ("u"   racket-debug-step-out)
              ("c"   racket-debug-continue)
              ("n"   racket-debug-next-breakable)
              ("p"   racket-debug-prev-breakable)

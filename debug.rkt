@@ -38,6 +38,9 @@
 
 (define breakable-positions/c (hash/c path? (listof pos/c)))
 (define/contract breakable-positions breakable-positions/c (make-hash))
+(define/contract (breakable-position? src pos)
+  (-> path? pos/c boolean?)
+  (and (member pos (hash-ref breakable-positions src '())) #t))
 
 (define (annotate stx)
   (define source (syntax-source stx))
@@ -125,13 +128,38 @@
   (let wait ()
     (begin0
         (match (channel-get on-resume-channel)
-          [(list (== this-break-id) 'before) #f]
-          [(list (== this-break-id) (or 'before 'after) vals-str)
+          [(list break-when (list (== this-break-id) 'before))
+           (next-break (calc-next-break before/after break-when top-mark ccm))
+           #f]
+          [(list break-when (list (== this-break-id) (or 'before 'after) vals-str))
+           (next-break (calc-next-break before/after break-when top-mark ccm))
            (with-handlers ([exn:fail:read? (λ _ vals)])
              (read (open-input-string vals-str)))]
           [_ (wait)])
       (kill-thread repl-thread)
       (newline))))
+
+(define/contract (calc-next-break before/after break-when top-mark ccm)
+  (-> (or/c 'before 'after) (or/c break-when/c 'over 'out) mark/c continuation-mark-set?
+      any)
+  (define (big-step frames)
+    (define num-marks (length (debug-marks (current-continuation-marks))))
+    (or (for/or ([frame  (in-list frames)]
+                  [depth (in-range (length frames) -1 -1)]
+                  #:when (<= num-marks depth))
+          (let* ([stx   (mark-source frame)]
+                 [src   (syntax-source stx)]
+                 [left  (syntax-position stx)]
+                 [right (and left (+ left (syntax-span stx) -1))])
+            (and right
+                 (breakable-position? src right)
+                 (cons src right))))
+        'all))
+  (match* [break-when before/after]
+    [['out  _]       (big-step                (debug-marks ccm))]
+    [['over 'before] (big-step (cons top-mark (debug-marks ccm)))]
+    [['over 'after]  'all]
+    [[v     _]       v]))
 
 (define break-id/c nat/c)
 (define/contract new-break-id
@@ -212,14 +240,12 @@
                               (or/c (list/c 'before)
                                     (list/c 'before string?)
                                     (list/c 'after string?))))
-(define on-resume/c (list/c break-when/c resume-vals/c))
-(define/contract on-resume-channel (channel/c resume-vals/c) (make-channel))
+(define on-resume/c (list/c (or/c break-when/c 'out 'over) resume-vals/c))
+(define/contract on-resume-channel (channel/c on-resume/c) (make-channel))
 
 (define/contract (debug-resume resume-info)
   (-> on-resume/c #t)
-  (match-define (list break vals) resume-info)
-  (next-break break)
-  (channel-put on-resume-channel vals)
+  (channel-put on-resume-channel resume-info)
   #t)
 
 (define (debug-disable)
