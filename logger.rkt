@@ -6,8 +6,11 @@
 
 (provide start-logger-server)
 
-(define global-logger (make-logger))
-(current-logger global-logger)
+;; "On start-up, Racket creates an initial logger that is used to
+;; record events from the core run-time system. For example, an 'debug
+;; event is reported for each garbage collection (see Garbage
+;; Collection)." Use that; don't create new one. See issue #325.
+(define global-logger (current-logger))
 
 (define (start-logger-server port)
   (void (thread (logger-thread port))))
