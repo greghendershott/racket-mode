@@ -138,30 +138,37 @@ file-local variable.")
        (new  `(,id after ,new))))))
 
 (defun racket-debug-step (&optional prefix)
+  "Resume to next breakable position. With prefix, substitute values."
   (interactive "P")
   (racket--debug-resume 'all prefix))
 
 (defun racket-debug-step-over (&optional prefix)
+  "Resume over next expression. With prefix, substitute values."
   (interactive "P")
   (racket--debug-resume 'over prefix))
 
 (defun racket-debug-step-out (&optional prefix)
+  "Resume out. With prefix, substitute values."
   (interactive "P")
   (racket--debug-resume 'out prefix))
 
 (defun racket-debug-continue (&optional prefix)
+  "Resume; don't break anymore. With prefix, substitute values."
   (interactive "P")
   (racket--debug-resume 'none prefix))
 
 (defun racket-debug-run-to-here (&optional prefix)
+  "Resume until point (if possible). With prefix, substitute values."
   (interactive)
   (racket--debug-resume (cons (racket--buffer-file-name) (point)) prefix))
 
 (defun racket-debug-next-breakable ()
+  "Move point to next breakable position."
   (interactive)
   (racket--debug-goto-breakable t))
 
 (defun racket-debug-prev-breakable ()
+  "Move point to previous breakable position."
   (interactive)
   (racket--debug-goto-breakable nil))
 
@@ -246,7 +253,7 @@ How to debug:
 \\{racket-debug-mode-map}
 ```
 "
-  :lighter " Racket-DEBUG-BREAK"
+  :lighter " RacketDebug"
   :keymap (racket--easy-keymap-define
            '(("SPC" racket-debug-step)
              ("o"   racket-debug-step-over)
