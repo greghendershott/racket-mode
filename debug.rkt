@@ -94,12 +94,12 @@
   (define locals
     (for*/list ([binding  (in-list (mark-bindings top-mark))]
                 [stx      (in-value (first binding))]
-                [sym      (in-value (syntax->datum stx))]
-                [get/set! (in-value (second binding))])
+                [get/set! (in-value (second binding))]
+                #:when (and (syntax-original? stx) (syntax-source stx)))
       (list (syntax-source stx)
             (syntax-position stx)
             (syntax-span stx)
-            sym
+            (syntax->datum stx)
             (~v (get/set!)))))
   ;; Start a debug repl on its own thread, because below we're going to
   ;; block indefinitely with (channel-get on-resume-channel), waiting for
