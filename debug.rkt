@@ -36,25 +36,22 @@
 (define get/set!/c (case-> (-> any/c)
                            (-> any/c void)))
 
-(define breakable-positions/c (hash/c path? (listof pos/c)))
+(define breakable-positions/c (hash/c path? (set/c #:cmp 'eq pos/c)))
 (define/contract breakable-positions breakable-positions/c (make-hash))
 (define/contract (breakable-position? src pos)
   (-> path? pos/c boolean?)
-  (and (member pos (hash-ref breakable-positions src '())) #t))
+  (set-member? (hash-ref breakable-positions src (seteq)) pos))
 
-(define (annotate stx)
+(define/contract (annotate stx)
+  (-> syntax? syntax?)
   (define source (syntax-source stx))
   (display-commented (format "Debug annotate ~v" source))
   (define-values (annotated breakables)
-    (annotate-for-single-stepping stx
-                                  break?
-                                  break-before
-                                  break-after))
+    (annotate-for-single-stepping stx break? break-before break-after))
   (hash-update! breakable-positions
                 source
-                (λ (xs)
-                  (sort (remove-duplicates (append xs breakables)) <))
-                (list))
+                (λ (s) (set-union s (list->seteq breakables)))
+                (seteq))
   annotated)
 
 (define break-when/c (or/c 'all 'none (cons/c path-string? pos/c)))
