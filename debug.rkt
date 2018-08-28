@@ -179,7 +179,7 @@
 
 (define ((prompt-read src pos top-mark))
   (define-values (_base name _dir) (split-path src))
-  (display-prompt (format "DEBUG:~a:~a" name pos))
+  (display-prompt (format "[~a:~a]" name pos))
   (define stx (channel-get read-interactions-channel))
   (wrap-in-set!-transformers stx (mark-bindings top-mark)))
 
