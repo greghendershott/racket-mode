@@ -178,33 +178,50 @@
   (define-values (_base name _dir) (split-path src))
   (display-prompt (format "[~a:~a]" name pos))
   (define stx (channel-get read-interactions-channel))
-  (wrap-in-set!-transformers stx (mark-bindings top-mark)))
+  (with-locals stx (mark-bindings top-mark)))
 
-(define (wrap-in-set!-transformers stx bindings)
-  ;; Wrap stx in a let-syntax form with a make-set!-transformer for
-  ;; every local variable in the mark-bindings results. Note that
-  ;; mark-bindings is ordered from inner to outer scopes -- and can
-  ;; include outer variables shadowed by inner ones. So use only the
-  ;; first occurence of each identifier symbol we encounter. e.g. in
-  ;; (let ([x _]) (let ([x _]) ___)) we want only the inner x.
-  (when (module-declared? 'typed/racket/base)
-    (display-commented "Note: Locals in REPL not yet implemented for typed/racket/base"))
-  (define syms (mutable-seteq))
-  (define bs
-    (for*/list ([binding  (in-list bindings)]
-                [sym      (in-value (syntax->datum (first binding)))]
-                #:unless (set-member? syms sym)
-                [get/set! (in-value (second binding))])
-      (set-add! syms sym)
-      (define id (datum->syntax #f sym))
-      (define xform
-        (make-set!-transformer
-         (λ (stx)
-           (syntax-case stx (set!)
-             [(set! id v) (identifier? #'id) #`(#%plain-app #,get/set! v)]
-             [id          (identifier? #'id) #`(#%plain-app #,get/set!)]))))
-      #`(#,id #,xform)))
-  #`(let-syntax #,bs #,stx))
+(define (with-locals stx bindings)
+  ;; Note that mark-bindings is ordered from inner to outer scopes --
+  ;; and can include outer variables shadowed by inner ones. So use
+  ;; only the first occurence of each identifier symbol we encounter.
+  ;; e.g. in (let ([x _]) (let ([x _]) ___)) we want only the inner x.
+  (define ht (make-hasheq))
+  (for* ([binding  (in-list bindings)]
+         [sym      (in-value (syntax->datum (first binding)))]
+         #:unless (hash-has-key? ht sym)
+         [get/set! (in-value (second binding))])
+    (hash-set! ht sym get/set!))
+  (syntax-case stx ()
+    ;; I couldn't figure out how to get a set! transformer to work for
+    ;; Typed Racket -- how to annotate or cast a get/set! as (-> Any
+    ;; Void). So instead, just intercept (set! id e) as a datum and
+    ;; effectively (get/set! (eval e debug-repl-ns)) here. In other
+    ;; words treat the stx like a REPL "command". Of course this
+    ;; totally bypasses type-checking, but this is a debugger. YOLO!
+    [(set! id e)
+     (and (module-declared? 'typed/racket/base)
+          (eq? 'set! (syntax->datum #'set!))
+          (identifier? #'id)
+          (hash-has-key? ht (syntax->datum #'id)))
+     (let ([set (hash-ref ht (syntax->datum #'id))]
+           [v   (eval #'e debug-repl-ns)])
+       (set v)
+       #`'#,v)]
+    ;; Wrap stx in a let-syntax form with a make-set!-transformer for
+    ;; every local variable in the mark-bindings results.
+    [_
+     (let ([syntax-bindings
+            (for/list ([(sym get/set!) (in-hash ht)])
+              (define id (datum->syntax #f sym))
+              (define xform
+                (make-set!-transformer
+                 (λ (stx)
+                   (syntax-case stx (set!)
+                     [(set! id v) (identifier? #'id) #`(#%plain-app #,get/set! v)]
+                     [id          (identifier? #'id) #`'#,(get/set!)]))))
+              #`(#,id #,xform))])
+       #`(let-syntax #,syntax-bindings
+           #,stx))]))
 
 
 ;;; Command interface
