@@ -10,6 +10,7 @@
          racket/string
          syntax/modread
          "debug-annotator.rkt"
+         "gui.rkt"
          "interactions.rkt"
          "util.rkt")
 
@@ -171,14 +172,19 @@
 ;;; Debug REPL
 
 (define ((repl src pos top-mark))
-  (parameterize ([current-prompt-read (prompt-read src pos top-mark)])
+  (parameterize ([current-prompt-read (make-prompt-read src pos top-mark)])
     (read-eval-print-loop)))
 
-(define ((prompt-read src pos top-mark))
-  (define-values (_base name _dir) (split-path src))
-  (display-prompt (format "[~a:~a]" name pos))
-  (define stx (channel-get read-interactions-channel))
-  (with-locals stx (mark-bindings top-mark)))
+(define (make-prompt-read src pos top-mark)
+  (define sync/yield (txt/gui sync yield))
+  (define (prompt-read)
+    (define-values (_base name _dir) (split-path src))
+    (display-prompt (format "[~a:~a]" name pos))
+    (match (sync/yield read-interactions-channel)
+      [(? exn:fail? exn) (raise exn)]
+      [(? syntax? stx)   (with-locals stx (mark-bindings top-mark))]
+      [v                 v]))
+  prompt-read)
 
 (define (with-locals stx bindings)
   ;; Note that mark-bindings is ordered from inner to outer scopes --
