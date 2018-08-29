@@ -202,10 +202,10 @@
     ;; Only display prompt when an interaction isn't available very
     ;; soon. A tiny timeout gives the read-interaction thread a chance
     ;; to run, increasing chance we needn't display prompt. See #311.
-    (match (sync/timeout 0.01 chan)
+    (match (or (sync/timeout 0.01 chan)
+               (begin (display-prompt (maybe-mod->prompt-string m))
+                      (sync/yield chan)))
       [(? exn:fail? exn) (raise exn)]
-      [#f (display-prompt (maybe-mod->prompt-string m))
-          (sync/yield chan)]
       [v v]))
   prompt-read)
 ;; "Footnote" comments about make-prompt-read and many attempts to fix
