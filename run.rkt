@@ -13,6 +13,7 @@
          "error.rkt"
          "gui.rkt"
          "instrument.rkt"
+         "interactions.rkt"
          "logger.rkt"
          "mod.rkt"
          "namespace.rkt"
@@ -94,10 +95,6 @@
   ;; If racket/gui/base isn't loaded, the current-eventspace parameter
   ;; doesn't exist, so make a "dummy" parameter of that name.
   (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
-  ;; When gui, our prompt-read handler should use yield not sync.
-  ;; Define this in the main thread, then supply to
-  ;; make-prompt-read-hanlder in repl-thread.
-  (define sync/yield (txt/gui sync yield))
 
   ;; Create REPL thread
   (define repl-thread
@@ -119,6 +116,7 @@
          [instrumenting-enabled (instrument-level? context-level)]
          [profiling-enabled (eq? context-level 'profile)]
          [test-coverage-enabled (eq? context-level 'coverage)]
+         [current-sync/yield (txt/gui sync yield)]
          ;; LAST: `current-eventspace` because `make-eventspace`
          ;; creates an event handler thread -- now. We want that
          ;; thread to inherit the parameterizations above. (Otherwise
@@ -163,7 +161,7 @@
         ;; the thunk will simply channel-put.
         (ready-thunk)
         ;; 4. read-eval-print-loop
-        (parameterize ([current-prompt-read (make-prompt-read maybe-mod sync/yield)]
+        (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
                        [current-module-name-resolver module-name-resolver-for-repl])
           ;; Note that read-eval-print-loop catches all non-break
           ;; exceptions.

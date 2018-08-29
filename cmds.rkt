@@ -20,9 +20,9 @@
          "channel.rkt"
          "defn.rkt"
          "fresh-line.rkt"
-         "gui.rkt"
          "help.rkt"
          "instrument.rkt"
+         "interactions.rkt"
          "md5.rkt"
          "mod.rkt"
          "scribble.rkt"
@@ -32,8 +32,7 @@
 
 (provide start-command-server
          attach-command-server
-         make-prompt-read
-         display-prompt)
+         make-prompt-read)
 
 (module+ test
   (require rackunit))
@@ -175,69 +174,9 @@
       (accept-a-connection))))
   (void))
 
-(define/contract (make-prompt-read m sync/yield)
-  (-> (or/c #f mod?) (-> evt? any) (-> any))
-  ;; A channel to which a thread puts interactions that it reads using
-  ;; the current-read-interaction handler. This can be set by a lang
-  ;; from its configure-runtime, so, this should be compatible with
-  ;; any lang, even non-sexpr langs.
-  (define chan (make-channel))
-  (define (read-interaction/put-channel)
-    (define in ((current-get-interaction-input-port)))
-    (define (read-interaction)
-      (with-handlers ([exn:fail? values])
-        ((current-read-interaction) (object-name in) in))) ;[^1]
-    (match (read-interaction)
-      [(? eof-object?) (sync in)] ;[^2]
-      [(? exn:fail? e) (channel-put chan e)] ;raise in other thread
-      [v (channel-put chan v)])
-    (read-interaction/put-channel))
-  (thread read-interaction/put-channel)
-
-  ;; The prompt-read handler.
-  (define (prompt-read)
-    ;; Only display prompt when an interaction isn't available very
-    ;; soon. A tiny timeout gives the read-interaction thread a chance
-    ;; to run, increasing chance we needn't display prompt. See #311.
-    (match (or (sync/timeout 0.01 chan)
-               (begin (display-prompt (maybe-mod->prompt-string m))
-                      (sync/yield chan))) ;not sync; see #326
-      [(? exn:fail? exn) (raise exn)]
-      [v v]))
-  prompt-read)
-;; "Footnote" comments about make-prompt-read and many attempts to fix
-;; issue #305.
-;;
-;; [^1]: datalog/lang expects each interaction to be EOF terminated.
-;;       This seems to be a DrRacket convention (?). We could make
-;;       that work here if we composed open-input-string with
-;;       read-line. But that would fail for valid multi-line
-;;       expressions in langs like racket/base e.g. "(+ 1\n2)". We
-;;       could have Emacs racket-repl-submit append some marker that
-;;       lets us know to combine multiple lines here -- but we'd have
-;;       to be careful to eat the marker and avoid combining lines
-;;       when the user is entering input for their own program that
-;;       uses `read-line` etc. Trying to be clever here is maybe not
-;;       smart. I _think_ the safest thing is for each lang like
-;;       datalog to implement current-read-interaction like it says on
-;;       the tin -- it can parse just one expression/statement from a
-;;       normal, "infinite" input port; if that means the lang parser
-;;       has to be tweaked for a single-expression/statement mode of
-;;       usage, so be it.
-;;
-;; [^2]: The eof-object? clause is here only for datalog/lang
-;;       configure-runtime.rkt. Its `the-read` returns eof if
-;;       char-ready? is false. WAT. Why doesn't it just block like a
-;;       normal read-interaction handler? Catch this and wait for more
-;;       input to be available before calling it again.
-
-(define (display-prompt str)
-  (flush-output (current-error-port))
-  (fresh-line)
-  (display str)
-  (display "> ")
-  (flush-output)
-  (zero-column!))
+(define/contract ((make-prompt-read m))
+  (-> (or/c #f mod?) (-> any))
+  (get-interaction (maybe-mod->prompt-string m)))
 
 (define/contract (command sexpr the-context)
   (-> pair? context? any/c)
