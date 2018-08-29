@@ -175,8 +175,8 @@
       (accept-a-connection))))
   (void))
 
-(define/contract (make-prompt-read m)
-  (-> (or/c #f mod?) (-> any))
+(define/contract (make-prompt-read m sync/yield)
+  (-> (or/c #f mod?) (-> evt? any) (-> any))
   ;; A channel to which a thread puts interactions that it reads using
   ;; the current-read-interaction handler. This can be set by a lang
   ;; from its configure-runtime, so, this should be compatible with
@@ -194,17 +194,14 @@
     (read-interaction/put-channel))
   (thread read-interaction/put-channel)
 
-  ;; The prompt-read handler. Here be sure to use yield instead of
-  ;; sync when racket/gui is loaded, else we'll "starve" the
-  ;; eventspace handler. See #326.
-  (define sync/yield (txt/gui sync yield))
+  ;; The prompt-read handler.
   (define (prompt-read)
     ;; Only display prompt when an interaction isn't available very
     ;; soon. A tiny timeout gives the read-interaction thread a chance
     ;; to run, increasing chance we needn't display prompt. See #311.
     (match (or (sync/timeout 0.01 chan)
                (begin (display-prompt (maybe-mod->prompt-string m))
-                      (sync/yield chan)))
+                      (sync/yield chan))) ;not sync; see #326
       [(? exn:fail? exn) (raise exn)]
       [v v]))
   prompt-read)
