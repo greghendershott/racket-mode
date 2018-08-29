@@ -143,11 +143,11 @@
 (define (start-command-server port)
   (thread
    (thunk
-    (define listener (tcp-listen port 4 #t))
+    (define listener (tcp-listen port 4 #t "127.0.0.1"))
     (let accept-a-connection ()
       (define custodian (make-custodian))
       (parameterize ([current-custodian custodian])
-        (with-handlers ([exn:fail? void])
+        (with-handlers ([exn:fail? void]) ;just disconnect; see #327
           (define-values (in out) (tcp-accept listener))
           (define response-channel (make-channel))
           (define ((do-command/put-response nonce sexp))
