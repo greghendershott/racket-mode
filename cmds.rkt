@@ -20,6 +20,7 @@
          "channel.rkt"
          "defn.rkt"
          "fresh-line.rkt"
+         "gui.rkt"
          "help.rkt"
          "instrument.rkt"
          "md5.rkt"
@@ -192,21 +193,20 @@
       [v (channel-put chan v)])
     (read-interaction/put-channel))
   (thread read-interaction/put-channel)
-  ;; The prompt-read handler.
+
+  ;; The prompt-read handler. Here be sure to use yield instead of
+  ;; sync when racket/gui is loaded, else we'll "starve" the
+  ;; eventspace handler. See #326.
+  (define sync/yield (txt/gui sync yield))
   (define (prompt-read)
-    (define v
-      ;; Only display prompt when an interaction isn't available very
-      ;; soon. A tiny non-zero timeout gives the read-interaction
-      ;; thread a chance to run, increasing chance we needn't display
-      ;; prompt. See issue #311.
-      (match (sync/timeout 0.01 chan)
-        [#f
-         (display-prompt (maybe-mod->prompt-string m))
-         (channel-get chan)]
-        [v v]))
-    (when (exn:fail? v)
-      (raise v))
-    v)
+    ;; Only display prompt when an interaction isn't available very
+    ;; soon. A tiny timeout gives the read-interaction thread a chance
+    ;; to run, increasing chance we needn't display prompt. See #311.
+    (match (sync/timeout 0.01 chan)
+      [(? exn:fail? exn) (raise exn)]
+      [#f (display-prompt (maybe-mod->prompt-string m))
+          (sync/yield chan)]
+      [v v]))
   prompt-read)
 ;; "Footnote" comments about make-prompt-read and many attempts to fix
 ;; issue #305.
