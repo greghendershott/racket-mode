@@ -206,7 +206,7 @@
      (let ([set (hash-ref ht (syntax->datum #'id))]
            [v   (eval #'e debug-repl-ns)])
        (set v)
-       #`'#,v)]
+       #`(void))]
     ;; Wrap stx in a let-syntax form with a make-set!-transformer for
     ;; every local variable in the mark-bindings results.
     [_
