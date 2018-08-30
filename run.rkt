@@ -10,7 +10,7 @@
          racket/set
          racket/string
          "channel.rkt"
-         "cmds.rkt"
+         "command-server.rkt"
          (only-in "debug.rkt" make-debug-eval-handler)
          "error.rkt"
          "gui.rkt"

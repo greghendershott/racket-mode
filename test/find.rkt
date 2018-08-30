@@ -5,8 +5,8 @@
          racket/runtime-path
          rackunit
          syntax/modread
-         "../defn.rkt"
-         "defn-examples.rkt")
+         "../find.rkt"
+         "find-examples.rkt")
 
 (define-runtime-path dot-dot "..")
 
@@ -35,61 +35,61 @@
                      (? not-1)
                      (? not-0)))
 
-  ;; Tests for specific locations in defn-examples.rkt
+  ;; Tests for specific locations in find-examples.rkt
 
   (check-match (find-definition "plain")
-               (list (pregexp "defn-examples.rkt$") 7 9))
+               (list (pregexp "find-examples.rkt$") 7 9))
   (check-equal? (find-signature "plain")
                 '(plain x))
 
   (check-match (find-definition "renamed")
-               (list (pregexp "defn-examples.rkt$") 7 9))
+               (list (pregexp "find-examples.rkt$") 7 9))
   (check-equal? (find-signature "renamed")
                 '(plain x))
 
   (check-match (find-definition "contracted1")
-               (list (pregexp "defn-examples.rkt$") 11 9))
+               (list (pregexp "find-examples.rkt$") 11 9))
   (check-equal? (find-signature "contracted1")
                 '(contracted1 x))
 
   (check-match (find-definition "contracted2")
-               (list (pregexp "defn-examples.rkt$") 13 9))
+               (list (pregexp "find-examples.rkt$") 13 9))
   (check-equal? (find-signature "contracted2")
                 '(contracted2 x))
 
   (check-match (find-definition "contracted/renamed")
-               (list (pregexp "defn-examples.rkt$") 16 9))
+               (list (pregexp "find-examples.rkt$") 16 9))
   (check-equal? (find-signature "contracted/renamed")
                 '(c/r x))
 
   (check-match (find-definition "plain-by-macro")
-               (list (pregexp "defn-examples.rkt$") 23 15))
+               (list (pregexp "find-examples.rkt$") 23 15))
   (check-false (find-signature "plain-by-macro"))
 
   (check-match (find-definition "contracted-by-macro")
-               (list (pregexp "defn-examples.rkt$") 29 20))
+               (list (pregexp "find-examples.rkt$") 29 20))
   (check-false (find-signature "contracted-by-macro"))
 
   (check-match (find-definition "sub")
-               (list (pregexp "defn-examples.rkt$") 38 11))
+               (list (pregexp "find-examples.rkt$") 38 11))
   (check-equal? (find-signature "sub")
                 '(sub x))
 
   (check-match (find-definition "sub/renamed")
-               (list (pregexp "defn-examples.rkt$") 38 11))
+               (list (pregexp "find-examples.rkt$") 38 11))
   (check-equal? (find-signature "sub/renamed")
                 '(sub x))
 
   (check-match (find-definition "foo")
-               (list (pregexp "defn-examples.rkt$") 48 9))
+               (list (pregexp "find-examples.rkt$") 48 9))
   (check-equal? (find-signature "foo")
                 '(foo x))
 
   (check-match (find-definition "a-number")
-               (list (pregexp "defn-examples.rkt$") 52 8))
+               (list (pregexp "find-examples.rkt$") 52 8))
 
   (check-match (find-definition "a-parameter")
-               (list (pregexp "defn-examples.rkt$") 54 8))
+               (list (pregexp "find-examples.rkt$") 54 8))
 
   ;; This is (roughly) a test of opening a Racket source file and
   ;; doing M-. on every non-list sexpr: Call find-definition on each
@@ -116,6 +116,6 @@
        ;; sexprs as text: `find-definition` takes a string, because
        ;; `racket-visit-definition` takes text from an Emacs buffer.
        (λ () (with-input-from-file file read)))))
-  (for ([file '("cmds.rkt"
+  (for ([file '("commands.rkt"
                 "run.rkt")])
     (check-non-bof-location (build-path dot-dot file))))

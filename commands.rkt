@@ -1,8 +1,7 @@
 #lang at-exp racket/base
 
-(require macro-debugger/analysis/check-requires
-         racket/contract/base
-         racket/contract/region
+(require (only-in macro-debugger/analysis/check-requires show-requires)
+         racket/contract
          racket/file
          racket/format
          racket/function
@@ -14,279 +13,37 @@
          racket/set
          racket/string
          racket/system
-         racket/tcp
          syntax/modresolve
          (only-in xml xexpr->string)
-         "channel.rkt"
-         "debug.rkt"
-         "defn.rkt"
-         "fresh-line.rkt"
+         "find.rkt"
+         "elisp.rkt"
          "help.rkt"
          "instrument.rkt"
-         "interactions.rkt"
-         "md5.rkt"
          "mod.rkt"
          "scribble.rkt"
          "syntax.rkt"
          "try-catch.rkt"
          "util.rkt")
 
-(provide start-command-server
-         attach-command-server
-         make-prompt-read
-         elisp-read
-         as-racket-bool)
+(provide syms
+         find-definition
+         find-module
+         describe
+         doc
+         type
+         macro-stepper
+         macro-stepper/next
+         requires/tidy
+         requires/trim
+         requires/base
+         find-collection
+         get-profile
+         get-uncovered
+         check-syntax
+         eval-command)
 
 (module+ test
   (require rackunit))
-
-;; Emacs Lisp needs to send us commands and get responses.
-;;
-;; There are a few ways to do this.
-;;
-;; 0. Vanilla "inferior-mode" stdin/stdout. Commands are sent to stdin
-;;    -- "typed invisibly at the REPL prompt" -- and responses go to
-;;    stdout. Mixing command I/O with the user's Racket program I/O
-;;    works better than you might expect -- but worse than you want.
-;;
-;;    Unmixing output is the biggest challenge. Traditionally a comint
-;;    filter proc will try to extract everything up to a sentinel like
-;;    the next REPL prompt. But it can accidentally match user program
-;;    output that resembles the sentinel. (Real example: The ,describe
-;;    command returns HTML that happens to contain `\ntag>`.)
-;;
-;;    Input is also a problem. If the user's program reads from stdin,
-;;    it might eat a command. Or if it runs for awhile; commands are
-;;    blocked.
-;;
-;;    TL;DR: Command traffic should be out of band not mixed in stdin
-;;    and stdout.
-;;
-;; 1. Use files. Originally I addressed the mixed-output side by
-;;    having commands output responses to a file. (Stdout only
-;;    contains regular Racket output and appears directly in REPL
-;;    buffer as usual.) This didn't address mixed input. Although
-;;    using a command input file could have worked (and did work in
-;;    experiments), instead...
-;;
-;; 2. Use sockets. Now the status quo. Note that this is _not_ a
-;;    "network REPL". The socket server is solely for command input
-;;    and output. There is no redirection of user's Racket program
-;;    I/O, and it is still handled by Emacs' comint-mode in the usual
-;;    manner.
-
-(define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
-
-(define-struct/contract context
-  ([ns          namespace?]
-   [maybe-mod   (or/c #f mod?)]
-   [md5         string?]
-   [submit-pred (or/c #f drracket:submit-predicate/c)]))
-
-(define command-server-context (context (make-base-namespace) #f "" #f))
-
-(define/contract (attach-command-server ns maybe-mod)
-  (-> namespace? (or/c #f mod?) any)
-  (set-debug-repl-namespace! ns)
-  (set! command-server-context
-        (context ns
-                 maybe-mod
-                 (maybe-mod->md5 maybe-mod)
-                 (get-repl-submit-predicate maybe-mod))))
-
-(define (maybe-mod->md5 m)
-  (define-values (dir file _) (maybe-mod->dir/file/rmp m))
-  (if (and dir file)
-      (file->md5 (build-path dir file))
-      ""))
-
-;; <https://docs.racket-lang.org/tools/lang-languages-customization.html#(part._.R.E.P.L_.Submit_.Predicate)>
-(define/contract (get-repl-submit-predicate m)
-  (-> (or/c #f mod?) (or/c #f drracket:submit-predicate/c))
-  (define-values (dir file rmp) (maybe-mod->dir/file/rmp m))
-  (define path (and dir file (build-path dir file)))
-  (and path rmp
-       (or (with-handlers ([exn:fail? (λ _ #f)])
-            (match (with-input-from-file (build-path dir file) read-language)
-              [(? procedure? get-info)
-               (match (get-info 'drracket:submit-predicate #f)
-                 [#f #f]
-                 [v  v])]
-              [_ #f]))
-           (with-handlers ([exn:fail? (λ _ #f)])
-             (match (module->language-info rmp #t)
-               [(vector mp name val)
-                (define get-info ((dynamic-require mp name) val))
-                (get-info 'drracket:submit-predicate #f)]
-               [_ #f])))))
-
-;; The command server accepts a single TCP connection at a time.
-;;
-;; Normally Emacs will make only one connection. If the user exits the
-;; REPL, then our entire Racket process exits. (Just in case, we have
-;; an accept-a-connection loop below. It handles any exns -- like
-;; exn:network -- not handled during command processing. It uses a
-;; custodian to clean up.)
-;;
-;; Command requests and responses "on the wire" are a subset of valid
-;; Emacs Lisp s-expressions: See elisp-read and elisp-write.
-;;
-;; Command requests are (nonce command param ...).
-;;
-;; A thread is spun off to handle each request, so that a long-running
-;; command won't block others. The nonce supplied with the request is
-;; returned with the response, so that the client can match the
-;; response with the request. The nonce needn't be random, just
-;; unique; an increasing integer is fine.
-;;
-;; Command responses are either (nonce 'ok sexp ...+) or (nonce 'error
-;; "message"). The latter normally can and should be displayed to the
-;; user in Emacs via error or message. We handle exn:fail? up here;
-;; generally we're fine letting Racket exceptions percolate up and be
-;; shown to the user
-(define (start-command-server port)
-  (thread
-   (thunk
-    (define listener (tcp-listen port 4 #t "127.0.0.1"))
-    (let accept-a-connection ()
-      (define custodian (make-custodian))
-      (parameterize ([current-custodian custodian])
-        (with-handlers ([exn:fail? void]) ;just disconnect; see #327
-          (define-values (in out) (tcp-accept listener))
-          (define response-channel (make-channel))
-          (define ((do-command/put-response nonce sexp))
-            (channel-put
-             response-channel
-             (cons
-              nonce
-              (with-handlers ([exn:fail? (λ (e) `(error ,(exn-message e)))])
-                (parameterize ([current-namespace
-                                (context-ns command-server-context)])
-                  `(ok ,(command sexp command-server-context)))))))
-          (define (get/write-response)
-            (elisp-writeln (sync response-channel
-                                 debug-notify-channel)
-                           out)
-            (flush-output out)
-            (get/write-response))
-          ;; With all the pieces defined, let's go:
-          (thread get/write-response)
-          (let read-a-command ()
-            (match (elisp-read in)
-              [(cons nonce sexp) (thread (do-command/put-response nonce sexp))
-                                 (read-a-command)]
-              [(? eof-object?)   (void)])))
-        (custodian-shutdown-all custodian))
-      (accept-a-connection))))
-  (void))
-
-(define/contract ((make-prompt-read m))
-  (-> (or/c #f mod?) (-> any))
-  (begin0 (get-interaction (maybe-mod->prompt-string m))
-    (next-break 'all))) ;let debug-instrumented code break again
-
-(define/contract (command sexpr the-context)
-  (-> pair? context? any/c)
-  (match-define (context _ns maybe-mod md5 submit-pred) the-context)
-  (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
-  (define path (and dir file (build-path dir file)))
-  ;; Note: Intentionally no "else" match clause -- let caller handle
-  ;; exn and supply a consistent exn response format.
-  (match sexpr
-    [`(run ,what ,mem ,pp? ,ctx ,args ,dbg) (run what mem pp? ctx args dbg)]
-    [`(path+md5)                            (cons (or path 'top) md5)]
-    [`(syms)                                (syms)]
-    [`(def ,str)                            (find-definition str)]
-    [`(mod ,sym)                            (find-module sym maybe-mod)]
-    [`(describe ,str)                       (describe str)]
-    [`(doc ,str)                            (doc str)]
-    [`(type ,v)                             (type v)]
-    [`(macro-stepper ,str ,into-base?)      (macro-stepper str into-base?)]
-    [`(macro-stepper/next)                  (macro-stepper/next)]
-    [`(requires/tidy ,reqs)                 (requires/tidy reqs)]
-    [`(requires/trim ,path-str ,reqs)       (requires/trim path-str reqs)]
-    [`(requires/base ,path-str ,reqs)       (requires/base path-str reqs)]
-    [`(find-collection ,str)                (find-collection str)]
-    [`(get-profile)                         (get-profile)]
-    [`(get-uncovered)                       (get-uncovered path)]
-    [`(check-syntax ,path-str)              (check-syntax path-str)]
-    [`(eval ,v)                             (eval-command v)]
-    [`(repl-submit? ,str ,eos?)             (repl-submit? submit-pred str eos?)]
-    [`(debug-eval ,src ,l ,c ,p ,code)      (debug-eval src l c p code)]
-    [`(debug-resume ,v)                     (debug-resume v)]
-    [`(debug-disable)                       (debug-disable)]
-    [`(exit)                                (exit)]))
-
-;;; read/write Emacs Lisp values
-
-(define (elisp-read in)
-  (elisp->racket (read in)))
-
-(define (elisp-writeln v out)
-  (elisp-write v out)
-  (newline out))
-
-(define (elisp-write v out)
-  (write (racket->elisp v) out))
-
-(define elisp-bool/c (or/c #t '()))
-(define (as-racket-bool v)
-  ;; elisp->racket "de-puns" 'nil as '() -- not #f. Use this helper to
-  ;; treat as a boolean.
-  (and v (not (null? v))))
-
-(define (elisp->racket v)
-  (match v
-    ['nil             '()] ;not #f -- see as-racket-bool
-    ['t               #t]
-    [(? list? xs)     (map elisp->racket xs)]
-    [(cons x y)       (cons (elisp->racket x) (elisp->racket y))]
-    [(vector s _ ...) s] ;Emacs strings can be #("string" . properties)
-    [v                v]))
-
-(define (racket->elisp v)
-  (match v
-    [(or #f (list)) 'nil]
-    [#t             't]
-    [(? list? xs)   (map racket->elisp xs)]
-    [(cons x y)     (cons (racket->elisp x) (racket->elisp y))]
-    [(? path? v)    (path->string v)]
-    [(? hash? v)    (for/list ([(k v) (in-hash v)])
-                      (cons (racket->elisp k) (racket->elisp v)))]
-    [(? set? v)     (map racket->elisp (set->list v))]
-    [v              v]))
-
-(module+ test
-  (check-equal? (with-output-to-string
-                  (λ () (elisp-write '(1 #t nil () (a . b) #hash((1 . 2) (3 . 4)))
-                                     (current-output-port))))
-                "(1 t nil nil (a . b) ((1 . 2) (3 . 4)))"))
-
-;;; commands
-
-(define/contract (run what mem pp ctx args dbgs)
-  (-> list? number? elisp-bool/c context-level? list? (listof path-string?)
-      list?)
-  (define ready-channel (make-channel))
-  (channel-put message-to-main-thread-channel
-               (rerun (->mod/existing what)
-                      mem
-                      (as-racket-bool pp)
-                      ctx
-                      (list->vector args)
-                      (list->set (map string->path dbgs))
-                      (λ () (channel-put ready-channel what))))
-  ;; Waiting for this allows the command response to be used as the
-  ;; all-clear for additional commands that need the module load to be
-  ;; done and entering a REPL for that module. For example, to compose
-  ;; run with get-profile or get-uncovered.
-  (sync ready-channel))
-
-(define/contract (repl-submit? submit-pred text eos)
-  (-> (or/c #f drracket:submit-predicate/c) string? elisp-bool/c (or/c 'default #t #f))
-  (if submit-pred
-      (submit-pred (open-input-string text) (as-racket-bool eos))
-      'default))
 
 (define (syms)
   (sort (map symbol->string (namespace-mapped-symbols))
@@ -316,14 +73,14 @@
          [run.rkt          (path->string (build-path here "run.rkt"))]
          [pe-racket/string (pregexp "collects/racket/string.rkt$")])
     ;; Examples of having no current module (i.e. plain racket/base
-    ;; REPL) and having one ("cmds.rkt").
+    ;; REPL) and having one ("commands.rkt").
     (let ([mod #f])
      (parameterize ([current-directory here])
        (check-match (find-module "run.rkt" mod)
                     (list (== run.rkt) 1 0))
        (check-match (find-module "racket/string" mod)
                     (list pe-racket/string 1 0))))
-    (let ([mod (->mod/existing (build-path here "cmds.rkt"))])
+    (let ([mod (->mod/existing (build-path here "commands.rkt"))])
       (check-match (find-module "run.rkt" mod)
                    (list (== run.rkt) 1 0))
       (check-match (find-module "racket/string" mod)
@@ -609,7 +366,6 @@
                       [v                          (list (list v 0))])))])))))
 
 (module+ test
-  (require rackunit)
   (check-equal?
    (combine-requires '((require a b c)
                        (require d e)
