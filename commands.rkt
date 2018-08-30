@@ -22,7 +22,6 @@
          "mod.rkt"
          "scribble.rkt"
          "syntax.rkt"
-         "try-catch.rkt"
          "util.rkt")
 
 (provide syms
@@ -101,23 +100,23 @@
          [x (~a x)])))
 
 (define (type-or-contract v) ;any/c -> (or/c #f string?)
-  ;; 1. Try using Typed Racket's REPL simplified type.
-  (try (match (with-output-to-string
-                (λ ()
-                  ((current-eval)
-                   (cons '#%top-interaction v))))
-         [(pregexp "^- : (.*) \\.\\.\\..*\n" (list _ t)) t]
-         [(pregexp "^- : (.*)\n$"            (list _ t)) t])
-       #:catch exn:fail? _
-       ;; 2. Try to find a contract.
-       (try (parameterize ([error-display-handler (λ _ (void))])
-              ((current-eval)
-               (cons '#%top-interaction
-                     `(if (has-contract? ,v)
-                       (~a (contract-name (value-contract ,v)))
-                       (error "")))))
-            #:catch exn:fail? _
-            #f)))
+  (or
+   ;; 1. Try using Typed Racket's REPL simplified type.
+   (with-handlers ([exn:fail? (const #f)])
+     (match (with-output-to-string
+              (λ ()
+                ((current-eval)
+                 (cons '#%top-interaction v))))
+       [(pregexp "^- : (.*) \\.\\.\\..*\n" (list _ t)) t]
+       [(pregexp "^- : (.*)\n$"            (list _ t)) t]))
+   ;; 2. Try to find a contract.
+   (with-handlers ([exn:fail? (const #f)])
+     (parameterize ([error-display-handler (λ _ (void))])
+       ((current-eval)
+        (cons '#%top-interaction
+              `(if (has-contract? ,v)
+                (~a (contract-name (value-contract ,v)))
+                (error ""))))))))
 
 (define (sig-and/or-type stx)
   (define dat (syntax->datum stx))
@@ -614,16 +613,15 @@
 ;;; check-syntax
 
 (define check-syntax
-  (let ([show-content (try (let ([f (dynamic-require 'drracket/check-syntax
-                                                     'show-content)])
-                             ;; Ensure correct position info for
-                             ;; Unicode like λ. show-content probably
-                             ;; ought to do this itself, but work
-                             ;; around that.
-                             (λ (path)
-                               (parameterize ([port-count-lines-enabled #t])
-                                 (f path))))
-                           #:catch exn:fail? _ (λ _ 'not-supported))])
+  (let ([show-content
+         (with-handlers ([exn:fail? (λ _ 'not-supported)])
+           (let ([f (dynamic-require 'drracket/check-syntax 'show-content)])
+             ;; Ensure correct position info for Unicode like λ.
+             ;; show-content probably ought to do this itself, but
+             ;; work around that.
+             (λ (path)
+               (parameterize ([port-count-lines-enabled #t])
+                 (f path)))))])
     ;; Note: Adjust all positions to 1-based Emacs `point' values.
     (λ (path-str)
       (define path (string->path path-str))
