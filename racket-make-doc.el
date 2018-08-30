@@ -159,7 +159,9 @@
     racket-indent-sequence-depth
     racket-pretty-lambda
     racket-smart-open-bracket-enable
-    racket-logger-config)
+    racket-logger-config
+    "Experimental debugger"
+    racket-debuggable-files)
   "Variables to include in the Reference.")
 
 (defun racket-make-doc/variables ()
