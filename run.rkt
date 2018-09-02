@@ -12,6 +12,7 @@
          "channel.rkt"
          "command-server.rkt"
          (only-in "debug.rkt" make-debug-eval-handler)
+         "elisp.rkt"
          "error.rkt"
          "gui.rkt"
          "instrument.rkt"
@@ -38,13 +39,15 @@
 ;;    cmds.rkt). One of the commands is a `run` command.
 
 (module+ main
-  (define-values (command-port run-info)
+  (define-values (command-port launch-token run-info)
     (match (current-command-line-arguments)
       [(vector port)
        (values (string->number port)
+               #f
                rerun-default)]
-      [(vector port run-command)
+      [(vector port launch-token run-command)
        (values (string->number port)
+               (elisp-read (open-input-string launch-token))
                (match (elisp-read (open-input-string run-command))
                  [(list 'run what mem pp ctx args dbgs)
                   (rerun (->mod/existing what)
@@ -59,7 +62,7 @@
       [v
        (eprintf "Bad arguments: ~v\n" v)
        (exit)]))
-  (start-command-server command-port)
+  (start-command-server command-port launch-token)
   (start-logger-server (add1 command-port))
   ;; Emacs on Windows comint-mode needs buffering disabled.
   (when (eq? (system-type 'os) 'windows)

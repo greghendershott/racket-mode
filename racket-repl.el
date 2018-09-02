@@ -206,6 +206,10 @@ WHAT-TO-RUN may be nil, meaning just a `racket/base` namespace."
           (when (and what-to-run (eq context-level 'debug))
             (racket--debuggable-files (car what-to-run))))))
 
+(defvar racket--cmd-auth nil
+  "A value we give the Racket back-end when we launch it and when we connect.
+See issue #327.")
+
 (defun racket--repl-ensure-buffer-and-process (&optional display run-command)
   "Ensure Racket REPL buffer exists and has live Racket process.
 
@@ -229,6 +233,7 @@ Never changes selected window."
                      nil
                      racket--run.rkt
                      (number-to-string racket-command-port)
+                     (setq racket--cmd-auth (format "%S\n" `(auth ,(random))))
                      (format "%S" (or run-command
                                       (racket--repl-make-run-command nil))))
       (let ((proc (get-buffer-process racket--repl-buffer-name)))
@@ -316,6 +321,7 @@ wait for the connection to be established."
                                 (concat " " (process-name proc))))
          (buffer-disable-undo racket--cmd-buf)
          (set-process-filter proc #'racket--cmd-process-filter)
+         (process-send-string proc racket--cmd-auth)
          (message "Connected to %s process on port %s after %s attempt(s)"
                   proc racket-command-port attempt))
         ((string-match-p "^failed" event)

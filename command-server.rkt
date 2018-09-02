@@ -16,9 +16,7 @@
 
 (provide start-command-server
          attach-command-server
-         make-prompt-read
-         elisp-read
-         as-racket-bool)
+         make-prompt-read)
 
 (define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
 
@@ -67,11 +65,15 @@
 
 ;; The command server accepts a single TCP connection at a time.
 ;;
-;; Normally Emacs will make only one connection. If the user exits the
-;; REPL, then our entire Racket process exits. (Just in case, we have
-;; an accept-a-connection loop below. It handles any exns -- like
-;; exn:network -- not handled during command processing. It uses a
-;; custodian to clean up.)
+;; Immediately after connecting, the client must send us exactly the
+;; same '(accept ,random-value) value that it gave us as a command
+;; line argument when it started us. Else we exit. See issue #327.
+;;
+;; Normally Emacs will make only one connection to us, ever. If the
+;; user exits the REPL, then our entire Racket process exits. (Just in
+;; case, we have an accept-a-connection loop below. It handles any
+;; exns -- like exn:network -- not handled during command processing.
+;; It uses a custodian to clean up.)
 ;;
 ;; Command requests and responses "on the wire" are a subset of valid
 ;; Emacs Lisp s-expressions: See elisp-read and elisp-write.
@@ -89,7 +91,7 @@
 ;; user in Emacs via error or message. We handle exn:fail? up here;
 ;; generally we're fine letting Racket exceptions percolate up and be
 ;; shown to the user
-(define (start-command-server port)
+(define (start-command-server port launch-token)
   (thread
    (thunk
     (define listener (tcp-listen port 4 #t "127.0.0.1"))
@@ -98,6 +100,10 @@
       (parameterize ([current-custodian custodian])
         (with-handlers ([exn:fail? void]) ;just disconnect; see #327
           (define-values (in out) (tcp-accept listener))
+          (unless (or (not launch-token)
+                      (equal? launch-token (elisp-read in)))
+            (display-commented "Authorization failed; exiting")
+            (exit 1)) ;see #327
           (define response-channel (make-channel))
           (define ((do-command/put-response nonce sexp))
             (channel-put
