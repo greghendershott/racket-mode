@@ -135,6 +135,7 @@
         (current-print (make-print-handler pretty-print?))
         (pretty-print-print-hook (make-pretty-print-print-hook))
         (pretty-print-size-hook (make-pretty-print-size-hook))
+        (print-syntax-width +inf.0)
         ;; 2. If module, require and enter its namespace, etc.
         (stx-cache:before-run maybe-mod)
         (when (and maybe-mod mod-path)
@@ -242,23 +243,8 @@
 (define module-name-resolver-for-repl (make-module-name-resolver #t))
 
 (define (make-print-handler pretty-print?)
-  (cond [pretty-print? our-pretty-print-handler]
+  (cond [pretty-print? pretty-print-handler]
         [else (make-plain-print-handler)]))
-
-(define (our-pretty-print-handler v)
-  (cond [(void? v)   (void)]
-        [(syntax? v) (pretty-print-syntax v)]
-        [else        (pretty-print v)]))
-
-(define (pretty-print-syntax v)
-  (pretty-print
-   (list
-    (string->symbol
-     (format "syntax:~a:~a:~a"
-             (or (syntax-source v) "")
-             (match (syntax-column v) [#f ""] [n (add1 n)])
-             (or (syntax-line v) "")))
-    (syntax->datum v))))
 
 ;; Note: The `dynamic-require`s seem to be necessary otherwise
 ;; file/convertible's convertible? always returns #f. Which seeems to
