@@ -1,18 +1,30 @@
 #lang racket/base
 
 (require racket/contract
+         racket/format
          racket/function
+         racket/lazy-require
          racket/match
          racket/set
          racket/tcp
          "channel.rkt"
-         "commands.rkt"
          "debug.rkt"
          "elisp.rkt"
          "interactions.rkt"
          "md5.rkt"
          "mod.rkt"
          "util.rkt")
+
+(lazy-require
+ ["command-check-syntax.rkt" (check-syntax)]
+ ["command-coverage.rkt" (get-uncovered)]
+ ["command-describe.rkt" (describe type)]
+ ["command-find-module.rkt" (find-module)]
+ ["command-help.rkt" (doc)]
+ ["command-macro.rkt" (macro-stepper macro-stepper/next)]
+ ["command-profile.rkt" (get-profile)]
+ ["command-requires.rkt" (requires/tidy requires/trim requires/base)]
+ ["find.rkt" (find-definition)])
 
 (provide start-command-server
          attach-command-server
@@ -168,7 +180,7 @@
     [`(debug-disable)                       (debug-disable)]
     [`(exit)                                (exit)]))
 
-;;; startup commands
+;;; A few commands defined here
 
 (define/contract (run what mem pp ctx args dbgs)
   (-> list? number? elisp-bool/c context-level? list? (listof path-string?)
@@ -193,3 +205,28 @@
   (if submit-pred
       (submit-pred (open-input-string text) (as-racket-bool eos))
       'default))
+
+(define (syms)
+  (sort (map symbol->string (namespace-mapped-symbols))
+        string<?))
+
+;;; eval-commmand
+
+(define/contract (eval-command str)
+  (-> string? string?)
+  (define results
+    (call-with-values (λ ()
+                        ((current-eval) (string->namespace-syntax str)))
+                      list))
+  (~a (map ~v results) "\n"))
+
+;;; find-collection
+
+(define/contract (find-collection str)
+  (-> path-string? (or/c 'find-collection-not-installed #f (listof string?)))
+  (define fcd (with-handlers ([exn:fail:filesystem:missing-module?
+                               (λ _ (error 'find-collection
+                                           "For this to work, you need to `raco pkg install raco-find-collection`."))])
+                (dynamic-require 'find-collection/find-collection
+                                 'find-collection-dir)))
+  (map path->string (fcd str)))

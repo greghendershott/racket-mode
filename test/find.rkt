@@ -116,6 +116,6 @@
        ;; sexprs as text: `find-definition` takes a string, because
        ;; `racket-visit-definition` takes text from an Emacs buffer.
        (λ () (with-input-from-file file read)))))
-  (for ([file '("commands.rkt"
+  (for ([file '("command-requires.rkt"
                 "run.rkt")])
     (check-non-bof-location (build-path dot-dot file))))

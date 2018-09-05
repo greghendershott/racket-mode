@@ -4,14 +4,16 @@
          gui-debugger/marks
          racket/contract
          racket/format
+         racket/lazy-require
          racket/list
          racket/match
          racket/set
          racket/string
          syntax/modread
-         "debug-annotator.rkt"
          "interactions.rkt"
          "util.rkt")
+
+(lazy-require ["debug-annotator.rkt" (annotate-for-single-stepping)])
 
 (provide (rename-out [on-break-channel debug-notify-channel])
          debug-eval

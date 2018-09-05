@@ -13,9 +13,13 @@
          racket/system
          "scribble.rkt")
 
-(provide
- (contract-out [rename -find-help find-help (-> syntax? boolean?)]
-               [perform-search (-> string? any)]))
+(provide doc)
+
+(define/contract (doc str)
+  (-> string? #t)
+  (or (find-help (namespace-symbol->identifier (string->symbol str)))
+      (perform-search str))
+  #t)
 
 ;; It is 2017 therefore it is hard to activate a web browser and show
 ;; an anchor link within a local HTML file.
