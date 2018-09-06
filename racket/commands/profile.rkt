@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require racket/match
-         (only-in "instrument.rkt" get-profile-info))
+         (only-in "../instrument.rkt" get-profile-info))
 
 (provide get-profile)
 

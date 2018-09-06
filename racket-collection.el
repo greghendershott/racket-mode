@@ -135,7 +135,7 @@ See also: `racket-visit-module' and `racket-open-require-path'."
                              "*racket-find-module-path-completions*"
                              racket-program
                              (expand-file-name "find-module-path-completions.rkt"
-                                               racket--source-dir))))
+                                               racket--rkt-source-dir))))
     (setq racket--orp/tq (tq-create proc))))
 
 (defun racket--orp/request-tx-matches (input)

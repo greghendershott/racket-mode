@@ -61,9 +61,9 @@ doc:
 test: test-racket test-elisp
 
 test-racket:
-	raco test ./test/
-	raco test -x ./*.rkt # not example/*.rkt
-
+	raco test ./racket/test/
+	raco test -x ./racket/*.rkt
+	raco test -x ./racket/commands/*.rkt
 
 test-elisp:
 	$(BATCHEMACS) -l ert -l racket-tests.el -f ert-run-tests-batch-and-exit

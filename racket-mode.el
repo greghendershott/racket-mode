@@ -29,20 +29,6 @@
 
 ;;; Code:
 
-(defconst racket-mode-copyright
-  "Copyright (c) 2013-2016 by Greg Hendershott. Portions Copyright (c) Free Software Foundation and Copyright (c) 2002-2012 Neil Van Dyke.")
-
-(defconst racket-mode-legal-notice
-  "This is free software; you can redistribute it and/or modify it under the
-terms of the GNU General Public License as published by the Free Software
-Foundation; either version 2, or (at your option) any later version.  This is
-distributed in the hope that it will be useful, but without any warranty;
-without even the implied warranty of merchantability or fitness for a
-particular purpose.  See the GNU General Public License for more details.  See
-http://www.gnu.org/licenses/ for details.")
-
-(defconst racket-mode-version "0.4")
-
 (require 'racket-edit)
 (require 'racket-imenu)
 (require 'racket-profile)
@@ -175,7 +161,7 @@ installing it does _not_ do the `raco setup` that is normally
 done for Racket packages.
 
 This command will do a `raco make` of racket-mode's .rkt files,
-creating bytecode files in a `compiled/` subdirectory. As a
+creating bytecode files in `compiled/` subdirectories. As a
 result, when a `racket-run' or `racket-repl' command must start
 the Racket process, it will start faster.
 
@@ -188,12 +174,14 @@ If you run this command, _ever_, you should run it _again_ after:
   the variable `racket-program'. Otherwise, you might get an
   error message due to the bytecode being different versions."
   (interactive)
-  (let* ((command (format "%s -l raco make -v %s"
-                          racket-program
-                          (expand-file-name "*.rkt" racket--source-dir)))
-         (prompt (format "Do `%s` " command)))
-    (when (y-or-n-p prompt)
-      (async-shell-command command))))
+  (dolist (dir (list racket--rkt-source-dir
+                     (concat racket--rkt-source-dir "/commands/")))
+    (let* ((command (format "%s -l raco make -v %s"
+                            racket-program
+                            (expand-file-name "*.rkt" dir)))
+           (prompt (format "Do `%s` " command)))
+      (when (y-or-n-p prompt)
+        (async-shell-command command)))))
 
 (provide 'racket-mode)
 

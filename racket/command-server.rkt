@@ -16,15 +16,15 @@
          "util.rkt")
 
 (lazy-require
- ["command-check-syntax.rkt" (check-syntax)]
- ["command-coverage.rkt" (get-uncovered)]
- ["command-describe.rkt" (describe type)]
- ["command-find-module.rkt" (find-module)]
- ["command-help.rkt" (doc)]
- ["command-macro.rkt" (macro-stepper macro-stepper/next)]
- ["command-profile.rkt" (get-profile)]
- ["command-requires.rkt" (requires/tidy requires/trim requires/base)]
- ["find.rkt" (find-definition)])
+ ["commands/check-syntax.rkt" (check-syntax)]
+ ["commands/coverage.rkt"     (get-uncovered)]
+ ["commands/describe.rkt"     (describe type)]
+ ["commands/find-module.rkt"  (find-module)]
+ ["commands/help.rkt"         (doc)]
+ ["commands/macro.rkt"        (macro-stepper macro-stepper/next)]
+ ["commands/profile.rkt"      (get-profile)]
+ ["commands/requires.rkt"     (requires/tidy requires/trim requires/base)]
+ ["find.rkt"                 (find-definition)])
 
 (provide start-command-server
          attach-command-server

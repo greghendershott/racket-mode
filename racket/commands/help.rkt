@@ -11,7 +11,7 @@
          racket/port
          racket/promise
          racket/system
-         "scribble.rkt")
+         "../scribble.rkt")
 
 (provide doc)
 

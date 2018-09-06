@@ -124,7 +124,7 @@ Racket, run.rkt will handle that via `dynamic-require` and
 fallbacks. The version number here is a baseline for run.rkt to
 be able to load at all.")
 
-(defvar racket--run.rkt (expand-file-name "run.rkt" racket--source-dir)
+(defvar racket--run.rkt (expand-file-name "run.rkt" racket--rkt-source-dir)
   "Pathname of run.rkt")
 
 (defvar-local racket-user-command-line-arguments

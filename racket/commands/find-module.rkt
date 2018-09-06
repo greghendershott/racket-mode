@@ -3,7 +3,7 @@
 (require racket/contract
          racket/match
          syntax/modresolve
-         "mod.rkt")
+         "../mod.rkt")
 
 (provide find-module)
 
@@ -29,18 +29,18 @@
   (define-runtime-path here ".")
   (let* ([here             (simplify-path here)] ;nuke trailing dot
          ;; Examples of finding relative and absolute:
-         [run.rkt          (path->string (build-path here "run.rkt"))]
+         [requires.rkt     (path->string (build-path here "requires.rkt"))]
          [pe-racket/string (pregexp "collects/racket/string.rkt$")])
     ;; Examples of having no current module (i.e. plain racket/base
-    ;; REPL) and having one ("command-server.rkt").
+    ;; REPL) and having one ("coverage.rkt").
     (let ([mod #f])
      (parameterize ([current-directory here])
-       (check-match (find-module "run.rkt" mod)
-                    (list (== run.rkt) 1 0))
+       (check-match (find-module "requires.rkt" mod)
+                    (list (== requires.rkt) 1 0))
        (check-match (find-module "racket/string" mod)
                     (list pe-racket/string 1 0))))
-    (let ([mod (->mod/existing (build-path here "command-server.rkt"))])
-      (check-match (find-module "run.rkt" mod)
-                   (list (== run.rkt) 1 0))
+    (let ([mod (->mod/existing (build-path here "coverage.rkt"))])
+      (check-match (find-module "requires.rkt" mod)
+                   (list (== requires.rkt) 1 0))
       (check-match (find-module "racket/string" mod)
                    (list pe-racket/string 1 0)))))

@@ -83,12 +83,16 @@ and callers just use `thing-at-point'."
      (substring-no-properties str))
     (v v)))
 
-(defconst racket--source-dir
+(defconst racket--el-source-dir
   (file-name-directory (or load-file-name (racket--buffer-file-name)))
-  "Path to our source files.
+  "Path to dir of our Emacs Lisp source files.
 When installed as a package, this can be found from the variable
 `load-file-name'. When developing interactively, get it from the
 .el buffer file name.")
+
+(defconst racket--rkt-source-dir
+  (expand-file-name "./racket/" racket--el-source-dir)
+  "Path to dir of our Racket source files. ")
 
 ;;; trace
 

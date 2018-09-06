@@ -2,7 +2,7 @@
 
 (require racket/list
          racket/match
-         (only-in "instrument.rkt" get-test-coverage-info))
+         (only-in "../instrument.rkt" get-test-coverage-info))
 
 (provide get-uncovered)
 

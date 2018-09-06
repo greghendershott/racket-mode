@@ -47,7 +47,8 @@
                           emacs-uptime
                           system-type
                           major-mode
-                          racket--source-dir
+                          racket--el-source-dir
+                          racket--rkt-source-dir
                           racket-program
                           racket-memory-limit
                           racket-error-context

@@ -6,9 +6,9 @@
          racket/match
          racket/pretty
          racket/system
-         "elisp.rkt"
-         "syntax.rkt"
-         "util.rkt")
+         "../elisp.rkt"
+         "../syntax.rkt"
+         "../util.rkt")
 
 (provide macro-stepper
          macro-stepper/next)

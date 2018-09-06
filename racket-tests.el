@@ -134,8 +134,8 @@
 
 (ert-deftest racket-tests/indent-rkt ()
   "Indentation of example/*.rkt shouldn't change."
-  (should (racket-tests/same-indent "example/example.rkt"))
-  (should (racket-tests/same-indent "example/indent.rkt")))
+  (should (racket-tests/same-indent "racket/example/example.rkt"))
+  (should (racket-tests/same-indent "racket/example/indent.rkt")))
 
 ;;; Font-lock
 
@@ -150,8 +150,8 @@ FILE is interpreted as relative to this source directory."
 
 (ert-deftest racket-tests/font-lock ()
   "Font-lock of example/*.rkt shouldn't change."
-  (should (racket-tests/same-faceup "example/indent.rkt"))
-  (should (racket-tests/same-faceup "example/example.rkt")))
+  (should (racket-tests/same-faceup "racket/example/indent.rkt"))
+  (should (racket-tests/same-faceup "racket/example/example.rkt")))
 
 ;;; Smart open bracket
 

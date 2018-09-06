@@ -6,7 +6,6 @@ Please use <kbd>M-x racket-bug-report</kbd> to generate a buffer with
 information that will help to reproduce and understand the bug:
 
 - Emacs version
-- racket-mode-version
 - value of important racket-mode variables
 - minor-modes that are active
 

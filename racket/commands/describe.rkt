@@ -5,8 +5,8 @@
          racket/match
          racket/port
          (only-in xml xexpr->string)
-         (only-in "find.rkt" find-signature)
-         "scribble.rkt")
+         (only-in "../find.rkt" find-signature)
+         "../scribble.rkt")
 
 (provide type
          describe)
