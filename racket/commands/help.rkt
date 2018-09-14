@@ -2,24 +2,18 @@
 
 (require (only-in help/help-utils find-help)
          (only-in help/search perform-search)
-         json
          net/url
          racket/contract
-         racket/file
-         racket/format
          racket/match
          racket/port
-         racket/promise
-         racket/system
-         "../scribble.rkt")
+         (only-in "../scribble.rkt" binding->path+anchor))
 
 (provide doc)
 
 (define/contract (doc str)
-  (-> string? #t)
-  (or (find-help (namespace-symbol->identifier (string->symbol str)))
-      (perform-search str))
-  #t)
+  (-> string? any)
+  (or (identifier-help (namespace-symbol->identifier (string->symbol str)))
+      (perform-search str)))
 
 ;; It is 2017 therefore it is hard to activate a web browser and show
 ;; an anchor link within a local HTML file.
@@ -41,16 +35,72 @@
 ;; ^1: This is kludgy because the plist has "bundle IDs" like
 ;; "com.google.chrome" but osascript wants strings like "chrome".
 
-(define mac-browser ;; (promise/c (or/c string? #f))
-   (delay/sync (mac-default-browser)))
+(module mac-default-browser racket/base
+  (require json
+           racket/match
+           racket/file
+           racket/system)
+  (provide mac-default-browser)
 
-(define (-find-help stx)
-  ((if (force mac-browser)
-       find-help/mac
-       find-help/boolean)
+  (define launch-plists
+    '("Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist"
+      "Library/Preferences/com.apple.LaunchServices.plist"))
+
+  (define (mac-default-browser)
+    (and (equal? (system-type) 'macosx)
+         (for/or ([plist launch-plists])
+           (match (mac-http-handler (build-path (find-system-path 'home-dir) plist))
+             [#f #f]
+             [(pregexp "^.+\\.(.+?)$" ;after final dot
+                       (list _ s)) s]))))
+
+  (define (mac-http-handler plist-path) ;; path? -> (or/c string? #f)
+    (for/or ([h (in-list (hash-ref (read-bplist plist-path) 'LSHandlers '()))])
+      (and (equal? (hash-ref h 'LSHandlerURLScheme #f) "http")
+           (hash-ref h 'LSHandlerRoleAll #f))))
+
+  (define plutil (find-executable-path "plutil" #f))
+
+  (define (read-bplist plist-path) ;path? -> json?
+    (define out-path (make-temporary-file))
+    (begin0
+        (if (system* plutil
+                     "-convert" "json"
+                     "-o" out-path
+                     plist-path)
+            (with-input-from-file out-path read-json)
+            (make-hash))
+      (delete-file out-path))))
+
+(module browse-file-url/mac racket/base
+  (provide browse-file-url/mac)
+  (require racket/format
+           racket/system)
+
+  (define osascript (find-executable-path "osascript" #f))
+
+  (define (browse-file-url/mac file-url browser)
+    ;; Note: Unlike `send-url/mac`, we also do an "activate" to show
+    ;; the browser window.
+    (system*
+     osascript
+     "-e"
+     @~a{tell application "@browser" to open location "@file-url" activate})))
+
+(require 'mac-default-browser
+         'browse-file-url/mac)
+
+(define mac-browser (mac-default-browser))
+
+(define/contract (identifier-help stx)
+  (-> identifier? boolean?)
+  ((if mac-browser
+       identifier-help/mac
+       identifier-help/other)
    stx))
 
-(define (find-help/boolean stx)
+(define/contract (identifier-help/other stx)
+  (-> identifier? boolean?)
   ;; Like `find-help` but returns whether help was found and shown.
   ;; That way, if this returns #f caller knows it could next call
   ;; `perform-search` as Plan B.
@@ -59,48 +109,13 @@
       [(pregexp "Sending to web browser") #t]
       [_ #f])))
 
-(define (find-help/mac stx)
-  (let-values ([(path anchor) (binding->path+anchor stx)])
-    (and path anchor
-         (let ([path-url (path->url (path->complete-path path))])
-           (browse-file-url/mac
-            (url->string (struct-copy url path-url [fragment anchor]))
-            (force mac-browser))))))
-(define osascript (delay/sync (find-executable-path "osascript" #f)))
-(define (browse-file-url/mac file-url browser)
-  ;; Note: Unlike `send-url/mac`, we also do an "activate" to show the
-  ;; browser window.
-  (system*
-   (force osascript)
-   "-e"
-   @~a{tell application "@browser" to open location "@file-url" activate}))
-
-;;; Discover default browser on macOS
-
-(define launch-plists
-  '("Library/Preferences/com.apple.LaunchServices/com.apple.launchservices.secure.plist"
-    "Library/Preferences/com.apple.LaunchServices.plist"))
-(define (mac-default-browser)
-  (and (equal? (system-type) 'macosx)
-       (for/or ([plist launch-plists])
-         (match (mac-http-handler (build-path (find-system-path 'home-dir) plist))
-           [#f #f]
-           [(pregexp "^.+\\.(.+?)$" ;after final dot
-                     (list _ s)) s]))))
-
-(define (mac-http-handler plist-path) ;; path? -> (or/c string? #f)
-  (for/or ([h (in-list (hash-ref (read-bplist plist-path) 'LSHandlers '()))])
-    (and (equal? (hash-ref h 'LSHandlerURLScheme #f) "http")
-         (hash-ref h 'LSHandlerRoleAll #f))))
-
-(define plutil (delay/sync (find-executable-path "plutil" #f)))
-(define (read-bplist plist-path) ;path? -> json?
-  (define out-path (make-temporary-file))
-  (begin0
-      (if (system* (force plutil)
-                   "-convert" "json"
-                   "-o" out-path
-                   plist-path)
-          (with-input-from-file out-path read-json)
-          (make-hash))
-    (delete-file out-path)))
+(define/contract (identifier-help/mac stx)
+  (-> identifier? boolean?)
+  (define-values (path anchor) (binding->path+anchor stx))
+  (and path
+       anchor
+       (let ([path-url (path->url (path->complete-path path))])
+         (browse-file-url/mac
+          (url->string (struct-copy url path-url [fragment anchor]))
+          mac-browser))
+       #t))
