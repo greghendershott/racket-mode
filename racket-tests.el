@@ -27,8 +27,15 @@
 
 ;;; Utility functions for "integration" testing
 
-(defconst racket-tests/timeout (if (getenv "TRAVIS_CI") (* 15 60) 30)
-  "30 seconds locally, 15 minutes on Travis CI")
+(defconst ci-p (or (getenv "TRAVIS_CI")
+                   (getenv "CI"))
+  "Is there an environment variable saying we're running on CI?")
+
+(defconst racket-tests/connect-timeout (if ci-p (* 15 60) (* 2 60))
+  "Timeout for connecting. Very long when running on CI.")
+
+(defconst racket-tests/command-timeout (if ci-p (* 15 60) 30)
+  "Timeout for synchronous commands. Very long when running on CI.")
 
 (defun racket-tests/type (typing)
   (let ((blink-matching-paren nil)) ;suppress "Matches " messages
@@ -43,7 +50,7 @@
   (racket-tests/press binding))
 
 (defun racket-tests/see-rx (rx)
-  (with-timeout (racket-tests/timeout nil)
+  (with-timeout (racket-tests/command-timeout nil)
     (while (not (looking-back rx (point-min)))
       (sit-for 1))
     t))
@@ -68,9 +75,10 @@
 (ert-deftest racket-tests/repl ()
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
   (let ((tab-always-indent 'complete)
-        (racket--cmd-connect-timeout racket-tests/timeout)
+        (racket--cmd-connect-attempts racket-tests/connect-timeout)
+        (racket--cmd-connect-timeout racket-tests/connect-timeout)
         (racket-command-port (racket-tests/next-free-port))
-        (racket-command-timeout racket-tests/timeout))
+        (racket-command-timeout racket-tests/command-timeout))
     (racket-repl)
     (with-racket-repl-buffer
       ;; Welcome
@@ -94,9 +102,10 @@
 ;;; Run
 
 (ert-deftest racket-tests/run ()
-  (let* ((racket--cmd-connect-timeout racket-tests/timeout)
+  (let* ((racket--cmd-connect-attempts racket-tests/connect-timeout)
+         (racket--cmd-connect-timeout racket-tests/connect-timeout)
          (racket-command-port (racket-tests/next-free-port))
-         (racket-command-timeout racket-tests/timeout)
+         (racket-command-timeout racket-tests/command-timeout)
          (pathname (make-temp-file "test" nil ".rkt"))
          (name     (file-name-nondirectory pathname))
          (code "#lang racket/base\n(define x 42)\nx\n"))
@@ -110,7 +119,7 @@
     (when (version<= "6.2" (racket--version))
       (racket-check-syntax-mode 1)
       ;; check-syntax-mode sets header-line-format, so wait for that:
-      (with-timeout (racket-tests/timeout)
+      (with-timeout (racket-tests/command-timeout)
         (while (not header-line-format) (sit-for 1)))
       (goto-char (point-min))
       (racket-check-syntax-mode-goto-next-def)
