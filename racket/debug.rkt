@@ -285,10 +285,7 @@
                 (parameterize* ([current-eval orig-eval]
                                 [current-load/use-compiled
                                  (let ([orig (current-load/use-compiled)])
-                                   ;; This never seems to be called ???
                                    (λ (file mod)
-                                     (display-commented
-                                      (format "~v" `(our-load/use-compiled ,file ,mod)))
                                      (cond [(set-member? files file)
                                             (load-module/annotate file mod)]
                                            [else
