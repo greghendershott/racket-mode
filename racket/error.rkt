@@ -21,15 +21,18 @@
 (define (display-exn exn)
   (our-error-display-handler (exn-message exn) exn))
 
-(define (our-error-display-handler str exn)
-  (when (exn? exn)
-    (unless (equal? "Check failure" (exn-message exn)) ;rackunit check fails
-      (fresh-line)
-      (display-commented (fully-qualify-error-path str))
-      (display-srclocs exn)
-      (unless (exn:fail:user? exn)
-        (display-context exn))
-      (maybe-suggest-packages exn))))
+(define (our-error-display-handler str v)
+  (cond [(exn? v)
+         (unless (equal? "Check failure" (exn-message v)) ;rackunit check fails
+           (fresh-line)
+           (display-commented (fully-qualify-error-path str))
+           (display-srclocs v)
+           (unless (exn:fail:user? v)
+             (display-context v))
+           (maybe-suggest-packages v))]
+        [else
+         (fresh-line)
+         (display-commented str)]))
 
 (define (display-srclocs exn)
   (when (exn:srclocs? exn)
