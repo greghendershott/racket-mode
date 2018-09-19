@@ -36,7 +36,7 @@
 ;;    a read-eval-print-loop.
 ;;
 ;; 3. A thread for a command server that listens on a TCP port (see
-;;    cmds.rkt). One of the commands is a `run` command.
+;;    command-server.rkt). One of the commands is a `run` command.
 
 (module+ main
   (define-values (command-port launch-token run-info)
