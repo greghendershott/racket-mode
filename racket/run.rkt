@@ -63,7 +63,7 @@
        (eprintf "Bad arguments: ~v\n" v)
        (exit)]))
   (start-command-server command-port launch-token)
-  (start-logger-server (add1 command-port))
+  (start-logger-server (add1 command-port) launch-token)
   ;; Emacs on Windows comint-mode needs buffering disabled.
   (when (eq? (system-type 'os) 'windows)
     (file-stream-buffer-mode (current-output-port) 'none))

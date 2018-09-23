@@ -105,6 +105,7 @@ For more information see:
                                           "127.0.0.1"
                                           (1+ racket-command-port))))
            (error (sit-for 0.1)))))
+     (process-send-string racket-logger--process racket--cmd-auth)
      (racket-logger--activate-config)
      (set-process-sentinel racket-logger--process
                            #'racket-logger--process-sentinel))))

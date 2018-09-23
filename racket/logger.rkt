@@ -2,7 +2,9 @@
 
 (require racket/match
          racket/format
-         racket/tcp)
+         racket/tcp
+         "elisp.rkt"
+         "util.rkt")
 
 (provide start-logger-server)
 
@@ -12,13 +14,17 @@
 ;; Collection)." Use that; don't create new one. See issue #325.
 (define global-logger (current-logger))
 
-(define (start-logger-server port)
-  (void (thread (logger-thread port))))
+(define (start-logger-server port launch-token)
+  (void (thread (logger-thread port launch-token))))
 
-(define ((logger-thread port))
-  (define listener (tcp-listen port 4 #t))
+(define ((logger-thread port launch-token))
+  (define listener (tcp-listen port 4 #t "127.0.0.1"))
   (let accept ()
     (define-values (in out) (tcp-accept listener))
+    (unless (or (not launch-token)
+                      (equal? launch-token (elisp-read in)))
+            (display-commented "Authorization failed; exiting")
+            (exit 1))
     ;; Assumption: Any network fail means the client has disconnected,
     ;; therefore we should go back to waiting to accept a connection.
     (with-handlers ([exn:fail:network? void])
