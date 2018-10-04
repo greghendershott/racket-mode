@@ -233,7 +233,7 @@ Never changes selected window."
                      nil
                      racket--run.rkt
                      (number-to-string racket-command-port)
-                     (setq racket--cmd-auth (format "%S\n" `(auth ,(random))))
+                     (setq racket--cmd-auth (format "%S" `(auth ,(random))))
                      (format "%S" (or run-command
                                       (racket--repl-make-run-command nil))))
       (let ((proc (get-buffer-process racket--repl-buffer-name)))
@@ -321,7 +321,7 @@ wait for the connection to be established."
                                 (concat " " (process-name proc))))
          (buffer-disable-undo racket--cmd-buf)
          (set-process-filter proc #'racket--cmd-process-filter)
-         (process-send-string proc racket--cmd-auth)
+         (process-send-string proc (concat racket--cmd-auth "\n"))
          (message "Connected to %s process on port %s after %s attempt(s)"
                   proc racket-command-port attempt))
         ((string-match-p "^failed" event)
