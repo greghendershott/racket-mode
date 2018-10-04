@@ -90,11 +90,10 @@
 (require 'mac-default-browser
          'browse-file-url/mac)
 
-(define mac-browser (mac-default-browser))
 
 (define/contract (identifier-help stx)
   (-> identifier? boolean?)
-  ((if mac-browser
+  ((if (mac-default-browser)
        identifier-help/mac
        identifier-help/other)
    stx))
@@ -117,5 +116,5 @@
        (let ([path-url (path->url (path->complete-path path))])
          (browse-file-url/mac
           (url->string (struct-copy url path-url [fragment anchor]))
-          mac-browser))
+          (mac-default-browser)))
        #t))
