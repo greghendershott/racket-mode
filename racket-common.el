@@ -26,6 +26,7 @@
 (require 'racket-indent)
 (require 'racket-ppss)
 (require 'racket-util)
+(require 'subr-x)
 
 (declare-function racket-complete-at-point "racket-complete.el" (&optional predicate))
 
