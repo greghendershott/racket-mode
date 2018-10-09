@@ -239,7 +239,9 @@ property whose value is STRING. The close | syntax is set by
   (setq-local outline-regexp ";;; \\|(....")
   (setq-local completion-at-point-functions (list #'racket-complete-at-point))
   (setq-local eldoc-documentation-function nil)
-  (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function))
+  (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function)
+  (setq-local end-of-defun-function #'racket--end-of-defun-function)
+  (setq-local add-log-current-defun-function #'racket--current-defun-name))
 
 
 ;;; Insert lambda char (like DrRacket)
@@ -628,14 +630,77 @@ This function is a suitable element for the list variable
 
 ;;; racket--beginning-of-defun
 
+(defconst racket--defun-start-rx "(define\\(/[^ \t\n]*\\)?[ \t\n]*(?\\(\\(:?\\sw\\|\\s_\\)+\\)"
+  "Regexp matching the start of a definition.
+The defined name is the second regexp group.")
+
 (defun racket--beginning-of-defun-function ()
-  "Like `beginning-of-defun' but aware of Racket module forms."
+  "Move point backward to the beginning of a definition.
+The code moves only to the next inner most definition, if nested
+defines are present. If the point is already on a definition
+which is not a toplevel one, it will move to the next outer
+definition, thus repeated calls of this function will move up on
+the nested definitions."
   (let ((orig (point)))
-    (racket--escape-string-or-comment)
-    (pcase (racket--module-level-form-start)
-      (`() (ignore-errors (backward-sexp 1)))
-      (pos (goto-char pos)))
+    (catch 'found
+      ;; If we are after the close paren of a definition, but before
+      ;; the next definition, move to the definition start...
+      (ignore-errors (backward-sexp))
+      (when (looking-at racket--defun-start-rx)
+        (throw 'found (point)))
+      (goto-char orig)
+      (let ((parens (reverse (nth 9 (syntax-ppss (point))))))
+        ;; If we are inside a nested sexp, try to move to the
+        ;; innermost definition...
+        (dolist (pos parens)
+          (goto-char pos)
+          (when (looking-at racket--defun-start-rx)
+            (throw 'found pos)))
+        ;; ... we could not find a definition start, move to top level
+        ;; and start scanning sexps backwards until we find a
+        ;; definition, or reach the beginning of the buffer.
+        (unless (eq parens nil)
+          (goto-char (car (last parens))))
+        (backward-sexp 1)
+        (while (not (or (bobp) (looking-at racket--defun-start-rx)))
+          (backward-sexp 1))))
+    (goto-char (or (racket--sexp-comment-start (point)) (point)))
     (/= orig (point))))
+
+(defun racket--end-of-defun-function ()
+  "Move point to the end of the current function definition.
+This is intended to be used as the `end-of-defun-function' value,
+and assumes point is set up correctly."
+  (let ((orig (point)))
+    (condition-case err
+        (forward-sexp 1)
+      (scan-error
+       ;; scan errors happen if we are inside a nested definition and
+       ;; move to the end.  Go outside the nested definition in this
+       ;; case.
+       (let ((parens (nth 9 (syntax-ppss orig))))
+         (if (eq parens nil)
+             (goto-char (point-max))
+           (progn
+             (goto-char (car parens))
+             (forward-sexp 1))))))))
+
+(defun racket--current-defun-name ()
+  "Return the current function name.
+
+If the point is inside a nested function definition, return a
+string that represents the concatenation of the nested function names."
+  (save-excursion
+    (unless (looking-at racket--defun-start-rx)
+      (racket--beginning-of-defun-function))
+    (when (looking-at racket--defun-start-rx)
+      (let ((name (list (match-string-no-properties 2)))
+            (parens (reverse (nth 9 (syntax-ppss (point))))))
+        (dolist (pos parens)
+          (goto-char pos)
+          (when (looking-at racket--defun-start-rx)
+            (push (match-string-no-properties 2) name)))
+        (string-join name " ")))))
 
 (defun racket--module-level-form-start ()
   "Start position of the module-level form point is within.
@@ -674,7 +739,7 @@ Allows #; to be followed by zero or more space or newline chars."
     (goto-char pos)
     (while (memq (char-before) '(32 ?\n))
       (goto-char (1- (point))))
-    (when (string= "#;" (buffer-substring-no-properties (- (point) 2) (point)))
+    (when (string= "#;" (buffer-substring-no-properties (max 1 (- (point) 2)) (point)))
       (- (point) 2))))
 
 
