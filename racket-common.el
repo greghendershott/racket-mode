@@ -26,7 +26,6 @@
 (require 'racket-indent)
 (require 'racket-ppss)
 (require 'racket-util)
-(require 'subr-x)
 
 (declare-function racket-complete-at-point "racket-complete.el" (&optional predicate))
 
@@ -650,7 +649,7 @@ the nested definitions."
       (when (looking-at racket--defun-start-rx)
         (throw 'found (point)))
       (goto-char orig)
-      (let ((parens (reverse (nth 9 (syntax-ppss (point))))))
+      (let ((parens (reverse (racket--ppss-parens (syntax-ppss (point))))))
         ;; If we are inside a nested sexp, try to move to the
         ;; innermost definition...
         (dolist (pos parens)
@@ -679,7 +678,7 @@ and assumes point is set up correctly."
        ;; scan errors happen if we are inside a nested definition and
        ;; move to the end.  Go outside the nested definition in this
        ;; case.
-       (let ((parens (nth 9 (syntax-ppss orig))))
+       (let ((parens (racket--ppss-parens (syntax-ppss orig))))
          (if (eq parens nil)
              (goto-char (point-max))
            (progn
@@ -696,12 +695,12 @@ string that represents the concatenation of the nested function names."
       (racket--beginning-of-defun-function))
     (when (looking-at racket--defun-start-rx)
       (let ((name (list (match-string-no-properties 2)))
-            (parens (reverse (nth 9 (syntax-ppss (point))))))
+            (parens (reverse (racket--ppss-parens (syntax-ppss (point))))))
         (dolist (pos parens)
           (goto-char pos)
           (when (looking-at racket--defun-start-rx)
             (push (match-string-no-properties 2) name)))
-        (string-join name " ")))))
+        (mapconcat #'identity name " ")))))
 
 (defun racket--module-level-form-start ()
   "Start position of the module-level form point is within.
