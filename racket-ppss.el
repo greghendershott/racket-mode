@@ -74,10 +74,6 @@ string began. When outside of strings and comments, this element
 is ‘nil’."
   (elt xs 8))
 
-(defun racket--ppss-parens (xs)
-  "The list of positions of currently open parens, outermost first."
-  (elt xs 9))
-
 (provide 'racket-ppss)
 
 ;; racket-ppss.el ends here

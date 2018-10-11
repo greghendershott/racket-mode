@@ -634,6 +634,21 @@ This function is a suitable element for the list variable
   "Regexp matching the start of a definition.
 The defined name is the second regexp group.")
 
+(defun racket--collect-open-paren-positions (pos)
+  "Return a list containing the positions of open parens for the point at POS.
+Outermost paren is first in the list"
+  ;; NOTE: Emacs 26.1 returns this the list of open parens in the 9th
+  ;; position of the `syntax-ppss' return value, however this
+  ;; functionality is new in 26.1 and and older Emacs versions return
+  ;; opaque state information in that position
+  (let ((parens '())
+        (ppss (syntax-ppss pos)))
+    (while (racket--ppss-containing-sexp ppss)
+      (let ((paren-pos (racket--ppss-containing-sexp ppss)))
+        (push paren-pos parens)
+        (setq ppss (syntax-ppss paren-pos))))
+    parens))
+
 (defun racket--beginning-of-defun-function ()
   "Move point backward to the beginning of a definition.
 The code moves only to the next inner most definition, if nested
@@ -649,7 +664,7 @@ the nested definitions."
       (when (looking-at racket--defun-start-rx)
         (throw 'found (point)))
       (goto-char orig)
-      (let ((parens (reverse (racket--ppss-parens (syntax-ppss (point))))))
+      (let ((parens (reverse (racket--collect-open-paren-positions (point)))))
         ;; If we are inside a nested sexp, try to move to the
         ;; innermost definition...
         (dolist (pos parens)
@@ -678,12 +693,12 @@ and assumes point is set up correctly."
        ;; scan errors happen if we are inside a nested definition and
        ;; move to the end.  Go outside the nested definition in this
        ;; case.
-       (let ((parens (racket--ppss-parens (syntax-ppss orig))))
-         (if (eq parens nil)
-             (goto-char (point-max))
-           (progn
-             (goto-char (car parens))
-             (forward-sexp 1))))))))
+       (let ((open-paren (racket--ppss-containing-sexp (syntax-ppss orig))))
+         (if open-paren
+             (progn
+               (goto-char open-paren)
+               (forward-sexp 1))
+           (goto-char (point-max))))))))
 
 (defun racket--current-defun-name ()
   "Return the current function name.
@@ -695,7 +710,7 @@ string that represents the concatenation of the nested function names."
       (racket--beginning-of-defun-function))
     (when (looking-at racket--defun-start-rx)
       (let ((name (list (match-string-no-properties 2)))
-            (parens (reverse (racket--ppss-parens (syntax-ppss (point))))))
+            (parens (reverse (racket--collect-open-paren-positions (point)))))
         (dolist (pos parens)
           (goto-char pos)
           (when (looking-at racket--defun-start-rx)
