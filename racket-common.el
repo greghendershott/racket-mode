@@ -676,6 +676,12 @@ the nested definitions."
         ;; definition, or reach the beginning of the buffer.
         (unless (eq parens nil)
           (goto-char (car (last parens))))
+        ;; If we are inside a string or comment, move to the start of
+        ;; it to avoid having to navigate possibly unbalanced parens
+        ;; inside it.
+        (let ((maybe-start (racket--ppss-string/comment-start (syntax-ppss (point)))))
+          (when maybe-start
+            (goto-char maybe-start)))
         (backward-sexp 1)
         (while (not (or (bobp) (looking-at racket--defun-start-rx)))
           (backward-sexp 1))))
@@ -692,13 +698,18 @@ and assumes point is set up correctly."
       (scan-error
        ;; scan errors happen if we are inside a nested definition and
        ;; move to the end.  Go outside the nested definition in this
-       ;; case.
-       (let ((open-paren (racket--ppss-containing-sexp (syntax-ppss orig))))
+       ;; case. But first, we are inside a string or comment, move to
+       ;; the start of it to avoid having to navigate possibly
+       ;; unbalanced parens inside it.
+       (let ((maybe-start (racket--ppss-string/comment-start (syntax-ppss (point)))))
+         (when maybe-start
+           (goto-char maybe-start)))
+       (let ((open-paren (racket--ppss-containing-sexp (syntax-ppss (point)))))
          (if open-paren
              (progn
                (goto-char open-paren)
                (forward-sexp 1))
-           (goto-char (point-max))))))))
+           (forward-sexp 1)))))))
 
 (defun racket--current-defun-name ()
   "Return the current function name.
