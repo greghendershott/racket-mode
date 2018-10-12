@@ -538,15 +538,22 @@ Afterwards call `racket--repl-show-and-move-to-end'."
   (racket--send-region-to-repl start end))
 
 (defun racket-send-definition (&optional prefix)
-  "Send the current definition to the Racket REPL."
+  "Send the current top level form to the Racket REPL."
   (interactive "P")
   (save-excursion
-    (end-of-defun)
-    (let ((end (point)))
-      (beginning-of-defun)
-      (if prefix
-          (racket--debug-send-definition (point) end)
-        (racket--send-region-to-repl (point) end)))))
+    (let ((ppss (syntax-ppss (point))))
+      (when (racket--ppss-string/comment-start ppss)
+        (goto-char (racket--ppss-string/comment-start ppss)))
+      ;; If we are inside a SEXP, move to toplevel
+      (while (not (= 0 (racket--ppss-paren-depth ppss)))
+        (goto-char (racket--ppss-containing-sexp ppss))
+        (setq ppss (syntax-ppss (point))))
+      (forward-sexp 1)
+      (let ((end (point)))
+        (forward-sexp -1)
+        (if prefix
+            (racket--debug-send-definition (point) end)
+          (racket--send-region-to-repl (point) end))))))
 
 (defun racket-send-last-sexp ()
   "Send the previous sexp to the Racket REPL.
