@@ -200,52 +200,75 @@ Please keep in mind the following limitations:
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")
     (`nil nil)
-    (str (racket--do-visit-def-or-mod 'def str))))
+    (str (if (and (eq major-mode 'racket-mode)
+                  (not (equal (racket--cmd/await `(path+md5))
+                              (cons (racket--buffer-file-name) (md5 (current-buffer)))))
+                  (y-or-n-p "Run current buffer first? "))
+             (racket--repl-run nil nil
+                               (lambda (_what)
+                                 (racket--do-visit-def-or-mod 'def str)))
+           (racket--do-visit-def-or-mod 'def str)))))
 
 (defun racket-visit-module (&optional prefix)
   "Visit definition of module at point, e.g. net/url or \"file.rkt\".
 
 Use \\[racket-unvisit] to return.
 
-Note: Only works if you've `racket-run' the buffer so that its
-namespace is active.
-
 See also: `racket-find-collection'."
   (interactive "P")
-  (let* ((v (racket--thing-at-point 'filename t)) ;matches both net/url and "file.rkt"
+  ;; `thing-at-point' 'filename matches both net/url and "file.rkt".
+  ;; It returns the latter without the quotes; add them back if
+  ;; `syntax-ppss' says it's a string.
+  (let* ((v (racket--thing-at-point 'filename t))
+         (v (if (and v (racket--ppss-string-p (syntax-ppss)))
+                (concat "\"" v "\"")
+              v))
          (v (if (or prefix (not v))
                 (read-from-minibuffer "Visit module: " (or v ""))
               v)))
-    (racket--do-visit-def-or-mod 'mod v)))
+    ;; If the module name is quoted e.g. "file.rkt", just do
+    ;; equivalent of `find-file-at-point'. Else ask back-end.
+    (cond ((and (equal "\"" (substring v 0 1))
+                (equal "\"" (substring v -1 nil)))
+           (racket--push-loc)
+           (find-file (expand-file-name (substring v 1 -1)))
+           (message "Type M-, to return"))
+          (t (racket--do-visit-def-or-mod 'mod v)))))
 
 (defun racket--do-visit-def-or-mod (cmd str)
   "CMD must be 'def or 'mod. STR must be `stringp`."
-  (if (and (eq major-mode 'racket-mode)
-           (not (equal (racket--cmd/await `(path+md5))
-                       (cons (racket--buffer-file-name) (md5 (current-buffer)))))
-           (y-or-n-p "Run current buffer first? "))
-      (racket--repl-run nil nil
-                        (lambda (_what)
-                          (racket--do-visit-def-or-mod cmd str)))
-    (cl-case major-mode
-      (racket-mode
-       t)
-      ((racket-repl-mode racket-describe-mode)
-       (racket--repl-ensure-buffer-and-process))
-      (otherwise
-       (user-error "Requires racket-mode or racket-repl-mode")))
-    (pcase (racket--cmd/await (list cmd str))
-      (`(,path ,line ,col)
-       (racket--push-loc)
-       (find-file path)
-       (goto-char (point-min))
-       (forward-line (1- line))
-       (forward-char col)
-       (message "Type M-, to return"))
-      (`kernel
-       (message "`%s' defined in #%%kernel -- source not available." str))
-      (_
-       (message "Not found.")))))
+  (cl-case major-mode
+    (racket-mode t)
+    ((racket-repl-mode racket-describe-mode) (racket--repl-ensure-buffer-and-process))
+    (otherwise (user-error "Requires racket-mode or racket-repl-mode")))
+  (pcase (racket--cmd/await (list cmd str))
+    (`(,path ,line ,col)
+     (racket--push-loc)
+     (find-file path)
+     (goto-char (point-min))
+     (forward-line (1- line))
+     (forward-char col)
+     (message "Type M-, to return"))
+    (`kernel
+     (message "`%s' defined in #%%kernel -- source not available." str))
+    (_
+     (message "Not found."))))
+
+(defvar racket--loc-stack '())
+
+(defun racket--push-loc ()
+  (push (cons (current-buffer) (point))
+        racket--loc-stack))
+
+(defun racket-unvisit ()
+  "Return from previous `racket-visit-definition' or `racket-visit-module'."
+  (interactive)
+  (if racket--loc-stack
+      (pcase (pop racket--loc-stack)
+        (`(,buffer . ,pt)
+         (pop-to-buffer-same-window buffer)
+         (goto-char pt)))
+    (message "Stack empty.")))
 
 (defun racket-doc (&optional prefix)
   "View documentation of the identifier or string at point.
@@ -266,22 +289,6 @@ instead of looking at point."
   (pcase (racket--symbol-at-point-or-prompt prefix "Racket help for: ")
     (`nil nil)
     (str (racket--cmd/async `(doc ,str)))))
-
-(defvar racket--loc-stack '())
-
-(defun racket--push-loc ()
-  (push (cons (current-buffer) (point))
-        racket--loc-stack))
-
-(defun racket-unvisit ()
-  "Return from previous `racket-visit-definition' or `racket-visit-module'."
-  (interactive)
-  (if racket--loc-stack
-      (pcase (pop racket--loc-stack)
-        (`(,buffer . ,pt)
-         (pop-to-buffer-same-window buffer)
-         (goto-char pt)))
-    (message "Stack empty.")))
 
 
 ;;; code folding
