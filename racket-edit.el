@@ -50,13 +50,14 @@ See also `racket-run-and-switch-to-repl', which is even more like
 DrRacket's Run because it selects the REPL window (gives it the
 focus), too.
 
-If your source file has a syntax or runtime error, a \"skeleton\"
-of your file is evaluated to get identifiers from module
-languages, `require`s, and definitions. That way, things like
-completion and `racket-describe' are more likely to work while
-you edit the file to fix the error. If not even the \"skeleton\"
-evaluation succeeds, you'll have only identifiers provided by
-racket/base, until you fix the error and run again.
+When `racket-retry-as-skeleton' is true, if your source file has
+an error, a \"skeleton\" of your file is evaluated to get
+identifiers from module languages, `require`s, and definitions.
+That way, things like completion and `racket-describe' are more
+likely to work while you edit the file to fix the error. If not
+even the \"skeleton\" evaluation succeeds, you'll have only
+identifiers provided by racket/base, until you fix the error and
+run again.
 
 Output in the `*Racket REPL*` buffer that describes a file and
 position is automatically \"linkified\". Examples of such text

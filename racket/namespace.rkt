@@ -59,16 +59,17 @@
 ;; A composition of dynamic-require and module->namespace, but which
 ;; tries to tolerate errors in the source file and return _some_
 ;; namespace more useful than racket/base (if possible).
-(define/contract (dynamic-require/some-namespace mod)
-  (-> mod? namespace?)
+(define/contract (dynamic-require/some-namespace mod retry-as-skeletal?)
+  (-> mod? boolean? namespace?)
   (parameterize ([current-load-relative-directory (mod-dir mod)]
                  [current-directory               (mod-dir mod)])
-    (cond [(normal   mod) => values]
-          [(skeletal mod) => (λ (ns)
-                               (display-commented is-skeleton)
-                               ns)]
-          [else           (display-commented is-base)
-                          (make-base-namespace)])))
+    (cond [(normal mod) => values]
+          [(and retry-as-skeletal?
+                (skeletal mod)) => (λ (ns)
+                                     (display-commented is-skeleton)
+                                     ns)]
+          [else (display-commented is-base)
+                (make-base-namespace)])))
 
 (define/contract (normal mod)
   (-> mod? (or/c #f namespace?))
@@ -231,7 +232,7 @@
     (-> mod? (listof symbol?))
     (namespace-mapped-symbols
      (parameterize ([current-namespace (make-base-empty-namespace)])
-       (dynamic-require/some-namespace mod))))
+       (dynamic-require/some-namespace mod #t))))
 
   (define (do v)
     (define op (open-output-string))

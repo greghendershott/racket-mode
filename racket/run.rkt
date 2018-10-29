@@ -49,18 +49,19 @@
        (values (string->number port)
                (elisp-read (open-input-string launch-token))
                (match (elisp-read (open-input-string run-command))
-                 [(list 'run what mem pp ctx args dbgs)
+                 [(list 'run what mem pp ctx args dbgs skel)
                   (rerun (->mod/existing what)
                          mem
                          (as-racket-bool pp)
                          ctx
                          (list->vector args)
                          (list->set (map string->path dbgs))
+                         (as-racket-bool skel)
                          void)]
-                 [v (eprintf "Bad arguments: ~v => ~v\n" run-command v)
+                 [v (eprintf "Bad command-line arguments: ~v => ~v\n" run-command v)
                     (exit)]))]
       [v
-       (eprintf "Bad arguments: ~v\n" v)
+       (eprintf "Bad command-line arguments: ~v\n" v)
        (exit)]))
   (start-command-server command-port launch-token)
   (start-logger-server (add1 command-port) launch-token)
@@ -79,6 +80,7 @@
                        context-level
                        cmd-line-args
                        debug-files
+                       retry-as-skeleton?
                        ready-thunk) rr)
   (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
   ;; Always set current-directory and current-load-relative-directory
@@ -151,7 +153,8 @@
               (sync never-evt))
             (with-handlers ([exn? load-exn-handler])
               (maybe-configure-runtime mod-path) ;FIRST: see #281
-              (current-namespace (dynamic-require/some-namespace maybe-mod))
+              (current-namespace
+               (dynamic-require/some-namespace maybe-mod retry-as-skeleton?))
               (maybe-warn-about-submodules mod-path context-level)
               (check-top-interaction))))
         (stx-cache:after-run maybe-mod)

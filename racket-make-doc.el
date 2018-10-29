@@ -149,6 +149,7 @@
     racket-command-timeout
     racket-memory-limit
     racket-error-context
+    racket-retry-as-skeleton
     racket-user-command-line-arguments
     "REPL"
     racket-history-filter-regexp

@@ -24,7 +24,7 @@
  ["commands/macro.rkt"        (macro-stepper macro-stepper/next)]
  ["commands/profile.rkt"      (get-profile)]
  ["commands/requires.rkt"     (requires/tidy requires/trim requires/base)]
- ["find.rkt"                 (find-definition)])
+ ["find.rkt"                  (find-definition)])
 
 (provide start-command-server
          attach-command-server
@@ -156,34 +156,35 @@
   ;; Note: Intentionally no "else" match clause -- let caller handle
   ;; exn and supply a consistent exn response format.
   (match sexpr
-    [`(run ,what ,mem ,pp? ,ctx ,args ,dbg) (run what mem pp? ctx args dbg)]
-    [`(path+md5)                            (cons (or path 'top) md5)]
-    [`(syms)                                (syms)]
-    [`(def ,str)                            (find-definition str)]
-    [`(mod ,sym)                            (find-module sym maybe-mod)]
-    [`(describe ,str)                       (describe str)]
-    [`(doc ,str)                            (doc str)]
-    [`(type ,v)                             (type v)]
-    [`(macro-stepper ,str ,into-base?)      (macro-stepper str into-base?)]
-    [`(macro-stepper/next)                  (macro-stepper/next)]
-    [`(requires/tidy ,reqs)                 (requires/tidy reqs)]
-    [`(requires/trim ,path-str ,reqs)       (requires/trim path-str reqs)]
-    [`(requires/base ,path-str ,reqs)       (requires/base path-str reqs)]
-    [`(find-collection ,str)                (find-collection str)]
-    [`(get-profile)                         (get-profile)]
-    [`(get-uncovered)                       (get-uncovered path)]
-    [`(check-syntax ,path-str)              (check-syntax path-str)]
-    [`(eval ,v)                             (eval-command v)]
-    [`(repl-submit? ,str ,eos?)             (repl-submit? submit-pred str eos?)]
-    [`(debug-eval ,src ,l ,c ,p ,code)      (debug-eval src l c p code)]
-    [`(debug-resume ,v)                     (debug-resume v)]
-    [`(debug-disable)                       (debug-disable)]
-    [`(exit)                                (exit)]))
+    [`(run ,what ,mem ,pp? ,ctx ,args ,dbg ,skel?)
+     (run what mem pp? ctx args dbg skel?)]
+    [`(path+md5)                       (cons (or path 'top) md5)]
+    [`(syms)                           (syms)]
+    [`(def ,str)                       (find-definition str)]
+    [`(mod ,sym)                       (find-module sym maybe-mod)]
+    [`(describe ,str)                  (describe str)]
+    [`(doc ,str)                       (doc str)]
+    [`(type ,v)                        (type v)]
+    [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
+    [`(macro-stepper/next)             (macro-stepper/next)]
+    [`(requires/tidy ,reqs)            (requires/tidy reqs)]
+    [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
+    [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]
+    [`(find-collection ,str)           (find-collection str)]
+    [`(get-profile)                    (get-profile)]
+    [`(get-uncovered)                  (get-uncovered path)]
+    [`(check-syntax ,path-str)         (check-syntax path-str)]
+    [`(eval ,v)                        (eval-command v)]
+    [`(repl-submit? ,str ,eos?)        (repl-submit? submit-pred str eos?)]
+    [`(debug-eval ,src ,l ,c ,p ,code) (debug-eval src l c p code)]
+    [`(debug-resume ,v)                (debug-resume v)]
+    [`(debug-disable)                  (debug-disable)]
+    [`(exit)                           (exit)]))
 
 ;;; A few commands defined here
 
-(define/contract (run what mem pp ctx args dbgs)
-  (-> list? number? elisp-bool/c context-level? list? (listof path-string?)
+(define/contract (run what mem pp ctx args dbgs skel)
+  (-> list? number? elisp-bool/c context-level? list? (listof path-string?) elisp-bool/c
       list?)
   (define ready-channel (make-channel))
   (channel-put message-to-main-thread-channel
@@ -193,6 +194,7 @@
                       ctx
                       (list->vector args)
                       (list->set (map string->path dbgs))
+                      (as-racket-bool skel)
                       (λ () (channel-put ready-channel what))))
   ;; Waiting for this allows the command response to be used as the
   ;; all-clear for additional commands that need the module load to be

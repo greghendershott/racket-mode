@@ -110,6 +110,28 @@ a more-helpful error message."
   :risky t
   :group 'racket)
 
+(defcustom racket-retry-as-skeleton t
+  "Retry a \"skeleton\" of files with errors, for identifier names?
+
+When true: If your source file has an error, a \"skeleton\" of
+your file is evaluated to get identifiers from module languages,
+`require`s, and definitions. That way, things like completion and
+`racket-describe' are more likely to work while you edit the file
+to fix the error.
+
+Otherwise, you'll have only identifiers provided by racket/base,
+until you fix the error and run again.
+
+You might want to disable this if you work with files that take a
+very long time to expand -- because this feature needs to expand
+again when there is an error.
+
+Note: The retry "
+  :tag "Retry as Skeleton?"
+  :type 'boolean
+  :safe #'booleanp
+  :group 'racket)
+
 ;;; REPL
 
 (defgroup racket-repl nil

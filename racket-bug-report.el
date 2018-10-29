@@ -50,17 +50,24 @@
                           racket--el-source-dir
                           racket--rkt-source-dir
                           racket-program
+                          racket-command-port
+                          racket-command-timeout
                           racket-memory-limit
+                          racket-error-context
+                          racket-retry-as-skeleton
                           racket-error-context
                           racket-history-filter-regexp
                           racket-images-inline
                           racket-images-keep-last
+                          racket-use-repl-submit-predicate
                           racket-images-system-viewer
                           racket-pretty-print
                           racket-indent-curly-as-sequence
                           racket-indent-sequence-depth
                           racket-pretty-lambda
-                          racket-smart-open-bracket-enable)))))
+                          racket-smart-open-bracket-enable
+                          racket-module-forms
+                          racket-logger-config)))))
       ;; Show lists of enabled and disabled minor modes, each sorted by name.
       (let* ((minor-modes (cl-remove-duplicates
                            (append minor-mode-list

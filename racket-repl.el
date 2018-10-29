@@ -204,7 +204,8 @@ WHAT-TO-RUN may be nil, meaning just a `racket/base` namespace."
           context-level
           racket-user-command-line-arguments
           (when (and what-to-run (eq context-level 'debug))
-            (racket--debuggable-files (car what-to-run))))))
+            (racket--debuggable-files (car what-to-run)))
+          racket-retry-as-skeleton)))
 
 (defvar racket--cmd-auth nil
   "A value we give the Racket back-end when we launch it and when we connect.
