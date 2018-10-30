@@ -688,12 +688,16 @@ Allows #; to be followed by zero or more space or newline chars."
        (racket--modules-at-point)))
 
 (defun racket--lang-p ()
-  "Is #lang the first sexpr in the file?"
+  "Is #lang the first sexpr in the file, after an optional shebang?"
   (save-excursion
     (goto-char (point-min))
     (ignore-errors
       (forward-sexp)
       (backward-sexp)
+      (when (looking-at (rx "#!"))
+        (forward-line)
+        (forward-sexp)
+        (backward-sexp))
       (looking-at (rx "#lang")))))
 
 (defun racket--modules-at-point ()
