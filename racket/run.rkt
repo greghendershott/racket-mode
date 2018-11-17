@@ -5,8 +5,6 @@
          racket/contract/region
          racket/format
          racket/match
-         racket/pretty
-         racket/runtime-path
          racket/set
          racket/string
          "channel.rkt"
@@ -20,6 +18,7 @@
          "logger.rkt"
          "mod.rkt"
          "namespace.rkt"
+         "print.rkt"
          (prefix-in stx-cache: "syntax.rkt")
          "util.rkt")
 
@@ -134,10 +133,7 @@
         ;; 0. Command line arguments
         (current-command-line-arguments cmd-line-args)
         ;; 1. Set current-print and pretty-print hooks.
-        (current-print (make-print-handler pretty-print?))
-        (pretty-print-print-hook (make-pretty-print-print-hook))
-        (pretty-print-size-hook (make-pretty-print-size-hook))
-        (print-syntax-width +inf.0)
+        (set-print-parameters pretty-print?)
         ;; 2. If module, require and enter its namespace, etc.
         (stx-cache:before-run maybe-mod)
         (when (and maybe-mod mod-path)
@@ -244,33 +240,3 @@
       [(mp rmp stx load?) (resolve mp rmp stx load?)])))
 (define module-name-resolver-for-run  (make-module-name-resolver #f))
 (define module-name-resolver-for-repl (make-module-name-resolver #t))
-
-(define (make-print-handler pretty-print?)
-  (cond [pretty-print? pretty-print-handler]
-        [else (make-plain-print-handler)]))
-
-;; Note: The `dynamic-require`s seem to be necessary otherwise
-;; file/convertible's convertible? always returns #f. Which seeems to
-;; be a namespace issue that I don't understand.
-(define-runtime-path image.rkt "image.rkt")
-
-(define (make-plain-print-handler)
-  (let ([convert (dynamic-require image.rkt 'convert-image)])
-    (λ (v)
-      (void (unless (void? v)
-              (print (convert v))
-              (newline))))))
-
-(define (make-pretty-print-size-hook [orig (pretty-print-size-hook)])
-  (let ([convert? (dynamic-require image.rkt 'convert-image?)]
-        [width (floor (/ (pretty-print-columns) 4))]) ;magic number? yep.
-    (λ (value display? port)
-      (cond [(convert? value) width]
-            [else (orig value display? port)]))))
-
-(define (make-pretty-print-print-hook [orig (pretty-print-print-hook)])
-  (let ([convert? (dynamic-require image.rkt 'convert-image?)]
-        [convert  (dynamic-require image.rkt 'convert-image)])
-    (λ (value display? port)
-      (cond [(convert? value) (print (convert value) port)]
-            [else (orig value display? port)]))))
