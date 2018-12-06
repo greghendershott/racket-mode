@@ -130,13 +130,34 @@ See also: `racket-visit-module' and `racket-open-require-path'."
      (("SPC" "TAB" "C-v" "<next>" "M-v" "<prior>" "M-<" "<home>" "M->" "<end>")
       racket--orp/nop))))
 
+(defun racket--orp/process ()
+  "Start process to run find-module-path-completions.rkt.
+
+To do so, prefer `make-process' when available (Emacs 25.1+)
+because we can filter stderr. This helps e.g. when Racket core
+developers insert an eprintf in racket/base.rkt or similar -- see
+issue #345."
+  (let ((name   "racket-find-module-path-completions-process")
+        (buffer " *racket-find-module-path-completions*")
+        (stderr " *racket-find-module-path-completions-stderr*"))
+    (if (fboundp 'make-process)
+        (make-process :name name
+                      :buffer buffer
+                      :command (list
+                                racket-program
+                                (expand-file-name "find-module-path-completions.rkt"
+                                                  racket--rkt-source-dir))
+                      :connection-type 'pipe
+                      :stderr stderr)
+      (let ((process-connection-type nil)) ;use pipe not tty
+        (start-process name
+                       buffer
+                       racket-program
+                       (expand-file-name "find-module-path-completions.rkt"
+                                         racket--rkt-source-dir))))))
+
 (defun racket--orp/begin ()
-  (let ((proc (start-process "racket-find-module-path-completions-process"
-                             "*racket-find-module-path-completions*"
-                             racket-program
-                             (expand-file-name "find-module-path-completions.rkt"
-                                               racket--rkt-source-dir))))
-    (setq racket--orp/tq (tq-create proc))))
+  (setq racket--orp/tq (tq-create (racket--orp/process))))
 
 (defun racket--orp/request-tx-matches (input)
   "Request matches from the Racket process; delivered to `racket--orp/rx-matches'."
