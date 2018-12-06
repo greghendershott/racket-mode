@@ -59,7 +59,7 @@ matrix:
     - env: EMACS_VERSION=26.1 RACKET_VERSION=HEAD
     - env: EMACS_VERSION=26.1 RACKET_VERSION=HEADCS
     # bleeding edge Emacs
-    - env: EMACS_VERSION=snapshot RACKET_VERSION=7.0
+    - env: EMACS_VERSION=snapshot RACKET_VERSION=7.1
     - env: EMACS_VERSION=snapshot RACKET_VERSION=HEAD
   fast_finish: true
 
