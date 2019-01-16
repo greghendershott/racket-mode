@@ -469,10 +469,7 @@ On Windows this will replace \ with / in an effort to match the
 Unix style names used by Emacs on Windows."
   (when (comint-check-proc racket--repl-buffer-name)
     (pcase (racket--cmd/await `(path+md5))
-      (`(,(and (pred stringp) path) . ,_md5)
-       (cl-case system-type
-         (windows-nt (subst-char-in-string ?\\ ?/ path))
-         (otherwise  path)))
+      (`(,(and (pred stringp) path) . ,_md5) path)
       (_ nil))))
 
 (defun racket--in-repl-or-its-file-p ()
