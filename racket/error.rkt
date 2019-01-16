@@ -134,23 +134,36 @@
 ;; `show-full-path-in-errors` thing above, at all. Not yet sure.
 (define (fully-qualify-error-path s)
   (match s
-    [(pregexp "^([^/.]+)\\.([^.]+):(\\d+)[:.](\\d+):(.*)$"
-              (list _ base ext line col more))
-     (define curdir (path->string (current-directory)))
-     (string-append curdir base "." ext ":" line ":" col ":" more)]
-    [s (regexp-replace* #rx"<collects>"
-                        s
-                        (path->string (find-collects-dir)))]))
+    [(pregexp "^([^:]+):(\\d+)[:.](\\d+)(.*)$"
+              (list _ path line col more))
+     #:when (not (absolute-path? path))
+     (string-append
+      (string-join (list (path->string (build-path (current-directory) path))
+                         line
+                         col)
+                   ":")
+      more)]
+    [s s]))
 
 (module+ test
   (require rackunit)
-  (check-equal?
-   (parameterize ([current-directory "/tmp/"])
-     (fully-qualify-error-path "foo.rkt:3:0: f: unbound identifier\n   in: f"))
-   "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
-  (check-equal?
-   (fully-qualify-error-path "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
-   "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
+  (case (system-type 'os)
+    [(windows)
+     (check-equal?
+      (parameterize ([current-directory "c:\\tmp"])
+        (fully-qualify-error-path "foo.rkt:3:0: f: unbound identifier\n   in: f"))
+      "c:\\tmp\\foo.rkt:3:0: f: unbound identifier\n   in: f")
+     (check-equal?
+      (fully-qualify-error-path "c:\\tmp\\foo.rkt:3:0: f: unbound identifier\n   in: f")
+      "c:\\tmp\\foo.rkt:3:0: f: unbound identifier\n   in: f")]
+    [(macosx unix)
+     (check-equal?
+      (parameterize ([current-directory "/tmp/"])
+        (fully-qualify-error-path "foo.rkt:3:0: f: unbound identifier\n   in: f"))
+      "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
+     (check-equal?
+      (fully-qualify-error-path "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
+      "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")])
   (let ([o (open-output-string)])
     (parameterize ([current-error-port o])
       (display-srclocs (make-exn:fail:read "..."
