@@ -3,7 +3,8 @@
 (require racket/contract
          racket/match
          racket/port
-         racket/set)
+         racket/set
+         racket/string)
 
 (provide elisp-read
          elisp-writeln
@@ -43,7 +44,7 @@
     [#t             't]
     [(? list? xs)   (map racket->elisp xs)]
     [(cons x y)     (cons (racket->elisp x) (racket->elisp y))]
-    [(? path? v)    (path->string v)]
+    [(? path? v)    (path->string/emacs v)]
     [(? hash? v)    (for/list ([(k v) (in-hash v)])
                       (cons (racket->elisp k) (racket->elisp v)))]
     [(? set? v)     (map racket->elisp (set->list v))]
@@ -55,3 +56,12 @@
                   (λ () (elisp-write '(1 #t nil () (a . b) #hash((1 . 2) (3 . 4)))
                                      (current-output-port))))
                 "(1 t nil nil (a . b) ((1 . 2) (3 . 4)))"))
+
+(define (path->string/emacs p)
+  (string-join
+   (match (map path->string (explode-path p))
+     [(list* (pregexp "([a-zA-z]:)\\\\" (list _ drive)) vs)
+      (cons drive vs)]
+     [vs vs])
+   "/"))
+
