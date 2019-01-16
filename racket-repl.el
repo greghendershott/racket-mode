@@ -476,8 +476,12 @@ Unix style names used by Emacs on Windows."
   "Is current-buffer `racket-repl-mode' or buffer for file active in it?"
   (or (eq (current-buffer)
           (get-buffer racket--repl-buffer-name))
-      (string-equal (racket--buffer-file-name)
-                    (racket-repl-file-name))))
+      (let ((buf-file  (racket--buffer-file-name))
+            (repl-file (racket-repl-file-name)))
+        (and buf-file
+             repl-file
+             (string-equal (racket--buffer-file-name)
+                           (racket-repl-file-name))))))
 
 (defun racket-repl-switch-to-edit ()
   "Switch to the window for the buffer of the file running in the REPL.
