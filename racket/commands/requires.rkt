@@ -121,10 +121,13 @@
 (define (group-requires reqs)
   ;; Put the requires into a hash of sets.
   (define ht (make-hasheq)) ;(hash/c <level> (set <mod>))
-  (for ([req reqs]) (match req
-                      [(list mod lvl) (hash-update! ht lvl
-                                                    (lambda (s) (set-add s mod))
-                                                    (set mod))]))
+  (for ([req reqs])
+    (match req
+      [(list 'racket/require 0) (hash-set! ht 'racket/require
+                                           (set 'racket/require))]
+      [(list mod lvl) (hash-update! ht lvl
+                                    (lambda (s) (set-add s mod))
+                                    (set mod))]))
   (define (mod-set->mod-list mod-set)
     (sort (set->list mod-set) mod<?))
   (define (for-level level k)
@@ -134,9 +137,12 @@
   (define (preface . pres)
     (λ (mods) `((,@pres ,@mods))))
   (define (meta-levels)
-    (sort (for/list ([x (hash-keys ht)] #:when (not (member x '(-1 0 1 #f)))) x)
+    (sort (for/list ([x (hash-keys ht)]
+                     #:when (not (member x '(racket/require -1 0 1 #f))))
+            x)
           <))
   `(require
+    ,@(for-level 'racket/require values)
     ,@(for-level  1 (preface 'for-syntax))
     ,@(for-level -1 (preface 'for-template))
     ,@(for-level #f (preface 'for-label))
@@ -148,21 +154,26 @@
   (check-equal? (group-requires
                  (combine-requires
                   '((require z c b a)
+                    (require racket/require)
+                    (require (multi-in mi-z ()))
+                    (require (multi-in mi-a ()))
                     (require (for-meta 4 m41 m40))
                     (require (for-meta -4 m-41 m-40))
                     (require (for-label l1 l0))
                     (require (for-template t1 t0))
                     (require (for-syntax s1 s0))
-                    (require "a.rkt" "b.rkt" "c.rkt" "z.rkt"
-                             (only-in "mod.rkt" oi)
-                             (only-in mod oi)))))
+                    (require
+                     "a.rkt" "b.rkt" "c.rkt" "z.rkt"
+                     (only-in "mod.rkt" oi)
+                     (only-in mod oi)))))
                 '(require
+                  racket/require
                   (for-syntax s0 s1)
                   (for-template t0 t1)
                   (for-label l0 l1)
                   (for-meta -4 m-40 m-41)
                   (for-meta 4 m40 m41)
-                  a b c (only-in mod oi) z
+                  a b c (multi-in mi-a ()) (multi-in mi-z ()) (only-in mod oi) z
                   "a.rkt" "b.rkt" "c.rkt" (only-in "mod.rkt" oi) "z.rkt")))
 
 (define (mod<? a b)
@@ -172,6 +183,7 @@
       [(list 'except-in m _ ...)     (key m)]
       [(list 'prefix-in _ m)         (key m)]
       [(list 'relative-in _ m _ ...) (key m)]
+      [(list 'multi-in m _)          (key m)]
       [m                             m]))
   (let ([a (key a)]
         [b (key b)])
