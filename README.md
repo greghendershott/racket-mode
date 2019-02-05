@@ -29,6 +29,7 @@ from [MELPA]. <kbd>M-x</kbd> `package-install` <kbd>RET</kbd>
 >              '("melpa" . "https://melpa.org/packages/")
 >              t)
 > ```
+> Then restart emacs and type <kbd>M-x</kbd> `package-refresh-contents` <kbd>RET</kbd>.
 
 ### Minimal Racket
 
