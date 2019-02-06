@@ -58,10 +58,15 @@
                 "(1 t nil nil (a . b) ((1 . 2) (3 . 4)))"))
 
 (define (path->string/emacs p)
-  (string-join
-   (match (map path->string (explode-path p))
-     [(list* (pregexp "([a-zA-z]:)\\\\" (list _ drive)) vs)
-      (cons drive vs)]
-     [vs vs])
-   "/"))
+  (match (map path->string (explode-path p))
+    [(list* (pregexp "([a-zA-z]:)\\\\" (list _ drive)) vs)
+     #:when (eq? 'windows (system-type))
+     (string-join (cons drive vs))]
+    [_ p]))
 
+(module+ test
+  (when (eq? 'windows (system-type))
+    (check-equal? (path->string/emacs "C:\\path\\to\\foo.rkt")
+                  "C:/path/to/foo.rkt"))
+  (check-equal? (path->string/emacs "/path/to/foo.rkt")
+                "/path/to/foo.rkt"))
