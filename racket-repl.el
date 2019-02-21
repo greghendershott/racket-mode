@@ -24,6 +24,7 @@
 (require 'compile)
 (require 'easymenu)
 (require 'cl-lib)
+(require 'rx)
 
 ;; Don't (require 'racket-debug). Mutual dependency. Instead:
 (declare-function  racket--debug-send-definition "racket-debug" (beg end))
@@ -125,7 +126,17 @@ fallbacks. The version number here is a baseline for run.rkt to
 be able to load at all.")
 
 (defvar racket--run.rkt (expand-file-name "run.rkt" racket--rkt-source-dir)
-  "Pathname of run.rkt")
+  "Pathname of run.rkt.")
+
+(defvar racket-adjust-run-rkt #'identity
+  "A function used to transform the variable `racket--run.rkt'.
+
+You probably don't need to change this unless you are developing
+racket-mode, AND run Emacs on Windows Subsystem for Linux, AND
+want to run your programs using Windows Racket.exe, AND have the
+racket-mode source code under \"/mnt\". Whew. In that case you
+can set this `racket-wsl-to-windows' so that racket-mode can find
+its own run.rkt file.")
 
 (defvar-local racket-user-command-line-arguments
   nil
@@ -223,33 +234,38 @@ Non-nil RUN-COMMAND is supplied as the second command-line
 argument to `racket--run.rkt' so the process can start by
 immediately running a desired file.
 
-Never changes selected window."
+Never changes selected window.
+
+Note that the value of the variable `racket--run.rkt' is applied
+to the function variable `racket-adjust-run-rkt' before being
+used. See the latter for more information."
   (if (racket--repl-live-p)
       (when display
         (display-buffer racket--repl-buffer-name))
     (racket--require-version racket--minimum-required-version)
-    (with-current-buffer
-        (make-comint racket--repl-buffer-name/raw ;w/o *stars*
-                     racket-program
-                     nil
-                     racket--run.rkt
-                     (number-to-string racket-command-port)
-                     (setq racket--cmd-auth (format "%S" `(auth ,(random))))
-                     (format "%S" (or run-command
-                                      (racket--repl-make-run-command nil))))
-      (let ((proc (get-buffer-process racket--repl-buffer-name)))
-        ;; Display now so users see startup and banner sooner.
-        (when display
-          (display-buffer (current-buffer)))
-        (message "Starting %s to run %s ..." racket-program racket--run.rkt)
-        ;; Ensure command server connection closed when racket process dies.
-        (set-process-sentinel proc
-                              (lambda (_proc event)
-                                (with-racket-repl-buffer
-                                  (insert (concat "Process Racket REPL " event)))
-                                (racket--cmd-disconnect)))
-        (set-process-coding-system proc 'utf-8 'utf-8) ;for e.g. λ
-        (racket-repl-mode))))
+    (let ((run.rkt (funcall racket-adjust-run-rkt racket--run.rkt)))
+      (with-current-buffer
+          (make-comint racket--repl-buffer-name/raw ;w/o *stars*
+                       racket-program
+                       nil
+                       run.rkt
+                       (number-to-string racket-command-port)
+                       (setq racket--cmd-auth (format "%S" `(auth ,(random))))
+                       (format "%S" (or run-command
+                                        (racket--repl-make-run-command nil))))
+        (let ((proc (get-buffer-process racket--repl-buffer-name)))
+          ;; Display now so users see startup and banner sooner.
+          (when display
+            (display-buffer (current-buffer)))
+          (message "Starting %s to run %s ..." racket-program run.rkt)
+          ;; Ensure command server connection closed when racket process dies.
+          (set-process-sentinel proc
+                                (lambda (_proc event)
+                                  (with-racket-repl-buffer
+                                    (insert (concat "Process Racket REPL " event)))
+                                  (racket--cmd-disconnect)))
+          (set-process-coding-system proc 'utf-8 'utf-8) ;for e.g. λ
+          (racket-repl-mode)))))
   (unless (racket--cmd-connected-or-connecting-p)
     (racket--cmd-connect-start)))
 
@@ -459,16 +475,25 @@ mistake."
 
 ;;; Misc
 
+(defun racket--repl-file-name+md5 ()
+  "Return the file and MD5 running in the REPL, or nil.
+
+The result can be nil if the REPL is not started, or if it is
+running no particular file as with the `,top` command."
+  (when (comint-check-proc racket--repl-buffer-name)
+    (pcase (racket--cmd/await `(path+md5))
+      (`(,(and (pred stringp) path) . ,md5)
+       (cons (funcall racket-path-from-racket-to-emacs-function path)
+             md5))
+      (_ nil))))
+
 (defun racket-repl-file-name ()
   "Return the file running in the REPL, or nil.
 
 The result can be nil if the REPL is not started, or if it is
-running no particular file as with the `,top` command.
-
-On Windows this will replace \ with / in an effort to match the
-Unix style names used by Emacs on Windows."
+running no particular file as with the `,top` command."
   (when (comint-check-proc racket--repl-buffer-name)
-    (pcase (racket--cmd/await `(path+md5))
+    (pcase (racket--repl-file-name+md5)
       (`(,(and (pred stringp) path) . ,_md5) path)
       (_ nil))))
 
@@ -732,16 +757,20 @@ With prefix arg, open the N-th last shown image."
   (compilation-setup t)
   (setq-local
    compilation-error-regexp-alist
-   '(;; error
-     ("^;?[ ]*\\([^ :]+\\):\\([0-9]+\\)[:.]\\([0-9]+\\)" 1 2 3)
-     ;; contract
-     ("^;?[ ]*at:[ ]+\\([^ :]+\\):\\([0-9]+\\)[.]\\([0-9]+\\)$" 1 2 3)
-     ;; rackunit check-xxx
-     ("#<path:\\([^>]+\\)> \\([0-9]+\\) \\([0-9]+\\)" 1 2 3)
-     ;;rackunit/text-ui test-suite
-     ("^location:[ ]+\\(\\([^:]+\\):\\([0-9]+\\):\\([0-9]+\\)\\)" 2 3 4 2 1)
-     ;; path struct
-     ("#<path:\\([^>]+\\)>" 1 nil nil 0))))
+   (list
+    ;; Any apparent file:line:col
+    (list (rx (group-n 1 (+? (not (syntax whitespace))))
+              (any ?\: ?\.)
+              (group-n 2 (+ digit))
+              (any ?\: ?\.)
+              (group-n 3 (+ digit)))
+          #'racket--adjust-group-1 2 3)
+     ;; Any path struct
+     (list (rx "#<path:" (group-n 1 (+? (not (any ?\>)))) ?\>)
+           #'racket--adjust-group-1 nil nil 0))))
+
+(defun racket--adjust-group-1 ()
+  (list (funcall racket-path-from-racket-to-emacs-function (match-string 1))))
 
 (provide 'racket-repl)
 

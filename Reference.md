@@ -45,13 +45,14 @@ See also [`racket-run-and-switch-to-repl`](#racket-run-and-switch-to-repl), whic
 DrRacket's Run because it selects the REPL window (gives it the
 focus), too.
 
-If your source file has a syntax or runtime error, a "skeleton"
-of your file is evaluated to get identifiers from module
-languages, `require`s, and definitions. That way, things like
-completion and [`racket-describe`](#racket-describe) are more likely to work while
-you edit the file to fix the error. If not even the "skeleton"
-evaluation succeeds, you'll have only identifiers provided by
-racket/base, until you fix the error and run again.
+When [`racket-retry-as-skeleton`](#racket-retry-as-skeleton) is true, if your source file has
+an error, a "skeleton" of your file is evaluated to get
+identifiers from module languages, `require`s, and definitions.
+That way, things like completion and [`racket-describe`](#racket-describe) are more
+likely to work while you edit the file to fix the error. If not
+even the "skeleton" evaluation succeeds, you'll have only
+identifiers provided by racket/base, until you fix the error and
+run again.
 
 Output in the `*Racket REPL*` buffer that describes a file and
 position is automatically "linkified". Examples of such text
@@ -109,7 +110,7 @@ z		racket--profile-show-zero
 
 
 In addition to any hooks its parent mode `special-mode` might have run,
-this mode runs the hook [`racket-profile-mode-hook`](#racket-profile-mode-hook), as the final or penultimate step
+this mode runs the hook [`racket-profile-mode-hook`](#racket-profile-mode-hook), as the final step
 during initialization.
 
 ### racket-logger
@@ -153,7 +154,7 @@ C-c C-z		racket-repl
 
 
 In addition to any hooks its parent mode `special-mode` might have run,
-this mode runs the hook [`racket-logger-mode-hook`](#racket-logger-mode-hook), as the final or penultimate step
+this mode runs the hook [`racket-logger-mode-hook`](#racket-logger-mode-hook), as the final step
 during initialization.
 
 ### racket-debug-mode
@@ -669,7 +670,7 @@ other examples:
 To see a table of all key sequences use `M-x
 describe-input-method <RET> racket-unicode`.
 
-If you don’t like the highlighting of partially matching tokens you
+If you don't like the highlighting of partially matching tokens you
 can turn it off by setting `input-method-highlight-flag` to nil via
 `M-x customize-variable`.
 
@@ -783,7 +784,7 @@ p		racket-stepper-previous-item
 
 
 In addition to any hooks its parent mode `special-mode` might have run,
-this mode runs the hook [`racket-stepper-mode-hook`](#racket-stepper-mode-hook), as the final or penultimate step
+this mode runs the hook [`racket-stepper-mode-hook`](#racket-stepper-mode-hook), as the final step
 during initialization.
 
 ### racket-expand-file
@@ -841,7 +842,7 @@ installing it does _not_ do the `raco setup` that is normally
 done for Racket packages.
 
 This command will do a `raco make` of racket-mode's .rkt files,
-creating bytecode files in a `compiled/` subdirectory. As a
+creating bytecode files in `compiled/` subdirectories. As a
 result, when a [`racket-run`](#racket-run) or [`racket-repl`](#racket-repl) command must start
 the Racket process, it will start faster.
 
@@ -900,6 +901,22 @@ for a specific [`racket-run`](#racket-run) using a C-u prefix. This lets you
 normally run with a faster setting, and temporarily re-run to get
 a more-helpful error message.
 
+### racket-retry-as-skeleton
+Retry a "skeleton" of files with errors, for identifier names?
+
+When true: If your source file has an error, a "skeleton" of
+your file is evaluated to get identifiers from module languages,
+`require`s, and definitions. That way, things like completion and
+[`racket-describe`](#racket-describe) are more likely to work while you edit the file
+to fix the error.
+
+Otherwise, you'll have only identifiers provided by racket/base,
+until you fix the error and run again.
+
+You might want to disable this if you work with files that take a
+very long time to expand -- because this feature needs to expand
+again when there is an error.
+
 ### racket-user-command-line-arguments
 List of command-line arguments to supply to your Racket program.
 
@@ -923,6 +940,27 @@ but NOT:
     '("-f" "bar")
     (list "-f" "bar")
 
+
+### racket-path-from-emacs-to-racket-function
+A function used to transform Emacs Lisp pathnames before supplying to the Racket back end.
+
+If you run Emacs on Windows Subsystem for Linux, and want to run
+Racket programs using Windows Racket.exe rather than Linux
+racket, you can set this to [`racket-wsl-to-windows`](#racket-wsl-to-windows). In that case
+you probably also want to customize the "reverse":
+[`racket-path-from-racket-to-emacs-function`](#racket-path-from-racket-to-emacs-function).
+
+### racket-path-from-racket-to-emacs-function
+A function used to transform pathnames supplied by the Racket back end before using them in Emacs.
+
+The default on Windows replaces back with forward slashes. The
+default elsewhere is `identity`.
+
+If you run Emacs on Windows Subsystem for Linux, and want to run
+Racket programs using Windows Racket.exe rather than Linux
+racket, you can set this to [`racket-windows-to-wsl`](#racket-windows-to-wsl). In that case
+you probably also want to customize the "reverse":
+[`racket-path-from-emacs-to-racket-function`](#racket-path-from-emacs-to-racket-function).
 
 ## REPL
 

@@ -124,13 +124,43 @@ until you fix the error and run again.
 
 You might want to disable this if you work with files that take a
 very long time to expand -- because this feature needs to expand
-again when there is an error.
-
-Note: The retry "
+again when there is an error."
   :tag "Retry as Skeleton?"
   :type 'boolean
   :safe #'booleanp
   :group 'racket)
+
+(defcustom racket-path-from-emacs-to-racket-function
+  #'identity
+  "A function used to transform Emacs Lisp pathnames before supplying to the Racket back end.
+
+If you run Emacs on Windows Subsystem for Linux, and want to run
+Racket programs using Windows Racket.exe rather than Linux
+racket, you can set this to `racket-wsl-to-windows'. In that case
+you probably also want to customize the \"reverse\":
+`racket-path-from-racket-to-emacs-function'."
+  :tag "Path from Emacs to Racket Function"
+  :type 'function
+  :safe 'functionp
+  :group 'racket)
+
+(defcustom racket-path-from-racket-to-emacs-function
+  (if racket--winp
+      (lambda (path) (subst-char-in-string ?\\ ?/ path))
+      #'identity)
+  "A function used to transform pathnames supplied by the Racket back end before using them in Emacs.
+
+The default on Windows replaces back with forward slashes. The
+default elsewhere is `identity'.
+
+If you run Emacs on Windows Subsystem for Linux, and want to run
+Racket programs using Windows Racket.exe rather than Linux
+racket, you can set this to `racket-windows-to-wsl'. In that case
+you probably also want to customize the \"reverse\":
+`racket-path-from-emacs-to-racket-function'."
+  :tag "Path from Racket to Emacs Function"
+  :type 'function
+  :safe #'functionp)
 
 ;;; REPL
 

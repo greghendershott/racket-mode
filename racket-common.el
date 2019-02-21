@@ -681,7 +681,8 @@ Allows #; to be followed by zero or more space or newline chars."
 ;;; racket--what-to-run
 
 (defun racket--what-to-run ()
-  (cons (racket--buffer-file-name) (racket--submod-path)))
+  (cons (racket--buffer-file-name)
+        (racket--submod-path)))
 
 (defun racket--submod-path ()
   (and (racket--lang-p)

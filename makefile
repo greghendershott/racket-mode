@@ -15,7 +15,7 @@ help:
 	@echo "Targets: clean, compile, deps, doc, test, test-racket, test-elisp"
 
 show-versions:
-	racket --version
+	- racket --version
 	echo `which $(EMACSBIN)`
 	$(EMACSBIN) --version
 
@@ -26,7 +26,7 @@ clean:
 	$(BYTECOMP) $<
 
 compile: clean \
-	show-versions\
+	show-versions \
 	racket-bug-report.elc \
 	racket-common.elc \
 	racket-collection.elc \
@@ -46,7 +46,8 @@ compile: clean \
 	racket-stepper.elc \
 	racket-tests.elc \
 	racket-unicode-input-method.elc \
-	racket-util.elc
+	racket-util.elc \
+	racket-wsl.elc
 
 # Install packages we depend on. Intended for one-time use by
 # developers and for Travis CI. (Normal users of the package get these

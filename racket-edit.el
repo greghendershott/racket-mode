@@ -202,8 +202,8 @@ Please keep in mind the following limitations:
   (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")
     (`nil nil)
     (str (if (and (eq major-mode 'racket-mode)
-                  (not (equal (racket--cmd/await `(path+md5))
-                              (cons (racket--buffer-file-name) (md5 (current-buffer)))))
+                  (not (equal (racket--repl-file-name+md5)
+                              (cons (racket--buffer-file-name t) (md5 (current-buffer)))))
                   (y-or-n-p "Run current buffer first? "))
              (racket--repl-run nil nil
                                (lambda (_what)

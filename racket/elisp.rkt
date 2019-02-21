@@ -44,7 +44,7 @@
     [#t             't]
     [(? list? xs)   (map racket->elisp xs)]
     [(cons x y)     (cons (racket->elisp x) (racket->elisp y))]
-    [(? path? v)    (path->string/emacs v)]
+    [(? path? v)    (path->string v)]
     [(? hash? v)    (for/list ([(k v) (in-hash v)])
                       (cons (racket->elisp k) (racket->elisp v)))]
     [(? set? v)     (map racket->elisp (set->list v))]
@@ -56,21 +56,3 @@
                   (λ () (elisp-write '(1 #t nil () (a . b) #hash((1 . 2) (3 . 4)))
                                      (current-output-port))))
                 "(1 t nil nil (a . b) ((1 . 2) (3 . 4)))"))
-
-(define (path->string/emacs p)
-  (when (string? p)
-    (set! p (string->path p)))
-  (match (map path->string (explode-path p))
-    [(list* (pregexp "([a-zA-z]:)\\\\" (list _ drive)) vs)
-     #:when (eq? 'windows (system-type))
-     (string-join (cons drive vs))]
-    [_ (path->string p)]))
-
-(module+ test
-  (when (eq? 'windows (system-type))
-    (check-equal? (path->string/emacs "C:\\path\\to\\foo.rkt")
-                  "C:/path/to/foo.rkt"))
-  (check-equal? (path->string/emacs "/path/to/foo.rkt")
-                "/path/to/foo.rkt")
-  (check-equal? (path->string/emacs (string->path "/path/to/foo.rkt"))
-                "/path/to/foo.rkt"))
