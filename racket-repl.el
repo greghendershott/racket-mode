@@ -503,10 +503,7 @@ running no particular file as with the `,top` command."
           (get-buffer racket--repl-buffer-name))
       (let ((buf-file  (racket--buffer-file-name))
             (repl-file (racket-repl-file-name)))
-        (and buf-file
-             repl-file
-             (string-equal (racket--buffer-file-name)
-                           (racket-repl-file-name))))))
+        (and buf-file repl-file (string-equal buf-file repl-file)))))
 
 (defun racket-repl-switch-to-edit ()
   "Switch to the window for the buffer of the file running in the REPL.
