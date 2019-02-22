@@ -57,8 +57,8 @@ variable `racket-path-from-emacs-to-racket-function'."
   (unless (eq major-mode 'racket-mode)
     (user-error "Current buffer is not a racket-mode buffer"))
   (when (or (buffer-modified-p)
-            (and (racket--buffer-file-name)
-                 (not (file-exists-p (racket--buffer-file-name)))))
+            (and (buffer-file-name)
+                 (not (file-exists-p (buffer-file-name)))))
     (save-buffer)))
 
 (add-hook 'racket--repl-before-run-hook #'racket--save-if-changed)
