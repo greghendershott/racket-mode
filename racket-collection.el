@@ -139,22 +139,18 @@ developers insert an eprintf in racket/base.rkt or similar -- see
 issue #345."
   (let ((name   "racket-find-module-path-completions-process")
         (buffer " *racket-find-module-path-completions*")
-        (stderr " *racket-find-module-path-completions-stderr*"))
+        (stderr " *racket-find-module-path-completions-stderr*")
+        (rkt    (funcall racket-adjust-run-rkt
+                         (expand-file-name "find-module-path-completions.rkt"
+                                           racket--rkt-source-dir))))
     (if (fboundp 'make-process)
-        (make-process :name name
-                      :buffer buffer
-                      :command (list
-                                racket-program
-                                (expand-file-name "find-module-path-completions.rkt"
-                                                  racket--rkt-source-dir))
+        (make-process :name            name
+                      :buffer          buffer
+                      :command         (list racket-program rkt)
                       :connection-type 'pipe
-                      :stderr stderr)
+                      :stderr          stderr)
       (let ((process-connection-type nil)) ;use pipe not tty
-        (start-process name
-                       buffer
-                       racket-program
-                       (expand-file-name "find-module-path-completions.rkt"
-                                         racket--rkt-source-dir))))))
+        (start-process name buffer racket-program rkt)))))
 
 (defun racket--orp/begin ()
   (setq racket--orp/tq (tq-create (racket--orp/process))))
@@ -171,7 +167,8 @@ issue #345."
 (defun racket--orp/rx-matches (buffer answer)
   "Completion proc; receives answer to request by `racket--orp/request-tx-matches'."
   (when racket--orp/active
-    (setq racket--orp/matches (split-string answer "\n" t))
+    (setq racket--orp/matches (mapcar racket-path-from-racket-to-emacs-function
+                                      (split-string answer "\n" t)))
     (setq racket--orp/match-index 0)
     (with-current-buffer buffer
       (racket--orp/draw-matches))))
@@ -289,7 +286,6 @@ Also constrain point in case user tried to navigate past
       (cond (;; Pressing RET on a directory inserts its contents, like
              ;; "Enter subcollection" button in DrR.
              (and match (file-directory-p match))
-             (racket--trace "enter" 'add-subdir)
              (setq racket--orp/matches
                    (delete-dups ;if they RET same item more than once
                     (sort (append racket--orp/matches
@@ -301,14 +297,12 @@ Also constrain point in case user tried to navigate past
              ;; racket--orp/matches and racket--orp/match-index as a
              ;; choice (as opposed to quitting w/o a choice.
              t
-             (racket--trace "enter" 'exit-minibuffer)
              (exit-minibuffer))))))
 
 (defun racket--orp/quit ()
   "Our replacement for `keyboard-quit'."
   (interactive)
   (when racket--orp/active
-    (racket--trace "quit")
     (setq racket--orp/input "")
     (setq racket--orp/matches nil)
     (exit-minibuffer)))
