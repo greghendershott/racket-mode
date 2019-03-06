@@ -1,4 +1,4 @@
-;;; racket-wsl.el
+;;; racket-wsl.el -*- lexical-binding: t -*-
 
 ;; Copyright (c) 2019 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
