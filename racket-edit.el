@@ -245,7 +245,7 @@ See also: `racket-find-collection'."
   (pcase (racket--cmd/await (list cmd str))
     (`(,path ,line ,col)
      (racket--push-loc)
-     (find-file path)
+     (find-file (funcall racket-path-from-racket-to-emacs-function path))
      (goto-char (point-min))
      (forward-line (1- line))
      (forward-char col)
