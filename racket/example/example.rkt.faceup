@@ -106,6 +106,12 @@ comment
 
 |#»
 
+«m:;; »«x:Issue 362
+»
+«x:#|aaa() |#»
+
+«x:#|(hello)|#»
+
 «m:#;»«x:(sexpr comment)»
 
 «m:;; »«x:Nested sexpr comments

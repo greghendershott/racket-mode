@@ -106,6 +106,12 @@ comment
 
 |#
 
+;; Issue 362
+
+#|aaa() |#
+
+#|(hello)|#
+
 #;(sexpr comment)
 
 ;; Nested sexpr comments
