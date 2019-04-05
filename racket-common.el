@@ -122,7 +122,7 @@
     ;; following general rx. Also it seems sufficient to look for just
     ;; the opening delimiter -- the ( [ { or " -- here.
     ((rx (group ?#
-                (zero-or-more
+                (*?
                  (and (not (any ?|))  ;not multiline comment; see #362
                       (or (syntax symbol)
                           (syntax word)))))

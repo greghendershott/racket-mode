@@ -306,3 +306,8 @@ BAR
                 (equal? c #\_))))]))
 
 (displayln "I'm running!")
+
+;; Issue 363
+#"1"
+#"22"
+#"333"

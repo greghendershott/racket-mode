@@ -306,3 +306,8 @@ BAR
                 («b:equal?» c «:racket-selfeval-face:#\_»))))]))
 
 («b:displayln» «s:"I'm running!"»)
+
+«m:;; »«x:Issue 363
+»#«s:"1"»
+#«s:"22"»
+#«s:"333"»
