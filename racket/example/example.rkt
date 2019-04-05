@@ -307,7 +307,7 @@ BAR
 
 (displayln "I'm running!")
 
-;; Issue 363
+;; Issue 366
 #"1"
 #"22"
 #"333"
