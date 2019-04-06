@@ -867,8 +867,18 @@ Pathname of the racket executable.
 ### racket-command-port
 Port number for Racket REPL command server.
 
+### racket-command-startup
+What to do when the REPL and command server aren't available to send a command.
+
+- nil: Show an error message explaining that you might need to
+  start or restart the Racket REPL.
+
+- positive number: Automatically try to start the REPL and wait
+  that number of seconds for command server to become
+  available.
+
 ### racket-command-timeout
-Timeout for Racket REPL command server.
+How many seconds to wait for Racket REPL command server responses.
 
 ### racket-memory-limit
 Terminate the Racket process if memory use exceeds this value in MB.

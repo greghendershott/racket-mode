@@ -158,6 +158,7 @@
   (match sexpr
     [`(run ,what ,mem ,pp? ,ctx ,args ,dbg ,skel?)
      (run what mem pp? ctx args dbg skel?)]
+    [`(no-op)                          #t]
     [`(path+md5)                       (cons (or path 'top) md5)]
     [`(syms)                           (syms)]
     [`(def ,str)                       (find-definition str)]

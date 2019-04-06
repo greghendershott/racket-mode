@@ -31,8 +31,11 @@
                    (getenv "CI"))
   "Is there an environment variable saying we're running on CI?")
 
+(defconst racket-tests/connect-attempts (if ci-p (* 15 60) (* 2 60))
+  "Attempts to connect to command server. Very long when running on CI.")
+
 (defconst racket-tests/connect-timeout (if ci-p (* 15 60) (* 2 60))
-  "Timeout for connecting. Very long when running on CI.")
+  "Timeout waiting for connect to command server. Very long when running on CI.")
 
 (defconst racket-tests/command-timeout (if ci-p (* 15 60) 30)
   "Timeout for synchronous commands. Very long when running on CI.")
@@ -70,19 +73,23 @@
   ;; that, too!
   (+ racket-command-port 2))
 
+(defun racket-tests/wait-for-command-server ()
+  (with-timeout (racket-tests/connect-timeout)
+    (while (not (racket--cmd-open-p)) (sit-for 1))))
+
 ;;; REPL
 
 (ert-deftest racket-tests/repl ()
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
   (let ((tab-always-indent 'complete)
-        (racket--cmd-connect-attempts racket-tests/connect-timeout)
-        (racket--cmd-connect-timeout racket-tests/connect-timeout)
+        (racket--cmd-connect-attempts racket-tests/connect-attempts)
         (racket-command-port (racket-tests/next-free-port))
         (racket-command-timeout racket-tests/command-timeout))
     (racket-repl)
     (with-racket-repl-buffer
       ;; Welcome
       (should (racket-tests/see-rx "Welcome to Racket v[0-9.]+\n> "))
+      (racket-tests/wait-for-command-server)
       ;; Completion
       (racket-tests/type&press "with-inp" "TAB")
       (should (racket-tests/see "with-input-from-file"))
@@ -102,8 +109,7 @@
 ;;; Run
 
 (ert-deftest racket-tests/run ()
-  (let* ((racket--cmd-connect-attempts racket-tests/connect-timeout)
-         (racket--cmd-connect-timeout racket-tests/connect-timeout)
+  (let* ((racket--cmd-connect-attempts racket-tests/connect-attempts)
          (racket-command-port (racket-tests/next-free-port))
          (racket-command-timeout racket-tests/command-timeout)
          (pathname (make-temp-file "test" nil ".rkt"))
@@ -115,6 +121,7 @@
     ;; see expected prompt
     (with-racket-repl-buffer
       (should (racket-tests/see (concat "\n" name "> "))))
+    (racket-tests/wait-for-command-server)
     ;; racket-check-syntax-mode
     (when (version<= "6.2" (racket--version))
       (racket-check-syntax-mode 1)

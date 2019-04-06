@@ -75,8 +75,7 @@ commands."
                     (pcase prefix
                       (`(4)  'high)
                       (`(16) 'debug)
-                      (_     racket-error-context))
-                    nil))
+                      (_     racket-error-context))))
 
 (defun racket-run-with-errortrace ()
   "Run with `racket-error-context' temporarily set to 'high.
@@ -133,7 +132,7 @@ See also:
       (racket--repl-run
        mod-path
        'coverage
-       (lambda (_what)
+       (lambda (_n/a)
          (message "Getting coverage results...")
          (racket--cmd/async
           `(get-uncovered)
@@ -206,7 +205,7 @@ Please keep in mind the following limitations:
                               (cons (racket--buffer-file-name t) (md5 (current-buffer)))))
                   (y-or-n-p "Run current buffer first? "))
              (racket--repl-run nil nil
-                               (lambda (_what)
+                               (lambda (_n/a)
                                  (racket--do-visit-def-or-mod 'def str)))
            (racket--do-visit-def-or-mod 'def str)))))
 
@@ -238,10 +237,8 @@ See also: `racket-find-collection'."
 
 (defun racket--do-visit-def-or-mod (cmd str)
   "CMD must be 'def or 'mod. STR must be `stringp`."
-  (cl-case major-mode
-    (racket-mode t)
-    ((racket-repl-mode racket-describe-mode) (racket--repl-ensure-buffer-and-process))
-    (otherwise (user-error "Requires racket-mode or racket-repl-mode")))
+  (unless (memq major-mode '(racket-mode racket-repl-mode racket-describe-mode))
+    (user-error "That doesn't work in %s" major-mode))
   (pcase (racket--cmd/await (list cmd str))
     (`(,path ,line ,col)
      (racket--push-loc)

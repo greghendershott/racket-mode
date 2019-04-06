@@ -27,8 +27,8 @@
 ;; 1. This main thread, which receives a couple messages on a channel
 ;;    (see channel.rkt). One message is a `rerun` struct with info
 ;;    about a new file/module to run. The main thread loops forever
-;;    (the `rerun` function tail calls itself forever). The special
-;;    case of racket/gui/base is handled with a custom module names
+;;    (the `run` function tail calls itself forever). The special case
+;;    of racket/gui/base is handled with a custom module names
 ;;    resolver and another message.
 ;;
 ;; 2. A thread created for each run; loads a module and goes into

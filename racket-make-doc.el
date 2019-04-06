@@ -146,6 +146,7 @@
   '("General"
     racket-program
     racket-command-port
+    racket-command-startup
     racket-command-timeout
     racket-memory-limit
     racket-error-context
