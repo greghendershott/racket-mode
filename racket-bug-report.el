@@ -17,71 +17,68 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'cl-lib)
+(require 'package)
 (require 'racket-util)
 
 ;;;###autoload
 (defun racket-bug-report ()
   "Fill a buffer with data to make a racket-mode bug report."
   (interactive)
-  (unless (memq major-mode '(racket-mode racket-repl-mode))
-    (user-error "Please run this from a racket-mode or racket-repl-mode buffer."))
-  (with-help-window "*racket-mode bug report*"
-    (princ "TIP: If you get an `invalid function' error, be aware that Emacs package\n")
-    (princ "updates don't necessarily fully update Emacs' state.  In some cases, you\n")
-    (princ "might even need to:\n\n")
-    (princ  "  1. Uninstall racket-mode\n")
-    (princ  "  2. Exit and restart Emacs\n")
-    (princ  "  3. Install racket-mode\n\n\n")
-    (princ "When you submit a bug report at:\n\n")
-    (princ "  https://github.com/greghendershott/racket-mode/issues/new\n\n")
-    (princ "Please copy and paste ALL OF THE FOLLOWING LINES from\n")
-    (princ "`<details>' through `</details>':\n\n\n")
-    (princ "<details>\n")
-    (princ "```\n")
-    (cl-labels ((id-val (id) (list id
-                                   (condition-case () (symbol-value id)
-                                     (error 'UNDEFINED)))))
-      (let ((emacs-uptime (emacs-uptime)))
-        (pp `(,@(mapcar #'id-val
-                        `(emacs-version
-                          emacs-uptime
-                          system-type
-                          major-mode
-                          racket--el-source-dir
-                          racket--rkt-source-dir
-                          racket-program
-                          racket-command-port
-                          racket-command-timeout
-                          racket-memory-limit
-                          racket-error-context
-                          racket-retry-as-skeleton
-                          racket-error-context
-                          racket-history-filter-regexp
-                          racket-images-inline
-                          racket-images-keep-last
-                          racket-use-repl-submit-predicate
-                          racket-images-system-viewer
-                          racket-pretty-print
-                          racket-indent-curly-as-sequence
-                          racket-indent-sequence-depth
-                          racket-pretty-lambda
-                          racket-smart-open-bracket-enable
-                          racket-module-forms
-                          racket-logger-config)))))
-      ;; Show lists of enabled and disabled minor modes, each sorted by name.
-      (let* ((minor-modes (cl-remove-duplicates
-                           (append minor-mode-list
-                                   (mapcar #'car minor-mode-alist))))
-             (modes/values (mapcar #'id-val minor-modes))
-             (sorted (sort modes/values
-                           (lambda (a b)
-                             (string-lessp (format "%s" (car a))
-                                           (format "%s" (car b)))))))
-        (cl-labels ((f (x) (list (car x)))) ;car as a list so pp line-wraps
-          (pp `(enabled-minor-modes  ,@(mapcar #'f (cl-remove-if-not #'cadr sorted))))
-          (pp `(disabled-minor-modes ,@(mapcar #'f (cl-remove-if     #'cadr sorted)))))))
-    (princ "```\n")
-    (princ "</details>\n")))
+  (let ((help-window-select t))
+    (with-help-window "*racket-mode bug report*"
+      (princ "Please copy all of the following lines and paste them into your bug report\n")
+      (princ "at <https://github.com/greghendershott/racket-mode/issues/>.\n\n")
+
+      (princ "<details>\n")
+      (princ "```\n")
+      (pp (cons '(alist-get 'racket-mode package-alist)
+                (let ((v (assq 'racket-mode package-alist)))
+                  (and v (cdr v)))))
+      (cl-labels ((id-val (id) (list id
+                                     (condition-case () (symbol-value id)
+                                       (error 'UNDEFINED)))))
+        (let ((emacs-uptime (emacs-uptime)))
+          (pp `(,@(mapcar #'id-val
+                          `(emacs-version
+                            emacs-uptime
+                            system-type
+                            major-mode
+                            racket--el-source-dir
+                            racket--rkt-source-dir
+                            racket-program
+                            racket-command-port
+                            racket-command-timeout
+                            racket-memory-limit
+                            racket-error-context
+                            racket-retry-as-skeleton
+                            racket-error-context
+                            racket-history-filter-regexp
+                            racket-images-inline
+                            racket-images-keep-last
+                            racket-use-repl-submit-predicate
+                            racket-images-system-viewer
+                            racket-pretty-print
+                            racket-indent-curly-as-sequence
+                            racket-indent-sequence-depth
+                            racket-pretty-lambda
+                            racket-smart-open-bracket-enable
+                            racket-module-forms
+                            racket-logger-config)))))
+        ;; Show lists of enabled and disabled minor modes, each sorted by name.
+        (let* ((minor-modes (cl-remove-duplicates
+                             (append minor-mode-list
+                                     (mapcar #'car minor-mode-alist))))
+               (modes/values (mapcar #'id-val minor-modes))
+               (sorted (sort modes/values
+                             (lambda (a b)
+                               (string-lessp (format "%s" (car a))
+                                             (format "%s" (car b)))))))
+          (cl-labels ((f (x) (list (car x)))) ;car as a list so pp line-wraps
+            (pp `(enabled-minor-modes  ,@(mapcar #'f (cl-remove-if-not #'cadr sorted))))
+            (pp `(disabled-minor-modes ,@(mapcar #'f (cl-remove-if     #'cadr sorted)))))))
+      (princ "```\n")
+      (princ "</details>\n"))
+    (forward-line 2)))
 
 (provide 'racket-bug-report)
 
