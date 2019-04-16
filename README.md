@@ -2,6 +2,7 @@
 
 [![Build Status](https://travis-ci.org/greghendershott/racket-mode.svg?branch=master)](https://travis-ci.org/greghendershott/racket-mode)
 [![MELPA](https://melpa.org/packages/racket-mode-badge.svg)](https://melpa.org/#/racket-mode)
+[![Documentation](https://img.shields.io/badge/Docs-Documentation-blue.svg)](Reference.md)
 
 This provides a major mode to edit [Racket] source files, as well as a
 major mode for a Racket REPL. The edit/run experience is similar to
@@ -46,17 +47,17 @@ $ raco pkg install drracket
 
 ## Update
 
-Be aware that an Emacs package update doesn't necessarily fully update
-Emacs' state. An example symptom is an "invalid function" error
-message. You might need to restart Emacs. In some cases, you might
-even need to:
+Be aware that updating an Emacs package doesn't necessarily fully
+update Emacs' state. (One example symptom: an "invalid function" error
+message.)
 
-1. Uninstall racket-mode
-2. Exit and restart Emacs
-3. Install racket-mode
+- After updating the package, you might need to restart Emacs.
 
-If you still experience a problem, please `M-x racket-bug-report` and
-submit an [issue].
+- In some cases, you might even need to:
+
+    1. Uninstall racket-mode
+    2. Exit and restart Emacs
+    3. Install racket-mode
 
 ## Configure
 
