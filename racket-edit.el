@@ -216,13 +216,7 @@ Use \\[racket-unvisit] to return.
 
 See also: `racket-find-collection'."
   (interactive "P")
-  ;; `thing-at-point' 'filename matches both net/url and "file.rkt".
-  ;; It returns the latter without the quotes; add them back if
-  ;; `syntax-ppss' says it's a string.
-  (let* ((v (racket--thing-at-point 'filename t))
-         (v (if (and v (racket--ppss-string-p (syntax-ppss)))
-                (concat "\"" v "\"")
-              v))
+  (let* ((v (racket--module-at-point))
          (v (if (or prefix (not v))
                 (read-from-minibuffer "Visit module: " (or v ""))
               v)))
@@ -234,6 +228,43 @@ See also: `racket-find-collection'."
            (find-file (expand-file-name (substring v 1 -1)))
            (message "Type M-, to return"))
           (t (racket--do-visit-def-or-mod 'mod v)))))
+
+(defun racket--module-at-point ()
+  "Treat point as a Racket module path name, possibly in a multi-in form."
+  ;; `thing-at-point' 'filename matches both net/url and "file.rkt".
+  ;; But. 1. Returns both without the quotes; use `syntax-ppss' to
+  ;; detect latter (string). 2. Returns nil if on the opening quote;
+  ;; use `forward-char' then.
+  (save-excursion
+    (when (eq ?\" (char-syntax (char-after))) ;2
+      (forward-char))
+    (pcase (racket--thing-at-point 'filename t)
+      (`() `())
+      (v
+       (let* ((ppss       (syntax-ppss))
+              (relative-p (and (racket--ppss-string-p ppss) t)) ;1
+              (multi-in   (condition-case ()
+                              (progn
+                                (when relative-p
+                                  (goto-char (racket--ppss-string/comment-start ppss)))
+                                (backward-up-list 1)
+                                (backward-sexp 2)
+                                (when (looking-at-p "multi-in")
+                                  (forward-sexp 2)
+                                  (backward-sexp 1)
+                                  (when (eq ?\" (char-syntax (char-after))) ;2
+                                    (forward-char))
+                                  (unless (eq relative-p
+                                              (and (racket--ppss-string-p ppss) t)) ;1
+                                    (user-error "multi-in mixes absolute and relative paths"))
+                                  (racket--thing-at-point 'filename t)))
+                            (scan-error nil))))
+         (concat (if relative-p "\"" "") ;1
+                 (if multi-in
+                     (concat multi-in "/")
+                   "")
+                 v
+                 (if relative-p "\"" ""))))))) ;1
 
 (defun racket--do-visit-def-or-mod (cmd str)
   "CMD must be 'def or 'mod. STR must be `stringp`."
