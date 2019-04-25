@@ -1,11 +1,13 @@
 #lang at-exp racket/base
 
 (require (only-in macro-debugger/analysis/check-requires show-requires)
+         racket/contract
          racket/format
          racket/function
          racket/list
          racket/match
-         racket/set)
+         racket/set
+         racket/string)
 
 (provide requires/tidy
          requires/trim
@@ -14,14 +16,26 @@
 (module+ test
   (require rackunit))
 
-;; requires/tidy : (listof require-sexpr) -> require-sexpr
-(define (requires/tidy reqs)
-  (let* ([reqs (combine-requires reqs)]
-         [reqs (group-requires reqs)])
-    (require-pretty-format reqs)))
+(define require-subform? (or/c module-path? list?))
+(define require-form? (cons/c 'require (listof require-subform?)))
 
-;; requires/trim : path-string? (listof require-sexpr) -> require-sexpr
-;;
+(define level? (or/c #f number? 'racket/require))
+(define denormalized? (hash/c level? (set/c require-subform?)))
+
+
+(define/contract (requires/tidy reqs)
+  (-> (listof require-form?) string?)
+  (require-pretty-format
+   (normalize
+    (denormalize reqs))))
+
+(module+ test
+  (check-equal?
+   (requires/tidy '((require z)
+                    (require (prefix-in a: a))
+                    (require c d e)))
+   "(require (prefix-in a: a)\n         c\n         d\n         e\n         z)\n"))
+
 ;; Note: Why pass in a list of the existing require forms -- why not
 ;; just use the "keep" list from show-requires? Because the keep list
 ;; only states the module name, not the original form. Therefore if
@@ -29,111 +43,144 @@
 ;; rename-in, except-in, &c), we won't know how to preserve that
 ;; unless we're given it. That's why our strategy must be to look for
 ;; things to drop, as opposed to things to keep.
-(define (requires/trim path-str reqs)
-  (let* ([reqs (combine-requires reqs)]
-         [sr (show-requires* path-str)]
-         [drops (filter-map (λ (x)
-                              (match x
-                                [(list 'drop mod lvl) (list mod lvl)]
-                                [_ #f]))
-                            sr)]
-         [reqs (filter-map (λ (req)
-                             (cond [(member req drops) #f]
-                                   [else req]))
-                           reqs)]
-         [reqs (group-requires reqs)])
-    (require-pretty-format reqs)))
+(define/contract (requires/trim path-str reqs)
+  (-> path-string? (listof require-form?) string?)
+  (require-pretty-format
+   (normalize
+    (denormalize reqs
+                 #:drops (requires-to-drop (analyze path-str))))))
 
-;; Use `bypass` to help convert from `#lang racket` to `#lang
-;; racket/base` plus explicit requires.
-;;
-;; Note: Currently this is hardcoded to `#lang racket`, only.
-(define (requires/base path-str reqs)
-  (let* ([reqs (combine-requires reqs)]
-         [sr (show-requires* path-str)]
-         [drops (filter-map (λ (x)
-                              (match x
-                                [(list 'drop mod lvl) (list mod lvl)]
-                                [_ #f]))
-                            sr)]
-         [adds (append*
-                (filter-map (λ (x)
-                              (match x
-                                [(list 'bypass 'racket 0
-                                       (list (list mod lvl _) ...))
-                                 (filter (λ (x)
-                                           (match x
-                                             [(list 'racket/base 0) #f]
-                                             [_ #t]))
-                                         (map list mod lvl))]
-                                [_ #f]))
-                            sr))]
-         [reqs (filter-map (λ (req)
-                             (cond [(member req drops) #f]
-                                   [else req]))
-                           reqs)]
-         [reqs (append reqs adds)]
-         [reqs (group-requires reqs)])
-    (require-pretty-format reqs)))
+(define/contract (requires/base path-str reqs)
+  (-> path-string? (listof require-form?) string?)
+  (define a (analyze path-str))
+  (require-pretty-format
+   (normalize
+    (denormalize reqs
+                 #:adds  (requires-to-add a)
+                 #:drops (requires-to-drop a)))))
 
-;; show-requires* : Like show-requires but accepts a path-string? that
-;; need not already be a module path.
-(define (show-requires* path-str)
+;;; analyze
+
+(define requires-analysis? (listof (or/c (list/c 'keep   module-path? number?)
+                                         (list/c 'bypass module-path? number? list?)
+                                         (list/c 'drop   module-path? number?))))
+(define mod+level? (list/c module-path? number?))
+
+(define/contract (analyze path-str)
+  (-> path-string? requires-analysis?)
   (define-values (base name _) (split-path (string->path path-str)))
   (parameterize ([current-load-relative-directory base]
                  [current-directory base])
     (show-requires name)))
 
-(define (combine-requires reqs)
-  (remove-duplicates
-   (append* (for/list ([req reqs])
-              (match req
-                [(list* 'require vs)
-                 (append*
-                  (for/list ([v vs])
-                    ;; Use (list mod level), like `show-requires` uses.
-                    (match v
-                      [(list* 'for-meta level vs) (map (curryr list level) vs)]
-                      [(list* 'for-syntax vs)     (map (curryr list 1) vs)]
-                      [(list* 'for-template vs)   (map (curryr list -1) vs)]
-                      [(list* 'for-label vs)      (map (curryr list #f) vs)]
-                      [v                          (list (list v 0))])))])))))
+;; Use `bypass` convert from `#lang racket` to `#lang racket/base`
+;; plus explicit requires. Hardcoded to `#lang racket`, only.
+(define/contract (requires-to-drop a)
+  (-> requires-analysis? (listof mod+level?))
+  (filter-map (λ (x)
+                (match x
+                  [(list 'drop mod lvl) (list mod lvl)]
+                  [_ #f]))
+              a))
+
+(define/contract (requires-to-add a)
+  (-> requires-analysis? (listof mod+level?))
+  (append*
+   (filter-map (λ (x)
+                 (match x
+                   [(list 'bypass 'racket 0 (list (list mod lvl _) ...))
+                    (filter (λ (x)
+                              (match x
+                                [(list 'racket/base 0) #f]
+                                [_ #t]))
+                            (map list mod lvl))]
+                   [_ #f]))
+               a)))
+
+;;; denormalize / normalize
+
+(define/contract (denormalize reqs
+                              #:drops [drops '()]
+                              #:adds  [adds  '()])
+  (->* ((listof require-form?))
+       (#:adds  (listof mod+level?)
+        #:drops (listof mod+level?))
+       denormalized?)
+  (define ht (make-hasheq))
+  (define (add* level v)
+    (unless (and (not (eq? v 'racket/require)) ;always keep
+                 (member (list (form-mod v) level) drops))
+      (hash-update! ht
+                    (if (eq? v 'racket/require) 'racket/require level)
+                    (λ (s) (set-add s v))
+                    set)))
+  (define (add level v)
+    (match v
+      [(list 'multi-in m vs)
+       (for ([v (in-list vs)])
+         (add* level
+               (cond [(and (string? m) (string? v))
+                      (string-append m "/" v)]
+                     [(and (symbol? m) (symbol? v))
+                      (string->symbol
+                       (string-append (symbol->string m) "/" (symbol->string v)))]
+                     [else
+                      (error 'denormalize "bad multi-in form: ~v" (list 'multi-in m v))])))]
+      [v (add* level v)]))
+  (for ([add (in-list adds)])
+    (match-define (list mod level) add)
+    (add* level mod))
+  (for ([req (in-list reqs)])
+    (match-define (cons 'require vs) req)
+    (for ([v (in-list vs)])
+      (match v
+        [(list* 'for-meta level vs) (for-each (curry add level) vs)]
+        [(list* 'for-syntax vs)     (for-each (curry add 1    ) vs)]
+        [(list* 'for-template vs)   (for-each (curry add -1   ) vs)]
+        [(list* 'for-label vs)      (for-each (curry add #f   ) vs)]
+        [v                          (add 0 v)])))
+  ht)
 
 (module+ test
-  (check-equal?
-   (combine-requires '((require a b c)
-                       (require d e)
-                       (require a f)
-                       (require (for-syntax s t u) (for-label l0 l1 l2))
-                       (require (for-meta 1 m1a m1b)
-                                (for-meta 2 m2a m2b))))
-   '((a 0) (b 0) (c 0) (d 0) (e 0) (f 0)
-     (s 1) (t 1) (u 1)
-     (l0 #f) (l1 #f) (l2 #f)
-     (m1a 1) (m1b 1) (m2a 2) (m2b 2))))
+  (let ([ht (denormalize '((require a b c)
+                           (require d e)
+                           (require a f)
+                           (require
+                            (for-syntax s t u)
+                            (for-label l0 l1 l2))
+                           (require
+                            (for-meta 1 m1a m1b)
+                            (for-meta 2 m2a m2b))
+                           (require
+                            (multi-in foo (bar baz))
+                            (multi-in "foo" ("bar.rkt" "baz.rkt")))))])
+    (check-equal? (hash-ref ht 0)
+                  (set 'a 'e 'd 'foo/bar "foo/baz.rkt" "foo/bar.rkt" 'c 'f 'b 'foo/baz))
+    (check-equal? (hash-ref ht 1)
+                  (set 'm1a 'm1b 't 'u 's))
+    (check-equal? (hash-ref ht 2)
+                  (set 'm2b 'm2a))
+    (check-equal? (hash-ref ht #f)
+                  (set 'l1 'l2 'l0))))
 
-;; Given a list of requires -- each in the (list module level) form
-;; used by `show-requires` -- group them by level and convert them to
-;; a Racket `require` form. Also, sort the subforms by phase level:
-;; for-syntax, for-template, for-label, for-meta, and plain (0).
-;; Within each such group, sort them first by module paths then
-;; relative requires. Within each such group, sort alphabetically.
-(define (group-requires reqs)
-  ;; Put the requires into a hash of sets.
-  (define ht (make-hasheq)) ;(hash/c <level> (set <mod>))
-  (for ([req reqs])
-    (match req
-      [(list 'racket/require 0) (hash-set! ht 'racket/require
-                                           (set 'racket/require))]
-      [(list mod lvl) (hash-update! ht lvl
-                                    (lambda (s) (set-add s mod))
-                                    (set mod))]))
+;; Sort the subforms by phase level: for-syntax, for-template,
+;; for-label, for-meta, and plain (0). Within each such group, sort
+;; them first by module paths then relative requires. Within each such
+;; group, sort alphabetically. If racket/require is present, sort it
+;; first and use multi-in.
+(define/contract (normalize ht)
+  (-> denormalized? require-form?)
   (define (mod-set->mod-list mod-set)
     (sort (set->list mod-set) mod<?))
   (define (for-level level k)
-    (define mods (hash-ref ht level #f))
-    (cond [mods (k (mod-set->mod-list mods))]
-          [else '()]))
+    (match (hash-ref ht level #f)
+      [#f '()]
+      [mods
+       #:when (and (not (eq? level 'racket/require))
+                   (hash-ref ht 'racket/require #f))
+       (k (add-multi-in (mod-set->mod-list mods)))]
+      [mods
+       (k (mod-set->mod-list mods))]))
   (define (preface . pres)
     (λ (mods) `((,@pres ,@mods))))
   (define (meta-levels)
@@ -151,12 +198,15 @@
     ,@(for-level 0 values)))
 
 (module+ test
-  (check-equal? (group-requires
-                 (combine-requires
+  ;; with racket/require
+  (check-equal? (normalize
+                 (denormalize
                   '((require z c b a)
-                    (require racket/require)
-                    (require (multi-in mi-z ()))
-                    (require (multi-in mi-a ()))
+                    (require racket/require) ; <====
+                    (require (multi-in mi-z (mi-z0 mi-z1)))
+                    (require mi-z/mi-z2)
+                    (require (multi-in mi-a (mi-a1 mi-a0)))
+                    (require mi-a/mi-a2)
                     (require (for-meta 4 m41 m40))
                     (require (for-meta -4 m-41 m-40))
                     (require (for-label l1 l0))
@@ -173,20 +223,107 @@
                   (for-label l0 l1)
                   (for-meta -4 m-40 m-41)
                   (for-meta 4 m40 m41)
-                  a b c (multi-in mi-a ()) (multi-in mi-z ()) (only-in mod oi) z
+                  a b c
+                  (multi-in mi-a (mi-a0 mi-a1 mi-a2)) ;b/c racket/require
+                  (multi-in mi-z (mi-z0 mi-z1 mi-z2)) ;b/c racket/require
+                  (only-in mod oi) z
+                  "a.rkt" "b.rkt" "c.rkt" (only-in "mod.rkt" oi) "z.rkt"))
+  ;; without racket/require
+  (check-equal? (normalize
+                 (denormalize
+                  '((require z c b a)
+                    (require mi-a/mi-a0)
+                    (require mi-a/mi-a1)
+                    (require mi-z/mi-z0)
+                    (require mi-z/mi-z1)
+                    (require (for-meta 4 m41 m40))
+                    (require (for-meta -4 m-41 m-40))
+                    (require (for-label l1 l0))
+                    (require (for-template t1 t0))
+                    (require (for-syntax s1 s0))
+                    (require
+                     "a.rkt" "b.rkt" "c.rkt" "z.rkt"
+                     (only-in "mod.rkt" oi)
+                     (only-in mod oi)))))
+                '(require
+                  (for-syntax s0 s1)
+                  (for-template t0 t1)
+                  (for-label l0 l1)
+                  (for-meta -4 m-40 m-41)
+                  (for-meta 4 m40 m41)
+                  a b c
+                  mi-a/mi-a0
+                  mi-a/mi-a1
+                  mi-z/mi-z0
+                  mi-z/mi-z1
+                  (only-in mod oi) z
                   "a.rkt" "b.rkt" "c.rkt" (only-in "mod.rkt" oi) "z.rkt")))
 
-(define (mod<? a b)
-  (define (key x)
+(define (add-multi-in mods)
+  ;; This assumes mods are already sorted.
+  (define (split v)
+    (cond [(string? v)
+           (match (string-split v #px"/")
+             [(list pre rest) (list pre rest)]
+             [_ #f])]
+          [(symbol? v)
+           (match (string-split (symbol->string v) #px"/")
+             [(list pre rest) (list (string->symbol pre) (string->symbol rest))]
+             [_ #f])]
+          [else #f]))
+  (let loop ([mods mods])
+    (match mods
+      [(list) (list)]
+      [(list x) (list x)]
+      [(list* (and `(multi-in ,pre ,vs) this) next more)
+       (match (split next)
+         [(list (== pre) next-rest)
+          (loop (list* `(multi-in ,pre ,(append vs (list next-rest)))
+                       more))]
+         [_
+          (cons this (loop (list* next more)))])]
+      [(list* this next more)
+       (match* [(split this) (split next)]
+         [[(list pre this-rest) (list pre next-rest)]
+          (loop (list* `(multi-in ,pre (,this-rest ,next-rest))
+                       more))]
+         [[_ _]
+          (cons this (loop (list* next more)))])])))
+
+(module+ test
+  (check-equal? (add-multi-in '(a b c))
+                '(a b c))
+  (check-equal? (add-multi-in '(a (prefix-in b: b) c))
+                '(a (prefix-in b: b) c))
+  (check-equal? (add-multi-in '(racket/string b c))
+                '(racket/string b c))
+  (check-equal? (add-multi-in '(racket/format racket/string s t))
+                '((multi-in racket (format string)) s t))
+  (check-equal? (add-multi-in '(racket/contract racket/format racket/string s t))
+                '((multi-in racket (contract format string)) s t))
+  (check-equal? (add-multi-in '("a.rkt" "b.rkt" "c.rkt"))
+                '("a.rkt" "b.rkt" "c.rkt"))
+  (check-equal? (add-multi-in '("a.rkt" (prefix-in b: "b.rkt") "c.rkt"))
+                '("a.rkt" (prefix-in b: "b.rkt") "c.rkt"))
+  (check-equal? (add-multi-in '("a/x.rkt" "b.rkt" "c.rkt"))
+                '("a/x.rkt" "b.rkt" "c.rkt"))
+  (check-equal? (add-multi-in '("a/x.rkt" "a/y.rkt" "b.rkt" "c.rkt"))
+                '((multi-in "a" ("x.rkt" "y.rkt")) "b.rkt" "c.rkt"))
+  (check-equal? (add-multi-in '("a/x.rkt" "a/y.rkt" "a/z.rkt" "b.rkt" "c.rkt"))
+                '((multi-in "a" ("x.rkt" "y.rkt" "z.rkt")) "b.rkt" "c.rkt")))
+
+(define (form-mod x)
     (match x
-      [(list 'only-in   m _ ...)     (key m)]
-      [(list 'except-in m _ ...)     (key m)]
-      [(list 'prefix-in _ m)         (key m)]
-      [(list 'relative-in _ m _ ...) (key m)]
-      [(list 'multi-in m _)          (key m)]
+      [(list 'only-in   m _ ...)     (form-mod m)]
+      [(list 'except-in m _ ...)     (form-mod m)]
+      [(list 'prefix-in _ m)         (form-mod m)]
+      [(list 'relative-in _ m _ ...) (form-mod m)]
+      [(list 'multi-in m _)          (form-mod m)]
       [m                             m]))
-  (let ([a (key a)]
-        [b (key b)])
+
+(define (mod<? a b)
+  (let ([a (form-mod a)]
+        [b (form-mod b)])
     (or (and (symbol? a) (not (symbol? b)))
         (and (list? a) (not (list? b)))
         (and (not (string? a)) (string? a))
@@ -209,8 +346,10 @@
   (check-true (mod<? 'a '(prefix-in p (only-in b))))
   (check-true (mod<? '(prefix-in p (only-in a)) 'b)))
 
-;; require-pretty-format : list? -> string?
-(define (require-pretty-format x)
+;;; pretty
+
+(define/contract (require-pretty-format x)
+  (-> list? string?)
   (define out (open-output-string))
   (parameterize ([current-output-port out])
     (require-pretty-print x))
@@ -260,7 +399,8 @@
 ;;          racket/string
 ;;          "a.rkt"
 ;;          "b.rkt")
-(define (require-pretty-print x)
+(define/contract (require-pretty-print x)
+  (-> list? any)
   (define (prn x first? indent)
     (define (indent-string)
       (if first? "" (make-string indent #\space)))
