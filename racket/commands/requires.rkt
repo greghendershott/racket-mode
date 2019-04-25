@@ -4,7 +4,7 @@
          racket/contract
          racket/format
          racket/function
-         racket/list
+         (only-in racket/list append* append-map add-between filter-map)
          racket/match
          racket/set
          racket/string)
@@ -116,17 +116,8 @@
                     set)))
   (define (add level v)
     (match v
-      [(list 'multi-in m vs)
-       (for ([v (in-list vs)])
-         (add* level
-               (cond [(and (string? m) (string? v))
-                      (string-append m "/" v)]
-                     [(and (symbol? m) (symbol? v))
-                      (string->symbol
-                       (string-append (symbol->string m) "/" (symbol->string v)))]
-                     [else
-                      (error 'denormalize "bad multi-in form: ~v" (list 'multi-in m v))])))]
-      [v (add* level v)]))
+      [(list* 'multi-in vs) (for-each (curry add* level) (multi vs))]
+      [v                    (add* level v)]))
   (for ([add (in-list adds)])
     (match-define (list mod level) add)
     (add* level mod))
@@ -140,6 +131,33 @@
         [(list* 'for-label vs)      (for-each (curry add #f   ) vs)]
         [v                          (add 0 v)])))
   ht)
+
+;; `multi` from racket/require adapted for plain sexprs not stxs
+(define (multi xs)
+  (define (loop xs)
+    (if (null? xs)
+      '(())
+      (let ([first (car xs)]
+            [rest (loop (cdr xs))])
+        (if (list? first)
+          (let ([bads (filter list? first)])
+            (if (null? bads)
+              (append-map (λ (x) (map (λ (y) (cons x y)) rest)) first)
+              (error 'multi-in "not a simple element" (car bads))))
+          (map (λ (x) (cons first x)) rest)))))
+  (define options (loop xs))
+  (define (try pred? ->str str->)
+    (and (andmap (λ (x) (andmap pred? x)) options)
+         (map (λ (x)
+                (let* ([d x]
+                       [r (apply string-append
+                                 (add-between (if ->str (map ->str d) d)
+                                              "/"))])
+                  (if str-> (str-> r) r)))
+              options)))
+  (or (try string? #f #f)
+      (try symbol? symbol->string string->symbol)
+      (error 'multi-in "only accepts all strings or all symbols")))
 
 (module+ test
   (let ([ht (denormalize '((require a b c)
@@ -259,36 +277,37 @@
                   (only-in mod oi) z
                   "a.rkt" "b.rkt" "c.rkt" (only-in "mod.rkt" oi) "z.rkt")))
 
-(define (add-multi-in mods)
-  ;; This assumes mods are already sorted.
+(define (add-multi-in xs)
+  ;; (-> (listof require-subform?) (listof require-subform?))
+  ;; 1. Assumes xs are sorted. 2. Only tries to discover/add multi-in
+  ;; forms where the first element is a single item -- e.g. (multi-in
+  ;; a (b c)) but not (multi-in (a b) (c d)).
   (define (split v)
-    (cond [(string? v)
-           (match (string-split v #px"/")
-             [(list pre rest) (list pre rest)]
-             [_ #f])]
-          [(symbol? v)
-           (match (string-split (symbol->string v) #px"/")
-             [(list pre rest) (list (string->symbol pre) (string->symbol rest))]
-             [_ #f])]
-          [else #f]))
-  (let loop ([mods mods])
-    (match mods
+    (cond [(string? v) (string-split v #px"/")]
+          [(symbol? v) (map string->symbol (string-split (symbol->string v) #px"/"))]
+          [else (list)]))
+  (define (join vs)
+    (cond [(andmap string? vs) (string-join vs "/")]
+          [(andmap symbol? vs) (string->symbol (string-join (map symbol->string vs) "/"))]
+          [else (error 'add-multi-in "not strings or symbols")]))
+  (let loop ([xs xs])
+    (match xs
       [(list) (list)]
       [(list x) (list x)]
       [(list* (and `(multi-in ,pre ,vs) this) next more)
-       (match (split next)
-         [(list (== pre) next-rest)
-          (loop (list* `(multi-in ,pre ,(append vs (list next-rest)))
-                       more))]
-         [_
-          (cons this (loop (list* next more)))])]
+       (define-values (pres this-rest next-rest) (split-common-prefix (split pre) (split next)))
+       (cond [(equal? (split pre) pres)
+              (loop (list* `(multi-in ,pre ,(append vs (list (join next-rest))))
+                           more))]
+             [else
+              (cons this (loop (list* next more)))])]
       [(list* this next more)
-       (match* [(split this) (split next)]
-         [[(list pre this-rest) (list pre next-rest)]
-          (loop (list* `(multi-in ,pre (,this-rest ,next-rest))
-                       more))]
-         [[_ _]
-          (cons this (loop (list* next more)))])])))
+       (define-values (pres this-rest next-rest) (split-common-prefix (split this) (split next)))
+       (cond [(null? pres)
+              (cons this (loop (list* next more)))]
+             [else
+              (loop (list* `(multi-in ,(join pres) (,(join this-rest) ,(join next-rest)))
+                           more))])])))
 
 (module+ test
   (check-equal? (add-multi-in '(a b c))
@@ -301,6 +320,8 @@
                 '((multi-in racket (format string)) s t))
   (check-equal? (add-multi-in '(racket/contract racket/format racket/string s t))
                 '((multi-in racket (contract format string)) s t))
+  (check-equal? (add-multi-in '(a/b/x a/b/y))
+                '((multi-in a/b (x y))))
   (check-equal? (add-multi-in '("a.rkt" "b.rkt" "c.rkt"))
                 '("a.rkt" "b.rkt" "c.rkt"))
   (check-equal? (add-multi-in '("a.rkt" (prefix-in b: "b.rkt") "c.rkt"))
@@ -310,7 +331,17 @@
   (check-equal? (add-multi-in '("a/x.rkt" "a/y.rkt" "b.rkt" "c.rkt"))
                 '((multi-in "a" ("x.rkt" "y.rkt")) "b.rkt" "c.rkt"))
   (check-equal? (add-multi-in '("a/x.rkt" "a/y.rkt" "a/z.rkt" "b.rkt" "c.rkt"))
-                '((multi-in "a" ("x.rkt" "y.rkt" "z.rkt")) "b.rkt" "c.rkt")))
+                '((multi-in "a" ("x.rkt" "y.rkt" "z.rkt")) "b.rkt" "c.rkt"))
+  (check-equal? (add-multi-in '("a/b/x.rkt" "a/b/y.rkt"))
+                '((multi-in "a/b" ("x.rkt" "y.rkt")))))
+
+;; Defined here b/c not in Racket < 6.3 and we support 6.2
+(define (split-common-prefix as bs)
+  (let loop ([as as] [bs bs])
+    (if (and (pair? as) (pair? bs) (equal? (car as) (car bs)))
+        (let-values ([(prefix atail btail) (loop (cdr as) (cdr bs))])
+          (values (cons (car as) prefix) atail btail))
+        (values null as bs))))
 
 (define (form-mod x)
     (match x
