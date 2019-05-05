@@ -1,6 +1,6 @@
 ;;; racket-tests.el
 
-;; Copyright (c) 2013-2018 by Greg Hendershott.
+;; Copyright (c) 2013-2019 by Greg Hendershott.
 
 ;; License:
 ;; This is free software; you can redistribute it and/or modify it
@@ -87,8 +87,10 @@
         (racket-command-timeout racket-tests/command-timeout))
     (racket-repl)
     (with-racket-repl-buffer
-      ;; Welcome
-      (should (racket-tests/see-rx "Welcome to Racket v[0-9.]+\n> "))
+      ;; Welcome. Note that Racket CS seems to drop the leading "v",
+      ;; e.g. instead of "Welcome to Racket v7.2" I am seeing "Welcome
+      ;; to Racket 7.3.0.3".
+      (should (racket-tests/see-rx "Welcome to Racket v?[0-9.]+\n> "))
       (racket-tests/wait-for-command-server)
       ;; Completion
       (racket-tests/type&press "with-inp" "TAB")
