@@ -685,6 +685,7 @@ special commands to navigate among the definition and its uses.
 
 (defun racket--check-syntax-start ()
   (let ((buf (current-buffer)))
+    (racket--save-if-changed)
     (message "Running check-syntax analysis...")
     (racket--cmd/async-raw
      `(check-syntax ,(racket--buffer-file-name))
