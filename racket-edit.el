@@ -200,14 +200,22 @@ Please keep in mind the following limitations:
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")
     (`nil nil)
-    (str (if (and (eq major-mode 'racket-mode)
-                  (not (equal (racket--repl-file-name+md5)
-                              (cons (racket--buffer-file-name t) (md5 (current-buffer)))))
-                  (y-or-n-p "Run current buffer first? "))
-             (racket--repl-run nil nil
-                               (lambda (_n/a)
-                                 (racket--do-visit-def-or-mod 'def str)))
-           (racket--do-visit-def-or-mod 'def str)))))
+    (str (racket--visit-symbol-definition str))))
+
+(defsubst racket-lispy-visit-symbol-definition (str)
+  "Function called by lispy.el's `lispy-goto-symbol' for Racket
+symbol definition lookup."
+  (racket--visit-symbol-definition str))
+
+(defun racket--visit-symbol-definition (str)
+  (if (and (eq major-mode 'racket-mode)
+           (not (equal (racket--repl-file-name+md5)
+                       (cons (racket--buffer-file-name t) (md5 (current-buffer)))))
+           (y-or-n-p "Run current buffer first? "))
+      (racket--repl-run nil nil
+                        (lambda (_n/a)
+                          (racket--do-visit-def-or-mod 'def str)))
+    (racket--do-visit-def-or-mod 'def str)))
 
 (defun racket-visit-module (&optional prefix)
   "Visit definition of module at point, e.g. net/url or \"file.rkt\".
