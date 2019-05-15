@@ -1,4 +1,7 @@
 .DS_Store
 compiled/
 *.elc
-
+doc/*.texi~
+doc/*.info
+doc/reference.org
+doc/racket-mode.html

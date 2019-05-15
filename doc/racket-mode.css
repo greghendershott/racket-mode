@@ -1,0 +1,95 @@
+body {
+    margin: 0px auto;
+    max-width: 768px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI","Roboto", "Oxygen", "Ubuntu", "Cantarell", "Fira Sans","Droid Sans", "Helvetica Neue", sans-serif;
+    font-size: 18px;
+    background-color: #fff;
+    color: #333
+}
+
+h1, h2, h3, h4 {
+    font-weight: 500;
+    margin-top: 1.5em
+}
+h1 {
+    font-size: 3em;
+    color: #666
+}
+h2, h4.footnotes-heading {
+    font-size: 3em;
+    color: #666;
+    border-top: 4px solid #666;
+}
+h3 {
+    font-size: 2em;
+    color: #666;
+    border-top: 1px solid #ddd;
+}
+h4 {
+    font-size: 2em;
+    color: #444;
+    margin-bottom: 0;
+}
+
+p, ol, ul {
+    line-height: 1.6
+}
+
+a {
+    text-decoration: none;
+    color: #4d3f80;
+}
+a:hover {
+    text-decoration:underline;
+}
+
+td {
+    padding: 0.25em;
+}
+
+code, tt {
+    font-family: monospace;
+    font-size: 90%;
+    color: #333;
+    background-color: #f7f7f7;
+    border: 1px solid #bbb;
+    border-radius: 3px;
+    padding: 1px 4px;
+}
+
+pre {
+    font-family: monospace;
+    font-size: 90%;
+    color: #333;
+    background-color: #f7f7f7;
+    padding: 8px;
+}
+
+kbd {
+    font-family: monospace;
+    font-size: 90%;
+    font-style: normal;
+    font-weight: bold;
+    color: #fff;
+    background-color: #666;
+    padding: 1px 4px;
+    border: 1px solid #CCC;
+    border-radius: 5px;
+    white-space: nowrap
+}
+
+div.footnote h3 {
+    font-size: 1em;
+    margin-bottom: 0;
+}
+
+/* Hide some elements produced by `makeinfo' that I find redundant or noisy. */
+hr {
+    display: none;
+}
+h2.contents-heading {
+    display: none;
+}
+h1.top {
+    display: none;
+}

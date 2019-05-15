@@ -133,35 +133,41 @@ be able to load at all.")
   "A function used to transform the variable `racket--run.rkt'.
 
 You probably don't need to change this unless you are developing
-racket-mode, AND run Emacs on Windows Subsystem for Linux, AND
+Racket Mode, AND run Emacs on Windows Subsystem for Linux, AND
 want to run your programs using Windows Racket.exe, AND have the
-racket-mode source code under \"/mnt\". Whew. In that case you
-can set this `racket-wsl-to-windows' so that racket-mode can find
-its own run.rkt file.")
+Racket Mode source code under \"/mnt\". Whew. In that case you
+can set this variable to the function `racket-wsl-to-windows' so
+that Racket Mode can find its own run.rkt file.")
 
 (defvar-local racket-user-command-line-arguments
   nil
   "List of command-line arguments to supply to your Racket program.
 
-Accessible in your Racket program in the usual way -- the
+Accessible in your Racket program in the usual way --- the
 parameter `current-command-line-arguments` and friends.
 
-This is an Emacs buffer-local variable -- convenient to set as a
+This is an Emacs buffer-local variable --- convenient to set as a
 file local variable. For example at the end of your .rkt file:
 
+#+BEGIN_SRC elisp
     ;; Local Variables:
     ;; racket-user-command-line-arguments: (\"-f\" \"bar\")
     ;; End:
+#+END_SRC
 
-Set this way the value must be an unquoted list of strings such
-as:
+Set this way, the value must be an *unquoted* list of strings.
+For example:
 
+#+BEGIN_SRC elisp
     (\"-f\" \"bar\")
+#+END_SRC
 
-but NOT:
+The following values will /not/ work:
 
+#+BEGIN_SRC elisp
     '(\"-f\" \"bar\")
     (list \"-f\" \"bar\")
+#+END_SRC
 ")
 
 (defun racket--repl-live-p ()
@@ -278,7 +284,7 @@ used. See the latter for more information."
   "Raise a `user-error' unless Racket is version AT-LEAST."
   (let ((have (racket--version)))
     (unless (version<= at-least have)
-      (user-error "racket-mode needs at least Racket version %s but you have %s"
+      (user-error "Racket Mode needs at least Racket version %s but you have %s"
                   at-least have))))
 
 ;;; Connection to command process
@@ -312,7 +318,7 @@ ourselves from the local cominit output filter functions."
 
 (defun racket--cmd-connect-attempt (attempt)
   (unless (featurep 'make-network-process '(:nowait t))
-    (error "racket-mode needs Emacs to support the :nowait feature"))
+    (error "Racket Mode needs Emacs to support the :nowait feature"))
   (setq
    racket--cmd-proc
    (make-network-process

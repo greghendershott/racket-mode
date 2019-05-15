@@ -201,11 +201,11 @@ file-local variable.")
 (define-minor-mode racket-debug-mode
   "Minor mode for debug breaks.
 
-> This feature is **EXPERIMENTAL**!!! It is likely to have
-> significant limitations and bugs. You are welcome to open an
-> issue to provide feedback. Please understand that this feature
-> might never be improved -- it might even be removed someday if
-> it turns out to have too little value and/or too much cost.
+This feature is **EXPERIMENTAL**!!! It is likely to have
+significant limitations and bugs. You are welcome to open an
+issue to provide feedback. Please understand that this feature
+might never be improved -- it might even be removed someday if it
+turns out to have too little value and/or too much cost.
 
 How to debug:
 
@@ -262,9 +262,7 @@ How to debug:
    position, local variable values, and result values -- and
    provides shortcut keys:
 
-```
 \\{racket-debug-mode-map}
-```
 "
   :lighter " RacketDebug"
   :keymap (racket--easy-keymap-define

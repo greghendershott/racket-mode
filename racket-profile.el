@@ -164,9 +164,7 @@ delete compiled/*.zo files."
   "RacketProfile"
   "Major mode for results of `racket-profile'.
 
-```
 \\{racket-profile-mode-map}
-```
 "
   (setq show-trailing-whitespace nil))
 

@@ -72,17 +72,15 @@
 (define-derived-mode racket-logger-mode special-mode "Racket-Logger"
   "Major mode for Racket logger output.
 \\<racket-logger-mode-map>
+
 The customization variable `racket-logger-config' determines the
 levels for topics. During a session you may change topic levels
-using `racket-logger-topic-level', bound to
-\"\\[racket-logger-topic-level]\".
+using `racket-logger-topic-level'.
 
 For more information see:
   <https://docs.racket-lang.org/reference/logging.html>
 
-```
 \\{racket-logger-mode-map}
-```
 "
   (setq-local font-lock-defaults (list racket-logger-font-lock-keywords))
   (setq-local truncate-lines t))

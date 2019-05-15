@@ -22,7 +22,6 @@
 (require 'racket-repl)
 (require 'racket-keywords-and-builtins)
 (require 'shr)
-(require 's)
 (declare-function racket--do-visit-def-or-mod "racket-edit.el")
 
 ;;; namespace symbols i.e. completion candidates
@@ -142,7 +141,7 @@ passed to Racket backend. Likewise text properties are stripped."
   (let ((sap (racket--thing-at-point 'symbol t)))
     (if (or force-prompt-p (not sap))
         (let ((s (read-from-minibuffer prompt sap)))
-          (if (equal "" (s-trim s))
+          (if (equal "" (racket--trim s))
               nil
             s))
       sap)))
@@ -152,11 +151,11 @@ passed to Racket backend. Likewise text properties are stripped."
 (defun racket-eldoc-function ()
   "A value suitable for the variable `eldoc-documentation-function'.
 
-By default racket-mode sets `eldoc-documentation-function' to nil
+By default Racket Mode sets `eldoc-documentation-function' to nil
 -- no `eldoc-mode' support. You may set it to this function in a
 `racket-mode-hook' if you really want to use `eldoc-mode' with
 Racket. But it is not a very satisfying experience because Racket
-is not a very \"eldoc friendly\" language. Although racket-mode
+is not a very \"eldoc friendly\" language. Although Racket Mode
 attempts to discover argument lists, contracts, or types this
 doesn't work in many common cases:
 

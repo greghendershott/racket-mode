@@ -1,0 +1,214 @@
+#+OPTIONS: ':t toc:t author:t email:t H:4
+
+#+MACRO: kbd @@texinfo:@kbd{$1}@@ @@html:<kbd>$1</kbd>@@
+#+MACRO: ref @@texinfo:@ref{$1}@@
+#+MACRO: see @@texinfo:@xref{$1}@@
+
+#+TITLE: Racket Mode
+#+AUTHOR: Greg Hendershott
+#+EMAIL: racket@greghendershott.com
+#+LANGUAGE: en
+
+#+TEXINFO_FILENAME: racket-mode.info
+#+TEXINFO_HEADER: @syncodeindex pg cp
+
+#+TEXINFO_DIR_CATEGORY: Emacs
+#+TEXINFO_DIR_TITLE: Racket Mode: (racket)
+#+TEXINFO_DIR_DESC: Edit and REPL major modes for Racket lang
+
+#+TEXINFO_PRINTED_TITLE: Racket Mode
+
+* Introduction
+
+The [[https://www.racket-mode.com/][Racket Mode]] package consists of a variety of Emacs major and minor modes, including:
+
+- ~racket-mode~: A major mode for editing ~.rkt~ files.
+
+- ~racket-repl-mode~: A major mode for a Racket REPL. This uses a "back end server" written in Racket, which is responsible for running files and implementing commands that cannot be implemented in Emacs Lisp.[fn:pkg]
+
+- Modes to support specific features, such as:
+  - {{{ref(racket-logger-mode)}}}
+  - {{{ref(racket-profile-mode)}}}
+  - {{{ref(racket-check-syntax-mode)}}}
+  - {{{ref(racket-debug-mode)}}}
+
+For code, issues, and pull requests, see [[https://github.com/greghendershott/racket-mode][the Git repo]].
+
+[fn:pkg] Racket Mode's Racket code is also delivered as part of the Emacs package --- /not/ as a Racket package. Delivering both Emacs and Racket code in one Emacs package simplifies installation and updates. The main drawback is that the Racket code is not automatically byte-compiled, as would normally be done by ~raco pkg install~. To address this: {{{see(racket-mode-start-faster)}}}.
+
+* Install
+
+The recommended way to use Racket Mode is to install the package from [[https://melpa.org/][MELPA]].
+
+** Configure Emacs to use MELPA
+To use MELPA:
+
+- Add the following to your =~/.emacs= or =~/.emacs.d/init.el=:
+
+#+BEGIN_SRC lisp
+(require 'package)
+(add-to-list 'package-archives
+              '("melpa" . "https://melpa.org/packages/")
+              t)
+#+END_SRC
+
+- Restart Emacs.
+
+- Type {{{kbd(M-x)}}} ~package-refresh-contents~ {{{kbd(RET)}}}.
+
+** Install Racket Mode
+When Emacs is configured to use MELPA, simply type {{{kbd(M-x)}}} =package-install= {{{kbd(RET)}}} =racket-mode= {{{kbd(RET)}}}.
+
+** Minimal Racket
+If you have installed the minimal Racket distribution (for example by using the [[https://github.com/Homebrew/homebrew-core/blob/master/Formula/minimal-racket.rb][homebrew formula]]) Racket Mode needs some additional packages (like ~errortrace~ and ~macro-debugger~). A simple way to get all these packages is to install the ~drracket~ Racket package. In a command shell:
+
+#+BEGIN_SRC shell
+raco pkg install drracket
+#+END_SRC
+
+** Uninstall
+To uninstall Racket Mode, simply type {{{kbd(M-x)}}} ~package-delete~ {{{kbd(RET)}}} ~racket-mode~ {{{kbd(RET)}}}.
+
+You should probably also exit and restart Emacs.
+
+** Update
+
+Be aware that updating an Emacs package doesn't necessarily fully update Emacs' state. (One example symptom: an "invalid function" error message.)
+
+After updating the package, you might need to restart Emacs.
+
+In some cases, you might even need to:
+
+1. Uninstall Racket Mode.
+
+2. Exit and restart Emacs.
+
+3. Install Racket Mode.
+
+* Configure
+
+Although Racket Mode can be customized with many {{{ref(Variables)}}}, there is only one that you might /need/ to set: {{{ref(racket-program)}}}. This is the name or pathname of the Racket executable. It defaults to ~Racket.exe~ on Windows else ~racket~.
+
+On Windows or Linux, this default will probably work for you.
+
+On macOS, downloading Racket doesn't add its ~bin~ directory to your ~PATH~. Even after you add it, GUI Emacs doesn't automatically use your path (unless you use the handy [[https://melpa.org/#/exec-path-from-shell][exec-path-from-shell]] package). Therefore you might want to set ~racket-program~ to a full pathname like ~/usr/racket/bin/racket~.
+
+You can ~setq~ this directly in your Emacs init file (=~/.emacs= or =~/.emacs.d/init.el=), or, use {{{kbd(M-x)}}} ~customize~, as you prefer.
+
+** Key bindings
+
+To customize things like key bindings, you can use ~racket-mode-hook~ in your Emacs init file to modify ~racket-mode-map~. For example, although {{{kbd(C-c C-c)}}} is bound by default to the ~racket-run~ command, let's say you wanted {{{kbd(F5)}}} to be an additional binding:
+
+#+BEGIN_SRC lisp
+(add-hook 'racket-mode-hook
+          (lambda ()
+            (define-key racket-mode-map (kbd "<f5>") 'racket-run)))
+
+#+END_SRC
+
+Likewise for ~racket-repl-mode-hook~ and ~racket-repl-mode-map~.
+
+** Font-lock (syntax highlighting)
+
+Font-lock (as Emacs calls syntax highlighting) can be controlled using the variable ~font-lock-maximum-decoration~, which defaults to ~t~ (maximum). You can set it to a number, where ~0~ is the lowest level. You can even supply an association list to specify different values for different major modes.
+
+Historically you might choose a lower level for speed. These days you might do so because you prefer a simpler appearance.
+
+Racket Mode supports four, increasing levels of font-lock:
+
+- ~0~: Just strings, comments, and ~#lang~.
+- ~1~: ~#:keyword~ and self-evaluating literals like numbers, quoted symbols (including symbols with spaces delimited by ~|~ characters), and ~#rx~ and ~#px~ regular expressions.
+- ~2~: Identifiers in ~define~-like and ~let~-like forms.
+- ~3~: Identifiers provided by ~racket~, ~typed/racket~, ~racket/syntax~, and ~syntax/parse~. (This level effectively treats Racket as a language, instead of a language for making languages.).
+
+** Completion
+
+In Emacs, a major mode may supply a "completion-at-point function". This function is used by manual completion commands like ~complete-symbol~ (bound by default to {{{kbd(C-M-i)}}}), as well as by auto-completion packages like ~company-mode~.
+
+Racket Mode supplies such a function, which draws on all identifiers /currently defined in the Racket namespace/.
+
+Of course that means there must exist some Racket namespace. When you first visit a ~.rkt~ file, you need to {{{kbd(C-c C-c)}}} to {{{ref(racket-run)}}}. That makes the namespace match the file, and makes its identifiers available to Racket Mode. (Otherwise, as a fallback, Racket Mode uses the same list of identifiers for which it has defined {{{ref(Font-lock (syntax highlighting))}}}.)
+
+Similarly, after you change the file, including its ~require~ forms, you'll need to {{{kbd(C-c C-c)}}} again to make the resulting set of identifiers available for completion.
+
+To have {{{kbd(TAB)}}} do completion as well as indent, add the following to your Emacs init file:
+
+#+BEGIN_SRC lisp
+(setq tab-always-indent 'complete)
+#+END_SRC
+
+This changes the behavior of Emacs' standard ~indent-for-tab-command~, to which {{{kbd(TAB)}}} is bound by default in ~racket-mode~ and ~racket-repl-mode~.
+
+** paredit
+
+If you use [[https://melpa.org/#/paredit][paredit]], you might want to add keybindings to ~paredit-mode-map~:
+
+- Bind the curly brace keys to ~paredit-open-curly~ and ~paredit-close-curly~.
+
+- Bind whatever keys you prefer for ~paredit-wrap-square~ and ~paredit-wrap-curly~.
+
+For example, with [[https://melpa.org/#/use-package][~use-package~]]:
+
+#+BEGIN_SRC lisp
+(use-package paredit
+  :ensure t
+  :config
+  (dolist (m '(emacs-lisp-mode-hook
+               racket-mode-hook
+               racket-repl-mode-hook))
+    (add-hook m #'paredit-mode))
+  (bind-keys :map paredit-mode-map
+             ("{"   . paredit-open-curly)
+             ("}"   . paredit-close-curly))
+  (unless terminal-frame
+    (bind-keys :map paredit-mode-map
+               ("M-[" . paredit-wrap-square)
+               ("M-{" . paredit-wrap-curly))))
+#+END_SRC
+
+** smartparens
+
+If instead of paredit you prefer [[https://melpa.org/#/smartparens][smartparens]], you can use the default configuration it provides for Lisp modes generally and for Racket Mode specifically:
+
+#+BEGIN_SRC lisp
+(require 'smartparens-config)
+#+END_SRC
+
+** eldoc
+
+By default Racket Mode sets ~eldoc-documentation-function~ to ~nil~ --- no ~eldoc-mode~ support. You may set it to ~racket-eldoc-function~ in a ~racket-mode-hook~ if you really want to use ~eldoc-mode~ with Racket. But it is not a very satisfying experience because Racket is not a very "eldoc-friendly" language. Although Racket Mode attempts to discover argument lists, contracts, or types this doesn't work in many common cases:
+
+- Many Racket primitives are defined in ~#%kernel~ or ~#%runtime~. There's no easy way to determine their argument lists. Most do not ~provide~ a contract.
+
+- Many of the interesting Racket forms are syntax (macros) not functions. There's no easy way to determine their "argument lists".
+
+A more satisfying experience is to use {{{ref(racket-describe)}}} or {{{ref(racket-doc)}}}.
+
+** Start faster
+
+You can use {{{ref(racket-mode-start-faster)}}} to make the Racket REPL start faster.
+
+** Unicode input method
+
+An optional Emacs input method, ~racket-unicode~, lets you easily type various Unicode symbols that might be useful when writing Racket code.
+
+To automatically enable the ~racket-unicode~ input method in ~racket-mode~ and ~racket-repl-mode~ buffers, put the following code in your Emacs init file:
+
+#+BEGIN_SRC lisp
+(add-hook 'racket-mode-hook      #'racket-unicode-input-method-enable)
+(add-hook 'racket-repl-mode-hook #'racket-unicode-input-method-enable)
+#+END_SRC
+
+{{{see(racket-unicode-input-method-enable)}}}.
+
+{{{see(racket-insert-lambda)}}}.
+
+* Reference
+The following sections are generated from the doc strings for each command, variable, or face. (As a result, some of the formatting might not be quite as nice or correct as the previous sections.)
+
+You can also view these by using the normal Emacs help mechanism:
+
+- {{{kbd(C-h f)}}} and enter the name of a command.
+- {{{kbd(C-h v)}}} and ente the name of a variable.
+
+#+INCLUDE: reference.org :minlevel 1

@@ -48,11 +48,11 @@ When the `racket-unicode` input method is active, you can for
 example type `All` and it is immediately replaced with `∀`. A few
 other examples:
 
-    omega     ω
-    x_1       x₁
-    x^1       x¹
-    |A|       𝔸
-    test-->>E test-->>∃ (racket/redex)
+| `omega`     | `ω`                        |
+| `x_1`       | `x₁`                       |
+| `x^1`       | `x¹`                       |
+| `A`         | `𝔸`                        |
+| `test-->>E` | `test-->>∃` (racket/redex) |
 
 To see a table of all key sequences use `M-x
 describe-input-method <RET> racket-unicode`.

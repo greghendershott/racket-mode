@@ -1,0 +1,26 @@
+* Documentation
+
+#+BEGIN_SRC picture
+
+ +-----------------+
+ | racket-mode.org |     +---------------+      ---------------
+ | #!INCLUDE:      |--<--| reference.org |--<--/ generate.el  /---<--{doc strings}
+ +-----------------+     +---------------+     ---------------
+        |
+        |       +------------------+       +------------------+
+        +--->---| racket-mode.texi |--->---| racket-mode.info |
+        |       +------------------+       +------------------+
+        |
+        |       +------------------+
+        +--->---| racket-mode.html |
+                +------------------+
+
+#+END_SRC
+
+Note that for Info documentation, we actually commit just the
+~racket-mode.texi~ file so that MELPA can deliver it. We let
+~package-install~ generate the ~.info~ file. (At least, I /think/
+that's how it's supposed to work.)
+
+Tip: As a developer, to review the ~racket-mode.info~ locally, just
+use a prefix with the info command: ~C-u C-h i~.

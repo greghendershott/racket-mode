@@ -39,7 +39,7 @@ With two C-u prefixes, instruments code for step debugging. See
 If point is within a Racket `module` form, the REPL \"enters\"
 that submodule (uses its language info and namespace).
 
-When you run again, the file is evaluated from scratch -- the
+When you run again, the file is evaluated from scratch --- the
 custodian releases resources like threads and the evaluation
 environment is reset to the contents of the file. In other words,
 like DrRacket, this provides the predictability of a \"static\"
@@ -52,12 +52,12 @@ focus), too.
 
 When `racket-retry-as-skeleton' is true, if your source file has
 an error, a \"skeleton\" of your file is evaluated to get
-identifiers from module languages, `require`s, and definitions.
-That way, things like completion and `racket-describe' are more
-likely to work while you edit the file to fix the error. If not
-even the \"skeleton\" evaluation succeeds, you'll have only
-identifiers provided by racket/base, until you fix the error and
-run again.
+identifiers from module languages, `require` forms, and
+definitions. That way, things like completion and
+`racket-describe' are more likely to work while you edit the file
+to fix the error. If not even the \"skeleton\" evaluation
+succeeds, you'll have only identifiers provided by `racket/base`,
+until you fix the error and run again.
 
 Output in the `*Racket REPL*` buffer that describes a file and
 position is automatically \"linkified\". Examples of such text
@@ -65,7 +65,7 @@ include:
 
 - Racket error messages.
 - `rackunit` test failure location messages.
-- `print`s of `#<path>` objects.
+- `print` representation of `#<path>` objects.
 
 To visit these locations, move point there and press RET or mouse
 click. Or, use the standard `next-error' and `previous-error'
@@ -181,7 +181,7 @@ To run <file>'s `test` submodule."
 (defun racket-visit-definition (&optional prefix)
   "Visit definition of symbol at point.
 
-Use \\[racket-unvisit] to return.
+Use `racket-unvisit' to return.
 
 Please keep in mind the following limitations:
 
@@ -220,7 +220,7 @@ symbol definition lookup."
 (defun racket-visit-module (&optional prefix)
   "Visit definition of module at point, e.g. net/url or \"file.rkt\".
 
-Use \\[racket-unvisit] to return.
+Use `racket-unvisit' to return.
 
 See also: `racket-find-collection'."
   (interactive "P")
@@ -378,7 +378,7 @@ Within that form:
 At most one module is listed per line.
 
 Note: This only works for requires at the top level of a source
-file using `#lang`. It does *not* work for `require`s inside
+file using `#lang`. It does *not* work for `require` forms inside
 `module` forms.
 
 See also: `racket-trim-requires' and `racket-base-requires'."
@@ -399,7 +399,7 @@ Note: This only works when the source file can be evaluated with
 no errors.
 
 Note: This only works for requires at the top level of a source
-file using `#lang`. It does *not* work for `require`s inside
+file using `#lang`. It does *not* work for `require` forms inside
 `module` forms. Furthermore, it is not smart about `module+` or
 `module*` forms -- it may delete top level requires that are
 actually needed by such submodules.
@@ -437,7 +437,7 @@ Note: This only works when the source file can be evaluated with
 no errors.
 
 Note: This only works for requires at the top level of a source
-file using `#lang`. It does *not* work for `require`s inside
+file using `#lang`. It does *not* work for `require` forms inside
 `module` forms. Furthermore, it is not smart about `module+` or
 `module*` forms -- it may delete top level requires that are
 actually needed by such submodules.
@@ -670,9 +670,7 @@ definition or use, related items are highlighted and
 information is displayed in the echo area. You may also use
 special commands to navigate among the definition and its uses.
 
-```
 \\{racket-check-syntax-mode-map}
-```
 "
   :lighter " CheckSyntax"
   :keymap (racket--easy-keymap-define
@@ -777,6 +775,7 @@ Each `val` moves to the same column and is
 
 For example with point on the `[` before `a`:
 
+#+BEGIN_SRC racket
     Before             After
 
     (let ([a 12]       (let ([a   12]
@@ -790,30 +789,37 @@ For example with point on the `[` before `a`:
           [b? (f x           [b?   (f x
                  y)]                  y)]
           [else #f])         [else #f])
+#+END_SRC
 
-Or with point on the `'` before `a`:
+Or with point on the quote before `a`:
 
+#+BEGIN_SRC racket
     (list 'a 12        (list 'a   12
           'bar 23)           'bar 23)
+#+END_SRC
 
 If more than one couple is on the same line, none are aligned,
 because it is unclear where the value column should be. For
 example the following form will not change; `racket-align' will
 display an error message:
 
+#+BEGIN_SRC racket
     (let ([a 0][b 1]
           [c 2])       error; unchanged
       ....)
+#+END_SRC
 
 When a couple's sexprs start on different lines, that couple is
 ignored. Other, single-line couples in the series are aligned as
 usual. For example:
 
+#+BEGIN_SRC racket
     (let ([foo         (let ([foo
            0]                 0]
           [bar 1]            [bar 1]
           [x 2])             [x   2])
       ....)              ....)
+#+END_SRC
 
 See also: `racket-unalign'."
   (interactive)

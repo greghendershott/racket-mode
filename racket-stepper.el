@@ -47,16 +47,13 @@
 
 (define-derived-mode racket-stepper-mode special-mode "Racket-Stepper"
   "Major mode for Racket stepper output.
+\\<racket-stepper-mode-map>
 
 Used by the commands `racket-expand-file',
 `racket-expand-definition', `racket-expand-region', and
 `racket-expand-last-sexp'.
 
-\\<racket-stepper-mode-map>
-
-```
 \\{racket-stepper-mode-map}
-```
 "
   (setq header-line-format
         "Press RET to step. C-h m to see help.")

@@ -26,6 +26,7 @@
 ;; In other words defcustom of racket-foo-bar has a :tag "Foo Bar".
 
 (require 'rx)
+(require 'cl-lib)
 (require 'sh-script) ;for sh-heredoc-face
 
 (defgroup racket nil
@@ -130,15 +131,15 @@ a more-helpful error message."
 
 When true: If your source file has an error, a \"skeleton\" of
 your file is evaluated to get identifiers from module languages,
-`require`s, and definitions. That way, things like completion and
-`racket-describe' are more likely to work while you edit the file
-to fix the error.
+`require` forms, and definitions. That way, things like
+completion and `racket-describe' are more likely to work while
+you edit the file to fix the error.
 
-Otherwise, you'll have only identifiers provided by racket/base,
-until you fix the error and run again.
+Otherwise, you'll have only identifiers provided by
+`racket/base`, until you fix the error and run again.
 
 You might want to disable this if you work with files that take a
-very long time to expand -- because this feature needs to expand
+very long time to expand --- because this feature needs to expand
 again when there is an error."
   :tag "Retry as Skeleton?"
   :type 'boolean
@@ -249,11 +250,11 @@ This is safe to set as a file-local variable."
 
 (defcustom racket-indent-sequence-depth 0
   "To what depth should `racket-indent-line' search.
-This affects the indentation of forms like `` '()` `() #() `` --
-and `{}` if `racket-indent-curly-as-sequence' is t -- but not
-`` #'() #`() ,() ,@() ``. A zero value disables, giving the
-normal indent behavior of DrRacket or Emacs `lisp-mode' derived
-modes like `scheme-mode'. Setting this to a high value can make
+This affects the indentation of forms like '() `() #() --
+and {} if `racket-indent-curly-as-sequence' is t --- but not
+#'() #`() ,() ,@(). A zero value disables, giving the normal
+indent behavior of DrRacket or Emacs `lisp-mode' derived modes
+like `scheme-mode'. Setting this to a high value can make
 indentation noticeably slower. This is safe to set as a
 file-local variable."
   :tag "Indent Sequence Depth"
@@ -340,12 +341,12 @@ level quieter. That way you can set the '* topic to a level like
 
 (defface-racket racket-check-syntax-def-face
   '((t (:foreground "Black" :background "SeaGreen1" :weight bold)))
-  "Face `racket-check-syntax' uses to highlight definitions."
+  "Face `racket-check-syntax-mode' uses to highlight definitions."
   "Check Syntax Def Face")
 
 (defface-racket racket-check-syntax-use-face
   '((t (:foreground "Black" :background "PaleGreen1" :slant italic)))
-  "Face `racket-check-syntax' uses to highlight uses."
+  "Face `racket-check-syntax-mode' uses to highlight uses."
   "Check Syntax Use Face")
 
 (defface-racket racket-keyword-argument-face

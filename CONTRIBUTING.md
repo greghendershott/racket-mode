@@ -6,7 +6,7 @@ Please use <kbd>M-x racket-bug-report</kbd> to generate a buffer with
 information that will help to reproduce and understand the bug:
 
 - Emacs version
-- value of important racket-mode variables
+- value of important Racket Mode variables
 - minor-modes that are active
 
 Please copy this and paste in your bug report.
@@ -19,15 +19,15 @@ Here is some information to help you.
 
 ## Package dependencies
 
-racket-mode depends on some other packages. In `racket-mode.el` see
+Racket Mode depends on some other packages. In `racket-mode.el` see
 the `Package-Requires:` line.
 
 You can install these manually with <kbd>M-x package-install</kbd>,
 or, run `make deps`. The latter is also used by `.travis.yml`.
 
-The recent trend has been for racket-mode to depend on fewer packages,
+The recent trend has been for Racket Mode to depend on fewer packages,
 not more. For example `dash.el` was dropped in favor of using native
-Emacs Lisp constructs.
+Emacs Lisp constructs. Likewise `s.el`.
 
 Having said that, if your PR truly needs a new package, please make
 sure your PR updates all of:
@@ -35,17 +35,16 @@ sure your PR updates all of:
 1. the `Package-Requires:` line in `racket-mode.el`
 2. the `deps` target in `makefile`
 
-## Reference.md
+## doc/generate.el
 
-Although `Reference.md` is N/A for people using racket-mode within
-Emacs, it is useful to have the features documented online, too. The
-file is is generated from doc strings.
+We generate reference documentation from doc strings for commands, variables, and faces.
 
 - If you add a brand-new command, `defcustom`, or `defface`, please
-  also add it to appropriate list in `racket-make-doc.el`.
+  also add it to appropriate list in `doc/generate.el`.
 
 - Whenever you edit a doc string for a command, `defcustom`, or
-  `defface`, please `make doc` and commit the updated `Reference.md`.
+  `defface`, please `cd doc && make clean && make` and commit the
+  updated files.
 
 ## Tests
 

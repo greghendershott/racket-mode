@@ -3,7 +3,7 @@
 ;; Copyright (c) 2013-2018 by Greg Hendershott.
 
 ;; Package: racket-mode
-;; Package-Requires: ((emacs "24.3") (faceup "0.0.2") (s "1.9.0"))
+;; Package-Requires: ((emacs "24.3") (faceup "0.0.2"))
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
 
@@ -152,22 +152,22 @@
 
 ;;;###autoload
 (defun racket-mode-start-faster ()
-  "Compile racket-mode's .rkt files for faster startup.
+  "Compile Racket Mode's .rkt files for faster startup.
 
-racket-mode is implemented as an Emacs Lisp \"front end\" that
-talks to a Racket process \"back end\". Because racket-mode is
+Racket Mode is implemented as an Emacs Lisp \"front end\" that
+talks to a Racket process \"back end\". Because Racket Mode is
 delivered as an Emacs package instead of a Racket package,
-installing it does _not_ do the `raco setup` that is normally
-done for Racket packages.
+installing it does not do the `raco setup` that is normally done
+for Racket packages.
 
-This command will do a `raco make` of racket-mode's .rkt files,
+This command will do a `raco make` of Racket Mode's .rkt files,
 creating bytecode files in `compiled/` subdirectories. As a
 result, when a `racket-run' or `racket-repl' command must start
 the Racket process, it will start faster.
 
-If you run this command, _ever_, you should run it _again_ after:
+If you run this command, ever, you should run it again after:
 
-- Installing an updated version of racket-mode. Otherwise, you
+- Installing an updated version of Racket Mode. Otherwise, you
   might lose some of the speed-up.
 
 - Installing a new version of Racket and/or changing the value of

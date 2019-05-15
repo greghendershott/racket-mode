@@ -125,6 +125,30 @@ When installed as a package, this can be found from the variable
     (pop-to-buffer b t t)
     (setq truncate-lines t)))
 
+;;; string trim
+
+;; "inline" the one thing we used from `s' so we can drop the dep.
+;; TO-DO: Rewrite racket--trim more simply; I just don't want to
+;; detour now.
+
+(defun racket--trim-left (s)
+  "Remove whitespace at the beginning of S."
+  (save-match-data
+    (if (string-match "\\`[ \t\n\r]+" s)
+        (replace-match "" t t s)
+      s)))
+
+(defun racket--trim-right (s)
+  "Remove whitespace at the end of S."
+  (save-match-data
+    (if (string-match "[ \t\n\r]+\\'" s)
+        (replace-match "" t t s)
+      s)))
+
+(defun racket--trim (s)
+  "Remove whitespace at the beginning and end of S."
+  (racket--trim-left (racket--trim-right s)))
+
 (provide 'racket-util)
 
 ;; racket-util.el ends here

@@ -22,7 +22,7 @@
 
 ;;;###autoload
 (defun racket-bug-report ()
-  "Fill a buffer with data to make a racket-mode bug report."
+  "Fill a buffer with data to make a Racket Mode bug report."
   (interactive)
   (let ((help-window-select t))
     (with-help-window "*racket-mode bug report*"

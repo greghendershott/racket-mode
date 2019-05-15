@@ -250,6 +250,9 @@ property whose value is STRING. The close | syntax is set by
   "Character inserted by `racket-insert-labmda'.")
 
 (defun racket-insert-lambda ()
+  "Insert λ.
+
+To insert Unicode symbols generally, see `racket-unicode-input-method-enable'."
   (interactive)
   (insert-char racket-lambda-char 1))
 (put 'racket-insert-lambda 'delete-selection t)
@@ -478,7 +481,7 @@ By default, inserts a `(`. Inserts a `[` in the following cases:
 When the previous s-expression in a sequence is a compound
 expression, uses the same kind of delimiter.
 
-To force insert `[`, use `quoted-insert': \\[quoted-insert] [.
+To force insert `[`, use `quoted-insert'.
 
 Combined with `racket-insert-closing' this means that
 you can press the unshifted `[` and `]` keys to get whatever
