@@ -549,8 +549,7 @@ Afterwards call `racket--repl-show-and-move-to-end'."
 (defun racket--send-region-to-repl (start end)
   "Internal function to send the region to the Racket REPL."
   (when (and start end)
-    (racket--send-to-repl (buffer-substring (region-beginning)
-                                            (region-end)))))
+    (racket--send-to-repl (buffer-substring start end))))
 
 (defun racket-send-region (start end)
   "Send the current region (if any) to the Racket REPL."
