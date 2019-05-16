@@ -525,27 +525,32 @@ most recent `racket-mode' buffer, if any."
 
 ;;; send to REPL
 
-(defun racket--send-region-to-repl (start end)
-  "Internal function to send the region to the Racket REPL.
+(defun racket--send-to-repl (code)
+  "Internal function to send CODE to the Racket REPL for evaluation.
 
-Before sending the region, calls `racket-repl' and
+Before sending the code (in string form), calls `racket-repl' and
 `racket--repl-forget-errors'. Also inserts a ?\n at the process
 mark so that output goes on a fresh line, not on the same line as
 the prompt.
 
 Afterwards call `racket--repl-show-and-move-to-end'."
+  (racket-repl t)
+  (racket--repl-forget-errors)
+  (let ((proc (get-buffer-process racket--repl-buffer-name)))
+    (with-racket-repl-buffer
+      (save-excursion
+        (goto-char (process-mark proc))
+        (insert ?\n)
+        (set-marker (process-mark proc) (point))))
+    (comint-send-string proc code)
+    (comint-send-string proc "\n"))
+  (racket--repl-show-and-move-to-end))
+
+(defun racket--send-region-to-repl (start end)
+  "Internal function to send the region to the Racket REPL."
   (when (and start end)
-    (racket-repl t)
-    (racket--repl-forget-errors)
-    (let ((proc (get-buffer-process racket--repl-buffer-name)))
-      (with-racket-repl-buffer
-        (save-excursion
-          (goto-char (process-mark proc))
-          (insert ?\n)
-          (set-marker (process-mark proc) (point))))
-      (comint-send-region proc start end)
-      (comint-send-string proc "\n"))
-    (racket--repl-show-and-move-to-end)))
+    (racket--send-to-repl (buffer-substring (region-beginning)
+                                            (region-end)))))
 
 (defun racket-send-region (start end)
   "Send the current region (if any) to the Racket REPL."
