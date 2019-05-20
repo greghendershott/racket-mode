@@ -202,7 +202,7 @@ Please keep in mind the following limitations:
     (`nil nil)
     (str (racket--visit-symbol-definition str))))
 
-(defsubst racket-lispy-visit-symbol-definition (str)
+(defun racket-lispy-visit-symbol-definition (str)
   "Function called by lispy.el's `lispy-goto-symbol' for Racket
 symbol definition lookup."
   (racket--visit-symbol-definition str))
