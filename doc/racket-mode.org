@@ -13,7 +13,7 @@
 #+TEXINFO_HEADER: @syncodeindex pg cp
 
 #+TEXINFO_DIR_CATEGORY: Emacs
-#+TEXINFO_DIR_TITLE: Racket Mode: (racket)
+#+TEXINFO_DIR_TITLE: Racket Mode: (racket-mode)
 #+TEXINFO_DIR_DESC: Edit and REPL major modes for Racket lang
 
 #+TEXINFO_PRINTED_TITLE: Racket Mode

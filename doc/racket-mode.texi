@@ -9,7 +9,7 @@
 
 @dircategory Emacs
 @direntry
-* Racket Mode: (racket). Edit and REPL major modes for Racket lang.
+* Racket Mode: (racket-mode). Edit and REPL major modes for Racket lang.
 @end direntry
 
 @finalout
