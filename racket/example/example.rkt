@@ -170,6 +170,9 @@ BAR
 ;; Issue 298
 (define x (begin "|" '\|))
 
+;; Issue 376
+(define || (|list|))
+
 (define (foo)
   (let ([x 10])
     #t)

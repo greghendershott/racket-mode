@@ -170,6 +170,9 @@ BAR
 «m:;; »«x:Issue 298
 »(«k:define» «v:x» («k:begin» «s:"|"» '\|))
 
+«m:;; »«x:Issue 376
+»(«k:define» «v:||» (|list|))
+
 («k:define» («f:foo»)
   («k:let» ([«v:x» «:racket-selfeval-face:10»])
     «:racket-selfeval-face:#t»)
