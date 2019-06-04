@@ -190,7 +190,7 @@ Please keep in mind the following limitations:
 
 - Only visits the definition of module-level identifiers --
   things for which Racket's `identifier-binding` function returns
-  information. This does _not_ include things such as
+  information. This does NOT include things such as
   local (nested) function definitions or `racket/class` member
   functions. To find those in the same file, you'll need to use a
   normal Emacs text search function like `isearch-forward'.

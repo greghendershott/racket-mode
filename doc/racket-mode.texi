@@ -857,7 +857,7 @@ need to @ref{racket-run} the current buffer, first.
 @item
 Only visits the definition of module-level identifiers --
 things for which Racket's @code{identifier-binding} function returns
-information. This does include things such as
+information. This does NOT include things such as
 local (nested) function definitions or @code{racket/class} member
 functions. To find those in the same file, you'll need to use a
 normal Emacs text search function like @code{isearch-forward}.
