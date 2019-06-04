@@ -14,10 +14,10 @@ racket-mode.texi: racket-mode.org reference.org
 	emacs --batch -Q -l ox-texinfo racket-mode.org --eval "(setq indent-tabs-mode nil make-backup-files nil)" --funcall org-texinfo-export-to-texinfo
 
 racket-mode.info: racket-mode.texi
-	makeinfo --force --no-split $< -o $@
+	makeinfo --no-split $< -o $@
 
 racket-mode.html: racket-mode.texi
-	makeinfo --force --html --no-split --no-headers --no-number-sections --css-ref='racket-mode.css' $<
+	makeinfo --html --no-split --no-headers --no-number-sections --css-ref='racket-mode.css' $<
 
 
 ######################################################################
