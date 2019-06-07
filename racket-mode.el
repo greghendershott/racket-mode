@@ -5,7 +5,7 @@
 ;; Package: racket-mode
 ;; Package-Requires: ((emacs "24.3") (faceup "0.0.2"))
 ;; Author: Greg Hendershott
-;; URL: https://github.com/greghendershott/racket-mode
+;; URL: https://www.racket-mode.com/
 
 ;; License:
 ;; This is free software; you can redistribute it and/or modify it
