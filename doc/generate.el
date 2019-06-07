@@ -114,7 +114,7 @@
                  #'identity
                  (mapcar (lambda (binding)
                            (unless (eq (aref binding 0) 'menu-bar)
-                             (let ((desc (key-description binding)))
+                             (let ((desc (racket-generate--key-description binding)))
                                ;; I don't know how to escape { or }
                                ;; for texi
                                (unless (string-match-p "[{}]" desc)
@@ -278,8 +278,19 @@
      (racket-generate--print-keymap-entry more (cons key keys)))
     (`(,(and key (pred numberp)) . ,(and sym (pred symbolp)))
      (insert (format "|{{{kbd(%s)}}}|`%s'|\n"
-                     (key-description (reverse (cons key keys)))
+                     (racket-generate--key-description
+                      (reverse (cons key keys)))
                      sym)))))
+
+(defun racket-generate--key-description (xs)
+  "Like `key-description' but escapes some chars for our \"KBD\" texi macro.
+Currently only escapes comma."
+  (with-temp-buffer
+    (insert (key-description xs))
+    (goto-char (point-min))
+    (while (re-search-forward (rx ?\,) nil t)
+      (replace-match "\\," t t))
+    (buffer-substring-no-properties (point-min) (point-max))))
 
 (defun racket-generate--remove-derived-mode-ops (s)
   "Simply remove \\<map> for define-derived-mode."

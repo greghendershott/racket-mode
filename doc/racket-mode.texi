@@ -578,7 +578,7 @@ Major mode for results of @ref{racket-profile}.
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{} 
+@item @kbd{,} 
 @tab @code{racket--profile-sort}
 @item @kbd{RET} 
 @tab @code{racket--profile-visit}
@@ -881,7 +881,7 @@ See also: @ref{racket-find-collection}.
 @node racket-unvisit
 @subsection racket-unvisit
 
-@kbd{M-} 
+@kbd{M-,} 
 
 Return from previous @ref{racket-visit-definition} or @ref{racket-visit-module}.
 
