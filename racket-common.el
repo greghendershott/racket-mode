@@ -458,7 +458,7 @@ Returns '[' or nil."
              (when (looking-at-p regexp)
                ?\[))))))
 
-(defun racket-smart-open-bracket ()
+(defun racket-smart-open-bracket (&optional prefix)
   "Automatically insert a `(` or a `[` as appropriate.
 
 When `racket-smart-open-bracket-enable' is nil, this simply
@@ -485,10 +485,10 @@ To force insert `[`, use `quoted-insert'.
 
 Combined with `racket-insert-closing' this means that
 you can press the unshifted `[` and `]` keys to get whatever
-delimiters follow the Racket conventions for these forms. (When
+delimiters follow the Racket conventions for these forms. When
 `electric-pair-mode' or `paredit-mode' is active, you need not
 even press `]`."
-  (interactive)
+  (interactive "P")
   (let ((ch (or (and (not racket-smart-open-bracket-enable)
                      ?\[)
                 (and (save-excursion
@@ -504,7 +504,7 @@ even press `]`."
                 (racket--open-paren #'backward-sexp)
                 ?\()))
     (if (fboundp 'racket--paredit-aware-open)
-        (racket--paredit-aware-open ch)
+        (racket--paredit-aware-open prefix ch)
       (racket--self-insert ch))))
 
 (put 'racket-smart-open-bracket 'delete-selection
@@ -512,49 +512,34 @@ even press `]`."
 
 (eval-after-load 'paredit
   '(progn
+     ;; If `paredit-mode' has bound the [ key, bind it back to
+     ;; `racket-smart-open-bracket'. That will call
+     ;; `racket--paredit-aware-open' which in turn will call
+     ;; `paredit-open-square' or `paredit-open-round' as appropriate.
      (defvar paredit-mode-map nil) ;byte compiler
+     (setq-local minor-mode-overriding-map-alist
+                 `((paredit-mode
+                    ,(let ((map (make-sparse-keymap)))
+                       (set-keymap-parent map paredit-mode-map)
+                       (define-key map (kbd "[") #'racket-smart-open-bracket)
+                       map))))
+
      (declare-function paredit-open-round  'paredit)
      (declare-function paredit-open-square 'paredit)
      (declare-function paredit-open-curly  'paredit)
-     (defvar racket--paredit-original-open-bracket-binding
-       (lookup-key paredit-mode-map (kbd "["))
-       "The previous `paredit-mode-map' binding for [.
-Rather than assuming that it's `paredit-open-square', we store
-the actual value. This seems like the right thing to do in case
-someone else is doing similar hackery.")
 
-     (add-hook 'paredit-mode-hook
-               (lambda ()
-                 (define-key paredit-mode-map
-                   (kbd "[") 'racket--paredit-open-square)))
-
-     (defun racket--paredit-open-square ()
-       "`racket-smart-open-bracket' or original `paredit-mode-map' binding.
-
-To be compatible with `paredit-mode', `racket-smart-open-bracket'
-must intercept [ and decide whether to call `paredit-open-round'
-or `paredit-open-square'. To do so it must modify
-`paredit-mode-map', which affects all major modes. Therefore we
-check whether the current buffer's major mode is `racket-mode'.
-If not we call the function in the variable
-`racket--paredit-original-open-bracket-binding'."
-       (interactive)
-       (if (racket--mode-edits-racket-p)
-           (racket-smart-open-bracket)
-         (funcall racket--paredit-original-open-bracket-binding)))
-
-     (defun racket--paredit-aware-open (ch)
+     (defun racket--paredit-aware-open (prefix ch)
        "A paredit-aware helper for `racket-smart-open-bracket'.
 
-When `paredit-mode' is active, use its functions (such as
-`paredit-open-round') Note: This function isn't defined unless
+When `paredit-mode' is active, use its functions, such as
+`paredit-open-round'. Note: This function isn't defined unless
 paredit is loaded, so check for this function's existence using
 `fboundp'."
        (let ((paredit-active (and (boundp 'paredit-mode) paredit-mode)))
          (cond ((not paredit-active) (racket--self-insert ch))
-               ((eq ch ?\()          (paredit-open-round))
-               ((eq ch ?\[)          (paredit-open-square))
-               ((eq ch ?\{)          (paredit-open-curly))
+               ((eq ch ?\()          (paredit-open-round prefix))
+               ((eq ch ?\[)          (paredit-open-square prefix))
+               ((eq ch ?\{)          (paredit-open-curly prefix))
                (t                    (racket--self-insert ch)))))))
 
 ;;; paredit and reader literals
