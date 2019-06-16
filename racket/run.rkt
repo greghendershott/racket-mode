@@ -1,4 +1,5 @@
 #lang racket/base
+;; Do NOT use `at-exp` in this file! See issue #290.
 
 (require racket/cmdline
          racket/contract/base
@@ -20,7 +21,8 @@
          "namespace.rkt"
          "print.rkt"
          (prefix-in stx-cache: "syntax.rkt")
-         "util.rkt")
+         "util.rkt"
+         "welcome.rkt")
 
 ;; Main moving parts:
 ;;
@@ -67,7 +69,7 @@
   ;; Emacs on Windows comint-mode needs buffering disabled.
   (when (eq? (system-type 'os) 'windows)
     (file-stream-buffer-mode (current-output-port) 'none))
-  (display (banner))
+  (welcome (and (rerun-maybe-mod run-info) #t))
   (flush-output)
   (parameterize ([error-display-handler our-error-display-handler])
     (run run-info)))

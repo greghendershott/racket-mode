@@ -32,13 +32,14 @@
   (insert (racket-generate--commands))
   (insert (racket-generate--variables))
   (insert (racket-generate--faces))
-  (save-buffer))
+  (save-buffer 0)) ;don't create reference.org~ backup
 
 ;;; Commands
 
 (defconst racket-generate--commands
   '("Run"
     racket-run
+    racket-repl
     racket-racket
     racket-profile
     racket-profile-mode

@@ -87,10 +87,8 @@
         (racket-command-timeout racket-tests/command-timeout))
     (racket-repl)
     (with-racket-repl-buffer
-      ;; Welcome. Note that Racket CS seems to drop the leading "v",
-      ;; e.g. instead of "Welcome to Racket v7.2" I am seeing "Welcome
-      ;; to Racket 7.3.0.3".
-      (should (racket-tests/see-rx "Welcome to Racket v?[0-9.]+\n> "))
+      (should (racket-tests/see-rx
+               "Welcome to Racket v?[0-9.]+[\n]\\(?:;.*[\n]\\)*> "))
       (racket-tests/wait-for-command-server)
       ;; Completion
       (racket-tests/type&press "with-inp" "TAB")

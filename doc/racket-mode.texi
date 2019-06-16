@@ -70,6 +70,7 @@ Commands
 Run
 
 * racket-run::
+* racket-repl::
 * racket-racket::
 * racket-profile::
 * racket-profile-mode::
@@ -481,6 +482,7 @@ You can also view these by using the normal Emacs help mechanism:
 
 @menu
 * racket-run::
+* racket-repl::
 * racket-racket::
 * racket-profile::
 * racket-profile-mode::
@@ -541,6 +543,33 @@ Racket error messages.
 To visit these locations, move point there and press RET or mouse
 click. Or, use the standard @code{next-error} and @code{previous-error}
 commands.
+
+@node racket-repl
+@subsection racket-repl
+
+@kbd{C-c C-z} 
+
+Show the Racket REPL buffer in some window.
+
+If NOSELECT is not nil, does not also select the REPL window.
+
+@strong{IMPORTANT}
+
+The main, intended use of Racket Mode's REPL is that you
+@code{find-file} some specific .rkt file, then @ref{racket-run} it. The
+REPL will then match that file. Also, various Racket Mode
+features will work, such as completion, visiting definitions, and
+so on.
+
+If the REPL isn't running, and you want to start it for no file
+in particular? Then you could use this command. But the resulting
+REPL will have a minimal ``#lang racket/base'' namespace. You
+could enter "(require racket)" if you want the equivalent of
+``#lang racket''. You could also "(require racket/enter)" if
+you want things like ``enter!''. But in some sense you'd be
+``using it wrong''. If you really don't want to use Racket Mode's
+REPL as intended, then you might as well use a plain Emacs shell
+buffer to run command-line Racket.
 
 @node racket-racket
 @subsection racket-racket
@@ -631,7 +660,7 @@ For more information see:
 @item Key
 @tab Binding
 @item @kbd{C-c C-z} 
-@tab @code{racket-repl}
+@tab @ref{racket-repl}
 @item @kbd{x} 
 @tab @code{racket-logger-exit}
 @item @kbd{g} 
@@ -1225,7 +1254,7 @@ To force insert @code{[}, use @code{quoted-insert}.
 
 Combined with @code{racket-insert-closing} this means that
 you can press the unshifted @code{[} and @code{]} keys to get whatever
-delimiters follow the Racket conventions for these forms. (When
+delimiters follow the Racket conventions for these forms. When
 @code{electric-pair-mode} or @code{paredit-mode} is active, you need not
 even press @code{]}.
 
@@ -1552,7 +1581,7 @@ for Racket packages.
 
 This command will do a @code{raco make} of Racket Mode's .rkt files,
 creating bytecode files in @code{compiled/} subdirectories. As a
-result, when a @ref{racket-run} or @code{racket-repl} command must start
+result, when a @ref{racket-run} or @ref{racket-repl} command must start
 the Racket process, it will start faster.
 
 If you run this command, ever, you should run it again after:

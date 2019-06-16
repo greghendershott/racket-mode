@@ -105,12 +105,27 @@ With a prefix, uses `comint-quit-subjob' to send a quit signal."
 
 ;;;###autoload
 (defun racket-repl (&optional noselect)
-  "Run the Racket REPL and display its buffer in some window.
+  "Show the Racket REPL buffer in some window.
 
-If the Racket process is not already running, it is started.
+If NOSELECT is not nil, does not also select the REPL window.
 
-If NOSELECT is not nil, does not select the REPL
-window (preserves the originally selected window)."
+*IMPORTANT*
+
+The main, intended use of Racket Mode's REPL is that you
+`find-file' some specific .rkt file, then `racket-run' it. The
+REPL will then match that file. Also, various Racket Mode
+features will work, such as completion, visiting definitions, and
+so on.
+
+If the REPL isn't running, and you want to start it for no file
+in particular? Then you could use this command. But the resulting
+REPL will have a minimal \"#lang racket/base\" namespace. You
+could enter \"(require racket)\" if you want the equivalent of
+\"#lang racket\". You could also \"(require racket/enter)\" if
+you want things like \"enter!\". But in some sense you'd be
+\"using it wrong\". If you really don't want to use Racket Mode's
+REPL as intended, then you might as well use a plain Emacs shell
+buffer to run command-line Racket."
   (interactive "P")
   (if (racket--repl-live-p)
       (racket--repl-show-and-move-to-end)
