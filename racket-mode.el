@@ -174,14 +174,16 @@ If you run this command, ever, you should run it again after:
   the variable `racket-program'. Otherwise, you might get an
   error message due to the bytecode being different versions."
   (interactive)
-  (dolist (dir (list racket--rkt-source-dir
-                     (concat racket--rkt-source-dir "/commands/")))
-    (let* ((command (format "%s -l raco make -v %s"
-                            racket-program
-                            (expand-file-name "*.rkt" dir)))
-           (prompt (format "Do `%s` " command)))
-      (when (y-or-n-p prompt)
-        (async-shell-command command)))))
+  (let* ((racket  (executable-find racket-program))
+         (rkts0   (expand-file-name "*.rkt" racket--rkt-source-dir) )
+         (rkts1   (expand-file-name "commands/*.rkt" racket--rkt-source-dir))
+         (command (format "%s -l raco make -v %s %s"
+                          (shell-quote-wildcard-pattern racket)
+                          (shell-quote-wildcard-pattern rkts0)
+                          (shell-quote-wildcard-pattern rkts1)))
+         (prompt (format "Do `%s` " command)))
+    (when (y-or-n-p prompt)
+      (async-shell-command command))))
 
 (provide 'racket-mode)
 
