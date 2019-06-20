@@ -6,6 +6,7 @@
          racket/contract/region
          racket/format
          racket/match
+         racket/port
          racket/set
          racket/string
          "channel.rkt"
@@ -122,6 +123,9 @@
          [profiling-enabled (eq? context-level 'profile)]
          [test-coverage-enabled (eq? context-level 'coverage)]
          [current-sync/yield (txt/gui sync yield)]
+         [current-input-port  (dup-input-port (current-input-port))]   ;#381
+         [current-output-port (dup-output-port (current-output-port))] ;#381
+         [current-error-port  (dup-output-port (current-error-port))]  ;#381
          ;; LAST: `current-eventspace` because `make-eventspace`
          ;; creates an event handler thread -- now. We want that
          ;; thread to inherit the parameterizations above. (Otherwise
