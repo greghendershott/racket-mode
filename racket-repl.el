@@ -363,9 +363,12 @@ ourselves from the local cominit output filter functions."
             ((or (string-match-p "^deleted" event)
                  (string-match-p "^connection broken by remote peer" event))
              (clrhash racket--cmd-nonce->callback)
-             (run-at-time 0.1 nil   ;can't `kill-buffer' now, do later
-                          #'kill-buffer
-                          (process-buffer proc)))
+             ;; If process has a buffer -- and do check that it does,
+             ;; see #383 -- we can't `kill-buffer' now here in the
+             ;; process sentinel. Instead do soon.
+             (pcase (process-buffer proc)
+               (`() nil)
+               (buf (run-at-time 0.1 nil #'kill-buffer buf))))
 
             (t (message "sentinel surprised by (%S %S) [attempt %s]" proc event attempt)))))))
 
