@@ -88,7 +88,7 @@
     (racket-repl)
     (with-racket-repl-buffer
       (should (racket-tests/see-rx
-               "Welcome to Racket v?[0-9.]+[\n]\\(?:;.*[\n]\\)*> "))
+               "Welcome to Racket v?[0-9.]+\\(?: \\[cs\\].\\)?[\n]\\(?:;.*[\n]\\)*> "))
       (racket-tests/wait-for-command-server)
       ;; Completion
       (racket-tests/type&press "with-inp" "TAB")
