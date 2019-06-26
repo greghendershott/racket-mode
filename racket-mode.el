@@ -61,7 +61,6 @@
      ("C-c C-x C-f" racket-open-require-path)
      ("TAB"         indent-for-tab-command)
      ("M-C-u"       racket-backward-up-list)
-     ("["           racket-smart-open-bracket)
      (")"           racket-insert-closing)
      ("]"           racket-insert-closing)
      ("}"           racket-insert-closing)

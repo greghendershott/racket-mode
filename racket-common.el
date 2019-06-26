@@ -461,9 +461,8 @@ Returns '[' or nil."
 (defun racket-smart-open-bracket (&optional prefix)
   "Automatically insert a `(` or a `[` as appropriate.
 
-When `racket-smart-open-bracket-enable' is nil, this simply
-inserts `[`. Otherwise, this behaves like the \"Automatically
-adjust opening square brackets\" feature in Dr. Racket:
+Behaves like the \"Automatically adjust opening square brackets\"
+feature in Dr. Racket:
 
 By default, inserts a `(`. Inserts a `[` in the following cases:
 
@@ -480,6 +479,9 @@ By default, inserts a `(`. Inserts a `[` in the following cases:
 
 When the previous s-expression in a sequence is a compound
 expression, uses the same kind of delimiter.
+
+To use, bind the `[` key to `racket-smart-open-bracket' in
+`racket-mode-map' and/or `racket-repl-mode-map'.
 
 To force insert `[`, use `quoted-insert'.
 
@@ -512,22 +514,9 @@ even press `]`."
 
 (eval-after-load 'paredit
   '(progn
-     ;; If `paredit-mode' has bound the [ key, bind it back to
-     ;; `racket-smart-open-bracket'. That will call
-     ;; `racket--paredit-aware-open' which in turn will call
-     ;; `paredit-open-square' or `paredit-open-round' as appropriate.
-     (defvar paredit-mode-map nil) ;byte compiler
-     (setq-local minor-mode-overriding-map-alist
-                 `((paredit-mode
-                    ,(let ((map (make-sparse-keymap)))
-                       (set-keymap-parent map paredit-mode-map)
-                       (define-key map (kbd "[") #'racket-smart-open-bracket)
-                       map))))
-
      (declare-function paredit-open-round  'paredit)
      (declare-function paredit-open-square 'paredit)
      (declare-function paredit-open-curly  'paredit)
-
      (defun racket--paredit-aware-open (prefix ch)
        "A paredit-aware helper for `racket-smart-open-bracket'.
 

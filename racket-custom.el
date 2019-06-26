@@ -272,7 +272,11 @@ or, use `racket-insert-lambda' to insert actual λ characters."
   :group 'racket-other)
 
 (defcustom racket-smart-open-bracket-enable nil
-  "Use `racket-smart-open-bracket' when `[` is pressed?"
+  "This variable is obsolete and has no effect.
+
+Instead of using this variable, you may bind the `[` key to the
+`racket-smart-open-bracket' command in the `racket-mode-map'
+and/or `racket-repl-mode-map' keymaps."
   :tag "Smart Open Bracket Enable"
   :type 'boolean
   :safe #'booleanp
