@@ -133,12 +133,12 @@ Other
 * racket-mode-start-faster::
 Variables
 
-* General::
-* REPL::
-* Other: Otherx. 
-* Experimental debugger::
+* General variables::
+* REPL variables::
+* Other variables::
+* Experimental debugger variables::
 
-General
+General variables
 
 * racket-program::
 * racket-command-port::
@@ -151,7 +151,7 @@ General
 * racket-path-from-emacs-to-racket-function::
 * racket-path-from-racket-to-emacs-function::
 
-REPL
+REPL variables
 
 * racket-history-filter-regexp::
 * racket-images-inline::
@@ -159,7 +159,7 @@ REPL
 * racket-images-system-viewer::
 * racket-pretty-print::
 
-Other
+Other variables
 
 * racket-indent-curly-as-sequence::
 * racket-indent-sequence-depth::
@@ -167,7 +167,7 @@ Other
 * racket-smart-open-bracket-enable::
 * racket-logger-config::
 
-Experimental debugger
+Experimental debugger variables
 
 * racket-debuggable-files::
 Faces
@@ -1220,13 +1220,12 @@ variables. Otherwise prefer @code{racket-indent-function}.
 @node racket-smart-open-bracket
 @subsection racket-smart-open-bracket
 
-@kbd{[} 
+@kbd{M-x}  @code{racket-smart-open-bracket} @kbd{RET} 
 
 Automatically insert a @code{(} or a @code{[} as appropriate.
 
-When @ref{racket-smart-open-bracket-enable} is nil, this simply
-inserts @code{[}. Otherwise, this behaves like the ``Automatically
-adjust opening square brackets'' feature in Dr. Racket:
+Behaves like the ``Automatically adjust opening square brackets''
+feature in Dr. Racket:
 
 By default, inserts a @code{(}. Inserts a @code{[} in the following cases:
 
@@ -1249,6 +1248,9 @@ as things like @code{parameterize}, @code{with-handlers}, and
 
 When the previous s-expression in a sequence is a compound
 expression, uses the same kind of delimiter.
+
+To use, bind the @code{[} key to @ref{racket-smart-open-bracket} in
+@code{racket-mode-map} and/or @code{racket-repl-mode-map}.
 
 To force insert @code{[}, use @code{quoted-insert}.
 
@@ -1601,14 +1603,14 @@ error message due to the bytecode being different versions.
 @chapter Variables
 
 @menu
-* General::
-* REPL::
-* Other: Otherx. 
-* Experimental debugger::
+* General variables::
+* REPL variables::
+* Other variables::
+* Experimental debugger variables::
 @end menu
 
-@node General
-@section General
+@node General variables
+@section General variables
 
 @menu
 * racket-program::
@@ -1768,8 +1770,8 @@ racket, you can set this to @code{racket-windows-to-wsl}. In that case
 you probably also want to customize the ``reverse'':
 @ref{racket-path-from-emacs-to-racket-function}.
 
-@node REPL
-@section REPL
+@node REPL variables
+@section REPL variables
 
 @menu
 * racket-history-filter-regexp::
@@ -1806,8 +1808,8 @@ Which system image viewer program to invoke upon M-x
 
 Use pretty-print instead of print in REPL.
 
-@node Otherx
-@section Other
+@node Other variables
+@section Other variables
 
 @menu
 * racket-indent-curly-as-sequence::
@@ -1846,7 +1848,11 @@ or, use @ref{racket-insert-lambda} to insert actual λ characters.
 @node racket-smart-open-bracket-enable
 @subsection racket-smart-open-bracket-enable
 
-Use @ref{racket-smart-open-bracket} when @code{[} is pressed?
+This variable is obsolete and has no effect.
+
+Instead of using this variable, you may bind the @code{[} key to the
+@ref{racket-smart-open-bracket} command in the @code{racket-mode-map}
+and/or @code{racket-repl-mode-map} keymaps.
 
 @node racket-logger-config
 @subsection racket-logger-config
@@ -1867,8 +1873,8 @@ The default value sets some known ``noisy'' topics to be one
 level quieter. That way you can set the `* topic to a level like
 `debug and not get overhwelmed by these noisy topics.
 
-@node Experimental debugger
-@section Experimental debugger
+@node Experimental debugger variables
+@section Experimental debugger variables
 
 @menu
 * racket-debuggable-files::

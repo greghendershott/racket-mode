@@ -132,7 +132,7 @@
 ;;; Variables
 
 (defconst racket-generate--variables
-  '("General"
+  '("General variables"
     racket-program
     racket-command-port
     racket-command-startup
@@ -143,19 +143,19 @@
     racket-user-command-line-arguments
     racket-path-from-emacs-to-racket-function
     racket-path-from-racket-to-emacs-function
-    "REPL"
+    "REPL variables"
     racket-history-filter-regexp
     racket-images-inline
     racket-images-keep-last
     racket-images-system-viewer
     racket-pretty-print
-    "Other"
+    "Other variables"
     racket-indent-curly-as-sequence
     racket-indent-sequence-depth
     racket-pretty-lambda
     racket-smart-open-bracket-enable
     racket-logger-config
-    "Experimental debugger"
+    "Experimental debugger variables"
     racket-debuggable-files)
   "Variables to include in the Reference.")
 
