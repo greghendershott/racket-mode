@@ -714,7 +714,6 @@ With prefix arg, open the N-th last shown image."
      ("C-M-q"           prog-indent-sexp)
      ("C-a"             comint-bol)
      ("C-w"             comint-kill-region)
-     ("[C-S-backspace]" comint-kill-whole-line)
      (")"               racket-insert-closing)
      ("]"               racket-insert-closing)
      ("}"               racket-insert-closing)
