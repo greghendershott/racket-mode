@@ -209,6 +209,6 @@ The following sections are generated from the doc strings for each command, vari
 You can also view these by using the normal Emacs help mechanism:
 
 - {{{kbd(C-h f)}}} and enter the name of a command.
-- {{{kbd(C-h v)}}} and ente the name of a variable.
+- {{{kbd(C-h v)}}} and enter the name of a variable.
 
 #+INCLUDE: reference.org :minlevel 1
