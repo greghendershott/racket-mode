@@ -127,6 +127,10 @@ comment
       [«v:y» «:racket-selfeval-face:2»])
   y)
 
+«m:;; »«x:Issue 388
+»«:racket-selfeval-face:1» «m:; »«x:#;
+»«:racket-selfeval-face:2»
+
 («k:define» «v:x» «:racket-here-string-face:#<<FOO
 asdfasdf
 asdfasdf

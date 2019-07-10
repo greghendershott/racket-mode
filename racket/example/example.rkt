@@ -127,6 +127,10 @@ comment
       [y 2])
   y)
 
+;; Issue 388
+1 ; #;
+2
+
 (define x #<<FOO
 asdfasdf
 asdfasdf

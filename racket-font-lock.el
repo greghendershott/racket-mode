@@ -252,7 +252,8 @@ Note that the syntax table does NOT show these as comments in
 order to let indent and nav work within the sexp. We merely
 font-lock them as comments."
   (ignore-errors
-    (when (re-search-forward (rx (group-n 1 "#;" (* " "))
+    (when (re-search-forward (rx (seq bol (* (not (any ?\;)))) ;Issue 388
+                                 (group-n 1 "#;" (* " "))
                                  (group-n 2 (not (any " "))))
                              limit t)
       (let ((md (match-data)))
