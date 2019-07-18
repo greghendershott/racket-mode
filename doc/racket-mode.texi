@@ -504,8 +504,8 @@ Otherwise follows the @ref{racket-error-context} setting.
 With two C-u prefixes, instruments code for step debugging. See
 @ref{racket-debug-mode} and the variable @ref{racket-debuggable-files}.
 
-If point is within a Racket @code{module} form, the REPL ``enters''
-that submodule (uses its language info and namespace).
+If point is within a Racket module form, the REPL ``enters'' that
+submodule (uses its language info and namespace).
 
 When you run again, the file is evaluated from scratch --- the
 custodian releases resources like threads and the evaluation
@@ -520,14 +520,14 @@ focus), too.
 
 When @ref{racket-retry-as-skeleton} is true, if your source file has
 an error, a ``skeleton'' of your file is evaluated to get
-identifiers from module languages, @code{require} forms, and
+identifiers from module languages, require forms, and
 definitions. That way, things like completion and
 @ref{racket-describe} are more likely to work while you edit the file
 to fix the error. If not even the ``skeleton'' evaluation
-succeeds, you'll have only identifiers provided by @code{racket/base},
+succeeds, you'll have only identifiers provided by racket/base,
 until you fix the error and run again.
 
-Output in the @code{*Racket REPL*} buffer that describes a file and
+Output in the Racket REPL buffer that describes a file and
 position is automatically ``linkified''. Examples of such text
 include:
 
@@ -535,9 +535,9 @@ include:
 @item
 Racket error messages.
 @item
-@code{rackunit} test failure location messages.
+rackunit test failure location messages.
 @item
-@code{print} representation of @code{#<path>} objects.
+print representation of path objects.
 @end itemize
 
 To visit these locations, move point there and press RET or mouse
@@ -576,7 +576,7 @@ buffer to run command-line Racket.
 
 @kbd{<C-M-f5>} 
 
-Do @code{racket <file>} in @code{*shell*} buffer.
+Do ``racket <file>'' in a shell buffer.
 
 @node racket-profile
 @subsection racket-profile
@@ -793,18 +793,20 @@ provides shortcut keys:
 
 @kbd{<C-f5>}  or @kbd{C-c C-t} 
 
-Run the @code{test} submodule.
+Run the ``test'' submodule.
 
 With prefix, runs with coverage instrumentation and highlights
 uncovered code.
 
-Put your tests in a @code{test} submodule. For example:
+Put your tests in a ``test'' submodule. For example:
 
+@example
 (module+ test
   (require rackunit)
   (check-true #t))
+@end example
 
-rackunit test failure messages show the location. You may use
+Any rackunit test failure messages show the location. You may use
 @code{next-error} to jump to the location of each failing test.
 
 See also:
@@ -820,8 +822,7 @@ See also:
 
 @kbd{M-x}  @code{racket-raco-test} @kbd{RET} 
 
-Do @code{raco test -x <file>} in @code{*shell*} buffer.
-To run <file>'s @code{test} submodule.
+Do ``raco test -x <file>'' in a shell buffer to run the ``test'' submodule.
 
 @node Eval
 @section Eval
@@ -885,14 +886,14 @@ need to @ref{racket-run} the current buffer, first.
 
 @item
 Only visits the definition of module-level identifiers --
-things for which Racket's @code{identifier-binding} function returns
-information. This does NOT include things such as
-local (nested) function definitions or @code{racket/class} member
+things for which Racket's ``identifier-binding'' function
+returns information. This does NOT include things such as
+local (nested) function definitions or ``racket/class'' member
 functions. To find those in the same file, you'll need to use a
 normal Emacs text search function like @code{isearch-forward}.
 
 @item
-If the definition is found in Racket's @code{#%kernel} module, it
+If the definition is found in Racket's ``#%kernel'' module, it
 will tell you so but won't visit the definition site.
 @end itemize
 
@@ -1075,9 +1076,9 @@ Unfold (show) all test submodules.
 
 @kbd{M-x}  @code{racket-tidy-requires} @kbd{RET} 
 
-Make a single top-level @code{require}, modules sorted, one per line.
+Make a single top-level ``require'' form, modules sorted, one per line.
 
-All top-level @code{require} forms are combined into a single form.
+All top-level require forms are combined into a single form.
 Within that form:
 
 @itemize
@@ -1095,7 +1096,7 @@ Within each level subform, the modules are sorted:
 Collection path modules -- sorted alphabetically.
 
 @item
-Subforms such as @code{only-in}.
+Subforms such as only-in.
 
 @item
 Quoted relative requires -- sorted alphabetically.
@@ -1106,8 +1107,8 @@ Quoted relative requires -- sorted alphabetically.
 At most one module is listed per line.
 
 Note: This only works for requires at the top level of a source
-file using @code{#lang}. It does @strong{not} work for @code{require} forms inside
-@code{module} forms.
+file using #lang. It does NOT work for require forms inside
+module forms.
 
 See also: @ref{racket-trim-requires} and @ref{racket-base-requires}.
 
@@ -1122,9 +1123,9 @@ Note: This only works when the source file can be evaluated with
 no errors.
 
 Note: This only works for requires at the top level of a source
-file using @code{#lang}. It does @strong{not} work for @code{require} forms inside
-@code{module} forms. Furthermore, it is not smart about @code{module+} or
-@code{module*} forms -- it may delete top level requires that are
+file using #lang. It does NOT work for require forms inside
+module forms. Furthermore, it is not smart about module+ or
+module* forms -- it might delete top level requires that are
 actually needed by such submodules.
 
 See also: @ref{racket-base-requires}.
@@ -1134,14 +1135,14 @@ See also: @ref{racket-base-requires}.
 
 @kbd{M-x}  @code{racket-base-requires} @kbd{RET} 
 
-Change from @code{#lang racket} to @code{#lang racket/base}.
+Change from ``#lang racket'' to ``#lang racket/base''.
 
-Adds explicit requires for modules that are provided by @code{racket}
-but not by @code{racket/base}.
+Adds explicit requires for imports that are provided by
+``racket'' but not by ``racket/base''.
 
 This is a recommended optimization for Racket applications.
-Avoiding loading all of @code{racket} can reduce load time and memory
-footprint.
+Avoiding loading all of ``racket'' can reduce load time and
+memory footprint.
 
 Also, as does @ref{racket-trim-requires}, this removes unneeded
 modules and tidies everything into a single, sorted require form.
@@ -1150,14 +1151,15 @@ Note: This only works when the source file can be evaluated with
 no errors.
 
 Note: This only works for requires at the top level of a source
-file using @code{#lang}. It does @strong{not} work for @code{require} forms inside
-@code{module} forms. Furthermore, it is not smart about @code{module+} or
-@code{module*} forms -- it may delete top level requires that are
+file using #lang. It does NOT work for require forms inside
+module forms. Furthermore, it is not smart about module+ or
+module* forms -- it might delete top level requires that are
 actually needed by such submodules.
 
-Note: Currently this only helps change @code{#lang racket} to
-@code{#lang racket/base}. It does @strong{not} help with other similar conversions,
-such as changing @code{#lang typed/racket} to @code{#lang typed/racket/base}.
+Note: Currently this only helps change ``#lang racket'' to
+``#lang racket/base''. It does not help with other similar
+conversions, such as changing ``#lang typed/racket'' to ``#lang
+typed/racket/base''.
 
 @node racket-indent-line
 @subsection racket-indent-line
@@ -1321,51 +1323,47 @@ special commands to navigate among the definition and its uses.
 
 @kbd{M-x}  @code{racket-unicode-input-method-enable} @kbd{RET} 
 
-Set input method to @code{racket-unicode}.
+Set input method to racket-unicode.
 
-The @code{racket-unicode} input method lets you easily type various
-Unicode symbols that might be useful when writing Racket
-code.
+The racket-unicode input method lets you easily type various
+Unicode symbols that might be useful when writing Racket code.
 
-To automatically enable the @code{racket-unicode} input method in
-@code{racket-mode} buffers use `M-x customize-variable <RET>
-racket-mode-hook` or put the following code in your Emacs init
-file:
+To automatically enable the racket-unicode input method in
+racket-mode and racket-repl-mode buffers, put the following code
+in your Emacs init file:
 
-(add-hook `racket-mode-hook #'racket-unicode-input-method-enable)
-
-Likewise for @code{racket-repl-mode} buffers:
-
-(add-hook `racket-repl-mode-hook #'racket-unicode-input-method-enable)
+@lisp
+(add-hook 'racket-mode-hook #'racket-unicode-input-method-enable)
+(add-hook 'racket-repl-mode-hook #'racket-unicode-input-method-enable)
+@end lisp
 
 To temporarily enable this input method for a single buffer you
-can use @code{M-x racket-unicode-input-method-enable}.
+can use ``M-x racket-unicode-input-method-enable''.
 
-Use @code{C-\} to toggle the input method.
+Use the standard Emacs key C-\ to toggle the input method.
 
-When the @code{racket-unicode} input method is active, you can for
-example type @code{All} and it is immediately replaced with @code{∀}. A few
-other examples:
+When the racket-unicode input method is active, you can for
+example type ``All'' and it is immediately replaced with ``∀''. A
+few other examples:
 
-@multitable {aaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaa}
-@item @code{omega}
-@tab @code{ω}
-@item @code{x_1}
-@tab @code{x₁}
-@item @code{x^1}
-@tab @code{x¹}
-@item @code{A}
-@tab @code{𝔸}
-@item @code{test-->>E}
-@tab @code{test-->>∃} (racket/redex)
+@multitable {aaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaa}
+@item omega
+@tab ω
+@item x@math{_1}
+@tab x₁
+@item x@math{^1}
+@tab x¹
+@item A
+@tab 𝔸
+@item test-->>E
+@tab test-->>∃ (racket/redex)
 @end multitable
 
-To see a table of all key sequences use `M-x
-describe-input-method <RET> racket-unicode`.
+To see a table of all key sequences use ``M-x
+describe-input-method <RET> racket-unicode''.
 
 If you don’t like the highlighting of partially matching tokens you
-can turn it off by setting @code{input-method-highlight-flag} to nil via
-@code{M-x customize-variable}.
+can turn it off by setting @code{input-method-highlight-flag} to nil.
 
 @node racket-align
 @subsection racket-align
@@ -1374,24 +1372,24 @@ can turn it off by setting @code{input-method-highlight-flag} to nil via
 
 Align values in the same column.
 
-Useful for binding forms like @code{let} and @code{parameterize},
-conditionals like @code{cond} and @code{match}, association lists, and any
-series of couples like the arguments to @code{hash}.
+Useful for binding forms like ``let'' and ``parameterize'',
+conditionals like ``cond'' and ``match'', association lists, and
+any series of couples like the arguments to ``hash''.
 
 Before choosing this command, put point on the first of a series
 of ``couples''. A couple is:
 
 @itemize
 @item
-A list of two or more sexprs: @code{[sexpr val sexpr ...]}
+A list of two or more sexprs: "[sexpr val sexpr @dots{}]".
 @item
-Two sexprs: @code{sexpr val}.
+Two sexprs: ``sexpr val''.
 @end itemize
 
-Each @code{val} moves to the same column and is
+Each ``val'' moves to the same column and is
 @code{prog-indent-sexp}-ed (in case it is a multi-line form).
 
-For example with point on the @code{[} before @code{a}:
+For example with point on the "[" before ``a'':
 
 @example
 Before             After
@@ -1409,7 +1407,7 @@ Before             After
       [else #f])         [else #f])
 @end example
 
-Or with point on the quote before @code{a}:
+Or with point on the quote before ``a'':
 
 @example
 (list 'a 12        (list 'a   12

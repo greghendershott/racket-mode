@@ -36,8 +36,8 @@ Otherwise follows the `racket-error-context' setting.
 With two C-u prefixes, instruments code for step debugging. See
 `racket-debug-mode' and the variable `racket-debuggable-files'.
 
-If point is within a Racket `module` form, the REPL \"enters\"
-that submodule (uses its language info and namespace).
+If point is within a Racket module form, the REPL \"enters\" that
+submodule (uses its language info and namespace).
 
 When you run again, the file is evaluated from scratch --- the
 custodian releases resources like threads and the evaluation
@@ -52,20 +52,20 @@ focus), too.
 
 When `racket-retry-as-skeleton' is true, if your source file has
 an error, a \"skeleton\" of your file is evaluated to get
-identifiers from module languages, `require` forms, and
+identifiers from module languages, require forms, and
 definitions. That way, things like completion and
 `racket-describe' are more likely to work while you edit the file
 to fix the error. If not even the \"skeleton\" evaluation
-succeeds, you'll have only identifiers provided by `racket/base`,
+succeeds, you'll have only identifiers provided by racket/base,
 until you fix the error and run again.
 
-Output in the `*Racket REPL*` buffer that describes a file and
+Output in the Racket REPL buffer that describes a file and
 position is automatically \"linkified\". Examples of such text
 include:
 
 - Racket error messages.
-- `rackunit` test failure location messages.
-- `print` representation of `#<path>` objects.
+- rackunit test failure location messages.
+- print representation of path objects.
 
 To visit these locations, move point there and press RET or mouse
 click. Or, use the standard `next-error' and `previous-error'
@@ -78,7 +78,7 @@ commands."
                       (_     racket-error-context))))
 
 (defun racket-run-with-errortrace ()
-  "Run with `racket-error-context' temporarily set to 'high.
+  "Run with `racket-error-context' temporarily set to \"high\".
 This is just `racket-run' with a C-u prefix. Defined as a function so
 it can be a menu target."
   (interactive)
@@ -98,25 +98,27 @@ function so it can be a menu target."
   (racket-repl))
 
 (defun racket-racket ()
-  "Do `racket <file>` in `*shell*` buffer."
+  "Do \"racket <file>\" in a shell buffer."
   (interactive)
   (racket--shell (concat (shell-quote-argument racket-program)
                          " "
                          (shell-quote-argument (racket--buffer-file-name)))))
 
 (defun racket-test (&optional coverage)
-  "Run the `test` submodule.
+  "Run the \"test\" submodule.
 
 With prefix, runs with coverage instrumentation and highlights
 uncovered code.
 
-Put your tests in a `test` submodule. For example:
+Put your tests in a \"test\" submodule. For example:
 
+#+BEGIN_SRC racket
     (module+ test
       (require rackunit)
       (check-true #t))
+#+END_SRC
 
-rackunit test failure messages show the location. You may use
+Any rackunit test failure messages show the location. You may use
 `next-error' to jump to the location of each failing test.
 
 See also:
@@ -155,8 +157,7 @@ See also:
   (remove-overlays (point-min) (point-max) 'name 'racket-uncovered-overlay))
 
 (defun racket-raco-test ()
-  "Do `raco test -x <file>` in `*shell*` buffer.
-To run <file>'s `test` submodule."
+  "Do \"raco test -x <file>\" in a shell buffer to run the \"test\" submodule."
   (interactive)
   (racket--shell (concat (shell-quote-argument racket-program)
                          " -l raco test -x "
@@ -189,13 +190,13 @@ Please keep in mind the following limitations:
   need to `racket-run' the current buffer, first.
 
 - Only visits the definition of module-level identifiers --
-  things for which Racket's `identifier-binding` function returns
-  information. This does NOT include things such as
-  local (nested) function definitions or `racket/class` member
+  things for which Racket's \"identifier-binding\" function
+  returns information. This does NOT include things such as
+  local (nested) function definitions or \"racket/class\" member
   functions. To find those in the same file, you'll need to use a
   normal Emacs text search function like `isearch-forward'.
 
-- If the definition is found in Racket's `#%kernel` module, it
+- If the definition is found in Racket's \"#%kernel\" module, it
   will tell you so but won't visit the definition site."
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")
@@ -275,7 +276,7 @@ See also: `racket-find-collection'."
                  (if relative-p "\"" ""))))))) ;1
 
 (defun racket--do-visit-def-or-mod (cmd str)
-  "CMD must be 'def or 'mod. STR must be `stringp`."
+  "CMD must be 'def or 'mod. STR must be stringp."
   (unless (memq major-mode '(racket-mode racket-repl-mode racket-describe-mode))
     (user-error "That doesn't work in %s" major-mode))
   (pcase (racket--cmd/await (list cmd str))
@@ -358,9 +359,9 @@ instead of looking at point."
 ;;; requires
 
 (defun racket-tidy-requires ()
-  "Make a single top-level `require`, modules sorted, one per line.
+  "Make a single top-level \"require\" form, modules sorted, one per line.
 
-All top-level `require` forms are combined into a single form.
+All top-level require forms are combined into a single form.
 Within that form:
 
 - A single subform is used for each phase level, sorted in this
@@ -371,15 +372,15 @@ Within that form:
 
     - Collection path modules -- sorted alphabetically.
 
-    - Subforms such as `only-in`.
+    - Subforms such as only-in.
 
     - Quoted relative requires -- sorted alphabetically.
 
 At most one module is listed per line.
 
 Note: This only works for requires at the top level of a source
-file using `#lang`. It does *not* work for `require` forms inside
-`module` forms.
+file using #lang. It does NOT work for require forms inside
+module forms.
 
 See also: `racket-trim-requires' and `racket-base-requires'."
   (interactive)
@@ -399,9 +400,9 @@ Note: This only works when the source file can be evaluated with
 no errors.
 
 Note: This only works for requires at the top level of a source
-file using `#lang`. It does *not* work for `require` forms inside
-`module` forms. Furthermore, it is not smart about `module+` or
-`module*` forms -- it may delete top level requires that are
+file using #lang. It does NOT work for require forms inside
+module forms. Furthermore, it is not smart about module+ or
+module* forms -- it might delete top level requires that are
 actually needed by such submodules.
 
 See also: `racket-base-requires'."
@@ -421,14 +422,14 @@ See also: `racket-base-requires'."
                    (insert (concat new "\n"))))))))
 
 (defun racket-base-requires ()
-  "Change from `#lang racket` to `#lang racket/base`.
+  "Change from \"#lang racket\" to \"#lang racket/base\".
 
-Adds explicit requires for modules that are provided by `racket`
-but not by `racket/base`.
+Adds explicit requires for imports that are provided by
+\"racket\" but not by \"racket/base\".
 
 This is a recommended optimization for Racket applications.
-Avoiding loading all of `racket` can reduce load time and memory
-footprint.
+Avoiding loading all of \"racket\" can reduce load time and
+memory footprint.
 
 Also, as does `racket-trim-requires', this removes unneeded
 modules and tidies everything into a single, sorted require form.
@@ -437,14 +438,15 @@ Note: This only works when the source file can be evaluated with
 no errors.
 
 Note: This only works for requires at the top level of a source
-file using `#lang`. It does *not* work for `require` forms inside
-`module` forms. Furthermore, it is not smart about `module+` or
-`module*` forms -- it may delete top level requires that are
+file using #lang. It does NOT work for require forms inside
+module forms. Furthermore, it is not smart about module+ or
+module* forms -- it might delete top level requires that are
 actually needed by such submodules.
 
-Note: Currently this only helps change `#lang racket` to
-`#lang racket/base`. It does *not* help with other similar conversions,
-such as changing `#lang typed/racket` to `#lang typed/racket/base`."
+Note: Currently this only helps change \"#lang racket\" to
+\"#lang racket/base\". It does not help with other similar
+conversions, such as changing \"#lang typed/racket\" to \"#lang
+typed/racket/base\"."
   (interactive)
   (unless (eq major-mode 'racket-mode)
     (user-error "Current buffer is not a racket-mode buffer"))
@@ -760,20 +762,20 @@ special commands to navigate among the definition and its uses.
 (defun racket-align ()
   "Align values in the same column.
 
-Useful for binding forms like `let` and `parameterize`,
-conditionals like `cond` and `match`, association lists, and any
-series of couples like the arguments to `hash`.
+Useful for binding forms like \"let\" and \"parameterize\",
+conditionals like \"cond\" and \"match\", association lists, and
+any series of couples like the arguments to \"hash\".
 
 Before choosing this command, put point on the first of a series
 of \"couples\". A couple is:
 
-- A list of two or more sexprs: `[sexpr val sexpr ...]`
-- Two sexprs: `sexpr val`.
+- A list of two or more sexprs: \"[sexpr val sexpr ...]\".
+- Two sexprs: \"sexpr val\".
 
-Each `val` moves to the same column and is
+Each \"val\" moves to the same column and is
 `prog-indent-sexp'-ed (in case it is a multi-line form).
 
-For example with point on the `[` before `a`:
+For example with point on the \"[\" before \"a\":
 
 #+BEGIN_SRC racket
     Before             After
@@ -791,7 +793,7 @@ For example with point on the `[` before `a`:
           [else #f])         [else #f])
 #+END_SRC
 
-Or with point on the quote before `a`:
+Or with point on the quote before \"a\":
 
 #+BEGIN_SRC racket
     (list 'a 12        (list 'a   12
