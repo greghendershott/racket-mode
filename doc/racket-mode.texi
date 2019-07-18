@@ -1357,10 +1357,28 @@ few other examples:
 @tab 𝔸
 @item test-->>E
 @tab test-->>∃ (racket/redex)
+@item vdash
+@tab ⊢
 @end multitable
 
 To see a table of all key sequences use ``M-x
 describe-input-method <RET> racket-unicode''.
+
+If you want to add your own mappings to the ``racket-unicode''
+input method, you may add code like the following example in your
+Emacs init file:
+
+@lisp
+;; Either (require 'racket-mode) here, or, if you use
+;; use-package, put the code below in the :config section.
+(with-temp-buffer
+  (racket-unicode-input-method-enable)
+  (set-input-method "racket-unicode")
+  (let ((quail-current-package (assoc "racket-unicode"
+				      quail-package-alist)))
+    (quail-define-rules ((append . t))
+			("^o" ["ᵒ"]))))
+@end lisp
 
 If you don’t like the highlighting of partially matching tokens you
 can turn it off by setting @code{input-method-highlight-flag} to nil.
