@@ -460,7 +460,7 @@ You can also view these by using the normal Emacs help mechanism:
 @item
 @kbd{C-h f}  and enter the name of a command.
 @item
-@kbd{C-h v}  and ente the name of a variable.
+@kbd{C-h v}  and enter the name of a variable.
 @end itemize
 
 @node Commands
