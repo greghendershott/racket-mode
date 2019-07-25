@@ -180,7 +180,11 @@ See also:
 ;;; visiting defs and mods
 
 (defun racket-visit-definition (&optional prefix)
-  "Visit definition of symbol at point.
+  "Visit definition of identifier at point.
+
+If there is no identifier at point, prompt for it.
+
+With a prefix, always prompt for the identifier.
 
 Use `racket-unvisit' to return.
 
@@ -220,6 +224,10 @@ symbol definition lookup."
 
 (defun racket-visit-module (&optional prefix)
   "Visit definition of module at point, e.g. net/url or \"file.rkt\".
+
+If there is no module at point, prompt for it.
+
+With a prefix, always prompt for the module.
 
 Use `racket-unvisit' to return.
 
