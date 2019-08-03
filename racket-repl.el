@@ -73,19 +73,41 @@ end of an interactive expression/statement."
   (interactive "P")
   (let* ((proc (get-buffer-process (current-buffer)))
          (_    (unless proc (user-error "Current buffer has no process")))
-         (text (substring-no-properties (funcall comint-get-old-input))))
-    (cl-case (if racket-use-repl-submit-predicate
-                 (racket--cmd/await `(repl-submit? ,text t))
-               'default)
-      ((nil)
-       (user-error "Not a complete expression, according to the current lang's submit-predicate."))
-      ((t default)
-       (comint-send-input)
-       (remove-text-properties comint-last-input-start
-                               comint-last-input-end
-                               '(font-lock-face comint-highlight-input))
-       ;; Hack for datalog/lang
-       (when prefix (process-send-eof proc))))))
+         (text (substring-no-properties (funcall comint-get-old-input)))
+         (submitp
+          (if racket-use-repl-submit-predicate
+              (cl-case (racket--cmd/await `(repl-submit? ,text t))
+                ((t) t)
+                ((nil) (user-error "Not a complete expression, according to the current lang's submit-predicate."))
+                ((default) (racket--repl-complete-sexp-p proc)))
+            (racket--repl-complete-sexp-p proc))))
+    (if (not submitp)
+        (newline-and-indent)
+      (comint-send-input)
+      (remove-text-properties comint-last-input-start
+                              comint-last-input-end
+                              '(font-lock-face comint-highlight-input))
+      ;; Hack for datalog/lang
+      (when prefix (process-send-eof proc)))))
+
+(defun racket--repl-complete-sexp-p (proc)
+  (condition-case nil
+      (let* ((beg    (marker-position (process-mark proc)))
+             (end    (save-excursion
+                       (goto-char beg)
+                       (forward-list 1) ;scan-error unless complete sexp
+                       (point)))
+             (blankp (save-excursion
+                       (save-match-data
+                         (goto-char beg)
+                         (equal end
+                                (re-search-forward (rx (1+ (or (syntax whitespace)
+                                                               (syntax comment-start)
+                                                               (syntax comment-end))))
+                                                   end
+                                                   t))))))
+        (not (or (equal beg end) blankp)))
+    (scan-error nil)))
 
 (defun racket-repl-exit (&optional quitp)
   "End the Racket REPL process.
