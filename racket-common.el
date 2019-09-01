@@ -297,9 +297,12 @@ which case the selection is to be wrapped in parens."
 
 With a prefix, insert the typed character as-is.
 
-This is handy if you're not yet using `paredit-mode',
-`smartparens-mode', or simply `electric-pair-mode' added in Emacs
-24.5."
+If you want to use this, in your Emacs init file you can bind
+\")\", \"]\", and \"}\" keys to `racket-insert-closing'.
+
+This is handy if you're not yet using something like
+`paredit-mode', `smartparens-mode', `parinfer-mode', or simply
+`electric-pair-mode' added in Emacs 24.5."
   (interactive "P")
   (let* ((do-it (not (or prefix
                          (and (string= "#\\"
@@ -485,11 +488,11 @@ To use, bind the `[` key to `racket-smart-open-bracket' in
 
 To force insert `[`, use `quoted-insert'.
 
-Combined with `racket-insert-closing' this means that
-you can press the unshifted `[` and `]` keys to get whatever
-delimiters follow the Racket conventions for these forms. When
-`electric-pair-mode' or `paredit-mode' is active, you need not
-even press `]`."
+Combined with `racket-insert-closing' this means that you can
+press the unshifted `[` and `]` keys to get whatever delimiters
+follow the Racket conventions for these forms. When something
+like `electric-pair-mode' or `paredit-mode' is active, you need
+not even press `]`."
   (interactive "P")
   (let ((ch (or (and (not racket-smart-open-bracket-enable)
                      ?\[)

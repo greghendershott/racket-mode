@@ -71,6 +71,7 @@
     racket-base-requires
     racket-indent-line
     racket-smart-open-bracket
+    racket-insert-closing
     racket-cycle-paren-shapes
     racket-backward-up-list
     racket-check-syntax-mode

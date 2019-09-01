@@ -112,6 +112,7 @@ Edit
 * racket-base-requires::
 * racket-indent-line::
 * racket-smart-open-bracket::
+* racket-insert-closing::
 * racket-cycle-paren-shapes::
 * racket-backward-up-list::
 * racket-check-syntax-mode::
@@ -1047,6 +1048,7 @@ instead of looking at point.
 * racket-base-requires::
 * racket-indent-line::
 * racket-smart-open-bracket::
+* racket-insert-closing::
 * racket-cycle-paren-shapes::
 * racket-backward-up-list::
 * racket-check-syntax-mode::
@@ -1264,11 +1266,27 @@ To use, bind the @code{[} key to @ref{racket-smart-open-bracket} in
 
 To force insert @code{[}, use @code{quoted-insert}.
 
-Combined with @code{racket-insert-closing} this means that
-you can press the unshifted @code{[} and @code{]} keys to get whatever
-delimiters follow the Racket conventions for these forms. When
-@code{electric-pair-mode} or @code{paredit-mode} is active, you need not
-even press @code{]}.
+Combined with @ref{racket-insert-closing} this means that you can
+press the unshifted @code{[} and @code{]} keys to get whatever delimiters
+follow the Racket conventions for these forms. When something
+like @code{electric-pair-mode} or @code{paredit-mode} is active, you need
+not even press @code{]}.
+
+@node racket-insert-closing
+@subsection racket-insert-closing
+
+@kbd{M-x}  @code{racket-insert-closing} @kbd{RET} 
+
+Insert a matching closing delimiter.
+
+With a prefix, insert the typed character as-is.
+
+If you want to use this, in your Emacs init file you can bind
+")", "]", and ``@}" keys to @ref{racket-insert-closing}.
+
+This is handy if you're not yet using something like
+@code{paredit-mode}, @code{smartparens-mode}, @code{parinfer-mode}, or simply
+@code{electric-pair-mode} added in Emacs 24.5.
 
 @node racket-cycle-paren-shapes
 @subsection racket-cycle-paren-shapes
