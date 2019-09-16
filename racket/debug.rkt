@@ -15,6 +15,9 @@
 
 (lazy-require ["debug-annotator.rkt" (annotate-for-single-stepping)])
 
+(module+ test
+  (require rackunit))
+
 (provide (rename-out [on-break-channel debug-notify-channel])
          debug-eval
          debug-resume
@@ -111,6 +114,11 @@
   ;; words, this is sent as a notification, unlike a command response
   ;; as a result of a request.
   (define this-break-id (new-break-id))
+  ;; If it is not possible to round-trip serialize/deserialize the
+  ;; values, use the original values when stepping (don't attempt to
+  ;; substitute user-supplied values).
+  (define cannot-serialize "'cannot-serialize")
+  (define serialized-vals (if (serializable? vals) (~s vals) cannot-serialize))
   (channel-put on-break-channel
                (list 'debug-break
                      (cons src pos)
@@ -119,11 +127,9 @@
                      (cons this-break-id
                            (case before/after
                              [(before) (list 'before)]
-                             [(after)  (list 'after (~s vals))]))))
+                             [(after)  (list 'after serialized-vals)]))))
   ;; Wait for debug-resume command to put to on-resume-channel. If
-  ;; wrong break ID, ignore and wait again. Note that some Racket
-  ;; values are non-serializable -- e.g. #<output-port> -- in which
-  ;; case just eat the exn:fail:read and use the original `vals`.
+  ;; wrong break ID, ignore and wait again.
   (let wait ()
     (begin0
         (match (channel-get on-resume-channel)
@@ -132,11 +138,35 @@
            #f]
           [(list break-when (list (== this-break-id) (or 'before 'after) vals-str))
            (next-break (calc-next-break before/after break-when top-mark ccm))
-           (with-handlers ([exn:fail:read? (λ _ vals)])
-             (read (open-input-string vals-str)))]
+           (if (equal? serialized-vals cannot-serialize)
+               vals
+               (read-str/default vals-str vals))]
           [_ (wait)])
       (kill-thread repl-thread)
       (newline))))
+
+(define (serializable? v)
+  (with-handlers ([exn:fail:read? (λ _ #f)])
+    (equal? v (write/read v))))
+
+(module+ test
+  (check-true (serializable? 42))
+  (check-true (serializable? 'foo))
+  (check-false (serializable? (open-output-string))))
+
+(define (write/read v)
+  (define out (open-output-string))
+  (write v out)
+  (define in (open-input-string (get-output-string out)))
+  (read in))
+
+(module+ test
+  (check-equal? (write/read 42) 42)
+  (check-equal? (write/read 'foo) 'foo))
+
+(define (read-str/default str default)
+  (with-handlers ([exn:fail:read? (λ _ default)])
+    (read (open-input-string str))))
 
 (define/contract (calc-next-break before/after break-when top-mark ccm)
   (-> (or/c 'before 'after) (or/c break-when/c 'over 'out) mark/c continuation-mark-set?
