@@ -1,4 +1,4 @@
-;;; racket-indent.el  -*- lexical: t; -*-
+;;; racket-indent.el  -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2013-2017 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
@@ -60,7 +60,7 @@
   (advice-add 'lisp-indent-line :around #'racket--lisp-indent-line-advice)
   (advice-add 'indent-sexp :around #'racket--indent-sexp-advice))
 
-(defun racket-indent-line (&optional whole-exp)
+(defun racket-indent-line (&optional _whole-exp)
   "Indent current line as Racket code.
 
 This behaves like `lisp-indent-line', except that whole-line
@@ -241,7 +241,7 @@ To handle nested items, we search `backward-up-list' up to
                       (setq answer nil))))
              (eq answer t))))))
 
-(defun racket--normal-indent (indent-point state)
+(defun racket--normal-indent (_indent-point state)
   ;; Credit: Substantially borrowed from clojure-mode
   (goto-char (racket--ppss-last-sexp state))
   (backward-prefix-chars)
