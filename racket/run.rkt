@@ -6,7 +6,6 @@
          racket/contract/region
          racket/format
          racket/match
-         racket/port
          racket/set
          racket/string
          "channel.rkt"
@@ -123,9 +122,6 @@
          [profiling-enabled (eq? context-level 'profile)]
          [test-coverage-enabled (eq? context-level 'coverage)]
          [current-sync/yield (txt/gui sync yield)]
-         [current-input-port  (dup-input-port (current-input-port))]   ;#381
-         [current-output-port (dup-output-port (current-output-port))] ;#381
-         [current-error-port  (dup-output-port (current-error-port))]  ;#381
          ;; LAST: `current-eventspace` because `make-eventspace`
          ;; creates an event handler thread -- now. We want that
          ;; thread to inherit the parameterizations above. (Otherwise
@@ -138,8 +134,9 @@
       (define (repl-thunk)
         ;; 0. Command line arguments
         (current-command-line-arguments cmd-line-args)
-        ;; 1. Set current-print and pretty-print hooks.
+        ;; 1. Set print hooks and output handlers
         (set-print-parameters pretty-print?)
+        (set-output-handlers)
         ;; 2. If module, require and enter its namespace, etc.
         (stx-cache:before-run maybe-mod)
         (when (and maybe-mod mod-path)
@@ -246,3 +243,15 @@
       [(mp rmp stx load?) (resolve mp rmp stx load?)])))
 (define module-name-resolver-for-run  (make-module-name-resolver #f))
 (define module-name-resolver-for-repl (make-module-name-resolver #t))
+
+;;; Output handlers; see issues #381 #397
+
+(define the-default-output-handlers
+  (for/hash ([get/set (in-list (list port-write-handler
+                                     port-display-handler
+                                     port-print-handler))])
+    (values get/set (get/set (current-output-port)))))
+
+(define (set-output-handlers)
+  (for ([(get/set v) (in-hash the-default-output-handlers)])
+    (get/set (current-output-port) v)))
