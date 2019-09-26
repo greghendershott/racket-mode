@@ -192,6 +192,8 @@ the `racket-indent-function` property."
                body-indent) ;just like 'defun
               ((string-match (rx bos "begin") head)
                (racket--indent-special-form 0 indent-point state))
+              ((string-match (rx bos (or "for/" "for*/")) head)
+               (racket--indent-for indent-point state))
               (t
                (racket--normal-indent indent-point state)))))))
 
@@ -379,8 +381,9 @@ ignore a short list defined by scheme-mode itself."
 (defun racket--set-indentation ()
   "Set indentation for various Racket forms.
 
-Note that `beg*`, `def*` and `with-*` aren't listed here because
-`racket-indent-function' handles those.
+Note that `racket-indent-function' handles some forms -- e.g.
+`begin*`, `def*` `for/*`, `with-*` -- with regexp matches for
+anything not explicitly listed here.
 
 Note that indentation is set for the symbol alone, and also with
 a : suffix for legacy Typed Racket. For example both `let` and
@@ -411,42 +414,15 @@ doesn't hurt to do so."
           (do 2)
           (dynamic-wind 0)
           (fn 1) ;alias for lambda (although not officially in Racket)
+          ;; for/ and for*/ forms default to racket--indent-for unless
+          ;; otherwise specified here
           (for 1)
           (for/list racket--indent-for)
-          (for/vector racket--indent-for)
-          (for/hash racket--indent-for)
-          (for/hasheq racket--indent-for)
-          (for/hasheqv racket--indent-for)
-          (for/and racket--indent-for)
-          (for/or racket--indent-for)
           (for/lists racket--indent-for/fold)
-          (for/first racket--indent-for)
-          (for/last racket--indent-for)
           (for/fold racket--indent-for/fold)
-          (for/flvector racket--indent-for)
-          (for/set racket--indent-for)
-          (for/seteq racket--indent-for)
-          (for/seteqv racket--indent-for)
-          (for/sum racket--indent-for)
-          (for/product racket--indent-for)
           (for* 1)
-          (for*/list racket--indent-for)
-          (for*/vector racket--indent-for)
-          (for*/hash racket--indent-for)
-          (for*/hasheq racket--indent-for)
-          (for*/hasheqv racket--indent-for)
-          (for*/and racket--indent-for)
-          (for*/or racket--indent-for)
           (for*/lists racket--indent-for/fold)
-          (for*/first racket--indent-for)
-          (for*/last racket--indent-for)
           (for*/fold racket--indent-for/fold)
-          (for*/flvector racket--indent-for)
-          (for*/set racket--indent-for)
-          (for*/seteq racket--indent-for)
-          (for*/seteqv racket--indent-for)
-          (for*/sum racket--indent-for)
-          (for*/product racket--indent-for)
           (instantiate 2)
           (interface 1)
           (λ 1)
