@@ -220,7 +220,9 @@ Modes to support specific features, such as:
 @end itemize
 @end itemize
 
-For code, issues, and pull requests, see @uref{https://github.com/greghendershott/racket-mode,the Git repo}.
+For code, issues, and pull requests, see the @uref{https://github.com/greghendershott/racket-mode,Git repo}.
+
+To fund this work, see @uref{https://github.com/users/greghendershott/sponsorship,GitHub Sponsors} or @uref{https://www.paypal.me/greghendershott,PayPal}.
 
 @node Install
 @chapter Install
