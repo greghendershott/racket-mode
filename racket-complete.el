@@ -221,11 +221,12 @@ TAB, and activate using RET -- for `racket-visit-definition' and
     (`nil nil)
     (str (racket--do-describe str t))))
 
-(defun racket--do-describe (str &optional pop-to)
-  "A helper for `racket-describe' and company-mode.
+(defun racket--do-describe (str &optional display-and-pop-to-p)
+  "A helper used by both `racket-describe' and `company-mode'.
 
-POP-TO should be t for the former (in which case some buttons are
-added) and nil for the latter.
+DISPLAY-AND-POP-TO-P should be t for use by `racket-describe' --
+in which case some buttons are added and the buffer is displayed
+-- and nil for use by `company-mode'.
 
 Returns the buffer in which the description was written."
   (let* ((bufname "*Racket Describe*")
@@ -243,7 +244,7 @@ Returns the buffer in which the description was written."
                 (libxml-parse-html-region (point-min) (point-max))))
          ;; Work around what seems to be a bug with shr -- inserting
          ;; elements out of order, when an existing Racket Describe buffer
-         ;; hasn't had a quit-window -- by re-creating the bufer.
+         ;; hasn't had a quit-window -- by re-creating the buffer.
          (buf (get-buffer bufname))
          (_   (and buf (kill-buffer buf)))
          (buf (get-buffer-create bufname)))
@@ -257,7 +258,7 @@ Returns the buffer in which the description was written."
       (while (re-search-forward spc nil t)
         (replace-match " " t t))
       (goto-char (point-max))
-      (when pop-to
+      (when display-and-pop-to-p
         (insert "\n")
         (insert-text-button "Definition"
                             'action
@@ -271,8 +272,8 @@ Returns the buffer in which the description was written."
         (insert "          [q]uit"))
       (read-only-mode 1)
       (goto-char (point-min))
-      (display-buffer (current-buffer) t)
-      (when pop-to
+      (when display-and-pop-to-p
+        (display-buffer (current-buffer) t)
         (pop-to-buffer (current-buffer))
         (message "Type TAB to move to links, 'q' to restore previous window"))
       (current-buffer))))
