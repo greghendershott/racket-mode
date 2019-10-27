@@ -1,6 +1,6 @@
 ;;; racket-indent.el  -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2017 by Greg Hendershott.
+;; Copyright (c) 2013-2019 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -41,7 +41,7 @@
 
 ;; Having said all that, we still have the matter of `paredit-mode'.
 ;; It directly calls `lisp-indent-line' instead of `indent-function'.
-;; And, it directly calls `indent-sexp' instead of `prog-indent-sep'.
+;; And, it directly calls `indent-sexp' instead of `prog-indent-sexp'.
 ;; Therefore it gets `lisp-mode' indent, not ours. To address this,
 ;; advise those two functions to do the right thing when one of our
 ;; major modes is active.
