@@ -1,6 +1,6 @@
-;;; racket-util.el
+;;; racket-util.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2016 by Greg Hendershott.
+;; Copyright (c) 2013-2019 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -52,6 +52,12 @@ variable `racket-path-from-emacs-to-racket-function'."
         v
       (funcall racket-path-from-emacs-to-racket-function
                v))))
+
+(defun racket--get-buffer-recreate (bufname)
+  "Like `get-buffer-create' but re-creates the buffer if it already exists."
+  (let* ((buf (get-buffer bufname))
+         (_   (when buf (kill-buffer buf)))))
+  (get-buffer-create bufname))
 
 (defun racket--save-if-changed ()
   (unless (eq major-mode 'racket-mode)

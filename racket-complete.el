@@ -1,6 +1,6 @@
 ;;; racket-complete.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2018 by Greg Hendershott.
+;; Copyright (c) 2013-2019 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -21,6 +21,7 @@
 (require 'racket-custom)
 (require 'racket-repl)
 (require 'racket-keywords-and-builtins)
+(require 'racket-util)
 (require 'shr)
 (declare-function racket--do-visit-def-or-mod "racket-edit.el")
 
@@ -229,36 +230,32 @@ in which case some buttons are added and the buffer is displayed
 -- and nil for use by `company-mode'.
 
 Returns the buffer in which the description was written."
-  (let* ((bufname "*Racket Describe*")
-         (html (racket--cmd/await `(describe ,str)))
-         ;; Emacs shr renderer removes leading &nbsp; from <td> elements
-         ;; -- which messes up the indentation of s-expressions including
-         ;; contracts. So replace &nbsp with `spc' in the source HTML,
-         ;; and replace `spc' with " " after shr-insert-document outputs.
-         (spc (string #x2020)) ;unlikely character (hopefully)
-         (dom (with-temp-buffer
-                (insert html)
-                (goto-char (point-min))
-                (while (re-search-forward "&nbsp;" nil t)
-                  (replace-match spc t t))
-                (libxml-parse-html-region (point-min) (point-max))))
-         ;; Work around what seems to be a bug with shr -- inserting
-         ;; elements out of order, when an existing Racket Describe buffer
-         ;; hasn't had a quit-window -- by re-creating the buffer.
-         (buf (get-buffer bufname))
-         (_   (and buf (kill-buffer buf)))
-         (buf (get-buffer-create bufname)))
-    (with-current-buffer buf
+  ;; Work around what seems to be a bug with `shr-insert-document' --
+  ;; elements are out of order when an existing Racket Describe buffer
+  ;; hasn't had a `quit-window' -- by re-creating the buffer.
+  (with-current-buffer (racket--get-buffer-recreate "*Racket Describe*")
+    (let* ((html (racket--cmd/await `(describe ,str)))
+           ;; Because shr removes leading &nbsp; from <td> elements --
+           ;; which messes up the indentation of s-expressions
+           ;; including contracts -- replace &nbsp with `spc' in the
+           ;; source HTML. Below we'll replace `spc' with " " in the
+           ;; result of `shr-insert-document'.
+           (spc (string #x2020))       ;unlikely character (hopefully)
+           (dom (with-temp-buffer
+                  (insert html)
+                  (goto-char (point-min))
+                  (while (re-search-forward "&nbsp;" nil t)
+                    (replace-match spc t t))
+                  (libxml-parse-html-region (point-min) (point-max)))))
       (racket-describe-mode)
       (read-only-mode -1)
-      (erase-buffer)
       (let ((shr-use-fonts nil))
         (shr-insert-document dom))
       (goto-char (point-min))
       (while (re-search-forward spc nil t)
         (replace-match " " t t))
-      (goto-char (point-max))
       (when display-and-pop-to-p
+        (goto-char (point-max))
         (insert "\n")
         (insert-text-button "Definition"
                             'action
