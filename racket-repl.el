@@ -212,7 +212,7 @@ The following values will /not/ work:
   (comint-check-proc racket--repl-buffer-name))
 
 (defvar racket--repl-before-run-hook nil
-  "Thunks to do before each `racket--repl-run' -- except an initial run.")
+  "Thunks to do before each `racket--repl-run'.")
 
 (defun racket--repl-run (&optional what-to-run context-level callback)
   "Do an initial or subsequent run.
@@ -234,10 +234,10 @@ argument whose value should be ignored.
 
 - If the REPL is live, send a 'run command to the backend's TCP
   server."
+  (run-hook-with-args 'racket--repl-before-run-hook)
   (let ((cmd (racket--repl-make-run-command (or what-to-run (racket--what-to-run))
                                             (or context-level racket-error-context))))
     (cond ((racket--repl-live-p)
-           (run-hook-with-args 'racket--repl-before-run-hook)
            (racket--cmd/async cmd callback)
            (racket--repl-show-and-move-to-end))
           (t
