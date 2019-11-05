@@ -35,7 +35,7 @@ compile: show-versions $(ELCS)
 # deps automatically as a result of our Package-Requires in
 # racket-mode.el)
 deps:
-	$(BATCHEMACS) -eval '(progn (add-to-list (quote package-archives) (cons "melpa" "http://melpa.org/packages/")) (package-initialize) (package-refresh-contents) (package-install (quote faceup)))'
+	$(BATCHEMACS) -eval '(progn (add-to-list (quote package-archives) (cons "melpa" "http://melpa.org/packages/")) (package-initialize) (package-refresh-contents) (package-install (quote faceup)) (package-install (quote paredit)))'
 
 test: test-racket test-elisp
 

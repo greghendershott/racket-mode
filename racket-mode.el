@@ -69,7 +69,8 @@
      ("M-C-."       racket-visit-module)
      ("M-,"         racket-unvisit)
      ("C-c C-f"     racket-fold-all-tests)
-     ("C-c C-u"     racket-unfold-all-tests)))
+     ("C-c C-u"     racket-unfold-all-tests)
+     ((")" "]" "}") racket-insert-closing)))
   "Keymap for Racket mode.")
 
 (easy-menu-define racket-mode-menu racket-mode-map

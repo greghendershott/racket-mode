@@ -749,7 +749,8 @@ With prefix arg, open the N-th last shown image."
      ("M-,"             racket-unvisit)
      ("C-c C-z"         racket-repl-switch-to-edit)
      ("C-c C-l"         racket-logger)
-     ("C-c C-\\"        racket-repl-exit)))
+     ("C-c C-\\"        racket-repl-exit)
+     ((")" "]" "}")     racket-insert-closing)))
   "Keymap for Racket REPL mode.")
 
 (easy-menu-define racket-repl-mode-menu racket-repl-mode-map

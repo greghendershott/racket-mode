@@ -694,7 +694,7 @@ special commands to navigate among the definition and its uses.
              ("r"               racket-check-syntax-mode-rename)))
   (unless (eq major-mode 'racket-mode)
     (setq racket-check-syntax-mode nil)
-    (user-error "racket-check-syntax-mode only works with racket-mode"))
+    (user-error "racket-check-syntax-mode only works with Racket Mode buffers"))
   (racket--check-syntax-stop)
   (when racket-check-syntax-mode
     (racket--check-syntax-start)))

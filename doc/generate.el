@@ -24,6 +24,7 @@
 (require 'racket-edit)
 (require 'racket-util)
 (require 'racket-unicode-input-method)
+(require 'racket-smart-open)
 (require 'cl-lib)
 
 (defun racket-generate-reference.org ()
@@ -70,7 +71,7 @@
     racket-trim-requires
     racket-base-requires
     racket-indent-line
-    racket-smart-open-bracket
+    racket-smart-open-bracket-mode
     racket-insert-closing
     racket-cycle-paren-shapes
     racket-backward-up-list

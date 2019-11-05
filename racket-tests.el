@@ -13,14 +13,16 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'ert)
+(require 'edmacro)
+(require 'faceup)
+(require 'paredit)
 (require 'racket-mode)
 (require 'racket-repl)
 (require 'racket-edit)
-(require 'edmacro)
-(require 'faceup)
 (require 'racket-common)
 (require 'racket-custom)
 (require 'racket-repl)
+(require 'racket-smart-open)
 
 (defconst racket-tests/here-dir (faceup-this-file-directory)
   "The directory this file is located in.")
@@ -90,11 +92,13 @@
       (should (racket-tests/see-rx
                "Welcome to Racket v?[0-9.]+\\(?: \\[cs\\].\\)?[\n]\\(?:;.*[\n]\\)*> "))
       (racket-tests/wait-for-command-server)
+
       ;; Completion
       (racket-tests/type&press "with-inp" "TAB")
       (should (racket-tests/see "with-input-from-file"))
       (racket-tests/press "RET")
       (should (racket-tests/see "#<procedure:with-input-from-file>\n> "))
+
       ;; Multiline expression indent
       (racket-tests/type&press "(if 1" "C-j")
       (should (racket-tests/see "(if 1\n      "))
@@ -102,6 +106,20 @@
       (should (racket-tests/see "2\n      "))
       (racket-tests/type&press "3)" "RET")
       (should (racket-tests/see "3)\n2\n> "))
+
+      ;; Smart open bracket
+      (let ((typing   "[cond [[values 1] #t] [else #f]]")
+            (expected "(cond [(values 1) #t] [else #f])\n#t\n> "))
+        (racket-smart-open-bracket-mode 1)
+        (mapc (lambda (modes)
+                (electric-pair-mode (if (car modes) 1 -1))
+                (if (cdr modes) (enable-paredit-mode) (disable-paredit-mode))
+                (racket-tests/type&press typing "RET")
+                (should (racket-tests/see expected)))
+              (list (cons nil nil)
+                    (cons t   nil)
+                    (cons nil t))))
+
       ;; Exit
       (racket-tests/type&press "(exit)" "RET")
       (should (racket-tests/see "Process Racket REPL finished\n")))))
@@ -142,7 +160,8 @@
 ;;; Indentation
 
 (defun racket-tests/same-indent (file)
-  (with-current-buffer (find-file (concat racket-tests/here-dir file))
+  (with-current-buffer (find-file (expand-file-name file
+                                                    racket-tests/here-dir))
     (indent-region (point-min) (point-max))
     (let ((ok (not (buffer-modified-p))))
       (revert-buffer t t t)  ;revert in case running ERT interactively
@@ -160,7 +179,8 @@
 FILE is interpreted as relative to this source directory."
   (let ((font-lock-maximum-decoration t))
     (faceup-test-font-lock-file 'racket-mode
-                                (concat racket-tests/here-dir file))))
+                                (expand-file-name file
+                                                  racket-tests/here-dir))))
 
 (faceup-defexplainer racket-tests/same-faceup)
 
@@ -168,40 +188,6 @@ FILE is interpreted as relative to this source directory."
   "Font-lock of example/*.rkt shouldn't change."
   (should (racket-tests/same-faceup "racket/example/indent.rkt"))
   (should (racket-tests/same-faceup "racket/example/example.rkt")))
-
-;;; Smart open bracket
-
-(defun racket-tests/brackets (smartp input expected)
-  (with-temp-buffer
-    (racket-mode)
-    (let ((racket-smart-open-bracket-enable smartp)
-          (blink-matching-paren nil)) ;suppress "Matches " messages
-      (mapc (lambda (x)
-              (cond ((eq x ?\[) (racket-smart-open-bracket))
-                    ((eq x ?\]) (racket-insert-closing))
-                    (t          (racket--self-insert x))))
-            input)
-      (equal (buffer-substring-no-properties (point-min) (point-max))
-             expected))))
-
-(ert-deftest racket-tests/smart-open-bracket ()
-  "Type a `cond` form with `racket-smart-open-bracket-enable' both t and nil.
-Also try with `electric-pair-mode' both on and off.
-
-Currently this is really just a regression test for bug #81. This
-could be expanded into a series of exhaustive tests of all the
-special forms it handles."
-  (let ((before "[cond [[f x] #t][else #f]]")
-        (after  "(cond [(f x) #t][else #f])")
-        (orig-electricp electric-pair-mode))
-    (electric-pair-mode -1)
-    (should (racket-tests/brackets nil before before))
-    (should (racket-tests/brackets t   before after))
-    (electric-pair-mode 1)
-    (should (racket-tests/brackets nil before before))
-    (should (racket-tests/brackets t   before after))
-    ;; Restore in case running interactively with ERT
-    (electric-pair-mode (if orig-electricp 1 -1))))
 
 (provide 'racket-tests)
 

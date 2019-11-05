@@ -111,7 +111,7 @@ Edit
 * racket-trim-requires::
 * racket-base-requires::
 * racket-indent-line::
-* racket-smart-open-bracket::
+* racket-smart-open-bracket-mode::
 * racket-insert-closing::
 * racket-cycle-paren-shapes::
 * racket-backward-up-list::
@@ -1049,7 +1049,7 @@ instead of looking at point.
 * racket-trim-requires::
 * racket-base-requires::
 * racket-indent-line::
-* racket-smart-open-bracket::
+* racket-smart-open-bracket-mode::
 * racket-insert-closing::
 * racket-cycle-paren-shapes::
 * racket-backward-up-list::
@@ -1231,12 +1231,12 @@ help people who may have extensive @code{scheme-indent-function}
 settings, particularly in the form of file or dir local
 variables. Otherwise prefer @code{racket-indent-function}.
 
-@node racket-smart-open-bracket
-@subsection racket-smart-open-bracket
+@node racket-smart-open-bracket-mode
+@subsection racket-smart-open-bracket-mode
 
-@kbd{M-x}  @code{racket-smart-open-bracket} @kbd{RET} 
+@kbd{M-x}  @code{racket-smart-open-bracket-mode} @kbd{RET} 
 
-Automatically insert a @code{(} or a @code{[} as appropriate.
+Minor mode to let you always type '[' to insert @code{(} or @code{[} automatically.
 
 Behaves like the ``Automatically adjust opening square brackets''
 feature in Dr. Racket:
@@ -1263,9 +1263,6 @@ as things like @code{parameterize}, @code{with-handlers}, and
 When the previous s-expression in a sequence is a compound
 expression, uses the same kind of delimiter.
 
-To use, bind the @code{[} key to @ref{racket-smart-open-bracket} in
-@code{racket-mode-map} and/or @code{racket-repl-mode-map}.
-
 To force insert @code{[}, use @code{quoted-insert}.
 
 Combined with @ref{racket-insert-closing} this means that you can
@@ -1274,10 +1271,15 @@ follow the Racket conventions for these forms. When something
 like @code{electric-pair-mode} or @code{paredit-mode} is active, you need
 not even press @code{]}.
 
+Tip: When also using @code{paredit-mode}, enable that first so that
+the binding for the '[' key in the map for
+@ref{racket-smart-open-bracket-mode} has higher priority. See also
+the variable @code{minor-mode-map-alist}.
+
 @node racket-insert-closing
 @subsection racket-insert-closing
 
-@kbd{M-x}  @code{racket-insert-closing} @kbd{RET} 
+@kbd{]}  or @kbd{)} 
 
 Insert a matching closing delimiter.
 
@@ -1895,7 +1897,7 @@ or, use @ref{racket-insert-lambda} to insert actual λ characters.
 This variable is obsolete and has no effect.
 
 Instead of using this variable, you may bind the @code{[} key to the
-@ref{racket-smart-open-bracket} command in the @code{racket-mode-map}
+@code{racket-smart-open-bracket} command in the @code{racket-mode-map}
 and/or @code{racket-repl-mode-map} keymaps.
 
 @node racket-logger-config
