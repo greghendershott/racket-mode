@@ -25,7 +25,7 @@
 
 ;;;###autoload
 (define-minor-mode racket-smart-open-bracket-mode
-  "Minor mode to let you always type '[' to insert `(` or `[` automatically.
+  "Minor mode to let you always type `[`' to insert `(` or `[` automatically.
 
 Behaves like the \"Automatically adjust opening square brackets\"
 feature in Dr. Racket.
@@ -55,7 +55,7 @@ like `electric-pair-mode' or `paredit-mode' is active, you need
 not even press `]`.
 
 Tip: When also using `paredit-mode', enable that first so that
-the binding for the '[' key in the map for
+the binding for the `[`' key in the map for
 `racket-smart-open-bracket-mode' has higher priority. See also
 the variable `minor-mode-map-alist'."
   :lighter " RacketSmartOpen"

@@ -1236,10 +1236,10 @@ variables. Otherwise prefer @code{racket-indent-function}.
 
 @kbd{M-x}  @code{racket-smart-open-bracket-mode} @kbd{RET} 
 
-Minor mode to let you always type '[' to insert @code{(} or @code{[} automatically.
+Minor mode to let you always type @code{[}' to insert @code{(} or @code{[} automatically.
 
 Behaves like the ``Automatically adjust opening square brackets''
-feature in Dr. Racket:
+feature in Dr. Racket.
 
 By default, inserts a @code{(}. Inserts a @code{[} in the following cases:
 
@@ -1272,7 +1272,7 @@ like @code{electric-pair-mode} or @code{paredit-mode} is active, you need
 not even press @code{]}.
 
 Tip: When also using @code{paredit-mode}, enable that first so that
-the binding for the '[' key in the map for
+the binding for the @code{[}' key in the map for
 @ref{racket-smart-open-bracket-mode} has higher priority. See also
 the variable @code{minor-mode-map-alist}.
 
@@ -1284,9 +1284,6 @@ the variable @code{minor-mode-map-alist}.
 Insert a matching closing delimiter.
 
 With a prefix, insert the typed character as-is.
-
-If you want to use this, in your Emacs init file you can bind
-")", "]", and ``@}" keys to @ref{racket-insert-closing}.
 
 This is handy if you're not yet using something like
 @code{paredit-mode}, @code{smartparens-mode}, @code{parinfer-mode}, or simply
