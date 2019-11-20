@@ -1,11 +1,4 @@
-language: emacs-lisp
-
-# See https://github.com/flycheck/emacs-travis/issues/13
-sudo: required
-
-cache:
-  - directories:
-      - "$HOME/emacs"
+language: nix
 
 env:
   global:
@@ -19,66 +12,58 @@ env:
     # testing with newer Emacs.)                                     #
     ##################################################################
     # Emacs 24.3
-    - EMACS_VERSION=24.3 RACKET_VERSION=7.5
-    - EMACS_VERSION=24.3 RACKET_VERSION=HEAD
+    - EMACS_CI=emacs-24-3 RACKET_VERSION=7.5
+    - EMACS_CI=emacs-24-3 RACKET_VERSION=HEAD
     # Emacs 24.5
-    - EMACS_VERSION=24.5 RACKET_VERSION=7.5
-    - EMACS_VERSION=24.5 RACKET_VERSION=HEAD
+    - EMACS_CI=emacs-24-5 RACKET_VERSION=7.5
+    - EMACS_CI=emacs-24-5 RACKET_VERSION=HEAD
     # Emacs 25.1
-    - EMACS_VERSION=25.1 RACKET_VERSION=7.5
-    - EMACS_VERSION=25.1 RACKET_VERSION=HEAD
+    - EMACS_CI=emacs-25-1 RACKET_VERSION=7.5
+    - EMACS_CI=emacs-25-1 RACKET_VERSION=HEAD
     # Emacs 26.1
-    - EMACS_VERSION=26.1 RACKET_VERSION=6.2
-    - EMACS_VERSION=26.1 RACKET_VERSION=6.3
-    - EMACS_VERSION=26.1 RACKET_VERSION=6.5
-    - EMACS_VERSION=26.1 RACKET_VERSION=6.6
-    - EMACS_VERSION=26.1 RACKET_VERSION=6.7
-    - EMACS_VERSION=26.1 RACKET_VERSION=6.8
-    - EMACS_VERSION=26.1 RACKET_VERSION=6.9
-    - EMACS_VERSION=26.1 RACKET_VERSION=6.10
-    - EMACS_VERSION=26.1 RACKET_VERSION=6.11
-    - EMACS_VERSION=26.1 RACKET_VERSION=6.12
-    - EMACS_VERSION=26.1 RACKET_VERSION=7.0
-    - EMACS_VERSION=26.1 RACKET_VERSION=7.1
-    - EMACS_VERSION=26.1 RACKET_VERSION=7.2
-    - EMACS_VERSION=26.1 RACKET_VERSION=7.3
-    - EMACS_VERSION=26.1 RACKET_VERSION=7.4
-    - EMACS_VERSION=26.1 RACKET_VERSION=7.5
-    - EMACS_VERSION=26.1 RACKET_VERSION=HEAD
-    - EMACS_VERSION=26.1 RACKET_VERSION=HEADCS
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.2
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.3
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.5
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.6
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.7
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.8
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.9
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.10
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.11
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.12
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=7.0
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=7.1
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=7.2
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=7.3
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=7.4
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=7.5
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=HEAD
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=HEADCS
     # Emacs snapshot. Because slow to make, test against only some key
     # versions of Racket like latest stable and HEAD. Also list these
     # jobs below under `allow_failures`, and use `fast_finish`.
-    - EMACS_VERSION=snapshot RACKET_VERSION=7.5
-    - EMACS_VERSION=snapshot RACKET_VERSION=HEAD
+    - EMACS_CI=emacs-snapshot RACKET_VERSION=7.5
+    - EMACS_CI=emacs-snapshot RACKET_VERSION=HEAD
 
 matrix:
   allow_failures:
     # bleeding edge Racket
-    - env: EMACS_VERSION=24.3 RACKET_VERSION=HEAD
-    - env: EMACS_VERSION=24.5 RACKET_VERSION=HEAD
-    - env: EMACS_VERSION=25.1 RACKET_VERSION=HEAD
-    - env: EMACS_VERSION=26.1 RACKET_VERSION=HEAD
-    - env: EMACS_VERSION=26.1 RACKET_VERSION=HEADCS
+    - env: EMACS_CI=emacs-24-3 RACKET_VERSION=HEAD
+    - env: EMACS_CI=emacs-24-5 RACKET_VERSION=HEAD
+    - env: EMACS_CI=emacs-25-1 RACKET_VERSION=HEAD
+    - env: EMACS_CI=emacs-26-1 RACKET_VERSION=HEAD
+    - env: EMACS_CI=emacs-26-1 RACKET_VERSION=HEADCS
     # bleeding edge Emacs
-    - env: EMACS_VERSION=snapshot RACKET_VERSION=7.5
-    - env: EMACS_VERSION=snapshot RACKET_VERSION=HEAD
+    - env: EMACS_CI=emacs-snapshot RACKET_VERSION=7.5
+    - env: EMACS_CI=emacs-snapshot RACKET_VERSION=HEAD
   fast_finish: true
 
-before_install:
+install:
   ## Emacs
-  # Configure $PATH: Executables are installed to $HOME/bin
-  - export PATH="$HOME/bin:$PATH"
-  # Download the makefile to emacs-travis.mk
-  - wget 'https://raw.githubusercontent.com/flycheck/emacs-travis/master/emacs-travis.mk'
-  # Install Emacs (according to $EMACS_VERSION)
-  - make -f emacs-travis.mk install_emacs
-  # # Install Texinfo, if you need to build info manuals for your project
-  # - make -f emacs-travis.mk install_texinfo
+  - bash <(curl https://raw.githubusercontent.com/purcell/nix-emacs-ci/master/travis-install)
 
   ## Racket
-  - git clone https://github.com/greghendershott/travis-racket.git
-  - cat travis-racket/install-racket.sh | bash # pipe to bash not sh!
+  - bash <(curl https://raw.githubusercontent.com/greghendershott/travis-racket/master/install-racket.sh)
   - export PATH="${RACKET_DIR}/bin:${PATH}" #install-racket.sh can't set for us
 
 script:
