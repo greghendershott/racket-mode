@@ -580,7 +580,11 @@ mark so that output goes on a fresh line, not on the same line as
 the prompt.
 
 Afterwards call `racket--repl-show-and-move-to-end'."
-  (when (and start end)
+  (unless (and start end)
+    (error "start and end must not be nil"))
+  ;; Save the current buffer in case something changes it before we
+  ;; call `comint-send-region'; see e.g. issue 407.
+  (let ((source-buffer (current-buffer)))
     (racket-repl t)
     (racket--repl-forget-errors)
     (let ((proc (get-buffer-process racket--repl-buffer-name)))
@@ -589,8 +593,9 @@ Afterwards call `racket--repl-show-and-move-to-end'."
           (goto-char (process-mark proc))
           (insert ?\n)
           (set-marker (process-mark proc) (point))))
-      (comint-send-region proc start end)
-      (comint-send-string proc "\n"))
+      (with-current-buffer source-buffer
+        (comint-send-region proc start end)
+        (comint-send-string proc "\n")))
     (racket--repl-show-and-move-to-end)))
 
 (defun racket-send-region (start end)
