@@ -23,7 +23,6 @@
 (require 'racket-custom) ;for `racket-program'
 (require 'racket-util)
 
-
 ;;; racket-find-collection
 
 (defun racket-find-collection (&optional prefix)

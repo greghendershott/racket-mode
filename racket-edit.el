@@ -176,7 +176,6 @@ See also:
       (select-window w)
       (sit-for 3))))
 
-
 ;;; visiting defs and mods
 
 (defun racket-visit-definition (&optional prefix)
@@ -336,7 +335,6 @@ instead of looking at point."
     (`nil nil)
     (str (racket--cmd/async `(doc ,str)))))
 
-
 ;;; code folding
 
 ;;;###autoload
@@ -363,7 +361,6 @@ instead of looking at point."
   (interactive)
   (racket--for-all-tests "Unfolded" 'hs-show-block))
 
-
 ;;; requires
 
 (defun racket-tidy-requires ()
@@ -515,7 +512,6 @@ location of the first one."
             (delete-blank-lines))))
       (if (eq 'kill what) first-beg requires))))
 
-
 ;;; racket-check-syntax
 
 (defvar racket--highlight-overlays nil)
@@ -764,7 +760,6 @@ special commands to navigate among the definition and its uses.
     (racket--unhighlight-all)
     (setq buffer-read-only nil)))
 
-
 ;;; align
 
 (defun racket-align ()

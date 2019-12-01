@@ -241,8 +241,6 @@ doesn't really fit that.")
               racket-here-string-face)))
       font-lock-comment-face)))
 
-
-
 ;;; sexp comments
 
 (defun racket--font-lock-sexp-comments (limit)
@@ -269,7 +267,6 @@ Instead we merely font-lock them to look like comments."
     (or (racket--ppss-string-p  state)
         (racket--ppss-comment-p state))))
 
-
 ;;; let forms
 
 (defun racket--font-lock-let-identifiers (limit)
@@ -322,7 +319,6 @@ similar, it will already be there."
                    t))))))
   nil)
 
-
 ;;; misc
 
 (defun racket--inside-complete-sexp ()
