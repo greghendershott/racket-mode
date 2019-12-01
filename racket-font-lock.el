@@ -248,20 +248,26 @@ doesn't really fit that.")
 (defun racket--font-lock-sexp-comments (limit)
   "Font-lock sexp comments.
 
-Note that the syntax table does NOT show these as comments in
-order to let indent and nav work within the sexp. We merely
-font-lock them as comments."
-  (ignore-errors
-    (when (re-search-forward (rx (seq bol (* (not (any ?\;)))) ;Issue 388
-                                 (group-n 1 "#;" (* " "))
-                                 (group-n 2 (not (any " "))))
-                             limit t)
-      (let ((md (match-data)))
-        (goto-char (match-beginning 2))
-        (forward-sexp 1)
-        (setf (elt md 5) (point)) ;set (match-end 2)
-        (set-match-data md)
-        t))))
+Note that our syntax table intentionally does not mark these as
+comments. As a result, indent and nav work within the sexp.
+Instead we merely font-lock them to look like comments."
+  (when (re-search-forward (rx (group-n 1 "#;" (* " "))
+                               (group-n 2 (not (any " "))))
+                           limit t)
+    (unless (racket--string-or-comment-p  ;issues 388, 408
+             (match-beginning 1))
+      (ignore-errors
+        (let ((md (match-data)))
+          (goto-char (match-beginning 2))
+          (forward-sexp 1)
+          (setf (elt md 5) (point))     ;set (match-end 2)
+          (set-match-data md)
+          t)))))
+
+(defun racket--string-or-comment-p (pos)
+  (let ((state (syntax-ppss pos)))
+    (or (racket--ppss-string-p  state)
+        (racket--ppss-comment-p state))))
 
 
 ;;; let forms

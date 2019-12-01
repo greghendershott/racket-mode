@@ -131,6 +131,13 @@ comment
 »«:racket-selfeval-face:1» «m:; »«x:#;
 »«:racket-selfeval-face:2»
 
+«m:;; »«x:Issue 408
+»
+«s:"#;"»whatever
+«s:"#;"»(whatever)
+«s:"#;"»
+(whatever)
+
 («k:define» «v:x» «:racket-here-string-face:#<<FOO
 asdfasdf
 asdfasdf
@@ -138,12 +145,12 @@ asdfasdf
 FOO
 »  )
 
-«m:#;»«x:(define x #<<BAR
+#;(«k:define» «v:x» «:racket-here-string-face:#<<BAR
 asdfasdf
 asdfasdf
 asdfasdf
 BAR
-    )»
+»    )
 
 |identifier with spaces|
 

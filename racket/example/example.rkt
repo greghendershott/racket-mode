@@ -131,6 +131,13 @@ comment
 1 ; #;
 2
 
+;; Issue 408
+
+"#;"whatever
+"#;"(whatever)
+"#;"
+(whatever)
+
 (define x #<<FOO
 asdfasdf
 asdfasdf
