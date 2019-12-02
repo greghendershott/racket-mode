@@ -20,7 +20,7 @@
          "mod.rkt"
          "namespace.rkt"
          "print.rkt"
-         (prefix-in stx-cache: "syntax.rkt")
+         (only-in "syntax.rkt" with-expanded-syntax-caching-evaluator)
          "util.rkt"
          "welcome.rkt")
 
@@ -138,25 +138,23 @@
         (set-print-parameters pretty-print?)
         (set-output-handlers)
         ;; 2. If module, require and enter its namespace, etc.
-        (stx-cache:before-run maybe-mod)
-        (when (and maybe-mod mod-path)
-          (parameterize ([current-module-name-resolver module-name-resolver-for-run]
-                         [current-eval (stx-cache:make-eval-handler maybe-mod)])
-            ;; When exn:fail? during module load, re-run with "empty"
-            ;; module. Note: Unlikely now that we're using
-            ;; dynamic-require/some-namespace.
-            (define (load-exn-handler exn)
-              (display-exn exn)
-              (channel-put message-to-main-thread-channel
-                           (struct-copy rerun rr [maybe-mod #f]))
-              (sync never-evt))
-            (with-handlers ([exn? load-exn-handler])
-              (maybe-configure-runtime mod-path) ;FIRST: see #281
-              (current-namespace
-               (dynamic-require/some-namespace maybe-mod retry-as-skeleton?))
-              (maybe-warn-about-submodules mod-path context-level)
-              (check-top-interaction))))
-        (stx-cache:after-run maybe-mod)
+        (with-expanded-syntax-caching-evaluator maybe-mod
+          (when (and maybe-mod mod-path)
+            (parameterize ([current-module-name-resolver module-name-resolver-for-run])
+              ;; When exn:fail? during module load, re-run with "empty"
+              ;; module. Note: Unlikely now that we're using
+              ;; dynamic-require/some-namespace.
+              (define (load-exn-handler exn)
+                (display-exn exn)
+                (channel-put message-to-main-thread-channel
+                             (struct-copy rerun rr [maybe-mod #f]))
+                (sync never-evt))
+              (with-handlers ([exn? load-exn-handler])
+                (maybe-configure-runtime mod-path) ;FIRST: see #281
+                (current-namespace
+                 (dynamic-require/some-namespace maybe-mod retry-as-skeleton?))
+                (maybe-warn-about-submodules mod-path context-level)
+                (check-top-interaction)))))
         ;; 3. Tell command server to use our namespace and module.
         (attach-command-server (current-namespace) maybe-mod)
         ;; 3b. And call the ready-thunk command-server gave us from a

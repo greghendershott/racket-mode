@@ -5,13 +5,12 @@
          racket/match
          racket/promise
          syntax/modread
+         syntax/parse/define
          "mod.rkt")
 
-(provide file->syntax
-         file->expanded-syntax
-         before-run
-         make-eval-handler
-         after-run)
+(provide with-expanded-syntax-caching-evaluator
+         file->syntax
+         file->expanded-syntax)
 
 ;; Return a syntax object or #f for the contents of `file`. The
 ;; resulting syntax is applied to `k` while the parameters
@@ -35,6 +34,17 @@
   (read-syntax))
 
 ;;; expanded syntax caching
+
+(define/contract (call-with-expanded-syntax-caching-evaluator maybe-mod thk)
+  (-> (or/c mod? #f) (-> any) any)
+  (before-run maybe-mod)
+  (begin0
+      (parameterize ([current-eval (make-eval-handler maybe-mod)])
+        (thk))
+    (after-run maybe-mod)))
+
+(define-simple-macro (with-expanded-syntax-caching-evaluator mm:expr e:expr ...+)
+  (call-with-expanded-syntax-caching-evaluator mm (λ () e ...)))
 
 ;; cache : (hash/c file (cons/c digest-string? (or/c promise? syntax?)))
 (define cache (make-hash))
