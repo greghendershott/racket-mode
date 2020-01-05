@@ -19,6 +19,7 @@
 (require 'racket-mode)
 (require 'racket-repl)
 (require 'racket-edit)
+(require 'racket-check-syntax)
 (require 'racket-common)
 (require 'racket-custom)
 (require 'racket-repl)
