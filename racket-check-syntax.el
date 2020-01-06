@@ -16,70 +16,92 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+;;; The general approach here:
+;;;
+;;; - Add text properties with information supplied by the
+;;;   drracket/check-syntax module.
+;;;
+;;; - Refresh in an after-save hook. (I assumed refreshing after every
+;;;   buffer modification would be too "heavy", even with an idle
+;;;   timer. But, I didn't actually try. Possible for the future.)
+;;;
+;;; - Point motion hooks add/remove temporarly overlays to highlight
+;;;   defs and uses. (We can't draw GUI arrows as in Dr Racket.)
+;;;
+;;;   - Although 'help-echo is automatically displayed by Emacs on a
+;;;     mouse hover, we also use an overlay 'after-string to show it
+;;;     for the more typical use case of keyboard navigation.
+
 (require 'racket-repl)
+(require 'racket-edit)
 
-(defvar racket--highlight-overlays nil)
+(defconst racket--check-syntax-overlay-name 'racket-check-syntax-overlay)
 
-(defun racket--highlight (beg end defp)
-  ;; Unless one of our highlight overlays already exists there...
-  (let ((os (overlays-at beg)))
-    (unless (cl-some (lambda (o) (member o racket--highlight-overlays)) os)
-      (let ((o (make-overlay beg end)))
-        (setq racket--highlight-overlays (cons o racket--highlight-overlays))
-        (overlay-put o 'name 'racket-check-syntax-overlay)
-        (overlay-put o 'priority 100)
-        (overlay-put o 'face (if defp
-                                 racket-check-syntax-def-face
-                               racket-check-syntax-use-face))))))
+(defun racket--check-syntax-overlay-p (o)
+  (eq (overlay-get o 'name)
+      racket--check-syntax-overlay-name))
+
+(defun racket--highlight (beg end defp &optional after-str)
+  (unless (cl-some #'racket--check-syntax-overlay-p
+                   (overlays-in beg end))
+    (let ((o (make-overlay beg end)))
+      (overlay-put o 'name racket--check-syntax-overlay-name)
+      (overlay-put o 'priority 100)
+      (overlay-put o 'face (if defp
+                               racket-check-syntax-def-face
+                             racket-check-syntax-use-face))
+      (when after-str
+        (overlay-put o 'after-string
+                     (propertize after-str
+                                 'face racket-check-syntax-info-face))))))
 
 (defun racket--unhighlight-all ()
-  (while racket--highlight-overlays
-    (delete-overlay (car racket--highlight-overlays))
-    (setq racket--highlight-overlays (cdr racket--highlight-overlays))))
+  (remove-overlays (point-min) (point-max) racket--check-syntax-overlay-name))
 
 (defun racket--non-empty-string-p (v)
   (and (stringp v)
        (not (string-match-p "\\`[ \t\n\r]*\\'" v)))) ;`string-blank-p'
 
 (defun racket--point-entered (_old new)
-  (pcase (get-text-property new 'help-echo)
-    ((and s (pred racket--non-empty-string-p))
-     (if (and (boundp 'tooltip-mode)
-              tooltip-mode
-              (fboundp 'window-absolute-pixel-position))
-         (pcase (window-absolute-pixel-position new)
-           (`(,left . ,top)
-            (let ((tooltip-frame-parameters `((left . ,left)
-                                              (top . ,top)
-                                              ,@tooltip-frame-parameters)))
-              (tooltip-show s))))
-       (message "%s" s))))
-  (pcase (get-text-property new 'racket-check-syntax-def)
-    ((and uses `((,beg ,_end) . ,_))
-     (pcase (get-text-property beg 'racket-check-syntax-use)
-       (`(,beg ,end) (racket--highlight beg end t)))
-     (dolist (use uses)
-       (pcase use (`(,beg ,end) (racket--highlight beg end nil))))))
-  (pcase (get-text-property new 'racket-check-syntax-use)
-    (`(,beg ,end)
-     (racket--highlight beg end t)
-     (dolist (use (get-text-property beg 'racket-check-syntax-def))
-       (pcase use (`(,beg ,end) (racket--highlight beg end nil)))))))
+  (let ((help-echo (pcase (get-text-property new 'help-echo)
+                     ((and s (pred racket--non-empty-string-p)) s))))
+    (pcase (get-text-property new 'racket-check-syntax-def)
+      ((and uses `((,beg ,_end) . ,_))
+       (pcase (get-text-property beg 'racket-check-syntax-use)
+         (`(,beg ,end) (racket--highlight beg end t help-echo)))
+       (dolist (use uses)
+         (pcase use (`(,beg ,end) (racket--highlight beg end nil))))))
+    (pcase (get-text-property new 'racket-check-syntax-use)
+      (`(,beg ,end)
+       (racket--highlight beg end t)
+       (dolist (use (get-text-property beg 'racket-check-syntax-def))
+         (pcase use (`(,beg ,end) (racket--highlight
+                                   beg end nil
+                                   (and (<= beg new end) help-echo)))))))))
 
 (defun racket--point-left (_old _new)
   (racket--unhighlight-all))
 
-(defun racket-check-syntax-mode-quit ()
-  (interactive)
-  (racket-check-syntax-mode -1))
+(defun racket-check-syntax-visit-definition ()
+  "When point is on a use, go to its definition.
 
-(defun racket-check-syntax-mode-goto-def ()
-  "When point is on a use, go to its definition."
+This command uses the analysis done by the drracket/check-syntax
+module.
+
+Advantage: It is smart about bindings in the current source file
+-- even bindings in internal definition contexts, which shadow
+other bindings.
+
+Drawback: It is not smart about things defined in other files. In
+Dr Racket, this is where you would use the Open Defining File
+command instead. In Racket Mode, use `racket-visit-definition' --
+as a bonus, it will not only visit the file, it will take you to
+the location."
   (interactive)
   (pcase (get-text-property (point) 'racket-check-syntax-use)
-    (`(,beg ,_end) (goto-char beg))))
+    (`(,beg ,_end) (racket--push-loc) (goto-char beg))))
 
-(defun racket-check-syntax-mode-forward-use (amt)
+(defun racket-check-syntax--forward-use (amt)
   "When point is on a use, go AMT uses forward. AMT may be negative.
 
 Moving before/after the first/last use wraps around.
@@ -102,21 +124,18 @@ If point is instead on a definition, then go to its first use."
     (_ (pcase (get-text-property (point) 'racket-check-syntax-def)
          (`((,beg ,_end) . ,_) (goto-char beg))))))
 
-(defun racket-check-syntax-mode-goto-next-use ()
-  "When point is on a use, go to the next (sibling) use."
+(defun racket-check-syntax-next-use ()
+  "When point is on a use, go to the next, sibling use."
   (interactive)
-  (racket-check-syntax-mode-forward-use 1))
+  (racket-check-syntax--forward-use 1))
 
-(defun racket-check-syntax-mode-goto-prev-use ()
-  "When point is on a use, go to the previous (sibling) use."
+(defun racket-check-syntax-prev-use ()
+  "When point is on a use, go to the previous, sibling use."
   (interactive)
-  (racket-check-syntax-mode-forward-use -1))
+  (racket-check-syntax--forward-use -1))
 
-(defun racket-check-syntax-mode-help ()
-  (interactive)
-  (describe-function #'racket-check-syntax-mode))
-
-(defun racket-check-syntax-mode-rename ()
+(defun racket-check-syntax-rename ()
+  "Rename a definition and its uses in the current file."
   (interactive)
   ;; If we're on a def, get its uses. If we're on a use, get its def.
   (let* ((pt (point))
@@ -145,17 +164,15 @@ If point is instead on a definition, then go to its first use."
                          locs))
                 (point-marker (let ((m (make-marker)))
                                 (set-marker m (point) (current-buffer)))))
-            (racket-check-syntax-mode -1)
             (dolist (marker-pair marker-pairs)
               (let ((beg (marker-position (nth 0 marker-pair)))
                     (end (marker-position (nth 1 marker-pair))))
                 (delete-region beg end)
                 (goto-char beg)
                 (insert new)))
-            (goto-char (marker-position point-marker))
-            (racket-check-syntax-mode 1)))))))
+            (goto-char (marker-position point-marker))))))))
 
-(defun racket-check-syntax-mode-goto-next-def ()
+(defun racket-check-syntax-next-def ()
   (interactive)
   (let ((pos (next-single-property-change (point) 'racket-check-syntax-def)))
     (when pos
@@ -163,7 +180,7 @@ If point is instead on a definition, then go to its first use."
         (setq pos (next-single-property-change pos 'racket-check-syntax-def)))
       (and pos (goto-char pos)))))
 
-(defun racket-check-syntax-mode-goto-prev-def ()
+(defun racket-check-syntax-prev-def ()
   (interactive)
   (let ((pos (previous-single-property-change (point) 'racket-check-syntax-def)))
     (when pos
@@ -171,88 +188,106 @@ If point is instead on a definition, then go to its first use."
         (setq pos (previous-single-property-change pos 'racket-check-syntax-def)))
       (and pos (goto-char pos)))))
 
-(define-minor-mode racket-check-syntax-mode
-  "Analyze the buffer and annotate with information.
+(defvar racket-check-syntax-control-c-hash-keymap
+  (racket--easy-keymap-define
+   '(("j" racket-check-syntax-next-def)
+     ("k" racket-check-syntax-prev-def)
+     ("n" racket-check-syntax-next-use)
+     ("p" racket-check-syntax-prev-use)
+     ("." racket-check-syntax-visit-definition)
+     ("r" racket-check-syntax-rename))) )
 
-The buffer becomes read-only until you exit this minor mode.
-However you may navigate the usual ways. When point is on a
-definition or use, related items are highlighted and
-information is displayed in the echo area. You may also use
-special commands to navigate among the definition and its uses.
+;;;###autoload
+(define-minor-mode racket-check-syntax-mode
+  "A minor mode that annotates information supplied by drracket/check-syntax.
+
+When point is on a definition or use, related items are
+highlighted -- instead of drawing arrows as in Dr Racket -- and
+information is displayed in the echo area or a tooltip. You may
+also use commands to navigate among a definition and its uses, or
+rename all of them.
+
+When you edit the buffer, the position of existing annotations is
+adjusted. Annotations for new text are not made until you save
+the buffer, at which time the entire buffer is freshly annotated.
 
 \\{racket-check-syntax-mode-map}
 "
   :lighter " CheckSyntax"
   :keymap (racket--easy-keymap-define
-           '(("q"               racket-check-syntax-mode-quit)
-             ("h"               racket-check-syntax-mode-help)
-             (("j" "TAB")       racket-check-syntax-mode-goto-next-def)
-             (("k" "<backtab>") racket-check-syntax-mode-goto-prev-def)
-             ("."               racket-check-syntax-mode-goto-def)
-             ("n"               racket-check-syntax-mode-goto-next-use)
-             ("p"               racket-check-syntax-mode-goto-prev-use)
-             ("r"               racket-check-syntax-mode-rename)))
+           `(("C-c #" ,racket-check-syntax-control-c-hash-keymap)))
   (unless (eq major-mode 'racket-mode)
     (setq racket-check-syntax-mode nil)
-    (user-error "racket-check-syntax-mode only works with Racket Mode buffers"))
-  (racket--check-syntax-stop)
+    (user-error "racket-check-syntax-mode only works with racket-mode buffers"))
+  (racket--check-syntax-clear)
   (when racket-check-syntax-mode
-    (racket--check-syntax-start)))
+    (racket--check-syntax-annotate)
+    (add-hook 'before-save-hook #'racket--check-syntax-clear)
+    (add-hook 'after-save-hook  #'racket--check-syntax-annotate)))
 
-(defun racket--check-syntax-start ()
-  (let ((buf (current-buffer)))
-    (racket--save-if-changed)
-    (message "Running check-syntax analysis...")
-    (racket--cmd/async-raw
-     `(check-syntax ,(racket--buffer-file-name))
-     (lambda (response)
-       (with-current-buffer buf
-        (pcase response
-          (`(error ,m)
-           (racket-check-syntax-mode -1)
-           (error m))
-          (`(ok ())
-           (racket-check-syntax-mode -1)
-           (user-error "No bindings found"))
-          (`(ok ,xs)
-           (message "Marking up buffer...")
-           (racket--check-syntax-insert xs)
-           (message ""))))))))
+(defun racket--check-syntax-annotate ()
+  (when (eq major-mode 'racket-mode)
+    (let ((buf (current-buffer)))
+      (message "Running check-syntax analysis...")
+      (condition-case err
+          (racket--cmd/async-raw
+           `(check-syntax ,(racket--buffer-file-name))
+           (lambda (response)
+             (with-current-buffer buf
+               (pcase response
+                 (`(error ,m)
+                  (racket-check-syntax-mode -1)
+                  (error m))
+                 (`(ok ())
+                  (racket-check-syntax-mode -1)
+                  (user-error "No bindings found"))
+                 (`(ok ,xs)
+                  (message "Marking up buffer...")
+                  (racket--check-syntax-insert xs)
+                  (message ""))))))
+        (error
+         (message "%s" (error-message-string err))
+         (racket-check-syntax-mode -1))))))
 
 (defun racket--check-syntax-insert (xs)
+  "Insert text properties. Convert integer positions to markers."
   (with-silent-modifications
+    (overlay-recenter (point-max)) ;faster
     (dolist (x xs)
       (pcase x
         (`(,`info ,beg ,end ,str)
-         (put-text-property beg end 'help-echo str))
+         (let ((beg (copy-marker beg t))
+               (end (copy-marker end t)))
+           (put-text-property beg end 'help-echo str)))
         (`(,`def/uses ,def-beg ,def-end ,uses)
-         (add-text-properties def-beg
-                              def-end
-                              (list 'racket-check-syntax-def uses
-                                    'point-entered #'racket--point-entered
-                                    'point-left    #'racket--point-left))
-         (dolist (use uses)
-           (pcase-let* ((`(,use-beg ,use-end) use))
-             (add-text-properties use-beg
-                                  use-end
-                                  (list 'racket-check-syntax-use (list def-beg
-                                                                       def-end)
-                                        'point-entered #'racket--point-entered
-                                        'point-left    #'racket--point-left)))))))
-    (setq buffer-read-only t)
-    (setq header-line-format
-          "Check Syntax. Buffer is read-only. Press h for help, q to quit.")
+         (let ((def-beg (copy-marker def-beg t))
+               (def-end (copy-marker def-end t))
+               (uses    (mapcar (lambda (xs)
+                                  (mapcar (lambda (x)
+                                            (copy-marker x t))
+                                          xs))
+                                uses)))
+          (add-text-properties def-beg
+                               def-end
+                               (list 'racket-check-syntax-def uses
+                                     'point-entered #'racket--point-entered
+                                     'point-left    #'racket--point-left))
+          (dolist (use uses)
+            (pcase-let* ((`(,use-beg ,use-end) use))
+              (add-text-properties use-beg
+                                   use-end
+                                   (list 'racket-check-syntax-use (list def-beg
+                                                                        def-end)
+                                         'point-entered #'racket--point-entered
+                                         'point-left    #'racket--point-left))))))))
     ;; Make 'point-entered and 'point-left work in Emacs 25+. Note
     ;; that this is somewhat of a hack -- I spent a lot of time trying
     ;; to Do the Right Thing using the new cursor-sensor-mode, but
     ;; could not get it to work satisfactorily. See:
     ;; http://emacs.stackexchange.com/questions/29813/point-motion-strategy-for-emacs-25-and-older
-    (setq-local inhibit-point-motion-hooks nil)
-    ;; Go to next definition, as an affordance/hint what this does:
-    (racket-check-syntax-mode-goto-next-def)))
+    (setq-local inhibit-point-motion-hooks nil)))
 
-(defun racket--check-syntax-stop ()
-  (setq header-line-format nil)
+(defun racket--check-syntax-clear ()
   (with-silent-modifications
     (remove-text-properties (point-min)
                             (point-max)
@@ -261,8 +296,7 @@ special commands to navigate among the definition and its uses.
                               racket-check-syntax-use nil
                               point-entered
                               point-left))
-    (racket--unhighlight-all)
-    (setq buffer-read-only nil)))
+    (racket--unhighlight-all)))
 
 (provide 'racket-check-syntax)
 

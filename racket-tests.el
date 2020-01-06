@@ -148,9 +148,9 @@
       (with-timeout (racket-tests/command-timeout)
         (while (not header-line-format) (sit-for 1)))
       (goto-char (point-min))
-      (racket-check-syntax-mode-goto-next-def)
+      (racket-check-syntax-next-def)
       (should (looking-at "racket/base"))
-      (racket-check-syntax-mode-goto-next-use)
+      (racket-check-syntax-next-use)
       (should (looking-at "define"))
       (racket-check-syntax-mode 0))
     ;; Exit

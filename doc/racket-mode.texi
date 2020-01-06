@@ -116,6 +116,7 @@ Edit
 * racket-cycle-paren-shapes::
 * racket-backward-up-list::
 * racket-check-syntax-mode::
+* racket-check-syntax-visit-definition::
 * racket-unicode-input-method-enable::
 * racket-align::
 * racket-unalign::
@@ -182,6 +183,7 @@ All
 * racket-here-string-face::
 * racket-check-syntax-def-face::
 * racket-check-syntax-use-face::
+* racket-check-syntax-info-face::
 * racket-logger-config-face::
 * racket-logger-topic-face::
 * racket-logger-fatal-face::
@@ -1054,6 +1056,7 @@ instead of looking at point.
 * racket-cycle-paren-shapes::
 * racket-backward-up-list::
 * racket-check-syntax-mode::
+* racket-check-syntax-visit-definition::
 * racket-unicode-input-method-enable::
 * racket-align::
 * racket-unalign::
@@ -1314,36 +1317,54 @@ repeatedly.
 
 @kbd{M-x}  @code{racket-check-syntax-mode} @kbd{RET} 
 
-Analyze the buffer and annotate with information.
+A minor mode that annotates information supplied by drracket/check-syntax.
 
-The buffer becomes read-only until you exit this minor mode.
-However you may navigate the usual ways. When point is on a
-definition or use, related items are highlighted and
-information is displayed in the echo area. You may also use
-special commands to navigate among the definition and its uses.
+When point is on a definition or use, related items are
+highlighted -- instead of drawing arrows as in Dr Racket -- and
+information is displayed in the echo area or a tooltip. You may
+also use commands to navigate among a definition and its uses, or
+rename all of them.
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+When you edit the buffer, the position of existing annotations is
+adjusted. Annotations for new text are not made until you save
+the buffer, at which time the entire buffer is freshly annotated.
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{r} 
-@tab @code{racket-check-syntax-mode-rename}
-@item @kbd{p} 
-@tab @code{racket-check-syntax-mode-goto-prev-use}
-@item @kbd{n} 
-@tab @code{racket-check-syntax-mode-goto-next-use}
-@item @kbd{.} 
-@tab @code{racket-check-syntax-mode-goto-def}
-@item @kbd{k} 
-@tab @code{racket-check-syntax-mode-goto-prev-def}
-@item @kbd{TAB} 
-@tab @code{racket-check-syntax-mode-goto-next-def}
-@item @kbd{j} 
-@tab @code{racket-check-syntax-mode-goto-next-def}
-@item @kbd{h} 
-@tab @code{racket-check-syntax-mode-help}
-@item @kbd{q} 
-@tab @code{racket-check-syntax-mode-quit}
+@item @kbd{C-c # r} 
+@tab @code{racket-check-syntax-rename}
+@item @kbd{C-c # .} 
+@tab @ref{racket-check-syntax-visit-definition}
+@item @kbd{C-c # p} 
+@tab @code{racket-check-syntax-prev-use}
+@item @kbd{C-c # n} 
+@tab @code{racket-check-syntax-next-use}
+@item @kbd{C-c # k} 
+@tab @code{racket-check-syntax-prev-def}
+@item @kbd{C-c # j} 
+@tab @code{racket-check-syntax-next-def}
 @end multitable
+
+@node racket-check-syntax-visit-definition
+@subsection racket-check-syntax-visit-definition
+
+@kbd{M-x}  @code{racket-check-syntax-visit-definition} @kbd{RET} 
+
+When point is on a use, go to its definition.
+
+This command uses the analysis done by the drracket/check-syntax
+module.
+
+Advantage: It is smart about bindings in the current source file
+-- even bindings in internal definition contexts, which shadow
+other bindings.
+
+Drawback: It is not smart about things defined in other files. In
+Dr Racket, this is where you would use the Open Defining File
+command instead. In Racket Mode, use @ref{racket-visit-definition} --
+as a bonus, it will not only visit the file, it will take you to
+the location.
 
 @node racket-unicode-input-method-enable
 @subsection racket-unicode-input-method-enable
@@ -1952,6 +1973,7 @@ file-local variable.
 * racket-here-string-face::
 * racket-check-syntax-def-face::
 * racket-check-syntax-use-face::
+* racket-check-syntax-info-face::
 * racket-logger-config-face::
 * racket-logger-topic-face::
 * racket-logger-fatal-face::
@@ -1985,6 +2007,11 @@ Face @ref{racket-check-syntax-mode} uses to highlight definitions.
 @subsection racket-check-syntax-use-face
 
 Face @ref{racket-check-syntax-mode} uses to highlight uses.
+
+@node racket-check-syntax-info-face
+@subsection racket-check-syntax-info-face
+
+Face @ref{racket-check-syntax-mode} uses to highlight information.
 
 @node racket-logger-config-face
 @subsection racket-logger-config-face

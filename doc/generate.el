@@ -22,6 +22,7 @@
 (require 'racket-debug)
 (require 'racket-profile)
 (require 'racket-edit)
+(require 'racket-check-syntax)
 (require 'racket-util)
 (require 'racket-unicode-input-method)
 (require 'racket-smart-open)
@@ -76,6 +77,7 @@
     racket-cycle-paren-shapes
     racket-backward-up-list
     racket-check-syntax-mode
+    racket-check-syntax-visit-definition
     racket-unicode-input-method-enable
     racket-align
     racket-unalign
@@ -184,6 +186,7 @@
     racket-here-string-face
     racket-check-syntax-def-face
     racket-check-syntax-use-face
+    racket-check-syntax-info-face
     racket-logger-config-face
     racket-logger-topic-face
     racket-logger-fatal-face
@@ -277,8 +280,12 @@
 
 (defun racket-generate--print-keymap-entry (v &optional keys)
   (pcase v
-    (`(,(and key (pred numberp)) keymap ,(and more (pred consp)))
-     (racket-generate--print-keymap-entry more (cons key keys)))
+    (`(,(and key (pred numberp)) keymap ,(and key+sym (pred consp)))
+     (racket-generate--print-keymap-entry key+sym (cons key keys)))
+    (`(,(and key (pred numberp)) keymap . ,(and more (pred consp)))
+     (mapc (lambda (v)
+             (racket-generate--print-keymap-entry v (cons key keys)))
+           more))
     (`(,(and key (pred numberp)) . ,(and sym (pred symbolp)))
      (insert (format "|{{{kbd(%s)}}}|`%s'|\n"
                      (racket-generate--key-description
