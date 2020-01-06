@@ -144,9 +144,7 @@
     ;; racket-check-syntax-mode
     (when (version<= "6.2" (racket--version))
       (racket-check-syntax-mode 1)
-      ;; check-syntax-mode sets header-line-format, so wait for that:
-      (with-timeout (racket-tests/command-timeout)
-        (while (not header-line-format) (sit-for 1)))
+      (sit-for 3.0)
       (goto-char (point-min))
       (racket-check-syntax-next-def)
       (should (looking-at "racket/base"))
