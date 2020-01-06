@@ -21,22 +21,22 @@
 (defun racket--easy-keymap-define (spec)
   "Make a sparse keymap with the bindings in SPEC.
 
-This is simply a way to DRY many calls to `define-key'.
-
 SPEC is
-  (list (list key-or-keys fn) ...)
+  (list (list KEY-OR-KEYS DEF) ...)
 
-where key-or-keys is either a string given to `kbd', or (for the
-case where multiple keys bind to the same command) a list of such
-strings."
+KEY-OR-KEYS is either a string given to `kbd', or, for the case
+where multiple keys bind to the same command, a list of such
+strings.
+
+DEF is the same as DEF for `define-key'."
   (let ((m (make-sparse-keymap)))
     (mapc (lambda (x)
             (let ((keys (if (listp (car x))
                             (car x)
                           (list (car x))))
-                  (fn (cadr x)))
+                  (def  (cadr x)))
               (mapc (lambda (key)
-                      (define-key m (kbd key) fn))
+                      (define-key m (kbd key) def))
                     keys)))
           spec)
     m))

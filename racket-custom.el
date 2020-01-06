@@ -353,6 +353,11 @@ level quieter. That way you can set the '* topic to a level like
   "Face `racket-check-syntax-mode' uses to highlight uses."
   "Check Syntax Use Face")
 
+(defface-racket racket-check-syntax-info-face
+  '((t (:foreground "Black" :background "Orange" :slant italic :box t)))
+  "Face `racket-check-syntax-mode' uses to highlight information."
+  "Check Syntax Info Face")
+
 (defface-racket racket-keyword-argument-face
   '((((background dark))
      (:foreground "IndianRed"))

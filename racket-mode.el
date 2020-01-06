@@ -1,6 +1,6 @@
 ;;; racket-mode.el --- Major mode for Racket language.
 
-;; Copyright (c) 2013-2018 by Greg Hendershott.
+;; Copyright (c) 2013-2020 by Greg Hendershott.
 
 ;; Package: racket-mode
 ;; Package-Requires: ((emacs "24.3") (faceup "0.0.2"))
@@ -30,6 +30,8 @@
 ;;; Code:
 
 (require 'racket-edit)
+(require 'racket-check-syntax)
+(require 'racket-smart-open)
 (require 'racket-imenu)
 (require 'racket-profile)
 (require 'racket-logger)
