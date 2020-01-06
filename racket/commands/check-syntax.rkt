@@ -3,26 +3,25 @@
 (require racket/list
          racket/match
          racket/path
-         racket/set)
+         racket/set
+         syntax/modread)
 
 (provide check-syntax)
 
 (define check-syntax
   (let ([show-content
          (with-handlers ([exn:fail? (λ _ 'not-supported)])
-           (let ([f (dynamic-require 'drracket/check-syntax 'show-content)])
-             ;; Ensure correct position info for Unicode like λ.
-             ;; show-content probably ought to do this itself, but
-             ;; work around that.
-             (λ (path)
-               (parameterize ([port-count-lines-enabled #t])
-                 (f path)))))])
+           (dynamic-require 'drracket/check-syntax 'show-content))])
     ;; Note: Adjust all positions to 1-based Emacs `point' values.
-    (λ (path-str)
+    (λ (path-str code-str)
       (define path (string->path path-str))
       (parameterize ([current-load-relative-directory (path-only path)])
-        ;; Get all the data.
-        (define xs (remove-duplicates (show-content path)))
+        (define stx (with-module-reading-parameterization
+                      (λ ()
+                        (parameterize ([port-count-lines-enabled #t])
+                          (read-syntax path
+                                       (open-input-string code-str))))))
+        (define xs (remove-duplicates (show-content stx)))
         ;; Extract the add-mouse-over-status items into a list.
         (define infos
           (remove-duplicates
@@ -59,3 +58,9 @@
             (list 'def/uses def-beg def-end tweaked-uses)))
         ;; Append both lists and print as Elisp values.
         (append infos defs/uses)))))
+
+(module+ test
+  (require rackunit
+           racket/file)
+  (define this-file (path->string (syntax-source #'here)))
+  (check-false (empty? (check-syntax this-file (file->string this-file)))))

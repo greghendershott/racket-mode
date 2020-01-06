@@ -174,7 +174,7 @@
     [`(find-collection ,str)           (find-collection str)]
     [`(get-profile)                    (get-profile)]
     [`(get-uncovered)                  (get-uncovered path)]
-    [`(check-syntax ,path-str)         (check-syntax path-str)]
+    [`(check-syntax ,path-str ,code)   (check-syntax path-str code)]
     [`(eval ,v)                        (eval-command v)]
     [`(repl-submit? ,str ,eos?)        (repl-submit? submit-pred str eos?)]
     [`(debug-eval ,src ,l ,c ,p ,code) (debug-eval src l c p code)]
