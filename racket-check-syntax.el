@@ -35,18 +35,19 @@
   (eq (overlay-get o 'name)
       racket--check-syntax-overlay-name))
 
-(defun racket--highlight (beg end defp)
+(defun racket--highlight (beg end face)
   (unless (cl-some #'racket--check-syntax-overlay-p
                    (overlays-in beg end))
     (let ((o (make-overlay beg end)))
       (overlay-put o 'name racket--check-syntax-overlay-name)
       (overlay-put o 'priority 100)
-      (overlay-put o 'face (if defp
-                               racket-check-syntax-def-face
-                             racket-check-syntax-use-face)))))
+      (overlay-put o 'face face))))
+
+(defun racket--unhighlight (beg end)
+  (remove-overlays beg end racket--check-syntax-overlay-name))
 
 (defun racket--unhighlight-all ()
-  (remove-overlays (point-min) (point-max) racket--check-syntax-overlay-name))
+  (racket--unhighlight (point-min) (point-max)))
 
 (defun racket--non-empty-string-p (v)
   (and (stringp v)
@@ -54,18 +55,24 @@
 
 (defun racket--point-entered (_old new)
   (pcase (get-text-property new 'help-echo)
-    ((and s (pred racket--non-empty-string-p)) (message "%s" s)))
+    ((and s (pred racket--non-empty-string-p))
+     (message "%s" s)))
   (pcase (get-text-property new 'racket-check-syntax-def)
     ((and uses `((,beg ,_end) . ,_))
      (pcase (get-text-property beg 'racket-check-syntax-use)
-       (`(,beg ,end) (racket--highlight beg end t)))
+       (`(,beg ,end)
+        (racket--highlight beg end racket-check-syntax-def-face)))
      (dolist (use uses)
-       (pcase use (`(,beg ,end) (racket--highlight beg end nil))))))
+       (pcase use
+         (`(,beg ,end)
+          (racket--highlight beg end racket-check-syntax-use-face))))))
   (pcase (get-text-property new 'racket-check-syntax-use)
     (`(,beg ,end)
-     (racket--highlight beg end t)
+     (racket--highlight beg end racket-check-syntax-def-face)
      (dolist (use (get-text-property beg 'racket-check-syntax-def))
-       (pcase use (`(,beg ,end) (racket--highlight beg end nil)))))))
+       (pcase use
+         (`(,beg ,end)
+          (racket--highlight beg end racket-check-syntax-use-face)))))))
 
 (defun racket--point-left (_old _new)
   (racket--unhighlight-all))
@@ -227,20 +234,20 @@ the buffer, at which time the entire buffer is freshly annotated.
 
 (defun racket--check-syntax-annotate (&optional thunk)
   (let ((buf (current-buffer)))
-    (racket--cmd/async-raw
+    (racket--cmd/async
      `(check-syntax ,(racket--buffer-file-name)
                     ,(buffer-substring-no-properties (point-min) (point-max)))
      (lambda (response)
        (with-current-buffer buf
          (pcase response
-           (`(error ,m)
-            (message (format "check-syntax: %s" m)))
-           (`(ok ())
+           (`(check-syntax-ok)
             (racket--check-syntax-clear))
-           (`(ok ,xs)
+           (`(check-syntax-ok . ,xs)
             (racket--check-syntax-clear)
             (racket--check-syntax-insert xs)
-            (when thunk (funcall thunk)))))))))
+            (when thunk (funcall thunk)))
+           (`(check-syntax-errors . ,xs)
+            (racket--check-syntax-insert xs))))))))
 
 (defun racket--check-syntax-insert (xs)
   "Insert text properties. Convert integer positions to markers."
@@ -248,12 +255,30 @@ the buffer, at which time the entire buffer is freshly annotated.
     (overlay-recenter (point-max)) ;faster
     (dolist (x xs)
       (pcase x
+        (`(,`error ,path ,beg ,end ,str)
+         (when (equal path (racket--buffer-file-name))
+           (let ((beg (copy-marker beg t))
+                 (end (copy-marker end t)))
+             (remove-text-properties beg
+                                     end
+                                     (list 'help-echo               nil
+                                           'racket-check-syntax-def nil
+                                           'racket-check-syntax-use nil
+                                           'point-entered           nil
+                                           'point-left              nil))
+             (add-text-properties beg
+                                  end
+                                  (list 'face      'error
+                                        'help-echo str
+                                        'point-entered #'racket--point-entered
+                                        'point-left    #'racket--point-left))
+             (message "%s" str))))
         (`(,`info ,beg ,end ,str)
          (let ((beg (copy-marker beg t))
                (end (copy-marker end t)))
            (add-text-properties beg
                                 end
-                                (list 'help-echo str
+                                (list 'help-echo     str
                                       'point-entered #'racket--point-entered
                                       'point-left    #'racket--point-left))))
         (`(,`def/uses ,def-beg ,def-end ,uses)
@@ -288,11 +313,11 @@ the buffer, at which time the entire buffer is freshly annotated.
   (with-silent-modifications
     (remove-text-properties (point-min)
                             (point-max)
-                            '(help-echo nil
-                              racket-check-syntax-def nil
-                              racket-check-syntax-use nil
-                              point-entered
-                              point-left))
+                            (list 'help-echo nil
+                                  'racket-check-syntax-def nil
+                                  'racket-check-syntax-use nil
+                                  'point-entered nil
+                                  'point-left nil))
     (racket--unhighlight-all)))
 
 (provide 'racket-check-syntax)
