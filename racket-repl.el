@@ -214,6 +214,9 @@ The following values will /not/ work:
 (defvar racket--repl-before-run-hook nil
   "Thunks to do before each `racket--repl-run'.")
 
+(defvar racket--repl-after-live-hook nil
+  "Thunks to do after the REPL first becomes live and ready to accept commands.")
+
 (defun racket--repl-run (&optional what-to-run context-level callback)
   "Do an initial or subsequent run.
 
@@ -373,7 +376,10 @@ ourselves from the local cominit output filter functions."
              (set-process-filter proc #'racket--cmd-process-filter)
              (process-send-string proc (concat racket--cmd-auth "\n"))
              (message "Connected to %s process on port %s after %s attempt%s"
-                      proc racket-command-port attempt (if (= 1 attempt) "" "s")))
+                      proc racket-command-port attempt (if (= 1 attempt) "" "s"))
+             (run-at-time 0.1 nil
+                          #'run-hook-with-args
+                          'racket--repl-after-live-hook))
 
             ((string-match-p "^failed" event)
              (delete-process proc) ;we'll get called with "deleted" event, below

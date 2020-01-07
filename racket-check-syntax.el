@@ -218,7 +218,11 @@ the buffer, at which time the entire buffer is freshly annotated.
     (racket--check-syntax-annotate)
     (add-hook 'after-change-functions
               #'racket--check-syntax-after-change-hook
-              t t)))
+              t t)
+    ;; In case REPL not live when they visit this file, but it becomes
+    ;; live, later, annotate then.
+    (add-hook 'racket--repl-after-live-hook
+              #'racket--check-syntax-annotate)))
 
 ;; TODO: Make this a defcustom in racket-custom.el?
 (defvar racket--check-syntax-after-change-refresh-delay 1
@@ -233,21 +237,22 @@ the buffer, at which time the entire buffer is freshly annotated.
                              #'racket--check-syntax-annotate)))
 
 (defun racket--check-syntax-annotate (&optional thunk)
-  (let ((buf (current-buffer)))
-    (racket--cmd/async
-     `(check-syntax ,(racket--buffer-file-name)
-                    ,(buffer-substring-no-properties (point-min) (point-max)))
-     (lambda (response)
-       (with-current-buffer buf
-         (pcase response
-           (`(check-syntax-ok)
-            (racket--check-syntax-clear))
-           (`(check-syntax-ok . ,xs)
-            (racket--check-syntax-clear)
-            (racket--check-syntax-insert xs)
-            (when thunk (funcall thunk)))
-           (`(check-syntax-errors . ,xs)
-            (racket--check-syntax-insert xs))))))))
+  (when (racket--repl-live-p)
+    (let ((buf (current-buffer)))
+      (racket--cmd/async
+       `(check-syntax ,(racket--buffer-file-name)
+                      ,(buffer-substring-no-properties (point-min) (point-max)))
+       (lambda (response)
+         (with-current-buffer buf
+           (pcase response
+             (`(check-syntax-ok)
+              (racket--check-syntax-clear))
+             (`(check-syntax-ok . ,xs)
+              (racket--check-syntax-clear)
+              (racket--check-syntax-insert xs)
+              (when thunk (funcall thunk)))
+             (`(check-syntax-errors . ,xs)
+              (racket--check-syntax-insert xs)))))))))
 
 (defun racket--check-syntax-insert (xs)
   "Insert text properties. Convert integer positions to markers."
