@@ -34,17 +34,21 @@
         ;; Consolidate the add-arrow/name-dup items into a hash table
         ;; with one item per definition. The key is the definition
         ;; position. The value is the set of its uses.
+        ;;
+        ;; Note: We only want items where the `require-arrow?` member
+        ;; is #f, meaning a local definition -- not items imported by
+        ;; a require or module language.
         (define ht-defs/uses (make-hash))
         (for ([x (in-list xs)])
           (match x
             [(or (vector 'syncheck:add-arrow/name-dup
                          def-beg def-end
                          use-beg use-end
-                         _ _ _ _)
+                         _ _ #f _)
                  (vector 'syncheck:add-arrow/name-dup/pxpy
                          def-beg def-end _ _
                          use-beg use-end _ _
-                         _ _ _ _))
+                         _ _ #f _))
              (hash-update! ht-defs/uses
                            (list (add1 def-beg) (add1 def-end))
                            (λ (v) (set-add v (list (add1 use-beg) (add1 use-end))))
@@ -54,10 +58,10 @@
         (define defs/uses
           (for/list ([(def uses) (in-hash ht-defs/uses)])
             (match-define (list def-beg def-end) def)
-            (define tweaked-uses (sort (set->list uses) < #:key car))
-            (list 'def/uses def-beg def-end tweaked-uses)))
-        ;; Append both lists and print as Elisp values.
-        (append infos defs/uses)))))
+            (list 'def/uses def-beg def-end
+                  (sort (set->list uses) < #:key car))))
+        ;; Append both lists, sort by positions, and print as Elisp values.
+        (sort (append infos defs/uses) < #:key cadr)))))
 
 (module+ test
   (require rackunit
