@@ -147,9 +147,9 @@
       (sit-for 3.0)
       (goto-char (point-min))
       (racket-check-syntax-next-def)
-      (should (looking-at "racket/base"))
+      (should (looking-at "x"))
       (racket-check-syntax-next-use)
-      (should (looking-at "define"))
+      (should (looking-at "x"))
       (racket-check-syntax-mode 0))
     ;; Exit
     ;; (with-racket-repl-buffer
