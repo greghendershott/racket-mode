@@ -26,6 +26,7 @@
 ;;; - Point motion hooks add/remove temporarly overlays to highlight
 ;;;   defs and uses. (We can't draw GUI arrows as in Dr Racket.)
 
+(require 'racket-custom)
 (require 'racket-repl)
 (require 'racket-edit)
 
@@ -121,7 +122,7 @@ If point is instead on a definition, then go to its first use."
   (interactive)
   (racket-check-syntax--forward-use 1))
 
-(defun racket-check-syntax-prev-use ()
+(defun racket-check-syntax-previous-use ()
   "When point is on a use, go to the previous, sibling use."
   (interactive)
   (racket-check-syntax--forward-use -1))
@@ -162,7 +163,7 @@ If point is instead on a definition, then go to its first use."
       (racket--check-syntax-annotate
        (lambda () (racket--point-entered nil (marker-position point-marker)))))))
 
-(defun racket-check-syntax-next-def ()
+(defun racket-check-syntax-next-definition ()
   (interactive)
   (let ((pos (next-single-property-change (point) 'racket-check-syntax-def)))
     (when pos
@@ -170,7 +171,7 @@ If point is instead on a definition, then go to its first use."
         (setq pos (next-single-property-change pos 'racket-check-syntax-def)))
       (and pos (goto-char pos)))))
 
-(defun racket-check-syntax-prev-def ()
+(defun racket-check-syntax-previous-definition ()
   (interactive)
   (let ((pos (previous-single-property-change (point) 'racket-check-syntax-def)))
     (when pos
@@ -180,10 +181,10 @@ If point is instead on a definition, then go to its first use."
 
 (defvar racket-check-syntax-control-c-hash-keymap
   (racket--easy-keymap-define
-   '(("j" racket-check-syntax-next-def)
-     ("k" racket-check-syntax-prev-def)
+   '(("j" racket-check-syntax-next-definition)
+     ("k" racket-check-syntax-previous-definition)
      ("n" racket-check-syntax-next-use)
-     ("p" racket-check-syntax-prev-use)
+     ("p" racket-check-syntax-previous-use)
      ("." racket-check-syntax-visit-definition)
      ("r" racket-check-syntax-rename))) )
 
@@ -191,15 +192,39 @@ If point is instead on a definition, then go to its first use."
 (define-minor-mode racket-check-syntax-mode
   "A minor mode that annotates information supplied by drracket/check-syntax.
 
+This minor mode is an optional enhancement to `racket-mode' edit
+buffers. Like any minor mode, you can turn it on or off for a
+specific buffer. If you always want to use it, put the following
+code in your Emacs init file:
+
+#+BEGIN_SRC elisp
+    (require 'racket-check-syntax)
+    (add-hook 'racket-mode-hook #'racket-check-syntax-mode)
+#+END_SRC
+
+Note: This mode won't do anything unless the Racket Mode back end
+is running -- as a result of a `racket-run' or `racket-repl'
+command. You need not run the buffer you are editing, just /some/
+buffer.
+
 When point is on a definition or use, related items are
-highlighted -- instead of drawing arrows as in Dr Racket -- and
-information is displayed in the echo area or a tooltip. You may
-also use commands to navigate among a definition and its uses, or
-rename all of them.
+highlighted using `racket-check-syntax-def-face' and
+`racket-check-syntax-use-face' -- instead of drawing arrows as in
+Dr Racket -- and \"mouse over\" information is displayed in the
+echo area.
+
+You may also use commands to navigate among a definition and its
+uses, or rename all of them.
+
+\"M-.\" is rebound to `racket-check-syntax-visit-definition'.
+This uses information provided by check-syntax for local
+bindings, or else does the usual `racket-visit-definition' for
+bindings imported by a `require` or module language.
 
 When you edit the buffer, the position of existing annotations is
-adjusted. Annotations for new text are not made until you save
-the buffer, at which time the entire buffer is freshly annotated.
+adjusted. Annotations for new text are not made until after
+`racket-check-syntax-after-change-refresh-delay' seconds, at
+which time the entire buffer is freshly annotated.
 
 \\{racket-check-syntax-mode-map}
 "
@@ -224,15 +249,12 @@ the buffer, at which time the entire buffer is freshly annotated.
     (add-hook 'racket--repl-after-live-hook
               #'racket--check-syntax-annotate)))
 
-;; TODO: Make this a defcustom in racket-custom.el?
-(defvar racket--check-syntax-after-change-refresh-delay 1
-  "How many idle seconds until refreshing check-syntax annotations.")
 (defvar-local racket--check-syntax-timer nil)
 (defun racket--check-syntax-after-change-hook (_beg _end _len)
   (when (timerp racket--check-syntax-timer)
     (cancel-timer racket--check-syntax-timer))
   (setq racket--check-syntax-timer
-        (run-with-idle-timer racket--check-syntax-after-change-refresh-delay
+        (run-with-idle-timer racket-check-syntax-after-change-refresh-delay
                              nil ;no repeat
                              #'racket--check-syntax-annotate)))
 

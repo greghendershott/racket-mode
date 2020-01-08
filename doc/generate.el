@@ -77,7 +77,6 @@
     racket-cycle-paren-shapes
     racket-backward-up-list
     racket-check-syntax-mode
-    racket-check-syntax-visit-definition
     racket-unicode-input-method-enable
     racket-align
     racket-unalign
@@ -147,6 +146,7 @@
     racket-user-command-line-arguments
     racket-path-from-emacs-to-racket-function
     racket-path-from-racket-to-emacs-function
+    racket-check-syntax-after-change-refresh-delay
     "REPL variables"
     racket-history-filter-regexp
     racket-images-inline
