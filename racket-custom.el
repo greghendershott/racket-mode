@@ -178,6 +178,13 @@ you probably also want to customize the \"reverse\":
   :type 'function
   :safe #'functionp)
 
+(defcustom racket-check-syntax-after-change-refresh-delay 1
+  "How many seconds to wait before refreshing `racket-check-syntax-mode' annotations."
+  :tag "Racket Check-Syntax After Change Refresh Delay"
+  :type 'integer
+  :safe #'integerp
+  :group 'racket)
+
 ;;; REPL
 
 (defgroup racket-repl nil

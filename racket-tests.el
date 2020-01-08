@@ -146,7 +146,7 @@
       (racket-check-syntax-mode 1)
       (sit-for 3.0)
       (goto-char (point-min))
-      (racket-check-syntax-next-def)
+      (racket-check-syntax-next-definition)
       (should (looking-at "x"))
       (racket-check-syntax-next-use)
       (should (looking-at "x"))
