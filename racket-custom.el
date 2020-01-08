@@ -344,19 +344,14 @@ level quieter. That way you can set the '* topic to a level like
        :group 'racket-faces)))
 
 (defface-racket racket-check-syntax-def-face
-  '((t (:foreground "Black" :background "SeaGreen1" :weight bold)))
+  '((t (:underline (:style line) :bold t)))
   "Face `racket-check-syntax-mode' uses to highlight definitions."
   "Check Syntax Def Face")
 
 (defface-racket racket-check-syntax-use-face
-  '((t (:foreground "Black" :background "PaleGreen1" :slant italic)))
+  '((t (:underline (:style wave))))
   "Face `racket-check-syntax-mode' uses to highlight uses."
   "Check Syntax Use Face")
-
-(defface-racket racket-check-syntax-info-face
-  '((t (:foreground "Black" :background "Orange" :slant italic :box t)))
-  "Face `racket-check-syntax-mode' uses to highlight information."
-  "Check Syntax Info Face")
 
 (defface-racket racket-keyword-argument-face
   '((((background dark))

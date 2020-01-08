@@ -186,7 +186,6 @@
     racket-here-string-face
     racket-check-syntax-def-face
     racket-check-syntax-use-face
-    racket-check-syntax-info-face
     racket-logger-config-face
     racket-logger-topic-face
     racket-logger-fatal-face
