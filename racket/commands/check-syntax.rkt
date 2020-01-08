@@ -26,12 +26,15 @@
           ;; Extract the add-mouse-over-status items into a list.
           (define infos
             (remove-duplicates
-             (filter values
-                     (for/list ([x (in-list xs)])
-                       (match x
-                         [(vector 'syncheck:add-mouse-over-status beg end str)
-                          (list 'info (add1 beg) (add1 end) str)]
-                         [_ #f])))))
+             (filter
+              values
+              (for/list ([x (in-list xs)])
+                (match x
+                  [(vector 'syncheck:add-mouse-over-status beg end str)
+                   ;; Avoid silly "imported from “\"file.rkt\"”"
+                   (define cleansed (regexp-replace* #px"[“””]" str ""))
+                   (list 'info (add1 beg) (add1 end) cleansed)]
+                  [_ #f])))))
           ;; Consolidate the add-arrow/name-dup items into a hash table
           ;; with one item per definition. The key is the definition
           ;; position. The value is the set of its uses.
