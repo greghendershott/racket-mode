@@ -1,6 +1,6 @@
 ;;; racket-custom.el
 
-;; Copyright (c) 2013-2018 by Greg Hendershott.
+;; Copyright (c) 2013-2020 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -351,12 +351,12 @@ level quieter. That way you can set the '* topic to a level like
        :group 'racket-faces)))
 
 (defface-racket racket-check-syntax-def-face
-  '((t (:underline (:style line) :bold t)))
+  '((t (:inherit match :underline (:style line))))
   "Face `racket-check-syntax-mode' uses to highlight definitions."
   "Check Syntax Def Face")
 
 (defface-racket racket-check-syntax-use-face
-  '((t (:underline (:style wave))))
+  '((t (:inherit match)))
   "Face `racket-check-syntax-mode' uses to highlight uses."
   "Check Syntax Use Face")
 
