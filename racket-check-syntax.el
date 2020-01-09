@@ -18,17 +18,31 @@
 
 ;;; The general approach here:
 ;;;
-;;; - Add text properties with information supplied by the
-;;;   drracket/check-syntax module.
+;;; - Add 'help-echo and 'point-{entered left} text properties with
+;;;   information supplied by the drracket/check-syntax module.
 ;;;
-;;; - Refresh in an after-change hook, plus a short idle-timer delay.
+;;; - Refresh in an after-change hook, plus an idle-timer delay.
 ;;;
-;;; - Point motion hooks add/remove temporarly overlays to highlight
+;;; - Point motion hooks add/remove temporarily overlays to highlight
 ;;;   defs and uses. (We can't draw GUI arrows as in Dr Racket.)
+;;;
+;;; - Use a header line so our information isn't "fighting" with other
+;;;   things using the echo area.
 
 (require 'racket-custom)
 (require 'racket-repl)
 (require 'racket-edit)
+(require 'rx)
+
+(defun racket--check-syntax-show-info (str)
+  ;;(message "%s" (racket--only-first-line str))
+  (setq-local header-line-format
+              (format "%s" (racket--only-first-line str))))
+
+(defun racket--only-first-line (str)
+  (save-match-data
+    (string-match (rx (group (* (not (any ?\n))))) str)
+    (match-string 1 str)))
 
 (defconst racket--check-syntax-overlay-name 'racket-check-syntax-overlay)
 
@@ -57,7 +71,7 @@
 (defun racket--point-entered (_old new)
   (pcase (get-text-property new 'help-echo)
     ((and s (pred racket--non-empty-string-p))
-     (message "%s" s)))
+     (racket--check-syntax-show-info s)))
   (pcase (get-text-property new 'racket-check-syntax-def)
     ((and uses `((,beg ,_end) . ,_))
      (pcase (get-text-property beg 'racket-check-syntax-use)
@@ -75,7 +89,9 @@
          (`(,beg ,end)
           (racket--highlight beg end racket-check-syntax-use-face)))))))
 
-(defun racket--point-left (_old _new)
+(defun racket--point-left (old _new)
+  (when (get-text-property old 'help-echo)
+    (racket--check-syntax-show-info ""))
   (racket--unhighlight-all))
 
 (defun racket-check-syntax-visit-definition ()
@@ -211,7 +227,7 @@ When point is on a definition or use, related items are
 highlighted using `racket-check-syntax-def-face' and
 `racket-check-syntax-use-face' -- instead of drawing arrows as in
 Dr Racket -- and \"mouse over\" information is displayed in the
-echo area.
+header line.
 
 You may also use commands to navigate among a definition and its
 uses, or rename all of them.
@@ -221,10 +237,20 @@ This uses information provided by check-syntax for local
 bindings, or else does the usual `racket-visit-definition' for
 bindings imported by a `require` or module language.
 
-When you edit the buffer, the position of existing annotations is
-adjusted. Annotations for new text are not made until after
-`racket-check-syntax-after-change-refresh-delay' seconds, at
-which time the entire buffer is freshly annotated.
+When you edit the buffer, existing annotations are retained;
+their positions are updated to reflect the edit. Annotations for
+new or deleted text are not requested until after
+`racket-check-syntax-after-change-refresh-delay' seconds. The
+request is made asynchronously so that Emacs will not block --
+the drracket/check-syntax analysis can take even tens of seconds
+for even moderately complex source files. When the results are
+ready, all annotations for the buffer are completely refreshed.
+
+Tip: This follows the convention that a minor mode may only use a
+prefix key consisting of C-c followed by a punctuation key. As a
+result, `racket-check-syntax-control-c-hash-keymap' is bound to
+\"C-c #\" by default. However, as an Emacs user, you are free to
+rebind this to a more convenient prefix!
 
 \\{racket-check-syntax-mode-map}
 "
@@ -235,11 +261,13 @@ which time the entire buffer is freshly annotated.
   (unless (eq major-mode 'racket-mode)
     (setq racket-check-syntax-mode nil)
     (user-error "racket-check-syntax-mode only works with racket-mode buffers"))
+  (setq-local header-line-format nil)
   (racket--check-syntax-clear)
   (remove-hook 'after-change-functions
                #'racket--check-syntax-after-change-hook
                t)
   (when racket-check-syntax-mode
+    (racket--check-syntax-show-info "Waiting for initial check-syntax analysis...")
     (racket--check-syntax-annotate)
     (add-hook 'after-change-functions
               #'racket--check-syntax-after-change-hook
@@ -266,6 +294,7 @@ which time the entire buffer is freshly annotated.
                       ,(buffer-substring-no-properties (point-min) (point-max)))
        (lambda (response)
          (with-current-buffer buf
+           (racket--check-syntax-show-info "")
            (pcase response
              (`(check-syntax-ok)
               (racket--check-syntax-clear))
@@ -295,11 +324,12 @@ which time the entire buffer is freshly annotated.
                                            'point-left              nil))
              (add-text-properties beg
                                   end
-                                  (list 'face      'error
-                                        'help-echo str
+                                  (list 'face          'error
+                                        'help-echo     str
                                         'point-entered #'racket--point-entered
                                         'point-left    #'racket--point-left))
-             (message "%s" str))))
+             ;; Show immediately
+             (racket--check-syntax-show-info str))))
         (`(,`info ,beg ,end ,str)
          (let ((beg (copy-marker beg t))
                (end (copy-marker end t)))
@@ -327,6 +357,7 @@ which time the entire buffer is freshly annotated.
                                    use-end
                                    (list 'racket-check-syntax-use (list def-beg
                                                                         def-end)
+                                         'help-echo     "Defined locally"
                                          'point-entered #'racket--point-entered
                                          'point-left    #'racket--point-left))))))))
     ;; Make 'point-entered and 'point-left work in Emacs 25+. Note
