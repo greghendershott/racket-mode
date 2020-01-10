@@ -8,7 +8,43 @@
 
 (provide check-syntax)
 
+;; Our front-end issues check-syntax requests after the user edits a
+;; buffer, plus a short idle delay (e.g. 1 second).
+;;
+;; drracket/check-syntax can take even tens of seconds to complete on
+;; even moderately complex inputs.
+;;
+;; As a result, we might be called to work on a file for which a
+;; previous command thread is still running. Although that will work
+;; _correctly_, eventually, it is wasteful -- both here in the
+;; back-end (calculating) and in the front-end (updating buffer
+;; properties).
+
+;; Instead: We'd like to kill the old command thread and inform our
+;; front-end that the old command was "canceled". We can do so here
+;; simply by `break`ing the old thread. See how command-server.rkt
+;; handles exn:break by returning a `(break)` response, and, how
+;; racket-repl.el handles that by doing nothing (except cleaning up
+;; the nonce->callback hash-table).
 (define check-syntax
+  (let ([sema (make-semaphore 1)]       ;guard concurrent mod of ht
+        [ht   (make-hash)])             ;path-str -> thread
+    (λ (path-str code-str)
+      (dynamic-wind
+        (λ () (call-with-semaphore
+               sema
+               (λ ()
+                 (match (hash-ref ht path-str #f)
+                   [#f (void)]
+                   [t  (break-thread t)])
+                 (hash-set! ht path-str (current-thread)))))
+        (λ () (do-check-syntax path-str code-str))
+        (λ () (call-with-semaphore
+               sema
+               (λ ()
+                 (hash-remove! ht path-str))))))))
+
+(define do-check-syntax
   (let ([show-content
          (with-handlers ([exn:fail? (λ _ 'not-supported)])
            (dynamic-require 'drracket/check-syntax 'show-content))])

@@ -489,6 +489,10 @@ unwrapped to (v ...).
   2. More simply, we don't need to escape any call stack, we only
      need to ... not call the callback!
 
+'break responses are handled here, too. This is used when a
+command is somehow canceled, with no useful response except the
+indication we should clean up the pending callback as usual.
+
 The original value of `current-buffer' is temporarily restored
 during CALLBACK, because neglecting to do so is a likely
 mistake."
@@ -500,6 +504,7 @@ mistake."
            (pcase response
              (`(ok ,v)    (with-current-buffer buf (funcall callback v)))
              (`(error ,m) (message "%s" m))
+             (`(break)    nil)
              (v           (message "Unknown command response: %S" v))))
        #'ignore))))
 
