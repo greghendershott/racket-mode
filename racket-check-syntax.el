@@ -290,7 +290,7 @@ rebind this to a more convenient prefix!
   (when (racket--repl-live-p)
     (let ((buf (current-buffer)))
       (racket--cmd/async
-       `(check-syntax ,(racket--buffer-file-name)
+       `(check-syntax ,(or (racket--buffer-file-name) (buffer-name))
                       ,(buffer-substring-no-properties (point-min) (point-max)))
        (lambda (response)
          (with-current-buffer buf

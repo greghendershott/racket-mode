@@ -98,11 +98,15 @@
 ;; response with the request. The nonce needn't be random, just
 ;; unique; an increasing integer is fine.
 ;;
-;; Command responses are either (nonce 'ok sexp ...+) or (nonce 'error
-;; "message"). The latter normally can and should be displayed to the
-;; user in Emacs via error or message. We handle exn:fail? up here;
-;; generally we're fine letting Racket exceptions percolate up and be
-;; shown to the user
+;; Command responses are (nonce 'ok sexp ...+) or (nonce 'error
+;; "message") or (nonce 'break). The 'error response normally can and
+;; should be displayed to the user in Emacs via error or message. We
+;; handle exn:fail? up here; generally we're fine letting Racket
+;; exceptions percolate up and be shown to the user. The 'break
+;; response is for commands that can be aborted by other commands.
+;; Typically our Emacs code will silently ignore these; the
+;; affirmative break response allows the command callback to be
+;; cleaned up.
 (define (start-command-server port launch-token)
   (thread
    (thunk
@@ -122,7 +126,8 @@
              response-channel
              (cons
               nonce
-              (with-handlers ([exn:fail? (λ (e) `(error ,(exn-message e)))])
+              (with-handlers ([exn:fail?  (λ (e) `(error ,(exn-message e)))]
+                              [exn:break? (λ (e) `(break))])
                 (parameterize ([current-namespace
                                 (context-ns command-server-context)])
                   `(ok ,(command sexp command-server-context)))))))
