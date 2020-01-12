@@ -86,14 +86,15 @@
   (-> module-path-index?
       (or/c 'kernel
             (cons/c path-string? (listof symbol?))))
-  (define (hash-bang-symbol? v)
+  (define (hash-percent-symbol v)
     (and (symbol? v)
          (regexp-match? #px"^#%" (symbol->string v))))
   (match (resolved-module-path-name (module-path-index-resolve mpi))
-    [(? hash-bang-symbol?) 'kernel]
-    [(? path-string? path) (list path)]
-    [(? symbol? sym) (list (build-path (current-load-relative-directory)
-                                       (~a sym ".rkt")))]
+    [(? hash-percent-symbol) 'kernel]
+    [(? path-string? path)   (list path)]
+    [(? symbol? sym)
+     (list (build-path (current-load-relative-directory)
+                       (~a sym ".rkt")))]
     [(list (? path-string? path) (? symbol? subs) ...)
      (list* path subs)]))
 
