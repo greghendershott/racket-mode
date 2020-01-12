@@ -16,8 +16,7 @@
 
 (define (type-or-sig v)
   (or (type-or-contract v)
-      (sig v)
-      ""))
+      (sig v)))
 
 (define (sig v) ;any/c -> (or/c #f string?)
   (and (symbol? v)

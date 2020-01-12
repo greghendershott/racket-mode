@@ -128,8 +128,10 @@ This var is local to each buffer, including the REPL buffer.
          (v (gethash sym racket--type-cache)))
     (or v
         (and (racket--in-repl-or-its-file-p)
-             (let ((v (racket--cmd/await `(type ,str))))
-               (puthash sym v racket--type-cache) v)))))
+             (pcase (racket--cmd/await `(type ,sym))
+               (`() `())
+               (v   (puthash sym v racket--type-cache)
+                    v))))))
 
 ;;; at-point
 
