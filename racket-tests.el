@@ -55,26 +55,34 @@
   (racket-tests/type typing)
   (racket-tests/press binding))
 
-(defmacro racket-tests/eventually (&rest es)
-  `(with-timeout (racket-tests/command-timeout nil)
-     (while (not (progn ,@ es))
-       (sit-for 1))
-     t))
+(defun racket-tests/eventually (proc &rest args)
+  (with-timeout (racket-tests/command-timeout nil)
+    (while (not (apply proc args))
+      (sit-for 1))
+    t))
 
-(defun racket-tests/see-rx (rx &optional forwardp)
-  (racket-tests/eventually (if forwardp
-                               (looking-at rx)
-                             (looking-back rx (point-min)))))
+(defun racket-tests/see-back-rx (rx)
+  (racket-tests/eventually #'looking-back rx (point-min)))
 
-(defun racket-tests/see (str &optional forwardp)
-  (racket-tests/see-rx (regexp-quote str) forwardp))
+(defun racket-tests/see-forward-rx (rx)
+  (racket-tests/eventually #'looking-at rx))
+
+(defun racket-tests/see-back (str)
+  (racket-tests/see-back-rx (regexp-quote str)))
+
+(defun racket-tests/see-forward (str)
+  (racket-tests/see-forward-rx (regexp-quote str)))
 
 (defun racket-tests/explain-see (_str &optional _dir)
   `(actual . ,(buffer-substring-no-properties
                (point-min)
                (point))))
-(put 'racket-tests/see-rx 'ert-explainer #'racket-tests/explain-see)
-(put 'racket-tests/see    'ert-explainer #'racket-tests/explain-see)
+
+(dolist (sym '(racket-tests/see-back-rx
+               racket-tests/see-forward-rx
+               racket-tests/see-back
+               racket-tests/see-forward))
+  (put sym 'ert-explainer #'racket-tests/explain-see))
 
 (defun racket-tests/next-free-port ()
   ;; (1+ racket-command-port) is used by the logging server so skip
@@ -82,7 +90,7 @@
   (+ racket-command-port 2))
 
 (defun racket-tests/wait-for-command-server ()
-  (racket-tests/eventually (racket--cmd-open-p)))
+  (racket-tests/eventually #'racket--cmd-open-p))
 
 ;;; REPL
 
@@ -94,23 +102,23 @@
         (racket-command-timeout racket-tests/command-timeout))
     (racket-repl)
     (with-racket-repl-buffer
-      (should (racket-tests/see-rx
+      (should (racket-tests/see-back-rx
                "Welcome to Racket v?[0-9.]+\\(?: \\[cs\\].\\)?[\n]\\(?:;.*[\n]\\)*> "))
       (racket-tests/wait-for-command-server)
 
       ;; Completion
       (racket-tests/type&press "with-inp" "TAB")
-      (should (racket-tests/see "with-input-from-file"))
+      (should (racket-tests/see-back "with-input-from-file"))
       (racket-tests/press "RET")
-      (should (racket-tests/see "#<procedure:with-input-from-file>\n> "))
+      (should (racket-tests/see-back "#<procedure:with-input-from-file>\n> "))
 
       ;; Multiline expression indent
       (racket-tests/type&press "(if 1" "C-j")
-      (should (racket-tests/see "(if 1\n      "))
+      (should (racket-tests/see-back "(if 1\n      "))
       (racket-tests/type&press "2" "C-j")
-      (should (racket-tests/see "2\n      "))
+      (should (racket-tests/see-back "2\n      "))
       (racket-tests/type&press "3)" "RET")
-      (should (racket-tests/see "3)\n2\n> "))
+      (should (racket-tests/see-back "3)\n2\n> "))
 
       ;; Smart open bracket
       (let ((typing   "[cond [[values 1] #t] [else #f]]")
@@ -120,14 +128,14 @@
                 (electric-pair-mode (if (car modes) 1 -1))
                 (if (cdr modes) (enable-paredit-mode) (disable-paredit-mode))
                 (racket-tests/type&press typing "RET")
-                (should (racket-tests/see expected)))
+                (should (racket-tests/see-back expected)))
               (list (cons nil nil)
                     (cons t   nil)
                     (cons nil t))))
 
       ;; Exit
       (racket-tests/type&press "(exit)" "RET")
-      (should (racket-tests/see "Process Racket REPL finished\n")))))
+      (should (racket-tests/see-back "Process Racket REPL finished\n")))))
 
 ;;; Run
 
@@ -144,7 +152,7 @@
     (racket-run)
     ;; see expected prompt
     (with-racket-repl-buffer
-      (should (racket-tests/see (concat "\n" name "> "))))
+      (should (racket-tests/see-back (concat "\n" name "> "))))
     (racket-tests/wait-for-command-server)
     ;; racket-check-syntax-mode
     (when (version<= "6.2" (racket--version))
@@ -153,15 +161,15 @@
       (sit-for (if ci-p 30.0 3.0))
       (goto-char (point-min))
       (racket-check-syntax-next-definition)
-      (should (racket-tests/see "foobar" t))
+      (should (racket-tests/see-forward "foobar"))
       (should (string-equal header-line-format "1 bound occurrence"))
       (racket-check-syntax-next-use)
-      (should (racket-tests/see "foobar" t))
+      (should (racket-tests/see-forward "foobar"))
       (should (string-equal header-line-format "Defined locally"))
       (goto-char (point-max))
       (insert "foo")
       (completion-at-point)
-      (should (racket-tests/see "foobar"))
+      (should (racket-tests/see-back "foobar"))
       (racket-check-syntax-mode 0))
     ;; Exit
     (with-racket-repl-buffer
