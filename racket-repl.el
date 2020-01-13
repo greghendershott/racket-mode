@@ -464,7 +464,7 @@ Important: Do not assume that `current-buffer' is the same when
 CALLBACK is called, as it was when the command was sent. If you
 need to do something to do that original buffer, save the
 `current-buffer' in a `let' and use it in a `with-current-buffer'
-form."
+form. See `racket--restoring-current-buffer'."
   (racket--repl-ensure-command-server)
   (cl-incf racket--cmd-nonce)
   (when (and callback

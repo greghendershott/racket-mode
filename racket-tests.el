@@ -55,16 +55,18 @@
   (racket-tests/type typing)
   (racket-tests/press binding))
 
-(defun racket-tests/see-rx (rx)
+(defun racket-tests/see-rx (rx &optional forwardp)
   (with-timeout (racket-tests/command-timeout nil)
-    (while (not (looking-back rx (point-min)))
+    (while (not (if forwardp
+                    (looking-at rx)
+                  (looking-back rx (point-min))))
       (sit-for 1))
     t))
 
-(defun racket-tests/see (str)
-  (racket-tests/see-rx (regexp-quote str)))
+(defun racket-tests/see (str &optional forwardp)
+  (racket-tests/see-rx (regexp-quote str) forwardp))
 
-(defun racket-tests/explain-see (_str)
+(defun racket-tests/explain-see (_str &optional _dir)
   `(actual . ,(buffer-substring-no-properties
                (point-min)
                (point))))
@@ -133,9 +135,10 @@
          (racket-command-timeout racket-tests/command-timeout)
          (pathname (make-temp-file "test" nil ".rkt"))
          (name     (file-name-nondirectory pathname))
-         (code "#lang racket/base\n(define x 42)\nx\n"))
+         (code "#lang racket/base\n(define foobar 42)\nfoobar\n"))
     (write-region code nil pathname nil 'no-wrote-file-message)
     (find-file pathname)
+    (racket-check-syntax-mode 0)
     (racket-run)
     ;; see expected prompt
     (with-racket-repl-buffer
@@ -144,16 +147,26 @@
     ;; racket-check-syntax-mode
     (when (version<= "6.2" (racket--version))
       (racket-check-syntax-mode 1)
-      (sit-for 3.0)
+      (sit-for (if ci-p racket-command-timeout 3.0))
+      (should racket-check-syntax-mode)
       (goto-char (point-min))
       (racket-check-syntax-next-definition)
-      (should (looking-at "x"))
+      (should (racket-tests/see "foobar" t))
+      (should (string-equal header-line-format "1 bound occurrence"))
       (racket-check-syntax-next-use)
-      (should (looking-at "x"))
+      (should (racket-tests/see "foobar" t))
+      (should (string-equal header-line-format "Defined locally"))
+      (goto-char (point-max))
+      (insert "foo")
+      (completion-at-point)
+      (should (racket-tests/see "foobar"))
+      (sit-for (if ci-p racket-command-timeout 3.0))
+      (racket-check-syntax-previous-definition)
+      (should (racket-tests/see "foobar" t))
       (racket-check-syntax-mode 0))
     ;; Exit
-    ;; (with-racket-repl-buffer
-    ;;   (racket-tests/type&press "(exit)" "RET"))
+    (with-racket-repl-buffer
+      (racket-repl-exit))
     (delete-file pathname)))
 
 ;;; Indentation

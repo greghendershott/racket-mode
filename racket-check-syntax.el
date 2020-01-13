@@ -32,12 +32,116 @@
 (require 'racket-custom)
 (require 'racket-repl)
 (require 'racket-edit)
+(require 'racket-util)
 (require 'rx)
+
+(defvar racket-check-syntax-control-c-hash-keymap
+  (racket--easy-keymap-define
+   '(("j" racket-check-syntax-next-definition)
+     ("k" racket-check-syntax-previous-definition)
+     ("n" racket-check-syntax-next-use)
+     ("p" racket-check-syntax-previous-use)
+     ("." racket-check-syntax-visit-definition)
+     ("r" racket-check-syntax-rename))) )
+
+;;;###autoload
+(define-minor-mode racket-check-syntax-mode
+  "A minor mode that annotates information supplied by drracket/check-syntax.
+
+This minor mode is an optional enhancement to `racket-mode' edit
+buffers. Like any minor mode, you can turn it on or off for a
+specific buffer. If you always want to use it, put the following
+code in your Emacs init file:
+
+#+BEGIN_SRC elisp
+    (require 'racket-check-syntax)
+    (add-hook 'racket-mode-hook #'racket-check-syntax-mode)
+#+END_SRC
+
+Note: This mode won't do anything unless the Racket Mode back end
+is running -- as a result of a `racket-run' or `racket-repl'
+command. You need not run the buffer you are editing, just /some/
+buffer.
+
+When point is on a definition or use, related items are
+highlighted using `racket-check-syntax-def-face' and
+`racket-check-syntax-use-face' -- instead of drawing arrows as in
+Dr Racket -- and \"mouse over\" information is displayed in the
+header line.
+
+You may also use commands to navigate among a definition and its
+uses, or rename all of them.
+
+\"M-.\" is rebound to `racket-check-syntax-visit-definition'.
+This uses information provided by check-syntax for local
+bindings, or else does the usual `racket-visit-definition' for
+bindings imported by a `require` or module language.
+
+When you edit the buffer, existing annotations are retained;
+their positions are updated to reflect the edit. Annotations for
+new or deleted text are not requested until after
+`racket-check-syntax-after-change-refresh-delay' seconds. The
+request is made asynchronously so that Emacs will not block --
+the drracket/check-syntax analysis can take even tens of seconds
+for even moderately complex source files. When the results are
+ready, all annotations for the buffer are completely refreshed.
+
+Tip: This follows the convention that a minor mode may only use a
+prefix key consisting of C-c followed by a punctuation key. As a
+result, `racket-check-syntax-control-c-hash-keymap' is bound to
+\"C-c #\" by default. However, as an Emacs user, you are free to
+rebind this to a more convenient prefix!
+
+\\{racket-check-syntax-mode-map}
+"
+  :lighter " CheckSyntax"
+  :keymap (racket--easy-keymap-define
+           `(("C-c #" ,racket-check-syntax-control-c-hash-keymap)
+             ("M-."   ,#'racket-check-syntax-visit-definition)))
+  (unless (eq major-mode 'racket-mode)
+    (setq racket-check-syntax-mode nil)
+    (user-error "racket-check-syntax-mode only works with racket-mode buffers"))
+  (cond (racket-check-syntax-mode
+         (racket--check-syntax-annotate)
+         (add-hook 'after-change-functions
+                   #'racket--check-syntax-after-change-hook
+                   t t)
+         (add-hook 'completion-at-point-functions
+                   #'racket-check-syntax-complete-at-point
+                   nil t)
+         (add-hook 'racket--repl-after-live-hook
+                   #'racket--check-syntax-annotate-all-buffers))
+        (t
+         (setq-local header-line-format nil)
+         (racket--check-syntax-clear)
+         (remove-hook 'after-change-functions
+                      #'racket--check-syntax-after-change-hook
+                      t)
+         (remove-hook 'completion-at-point-functions
+                      #'racket-check-syntax-complete-at-point
+                      t))))
+
+(defvar-local racket--check-syntax-completions nil)
+
+(defun racket-check-syntax-complete-at-point ()
+  "A value for the variable `completion-at-point-functions'.
+
+Our minor mode adds this in addition to the one set by `racket-mode'."
+  (racket--call-with-completion-prefix-positions
+   (lambda (beg end)
+     (list beg
+           end
+           (completion-table-dynamic
+            (lambda (prefix)
+              (all-completions prefix racket--check-syntax-completions)))
+           :predicate #'identity
+           :exclusive 'no))))
 
 (defun racket--check-syntax-show-info (str)
   ;;(message "%s" (racket--only-first-line str))
-  (setq-local header-line-format
-              (format "%s" (racket--only-first-line str))))
+  (when racket-check-syntax-mode
+    (setq-local header-line-format
+                (format "%s" (racket--only-first-line str)))))
 
 (defun racket--only-first-line (str)
   (save-match-data
@@ -180,6 +284,7 @@ If point is instead on a definition, then go to its first use."
        (lambda () (racket--point-entered nil (marker-position point-marker)))))))
 
 (defun racket-check-syntax-next-definition ()
+  "Move point to the next definition."
   (interactive)
   (let ((pos (next-single-property-change (point) 'racket-check-syntax-def)))
     (when pos
@@ -188,6 +293,7 @@ If point is instead on a definition, then go to its first use."
       (and pos (goto-char pos)))))
 
 (defun racket-check-syntax-previous-definition ()
+  "Move point to the previous definition."
   (interactive)
   (let ((pos (previous-single-property-change (point) 'racket-check-syntax-def)))
     (when pos
@@ -195,115 +301,41 @@ If point is instead on a definition, then go to its first use."
         (setq pos (previous-single-property-change pos 'racket-check-syntax-def)))
       (and pos (goto-char pos)))))
 
-(defvar racket-check-syntax-control-c-hash-keymap
-  (racket--easy-keymap-define
-   '(("j" racket-check-syntax-next-definition)
-     ("k" racket-check-syntax-previous-definition)
-     ("n" racket-check-syntax-next-use)
-     ("p" racket-check-syntax-previous-use)
-     ("." racket-check-syntax-visit-definition)
-     ("r" racket-check-syntax-rename))) )
-
-;;;###autoload
-(define-minor-mode racket-check-syntax-mode
-  "A minor mode that annotates information supplied by drracket/check-syntax.
-
-This minor mode is an optional enhancement to `racket-mode' edit
-buffers. Like any minor mode, you can turn it on or off for a
-specific buffer. If you always want to use it, put the following
-code in your Emacs init file:
-
-#+BEGIN_SRC elisp
-    (require 'racket-check-syntax)
-    (add-hook 'racket-mode-hook #'racket-check-syntax-mode)
-#+END_SRC
-
-Note: This mode won't do anything unless the Racket Mode back end
-is running -- as a result of a `racket-run' or `racket-repl'
-command. You need not run the buffer you are editing, just /some/
-buffer.
-
-When point is on a definition or use, related items are
-highlighted using `racket-check-syntax-def-face' and
-`racket-check-syntax-use-face' -- instead of drawing arrows as in
-Dr Racket -- and \"mouse over\" information is displayed in the
-header line.
-
-You may also use commands to navigate among a definition and its
-uses, or rename all of them.
-
-\"M-.\" is rebound to `racket-check-syntax-visit-definition'.
-This uses information provided by check-syntax for local
-bindings, or else does the usual `racket-visit-definition' for
-bindings imported by a `require` or module language.
-
-When you edit the buffer, existing annotations are retained;
-their positions are updated to reflect the edit. Annotations for
-new or deleted text are not requested until after
-`racket-check-syntax-after-change-refresh-delay' seconds. The
-request is made asynchronously so that Emacs will not block --
-the drracket/check-syntax analysis can take even tens of seconds
-for even moderately complex source files. When the results are
-ready, all annotations for the buffer are completely refreshed.
-
-Tip: This follows the convention that a minor mode may only use a
-prefix key consisting of C-c followed by a punctuation key. As a
-result, `racket-check-syntax-control-c-hash-keymap' is bound to
-\"C-c #\" by default. However, as an Emacs user, you are free to
-rebind this to a more convenient prefix!
-
-\\{racket-check-syntax-mode-map}
-"
-  :lighter " CheckSyntax"
-  :keymap (racket--easy-keymap-define
-           `(("C-c #" ,racket-check-syntax-control-c-hash-keymap)
-             ("M-."   ,#'racket-check-syntax-visit-definition)))
-  (unless (eq major-mode 'racket-mode)
-    (setq racket-check-syntax-mode nil)
-    (user-error "racket-check-syntax-mode only works with racket-mode buffers"))
-  (setq-local header-line-format nil)
-  (racket--check-syntax-clear)
-  (remove-hook 'after-change-functions
-               #'racket--check-syntax-after-change-hook
-               t)
-  (when racket-check-syntax-mode
-    (racket--check-syntax-show-info "Waiting for initial check-syntax analysis...")
-    (racket--check-syntax-annotate)
-    (add-hook 'after-change-functions
-              #'racket--check-syntax-after-change-hook
-              t t)
-    ;; In case REPL not live when they visit this file, but it becomes
-    ;; live, later, annotate then.
-    (add-hook 'racket--repl-after-live-hook
-              #'racket--check-syntax-annotate)))
+(defun racket--check-syntax-annotate-all-buffers ()
+  (dolist (buf (buffer-list))
+    (when (buffer-live-p buf)
+      (with-current-buffer buf
+        (when racket-check-syntax-mode
+          (racket--check-syntax-annotate))))))
 
 (defvar-local racket--check-syntax-timer nil)
+
 (defun racket--check-syntax-after-change-hook (_beg _end _len)
   (when (timerp racket--check-syntax-timer)
     (cancel-timer racket--check-syntax-timer))
   (setq racket--check-syntax-timer
         (run-with-idle-timer racket-check-syntax-after-change-refresh-delay
                              nil ;no repeat
-                             #'racket--check-syntax-annotate)))
+                             (racket--restoring-current-buffer
+                              #'racket--check-syntax-annotate))))
 
-(defun racket--check-syntax-annotate (&optional thunk)
+(defun racket--check-syntax-annotate (&optional after-thunk)
   (when (racket--repl-live-p)
-    (let ((buf (current-buffer)))
-      (racket--cmd/async
-       `(check-syntax ,(or (racket--buffer-file-name) (buffer-name))
-                      ,(buffer-substring-no-properties (point-min) (point-max)))
-       (lambda (response)
-         (with-current-buffer buf
-           (racket--check-syntax-show-info "")
-           (pcase response
-             (`(check-syntax-ok)
-              (racket--check-syntax-clear))
-             (`(check-syntax-ok . ,xs)
-              (racket--check-syntax-clear)
-              (racket--check-syntax-insert xs)
-              (when thunk (funcall thunk)))
-             (`(check-syntax-errors . ,xs)
-              (racket--check-syntax-insert xs)))))))))
+    (racket--cmd/async
+     `(check-syntax ,(or (racket--buffer-file-name) (buffer-name))
+                    ,(buffer-substring-no-properties (point-min) (point-max)))
+     (racket--restoring-current-buffer
+      (lambda (response)
+        (racket--check-syntax-show-info "")
+        (pcase response
+          (`(check-syntax-ok)
+           (racket--check-syntax-clear))
+          (`(check-syntax-ok . ,xs)
+           (racket--check-syntax-clear)
+           (racket--check-syntax-insert xs)
+           (when after-thunk (funcall after-thunk)))
+          (`(check-syntax-errors . ,xs)
+           (racket--check-syntax-insert xs))))))))
 
 (defun racket--check-syntax-insert (xs)
   "Insert text properties. Convert integer positions to markers."
@@ -337,7 +369,19 @@ rebind this to a more convenient prefix!
                                 end
                                 (list 'help-echo     str
                                       'point-entered #'racket--point-entered
-                                      'point-left    #'racket--point-left))))
+                                      'point-left    #'racket--point-left)))
+         ;; Draw completion candidates from 'info items. Why not from
+         ;; the definition positions in `def/uses? (1) Because the
+         ;; drracket analysis is for arrows between defs and uses --
+         ;; and an unused definition won't be included. Yet it is an
+         ;; excellent completion candidate. e.g. The user defined
+         ;; something, is still editing, and now want to use it -- it
+         ;; would be handy for completion to work. (2) Because any
+         ;; item with mouse-over info might potentially be a useful
+         ;; completion candidate. For example module names in require
+         ;; statements.
+         (push (buffer-substring-no-properties beg end)
+               racket--check-syntax-completions))
         (`(,`def/uses ,def-beg ,def-end ,uses)
          (let ((def-beg (copy-marker def-beg t))
                (def-end (copy-marker def-end t))
@@ -369,6 +413,7 @@ rebind this to a more convenient prefix!
 
 (defun racket--check-syntax-clear ()
   (with-silent-modifications
+    (setq racket--check-syntax-completions nil)
     (remove-text-properties (point-min)
                             (point-max)
                             (list 'help-echo nil
