@@ -55,13 +55,16 @@
   (racket-tests/type typing)
   (racket-tests/press binding))
 
+(defmacro racket-tests/eventually (&rest es)
+  `(with-timeout (racket-tests/command-timeout nil)
+     (while (not (progn ,@ es))
+       (sit-for 1))
+     t))
+
 (defun racket-tests/see-rx (rx &optional forwardp)
-  (with-timeout (racket-tests/command-timeout nil)
-    (while (not (if forwardp
-                    (looking-at rx)
-                  (looking-back rx (point-min))))
-      (sit-for 1))
-    t))
+  (racket-tests/eventually (if forwardp
+                               (looking-at rx)
+                             (looking-back rx (point-min)))))
 
 (defun racket-tests/see (str &optional forwardp)
   (racket-tests/see-rx (regexp-quote str) forwardp))
@@ -79,8 +82,7 @@
   (+ racket-command-port 2))
 
 (defun racket-tests/wait-for-command-server ()
-  (with-timeout (racket-tests/connect-timeout)
-    (while (not (racket--cmd-open-p)) (sit-for 1))))
+  (racket-tests/eventually (racket--cmd-open-p)))
 
 ;;; REPL
 
@@ -147,8 +149,8 @@
     ;; racket-check-syntax-mode
     (when (version<= "6.2" (racket--version))
       (racket-check-syntax-mode 1)
-      (sit-for (if ci-p racket-command-timeout 3.0))
       (should racket-check-syntax-mode)
+      (sit-for (if ci-p 30.0 3.0))
       (goto-char (point-min))
       (racket-check-syntax-next-definition)
       (should (racket-tests/see "foobar" t))
@@ -160,9 +162,6 @@
       (insert "foo")
       (completion-at-point)
       (should (racket-tests/see "foobar"))
-      (sit-for (if ci-p racket-command-timeout 3.0))
-      (racket-check-syntax-previous-definition)
-      (should (racket-tests/see "foobar" t))
       (racket-check-syntax-mode 0))
     ;; Exit
     (with-racket-repl-buffer
