@@ -30,11 +30,7 @@
 (defvar-local racket--namespace-symbols nil
   "A cache of the list of all Racket namespace symbols.
 
-This var is local to each buffer, including the REPL buffer.
-
-`racket-run' should call `racket--invalidate-completion-cache'.
-
-See `racket--get-namespace-symbols'.")
+This var is local to each buffer, including the REPL buffer.")
 
 (defun racket--invalidate-completion-cache ()
   "Both current `racket-mode' buffer and `racket-repl-mode' buffer (if any)."
@@ -67,8 +63,22 @@ See `racket--get-namespace-symbols'.")
              (racket--completion-candidates)
              :initial-value ()))
 
-(defun racket-complete-at-point (&optional _predicate)
-  "Default value for the variable `completion-at-point-functions'.
+(defun racket--call-with-completion-prefix-positions (proc)
+  (let ((beg (save-excursion (skip-syntax-backward "^-()>") (point))))
+    (unless (or (eq beg (point-max))
+                (member (char-syntax (char-after beg)) '(?\" ?\( ?\))))
+      (condition-case nil
+          (save-excursion
+            (goto-char beg)
+            (forward-sexp 1)
+            (let ((end (point)))
+              (and
+               (<= (+ beg 2) end) ;prefix at least 2 chars
+               (funcall proc beg end))))
+        (scan-error nil)))))
+
+(defun racket-complete-at-point ()
+  "A value for the variable `completion-at-point-functions'.
 
 Completion candidates are drawn from the namespace symbols
 resulting from the most recent `racket-run' of each .rkt file. If
@@ -80,25 +90,17 @@ Returns extra :company-doc-buffer and :company-location
 properties for use by the `company-mode' backend `company-capf'
 -- but not :company-docsig, because it is frequently impossible
 to supply this quickly enough or at all."
-  (let ((beg (save-excursion (skip-syntax-backward "^-()>") (point))))
-    (unless (or (eq beg (point-max))
-                (member (char-syntax (char-after beg)) '(?\" ?\( ?\))))
-      (condition-case nil
-          (save-excursion
-            (goto-char beg)
-            (forward-sexp 1)
-            (let ((end (point)))
-              (and
-               (<= (+ beg 2) end) ;prefix at least 2 chars
-               (list beg
-                     end
-                     (completion-table-dynamic
-                      #'racket--completion-candidates-for-prefix)
-                     :predicate #'identity
-                     ;; racket--get-type is too slow for :company-docsig
-                     :company-doc-buffer #'racket--do-describe
-                     :company-location #'racket--get-def-file+line))))
-        (scan-error nil)))))
+  (racket--call-with-completion-prefix-positions
+   (lambda (beg end)
+     (list beg
+           end
+           (completion-table-dynamic
+            #'racket--completion-candidates-for-prefix)
+           :predicate #'identity
+           :exclusive 'no
+           ;; racket--get-type is too slow for :company-docsig
+           :company-doc-buffer #'racket--do-describe
+           :company-location #'racket--get-def-file+line))))
 
 (defun racket--get-def-file+line (sym)
   "Return a value suitable for use as :company-location."

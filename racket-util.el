@@ -131,6 +131,13 @@ When installed as a package, this can be found from the variable
     (pop-to-buffer b t t)
     (setq truncate-lines t)))
 
+(defun racket--restoring-current-buffer (proc)
+  "Return a procedure restoring `current-buffer' during the dynamic extent of PROC."
+  (let ((buf (current-buffer)))
+    (lambda (&rest args)
+      (with-current-buffer buf
+        (apply proc args)))))
+
 ;;; string trim
 
 ;; "inline" the one thing we used from `s' so we can drop the dep.
