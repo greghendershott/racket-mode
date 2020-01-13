@@ -58,10 +58,10 @@ code in your Emacs init file:
     (add-hook 'racket-mode-hook #'racket-check-syntax-mode)
 #+END_SRC
 
-Note: This mode won't do anything unless the Racket Mode back end
-is running -- as a result of a `racket-run' or `racket-repl'
-command. You need not run the buffer you are editing, just /some/
-buffer.
+Note: This mode won't do anything unless/until the Racket Mode
+back end is running -- as a result of a `racket-run' or
+`racket-repl' command. You need not run the buffer you are
+editing, just /some/ buffer, to start the back end server.
 
 When point is on a definition or use, related items are
 highlighted using `racket-check-syntax-def-face' and
@@ -76,6 +76,11 @@ uses, or rename all of them.
 This uses information provided by check-syntax for local
 bindings, or else does the usual `racket-visit-definition' for
 bindings imported by a `require` or module language.
+
+Local definitions are offered as completion candidates by adding
+`racket-check-syntax-complete-at-point' to the variable
+`completion-at-point-functions', as a non-exclusive source before
+`racket-complete-at-point'.
 
 When you edit the buffer, existing annotations are retained;
 their positions are updated to reflect the edit. Annotations for
@@ -109,8 +114,13 @@ rebind this to a more convenient prefix!
          (add-hook 'completion-at-point-functions
                    #'racket-check-syntax-complete-at-point
                    nil t)
-         (add-hook 'racket--repl-after-live-hook
-                   #'racket--check-syntax-annotate-all-buffers))
+         ;; Make 'point-entered and 'point-left work in Emacs 25+.
+         ;; Although this is somewhat of a hack, I spent a lot of time
+         ;; trying to Do the Right Thing using the new
+         ;; cursor-sensor-mode -- and could not get it to work
+         ;; satisfactorily. See:
+         ;; http://emacs.stackexchange.com/questions/29813/point-motion-strategy-for-emacs-25-and-older
+         (setq-local inhibit-point-motion-hooks nil))
         (t
          (setq-local header-line-format nil)
          (racket--check-syntax-clear)
@@ -302,11 +312,19 @@ If point is instead on a definition, then go to its first use."
       (and pos (goto-char pos)))))
 
 (defun racket--check-syntax-annotate-all-buffers ()
+  "Annotate every buffer that has `racket-check-syntax-mode' enabled.
+When supplied as a value for the variable
+`racket--repl-after-live-hook', this handles the case where the
+mode was enabled but the back-end server was not yet availabe so
+annotations could not yet be done."
   (dolist (buf (buffer-list))
     (when (buffer-live-p buf)
       (with-current-buffer buf
         (when racket-check-syntax-mode
           (racket--check-syntax-annotate))))))
+
+(add-hook 'racket--repl-after-live-hook
+          #'racket--check-syntax-annotate-all-buffers)
 
 (defvar-local racket--check-syntax-timer nil)
 
@@ -403,13 +421,7 @@ If point is instead on a definition, then go to its first use."
                                                                         def-end)
                                          'help-echo     "Defined locally"
                                          'point-entered #'racket--point-entered
-                                         'point-left    #'racket--point-left))))))))
-    ;; Make 'point-entered and 'point-left work in Emacs 25+. Note
-    ;; that this is somewhat of a hack -- I spent a lot of time trying
-    ;; to Do the Right Thing using the new cursor-sensor-mode, but
-    ;; could not get it to work satisfactorily. See:
-    ;; http://emacs.stackexchange.com/questions/29813/point-motion-strategy-for-emacs-25-and-older
-    (setq-local inhibit-point-motion-hooks nil)))
+                                         'point-left    #'racket--point-left))))))))))
 
 (defun racket--check-syntax-clear ()
   (with-silent-modifications
