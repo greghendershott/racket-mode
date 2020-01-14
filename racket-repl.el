@@ -430,7 +430,7 @@ ourselves from the local cominit output filter functions."
     (_ nil)))
 
 (defun racket--repl-ensure-command-server ()
-  "See the variable `racket--repl-wait-for-command-server'."
+  "See the variable `racket-command-startup'."
   (if racket-command-startup
       (progn
         (unless (racket--repl-live-p)
