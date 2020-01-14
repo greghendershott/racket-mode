@@ -114,13 +114,8 @@ rebind this to a more convenient prefix!
          (add-hook 'completion-at-point-functions
                    #'racket-check-syntax-complete-at-point
                    nil t)
-         ;; Make 'point-entered and 'point-left work in Emacs 25+.
-         ;; Although this is somewhat of a hack, I spent a lot of time
-         ;; trying to Do the Right Thing using the new
-         ;; cursor-sensor-mode -- and could not get it to work
-         ;; satisfactorily. See:
-         ;; http://emacs.stackexchange.com/questions/29813/point-motion-strategy-for-emacs-25-and-older
-         (setq-local inhibit-point-motion-hooks nil))
+         (when (fboundp 'cursor-sensor-mode)
+           (cursor-sensor-mode 1)))
         (t
          (setq-local header-line-format nil)
          (racket--check-syntax-clear)
@@ -129,7 +124,9 @@ rebind this to a more convenient prefix!
                       t)
          (remove-hook 'completion-at-point-functions
                       #'racket-check-syntax-complete-at-point
-                      t))))
+                      t)
+         (when (fboundp 'cursor-sensor-mode)
+           (cursor-sensor-mode 0)))))
 
 (defvar-local racket--check-syntax-completions nil)
 
@@ -182,31 +179,33 @@ Our minor mode adds this in addition to the one set by `racket-mode'."
   (and (stringp v)
        (not (string-match-p "\\`[ \t\n\r]*\\'" v)))) ;`string-blank-p'
 
-(defun racket--point-entered (_old new)
-  (pcase (get-text-property new 'help-echo)
-    ((and s (pred racket--non-empty-string-p))
-     (racket--check-syntax-show-info s)))
-  (pcase (get-text-property new 'racket-check-syntax-def)
-    ((and uses `((,beg ,_end) . ,_))
-     (pcase (get-text-property beg 'racket-check-syntax-use)
-       (`(,beg ,end)
-        (racket--highlight beg end racket-check-syntax-def-face)))
-     (dolist (use uses)
-       (pcase use
+(defun racket--check-syntax-cursor-sensor (window old dir)
+  (let ((new (window-point window)))
+    (cl-case dir
+      ('entered
+       (pcase (get-text-property new 'help-echo)
+         ((and s (pred racket--non-empty-string-p))
+          (racket--check-syntax-show-info s)))
+       (pcase (get-text-property new 'racket-check-syntax-def)
+         ((and uses `((,beg ,_end) . ,_))
+          (pcase (get-text-property beg 'racket-check-syntax-use)
+            (`(,beg ,end)
+             (racket--highlight beg end racket-check-syntax-def-face)))
+          (dolist (use uses)
+            (pcase use
+              (`(,beg ,end)
+               (racket--highlight beg end racket-check-syntax-use-face))))))
+       (pcase (get-text-property new 'racket-check-syntax-use)
          (`(,beg ,end)
-          (racket--highlight beg end racket-check-syntax-use-face))))))
-  (pcase (get-text-property new 'racket-check-syntax-use)
-    (`(,beg ,end)
-     (racket--highlight beg end racket-check-syntax-def-face)
-     (dolist (use (get-text-property beg 'racket-check-syntax-def))
-       (pcase use
-         (`(,beg ,end)
-          (racket--highlight beg end racket-check-syntax-use-face)))))))
-
-(defun racket--point-left (old _new)
-  (when (get-text-property old 'help-echo)
-    (racket--check-syntax-show-info ""))
-  (racket--unhighlight-all))
+          (racket--highlight beg end racket-check-syntax-def-face)
+          (dolist (use (get-text-property beg 'racket-check-syntax-def))
+            (pcase use
+              (`(,beg ,end)
+               (racket--highlight beg end racket-check-syntax-use-face)))))))
+      ('left
+       (when (get-text-property old 'help-echo)
+         (racket--check-syntax-show-info ""))
+       (racket--unhighlight-all)))))
 
 (defun racket-check-syntax-visit-definition ()
   "When point is on a use, go to its definition.
@@ -291,7 +290,10 @@ If point is instead on a definition, then go to its first use."
             (insert new))))
       (goto-char (marker-position point-marker))
       (racket--check-syntax-annotate
-       (lambda () (racket--point-entered nil (marker-position point-marker)))))))
+       (lambda ()
+         (racket--check-syntax-cursor-sensor (selected-window)
+                                             (point-min)
+                                             'entered))))))
 
 (defun racket-check-syntax-next-definition ()
   "Move point to the next definition."
@@ -338,22 +340,24 @@ annotations could not yet be done."
                               #'racket--check-syntax-annotate))))
 
 (defun racket--check-syntax-annotate (&optional after-thunk)
-  (when (racket--repl-live-p)
-    (racket--cmd/async
-     `(check-syntax ,(or (racket--buffer-file-name) (buffer-name))
-                    ,(buffer-substring-no-properties (point-min) (point-max)))
-     (racket--restoring-current-buffer
-      (lambda (response)
-        (racket--check-syntax-show-info "")
-        (pcase response
-          (`(check-syntax-ok)
-           (racket--check-syntax-clear))
-          (`(check-syntax-ok . ,xs)
-           (racket--check-syntax-clear)
-           (racket--check-syntax-insert xs)
-           (when after-thunk (funcall after-thunk)))
-          (`(check-syntax-errors . ,xs)
-           (racket--check-syntax-insert xs))))))))
+  (if (racket--repl-live-p)
+      (racket--cmd/async
+       `(check-syntax ,(or (racket--buffer-file-name) (buffer-name))
+                      ,(buffer-substring-no-properties (point-min) (point-max)))
+       (racket--restoring-current-buffer
+        (lambda (response)
+          (racket--check-syntax-show-info "")
+          (pcase response
+            (`(check-syntax-ok)
+             (racket--check-syntax-clear))
+            (`(check-syntax-ok . ,xs)
+             (racket--check-syntax-clear)
+             (racket--check-syntax-insert xs)
+             (when after-thunk (funcall after-thunk)))
+            (`(check-syntax-errors . ,xs)
+             (racket--check-syntax-insert xs))))))
+    (racket--check-syntax-show-info
+     "racket-check-syntax-mode not available until you M-x racket-run or racket-repl")))
 
 (defun racket--check-syntax-insert (xs)
   "Insert text properties. Convert integer positions to markers."
@@ -370,14 +374,13 @@ annotations could not yet be done."
                                      (list 'help-echo               nil
                                            'racket-check-syntax-def nil
                                            'racket-check-syntax-use nil
-                                           'point-entered           nil
-                                           'point-left              nil))
+                                           'cursor-sensor-functions nil))
              (add-text-properties beg
                                   end
-                                  (list 'face          'error
-                                        'help-echo     str
-                                        'point-entered #'racket--point-entered
-                                        'point-left    #'racket--point-left))
+                                  (list 'face      'error
+                                        'help-echo str
+                                        'cursor-sensor-functions
+                                        (list #'racket--check-syntax-cursor-sensor)))
              ;; Show immediately
              (racket--check-syntax-show-info str))))
         (`(,`info ,beg ,end ,str)
@@ -385,9 +388,9 @@ annotations could not yet be done."
                (end (copy-marker end t)))
            (add-text-properties beg
                                 end
-                                (list 'help-echo     str
-                                      'point-entered #'racket--point-entered
-                                      'point-left    #'racket--point-left)))
+                                (list 'help-echo str
+                                      'cursor-sensor-functions
+                                      (list #'racket--check-syntax-cursor-sensor))))
          ;; Draw completion candidates from 'info items. Why not from
          ;; the definition positions in `def/uses? (1) Because the
          ;; drracket analysis is for arrows between defs and uses --
@@ -411,28 +414,26 @@ annotations could not yet be done."
           (add-text-properties def-beg
                                def-end
                                (list 'racket-check-syntax-def uses
-                                     'point-entered #'racket--point-entered
-                                     'point-left    #'racket--point-left))
+                                     'cursor-sensor-functions
+                                     (list #'racket--check-syntax-cursor-sensor)))
           (dolist (use uses)
             (pcase-let* ((`(,use-beg ,use-end) use))
               (add-text-properties use-beg
                                    use-end
-                                   (list 'racket-check-syntax-use (list def-beg
-                                                                        def-end)
-                                         'help-echo     "Defined locally"
-                                         'point-entered #'racket--point-entered
-                                         'point-left    #'racket--point-left))))))))))
+                                   (list 'racket-check-syntax-use (list def-beg def-end)
+                                         'help-echo               "Defined locally"
+                                         'cursor-sensor-functions
+                                         (list #'racket--check-syntax-cursor-sensor)))))))))))
 
 (defun racket--check-syntax-clear ()
   (with-silent-modifications
     (setq racket--check-syntax-completions nil)
     (remove-text-properties (point-min)
                             (point-max)
-                            (list 'help-echo nil
+                            (list 'help-echo               nil
                                   'racket-check-syntax-def nil
                                   'racket-check-syntax-use nil
-                                  'point-entered nil
-                                  'point-left nil))
+                                  'cursor-sensor-functions nil))
     (racket--unhighlight-all)))
 
 (provide 'racket-check-syntax)
