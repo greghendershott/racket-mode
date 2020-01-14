@@ -169,11 +169,11 @@ Our minor mode adds this in addition to the one set by `racket-mode'."
                    (overlays-in beg end))
     (let ((o (make-overlay beg end)))
       (overlay-put o 'name racket--check-syntax-overlay-name)
-      (overlay-put o 'priority 100)
+      (overlay-put o 'priority 0) ;below other overlays e.g. isearch
       (overlay-put o 'face face))))
 
 (defun racket--unhighlight (beg end)
-  (remove-overlays beg end racket--check-syntax-overlay-name))
+  (remove-overlays beg end 'name racket--check-syntax-overlay-name))
 
 (defun racket--unhighlight-all ()
   (racket--unhighlight (point-min) (point-max)))
