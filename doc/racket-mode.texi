@@ -368,6 +368,8 @@ Of course that means there must exist some Racket namespace. When you first visi
 
 Similarly, after you change the file, including its @code{require} forms, you'll need to @kbd{C-c C-c}  again to make the resulting set of identifiers available for completion.
 
+Optional: You can enable a minor mode to get completion candidates from local defintions: @xref{racket-check-syntax-mode}.
+
 To have @kbd{TAB}  do completion as well as indent, add the following to your Emacs init file:
 
 @lisp
@@ -1319,23 +1321,24 @@ A minor mode that annotates information supplied by drracket/check-syntax.
 
 This minor mode is an optional enhancement to @code{racket-mode} edit
 buffers. Like any minor mode, you can turn it on or off for a
-specific buffer. If you always want to use it:
+specific buffer. If you always want to use it, put the following
+code in your Emacs init file:
 
 @lisp
 (require 'racket-check-syntax)
 (add-hook 'racket-mode-hook #'racket-check-syntax-mode)
 @end lisp
 
-Note: This mode won't do anything unless the Racket Mode back end
-is running -- as a result of a @ref{racket-run} or @ref{racket-repl}
-command. You need not run the buffer you are editing, just @emph{some}
-buffer.
+Note: This mode won't do anything unless/until the Racket Mode
+back end is running -- as a result of a @ref{racket-run} or
+@ref{racket-repl} command. You need not run the buffer you are
+editing, just @emph{some} buffer, to start the back end server.
 
 When point is on a definition or use, related items are
 highlighted using @ref{racket-check-syntax-def-face} and
 @ref{racket-check-syntax-use-face} -- instead of drawing arrows as in
 Dr Racket -- and ``mouse over'' information is displayed in the
-echo area.
+header line.
 
 You may also use commands to navigate among a definition and its
 uses, or rename all of them.
@@ -1345,10 +1348,25 @@ This uses information provided by check-syntax for local
 bindings, or else does the usual @ref{racket-visit-definition} for
 bindings imported by a @code{require} or module language.
 
-When you edit the buffer, the position of existing annotations is
-adjusted. Annotations for new text are not made until after
-@ref{racket-check-syntax-after-change-refresh-delay} seconds, at
-which time the entire buffer is freshly annotated.
+Local definitions are offered as completion candidates by adding
+@code{racket-check-syntax-complete-at-point} to the variable
+@code{completion-at-point-functions}, as a non-exclusive source before
+@ref{racket-complete-at-point}.
+
+When you edit the buffer, existing annotations are retained;
+their positions are updated to reflect the edit. Annotations for
+new or deleted text are not requested until after
+@ref{racket-check-syntax-after-change-refresh-delay} seconds. The
+request is made asynchronously so that Emacs will not block --
+the drracket/check-syntax analysis can take even tens of seconds
+for even moderately complex source files. When the results are
+ready, all annotations for the buffer are completely refreshed.
+
+Tip: This follows the convention that a minor mode may only use a
+prefix key consisting of C-c followed by a punctuation key. As a
+result, @code{racket-check-syntax-control-c-hash-keymap} is bound to
+``C-c #'' by default. However, as an Emacs user, you are free to
+rebind this to a more convenient prefix!
 
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
@@ -1521,7 +1539,7 @@ each couple's value.
 @node racket-complete-at-point
 @subsection racket-complete-at-point
 
-Default value for the variable @code{completion-at-point-functions}.
+A value for the variable @code{completion-at-point-functions}.
 
 Completion candidates are drawn from the namespace symbols
 resulting from the most recent @ref{racket-run} of each .rkt file. If
