@@ -42,15 +42,21 @@
         [else (values #f #f)]))
 
 (define (scribble-get-xexpr path anchor)
+  (define (heading-element? x)
+    (match x
+      [(cons (or 'h1 'h2 'h3 'h4 'h5 'h6) _) #t]
+      [_ #f]))
   (match (let loop ([es (main-elements (html-file->xexpr path))])
            (match es
              [(list) (list)]
              [(cons (? (curryr anchored-element anchor) this) more)
-              ;; Accumulate until another intrapara with an anchor
+              ;; Accumulate until another intrapara with an anchor, or
+              ;; until a heading element indicating a new subsection.
               (cons this
                     (let get ([es more])
                       (match es
                         [(list) (list)]
+                        [(cons (? heading-element?) _) (list)] ;stop
                         [(cons (? anchored-element) _) (list)] ;stop
                         [(cons this more) (cons this (get more))])))]
              [(cons _ more) (loop more)]))
