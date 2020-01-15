@@ -258,11 +258,13 @@ Returns the buffer in which the description was written."
         (goto-char (point-max))
         (insert "\n")
         (insert-text-button "Definition"
+                            'follow-link t
                             'action
                             (lambda (_btn)
                               (racket--do-visit-def-or-mod 'def str)))
         (insert "   ")
         (insert-text-button "Documentation in Browser"
+                            'follow-link t
                             'action
                             (lambda (_btn)
                               (racket--cmd/await `(doc ,str))))
