@@ -92,7 +92,7 @@ function so it can be a menu target."
   (racket-run '(16)))
 
 (defun racket-run-and-switch-to-repl (&optional prefix)
-  "This is `racket-run' followed by `racket-switch-to-repl'."
+  "This is `racket-run' followed by `racket-repl'."
   (interactive "P")
   (racket-run prefix)
   (racket-repl))
