@@ -140,7 +140,10 @@
 ;;; Run
 
 (ert-deftest racket-tests/run ()
-  (let* ((racket--cmd-connect-attempts racket-tests/connect-attempts)
+  (let* (;; In case pos-tip X support unavailable on CI, limit the
+         ;; show-info functions for duration of this test:
+         (racket-check-syntax-show-info-functions (list #'racket-show-echo-area))
+         (racket--cmd-connect-attempts racket-tests/connect-attempts)
          (racket-command-port (racket-tests/next-free-port))
          (racket-command-timeout racket-tests/command-timeout)
          (pathname (make-temp-file "test" nil ".rkt"))
@@ -148,13 +151,15 @@
          (code "#lang racket/base\n(define foobar 42)\nfoobar\n"))
     (write-region code nil pathname nil 'no-wrote-file-message)
     (find-file pathname)
+    ;; In case running test interactively in Emacs when the config
+    ;; loads check-syntax-mode automatically, disable it first.
     (racket-check-syntax-mode 0)
     (racket-run)
-    ;; see expected prompt
+    ;; See expected prompt?
     (with-racket-repl-buffer
       (should (racket-tests/see-back (concat "\n" name "> "))))
     (racket-tests/wait-for-command-server)
-    ;; racket-check-syntax-mode
+    ;; Exercise racket-check-syntax-mode
     (when (version<= "6.2" (racket--version))
       (racket-check-syntax-mode 1)
       (should racket-check-syntax-mode)
