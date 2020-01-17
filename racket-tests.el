@@ -140,10 +140,7 @@
 ;;; Run
 
 (ert-deftest racket-tests/run ()
-  (let* (;; In case pos-tip X support unavailable on CI, limit the
-         ;; show-info functions for duration of this test:
-         (racket-check-syntax-show-info-functions (list #'racket-show-echo-area))
-         (racket--cmd-connect-attempts racket-tests/connect-attempts)
+  (let* ((racket--cmd-connect-attempts racket-tests/connect-attempts)
          (racket-command-port (racket-tests/next-free-port))
          (racket-command-timeout racket-tests/command-timeout)
          (pathname (make-temp-file "test" nil ".rkt"))

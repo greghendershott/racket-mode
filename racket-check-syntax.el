@@ -188,9 +188,16 @@ POS is the buffer position for which to show the message.")
 
 (defun racket-show-pos-tip (v &optional pos)
   "A value for the variable `racket-check-syntax-show-info-functions', using `pos-tip-show'."
-  (if (racket--non-empty-string-p v)
-      (pos-tip-show v nil pos)
-    (pos-tip-hide)))
+  (when (racket--pos-tip-available-p)
+    (if (racket--non-empty-string-p v)
+        (pos-tip-show v nil pos)
+      (pos-tip-hide))))
+
+(defun racket--pos-tip-available-p ()
+  "Is `pos-tip' available and expected work on current frame?"
+  (and (fboundp 'x-hide-tip)
+       (fboundp 'x-show-tip)
+       (not (memq window-system (list nil 'pc)))))
 
 (defun racket--only-first-line (str)
   (save-match-data
