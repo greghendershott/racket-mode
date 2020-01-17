@@ -33,6 +33,7 @@
 (require 'racket-repl)
 (require 'racket-edit)
 (require 'racket-util)
+(require 'racket-show)
 (require 'rx)
 (require 'pos-tip)
 
@@ -47,7 +48,7 @@
 
 ;;;###autoload
 (define-minor-mode racket-check-syntax-mode
-  "A minor mode that annotates information supplied by drracket/check-syntax.
+  "Use drracket/check-syntax to annotate and to enhance completion and visit definition.
 
 This minor mode is an optional enhancement to `racket-mode' edit
 buffers. Like any minor mode, you can turn it on or off for a
@@ -68,9 +69,8 @@ When point is on a definition or use, related items are
 highlighted using `racket-check-syntax-def-face' and
 `racket-check-syntax-use-face' -- instead of drawing arrows as in
 Dr Racket -- and \"mouse over\". Information is displayed using
-the function(s) in the hook variable
-`racket-check-syntax-show-info-functions'; it is also available
-when hovering the mouse cursor.
+the function(s) in the hook variable `racket-show-functions'; it
+is also available when hovering the mouse cursor.
 
 You may also use commands to navigate among a definition and its
 uses, or rename all of them.
@@ -97,8 +97,10 @@ ready, all annotations for the buffer are completely refreshed.
 Tip: This follows the convention that a minor mode may only use a
 prefix key consisting of C-c followed by a punctuation key. As a
 result, `racket-check-syntax-control-c-hash-keymap' is bound to
-\"C-c #\" by default. However, as an Emacs user, you are free to
-rebind this to a more convenient prefix!
+\"C-c #\" by default -- even though this is \"a handful\" to
+type. Fortunately as an Emacs user, you are free to bind this map
+to a more convenient prefix, and/or bind the commands to whatever
+keys you prefer.
 
 \\{racket-check-syntax-mode-map}
 "
@@ -120,7 +122,7 @@ rebind this to a more convenient prefix!
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 1)))
         (t
-         (racket--check-syntax-show-info nil)
+         (racket-show nil)
          (racket--check-syntax-clear)
          (remove-hook 'after-change-functions
                       #'racket--check-syntax-after-change-hook
@@ -148,62 +150,6 @@ by `racket-mode'."
            :predicate #'identity
            :exclusive 'no))))
 
-;; TODO: Make this a `defcustom'?
-(defvar racket-check-syntax-show-info-functions
-  (list #'racket-show-echo-area
-        ;#'racket-show-header-line
-        #'racket-show-pos-tip)
-  "A special hook to showing and hiding check-syntax information.
-
-Example functions include `racket-show-echo-area',
-`racket-show-pos-tip', and `racket-show-header-line'.
-
-Each function should accept two arguments: VAL and POS.
-
-VAL is:
-
-  - Non-empty string: Display the string somehow.
-
-  - \"\" (empty string): Hide any previously displayed string.
-
-  - nil: Hide any persistent UI -- e.g. `header-line-format' --
-    that may have been created to show strings.
-
-POS is the buffer position for which to show the message.")
-
-(defun racket--check-syntax-show-info (val &optional pos)
-  (dolist (f racket-check-syntax-show-info-functions)
-    (funcall f val pos)))
-
-(defun racket-show-echo-area (v &optional _pos)
-  "A value for the variable `racket-check-syntax-show-info-functions', using the echo area."
-  (if v
-      (message "%s" v)
-    (message "")))
-
-(defun racket-show-header-line (v &optional _pos)
-  "A value for the variable `racket-check-syntax-show-info-functions', using a header-line."
-  (setq-local header-line-format
-              (and v (format "%s" (racket--only-first-line v)))))
-
-(defun racket-show-pos-tip (v &optional pos)
-  "A value for the variable `racket-check-syntax-show-info-functions', using `pos-tip-show'."
-  (when (racket--pos-tip-available-p)
-    (if (racket--non-empty-string-p v)
-        (pos-tip-show v nil pos)
-      (pos-tip-hide))))
-
-(defun racket--pos-tip-available-p ()
-  "Is `pos-tip' available and expected work on current frame?"
-  (and (fboundp 'x-hide-tip)
-       (fboundp 'x-show-tip)
-       (not (memq window-system (list nil 'pc)))))
-
-(defun racket--only-first-line (str)
-  (save-match-data
-    (string-match (rx (group (* (not (any ?\n))))) str)
-    (match-string 1 str)))
-
 (defconst racket--check-syntax-overlay-name 'racket-check-syntax-overlay)
 
 (defun racket--check-syntax-overlay-p (o)
@@ -224,10 +170,6 @@ POS is the buffer position for which to show the message.")
 (defun racket--unhighlight-all ()
   (racket--unhighlight (point-min) (point-max)))
 
-(defun racket--non-empty-string-p (v)
-  (and (stringp v)
-       (not (string-match-p "\\`[ \t\n\r]*\\'" v)))) ;`string-blank-p'
-
 (defun racket--check-syntax-cursor-sensor (window old dir)
   (let ((new (window-point window)))
     (cl-case dir
@@ -235,7 +177,7 @@ POS is the buffer position for which to show the message.")
        (pcase (get-text-property new 'help-echo)
          ((and s (pred racket--non-empty-string-p))
           (let ((end (next-single-property-change new 'help-echo)))
-            (racket--check-syntax-show-info s end))))
+            (racket-show s end))))
        (pcase (get-text-property new 'racket-check-syntax-def)
          ((and uses `((,beg ,_end) . ,_))
           (pcase (get-text-property beg 'racket-check-syntax-use)
@@ -254,7 +196,7 @@ POS is the buffer position for which to show the message.")
                (racket--highlight beg end racket-check-syntax-use-face)))))))
       ('left
        (when (get-text-property old 'help-echo)
-         (racket--check-syntax-show-info ""))
+         (racket-show ""))
        (racket--unhighlight-all)))))
 
 (defun racket-check-syntax-visit-definition ()
@@ -396,7 +338,7 @@ annotations could not yet be done."
                       ,(buffer-substring-no-properties (point-min) (point-max)))
        (racket--restoring-current-buffer
         (lambda (response)
-          (racket--check-syntax-show-info "")
+          (racket-show "")
           (pcase response
             (`(check-syntax-ok)
              (racket--check-syntax-clear))
@@ -406,7 +348,7 @@ annotations could not yet be done."
              (when after-thunk (funcall after-thunk)))
             (`(check-syntax-errors . ,xs)
              (racket--check-syntax-insert xs))))))
-    (racket--check-syntax-show-info
+    (racket-show
      "racket-check-syntax-mode features unavailable until you M-x racket-run or racket-repl")))
 
 (defun racket--check-syntax-insert (xs)
