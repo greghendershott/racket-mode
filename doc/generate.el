@@ -24,6 +24,7 @@
 (require 'racket-edit)
 (require 'racket-check-syntax)
 (require 'racket-util)
+(require 'racket-show)
 (require 'racket-unicode-input-method)
 (require 'racket-smart-open)
 (require 'cl-lib)
@@ -107,7 +108,8 @@
               (racket-generate--substitute-key-bindings
                (racket-generate--remove-derived-mode-ops
                 (racket-generate--substitute-command-keys
-                 (or (documentation s t) "No documentation.\n\n"))))))
+                 (or (documentation s t)
+                     "No documentation.\n\n"))))))
             "\n\n")))
 
 (defun racket-generate--bindings-as-kbd (symbol)
@@ -160,7 +162,12 @@
     racket-smart-open-bracket-enable
     racket-logger-config
     "Experimental debugger variables"
-    racket-debuggable-files)
+    racket-debuggable-files
+    "Showing information"
+    racket-show-functions
+    racket-show-echo-area
+    racket-show-header-line
+    racket-show-pos-tip)
   "Variables to include in the Reference.")
 
 (defun racket-generate--variables ()
@@ -175,6 +182,10 @@
             (racket-generate--tweak-quotes
              (racket-generate--linkify
               (or (documentation-property s 'variable-documentation t)
+                  ;; Do check for function documentation here, to
+                  ;; support documenting values for `-functions'
+                  ;; variables.
+                  (documentation s t)
                   "No documentation.\n\n")))
             "\n\n")))
 
