@@ -138,6 +138,7 @@ Variables
 * REPL variables::
 * Other variables::
 * Experimental debugger variables::
+* Showing information::
 
 General variables
 
@@ -172,6 +173,13 @@ Other variables
 Experimental debugger variables
 
 * racket-debuggable-files::
+
+Showing information
+
+* racket-show-functions::
+* racket-show-echo-area::
+* racket-show-header-line::
+* racket-show-pos-tip::
 Faces
 
 * All::
@@ -1317,7 +1325,7 @@ repeatedly.
 
 @kbd{M-x}  @code{racket-check-syntax-mode} @kbd{RET} 
 
-A minor mode that annotates information supplied by drracket/check-syntax.
+Use drracket/check-syntax to annotate and to enhance completion and visit definition.
 
 This minor mode is an optional enhancement to @code{racket-mode} edit
 buffers. Like any minor mode, you can turn it on or off for a
@@ -1337,8 +1345,9 @@ editing, just @emph{some} buffer, to start the back end server.
 When point is on a definition or use, related items are
 highlighted using @ref{racket-check-syntax-def-face} and
 @ref{racket-check-syntax-use-face} -- instead of drawing arrows as in
-Dr Racket -- and ``mouse over'' information is displayed in the
-header line.
+Dr Racket -- and ``mouse over''. Information is displayed using
+the function(s) in the hook variable @ref{racket-show-functions}; it
+is also available when hovering the mouse cursor.
 
 You may also use commands to navigate among a definition and its
 uses, or rename all of them.
@@ -1365,8 +1374,10 @@ ready, all annotations for the buffer are completely refreshed.
 Tip: This follows the convention that a minor mode may only use a
 prefix key consisting of C-c followed by a punctuation key. As a
 result, @code{racket-check-syntax-control-c-hash-keymap} is bound to
-``C-c #'' by default. However, as an Emacs user, you are free to
-rebind this to a more convenient prefix!
+``C-c #'' by default -- even though this is ``a handful'' to
+type. Fortunately as an Emacs user, you are free to bind this map
+to a more convenient prefix, and/or bind the commands to whatever
+keys you prefer.
 
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
@@ -1692,6 +1703,7 @@ error message due to the bytecode being different versions.
 * REPL variables::
 * Other variables::
 * Experimental debugger variables::
+* Showing information::
 @end menu
 
 @node General variables
@@ -1983,6 +1995,77 @@ strings are relative, they are made absolute using
 symbol `run-file may be supplied in the list; it will be replaced
 with the pathname of the file being run. Safe to set as a
 file-local variable.
+
+@node Showing information
+@section Showing information
+
+@menu
+* racket-show-functions::
+* racket-show-echo-area::
+* racket-show-header-line::
+* racket-show-pos-tip::
+@end menu
+
+@node racket-show-functions
+@subsection racket-show-functions
+
+A special hook variable to customize @code{racket-show}.
+
+Example functions include
+
+@itemize
+@item
+@ref{racket-show-echo-area}
+@item
+@ref{racket-show-pos-tip}
+@item
+@ref{racket-show-header-line}
+@end itemize
+
+Each function should accept two arguments: VAL and POS.
+
+VAL is:
+
+@itemize
+@item
+Non-blank string: Display the string somehow.
+
+@item
+Blank string: Hide any previously displayed string.
+
+@item
+nil: Hide any persistent UI that might have been created to
+show strings, such as by @ref{racket-show-header-line}.
+@end itemize
+
+POS is the buffer position for which to show the message, nil
+meaning use some default position.
+
+@node racket-show-echo-area
+@subsection racket-show-echo-area
+
+Show things in the echo area.
+
+A value for the variable @ref{racket-show-functions}.
+
+@node racket-show-header-line
+@subsection racket-show-header-line
+
+Show things using a buffer header line.
+
+A value for the variable @ref{racket-show-functions}.
+
+When there is nothing to show, keep a blank header-line. That
+way, the buffer below doesn't ``jump up and down'' by a line as
+messages appear and disappear. Only when V is nil do we remove
+the header line.
+
+@node racket-show-pos-tip
+@subsection racket-show-pos-tip
+
+Show things using @code{pos-tip-show} if available.
+
+A value for the variable @ref{racket-show-functions}.
 
 @node Faces
 @chapter Faces
