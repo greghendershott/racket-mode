@@ -162,6 +162,10 @@ When installed as a package, this can be found from the variable
   "Remove whitespace at the beginning and end of S."
   (racket--trim-left (racket--trim-right s)))
 
+(defun racket--non-empty-string-p (v)
+  (and (stringp v)
+       (not (string-match-p "\\`[ \t\n\r]*\\'" v)))) ;`string-blank-p'
+
 (provide 'racket-util)
 
 ;; racket-util.el ends here
