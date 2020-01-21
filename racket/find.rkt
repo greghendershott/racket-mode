@@ -6,17 +6,30 @@
          racket/match
          "syntax.rkt")
 
-(provide find-definition
+(provide find-definition-in-file
+         find-definition
          find-signature)
 
 (define location/c (list/c path-string? natural-number/c natural-number/c))
+
+;; Try to find the defintion of `str` in a specific `file` and
+;; `submods` path already known (e.g. from check-syntax).
+(define/contract (find-definition-in-file str file submods)
+  (-> string? path-string? (listof symbol?)
+      (or/c #f location/c))
+  (maybe-stx+file+submods->maybe-location
+   (def-in-file (string->symbol str) file submods)))
 
 ;; Try to find the definition of `str`, returning a list with the file
 ;; name, line and column, 'kernel, or #f if not found.
 (define/contract (find-definition str)
   (-> string? (or/c #f 'kernel location/c))
-  (match (find-definition/stx str)
-    [(list* stx file submods)
+  (maybe-stx+file+submods->maybe-location
+   (find-definition/stx str)))
+
+(define (maybe-stx+file+submods->maybe-location v)
+  (match v
+    [(list* stx file _submods)
      (list (path->string (or (syntax-source stx) file))
            (or (syntax-line stx) 1)
            (or (syntax-column stx) 0))]
@@ -45,18 +58,23 @@
      (for/or ([x (in-list (remove-duplicates xs))])
        (match x
          [(cons id 'kernel) 'kernel]
-         [(list* id file submods)
-          (define (sub-stx file->stx)
-            (hash-ref! ht (cons file file->stx)
-                       (λ () (submodule file submods (file->stx file)))))
-          (match (or ($definition id (sub-stx file->expanded-syntax))
-                     (match ($renaming-provide id (sub-stx file->syntax))
-                       [(? syntax? s)
-                        ($definition (syntax-e s) (sub-stx file->expanded-syntax))]
-                       [_ #f]))
-            [#f  #f]
-            [stx (list* stx file submods)])]))]
+         [(list* id file submods) (def-in-file id file submods ht)]))]
     [_ #f]))
+
+(define/contract (def-in-file id file submods [ht (make-hash)])
+  (->* (symbol? path-string? (listof symbol?))
+       (hash?)
+       (or/c #f (cons/c syntax? (cons/c path-string? (listof symbol?)))))
+  (define (sub-stx file->stx)
+    (hash-ref! ht (cons file file->stx)
+               (λ () (submodule file submods (file->stx file)))))
+  (match (or ($definition id (sub-stx file->expanded-syntax))
+             (match ($renaming-provide id (sub-stx file->syntax))
+               [(? syntax? s)
+                ($definition (syntax-e s) (sub-stx file->expanded-syntax))]
+               [_ #f]))
+    [(? syntax? stx) (list* stx file submods)]
+    [_  #f]))
 
 ;; Distill identifier-binding to what we need. Unfortunately it can't
 ;; report the definition id in the case of a contract-out and a

@@ -163,6 +163,8 @@
       (sit-for (if ci-p 30.0 3.0))
       (goto-char (point-min))
       (racket-check-syntax-next-definition)
+      (should (racket-tests/see-forward "racket/base"))
+      (racket-check-syntax-next-definition)
       (should (racket-tests/see-forward "foobar"))
       (should (equal (get-text-property (point) 'help-echo) "1 bound occurrence"))
       (racket-check-syntax-next-use)

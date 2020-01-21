@@ -16,13 +16,14 @@
 ;; resulting syntax is applied to `k` while the parameters
 ;; current-load-relative-directory and current-namespace are still set
 ;; appropriately.
-(define/contract (file->syntax file [k values])
+(define/contract (file->syntax file [k values] #:namespace [ns (make-base-namespace)])
   (->* (path-string?)
-       ((-> syntax? syntax?))
+       ((-> syntax? syntax?)
+        #:namespace namespace?)
        (or/c #f syntax?))
   (define-values (base _ __) (split-path file))
   (parameterize ([current-load-relative-directory base]
-                 [current-namespace (make-base-namespace)])
+                 [current-namespace ns])
     (with-handlers ([exn:fail? (λ _ #f)])
       (k
        (with-module-reading-parameterization
@@ -50,10 +51,13 @@
 (define cache (make-hash))
 (define last-mod #f)
 
-;; Call this early in a file run, _before_ any evaluation. If it's not
-;; the same file as before, we empty the cache -- to free up memory.
-;; If it's the same file, we keep the cache.
-(define (before-run maybe-mod)
+;; Call this early in a file run, _before_ any evaluation.
+(define (before-run _maybe-mod)
+  ;; Don't actually flush the entire cache anymore. Because we're also
+  ;; using this for check-syntax. TODO: Some new strategy, or, let the
+  ;; cache grow indefinitely?
+  (void)
+  #;
   (unless (equal? last-mod maybe-mod)
     (hash-clear! cache)
     (set! last-mod maybe-mod)))
@@ -99,12 +103,12 @@
       [_
        (hash-set! cache file (cons digest (thk)))])))
 
-(define (file->expanded-syntax file)
+(define (file->expanded-syntax file #:namespace [ns (make-base-namespace)])
   (define digest (file->digest file))
   (match (hash-ref cache file #f)
     [(cons (== digest) promise)
      (force promise)]
     [_
-     (define stx (file->syntax file expand))
+     (define stx (file->syntax file expand  #:namespace ns))
      (cache-set! file (λ () stx) digest)
      stx]))

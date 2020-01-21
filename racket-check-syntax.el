@@ -37,6 +37,10 @@
 (require 'rx)
 (require 'pos-tip)
 
+(defvar racket-check-syntax-highlight-imports-p nil
+  "Highlight imported definitions and uses thereof?
+When nil, only local defs/uses are highlighted.")
+
 (defvar racket-check-syntax-control-c-hash-keymap
   (racket--easy-keymap-define
    '(("j" racket-check-syntax-next-definition)
@@ -106,8 +110,9 @@ keys you prefer.
 "
   :lighter " CheckSyntax"
   :keymap (racket--easy-keymap-define
-           `(("C-c #" ,racket-check-syntax-control-c-hash-keymap)
-             ("M-."   ,#'racket-check-syntax-visit-definition)))
+           `(("C-c #"   ,racket-check-syntax-control-c-hash-keymap)
+             ("M-."     ,#'racket-check-syntax-visit-definition)
+             ("C-c C-d" ,#'racket-check-syntax-documentation)))
   (unless (eq major-mode 'racket-mode)
     (setq racket-check-syntax-mode nil)
     (user-error "racket-check-syntax-mode only works with racket-mode buffers"))
@@ -179,41 +184,71 @@ by `racket-mode'."
           (let ((end (next-single-property-change new 'help-echo)))
             (racket-show s end))))
        (pcase (get-text-property new 'racket-check-syntax-def)
-         ((and uses `((,beg ,_end) . ,_))
-          (pcase (get-text-property beg 'racket-check-syntax-use)
-            (`(,beg ,end)
-             (racket--highlight beg end racket-check-syntax-def-face)))
-          (dolist (use uses)
-            (pcase use
+         (`(,kind ,(and uses `((,beg ,_end) . ,_)))
+          (when (or (eq kind 'local)
+                    racket-check-syntax-highlight-imports-p)
+            (pcase (get-text-property beg 'racket-check-syntax-use)
               (`(,beg ,end)
-               (racket--highlight beg end racket-check-syntax-use-face))))))
+               (racket--highlight beg end racket-check-syntax-def-face)))
+            (dolist (use uses)
+              (pcase use
+                (`(,beg ,end)
+                 (racket--highlight beg end racket-check-syntax-use-face)))))))
        (pcase (get-text-property new 'racket-check-syntax-use)
-         (`(,beg ,end)
-          (racket--highlight beg end racket-check-syntax-def-face)
-          (dolist (use (get-text-property beg 'racket-check-syntax-def))
-            (pcase use
-              (`(,beg ,end)
-               (racket--highlight beg end racket-check-syntax-use-face)))))))
+         (`(,def-beg ,def-end)
+          (pcase (get-text-property def-beg 'racket-check-syntax-def)
+            (`(,kind ,uses)
+             (when (or (eq kind 'local)
+                       racket-check-syntax-highlight-imports-p)
+               (racket--highlight def-beg def-end racket-check-syntax-def-face)
+               (dolist (use uses)
+                 (pcase use
+                   (`(,beg ,end)
+                    (racket--highlight beg end racket-check-syntax-use-face))))))))))
       ('left
        (when (get-text-property old 'help-echo)
          (racket-show ""))
        (racket--unhighlight-all)))))
 
 (defun racket-check-syntax-visit-definition ()
-  "When point is on a use, go to its definition.
-
-If check-syntax says the definition is local, go there. This
-handles bindings in the current source file -- even bindings in
-internal definition contexts, and even those that shadow other
-bindings.
-
-Otherwise defer to `racket-visit-definition'."
+  "When point is on a use, go to its definition."
   (interactive)
-  (pcase (get-text-property (point) 'racket-check-syntax-use)
-    (`(,beg ,_end)
-     (racket--push-loc)
-     (goto-char beg))
-    (_ (racket-visit-definition))))
+  (let ((local-p
+         (pcase (get-text-property (point) 'racket-check-syntax-use)
+           (`(,beg ,_end)
+            (pcase (get-text-property beg 'racket-check-syntax-def)
+              (`(local ,_uses)
+               (racket--push-loc)
+               (goto-char beg)
+               t))))))
+    (unless local-p
+      (pcase (get-text-property (point) 'racket-check-syntax-visit)
+        (`(,sym ,path, submods)
+         (racket--cmd/async
+          `(def ,sym ,path ,submods)
+          (lambda (v)
+            (pcase v
+              ;; Copy-pasta from racket-edit.el
+              (`(,path ,line ,col)
+               (racket--push-loc)
+               (find-file (funcall racket-path-from-racket-to-emacs-function path))
+               (goto-char (point-min))
+               (forward-line (1- line))
+               (forward-char col)
+               (message "Type M-, to return"))
+              (_
+               (message "Not found."))))))
+        (_
+         (racket-visit-definition))))))
+
+(defun racket-check-syntax-documentation ()
+  "Show help found by check-syntax, if any, else `racket-doc'."
+  (interactive)
+  (pcase (get-text-property (point) 'racket-check-syntax-doc)
+    (`(,path ,anchor)
+     (browse-url (concat "file://" path "#" anchor)))
+    (_
+     (racket-doc))))
 
 (defun racket-check-syntax--forward-use (amt)
   "When point is on a use, go AMT uses forward. AMT may be negative.
@@ -224,19 +259,20 @@ If point is instead on a definition, then go to its first use."
   (pcase (get-text-property (point) 'racket-check-syntax-use)
     (`(,beg ,_end)
      (pcase (get-text-property beg 'racket-check-syntax-def)
-       (uses (let* ((pt (point))
-                    (ix-this (cl-loop for ix from 0 to (1- (length uses))
-                                      for use = (nth ix uses)
-                                      when (and (<= (car use) pt) (< pt (cadr use)))
-                                      return ix))
-                    (ix-next (+ ix-this amt))
-                    (ix-next (if (> amt 0)
-                                 (if (>= ix-next (length uses)) 0 ix-next)
-                               (if (< ix-next 0) (1- (length uses)) ix-next)))
-                    (next (nth ix-next uses)))
-               (goto-char (car next))))))
+       (`(,_kind ,uses)
+        (let* ((pt (point))
+               (ix-this (cl-loop for ix from 0 to (1- (length uses))
+                                 for use = (nth ix uses)
+                                 when (and (<= (car use) pt) (< pt (cadr use)))
+                                 return ix))
+               (ix-next (+ ix-this amt))
+               (ix-next (if (> amt 0)
+                            (if (>= ix-next (length uses)) 0 ix-next)
+                          (if (< ix-next 0) (1- (length uses)) ix-next)))
+               (next (nth ix-next uses)))
+          (goto-char (car next))))))
     (_ (pcase (get-text-property (point) 'racket-check-syntax-def)
-         (`((,beg ,_end) . ,_) (goto-char beg))))))
+         (`(,_kind ((,beg ,_end) . ,_)) (goto-char beg))))))
 
 (defun racket-check-syntax-next-use ()
   "When point is on a use, go to the next, sibling use."
@@ -251,41 +287,45 @@ If point is instead on a definition, then go to its first use."
 (defun racket-check-syntax-rename ()
   "Rename a local definition and its uses in the current file."
   (interactive)
-  ;; If we're on a def, get its uses. If we're on a use, get its def.
-  (let* ((uses (get-text-property (point) 'racket-check-syntax-def))
-         (def  (get-text-property (point) 'racket-check-syntax-use)))
-    (unless (or uses def)
-      (user-error "Can only rename local definitions"))
-    ;; We got one, get the other.
-    (let* ((uses (or uses (get-text-property (car def)   'racket-check-syntax-def)))
-           (def  (or def  (get-text-property (caar uses) 'racket-check-syntax-use)))
-           (locs (cons def uses))
-           (old  (apply #'buffer-substring-no-properties def))
-           (new  (read-from-minibuffer (format "Rename %s to: " old)))
-           (marker-pairs (mapcar (lambda (loc)
-                                   (let ((beg (make-marker))
-                                         (end (make-marker)))
-                                     (set-marker beg (nth 0 loc) (current-buffer))
-                                     (set-marker end (nth 1 loc) (current-buffer))
-                                     (list beg end)))
-                                 locs))
-           (point-marker (let ((m (make-marker)))
-                           (set-marker m (point) (current-buffer)))))
-      ;; Don't let our after-change hook run until all changes are
-      ;; made, otherwise check-syntax will find a syntax error.
-      (let ((inhibit-modification-hooks t))
-        (dolist (marker-pair marker-pairs)
-          (let ((beg (marker-position (nth 0 marker-pair)))
-                (end (marker-position (nth 1 marker-pair))))
-            (delete-region beg end)
-            (goto-char beg)
-            (insert new))))
-      (goto-char (marker-position point-marker))
-      (racket--check-syntax-annotate
-       (lambda ()
-         (racket--check-syntax-cursor-sensor (selected-window)
-                                             (point-min)
-                                             'entered))))))
+  (let* (;; If we're on a def, get its uses. If we're on a use, get its def.
+         (uses (get-text-property (point) 'racket-check-syntax-def))
+         (def  (get-text-property (point) 'racket-check-syntax-use))
+         (_    (unless (or uses def)
+                 (user-error "Not a definition or use")))
+         ;; We got one, get the other.
+         (uses (or uses (get-text-property (car def)        'racket-check-syntax-def)))
+         (def  (or def  (get-text-property (cl-caaadr uses) 'racket-check-syntax-use)))
+         (kind (car uses))
+         (_    (unless (eq kind 'local)
+                 (user-error "Can only rename local definitions, not imports")))
+         (uses (cadr uses))
+         (locs (cons def uses))
+         (old  (apply #'buffer-substring-no-properties def))
+         (new  (read-from-minibuffer (format "Rename %s to: " old)))
+         (marker-pairs (mapcar (lambda (loc)
+                                 (let ((beg (make-marker))
+                                       (end (make-marker)))
+                                   (set-marker beg (nth 0 loc) (current-buffer))
+                                   (set-marker end (nth 1 loc) (current-buffer))
+                                   (list beg end)))
+                               locs))
+         (point-marker (let ((m (make-marker)))
+                         (set-marker m (point) (current-buffer)))))
+    ;; Don't let our after-change hook run until all changes are
+    ;; made, otherwise check-syntax will find a syntax error.
+    (let ((inhibit-modification-hooks t))
+      (dolist (marker-pair marker-pairs)
+        (let ((beg (marker-position (nth 0 marker-pair)))
+              (end (marker-position (nth 1 marker-pair))))
+          (delete-region beg end)
+          (goto-char beg)
+          (insert new))))
+    (goto-char (marker-position point-marker))
+    (racket--check-syntax-annotate
+     (lambda ()
+       (racket--check-syntax-cursor-sensor (selected-window)
+                                           (point-min)
+                                           'entered)))))
 
 (defun racket-check-syntax-next-definition ()
   "Move point to the next definition."
@@ -340,12 +380,14 @@ annotations could not yet be done."
         (lambda (response)
           (racket-show "")
           (pcase response
-            (`(check-syntax-ok)
-             (racket--check-syntax-clear))
-            (`(check-syntax-ok . ,xs)
+            (`(check-syntax-ok
+               (completions . ,completions)
+               (annotations . ,annotations))
              (racket--check-syntax-clear)
-             (racket--check-syntax-insert xs)
-             (when after-thunk (funcall after-thunk)))
+             (setq racket--check-syntax-completions completions)
+             (racket--check-syntax-insert annotations)
+             (when (and annotations after-thunk)
+               (funcall after-thunk)))
             (`(check-syntax-errors . ,xs)
              (racket--check-syntax-insert xs))))))
     (racket-show
@@ -357,48 +399,34 @@ annotations could not yet be done."
     (overlay-recenter (point-max)) ;faster
     (dolist (x xs)
       (pcase x
-        (`(,`error ,path ,beg ,end ,str)
+        (`(error ,path ,beg ,end ,str)
          (when (equal path (racket--buffer-file-name))
            (let ((beg (copy-marker beg t))
                  (end (copy-marker end t)))
-             (remove-text-properties beg
-                                     end
-                                     (list 'help-echo               nil
-                                           'racket-check-syntax-def nil
-                                           'racket-check-syntax-use nil
-                                           'cursor-sensor-functions nil))
-             (add-text-properties beg
-                                  end
-                                  (list 'face      'error
-                                        'help-echo str
-                                        'cursor-sensor-functions
-                                        (list #'racket--check-syntax-cursor-sensor)))
+             (remove-text-properties
+              beg end
+              (list 'help-echo               nil
+                    'racket-check-syntax-def nil
+                    'racket-check-syntax-use nil
+                    'cursor-sensor-functions nil))
+             (add-text-properties
+              beg end
+              (list 'face                    'error
+                    'help-echo               str
+                    'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
              ;; Show now using echo area, only. (Not tooltip because
              ;; error loc might not be at point. Not header-line
              ;; because unlikely to show whole error message in one
              ;; line.)
              (message "%s" str))))
-        (`(,`info ,beg ,end ,str)
+        (`(info ,beg ,end ,str)
          (let ((beg (copy-marker beg t))
                (end (copy-marker end t)))
-           (add-text-properties beg
-                                end
-                                (list 'help-echo str
-                                      'cursor-sensor-functions
-                                      (list #'racket--check-syntax-cursor-sensor))))
-         ;; Draw completion candidates from 'info items. Why not from
-         ;; the definition positions in `def/uses? (1) Because the
-         ;; drracket analysis is for arrows between defs and uses --
-         ;; and an unused definition won't be included. Yet it is an
-         ;; excellent completion candidate. e.g. The user defined
-         ;; something, is still editing, and now want to use it -- it
-         ;; would be handy for completion to work. (2) Because any
-         ;; item with mouse-over info might potentially be a useful
-         ;; completion candidate. For example module names in require
-         ;; statements.
-         (push (buffer-substring-no-properties beg end)
-               racket--check-syntax-completions))
-        (`(,`def/uses ,def-beg ,def-end ,uses)
+           (add-text-properties
+            beg end
+            (list 'help-echo               str
+                  'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))))
+        (`(def/uses ,def-beg ,def-end ,req ,_sym ,uses)
          (let ((def-beg (copy-marker def-beg t))
                (def-end (copy-marker def-end t))
                (uses    (mapcar (lambda (xs)
@@ -406,29 +434,43 @@ annotations could not yet be done."
                                             (copy-marker x t))
                                           xs))
                                 uses)))
-          (add-text-properties def-beg
-                               def-end
-                               (list 'racket-check-syntax-def uses
-                                     'cursor-sensor-functions
-                                     (list #'racket--check-syntax-cursor-sensor)))
+           (add-text-properties
+            def-beg def-end
+            (list 'racket-check-syntax-def (list req uses)
+                  'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
           (dolist (use uses)
             (pcase-let* ((`(,use-beg ,use-end) use))
-              (add-text-properties use-beg
-                                   use-end
-                                   (list 'racket-check-syntax-use (list def-beg def-end)
-                                         'help-echo               "Defined locally"
-                                         'cursor-sensor-functions
-                                         (list #'racket--check-syntax-cursor-sensor)))))))))))
+              (add-text-properties
+               use-beg use-end
+               (append
+                (list 'racket-check-syntax-use (list def-beg def-end)
+                      'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor))
+                (when (eq req 'local)
+                  (list 'help-echo "Defined locally"))))))))
+        (`(external-def ,beg ,end ,sym ,path ,submods)
+         (let ((beg (copy-marker beg t))
+               (end (copy-marker end t)))
+           (add-text-properties
+            beg end
+            (list 'racket-check-syntax-visit (list sym path submods)))))
+        (`(doc ,beg ,end ,path ,anchor)
+         (let ((beg (copy-marker beg t))
+               (end (copy-marker end t)))
+           (add-text-properties
+            beg end
+            (list 'racket-check-syntax-doc (list path anchor)))))))))
 
 (defun racket--check-syntax-clear ()
   (with-silent-modifications
     (setq racket--check-syntax-completions nil)
-    (remove-text-properties (point-min)
-                            (point-max)
-                            (list 'help-echo               nil
-                                  'racket-check-syntax-def nil
-                                  'racket-check-syntax-use nil
-                                  'cursor-sensor-functions nil))
+    (remove-text-properties
+     (point-min) (point-max)
+     (list 'help-echo                 nil
+           'racket-check-syntax-def   nil
+           'racket-check-syntax-use   nil
+           'racket-check-syntax-visit nil
+           'racket-check-syntax-doc   nil
+           'cursor-sensor-functions   nil))
     (racket--unhighlight-all)))
 
 (provide 'racket-check-syntax)
