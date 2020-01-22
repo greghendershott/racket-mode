@@ -7,29 +7,32 @@
          "syntax.rkt")
 
 (provide find-definition-in-file
-         find-definition
+         find-definition-in-namespace
          find-signature)
 
 (define location/c (list/c path-string? natural-number/c natural-number/c))
 
-;; Try to find the defintion of `str` in a specific `file` and
-;; `submods` path already known (e.g. from check-syntax).
-(define/contract (find-definition-in-file str file submods)
+;; Try to find a defintion in a specific file and submods path, which
+;; were previously discovered (e.g. by drracket/check-syntax).
+(define/contract (find-definition-in-file str path submods)
   (-> string? path-string? (listof symbol?)
       (or/c #f location/c))
-  (maybe-stx+file+submods->maybe-location
-   (def-in-file (string->symbol str) file submods)))
+  (maybe-stx+path+submods->maybe-location
+   (def-in-file (string->symbol str) path submods)))
 
-;; Try to find the definition of `str`, returning a list with the file
-;; name, line and column, 'kernel, or #f if not found.
-(define/contract (find-definition str)
+;; Try to find a definition in the current namespace, i.e. starting
+;; by using `identifier-binding`.
+(define/contract (find-definition-in-namespace str)
   (-> string? (or/c #f 'kernel location/c))
-  (maybe-stx+file+submods->maybe-location
-   (find-definition/stx str)))
+  (maybe-stx+path+submods->maybe-location
+   (def-in-namespace str)))
 
-(define (maybe-stx+file+submods->maybe-location v)
+(define stx+path+mods/c (list/c syntax? path-string? (listof symbol?)))
+
+(define (maybe-stx+path+submods->maybe-location v)
+  ;; (-> (or/c #f stx+path+submods/c) (or/c #f location/c)
   (match v
-    [(list* stx file _submods)
+    [(list stx file _submods)
      (list (path->string (or (syntax-source stx) file))
            (or (syntax-line stx) 1)
            (or (syntax-column stx) 0))]
@@ -39,9 +42,9 @@
 ;; When defined in 'kernel, returns a form saying so, not #f.
 (define/contract (find-signature str)
   (-> string? (or/c #f pair?))
-  (match (find-definition/stx str)
+  (match (def-in-namespace str)
     ['kernel '("defined in #%kernel, signature unavailable")]
-    [(list* id-stx file submods)
+    [(list id-stx file submods)
      (define file-stx (file->syntax file))
      (define sub-stx (submodule file submods file-stx))
      (match ($signature (syntax-e id-stx) sub-stx)
@@ -49,9 +52,9 @@
        [_ #f])]
     [v v]))
 
-(define/contract (find-definition/stx str)
+(define/contract (def-in-namespace str)
   (-> string?
-      (or/c #f 'kernel (cons/c syntax? (cons/c path? (listof symbol?)))))
+      (or/c #f 'kernel stx+path+mods/c))
   (match (identifier-binding* str)
     [(? list? xs)
      (define ht (make-hash)) ;cache in case source repeated
@@ -64,7 +67,7 @@
 (define/contract (def-in-file id file submods [ht (make-hash)])
   (->* (symbol? path-string? (listof symbol?))
        (hash?)
-       (or/c #f (cons/c syntax? (cons/c path-string? (listof symbol?)))))
+       (or/c #f stx+path+mods/c))
   (define (sub-stx file->stx)
     (hash-ref! ht (cons file file->stx)
                (λ () (submodule file submods (file->stx file)))))
@@ -73,7 +76,7 @@
                [(? syntax? s)
                 ($definition (syntax-e s) (sub-stx file->expanded-syntax))]
                [_ #f]))
-    [(? syntax? stx) (list* stx file submods)]
+    [(? syntax? stx) (list stx file submods)]
     [_  #f]))
 
 ;; Distill identifier-binding to what we need. Unfortunately it can't
@@ -251,4 +254,4 @@
               [(orig s) (eq-sym? #'s) #'orig]
               [_        #f]))]
          [_ #f]))]
-    [_              #f]))
+    [_ #f]))
