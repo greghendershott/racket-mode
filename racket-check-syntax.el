@@ -411,7 +411,7 @@ annotations could not yet be done."
                     'cursor-sensor-functions nil))
              (add-text-properties
               beg end
-              (list 'face                    'error
+              (list 'face                    racket-check-syntax-error-face
                     'help-echo               str
                     'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
              ;; Show now using echo area, only. (Not tooltip because
