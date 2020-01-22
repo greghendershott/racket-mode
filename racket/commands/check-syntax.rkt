@@ -381,14 +381,15 @@
     (check-true (set-member? cs "PREFIX:displayln")
                 "prefix-in from module language is available under new name")
     ;; namespace-mapped-symbols will return some definitions beyond
-    ;; those imported -- it includes "local" module-level definitions.
-    ;; This test allows for that in a stupid ad hoc way.
+    ;; those imported -- it includes {top module}-level bindings. This
+    ;; test accounts for that with a dumb ad hoc list. (More nifty
+    ;; would be to walk our test stx and build that list.)
     ;;
-    ;; FIXME? Travis CI says this test fails prior to Racket 7.0. It
-    ;; seems namespace-mapped-symbosl reports ~400 more symbols, which
-    ;; appear to be from racket as opposed to racket/base. Huh? Well,
-    ;; _our_ results are correct. For now, let's just do the test on
-    ;; Racket 7.0+.
+    ;; FIXME? Travis CI says this test fails prior to Racket 7.0:
+    ;; namespace-mapped-symbols reports ~400 more symbols --
+    ;; apparently from full racket (should be racket/base). Huh??
+    ;; Well, _our_ results are correct. For now, let's just do the
+    ;; test on Racket 7.0+.
     (when (version<=? "7.0" (version))
       (check-equal? (set-subtract nsms cs)
                     (set "tmp.1" "nsms" "nsa" "provided-by-submodule")
