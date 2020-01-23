@@ -34,7 +34,7 @@
                            (expand stx)))
     ;; Instead of using `show-content`, pass already-expanded stx
     ;; directly to `make-traversal`. We also want to use expanded stx
-    ;; for `imported-completions!` below, so it would be dumb to
+    ;; for `imported-completions` below, so it would be dumb to
     ;; expand it twice. Furthermore we maintain a cache of expanded
     ;; stx in syntax.rkt, and plan to hook that up here, too.
     (define o (new build-trace% [src path]))
@@ -124,8 +124,6 @@
 
     (define local-completions (for*/set ([x (in-hash-keys ht-defs/uses)]
                                          #:when (eq? 'local (cadr x)))
-                                (unless (string? (car x))
-                                  (error 'foo (car x)))
                                 (car x)))
     (define completions
       (parameterize ([current-load-relative-directory dir]
@@ -198,7 +196,7 @@
     [_ sos]))
 
 (define (handle-module-level es sos lang)
-  (for/fold ([sos (module-exported-strings (set) lang lang)])
+  (for/fold ([sos (module-exported-strings sos lang lang)])
             ([e (in-syntax es)])
     (syntax-case* e (#%require) symbolic-compare?
       [(#%require e ...)
