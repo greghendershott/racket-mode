@@ -1,6 +1,6 @@
 ;;; racket-complete.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2019 by Greg Hendershott.
+;; Copyright (c) 2013-2020 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -27,40 +27,34 @@
 
 ;;; namespace symbols i.e. completion candidates
 
-(defvar-local racket--namespace-symbols nil
-  "A cache of the list of all Racket namespace symbols.
+(defvar-local racket--namespace-symbols (list racket-type-list
+                                              racket-keywords
+                                              racket-builtins-1-of-2
+                                              racket-builtins-2-of-2)
+  "A list of list of Racket namespace symbols suitable for completion candidates.
 
-This var is local to each buffer, including the REPL buffer.")
+This var is local to each buffer, including the REPL buffer.
 
-(defun racket--invalidate-completion-cache ()
+Defaults the `defconst' lists of strings we use for font-lock. To
+support this case -- while avoiding `append' and allocation of
+such large lists of strings -- is why it is a list of list of
+strings.")
+
+(defun racket--refresh-namespace-symbols ()
   "Both current `racket-mode' buffer and `racket-repl-mode' buffer (if any)."
-  (setq racket--namespace-symbols nil)
-  (with-racket-repl-buffer
-    (setq racket--namespace-symbols nil)))
+  (racket--cmd/async
+   '(syms)
+   (lambda (syms)
+     (setq racket--namespace-symbols (list syms))
+     (with-racket-repl-buffer
+       (setq racket--namespace-symbols (list syms))))))
 
-(add-hook 'racket--repl-before-run-hook #'racket--invalidate-completion-cache)
-
-(defun racket--completion-candidates ()
-  "Completion candidates, as a list of list of strings.
- Gets from the cache, or if nil from the Racket process, or if
- that's not running from the `defconst' lists of strings we use
- for font-lock. To support the last case -- while avoiding
- `append' and allocation of such large lists of strings -- is why
- we always return a list of list of strings."
-  (unless racket--namespace-symbols
-    (when (racket--in-repl-or-its-file-p)
-      (setq racket--namespace-symbols
-            (list (racket--cmd/await '(syms))))))
-  (or racket--namespace-symbols
-      (list racket-type-list
-            racket-keywords
-            racket-builtins-1-of-2
-            racket-builtins-2-of-2)))
+(add-hook 'racket--repl-after-run-hook #'racket--refresh-namespace-symbols)
 
 (defun racket--completion-candidates-for-prefix (prefix)
   (cl-reduce (lambda (results strs)
                (append results (all-completions prefix strs)))
-             (racket--completion-candidates)
+             racket--namespace-symbols
              :initial-value ()))
 
 (defun racket--call-with-completion-prefix-positions (proc)
@@ -174,8 +168,7 @@ doesn't work in many common cases:
 
 A more satisfying experience is to use `racket-describe' or
 `racket-doc'."
-  (and (racket--repl-live-p)
-       (> (point) (point-min))
+  (and (> (point) (point-min))
        (save-excursion
          (condition-case nil
              ;; The char-before and looking-at checks below are to
