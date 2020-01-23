@@ -107,10 +107,10 @@
       (racket-tests/wait-for-command-server)
 
       ;; Completion
-      (racket-tests/type&press "with-inp" "TAB")
-      (should (racket-tests/see-back "with-input-from-file"))
+      (racket-tests/type&press "current-out" "TAB")
+      (should (racket-tests/see-back "current-output-port"))
       (racket-tests/press "RET")
-      (should (racket-tests/see-back "#<procedure:with-input-from-file>\n> "))
+      (should (racket-tests/see-back "#<procedure:current-output-port>\n> "))
 
       ;; Multiline expression indent
       (racket-tests/type&press "(if 1" "C-j")

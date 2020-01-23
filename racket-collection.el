@@ -50,23 +50,26 @@ See also: `racket-visit-module' and `racket-open-require-path'."
   (pcase (racket--symbol-at-point-or-prompt prefix "Collection name: ")
     (`() nil)
     (coll
-     (pcase (racket--cmd/await `(find-collection ,coll))
-       (`()
-        (user-error (format "Collection `%s' not found" coll)))
-       (`(,path)
-        (racket--find-file-in-dir path))
-       (paths
-        (let ((done nil))
-          (while (not done)
-            ;; `(ido-find-file-in-dir (ido-completing-read paths))`
-            ;; -- except we want to let the user press C-g inside
-            ;; ido-find-file-in-dir to back up and pick a different
-            ;; module path.
-            (let ((dir (ido-completing-read "Directory: " paths)))
-              (condition-case ()
-                  (progn (racket--find-file-in-dir dir)
-                         (setq done t))
-                (quit nil))))))))))
+     (racket--cmd/async
+      `(find-collection ,coll)
+      (lambda (result)
+        (pcase result
+          (`()
+           (user-error (format "Collection `%s' not found" coll)))
+          (`(,path)
+           (racket--find-file-in-dir path))
+          (paths
+           (let ((done nil))
+             (while (not done)
+               ;; `(ido-find-file-in-dir (ido-completing-read paths))`
+               ;; -- except we want to let the user press C-g inside
+               ;; ido-find-file-in-dir to back up and pick a different
+               ;; module path.
+               (let ((dir (ido-completing-read "Directory: " paths)))
+                 (condition-case ()
+                     (progn (racket--find-file-in-dir dir)
+                            (setq done t))
+                   (quit nil))))))))))))
 
 (defun racket--find-file-in-dir (dir)
   "Like `ido-find-file-in-dir', but allows C-d to `dired' as does `ido-find-file'."

@@ -345,21 +345,6 @@ If point is instead on a definition, then go to its first use."
         (setq pos (previous-single-property-change pos 'racket-check-syntax-def)))
       (and pos (goto-char pos)))))
 
-(defun racket--check-syntax-annotate-all-buffers ()
-  "Annotate every buffer that has `racket-check-syntax-mode' enabled.
-When supplied as a value for the variable
-`racket--repl-after-live-hook', this handles the case where the
-mode was enabled but the back-end server was not yet availabe so
-annotations could not yet be done."
-  (dolist (buf (buffer-list))
-    (when (buffer-live-p buf)
-      (with-current-buffer buf
-        (when racket-check-syntax-mode
-          (racket--check-syntax-annotate))))))
-
-(add-hook 'racket--repl-after-live-hook
-          #'racket--check-syntax-annotate-all-buffers)
-
 (defvar-local racket--check-syntax-timer nil)
 
 (defun racket--check-syntax-after-change-hook (_beg _end _len)
@@ -372,26 +357,23 @@ annotations could not yet be done."
                               #'racket--check-syntax-annotate))))
 
 (defun racket--check-syntax-annotate (&optional after-thunk)
-  (if (racket--repl-live-p)
-      (racket--cmd/async
-       `(check-syntax ,(or (racket--buffer-file-name) (buffer-name))
-                      ,(buffer-substring-no-properties (point-min) (point-max)))
-       (racket--restoring-current-buffer
-        (lambda (response)
-          (racket-show "")
-          (pcase response
-            (`(check-syntax-ok
-               (completions . ,completions)
-               (annotations . ,annotations))
-             (racket--check-syntax-clear)
-             (setq racket--check-syntax-completions completions)
-             (racket--check-syntax-insert annotations)
-             (when (and annotations after-thunk)
-               (funcall after-thunk)))
-            (`(check-syntax-errors . ,xs)
-             (racket--check-syntax-insert xs))))))
-    (racket-show
-     "racket-check-syntax-mode features unavailable until you M-x racket-run or racket-repl")))
+  (racket--cmd/async
+   `(check-syntax ,(or (racket--buffer-file-name) (buffer-name))
+                  ,(buffer-substring-no-properties (point-min) (point-max)))
+   (racket--restoring-current-buffer
+    (lambda (response)
+      (racket-show "")
+      (pcase response
+        (`(check-syntax-ok
+           (completions . ,completions)
+           (annotations . ,annotations))
+         (racket--check-syntax-clear)
+         (setq racket--check-syntax-completions completions)
+         (racket--check-syntax-insert annotations)
+         (when (and annotations after-thunk)
+           (funcall after-thunk)))
+        (`(check-syntax-errors . ,xs)
+         (racket--check-syntax-insert xs)))))))
 
 (defun racket--check-syntax-insert (xs)
   "Insert text properties. Convert integer positions to markers."

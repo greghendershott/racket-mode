@@ -133,7 +133,7 @@ See also:
       (racket--repl-run
        mod-path
        'coverage
-       (lambda (_n/a)
+       (lambda ()
          (message "Getting coverage results...")
          (racket--cmd/async
           `(get-uncovered)
@@ -216,7 +216,7 @@ symbol definition lookup."
                        (cons (racket--buffer-file-name t) (md5 (current-buffer)))))
            (y-or-n-p "Run current buffer first? "))
       (racket--repl-run nil nil
-                        (lambda (_n/a)
+                        (lambda ()
                           (racket--do-visit-def-or-mod 'def str)))
     (racket--do-visit-def-or-mod 'def str)))
 
@@ -285,18 +285,21 @@ See also: `racket-find-collection'."
   "CMD must be 'def or 'mod. STR must be stringp."
   (unless (memq major-mode '(racket-mode racket-repl-mode racket-describe-mode))
     (user-error "That doesn't work in %s" major-mode))
-  (pcase (racket--cmd/await (list cmd str))
-    (`(,path ,line ,col)
-     (racket--push-loc)
-     (find-file (funcall racket-path-from-racket-to-emacs-function path))
-     (goto-char (point-min))
-     (forward-line (1- line))
-     (forward-char col)
-     (message "Type M-, to return"))
-    (`kernel
-     (message "`%s' defined in #%%kernel -- source not available." str))
-    (_
-     (message "Not found."))))
+  (racket--cmd/async
+   (list cmd str)
+   (lambda (result)
+     (pcase result
+       (`(,path ,line ,col)
+        (racket--push-loc)
+        (find-file (funcall racket-path-from-racket-to-emacs-function path))
+        (goto-char (point-min))
+        (forward-line (1- line))
+        (forward-char col)
+        (message "Type M-, to return"))
+       (`kernel
+        (message "`%s' defined in #%%kernel -- source not available." str))
+       (_
+        (message "Not found."))))))
 
 (defvar racket--loc-stack '())
 
@@ -392,10 +395,13 @@ See also: `racket-trim-requires' and `racket-base-requires'."
     (user-error "Current buffer is not a racket-mode buffer"))
   (pcase (racket--top-level-requires 'find)
     (`nil (user-error "The file module has no requires; nothing to do"))
-    (reqs (pcase (racket--cmd/await `(requires/tidy ,reqs))
-            ("" nil)
-            (new (goto-char (racket--top-level-requires 'kill))
-                 (insert (concat new "\n")))))))
+    (reqs (racket--cmd/async
+           `(requires/tidy ,reqs))
+          (lambda (result)
+            (pcase result
+              ("" nil)
+              (new (goto-char (racket--top-level-requires 'kill))
+                   (insert (concat new "\n"))))))))
 
 (defun racket-trim-requires ()
   "Like `racket-tidy-requires' but also deletes unnecessary requires.
@@ -417,13 +423,16 @@ See also: `racket-base-requires'."
    (racket--save-if-changed)
    (pcase (racket--top-level-requires 'find)
      (`nil (user-error "The file module has no requires; nothing to do"))
-     (reqs (pcase (racket--cmd/await `(requires/trim
-                                       ,(racket--buffer-file-name)
-                                       ,reqs))
-             (`nil (user-error "Syntax error in source file"))
-             (""   (goto-char (racket--top-level-requires 'kill)))
-             (new  (goto-char (racket--top-level-requires 'kill))
-                   (insert (concat new "\n"))))))))
+     (reqs (racket--cmd/async
+            `(requires/trim
+              ,(racket--buffer-file-name)
+              ,reqs)
+            (lambda (result)
+              (pcase result
+                (`nil (user-error "Syntax error in source file"))
+                (""   (goto-char (racket--top-level-requires 'kill)))
+                (new  (goto-char (racket--top-level-requires 'kill))
+                      (insert (concat new "\n"))))))))))
 
 (defun racket-base-requires ()
   "Change from \"#lang racket\" to \"#lang racket/base\".
@@ -461,17 +470,20 @@ typed/racket/base\"."
   (when (racket--ok-with-module+*)
     (racket--save-if-changed)
     (let ((reqs (racket--top-level-requires 'find)))
-      (pcase (racket--cmd/await `(requires/base
-                                  ,(racket--buffer-file-name)
-                                  ,reqs))
-        (`nil (user-error "Syntax error in source file"))
-        (new (goto-char (point-min))
-             (re-search-forward "^#lang.*? racket$")
-             (insert "/base")
-             (goto-char (or (racket--top-level-requires 'kill)
-                            (progn (insert "\n\n") (point))))
-             (unless (string= "" new)
-               (insert (concat new "\n"))))))))
+      (racket--cmd/async
+       `(requires/base
+         ,(racket--buffer-file-name)
+         ,reqs)
+       (lambda (result)
+         (pcase result
+           (`nil (user-error "Syntax error in source file"))
+           (new (goto-char (point-min))
+                (re-search-forward "^#lang.*? racket$")
+                (insert "/base")
+                (goto-char (or (racket--top-level-requires 'kill)
+                               (progn (insert "\n\n") (point))))
+                (unless (string= "" new)
+                  (insert (concat new "\n"))))))))))
 
 (defun racket--ok-with-module+* ()
   (save-excursion
