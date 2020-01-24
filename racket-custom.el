@@ -63,23 +63,18 @@
   :risky t
   :group 'racket)
 
-(defcustom racket-command-startup nil
-  "What to do when the REPL and command server aren't available to send a command.
-
-- nil: Show an error message explaining that you might need to
-  start or restart the Racket REPL.
-
-- positive number: Automatically try to start the REPL and wait
-  that number of seconds for command server to become
-  available."
-  :tag "Command Startup"
-  :type '(choice (const   :tag "Safe" nil)
-                 (integer :tag "Auto-start wait seconds" 15))
-  :risky t
-  :group 'racket)
+(make-obsolete-variable
+  'racket-command-startup
+  "This no longer has any effect."
+  "2020-01-23")
 
 (defcustom racket-command-timeout 10
-  "How many seconds to wait for Racket REPL command server responses."
+  "How many seconds to wait for command server responses.
+
+Note: This is mostly obsolete, fortunately, because it applies
+only to commands that must block the Emacs UI until they get a
+response. Instead most commands these days receive their response
+asychronously."
   :tag "Command Timeout"
   :type 'integer
   :risky t

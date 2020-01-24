@@ -274,9 +274,9 @@ This function does not block waiting for the TCP command server
 to be ready. Instead: After `make-comint' creates the process and
 buffer, we set up `racket--repl-startup-output-filter' and return
 immediately. Later that filter will detect the first output from
-the server, and call `racket--cmd-connect-attempt'. Even that
-does not block waiting for a connection, but see that for more
-details.
+the server, and call `racket--cmd-connect-schedule-start'. Even
+that does not block waiting for a connection, but see that for
+more details.
 
 A non-nil RUN-COMMAND is supplied as the second command-line
 argument to `racket--run.rkt' so the process can start by
@@ -316,7 +316,7 @@ used. See the latter for more information."
 presumably the Racket banner -- schedule an attempt to connect to
 the command process. And having done our one job, remove
 ourselves from the local cominit output filter functions."
-  (run-at-time 0.5 nil #'racket--cmd-connect-attempt 1)
+  (racket--cmd-connect-schedule-start)
   (remove-hook 'comint-output-filter-functions
                #'racket--repl-startup-output-filter
                t))

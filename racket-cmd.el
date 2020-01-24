@@ -47,13 +47,43 @@ Most code should use `racket--cmd-open-p' to check this.")
 (defvar racket--cmd-connect-attempts 15
   "How many times to `racket--cmd-connect-attempt', at roughly 1 second intervals.")
 
+(defvar racket--cmd-connect-timer nil)
+
+(defun racket--cmd-connect-scheduled-p ()
+  (and racket--cmd-connect-timer
+       (timerp racket--cmd-connect-timer)))
+
+(defun racket--cmd-connect-schedule-start ()
+  (if (racket--cmd-connect-scheduled-p)
+      (message "IGNORING (racket--cmd-connect-schedule-start): already started")
+    (setq racket--cmd-connect-timer
+          (run-at-time 0.5 nil
+                       #'racket--cmd-connect-attempt
+                       1))))
+
+(defun racket--cmd-connect-schedule-retry (attempt)
+  (if (not (racket--cmd-connect-scheduled-p))
+      (message "IGNORING (racket--cmd-connect-schedule-retry %s): not already started" attempt)
+    (cancel-timer racket--cmd-connect-timer)
+    (setq racket--cmd-connect-timer
+          (run-at-time 1.0 nil
+                       #'racket--cmd-connect-attempt
+                       (1+ attempt)))))
+
+(defun racket--cmd-connect-stop ()
+  (if (not (racket--cmd-connect-scheduled-p))
+      (message "IGNORING (racket--cmd-connect-schedule-stop): not already started")
+    (cancel-timer racket--cmd-connect-timer)
+    (setq racket--cmd-connect-timer nil)))
+
+
 (defun racket--cmd-connect-attempt (attempt)
   "Attempt to make a TCP connection to the command server.
 If that fails, retry by scheduling ourself to run again later.
 When we do make a connection, call
 `racket--repl-call-after-live-thunks'."
   (unless (featurep 'make-network-process '(:nowait t))
-    (error "Racket Mode needs Emacs to support the :nowait feature"))
+    (error "Racket Mode needs Emacs make-network-process to support the :nowait feature"))
   (setq
    racket--cmd-proc
    (make-network-process
@@ -63,7 +93,7 @@ When we do make a connection, call
     :nowait  t
     :sentinel
     (lambda (proc event)
-      ;;(message "sentinel got (%S %S) [attempt %s]" proc event attempt)
+      ;;(message "sentinel got (%S %S) [attempt %s]" proc (substring event 0 -1) attempt)
       (cond ((string-match-p "^open" event)
              (let ((buf (generate-new-buffer (concat " *" (process-name proc) "*"))))
                (set-process-buffer proc buf)
@@ -73,14 +103,15 @@ When we do make a connection, call
              (message "Connected to %s process on port %s after %s attempt%s"
                       proc racket-command-port attempt (if (= 1 attempt) "" "s"))
              (run-at-time 0.1 nil
-                          #'racket--call-cmd-after-open-thunks))
+                          #'racket--call-cmd-after-open-thunks)
+             (racket--cmd-connect-stop))
 
             ((string-match-p "^failed" event)
              (delete-process proc) ;we'll get called with "deleted" event, below
-             (when (<= attempt racket--cmd-connect-attempts)
-               (run-at-time 1.0 nil
-                            #'racket--cmd-connect-attempt
-                            (1+ attempt))))
+             (racket--cmd-connect-schedule-retry attempt)
+             (if (<= attempt racket--cmd-connect-attempts)
+                 (racket--cmd-connect-schedule-retry attempt)
+               (racket--cmd-connect-stop)))
 
             ((or (string-match-p "^deleted" event)
                  (string-match-p "^connection broken by remote peer" event))
@@ -102,6 +133,36 @@ is NOT like an Emacs hook variable.")
 (defun racket--call-cmd-after-open-thunks ()
   (while racket--cmd-after-open-thunks
     (funcall (pop racket--cmd-after-open-thunks))))
+
+(defun racket--call-when-connected-to-command-server (thunk)
+  "Call THUNK, connecting to command server if necessary without blocking.
+
+If the command server is available now, call THUNK now.
+
+Otherwise, take steps to make the command server available, and
+after it is, call THUNK."
+  (if (racket--cmd-open-p)
+      ;; Do now
+      (funcall thunk)
+    ;; Do later
+    (push thunk racket--cmd-after-open-thunks)
+    ;; Next, let's make "later" happen:
+    ;;
+    ;; Remember that our back end process has two aspects: stdio
+    ;; connected to a comint buffer ("the REPL"), and, a TCP server
+    ;; ("the command server"). Furthermore, connecting to the latter
+    ;; is something we retry on a timer until it succeeds, so that we
+    ;; don't block.
+    (if (not (racket--repl-live-p))
+        ;; The REPL process is not live, so call `racket--repl-start',
+        ;; which also arranges for `racket--cmd-connect-attempt' to be
+        ;; called eventually.
+        (racket--repl-start)
+      ;; The REPL process is live, but we have no connection to the
+      ;; command server. Unless we're already connecting, start
+      ;; connecting now.
+      (unless (racket--cmd-connect-scheduled-p)
+        (racket--cmd-connect-schedule-start)))))
 
 (defun racket--cmd-process-filter (proc string)
   "Parse complete sexprs from the process output and give them to
@@ -159,27 +220,15 @@ form. See `racket--restoring-current-buffer'.
 If the command server is not available, we do not block. Instead
 we save a thunk to run when it does become available, and call
 `racket--repl-start' which also does not block."
-  (let ((thunk
-         (lambda ()
-           (cl-incf racket--cmd-nonce)
-           (when (and callback
-                      (not (equal callback #'ignore)))
-             (puthash racket--cmd-nonce callback racket--cmd-nonce->callback))
-           (process-send-string racket--cmd-proc
-                                (format "%S\n" (cons racket--cmd-nonce
-                                                     command-sexpr))))))
-    (if (racket--cmd-open-p)
-        (funcall thunk)
-      (push thunk racket--cmd-after-open-thunks)
-      ;; Remember our back end process has two aspects: Stdio
-      ;; connected to a comint buffer ("the REPL"), and, a TCP server
-      ;; ("the command server"). If the whole process is not live, use
-      ;; `racket--repl-start' -- which arranges for
-      ;; `racket--cmd-connect-attempt' to be called eventually.
-      ;; Otherwise just try to reconnect to the TCP server.
-      (if (not (racket--repl-live-p))
-          (racket--repl-start)
-        (racket--cmd-connect-attempt 1)))))
+  (racket--call-when-connected-to-command-server
+   (lambda ()
+     (cl-incf racket--cmd-nonce)
+     (when (and callback
+                (not (equal callback #'ignore)))
+       (puthash racket--cmd-nonce callback racket--cmd-nonce->callback))
+     (process-send-string racket--cmd-proc
+                          (format "%S\n" (cons racket--cmd-nonce
+                                               command-sexpr))))))
 
 (defun racket--cmd/async (command-sexpr &optional callback)
   "You probably want to use this instead of `racket--cmd/async-raw'.
