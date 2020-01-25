@@ -37,9 +37,14 @@
 (require 'rx)
 (require 'pos-tip)
 
+;; TODO: Expose as a defcustom? Or even as commands to turn on/off?
+;; Also note there are really 3 categories here: 'local 'import
+;; 'module-lang, so could be more granularity.
 (defvar racket-check-syntax-highlight-imports-p nil
-  "Highlight imported definitions and uses thereof?
-When nil, only local defs/uses are highlighted.")
+  "Highlight imported definitions and uses thereof? When nil,
+only local defs/uses are highlighted. When t, all are highlighted
+-- similar to how DrRacket draws arrows for everything. If you
+find that too \"nosiy\", set this to nil.")
 
 (defvar racket-check-syntax-control-c-hash-keymap
   (racket--easy-keymap-define
@@ -227,19 +232,17 @@ by `racket-mode'."
          (racket--cmd/async
           `(def ,sym ,path ,submods)
           (lambda (v)
+            ;; Always visit the file, even if pos within not found
+            (racket--push-loc)
+            (find-file (funcall racket-path-from-racket-to-emacs-function path))
+            (goto-char (point-min))
             (pcase v
-              ;; Copy-pasta from racket-edit.el
-              (`(,path ,line ,col)
-               (racket--push-loc)
-               (find-file (funcall racket-path-from-racket-to-emacs-function path))
-               (goto-char (point-min))
+              (`(,_path ,line ,col)
                (forward-line (1- line))
-               (forward-char col)
-               (message "Type M-, to return"))
-              (_
-               (message "Not found."))))))
+               (forward-char col)))
+            (message "Type M-, to return"))))
         (_
-         (racket-visit-definition))))))
+         (message "Definition source not available, possibly because defined in #%%kernel"))))))
 
 (defun racket-check-syntax-documentation ()
   "Show help found by check-syntax, if any, else `racket-doc'."
