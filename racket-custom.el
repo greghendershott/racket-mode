@@ -356,7 +356,7 @@ level quieter. That way you can set the '* topic to a level like
   "Check Syntax Use Face")
 
 (defface-racket racket-check-syntax-error-face
-  '((t (:inherit error :box 1)))
+  '((t (:underline (:color "red" :style wave))))
   "Face `racket-check-syntax-mode' uses to highlight errors."
   "Check Syntax Error Face")
 
