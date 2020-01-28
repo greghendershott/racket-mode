@@ -70,9 +70,9 @@ code in your Emacs init file:
 #+END_SRC
 
 Note: This mode won't do anything unless/until the Racket Mode
-back end is running -- as a result of a `racket-run' or
-`racket-repl' command. You need not run the buffer you are
-editing, just /some/ buffer, to start the back end server.
+back end is running. It will try to start the back end
+automatically. You do /not/ need to `racket-run' the buffer you
+are editing.
 
 When point is on a definition or use, related items are
 highlighted using `racket-check-syntax-def-face' and
@@ -82,17 +82,19 @@ the function(s) in the hook variable `racket-show-functions'; it
 is also available when hovering the mouse cursor.
 
 You may also use commands to navigate among a definition and its
-uses, or rename all of them.
+uses, or to rename a local definitions and all its uses.
 
-\"M-.\" is rebound to `racket-check-syntax-visit-definition'.
-This uses information provided by check-syntax for local
-bindings, or else does the usual `racket-visit-definition' for
-bindings imported by a `require` or module language.
+\"M-.\" is rebound from `racket-visit-definition' -- which only
+works when a buffer has been `racket-run' -- to
+`racket-check-syntax-visit-definition'. This uses information
+provided by check-syntax for local and imported definitions.
 
-Local definitions are offered as completion candidates by adding
-`racket-check-syntax-complete-at-point' to the variable
-`completion-at-point-functions', as a non-exclusive source before
-`racket-complete-at-point'.
+Similarly, `racket-check-syntax-complete-at-point' is added to
+the variable `completion-at-point-functions'. This works even if
+a buffer has not been `racket-run'. In addition to supply
+completion candidates, it supports the :company-location property
+to inspect the definition of a candidate. Support
+for :company-doc-buffer is not yet implemented.
 
 When you edit the buffer, existing annotations are retained;
 their positions are updated to reflect the edit. Annotations for
@@ -106,14 +108,14 @@ ready, all annotations for the buffer are completely refreshed.
 Tip: This follows the convention that a minor mode may only use a
 prefix key consisting of C-c followed by a punctuation key. As a
 result, `racket-check-syntax-control-c-hash-keymap' is bound to
-\"C-c #\" by default -- even though this is \"a handful\" to
-type. Fortunately as an Emacs user, you are free to bind this map
-to a more convenient prefix, and/or bind the commands to whatever
-keys you prefer.
+\"C-c #\" by default. Although you might find this awkward to
+type, remember that as an Emacs user, you are free to bind this
+map to a more convenient prefix, and/or bind any individual
+commands directly to whatever keys you prefer.
 
 \\{racket-check-syntax-mode-map}
 "
-  :lighter " CheckSyntax"
+  :lighter " RacketCheck"
   :keymap (racket--easy-keymap-define
            `(("C-c #"   ,racket-check-syntax-control-c-hash-keymap)
              ("M-."     ,#'racket-check-syntax-visit-definition)
