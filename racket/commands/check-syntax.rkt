@@ -147,6 +147,7 @@
     ;;
     ;; Completion candidates (including their defn locs)
     ;;
+    (define completions (make-hash))
 
     ;; [1] Locals. When a definition isn't yet used, there will be no
     ;; syncheck:add-arrow annotation because drracket doesn't need to
@@ -156,45 +157,38 @@
     ;; local completion candidates. It's the same reason why we go to
     ;; the work in imported-completions to find _everything_ imported,
     ;; that _could_ be used.
-    (define local-completions
-      (remove-dupes-and-falses
-       (for/list ([x (in-list synchecks)])
-         (match x
-           [(vector 'syncheck:add-mouse-over-status beg end
-                    (or "no bound occurrences"
-                        (pregexp "^\\d+ bound occurrences?$")))
-            #:when (valid-beg/end? beg end)
-            (list (substring code-str beg end)
-                  path-str
-                  beg)]
-           [_ #f]))))
+    (for ([x (in-list synchecks)])
+      (match x
+        [(vector 'syncheck:add-mouse-over-status beg end
+                 (or "no bound occurrences"
+                     (pregexp "^\\d+ bound occurrences?$")))
+         #:when (valid-beg/end? beg end)
+         (hash-set! completions
+                    (substring code-str beg end)
+                    (add1 beg))]
+        [_ (void)]))
     ;; [2] Imports
-    (define imported-completions
-      (parameterize ([current-load-relative-directory dir]
-                     [current-namespace               ns])
-        (define (location-info v)
-          ;; Simplify what identifier-binding* returns into an
-          ;; actionable list of 0, 1, or 2 locations that later could
-          ;; be given to the find-def-in-files command.
-          (match (identifier-binding* v #:expanded-module-syntax stx)
-            [(? list? xs)
-             (remove-dupes-and-falses
-              (for/list ([x (in-list xs)])
-                (match x
-                  [(cons _ 'kernel) #f] ;omit kernel
-                  [(list* (app symbol->string sym) (app path->string path) subs)
-                   #:when (equal? sym v)
-                   (list (list)     (list* path subs))] ; omit repeating name
-                  [(list* (app symbol->string sym) (app path->string path) subs)
-                   (list (list sym) (list* path subs))])))]
-            [_ (list)]))
-        (for/list ([v (in-set (imports stx (set)))])
-          (list v (location-info v)))))
-    ;; [3] Combined
-    (define completions
-      (sort (append local-completions imported-completions)
-            string<=?
-            #:key car))
+    (parameterize ([current-load-relative-directory dir]
+                   [current-namespace               ns])
+      (define (location-info v)
+        ;; Simplify what identifier-binding* returns into an
+        ;; actionable list of 0, 1, or 2 locations that later could
+        ;; be given to the find-def-in-files command.
+        (match (identifier-binding* v #:expanded-module-syntax stx)
+          [(? list? xs)
+           (remove-dupes-and-falses
+            (for/list ([x (in-list xs)])
+              (match x
+                [(cons _ 'kernel) #f] ;omit kernel
+                [(list* (app symbol->string sym) (app path->string path) subs)
+                 ;; When sym is same use #f instead of repeating
+                 (define maybe-sym (and (not (equal? sym v)) sym))
+                 (list maybe-sym path subs)])))]
+          [_ (list)]))
+      (for ([v (in-set (imports stx (set)))])
+        (hash-set! completions
+                   v
+                   (location-info v))))
 
     ;;
     ;; Final answer for Emacs front-end

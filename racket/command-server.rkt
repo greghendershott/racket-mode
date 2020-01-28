@@ -24,7 +24,9 @@
  ["commands/macro.rkt"        (macro-stepper macro-stepper/next)]
  ["commands/profile.rkt"      (get-profile)]
  ["commands/requires.rkt"     (requires/tidy requires/trim requires/base)]
- ["find.rkt"                  (find-definition-in-namespace find-definition-in-file)])
+ ["find.rkt"                  (find-definition-in-namespace
+                               find-definition-in-file
+                               find-definition-in-files)])
 
 (provide start-command-server
          attach-command-server
@@ -166,8 +168,9 @@
     [`(no-op)                          #t]
     [`(path+md5)                       (cons (or path 'top) md5)]
     [`(syms)                           (syms)]
-    [`(def ,str)                       (find-definition-in-namespace str)]
-    [`(def ,str ,file ,submods)        (find-definition-in-file str file submods)]
+    [`(def-in-namespace ,str)          (find-definition-in-namespace str)]
+    [`(def-in-file ,str ,file ,subs)   (find-definition-in-file str file subs)]
+    [`(def-in-files ,possibilities)    (find-definition-in-files possibilities)]
     [`(mod ,sym)                       (find-module sym maybe-mod)]
     [`(describe ,str)                  (describe str)]
     [`(doc ,str)                       (doc str)]

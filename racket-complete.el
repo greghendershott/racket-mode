@@ -151,7 +151,7 @@ to supply this quickly enough or at all."
 
 (defun racket--get-def-file+line (sym)
   "Return a value suitable for use as :company-location."
-  (pcase (racket--cmd/await `(def ,sym))
+  (pcase (racket--cmd/await `(def-in-namespace ,sym))
     (`(,path ,line ,_) (cons path line))
     (_ nil)))
 

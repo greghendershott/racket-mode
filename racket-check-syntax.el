@@ -143,7 +143,7 @@ keys you prefer.
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 0)))))
 
-(defvar-local racket--check-syntax-completions nil)
+(defvar-local racket--check-syntax-completions (make-hash-table :test 'equal))
 
 (defun racket-check-syntax-complete-at-point ()
   "A value for the variable `completion-at-point-functions'.
@@ -157,8 +157,24 @@ by `racket-mode'."
            (completion-table-dynamic
             (lambda (prefix)
               (all-completions prefix racket--check-syntax-completions)))
-           :predicate #'identity
-           :exclusive 'no))))
+           :predicate        #'identity
+           :exclusive        'no
+           :company-location #'racket--check-syntax-company-location))))
+
+(defun racket--check-syntax-company-location (sym)
+  (let ((sym (substring-no-properties sym)))
+    (pcase (gethash sym racket--check-syntax-completions)
+      ((and (pred numberp) pos)
+       (cons (buffer-file-name) (line-number-at-pos pos)))
+      ((and (pred listp) locs)
+       (let ((possibilities (mapcar (lambda (loc)
+                                      (pcase loc
+                                        (`(,maybe-sym ,path ,subs)
+                                         (let ((sym (or maybe-sym sym)))
+                                           `(,sym ,path ,subs)))))
+                                    locs)))
+         (pcase (racket--cmd/await `(def-in-files ,possibilities))
+           (`(,path ,line ,_) (cons path line))))))))
 
 (defconst racket--check-syntax-overlay-name 'racket-check-syntax-overlay)
 
@@ -230,7 +246,7 @@ by `racket-mode'."
       (pcase (get-text-property (point) 'racket-check-syntax-visit)
         (`(,sym ,path, submods)
          (racket--cmd/async
-          `(def ,sym ,path ,submods)
+          `(def-in-file ,sym ,path ,submods)
           (lambda (v)
             ;; Always visit the file, even if pos within not found
             (racket--push-loc)
@@ -371,7 +387,8 @@ If point is instead on a definition, then go to its first use."
            (completions . ,completions)
            (annotations . ,annotations))
          (racket--check-syntax-clear)
-         (setq racket--check-syntax-completions completions)
+         (dolist (x completions)
+           (puthash (car x) (cdr x) racket--check-syntax-completions))
          (racket--check-syntax-insert annotations)
          (when (and annotations after-thunk)
            (funcall after-thunk)))
@@ -447,7 +464,7 @@ If point is instead on a definition, then go to its first use."
 
 (defun racket--check-syntax-clear ()
   (with-silent-modifications
-    (setq racket--check-syntax-completions nil)
+    (clrhash racket--check-syntax-completions)
     (remove-text-properties
      (point-min) (point-max)
      (list 'help-echo                 nil
@@ -456,6 +473,7 @@ If point is instead on a definition, then go to its first use."
            'racket-check-syntax-visit nil
            'racket-check-syntax-doc   nil
            'cursor-sensor-functions   nil))
+    ;; TODO: Remove 'face properties that have our special values, only
     (racket--unhighlight-all)))
 
 (provide 'racket-check-syntax)
