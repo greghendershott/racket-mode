@@ -4,6 +4,7 @@
          (only-in racket/format ~a)
          racket/list
          racket/match
+         "identifier.rkt"
          "syntax.rkt")
 
 (provide find-definition-in-files
@@ -95,46 +96,6 @@
                [_ #f]))
     [(? syntax? stx) (list stx file submods)]
     [_  #f]))
-
-;; Distill identifier-binding to what we need. Unfortunately it can't
-;; report the definition id in the case of a contract-out and a
-;; rename-out, both. For `(provide (contract-out [rename orig new
-;; contract]))` it reports (1) the contract-wrapper as the id, and (2)
-;; `new` as the nominal-id -- but NOT (3) `orig`. Instead the caller
-;; will need try using `renaming-provide`.
-(define/contract (identifier-binding* v)
-  (-> (or/c string? symbol? identifier?)
-      (or/c #f
-            (listof (cons/c symbol?
-                            (or/c 'kernel
-                                  (cons/c path-string? (listof symbol?)))))))
-  (define sym->id namespace-symbol->identifier)
-  (define id (cond [(string? v)     (sym->id (string->symbol v))]
-                   [(symbol? v)     (sym->id v)]
-                   [(identifier? v) v]))
-  (match (identifier-binding id)
-    [(list source-mpi         source-id
-           nominal-source-mpi nominal-source-id
-           source-phase       import-phase nominal-export-phase)
-     (list (cons source-id         (mpi->path source-mpi))
-           (cons nominal-source-id (mpi->path nominal-source-mpi)))]
-    [_ #f]))
-
-(define/contract (mpi->path mpi)
-  (-> module-path-index?
-      (or/c 'kernel
-            (cons/c path-string? (listof symbol?))))
-  (define (hash-percent-symbol v)
-    (and (symbol? v)
-         (regexp-match? #px"^#%" (symbol->string v))))
-  (match (resolved-module-path-name (module-path-index-resolve mpi))
-    [(? hash-percent-symbol) 'kernel]
-    [(? path-string? path)   (list path)]
-    [(? symbol? sym)
-     (list (build-path (current-load-relative-directory)
-                       (~a sym ".rkt")))]
-    [(list (? path-string? path) (? symbol? subs) ...)
-     (list* path subs)]))
 
 ;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
 (define (syntax-e-eq? a b)
