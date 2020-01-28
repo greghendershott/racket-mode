@@ -1,0 +1,257 @@
+#lang racket/base
+
+(require racket/format
+         racket/match
+         racket/set
+         "util.rkt")
+
+(provide imports)
+
+;;; Finding completion candidates from imports
+
+;; drracket/check-syntax tells us about local definitions (which is
+;; great!), and, tells us about imported definitions -- but only those
+;; already _used_. Obviously, a major use case for completion is
+;; typing _new_ uses of available definitions, too. e.g. "What is that
+;; string-xxx function I'm not yet using in this file?" So we want to
+;; supply that full set.
+;;
+;; Furthermore, import names can be munged (e.g. `prefix-in` or
+;; `rename-in`) so module->exports isn't the quite the right answer.
+;;
+;; If you have a namespace from module->namespace, you can use
+;; namespace-mapped-symbols -- easy! However we do NOT want to
+;; instantiate the module, i.e. "run the user's code". We want to
+;; supply this information using the same sort of "passive" analaysis
+;; done by check-syntax, before the user even runs the file (if ever).
+;;
+;; AFAICT there is no good way to get completions from all imported
+;; identifiers, except attempting to parse the complete #%require
+;; grammar including `prefix` and renaming forms like `just-meta`, and
+;; apply that information to tweak the answer from module->exports.
+
+;; It is important to run this with the correct parameterization of
+;; current-namespace and current-load-relative-directory.
+(define (imports stx [sos (set)])
+  (syntax-case stx (module #%module-begin #%plain-module-begin #%require)
+    [(module _ lang (#%module-begin e ...))
+     (handle-module-level #'(e ...) sos #'lang)]
+    [(module _ lang (#%plain-module-begin e ...))
+     (handle-module-level #'(e ...) sos #'lang)]
+    [_ sos]))
+
+(define (handle-module-level es sos lang)
+  (for/fold ([sos (module-exported-strings sos lang lang)])
+            ([e (in-syntax es)])
+    (syntax-case* e (#%require) symbolic-compare?
+      [(#%require e ...)
+       (for/fold ([sos sos]) ([spec (in-syntax #'(e ...))])
+         (handle-raw-require-spec spec sos lang))]
+      [_ sos])))
+
+(define (handle-raw-require-spec spec sos lang)
+  (syntax-case* spec (for-meta for-syntax for-template for-label just-meta) symbolic-compare?
+    [(for-meta _phase specs ...)
+     (for/fold ([sos sos]) ([spec (in-syntax #'(specs ...))])
+       (handle-phaseless-spec spec sos lang))]
+    [(for-syntax specs ...)
+     (for/fold ([sos sos]) ([spec (in-syntax #'(specs ...))])
+       (handle-phaseless-spec spec sos lang))]
+    [(for-template specs ...)
+     (for/fold ([sos sos]) ([spec (in-syntax #'(specs ...))])
+       (handle-phaseless-spec spec sos lang))]
+    [(for-label specs ...)
+     (for/fold ([sos sos]) ([spec (in-syntax #'(specs ...))])
+       (handle-phaseless-spec spec sos lang))]
+    [(just-meta phase specs ...)
+     (for/fold ([sos sos]) ([spec (in-syntax #'(specs ...))])
+       (handle-raw-require-spec spec sos lang))]
+    [raw-module-path
+     (handle-phaseless-spec #'raw-module-path sos lang)]))
+
+(define (handle-phaseless-spec spec sos lang)
+  (syntax-case* spec (only prefix all-except prefix-all-except rename)
+      symbolic-compare?
+    [(only raw-module-path id ...)
+     (set-union sos
+                (syntax->string-set #'(id ...)))]
+    [(prefix prefix-id raw-module-path)
+     (module-exported-strings sos
+                              #'raw-module-path
+                              lang
+                              #:prefix #'prefix-id)]
+    [(all-except raw-module-path id ...)
+     (module-exported-strings sos
+                              #'raw-module-path
+                              lang
+                              #:except (syntax->string-set #'(id ...)))]
+    [(prefix-all-except prefix-id raw-module-path id ...)
+     (module-exported-strings sos
+                              #'raw-module-path
+                              lang
+                              #:prefix #'prefix-id
+                              #:except (syntax->string-set #'(id ...)))]
+    [(rename raw-module-path local-id exported-id)
+     (set-union (set-remove sos
+                            (if (eq? (syntax-e #'raw-module-path) (syntax-e lang))
+                                (set)
+                                (->str #'exported-id)))
+                (set (->str #'local-id)))]
+    [raw-module-path
+     (module-path? (syntax->datum #'raw-module-path))
+     (module-exported-strings sos
+                              #'raw-module-path
+                              lang)]))
+
+(define (->str v)
+  (match v
+    [(? syntax?) (->str (syntax-e v))]
+    [(? symbol?) (symbol->string v)]
+    [(? string?) v]))
+
+(define (syntax->string-set s)
+  (for/set ([s (in-syntax s)])
+    (->str s)))
+
+(define (module-exported-strings sos
+                                 raw-module-path
+                                 lang
+                                 #:except [exceptions (set)]
+                                 #:prefix [prefix #'""])
+  ;; NOTE: Important to run this with the correct parameterization of
+  ;; current-namespace and current-load-relative-directory.
+  (define (add-exports mp)
+    (define-values (vars stxs) (module->exports mp))
+    (define orig (for*/set ([vars+stxs (in-list (list vars stxs))]
+                            [phases (in-list vars+stxs)]
+                            [export (in-list (cdr phases))])
+                   (->str (car export))))
+    (define prefixed (for/set ([v (in-set orig)])
+                       (~a (->str prefix) v)))
+    (set-union (if (eq? (syntax-e raw-module-path) (syntax-e lang))
+                   ;; {except rename prefix}-in don't remove original
+                   (set-union sos orig)
+                   ;; {except rename prefix}-in do remove original
+                   (set-subtract sos orig exceptions))
+               prefixed))
+  ;; Ignore non-external module paths: module->exports can't handle
+  ;; them, and anyway, drracket/check-syntax will contribute
+  ;; completion candidates for local definitions, we don't need to
+  ;; find them here.
+  (syntax-case* raw-module-path (quote submod) symbolic-compare?
+    [(quote _)        sos]
+    [(submod "." . _) sos]
+    [_                (add-exports (syntax->datum raw-module-path))]))
+
+(define (symbolic-compare? x y)
+  (eq? (syntax-e x) (syntax-e y)))
+
+(module+ completions-example
+  (parameterize ([current-namespace (make-base-namespace)])
+    (define stx
+      (expand
+       #'(module m racket/base
+           (module sub racket/base (void))
+           (require racket/require
+                    (submod "." sub)
+                    (except-in "../error.rkt" show-full-path-in-errors)
+                    (prefix-in XXX: (except-in racket/file other-write-bit))
+                    (rename-in racket/path [path-only PATH-ONLY])))))
+    (syntax->datum stx)
+    (imports stx)))
+
+(module+ test
+  (require rackunit
+           version/utils)
+  ;; Compare the results to namespace-mapped-symbols.
+  (module mod racket/base
+    (module sub racket/base
+      (define provided-by-submodule 42)
+      (provide provided-by-submodule))
+    (require (rename-in racket/path
+                        [path-only PATH-ONLY])
+             (except-in racket/base println)
+             (rename-in racket/base
+                        [display DISPLAY])
+             (prefix-in PREFIX: (only-in racket/base displayln))
+             (for-syntax (rename-in racket/syntax [format-id FORMAT-ID]))
+             (submod "." sub))
+    (define-namespace-anchor nsa)
+    (define nsms (map symbol->string
+                      (namespace-mapped-symbols
+                       (namespace-anchor->namespace nsa))))
+    (provide nsms))
+  (require 'mod)
+  (define mod/stx
+    (expand
+     #`(module mod racket/base
+         (module sub racket/base
+           (define provided-by-submodule 42)
+           (provide provided-by-submodule))
+         (require (rename-in racket/path
+                             [path-only PATH-ONLY])
+                  (except-in racket/base println)
+                  (rename-in racket/base
+                             [display DISPLAY])
+                  (prefix-in PREFIX: (only-in racket/base displayln))
+                  (for-syntax (rename-in racket/syntax [format-id FORMAT-ID]))
+                  (submod "." sub))
+         (eprintf "I should not print!"))))
+  (let (;; The world according to namespace-mapped-symbols
+        [nsms (list->set nsms)]
+        ;; The world according to our imported-completions
+        [cs (parameterize ([current-namespace (make-base-namespace)])
+              (imports (expand mod/stx)))])
+    ;; Test {prefix rename except}-in, keeping mind that they work
+    ;; differently for requires that modify the module language
+    ;; imports.
+    (check-false (set-member? cs "path-only")
+                 "rename-in not from module language hides old name")
+    (check-true (set-member? cs "PATH-ONLY")
+                "rename-in not from module language has new name ")
+    (check-true (set-member? cs "display")
+                "rename-in from module language does not hide old name")
+    (check-true (set-member? cs "DISPLAY")
+                "rename-in from module language has new name")
+    (check-true (set-member? cs "displayln")
+                "prefix-in from module language does not hide old name")
+    (check-true (set-member? cs "PREFIX:displayln")
+                "prefix-in from module language is available under new name")
+    ;; namespace-mapped-symbols will return some definitions beyond
+    ;; those imported -- it includes {top module}-level bindings. This
+    ;; test accounts for that with a dumb ad hoc list. (More nifty
+    ;; would be to walk our test stx and build that list.)
+    ;;
+    ;; FIXME? Travis CI says this test fails prior to Racket 7.0:
+    ;; namespace-mapped-symbols reports ~400 more symbols --
+    ;; apparently from full racket (should be racket/base). Huh??
+    ;; Well, _our_ results are correct. For now, let's just do the
+    ;; test on Racket 7.0+.
+    (when (version<=? "7.0" (version))
+      (check-equal? (set-subtract nsms cs)
+                    (set "tmp.1" "nsms" "nsa" "provided-by-submodule")
+                    "namespace-mapped-symbols returns only a few more, non-imported definitions"))))
+
+(module+ slow-test
+  ;; Exercise our parsing of the #%require grammar: Try doing
+  ;; (check-not-exn (imports stx)) on many files in the Racket
+  ;; distribution. Grammar mistakes will raise exn:fail:syntax.
+  (require rackunit
+           syntax/modresolve
+           racket/path
+           "syntax.rkt")
+  (define (check path)
+    (parameterize ([current-load-relative-directory (path-only path)]
+                   [current-namespace               (make-base-namespace)])
+      (define stx (file->expanded-syntax path))
+      (check-not-exn (λ () (imports stx))
+                     (format "#%require grammar handles ~v" path))))
+  (for ([roots (in-list '(("racket.rkt" "typed")
+                          ("core.rkt" "typed-racket")
+                          ("main.rkt" "racket")))])
+    (for* ([v (in-directory
+               (path-only
+                (apply collection-file-path roots)))]
+           #:when (equal? #"rkt" (filename-extension v)))
+      (println v)
+      (check v))))
