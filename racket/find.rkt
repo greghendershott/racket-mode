@@ -6,11 +6,22 @@
          racket/match
          "syntax.rkt")
 
-(provide find-definition-in-file
+(provide find-definition-in-files
+         find-definition-in-file
          find-definition-in-namespace
-         find-signature)
+         find-signature
+         identifier-binding*)
 
 (define location/c (list/c path-string? natural-number/c natural-number/c))
+
+;; Plural variant of find-definition-in-file, because
+;; identifier-binding can return two possibilities,
+;; and it's nicer to do this as one command.
+(define/contract (find-definition-in-files possibilities)
+  (-> (listof (list/c string? path-string? (listof symbol?)))
+      (or/c #f location/c))
+  (for/or ([possibility (in-list possibilities)])
+    (apply find-definition-in-file possibility)))
 
 ;; Try to find a defintion in a specific file and submods path, which
 ;; were previously discovered (e.g. by drracket/check-syntax).
@@ -56,13 +67,19 @@
   (-> string?
       (or/c #f 'kernel stx+path+mods/c))
   (match (identifier-binding* str)
-    [(? list? xs)
-     (define ht (make-hash)) ;cache in case source repeated
-     (for/or ([x (in-list (remove-duplicates xs))])
-       (match x
-         [(cons id 'kernel) 'kernel]
-         [(list* id file submods) (def-in-file id file submods ht)]))]
+    [(? list? xs) (def-in-files xs)]
     [_ #f]))
+
+(define (def-in-files bindings)
+  (-> (listof (cons/c symbol?
+                      (or/c 'kernel
+                            (cons/c path-string? (listof symbol?)))))
+      (or/c #f stx+path+mods/c))
+  (define ht (make-hash)) ;cache in case source repeated
+  (for/or ([x (in-list (remove-duplicates bindings))])
+    (match x
+      [(cons id 'kernel) 'kernel]
+      [(list* id file submods) (def-in-file id file submods ht)])))
 
 (define/contract (def-in-file id file submods [ht (make-hash)])
   (->* (symbol? path-string? (listof symbol?))
@@ -98,7 +115,7 @@
   (match (identifier-binding id)
     [(list source-mpi         source-id
            nominal-source-mpi nominal-source-id
-           source-phase import-phase nominal-export-phase)
+           source-phase       import-phase nominal-export-phase)
      (list (cons source-id         (mpi->path source-mpi))
            (cons nominal-source-id (mpi->path nominal-source-mpi)))]
     [_ #f]))
