@@ -40,15 +40,15 @@
 
 (define (racket->elisp v)
   (match v
-    [(or #f (list)) 'nil]
-    [#t             't]
-    [(? list? xs)   (map racket->elisp xs)]
-    [(cons x y)     (cons (racket->elisp x) (racket->elisp y))]
-    [(? path? v)    (path->string v)]
-    [(? hash? v)    (for/list ([(k v) (in-hash v)])
-                      (cons (racket->elisp k) (racket->elisp v)))]
-    [(? set? v)     (map racket->elisp (set->list v))]
-    [v              v]))
+    [(or #f (list))     'nil]
+    [#t                 't]
+    [(? list? xs)       (map racket->elisp xs)]
+    [(cons x y)         (cons (racket->elisp x) (racket->elisp y))]
+    [(? path? v)        (path->string v)]
+    [(? hash? v)        (for/list ([(k v) (in-hash v)])
+                          (cons (racket->elisp k) (racket->elisp v)))]
+    [(? generic-set? v) (map racket->elisp (set->list v))]
+    [v                  v]))
 
 (module+ test
   (require rackunit)

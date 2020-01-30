@@ -18,15 +18,15 @@
 (lazy-require
  ["commands/check-syntax.rkt" (check-syntax)]
  ["commands/coverage.rkt"     (get-uncovered)]
- ["commands/describe.rkt"     (describe type)]
+ ["commands/describe.rkt"     (describe
+                               type)]
  ["commands/find-module.rkt"  (find-module)]
  ["commands/help.rkt"         (doc)]
  ["commands/macro.rkt"        (macro-stepper macro-stepper/next)]
  ["commands/profile.rkt"      (get-profile)]
  ["commands/requires.rkt"     (requires/tidy requires/trim requires/base)]
- ["find.rkt"                  (find-definition-in-namespace
-                               find-definition-in-file
-                               find-definition-in-files)])
+ ["find.rkt"                  (find-definition
+                               find-definition/drracket-jump)])
 
 (provide start-command-server
          attach-command-server
@@ -168,11 +168,10 @@
     [`(no-op)                          #t]
     [`(path+md5)                       (cons (or path 'top) md5)]
     [`(syms)                           (syms)]
-    [`(def-in-namespace ,str)          (find-definition-in-namespace str)]
-    [`(def-in-file ,str ,file ,subs)   (find-definition-in-file str file subs)]
-    [`(def-in-files ,possibilities)    (find-definition-in-files possibilities)]
+    [`(def ,how ,str)                  (find-definition how str)]
+    [`(def/dr-jump ,path ,subs ,ids)   (find-definition/drracket-jump path subs ids)]
     [`(mod ,sym)                       (find-module sym maybe-mod)]
-    [`(describe ,str)                  (describe str)]
+    [`(describe ,how ,str)             (describe how str)]
     [`(doc ,str)                       (doc str)]
     [`(type ,v)                        (type v)]
     [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]

@@ -119,6 +119,7 @@ commands directly to whatever keys you prefer.
   :keymap (racket--easy-keymap-define
            `(("C-c #"   ,racket-check-syntax-control-c-hash-keymap)
              ("M-."     ,#'racket-check-syntax-visit-definition)
+             ("C-c C-." ,#'racket-check-syntax-describe)
              ("C-c C-d" ,#'racket-check-syntax-documentation)))
   (unless (eq major-mode 'racket-mode)
     (setq racket-check-syntax-mode nil)
@@ -145,7 +146,7 @@ commands directly to whatever keys you prefer.
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 0)))))
 
-(defvar-local racket--check-syntax-completions (make-hash-table :test 'equal))
+(defvar-local racket--check-syntax-completions nil)
 
 (defun racket-check-syntax-complete-at-point ()
   "A value for the variable `completion-at-point-functions'.
@@ -159,24 +160,51 @@ by `racket-mode'."
            (completion-table-dynamic
             (lambda (prefix)
               (all-completions prefix racket--check-syntax-completions)))
-           :predicate        #'identity
-           :exclusive        'no
-           :company-location #'racket--check-syntax-company-location))))
+           :predicate          #'identity
+           :exclusive          'no
+           :company-location   (racket--check-syntax-make-company-location-proc)
+           :company-doc-buffer (racket--check-syntax-make-company-doc-buffer-proc)))))
 
-(defun racket--check-syntax-company-location (sym)
-  (let ((sym (substring-no-properties sym)))
-    (pcase (gethash sym racket--check-syntax-completions)
-      ((and (pred numberp) pos)
-       (cons (buffer-file-name) (line-number-at-pos pos)))
-      ((and (pred listp) locs)
-       (let ((possibilities (mapcar (lambda (loc)
-                                      (pcase loc
-                                        (`(,maybe-sym ,path ,subs)
-                                         (let ((sym (or maybe-sym sym)))
-                                           `(,sym ,path ,subs)))))
-                                    locs)))
-         (pcase (racket--cmd/await `(def-in-files ,possibilities))
-           (`(,path ,line ,_) (cons path line))))))))
+(defun racket--check-syntax-make-company-location-proc ()
+  (when (racket--cmd-open-p)
+    (let ((how (buffer-file-name)))
+      (lambda (str)
+        (let ((str (substring-no-properties str)))
+          (pcase (racket--cmd/await `(def ,how ,str))
+            (`(,path ,line ,_) (cons path line))))))))
+
+(defun racket--check-syntax-make-company-doc-buffer-proc ()
+  (when (racket--cmd-open-p)
+    (let ((how (buffer-file-name)))
+      (lambda (str)
+        (let ((str (substring-no-properties str)))
+          (racket--do-describe how str))))))
+
+(defun racket-check-syntax-describe (&optional prefix)
+"Describe the identifier at point in a `*Racket Describe*` buffer.
+
+The intent is to give a quick reminder or introduction to
+something, regardless of whether it has installed documentation
+-- and to do so within Emacs, without switching to a web browser.
+
+This buffer is also displayed when you use `company-mode' and
+press F1 or C-h in its pop up completion list.
+
+- If the identifier has installed Racket documentation, then a
+  simplified version of the HTML is presented in the buffer,
+  including the \"blue box\", documentation prose, and examples.
+
+- Otherwise, if the identifier is a function, then its signature
+  is displayed, for example `(name arg-1-name arg-2-name)`..
+
+You can quit the buffer by pressing q. Also, at the bottom of the
+buffer are Emacs buttons -- which you may navigate among using
+TAB, and activate using RET -- for `racket-visit-definition' and
+`racket-doc'."
+  (interactive "P")
+  (pcase (racket--symbol-at-point-or-prompt prefix "Describe: ")
+    (`nil nil)
+    (str (racket--do-describe (buffer-file-name) str t))))
 
 (defconst racket--check-syntax-overlay-name 'racket-check-syntax-overlay)
 
@@ -233,34 +261,35 @@ by `racket-mode'."
          (racket-show ""))
        (racket--unhighlight-all)))))
 
-(defun racket-check-syntax-visit-definition ()
-  "When point is on a use, go to its definition."
+(defun racket-check-syntax-visit-definition (&optional prefix)
+  "When point is on a use, go to its definition.
+
+With a prefix, prompts you, but beware this only knows about
+definitions used in the main module, not submodules."
   (interactive)
-  (let ((local-p
-         (pcase (get-text-property (point) 'racket-check-syntax-use)
-           (`(,beg ,_end)
-            (pcase (get-text-property beg 'racket-check-syntax-def)
-              (`(local ,_uses)
-               (racket--push-loc)
-               (goto-char beg)
-               t))))))
-    (unless local-p
+  (unless (pcase (get-text-property (point) 'racket-check-syntax-use)
+            (`(,beg ,_end)
+             (pcase (get-text-property beg 'racket-check-syntax-def)
+               (`(local ,_uses)
+                (racket--push-loc)
+                (goto-char beg)
+                t))))
+    (if prefix
+        (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")
+          (`nil nil)
+          (str (racket--do-visit-def-or-mod `(def ,(buffer-file-name) ,str))))
       (pcase (get-text-property (point) 'racket-check-syntax-visit)
-        (`(,sym ,path, submods)
+        (`(,path ,subs ,ids)
          (racket--cmd/async
-          `(def-in-file ,sym ,path ,submods)
-          (lambda (v)
-            ;; Always visit the file, even if pos within not found
-            (racket--push-loc)
-            (find-file (funcall racket-path-from-racket-to-emacs-function path))
-            (goto-char (point-min))
-            (pcase v
-              (`(,_path ,line ,col)
+          `(def/dr-jump ,path ,subs, ids)
+          (lambda (results)
+            (pcase results
+              (`(,path ,line ,col)
+               (racket--push-loc)
+               (find-file (funcall racket-path-from-racket-to-emacs-function path))
+               (goto-char (point-min))
                (forward-line (1- line))
-               (forward-char col)))
-            (message "Type M-, to return"))))
-        (_
-         (message "Definition source not available, possibly because defined in #%%kernel"))))))
+               (forward-char col))))))))))
 
 (defun racket-check-syntax-documentation ()
   "Show help found by check-syntax, if any, else `racket-doc'."
@@ -389,8 +418,7 @@ If point is instead on a definition, then go to its first use."
            (completions . ,completions)
            (annotations . ,annotations))
          (racket--check-syntax-clear)
-         (dolist (x completions)
-           (puthash (car x) (cdr x) racket--check-syntax-completions))
+         (setq racket--check-syntax-completions completions)
          (racket--check-syntax-insert annotations)
          (when (and annotations after-thunk)
            (funcall after-thunk)))
@@ -451,12 +479,12 @@ If point is instead on a definition, then go to its first use."
                       'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor))
                 (when (eq req 'local)
                   (list 'help-echo "Defined locally"))))))))
-        (`(external-def ,beg ,end ,sym ,path ,submods)
+        (`(external-def ,beg ,end ,path ,subs ,ids)
          (let ((beg (copy-marker beg t))
                (end (copy-marker end t)))
            (add-text-properties
             beg end
-            (list 'racket-check-syntax-visit (list sym path submods)))))
+            (list 'racket-check-syntax-visit (list path subs ids)))))
         (`(doc ,beg ,end ,path ,anchor)
          (let ((beg (copy-marker beg t))
                (end (copy-marker end t)))
@@ -466,7 +494,7 @@ If point is instead on a definition, then go to its first use."
 
 (defun racket--check-syntax-clear ()
   (with-silent-modifications
-    (clrhash racket--check-syntax-completions)
+    (setq racket--check-syntax-completions nil)
     (remove-text-properties
      (point-min) (point-max)
      (list 'help-echo                 nil

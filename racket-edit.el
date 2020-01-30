@@ -211,14 +211,7 @@ symbol definition lookup."
   (racket--visit-symbol-definition str))
 
 (defun racket--visit-symbol-definition (str)
-  (if (and (eq major-mode 'racket-mode)
-           (not (equal (racket--repl-file-name+md5)
-                       (cons (racket--buffer-file-name t) (md5 (current-buffer)))))
-           (y-or-n-p "Run current buffer first? "))
-      (racket--repl-run nil nil
-                        (lambda ()
-                          (racket--do-visit-def-or-mod 'def str)))
-    (racket--do-visit-def-or-mod 'def str)))
+  (racket--do-visit-def-or-mod `(def namespace ,str)))
 
 (defun racket-visit-module (&optional prefix)
   "Visit definition of module at point, e.g. net/url or \"file.rkt\".
@@ -242,7 +235,7 @@ See also: `racket-find-collection'."
            (racket--push-loc)
            (find-file (expand-file-name (substring v 1 -1)))
            (message "Type M-, to return"))
-          (t (racket--do-visit-def-or-mod 'mod v)))))
+          (t (racket--do-visit-def-or-mod `(mod ,v))))))
 
 (defun racket--module-at-point ()
   "Treat point as a Racket module path name, possibly in a multi-in form."
@@ -281,12 +274,11 @@ See also: `racket-find-collection'."
                  v
                  (if relative-p "\"" ""))))))) ;1
 
-(defun racket--do-visit-def-or-mod (cmd str)
-  "CMD must be 'def or 'mod. STR must be stringp."
+(defun racket--do-visit-def-or-mod (cmd)
   (unless (memq major-mode '(racket-mode racket-repl-mode racket-describe-mode))
     (user-error "That doesn't work in %s" major-mode))
   (racket--cmd/async
-   (list cmd str)
+   cmd
    (lambda (result)
      (pcase result
        (`(,path ,line ,col)
@@ -297,9 +289,9 @@ See also: `racket-find-collection'."
         (forward-char col)
         (message "Type M-, to return"))
        (`kernel
-        (message "`%s' defined in #%%kernel -- source not available." str))
+        (message "Defined in #%%kernel -- source not available"))
        (_
-        (message "Not found."))))))
+        (message "Not found"))))))
 
 (defvar racket--loc-stack '())
 
