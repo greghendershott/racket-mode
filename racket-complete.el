@@ -146,8 +146,11 @@ to supply this quickly enough or at all."
            :predicate #'identity
            :exclusive 'no
            ;; racket--get-type is too slow for :company-docsig
-           :company-doc-buffer #'racket--do-describe
+           :company-doc-buffer #'racket--company-doc-buffer
            :company-location #'racket--get-def-file+line))))
+
+(defun racket--company-doc-buffer (str &optional display-and-pop-to-p)
+  (racket--do-describe 'namespace str display-and-pop-to-p))
 
 (defun racket--get-def-file+line (sym)
   "Return a value suitable for use as :company-location."
@@ -270,9 +273,9 @@ TAB, and activate using RET -- for `racket-visit-definition' and
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Describe: ")
     (`nil nil)
-    (str (racket--do-describe str t))))
+    (str (racket--do-describe 'namespace str t))))
 
-(defun racket--do-describe (str &optional display-and-pop-to-p)
+(defun racket--do-describe (how str &optional display-and-pop-to-p)
   "A helper used by both `racket-describe' and `company-mode'.
 
 DISPLAY-AND-POP-TO-P should be t for use by `racket-describe' --
@@ -284,7 +287,7 @@ Returns the buffer in which the description was written."
   ;; elements are out of order when an existing Racket Describe buffer
   ;; hasn't had a `quit-window' -- by re-creating the buffer.
   (with-current-buffer (racket--get-buffer-recreate "*Racket Describe*")
-    (let* ((html (racket--cmd/await `(describe ,str)))
+    (let* ((html (racket--cmd/await `(describe ,how ,str)))
            ;; Because shr removes leading &nbsp; from <td> elements --
            ;; which messes up the indentation of s-expressions
            ;; including contracts -- replace &nbsp with `spc' in the
@@ -311,7 +314,7 @@ Returns the buffer in which the description was written."
                             'follow-link t
                             'action
                             (lambda (_btn)
-                              (racket--do-visit-def-or-mod 'def str)))
+                              (racket--do-visit-def-or-mod `(def ,how ,str))))
         (insert "   ")
         (insert-text-button "Documentation in Browser"
                             'follow-link t

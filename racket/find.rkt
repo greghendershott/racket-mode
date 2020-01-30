@@ -7,67 +7,69 @@
          "identifier.rkt"
          "syntax.rkt")
 
-(provide find-definition-in-files
-         find-definition-in-file
-         find-definition-in-namespace
-         find-signature
-         identifier-binding*)
+(provide find-definition
+         find-definition/drracket-jump
+         find-signature)
+
+;; Note: Unfortunately identifier-binding can't report the definition
+;; id in the case of a contract-out and a rename-out, both. For
+;; `(provide (contract-out [rename orig new contract]))`
+;; identifier-binding reports (1) the contract-wrapper as the id, and
+;; (2) `new` as the nominal-id -- but NOT (3) `orig`. So we try other
+;; strategies here.
 
 (define location/c (list/c path-string? natural-number/c natural-number/c))
 
-;; Plural variant of find-definition-in-file, because
-;; identifier-binding can return two possibilities,
-;; and it's nicer to do this as one command.
-(define/contract (find-definition-in-files possibilities)
-  (-> (listof (list/c string? path-string? (listof symbol?)))
-      (or/c #f location/c))
-  (for/or ([possibility (in-list possibilities)])
-    (apply find-definition-in-file possibility)))
-
-;; Try to find a defintion in a specific file and submods path, which
-;; were previously discovered (e.g. by drracket/check-syntax).
-(define/contract (find-definition-in-file str path submods)
-  (-> string? path-string? (listof symbol?)
-      (or/c #f location/c))
-  (maybe-stx+path+submods->maybe-location
-   (def-in-file (string->symbol str) path submods)))
-
-;; Try to find a definition in the current namespace, i.e. starting
-;; by using `identifier-binding`.
-(define/contract (find-definition-in-namespace str)
-  (-> string? (or/c #f 'kernel location/c))
-  (maybe-stx+path+submods->maybe-location
-   (def-in-namespace str)))
-
-(define stx+path+mods/c (list/c syntax? path-string? (listof symbol?)))
-
-(define (maybe-stx+path+submods->maybe-location v)
-  ;; (-> (or/c #f stx+path+submods/c) (or/c #f location/c)
-  (match v
-    [(list stx file _submods)
-     (list (path->string (or (syntax-source stx) file))
+;; Try to find a definition.
+(define/contract (find-definition how str)
+  (-> (or/c 'namespace path-string?)
+      string?
+      (or/c #f 'kernel location/c))
+  (match (def how str)
+    [(list stx path _submods)
+     (list (path->string (or (syntax-source stx) path))
            (or (syntax-line stx) 1)
            (or (syntax-column stx) 0))]
     [v v]))
 
+;; Likewise, but using information already supplied by
+;; drracket/check-syntax, i.e. this is how to "force" that "delay".
+(define/contract (find-definition/drracket-jump path submods id-strs)
+  (-> path-string? (listof symbol?) (listof string?) (or/c #f 'kernel location/c))
+  (and (file-exists? path)
+       (for/or ([id-str (in-list id-strs)])
+         (match (def-in-file (string->symbol id-str) path submods)
+           [(list stx path _submods)
+            (list (path->string (or (syntax-source stx) path))
+                  (or (syntax-line stx) 1)
+                  (or (syntax-column stx) 0))]
+           [v v]))))
+
 ;; Try to find the definition of `str`, returning its signature or #f.
 ;; When defined in 'kernel, returns a form saying so, not #f.
-(define/contract (find-signature str)
-  (-> string? (or/c #f pair?))
-  (match (def-in-namespace str)
+(define/contract (find-signature how str)
+  (-> (or/c 'namespace path-string?)
+      string?
+      (or/c #f pair?))
+  (match (def how str)
     ['kernel '("defined in #%kernel, signature unavailable")]
-    [(list id-stx file submods)
-     (define file-stx (file->syntax file))
-     (define sub-stx (submodule file submods file-stx))
+    [(list id-stx path submods)
+     (define file-stx (file->syntax path))
+     (define sub-stx (submodule path submods file-stx))
      (match ($signature (syntax-e id-stx) sub-stx)
        [(? syntax? stx) (syntax->datum stx)]
        [_ #f])]
     [v v]))
 
-(define/contract (def-in-namespace str)
-  (-> string?
+(define stx+path+mods/c (list/c syntax? path-string? (listof symbol?)))
+
+(define/contract (def how str)
+  (-> (or/c 'namespace path-string?)
+      string?
       (or/c #f 'kernel stx+path+mods/c))
-  (match (identifier-binding* str)
+  (match (resolve-identifier-binding-info
+          (identifier-binding
+           (->identifier how str)))
     [(? list? xs) (def-in-files xs)]
     [_ #f]))
 

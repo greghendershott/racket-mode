@@ -3,6 +3,7 @@
 (require (only-in openssl/md5 md5)
          racket/contract
          racket/match
+         (only-in racket/path path-only)
          racket/promise
          syntax/modread
          syntax/parse/define
@@ -14,7 +15,8 @@
          file->expanded-syntax-and-namespace
          string->syntax
          string->expanded-syntax
-         string->expanded-syntax-and-namespace)
+         string->expanded-syntax-and-namespace
+         path->existing-expanded-syntax)
 
 (define-logger racket-mode-syntax-cache)
 
@@ -25,8 +27,9 @@
   (->* (path-string?)
        ((-> syntax? syntax?))
        syntax?)
-  (define-values (base _ __) (split-path path))
-  (parameterize ([current-load-relative-directory base])
+  (define dir (path-only path))
+  (parameterize ([current-load-relative-directory dir]
+                 [current-directory               dir])
     (k
      (with-module-reading-parameterization
        (λ ()
@@ -41,8 +44,9 @@
   (->* (path-string? string?)
        ((-> syntax? syntax?))
        syntax?)
-  (define-values (base _ __) (split-path path))
-  (parameterize ([current-load-relative-directory base])
+  (define dir (path-only path))
+  (parameterize ([current-load-relative-directory dir]
+                 [current-directory               dir])
     (k
      (with-module-reading-parameterization
        (λ ()
@@ -142,7 +146,7 @@
   (define digest (file->digest path))
   (match (hash-ref cache path #f)
     [(cache-entry (== digest) promise namespace)
-     (log-racket-mode-syntax-cache-info "file->expanded-syntax cache HIT ~v ~v" path digest)
+     (log-racket-mode-syntax-cache-info "file->expanded-syntax cache hit ~v ~v" path digest)
      (values (force promise) namespace)]
     [_
      (log-racket-mode-syntax-cache-info "file->expanded-syntax cache MISS ~v ~v" path digest)
@@ -157,7 +161,7 @@
   (define digest (string->digest code-str))
   (match (hash-ref cache path #f)
     [(cache-entry (== digest) promise namespace)
-     (log-racket-mode-syntax-cache-info "string->expanded-syntax cache HIT ~v ~v" path digest)
+     (log-racket-mode-syntax-cache-info "string->expanded-syntax cache hit ~v ~v" path digest)
      (values (force promise) namespace)]
     [_
      (log-racket-mode-syntax-cache-info "string->expanded-syntax cache MISS ~v ~v" path digest)
@@ -184,6 +188,19 @@
 (define/contract (string->digest str)
   (-> string? string?)
   (md5 (open-input-string str)))
+
+;; Simply get syntax corresponding to the expanded module, if it
+;; already exists in the cache. Intended for use by identifier.rkt.
+(define/contract (path->existing-expanded-syntax path-str)
+  (-> path-string? (or/c #f syntax?))
+  (define path (->path path-str))
+  (match (hash-ref cache path #f)
+    [(cache-entry _digest promise _syntax)
+     (log-racket-mode-syntax-cache-info "path->existing-expanded-syntax cache hit ~v (ignoring digest)" path)
+     (force promise)]
+    [#f
+     (log-racket-mode-syntax-cache-info "path->existing-expanded-syntax cache MISS ~v (ignoring digest)" path)
+     #f]))
 
 (module+ test
   (require rackunit

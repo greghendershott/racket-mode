@@ -6,6 +6,8 @@
          racket/port
          (only-in xml xexpr->string)
          (only-in "../find.rkt" find-signature)
+         "../identifier.rkt"
+         "../syntax.rkt"
          "../scribble.rkt")
 
 (provide type
@@ -18,9 +20,14 @@
   (or (type-or-contract v)
       (sig v)))
 
-(define (sig v) ;any/c -> (or/c #f string?)
-  (and (symbol? v)
-       (match (find-signature (symbol->string v))
+(define (sig how v) ;any/c -> (or/c #f string?)
+  (define as-str
+    (match v
+      [(? syntax? v) (syntax->datum v)]
+      [(? symbol? v) (symbol->string v)]
+      [_             #f]))
+  (and as-str
+       (match (find-signature how as-str)
          [#f #f]
          [x (~a x)])))
 
@@ -43,10 +50,10 @@
                 (~a (contract-name (value-contract ,v)))
                 (error ""))))))))
 
-(define (sig-and/or-type stx)
+(define (sig-and/or-type how stx)
   (define dat (syntax->datum stx))
-  (define s (sig dat))
-  (define t (type-or-contract stx))
+  (define s (sig how dat))
+  (define t (and (eq? how 'namespace) (type-or-contract stx)))
   (xexpr->string
    `(div ()
      (h1 () ,(or s (~a dat)))
@@ -65,8 +72,12 @@
 ;; (because the argument names have explanatory value), and also look
 ;; for Typed Racket type or a contract, if any.
 
-(define/contract (describe str)
-  (-> string? string?)
-  (define stx (namespace-symbol->identifier (string->symbol str)))
+(define/contract (describe how str)
+  (-> (or/c 'namespace path-string?)
+      string?
+      string?)
+  (define stx (->identifier how str))
   (or (scribble-doc/html stx)
-      (sig-and/or-type stx)))
+      (sig-and/or-type how stx)))
+
+(define here (syntax-source #'here))
