@@ -36,7 +36,9 @@
          (with-input-from-file path
            (λ ()
              (port-count-lines! (current-input-port))
-             (read-syntax))))))))
+             (match (read-syntax)
+               [(? eof-object?) #'""]
+               [stx stx]))))))))
 
 ;; Same but from a string, where `path` is used for the load relative
 ;; directory and given to read-syntax as the source
@@ -52,7 +54,9 @@
        (λ ()
          (define in (open-input-string code-str))
          (port-count-lines! in)
-         (read-syntax path in))))))
+         (match (read-syntax path in)
+           [(? eof-object?) #'""]
+           [stx stx]))))))
 
 ;;; expanded syntax caching
 
