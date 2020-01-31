@@ -110,11 +110,11 @@
 
 (define/contract (identifier-help/mac stx)
   (-> identifier? boolean?)
-  (define-values (path anchor) (binding->path+anchor stx))
-  (and path
-       anchor
-       (let ([path-url (path->url (path->complete-path path))])
-         (browse-file-url/mac
-          (url->string (struct-copy url path-url [fragment anchor]))
-          (mac-default-browser)))
-       #t))
+  (match (binding->path+anchor stx)
+    [(cons path anchor)
+     (define path-url (path->url (path->complete-path path)))
+     (browse-file-url/mac (url->string (struct-copy url path-url
+                                                    [fragment anchor]))
+                          (mac-default-browser))
+     #t]
+    [_ #f]))

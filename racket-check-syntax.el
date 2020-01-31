@@ -83,22 +83,47 @@ highlighted using `racket-check-syntax-def-face' and
 `racket-check-syntax-use-face' -- instead of drawing arrows as in
 Dr Racket -- and \"mouse over\". Information is displayed using
 the function(s) in the hook variable `racket-show-functions'; it
-is also available when hovering the mouse cursor.
+is also available when hovering the mouse cursor. Note: If you
+find these features too distracting and/or slow, you may disable
+`cursor-sensor-mode'. The remaining features discussed below will
+still work.
 
 You may also use commands to navigate among a definition and its
 uses, or to rename a local definitions and all its uses.
 
-\"M-.\" is rebound from `racket-visit-definition' -- which only
-works when a buffer has been `racket-run' -- to
-`racket-check-syntax-visit-definition'. This uses information
-provided by check-syntax for local and imported definitions.
+Various features augment or replace those in plain `racket-mode'.
+One advantage they share is that they do /not/ require the file
+to be `racket-run' in order to work properly. Also they usually
+are smarter about identifiers in submodules. For example:
 
-Similarly, `racket-check-syntax-complete-at-point' is added to
-the variable `completion-at-point-functions'. This works even if
-a buffer has not been `racket-run'. In addition to supply
-completion candidates, it supports the :company-location property
-to inspect the definition of a candidate. Support
-for :company-doc-buffer is not yet implemented.
+#+BEGIN_SRC racket
+  #lang racket/base
+  (define x 1)
+  x
+  (module m typed/racket/base
+    (define x 2)
+    x)
+#+END_SRC
+
+Not only can they distinguish the `x`s, they understand that the
+two `define`s are different.
+
+- \"M-.\" is rebound from `racket-visit-definition' to
+  `racket-check-syntax-visit-definition'.
+
+- \"C-c C-.\" is rebound from `racket-describe' to
+  `racket-check-syntax-describe'.
+
+- \"C-c C-d\" is rebound from `racket-doc` to
+  `racket-check-syntax-documentation'.
+
+- `racket-check-syntax-complete-at-point' is added to the
+  variable `completion-at-point-functions'. Note that in this
+  case, it is not smart about submodules; identifiers are assumed
+  to be those from the file's module. In addition to supplying
+  completion candidates, it supports the :company-location
+  property to inspect the definition of a candidate, and
+  supports :company-doc-buffer to view documentation.
 
 When you edit the buffer, existing annotations are retained;
 their positions are updated to reflect the edit. Annotations for
@@ -109,10 +134,10 @@ the drracket/check-syntax analysis can take even tens of seconds
 for even moderately complex source files. When the results are
 ready, all annotations for the buffer are completely refreshed.
 
-Tip: This follows the convention that a minor mode may only use a
-prefix key consisting of C-c followed by a punctuation key. As a
-result, `racket-check-syntax-control-c-hash-keymap' is bound to
-\"C-c #\" by default. Although you might find this awkward to
+Tip: This mode follows the convention that a minor mode may only
+use a prefix key consisting of C-c followed by a punctuation key.
+As a result, `racket-check-syntax-control-c-hash-keymap' is bound
+to \"C-c #\" by default. Although you might find this awkward to
 type, remember that as an Emacs user, you are free to bind this
 map to a more convenient prefix, and/or bind any individual
 commands directly to whatever keys you prefer.
@@ -202,7 +227,7 @@ press F1 or C-h in its pop up completion list.
   including the \"blue box\", documentation prose, and examples.
 
 - Otherwise, if the identifier is a function, then its signature
-  is displayed, for example `(name arg-1-name arg-2-name)`..
+  is displayed, for example \"(name arg-1-name arg-2-name)\".
 
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
@@ -210,26 +235,17 @@ TAB, and activate using RET -- for `racket-visit-definition' and
 `racket-doc'."
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Describe: ")
-    (`nil nil)
-    ;; TODO: Although this uses the path-str not 'namespace variant of
-    ;; describe, which is works for file-module-level identifiers, if
-    ;; there is a 'racket-check-syntax-doc property here, it would be
-    ;; better to pass that to the describe command. That will be
-    ;; correct even for identifiers from submodules that have
-    ;; different module-lang or require imports than does the file
-    ;; module. In other words, in that case we don't need the back-end
-    ;; to find the correct help for us, we only need it to
-    ;; extract/massage the Scribble HTML for us. This is similar in
-    ;; spirit to 'racket-check-syntax-visit props: They are kind of
-    ;; like a lazy thunk with the correct information about the file
-    ;; containing a definition and some possible names, and we use the
-    ;; back-end only to dive into the file and find the location --
-    ;; not to identify the file. In both cases, a simple example of
-    ;; the issue is "does 'define' come from racket/base or
-    ;; typed/racket/base -- which 'define'?" and the check-syntax
-    ;; analys is, when available, always the best answer than
-    ;; something assuming the file-module-level imports.
-    (str (racket--do-describe (buffer-file-name) str t))))
+    ((and (pred stringp) str)
+     ;; When there is a racket-check-syntax-doc property, use its path
+     ;; and anchor, because that will be correct even for an
+     ;; identifier in a submodule with different imports than the file
+     ;; module. Else supply the file path-str, and the "describe"
+     ;; command will treat it as a file module identifier.
+     (pcase (get-text-property (point) 'racket-check-syntax-doc)
+       (`(,path ,anchor)
+        (racket--do-describe (cons path anchor) str t))
+       (_
+        (racket--do-describe (buffer-file-name) str t))))))
 
 (defconst racket--check-syntax-overlay-name 'racket-check-syntax-overlay)
 

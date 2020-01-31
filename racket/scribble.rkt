@@ -2,6 +2,7 @@
 
 (require (only-in html
                   read-html-as-xml)
+         racket/contract
          racket/file
          racket/format
          racket/function
@@ -14,34 +15,38 @@
                   element
                   xexpr->string))
 
-(provide scribble-doc/html
-         binding->path+anchor)
+(provide binding->path+anchor
+         path+anchor->html)
 
 ;;; Extract Scribble documentation as modified HTML suitable for
 ;;; Emacs' shr renderer.
 
-(define (scribble-doc/html stx)
-  (define xexpr (scribble-doc/xexpr stx))
-  (and xexpr (xexpr->string xexpr)))
+(define/contract (binding->path+anchor stx)
+  (-> syntax? (or/c #f (cons/c path-string? string?)))
+  (let* ([xref (load-collections-xref)]
+         [tag  (and (identifier? stx)
+                    (xref-binding->definition-tag xref stx 0))]
+         [p+a  (and tag
+                    (our-xref-tag->path+anchor xref tag))])
+    p+a))
 
-(define (scribble-doc/xexpr stx)
-  (define-values (path xexpr) (scribble-doc/xexpr-raw stx))
-  (and path xexpr (massage-xexpr path xexpr)))
+;; Return as cons not values; easier to handle in "`and` chains".
+(define (our-xref-tag->path+anchor xref tag)
+  (define-values (path anchor) (xref-tag->path+anchor xref tag))
+  (and path anchor (cons path anchor)))
 
-(define (scribble-doc/xexpr-raw stx)
-  (define-values (path anchor) (binding->path+anchor stx))
-  (cond [(and path anchor)
-         (values path (scribble-get-xexpr path anchor))]
-        [else (values #f #f)]))
+(define/contract (path+anchor->html path+anchor)
+  (-> (or/c #f (cons/c path-string? string?))
+      (or/c #f string?))
+  (match path+anchor
+    [(cons path anchor)
+     (let* ([xexpr (get-raw-xexpr path anchor)]
+            [xexpr (and xexpr (massage-xexpr path xexpr))]
+            [html   (and xexpr (xexpr->string xexpr))])
+       html)]
+    [_ #f]))
 
-(define (binding->path+anchor stx)
-  (define xref (load-collections-xref))
-  (define tag (and (identifier? stx)
-                   (xref-binding->definition-tag xref stx 0)))
-  (cond [tag (xref-tag->path+anchor xref tag)]
-        [else (values #f #f)]))
-
-(define (scribble-get-xexpr path anchor)
+(define (get-raw-xexpr path anchor)
   (define (heading-element? x)
     (match x
       [(cons (or 'h1 'h2 'h3 'h4 'h5 'h6) _) #t]
@@ -66,19 +71,19 @@
 (module+ test
   (require rackunit)
   (test-case "procedure"
-   (check-not-false (scribble-doc/xexpr #'print)))
+    (check-not-false (path+anchor->html (binding->path+anchor #'print))))
   (test-case "syntax"
-    (check-not-false (scribble-doc/xexpr #'match)))
+    (check-not-false (path+anchor->html (binding->path+anchor #'match))))
   (test-case "parameter"
-    (check-not-false (scribble-doc/xexpr #'current-eval)))
+    (check-not-false (path+anchor->html (binding->path+anchor #'current-eval))))
   (test-case "indented sub-item"
-    (check-not-false (scribble-doc/xexpr #'struct-out)))
+    (check-not-false (path+anchor->html (binding->path+anchor #'struct-out))))
   (test-case "deftogether"
     (test-case "1 of 2"
-      (check-not-false (scribble-doc/xexpr #'lambda)))
+      (check-not-false (path+anchor->html (binding->path+anchor #'lambda))))
     (test-case "2 of 2"
-      (check-not-false (scribble-doc/xexpr #'λ))))
-  (check-not-false (scribble-doc/xexpr #'xref-binding->definition-tag)))
+      (check-not-false (path+anchor->html (binding->path+anchor #'λ)))))
+  (check-not-false (path+anchor->html (binding->path+anchor #'xref-binding->definition-tag))))
 
 (define (main-elements x)
   (match x

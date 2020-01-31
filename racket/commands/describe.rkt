@@ -59,7 +59,9 @@
      (h1 () ,(or s (~a dat)))
      ,(cond [(not (or s t))
              `(p ()
-               (em ()  "(Found no documentation, signature, type, or contract.)"))]
+               (em ()  ,(if (eq? how 'namespace)
+                            "(Found no documentation, signature, type, or contract.)"
+                            "(Found no documentation.")))]
             [t `(pre () ,t)]
             [else ""])
      (br ()))))
@@ -73,11 +75,16 @@
 ;; for Typed Racket type or a contract, if any.
 
 (define/contract (describe how str)
-  (-> (or/c 'namespace path-string?)
+  (-> (or/c 'namespace path-string? (cons/c path-string? string?))
       string?
       string?)
-  (define stx (->identifier how str))
-  (or (scribble-doc/html stx)
-      (sig-and/or-type how stx)))
+  (match how
+    [(and (cons (? path-string?) (? string?)) path+anchor)
+     (path+anchor->html path+anchor)]
+    [(and (or 'namespace (? path-string?)) how)
+     (define stx (->identifier how str))
+     (define path+anchor (binding->path+anchor stx))
+     (or (path+anchor->html path+anchor)
+         (sig-and/or-type how stx))]))
 
 (define here (syntax-source #'here))
