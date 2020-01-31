@@ -1,6 +1,7 @@
 #lang racket/base
 
-(require racket/format
+(require racket/contract
+         racket/format
          racket/match
          racket/set
          "util.rkt")
@@ -17,7 +18,7 @@
 ;; supply that full set.
 ;;
 ;; Furthermore, import names can be munged (e.g. `prefix-in` or
-;; `rename-in`) so module->exports isn't the quite the right answer.
+;; `rename-in`) so module->exports isn't the whole, correct answer.
 ;;
 ;; If you have a namespace from module->namespace, you can use
 ;; namespace-mapped-symbols -- easy! However we do NOT want to
@@ -32,76 +33,107 @@
 
 ;; It is important to run this with the correct parameterization of
 ;; current-namespace and current-load-relative-directory.
-(define (imports stx [sos (set)])
-  (syntax-case stx (module #%module-begin #%plain-module-begin #%require)
-    [(module _ lang (#%module-begin e ...))
-     (handle-module-level #'(e ...) sos #'lang)]
-    [(module _ lang (#%plain-module-begin e ...))
-     (handle-module-level #'(e ...) sos #'lang)]
-    [_ sos]))
+(define/contract (imports stx [sos (mutable-set)])
+  (->* (syntax?) (set-mutable?) set-mutable?)
 
-(define (handle-module-level es sos lang)
-  (for/fold ([sos (module-exported-strings sos lang lang)])
-            ([e (in-syntax es)])
-    (syntax-case* e (#%require) symbolic-compare?
-      [(#%require e ...)
-       (for/fold ([sos sos]) ([spec (in-syntax #'(e ...))])
-         (handle-raw-require-spec spec sos lang))]
-      [_ sos])))
+  (define (handle-module stx)
+    (syntax-case stx (module #%module-begin #%plain-module-begin #%require)
+      [(module _ lang (#%module-begin e ...))
+       (handle-module-level #'(e ...) #'lang)]
+      [(module _ lang (#%plain-module-begin e ...))
+       (handle-module-level #'(e ...) #'lang)]))
 
-(define (handle-raw-require-spec spec sos lang)
-  (syntax-case* spec (for-meta for-syntax for-template for-label just-meta) symbolic-compare?
-    [(for-meta _phase specs ...)
-     (for/fold ([sos sos]) ([spec (in-syntax #'(specs ...))])
-       (handle-phaseless-spec spec sos lang))]
-    [(for-syntax specs ...)
-     (for/fold ([sos sos]) ([spec (in-syntax #'(specs ...))])
-       (handle-phaseless-spec spec sos lang))]
-    [(for-template specs ...)
-     (for/fold ([sos sos]) ([spec (in-syntax #'(specs ...))])
-       (handle-phaseless-spec spec sos lang))]
-    [(for-label specs ...)
-     (for/fold ([sos sos]) ([spec (in-syntax #'(specs ...))])
-       (handle-phaseless-spec spec sos lang))]
-    [(just-meta phase specs ...)
-     (for/fold ([sos sos]) ([spec (in-syntax #'(specs ...))])
-       (handle-raw-require-spec spec sos lang))]
-    [raw-module-path
-     (handle-phaseless-spec #'raw-module-path sos lang)]))
+  (define (handle-module-level es lang)
+    (module-exported-strings lang lang)
+    (for ([e (in-syntax es)])
+      (syntax-case* e (#%require) symbolic-compare?
+        [(#%require e ...)
+         (for ([spec (in-syntax #'(e ...))])
+           (handle-raw-require-spec spec lang))]
+        [_ (void)])))
 
-(define (handle-phaseless-spec spec sos lang)
-  (syntax-case* spec (only prefix all-except prefix-all-except rename)
-      symbolic-compare?
-    [(only raw-module-path id ...)
-     (set-union sos
-                (syntax->string-set #'(id ...)))]
-    [(prefix prefix-id raw-module-path)
-     (module-exported-strings sos
-                              #'raw-module-path
-                              lang
-                              #:prefix #'prefix-id)]
-    [(all-except raw-module-path id ...)
-     (module-exported-strings sos
-                              #'raw-module-path
-                              lang
-                              #:except (syntax->string-set #'(id ...)))]
-    [(prefix-all-except prefix-id raw-module-path id ...)
-     (module-exported-strings sos
-                              #'raw-module-path
-                              lang
-                              #:prefix #'prefix-id
-                              #:except (syntax->string-set #'(id ...)))]
-    [(rename raw-module-path local-id exported-id)
-     (set-union (set-remove sos
-                            (if (eq? (syntax-e #'raw-module-path) (syntax-e lang))
-                                (set)
-                                (->str #'exported-id)))
-                (set (->str #'local-id)))]
-    [raw-module-path
-     (module-path? (syntax->datum #'raw-module-path))
-     (module-exported-strings sos
-                              #'raw-module-path
-                              lang)]))
+  (define (handle-raw-require-spec spec lang)
+    (syntax-case* spec (for-meta for-syntax for-template for-label just-meta) symbolic-compare?
+      [(for-meta _phase specs ...)
+       (for ([spec (in-syntax #'(specs ...))])
+         (handle-phaseless-spec spec lang))]
+      [(for-syntax specs ...)
+       (for ([spec (in-syntax #'(specs ...))])
+         (handle-phaseless-spec spec lang))]
+      [(for-template specs ...)
+       (for ([spec (in-syntax #'(specs ...))])
+         (handle-phaseless-spec spec lang))]
+      [(for-label specs ...)
+       (for ([spec (in-syntax #'(specs ...))])
+         (handle-phaseless-spec spec lang))]
+      [(just-meta phase specs ...)
+       (for ([spec (in-syntax #'(specs ...))])
+         (handle-raw-require-spec spec lang))]
+      [raw-module-path
+       (handle-phaseless-spec #'raw-module-path lang)]))
+
+  (define (handle-phaseless-spec spec lang)
+    (syntax-case* spec (only prefix all-except prefix-all-except rename)
+        symbolic-compare?
+      [(only raw-module-path id ...)
+       (set-union! sos
+                   (syntax->string-set #'(id ...)))]
+      [(prefix prefix-id raw-module-path)
+       (module-exported-strings #'raw-module-path
+                                lang
+                                #:prefix #'prefix-id)]
+      [(all-except raw-module-path id ...)
+       (module-exported-strings #'raw-module-path
+                                lang
+                                #:except (syntax->string-set #'(id ...)))]
+      [(prefix-all-except prefix-id raw-module-path id ...)
+       (module-exported-strings #'raw-module-path
+                                lang
+                                #:prefix #'prefix-id
+                                #:except (syntax->string-set #'(id ...)))]
+      [(rename raw-module-path local-id exported-id)
+       (begin
+         (unless (eq? (syntax-e #'raw-module-path) (syntax-e lang))
+           (set-remove! sos (->str #'exported-id)))
+         (set-add! sos (->str #'local-id)))]
+      [raw-module-path
+       (module-path? (syntax->datum #'raw-module-path))
+       (module-exported-strings #'raw-module-path
+                                lang)]))
+
+  (define (module-exported-strings raw-module-path
+                                   lang
+                                   #:except [exceptions (set)]
+                                   #:prefix [prefix #'""])
+    ;; NOTE: Important to run this with the correct parameterization of
+    ;; current-namespace and current-load-relative-directory.
+    (define (add-exports mp)
+      (define-values (vars stxs) (module->exports mp))
+      (define orig (mutable-set))
+      (for* ([vars+stxs (in-list (list vars stxs))]
+             [phases (in-list vars+stxs)]
+             [export (in-list (cdr phases))])
+        (set-add! orig (->str (car export))))
+      ;; If imports are from the module language, then {except rename
+      ;; prefix}-in do NOT remove imports under the original name.
+      ;; Otherwise they do.
+      (if (eq? (syntax-e raw-module-path) (syntax-e lang))
+          (set-union! sos orig)
+          (set-subtract! sos orig exceptions))
+      (for ([v (in-set orig)])
+        (set-add! sos (~a (->str prefix) v))))
+
+    ;; Ignore non-external module paths: module->exports can't handle
+    ;; them, and anyway, drracket/check-syntax will contribute
+    ;; completion candidates for local definitions, we don't need to
+    ;; find them here.
+    (syntax-case* raw-module-path (quote submod) symbolic-compare?
+      [(quote _)        sos]
+      [(submod "." . _) sos]
+      [_                (add-exports (syntax->datum raw-module-path))]))
+
+  (handle-module stx)
+  sos)
 
 (define (->str v)
   (match v
@@ -110,38 +142,8 @@
     [(? string?) v]))
 
 (define (syntax->string-set s)
-  (for/set ([s (in-syntax s)])
+  (for/mutable-set ([s (in-syntax s)])
     (->str s)))
-
-(define (module-exported-strings sos
-                                 raw-module-path
-                                 lang
-                                 #:except [exceptions (set)]
-                                 #:prefix [prefix #'""])
-  ;; NOTE: Important to run this with the correct parameterization of
-  ;; current-namespace and current-load-relative-directory.
-  (define (add-exports mp)
-    (define-values (vars stxs) (module->exports mp))
-    (define orig (for*/set ([vars+stxs (in-list (list vars stxs))]
-                            [phases (in-list vars+stxs)]
-                            [export (in-list (cdr phases))])
-                   (->str (car export))))
-    (define prefixed (for/set ([v (in-set orig)])
-                       (~a (->str prefix) v)))
-    (set-union (if (eq? (syntax-e raw-module-path) (syntax-e lang))
-                   ;; {except rename prefix}-in don't remove original
-                   (set-union sos orig)
-                   ;; {except rename prefix}-in do remove original
-                   (set-subtract sos orig exceptions))
-               prefixed))
-  ;; Ignore non-external module paths: module->exports can't handle
-  ;; them, and anyway, drracket/check-syntax will contribute
-  ;; completion candidates for local definitions, we don't need to
-  ;; find them here.
-  (syntax-case* raw-module-path (quote submod) symbolic-compare?
-    [(quote _)        sos]
-    [(submod "." . _) sos]
-    [_                (add-exports (syntax->datum raw-module-path))]))
 
 (define (symbolic-compare? x y)
   (eq? (syntax-e x) (syntax-e y)))
@@ -201,7 +203,8 @@
         [nsms (list->set nsms)]
         ;; The world according to our imported-completions
         [cs (parameterize ([current-namespace (make-base-namespace)])
-              (imports (expand mod/stx)))])
+              (define stx (expand mod/stx))
+              (time (imports stx)))])
     ;; Test {prefix rename except}-in, keeping mind that they work
     ;; differently for requires that modify the module language
     ;; imports.
