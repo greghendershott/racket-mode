@@ -21,6 +21,7 @@
 (require 'shr)
 (declare-function racket--do-visit-def-or-mod "racket-edit.el")
 
+;; TODO: Rename to racket-repl-describe and move to racket-repl.el
 (defun racket-describe (&optional prefix)
 "Describe the identifier at point in a `*Racket Describe*` buffer.
 
@@ -50,6 +51,11 @@ TAB, and activate using RET -- for `racket-visit-definition' and
 
 (defun racket--do-describe (how str &optional display-and-pop-to-p)
   "A helper used by both `racket-describe' and `company-mode'.
+
+HOW is supplied as the first argument to the back-end
+\"describe\" command.
+
+STR is the string form of an identifier that is to be described.
 
 DISPLAY-AND-POP-TO-P should be t for use by `racket-describe' --
 in which case some buttons are added and the buffer is displayed
