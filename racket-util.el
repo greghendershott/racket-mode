@@ -166,6 +166,22 @@ When installed as a package, this can be found from the variable
   (and (stringp v)
        (not (string-match-p "\\`[ \t\n\r]*\\'" v)))) ;`string-blank-p'
 
+;;; at-point
+
+(defun racket--symbol-at-point-or-prompt (force-prompt-p prompt)
+  "Helper for functions that want symbol-at-point, or, to prompt
+when there is no symbol-at-point or FORCE-PROMPT-P is true. The
+prompt uses `read-from-minibuffer'. Returns `stringp' not
+`symbolp' to simplify using the result in a sexpr that can be
+passed to Racket backend. Likewise text properties are stripped."
+  (let ((sap (racket--thing-at-point 'symbol t)))
+    (if (or force-prompt-p (not sap))
+        (let ((s (read-from-minibuffer prompt sap)))
+          (if (equal "" (racket--trim s))
+              nil
+            s))
+      sap)))
+
 (provide 'racket-util)
 
 ;; racket-util.el ends here
