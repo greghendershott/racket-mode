@@ -557,14 +557,24 @@ Set to nil to disable the mode line completely."
 
 (defun racket--check-syntax-mode-lighter ()
   (let ((prefix "RktChk"))
-    (pcase-let ((`(,suffix . ,face)
-                 (cl-case racket--check-syntax-mode-status
-                   ((ok)       '("✓" . '(:inherit compilation-info)))
-                   ((err)      `("!" . '(:inherit compilation-error)))
-                   ((outdated) `("?" . '(:slant italic)))
-                   ((running)  '("*" . '(:slant italic)) )
-                   (otherwise  '("-" . '(:strike-through t))))))
-      `(" " (:propertize ,(concat prefix suffix) face ,face)))))
+    (pcase-let*
+        ((status (and (racket--cmd-open-p)
+                      racket--check-syntax-mode-status))
+         (`(,suffix ,face ,help-echo)
+          (cl-case status
+            ((ok)       '("✓" '(:inherit compilation-info)
+                          "Syntax OK"))
+            ((err)      `("!" '(:inherit compilation-error)
+                          "Syntax error"))
+            ((outdated) `("…" '(:slant italic)
+                          "Waiting `racket-check-syntax-after-change-refresh-delay'"))
+            ((running)  '("λ" '(:slant italic)
+                          "Getting analysis from Racket Mode back-end and annotating"))
+            (otherwise  '("λ" '(:strike-through t)
+                          "Racket Mode back-end not available")))))
+      `(" " (:propertize ,(concat prefix suffix)
+                         face ,face
+                         help-echo ,help-echo)))))
 
 (provide 'racket-check-syntax)
 
