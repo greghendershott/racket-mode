@@ -23,6 +23,7 @@
 (require 'racket-custom)
 (require 'racket-common)
 (require 'racket-complete)
+(require 'racket-describe)
 (require 'racket-util)
 (require 'hideshow)
 
