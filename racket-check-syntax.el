@@ -589,18 +589,20 @@ Set to nil to disable the mode line completely."
                       racket--check-syntax-mode-status))
          (`(,suffix ,face ,help-echo)
           (cl-case status
-            ((ok)       '("✓" '()
+            ((ok)       '("✓" nil
                           "Syntax OK"))
             ((err)      `("✗" '(:inherit error)
                           "Syntax error"))
-            ((outdated) `("…" '()
+            ((outdated) `("…" nil
                           "Waiting `racket-check-syntax-after-change-refresh-delay'"))
-            ((running)  '("λ" '()
+            ((running)  '("λ" nil
                           "Getting analysis from Racket Mode back-end and annotating"))
             (otherwise  '("λ" '(:strike-through t)
                           "Racket Mode back-end not available")))))
       `(" " (:propertize ,(concat prefix suffix)
-                         face ,face
+                         ,@(if face
+                               `(face ,face)
+                             `())
                          help-echo ,help-echo)))))
 
 (provide 'racket-check-syntax)
