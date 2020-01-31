@@ -46,7 +46,7 @@
   "Highlight imported definitions and uses thereof? When nil,
 only local defs/uses are highlighted. When t, all are highlighted
 -- similar to how DrRacket draws arrows for everything. If you
-find that too \"nosiy\", set this to nil.")
+find that too \"noisy\", set this to nil.")
 
 (defvar racket-check-syntax-control-c-hash-keymap
   (racket--easy-keymap-define
@@ -56,6 +56,8 @@ find that too \"nosiy\", set this to nil.")
      ("p" racket-check-syntax-previous-use)
      ("." racket-check-syntax-visit-definition)
      ("r" racket-check-syntax-rename))) )
+
+(defvar-local racket--check-syntax-original-next-error-function next-error-function)
 
 ;;;###autoload
 (define-minor-mode racket-check-syntax-mode
@@ -134,6 +136,9 @@ commands directly to whatever keys you prefer.
          (add-hook 'completion-at-point-functions
                    #'racket-check-syntax-complete-at-point
                    nil t)
+         (setq-local racket--check-syntax-original-next-error-function
+                     next-error-function)
+         (setq-local next-error-function #'racket-check-syntax-next-error)
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 1)))
         (t
@@ -406,23 +411,42 @@ If point is instead on a definition, then go to its first use."
                                            (point-min)
                                            'entered)))))
 
+(defun racket--check-syntax-forward-prop (prop amt)
+  "Move point to the next or previous occurrence of PROP."
+  (let ((f (if (< 0 amt)
+               #'next-single-property-change
+             #'previous-single-property-change)))
+    (pcase (funcall f (point) prop)
+      ((and (pred integerp) pos)
+       ;; Unless this is where the prop starts, find that.
+       (unless (get-text-property pos prop)
+         (setq pos (funcall f pos prop)))
+       (when pos (goto-char pos))))))
+
 (defun racket-check-syntax-next-definition ()
   "Move point to the next definition."
   (interactive)
-  (let ((pos (next-single-property-change (point) 'racket-check-syntax-def)))
-    (when pos
-      (unless (get-text-property pos 'racket-check-syntax-def)
-        (setq pos (next-single-property-change pos 'racket-check-syntax-def)))
-      (and pos (goto-char pos)))))
+  (racket--check-syntax-forward-prop 'racket-check-syntax-def 1))
 
 (defun racket-check-syntax-previous-definition ()
   "Move point to the previous definition."
   (interactive)
-  (let ((pos (previous-single-property-change (point) 'racket-check-syntax-def)))
-    (when pos
-      (unless (get-text-property pos 'racket-check-syntax-def)
-        (setq pos (previous-single-property-change pos 'racket-check-syntax-def)))
-      (and pos (goto-char pos)))))
+  (racket--check-syntax-forward-prop 'racket-check-syntax-def -1))
+
+(defun racket-check-syntax-next-error (&optional arg reset)
+  "Move point to the next check-syntax error, if any.
+Otherwise, call the original error-function."
+  (interactive)
+  (pcase (save-excursion
+           (goto-char (point-min))
+           (racket--check-syntax-forward-prop 'racket-check-syntax-err 1))
+    ((and (pred integerp) pos)
+     (goto-char pos))
+    (_
+     (when racket--check-syntax-original-next-error-function
+       (funcall racket--check-syntax-original-next-error-function arg reset)))))
+
+;;; Update
 
 (defvar-local racket--check-syntax-timer nil)
 
@@ -473,10 +497,12 @@ If point is instead on a definition, then go to its first use."
               (list 'help-echo               nil
                     'racket-check-syntax-def nil
                     'racket-check-syntax-use nil
+                    'racket-check-syntax-err nil
                     'cursor-sensor-functions nil))
              (add-text-properties
               beg end
               (list 'face                    racket-check-syntax-error-face
+                    'racket-check-syntax-err str
                     'help-echo               str
                     'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
              ;; Show now using echo area, only. (Not tooltip because
@@ -533,6 +559,7 @@ If point is instead on a definition, then go to its first use."
      (list 'help-echo                 nil
            'racket-check-syntax-def   nil
            'racket-check-syntax-use   nil
+           'racket-check-syntax-err   nil
            'racket-check-syntax-visit nil
            'racket-check-syntax-doc   nil
            'cursor-sensor-functions   nil))
