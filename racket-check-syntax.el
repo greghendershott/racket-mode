@@ -115,7 +115,7 @@ commands directly to whatever keys you prefer.
 
 \\{racket-check-syntax-mode-map}
 "
-  :lighter " RacketCheck"
+  :lighter racket-check-syntax-mode-lighter
   :keymap (racket--easy-keymap-define
            `(("C-c #"   ,racket-check-syntax-control-c-hash-keymap)
              ("M-."     ,#'racket-check-syntax-visit-definition)
@@ -400,6 +400,7 @@ If point is instead on a definition, then go to its first use."
 (defun racket--check-syntax-after-change-hook (_beg _end _len)
   (when (timerp racket--check-syntax-timer)
     (cancel-timer racket--check-syntax-timer))
+  (racket--check-syntax-set-status 'outdated)
   (setq racket--check-syntax-timer
         (run-with-idle-timer racket-check-syntax-after-change-refresh-delay
                              nil ;no repeat
@@ -407,6 +408,7 @@ If point is instead on a definition, then go to its first use."
                               #'racket--check-syntax-annotate))))
 
 (defun racket--check-syntax-annotate (&optional after-thunk)
+  (racket--check-syntax-set-status 'running)
   (racket--cmd/async
    `(check-syntax ,(or (racket--buffer-file-name) (buffer-name))
                   ,(buffer-substring-no-properties (point-min) (point-max)))
@@ -420,10 +422,12 @@ If point is instead on a definition, then go to its first use."
          (racket--check-syntax-clear)
          (setq racket--check-syntax-completions completions)
          (racket--check-syntax-insert annotations)
+         (racket--check-syntax-set-status 'ok)
          (when (and annotations after-thunk)
            (funcall after-thunk)))
         (`(check-syntax-errors . ,xs)
-         (racket--check-syntax-insert xs)))))))
+         (racket--check-syntax-insert xs)
+         (racket--check-syntax-set-status 'err)))))))
 
 (defun racket--check-syntax-insert (xs)
   "Insert text properties. Convert integer positions to markers."
@@ -505,6 +509,33 @@ If point is instead on a definition, then go to its first use."
            'cursor-sensor-functions   nil))
     ;; TODO: Remove 'face properties that have our special values, only
     (racket--unhighlight-all)))
+
+;;; Mode line status
+
+(defvar-local racket--check-syntax-mode-status nil)
+
+(defun racket--check-syntax-set-status (&optional which)
+  (setq racket--check-syntax-mode-status which)
+  (force-mode-line-update))
+
+(defcustom racket-check-syntax-mode-lighter
+  '(:eval (racket--check-syntax-mode-lighter))
+  "Mode line lighter for `racket-check-syntax-mode'.
+Set to nil to disable the mode line completely."
+  :group 'racket-mode
+  :risky t
+  :type 'sexp)
+
+(defun racket--check-syntax-mode-lighter ()
+  (let ((prefix "RktChk"))
+    (pcase-let ((`(,suffix . ,face)
+                 (cl-case racket--check-syntax-mode-status
+                   ((ok)       '("✓" . '(:inherit compilation-info)))
+                   ((err)      `("!" . '(:inherit compilation-error)))
+                   ((outdated) `("?" . '(:slant italic)))
+                   ((running)  '("*" . '(:slant italic)) )
+                   (otherwise  '("-" . '(:strike-through t))))))
+      `(" " (:propertize ,(concat prefix suffix) face ,face)))))
 
 (provide 'racket-check-syntax)
 
