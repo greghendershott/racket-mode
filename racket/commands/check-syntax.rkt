@@ -203,9 +203,8 @@
           [_ (void)]))
       ;; [2] Imports
       (parameterize ([current-namespace ns])
-        (set-union! completions-set
-                    (with-time/log 'imports
-                      (imports stx (set)))))
+        (with-time/log 'imports
+          (imports stx completions-set)))
       (define completions (sort (set->list completions-set)
                                 string<=?))
 
@@ -238,10 +237,8 @@
 (module+ example
   (require racket/file)
   (define (check-file path)
-    (check-syntax path (file->string path)))
-  (time (check-file "/tmp/foo.rkt"))
-  #;(check-file (path->string (syntax-source #'here)))
-  )
+    (time (check-syntax path (file->string path))))
+  (check-file (path->string (syntax-source #'here))))
 
 (module+ test
   (require rackunit
@@ -251,4 +248,5 @@
      (λ ()
        (time (void (check-syntax path (file->string path)))))))
   (check-this-file (path->string (syntax-source #'here)))
+  ;; Again to exercise and test cache
   (check-this-file (path->string (syntax-source #'here))))
