@@ -31,7 +31,10 @@
 
 (require 'racket-custom)
 (require 'racket-repl)
-(require 'racket-edit)
+(require 'racket-complete)
+(require 'racket-doc)
+(require 'racket-describe)
+(require 'racket-visit)
 (require 'racket-util)
 (require 'racket-show)
 (require 'rx)
