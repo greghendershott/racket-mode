@@ -244,11 +244,34 @@ TAB, and activate using RET -- for `racket-visit-definition' and
      ;; identifier in a submodule with different imports than the file
      ;; module. Else supply the file path-str, and the "describe"
      ;; command will treat it as a file module identifier.
-     (pcase (get-text-property (point) 'racket-check-syntax-doc)
-       (`(,path ,anchor)
-        (racket--do-describe (cons path anchor) str t))
-       (_
-        (racket--do-describe (buffer-file-name) str t))))))
+     (let ((how (pcase (get-text-property (point) 'racket-check-syntax-doc)
+                  (`(,path ,anchor) `(,path . ,anchor))
+                  (_                (buffer-file-name))))
+           ;; Effectively lazy `racket-check-syntax-visit-definition'
+           ;; where we capture the values from the buffer now.`
+           (visit-thunk
+            (pcase (get-text-property (point) 'racket-check-syntax-visit)
+              (`(,path ,subs ,ids)
+               (lambda ()
+                 (racket--do-visit-def-or-mod `(def/dr-jump ,path ,subs ,ids))))
+              (_
+               (pcase (get-text-property (point) 'racket-check-syntax-def)
+                 (`(import ,id . ,_)
+                  (lambda ()
+                    (racket--do-visit-def-or-mod `(mod ,id))))))))
+           ;; Effectively lazy `racket-check-syntax-documentation'
+           ;; where we capture the values from the buffer now.
+           (doc-thunk
+            (pcase (get-text-property (point) 'racket-check-syntax-doc)
+              (`(,path ,anchor)
+               (lambda ()
+                 (browse-url (concat "file://" path "#" anchor))))
+              (_
+               (pcase (racket--symbol-at-point-or-prompt nil "Documentation for: ")
+                 ((and (pred stringp) str)
+                  (lambda ()
+                    (racket--cmd/async `(doc ,(buffer-file-name) ,str)))))))))
+       (racket--do-describe how str t visit-thunk doc-thunk)))))
 
 (defconst racket--check-syntax-overlay-name 'racket-check-syntax-overlay)
 
@@ -324,20 +347,10 @@ definitions used in the main module, not submodules."
           (str (racket--do-visit-def-or-mod `(def ,(buffer-file-name) ,str))))
       (pcase (get-text-property (point) 'racket-check-syntax-visit)
         (`(,path ,subs ,ids)
-         (racket--cmd/async
-          `(def/dr-jump ,path ,subs, ids)
-          (lambda (results)
-            (pcase results
-              (`(,path ,line ,col)
-               (racket--push-loc)
-               (find-file (funcall racket-path-from-racket-to-emacs-function path))
-               (goto-char (point-min))
-               (forward-line (1- line))
-               (forward-char col))))))
+         (racket--do-visit-def-or-mod `(def/dr-jump ,path ,subs ,ids)))
         (_
          (pcase (get-text-property (point) 'racket-check-syntax-def)
            (`(import ,id . ,_)
-            ;; TODO: TEST ME
             (racket--do-visit-def-or-mod `(mod ,id)))))))))
 
 (defun racket-check-syntax-documentation ()
@@ -347,7 +360,9 @@ definitions used in the main module, not submodules."
     (`(,path ,anchor)
      (browse-url (concat "file://" path "#" anchor)))
     (_
-     (racket-doc))))
+     (pcase (racket--symbol-at-point-or-prompt nil "Documentation for: ")
+       ((and (pred stringp) str)
+        (racket--cmd/async `(doc ,(buffer-file-name) ,str)))))))
 
 (defun racket-check-syntax--forward-use (amt)
   "When point is on a use, go AMT uses forward. AMT may be negative.

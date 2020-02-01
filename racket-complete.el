@@ -22,6 +22,7 @@
 (require 'racket-repl)
 (require 'racket-keywords-and-builtins)
 (require 'racket-describe)
+(require 'racket-visit)
 (require 'racket-util)
 
 ;; TODO:
@@ -146,16 +147,14 @@ to supply this quickly enough or at all."
            :exclusive 'no
            ;; racket--get-type is too slow for :company-docsig
            :company-doc-buffer #'racket--company-doc-buffer
-           :company-location #'racket--get-def-file+line))))
+           :company-location #'racket--company-location))))
 
-(defun racket--company-doc-buffer (str &optional display-and-pop-to-p)
-  (racket--do-describe 'namespace str display-and-pop-to-p))
+(defun racket--company-doc-buffer (str)
+  (racket--do-describe 'namespace str))
 
-(defun racket--get-def-file+line (sym)
-  "Return a value suitable for use as :company-location."
-  (pcase (racket--cmd/await `(def-in-namespace ,sym))
-    (`(,path ,line ,_) (cons path line))
-    (_ nil)))
+(defun racket--company-location (str)
+  (pcase (racket--cmd/await `(def-in-namespace ,str))
+    (`(,path ,line ,_) (cons path line))))
 
 ;;; "types" (i.e. TR types, contracts, and/or function signatures)
 
