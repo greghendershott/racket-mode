@@ -46,20 +46,34 @@ TAB, and activate using RET -- for `racket-visit-definition' and
 `racket-doc'."
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Describe: ")
-    (`nil nil)
-    (str (racket--do-describe 'namespace str t))))
+    ((and (pred stringp) str)
+     (racket--do-describe 'namespace str t
+                          (lambda ()
+                            (racket--do-visit-def-or-mod `(def namespace ,str)))
+                          (lambda ()
+                            (racket--cmd/async `(doc namespace ,str)))))))
 
-(defun racket--do-describe (how str &optional display-and-pop-to-p)
-  "A helper used by both `racket-describe' and `company-mode'.
+(defun racket--do-describe (how
+                            str
+                            &optional
+                            display-and-pop-to-p
+                            visit-thunk
+                            doc-thunk)
+  "Create a `racket-describe-mode' buffer.
 
 HOW is supplied as the first argument to the back-end
-\"describe\" command.
+\"describe\" command. See it for details that we don't need to
+know or care about in this function.
 
 STR is the string form of an identifier that is to be described.
 
-DISPLAY-AND-POP-TO-P should be t for use by `racket-describe' --
-in which case some buttons are added and the buffer is displayed
--- and nil for use by `company-mode'.
+DISPLAY-AND-POP-TO-P should be t for use by direct user commands
+like `racket-describe' and `racket-check-syntax-describe' -- in
+which the buffer is displayed -- and nil for use as
+a :company-doc-buffer function.
+
+VISIT-THUNK and DOC-THUNK are, when not nil, used to insert
+\"Visit Definition\" and \"Documentation in Browser\" buttons.
 
 Returns the buffer in which the description was written."
   ;; Work around what seems to be a bug with `shr-insert-document' --
@@ -89,17 +103,17 @@ Returns the buffer in which the description was written."
       (when display-and-pop-to-p
         (goto-char (point-max))
         (insert "\n")
-        (insert-text-button "Definition"
-                            'follow-link t
-                            'action
-                            (lambda (_btn)
-                              (racket--do-visit-def-or-mod `(def ,how ,str))))
-        (insert "   ")
-        (insert-text-button "Documentation in Browser"
-                            'follow-link t
-                            'action
-                            (lambda (_btn)
-                              (racket--cmd/await `(doc ,str))))
+        (when visit-thunk
+          (insert-text-button "Visit Definition"
+                              'follow-link t
+                              'action
+                              (lambda (_btn) (funcall visit-thunk)))
+          (insert "   "))
+        (when doc-thunk
+          (insert-text-button "Documentation in Browser"
+                              'follow-link t
+                              'action
+                              (lambda (_btn) (funcall doc-thunk))))
         (insert "          [q]uit"))
       (read-only-mode 1)
       (goto-char (point-min))

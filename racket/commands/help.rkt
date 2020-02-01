@@ -6,13 +6,14 @@
          racket/contract
          racket/match
          racket/port
-         (only-in "../scribble.rkt" binding->path+anchor))
+         (only-in "../scribble.rkt" binding->path+anchor)
+         "../identifier.rkt")
 
 (provide doc)
 
-(define/contract (doc str)
-  (-> string? any)
-  (or (identifier-help (namespace-symbol->identifier (string->symbol str)))
+(define/contract (doc how str)
+  (-> (or/c 'namespace path-string?) string? any)
+  (or (identifier-help (->identifier how str))
       (perform-search str)))
 
 ;; It is 2017 therefore it is hard to activate a web browser and show
