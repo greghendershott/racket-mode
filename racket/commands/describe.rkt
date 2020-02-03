@@ -61,7 +61,7 @@
              `(p ()
                (em ()  ,(if (eq? how 'namespace)
                             "(Found no documentation, signature, type, or contract.)"
-                            "(Found no documentation.")))]
+                            "(Found no documentation or signature.")))]
             [t `(pre () ,t)]
             [else ""])
      (br ()))))
@@ -82,9 +82,7 @@
     [(and (cons (? path-string?) (? string?)) path+anchor)
      (path+anchor->html path+anchor)]
     [(and (or 'namespace (? path-string?)) how)
-     (define stx (->identifier how str))
-     (define path+anchor (binding->path+anchor stx))
-     (or (path+anchor->html path+anchor)
-         (sig-and/or-type how stx))]))
-
-(define here (syntax-source #'here))
+     (->identifier how str
+                   (λ (stx)
+                     (or (path+anchor->html (binding->path+anchor stx))
+                         (sig-and/or-type how stx))))]))

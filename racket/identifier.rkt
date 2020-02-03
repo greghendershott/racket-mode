@@ -3,67 +3,93 @@
 (require racket/contract
          racket/format
          racket/match
-         (only-in "syntax.rkt" path->existing-expanded-syntax))
+         syntax/modresolve
+         "syntax.rkt")
 
 (provide ->identifier
-         ->identifier/namespace
-         ->identifier/expansion
-         resolve-identifier-binding-info)
+         ->identifier-resolved-binding-info)
 
-(define/contract (->identifier/namespace v)
-  (-> (or/c symbol? string?) identifier?)
-  (define sym->id namespace-symbol->identifier)
-  (cond [(string? v) (sym->id (string->symbol v))]
-        [(symbol? v) (sym->id v)]))
+;;; Creating identifiers from symbols or strings
 
 ;; A simplifying helper for commands that want to work both ways, and
 ;; accept a first "how" or "context" argument that is either
-;; 'namespace or a path string.
-(define (->identifier how v)
+;; 'namespace or a path-string.
+(define/contract (->identifier how v k)
+  (-> (or/c 'namespace path-string?) (or/c symbol? string?) (-> syntax? any) any)
   (match how
-    ['namespace                       (->identifier/namespace   v)]
-    [(? (and string? path-string?) p) (->identifier/expansion p v)]))
+    ['namespace                       (->identifier/namespace   v k)]
+    [(? (and string? path-string?) p) (->identifier/expansion p v k)]))
 
-;; exp-mod-stx-or-path-str should either be:
-;;
-;; - The syntax for a module form that was read
-;;   with-module-reading-parameterization and expanded. Such syntax
-;;   has a 'module-body-context syntax property -- starting in Racket
-;;   6.5 -- which can be used as lexical context to make an
-;;   identifier. This lets identifier-binding work for identifiers as
-;;   if they were in that body's lexical context -- including imported
-;;   identifiers that aren't actually used as bindings in the module
-;;   body.
-;;
-;; - A path string, in which case we get such expanded module syntax
-;;   from file->expanded-syntax.
-(define/contract (->identifier/expansion exp-mod-stx-or-path v)
-  (-> (or/c syntax? path-string?)
+(define/contract (->identifier/namespace v k)
+  (-> (or/c symbol? string?) (-> identifier? any/c) any/c)
+  (define sym->id namespace-symbol->identifier)
+  (k (cond [(string? v) (sym->id (string->symbol v))]
+           [(symbol? v) (sym->id v)])))
+
+;; We use path-str to get expanded module syntax from the cache via
+;; path->existing-expanded-syntax, and use the 'module-body-context
+;; syntax property -- starting in Racket 6.5 -- which can be used as
+;; lexical context to make an identifier. This lets identifier-binding
+;; work for identifiers as if they were in that body's lexical context
+;; -- including imported identifiers that aren't actually used as
+;; bindings in the module body.
+(define/contract (->identifier/expansion path-str v k)
+  (-> path-string?
       (or/c symbol? string?)
-      identifier?)
-  (define exp-mod-stx (match exp-mod-stx-or-path
-                        [(? syntax? v) v]
-                        [(? path-string? v) (path->existing-expanded-syntax v)]))
-  (define (sym->id v)
-    (if exp-mod-stx
-        (expanded-module+symbol->identifier exp-mod-stx v)
-        #'undefined)) ;not sure about this choice?
-  (cond [(string? v) (sym->id (string->symbol v))]
-        [(symbol? v) (sym->id v)]))
+      (-> identifier? any/c)
+      any/c)
+  (path->existing-expanded-syntax
+   path-str
+   (λ (stx)
+     (define (sym->id v)
+       (expanded-module+symbol->identifier path-str stx v))
+     (k (cond [(string? v) (sym->id (string->symbol v))]
+              [(symbol? v) (sym->id v)])))))
 
-(define/contract (expanded-module+symbol->identifier exp-mod-stx sym)
-  (-> syntax? symbol? identifier?)
+(define/contract (expanded-module+symbol->identifier path-str exp-mod-stx sym)
+  (-> path-string? syntax? symbol? identifier?)
+  ;; For imported bindings, this creates syntax where
+  ;; identifier-binding will report a module-path-index that can be
+  ;; resolved to a path that exists. Great!
+  ;;
+  ;; For module bindings, identifier-binding will say that the binding
+  ;; exists. Good! But. Until a module declaration is evaluated, the
+  ;; module has no name. As a result, the module-path-index is
+  ;; reported as #<module-path-index='|expanded module|> -- i.e.
+  ;; (module-path-index-join #f #f) a.k.a. "self" module. That would
+  ;; resolve to <path:"/path/to/expanded module.rkt"> -- wrong.
+  ;;
+  ;; [With module->namespace, it's not merely expanded syntax, it's
+  ;; also evaluated, so the module gets a name, so identifier-binding
+  ;; will report the path.]
+  ;;
+  ;; Work-around: Let's record the path in the identifier's
+  ;; syntax-source. Doing so won't change what identifier-binding
+  ;; reports, but it means mpi->path can handle such a "self" module
+  ;; path index by instead using the path from syntax-source.
   (datum->syntax (syntax-property exp-mod-stx 'module-body-context)
-                 sym))
+                 sym
+                 (list path-str #f #f #f #f)))
 
 
 ;;; Massaging values returned by identifier-binding
 
-;; Given the result from identifier-binding, returns a subset of the
-;; information, where the module path indexes are resolved to actual
-;; paths, and where 'lexical value is treated as #f.
-(define/contract (resolve-identifier-binding-info binding-info)
-  (-> (or/c 'lexical
+;; A composition that does the right thing, including when making an
+;; identifier that is a module binding.
+(define (->identifier-resolved-binding-info how v k)
+  (->identifier how v
+                (λ (id)
+                  (k (resolve-identifier-binding-info
+                      id
+                      (identifier-binding id))))))
+
+;; Given an identifier and the result from identifier-binding, returns
+;; a subset of the information, where the module path indexes are
+;; resolved to actual paths, and where the 'lexical value is treated
+;; as #f.
+(define/contract (resolve-identifier-binding-info id binding-info)
+  (-> identifier?
+      (or/c 'lexical
             #f
             (list/c module-path-index?
                     symbol?
@@ -83,25 +109,34 @@
             source-phase
             import-phase
             nominal-export-phase)
-      (list (cons source-id         (mpi->path source-mpi))
-            (cons nominal-source-id (mpi->path nominal-source-mpi)))]
+      (list (cons source-id         (id+mpi->path id source-mpi))
+            (cons nominal-source-id (id+mpi->path id nominal-source-mpi)))]
      [_ #f]))
 
-(define/contract (mpi->path mpi)
-  (-> module-path-index?
+(define (self-module? mpi)
+  (define-values (a b) (module-path-index-split mpi))
+  (and (not a) (not b)))
+
+(define/contract (id+mpi->path id mpi)
+  (-> identifier?
+      module-path-index?
       (or/c 'kernel
             (cons/c path-string? (listof symbol?))))
   (define (hash-percent-symbol v)
     (and (symbol? v)
          (regexp-match? #px"^#%" (symbol->string v))))
-  (match (resolved-module-path-name (module-path-index-resolve mpi))
-    [(? hash-percent-symbol) 'kernel]
-    [(? path-string? path)   (list path)]
-    [(? symbol? sym)
-     (list (build-path (current-load-relative-directory)
-                       (~a sym ".rkt")))]
-    [(list (? path-string? path) (? symbol? subs) ...)
-     (list* path subs)]))
+  (cond [(self-module? mpi)
+         (list (syntax-source id))]
+        [else
+         (match (resolved-module-path-name
+                 (module-path-index-resolve mpi))
+           [(? hash-percent-symbol) 'kernel]
+           [(? path-string? path)   (list path)]
+           [(? symbol? sym)
+            (list (build-path (current-load-relative-directory)
+                              (~a sym ".rkt")))]
+           [(list (? path-string? path) (? symbol? subs) ...)
+            (list* path subs)])]))
 
 (module+ test
   (require rackunit
@@ -110,41 +145,41 @@
   ;; Check something that is in the namespace resulting from
   ;; module->namespace on, say, this source file.
   (parameterize ([current-namespace (module->namespace (syntax-source #'here))])
-    (check-not-false (resolve-identifier-binding-info
-                      (identifier-binding
-                       (->identifier/namespace 'match))))
-    (check-not-false (resolve-identifier-binding-info
-                      (identifier-binding
-                       (->identifier/namespace "match")))))
+    (check-not-false (->identifier-resolved-binding-info 'namespace 'match values))
+    (check-not-false (->identifier-resolved-binding-info 'namespace "match" values)))
   (when (version<=? "6.5" (version))
     ;; Check something that is not in the current namespace, but is an
-    ;; identifier in the lexical context of an expanded module form,
-    ;; including imported identifiers.
-    (parameterize ([current-namespace (make-base-namespace)]
-                   [current-load-relative-directory "/path/to"])
-      (define path-str "/path/to/foobar.rkt")
-      (define-values (stx _ns) (string->expanded-syntax-and-namespace
-                                path-str
-                                "(module foobar racket/base (require net/url racket/set)) 42"))
-      ;; Simple
-      (check-not-false (resolve-identifier-binding-info
-                        (identifier-binding
-                         (->identifier/expansion stx 'set?))))
-      (check-not-false (resolve-identifier-binding-info
-                        (identifier-binding
-                         (->identifier/expansion stx "set?"))))
-      ;; Renaming/contracting involved
-      (check-not-false (resolve-identifier-binding-info
-                        (identifier-binding
-                         (->identifier/expansion stx 'get-pure-port))))
-      (check-not-false (resolve-identifier-binding-info
-                        (identifier-binding
-                         (->identifier/expansion stx "get-pure-port"))))
-      ;; Exercise use of path-string->existing-expanded-syntax
-      (check-equal? (identifier-binding
-                     (->identifier/expansion path-str 'define))
-                    (identifier-binding
-                     (->identifier/expansion stx 'define)))
-      (check-equal? (syntax->datum
-                     (->identifier/expansion "/not/yet/expanded.rkt" "whatever"))
-                    'undefined))))
+    ;; identifier in the lexical context of an expanded module form --
+    ;; including imported identifiers -- from the expanded syntax
+    ;; cache.
+    (define path-str "/path/to/foobar.rkt")
+    (define code-str (~a '(module foobar racket/base
+                           (require net/url racket/set)
+                           (let ([a-lexical-binding 42])
+                            a-lexical-binding)
+                           (define a-module-binding 42)
+                           a-module-binding)))
+
+    ;; Get the expanded syntax in our cache
+    (string->expanded-syntax path-str code-str void)
+
+    ;; Simple imported binding
+    (check-not-false (->identifier-resolved-binding-info path-str 'set? values))
+    (check-not-false (->identifier-resolved-binding-info path-str "set?" values))
+
+    ;; Import where renaming/contracting is involved
+    (check-not-false (->identifier-resolved-binding-info path-str 'get-pure-port values))
+    (check-not-false (->identifier-resolved-binding-info path-str "get-pure-port" values))
+
+    ;; Get a module binding
+    (check-equal? (->identifier-resolved-binding-info path-str "a-module-binding" values)
+                  `((a-module-binding ,path-str) (a-module-binding ,path-str)))
+
+    ;; Get a lexical binding: Should return false
+    (check-false (->identifier-resolved-binding-info path-str "a-lexical-binding" values))
+
+    ;; Get something that's not a binding in at all: Should return false
+    (check-false (->identifier-resolved-binding-info path-str "ASDFASDFDS" values))
+
+    ;; Get whatever in some file not in expanded syntax cache: Should return false
+    (check-false (->identifier-resolved-binding-info "not/yet/expanded.rkt" "whatever" values))))

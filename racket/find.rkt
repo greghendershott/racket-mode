@@ -67,36 +67,43 @@
   (-> (or/c 'namespace path-string?)
       string?
       (or/c #f 'kernel stx+path+mods/c))
-  (match (resolve-identifier-binding-info
-          (identifier-binding
-           (->identifier how str)))
-    [(? list? xs) (def-in-files xs)]
-    [_ #f]))
+  (->identifier-resolved-binding-info
+   how str
+   (λ (results)
+     (match results
+       [(? list? xs) (def-in-files xs)]
+       [_ #f]))))
 
 (define (def-in-files bindings)
   (-> (listof (cons/c symbol?
                       (or/c 'kernel
                             (cons/c path-string? (listof symbol?)))))
       (or/c #f stx+path+mods/c))
-  (define ht (make-hash)) ;cache in case source repeated
   (for/or ([x (in-list (remove-duplicates bindings))])
     (match x
       [(cons id 'kernel) 'kernel]
-      [(list* id file submods) (def-in-file id file submods ht)])))
+      [(list* id file submods) (def-in-file id file submods)])))
 
-(define/contract (def-in-file id file submods [ht (make-hash)])
-  (->* (symbol? path-string? (listof symbol?))
-       (hash?)
-       (or/c #f stx+path+mods/c))
-  (define (sub-stx file->stx)
-    (hash-ref! ht (cons file file->stx)
-               (λ () (submodule file submods (file->stx file)))))
-  (match (or ($definition id (sub-stx file->expanded-syntax))
-             (match ($renaming-provide id (sub-stx file->syntax))
-               [(? syntax? s)
-                ($definition (syntax-e s) (sub-stx file->expanded-syntax))]
-               [_ #f]))
-    [(? syntax? stx) (list stx file submods)]
+(define/contract (def-in-file id path submods)
+  (-> symbol? path-string? (listof symbol?)
+      (or/c #f stx+path+mods/c))
+  (define (sub-stx stx)
+    (submodule path submods stx))
+  (match (or (file->expanded-syntax
+              path
+              (λ (stx)
+                ($definition id (sub-stx stx))))
+             (file->syntax
+              path
+              (λ (stx)
+                (match ($renaming-provide id (sub-stx stx))
+                  [(? syntax? s)
+                   (file->expanded-syntax
+                    path
+                    (λ (stx)
+                      ($definition (syntax-e s) (sub-stx stx))))]
+                  [_ #f]))))
+    [(? syntax? stx) (list stx path submods)]
     [_  #f]))
 
 ;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
@@ -106,14 +113,14 @@
 (define ((make-eq-sym? sym) stx)
   (and (eq? sym (syntax-e stx)) stx))
 
-(define (file-module file)
-  (match (path->string (last (explode-path file)))
+(define (file-module path)
+  (match (path->string (last (explode-path path)))
     [(pregexp "(.+?)\\.rkt$" (list _ v)) (string->symbol v)]))
 
 ;; Return bodies (wrapped in begin) of the module indicated by
 ;; file and sub-mod-syms.
-(define (submodule file sub-mod-syms stx)
-  (submodule* (cons (file-module file) sub-mod-syms) stx))
+(define (submodule path sub-mod-syms stx)
+  (submodule* (cons (file-module path) sub-mod-syms) stx))
 
 (define (submodule* mods stx)
   (match-define (cons this more) mods)
