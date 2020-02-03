@@ -13,7 +13,7 @@
 
 (define/contract (doc how str)
   (-> (or/c 'namespace path-string?) string? any)
-  (or (identifier-help (->identifier how str))
+  (or (->identifier how str identifier-help)
       (perform-search str)))
 
 ;; It is 2017 therefore it is hard to activate a web browser and show
