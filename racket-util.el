@@ -182,7 +182,7 @@ passed to Racket backend. Likewise text properties are stripped."
             s))
       sap)))
 
-;;; add-face-text-property
+;;; face text properties
 
 (unless (fboundp 'add-face-text-property)
   (defun add-face-text-property (beg end prop)
@@ -191,6 +191,28 @@ passed to Racket backend. Likewise text properties are stripped."
                        'face
                        (cons prop
                              (get-text-property beg 'face)))))
+
+(defun racket--remove-face-text-properties (from upto faces)
+  (let ((pos from))
+    (while (and pos (< pos upto))
+      (let* ((beg (next-single-property-change pos 'face nil upto))
+             (end (and beg
+                       (next-single-property-change beg 'face nil upto))))
+        (when (and beg end)
+          (let ((old (get-text-property beg 'face)))
+            (cond
+             ((not old) nil)
+             ((listp old)
+              (let* ((new (cl-remove-if (lambda (v)
+                                          (member v faces))
+                                        old))
+                     (new (pcase new
+                            (`(,one) one)
+                            (vs      vs))))
+                (put-text-property beg end 'face new)))
+             ((member old faces)
+              (remove-text-properties beg end '(face nil))))))
+        (setq pos end)))))
 
 (provide 'racket-util)
 
