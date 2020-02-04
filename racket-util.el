@@ -182,6 +182,16 @@ passed to Racket backend. Likewise text properties are stripped."
             s))
       sap)))
 
+;;; add-face-text-property
+
+(unless (fboundp 'add-face-text-property)
+  (defun add-face-text-property (beg end prop)
+    "This isn't generally correct but is sufficient for our use in `racket-check-syntax-mode'."
+    (put-text-property beg end
+                       'face
+                       (cons prop
+                             (get-text-property beg 'face)))))
+
 (provide 'racket-util)
 
 ;; racket-util.el ends here
