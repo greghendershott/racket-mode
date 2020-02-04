@@ -80,13 +80,14 @@
   ;; path.
   (void))
 
-(define ((make-eval-handler maybe-mod [orig-eval (current-eval)]) e)
+(define ((make-eval-handler _maybe-mod [orig-eval (current-eval)]) e)
   (cond [(and (syntax? e)
               (syntax-source e)
               (path-string? (syntax-source e))
               (not (compiled-expression? (syntax-e e))))
          (define expanded-stx (expand e))
          (cache-set! (syntax-source e)
+                     e
                      expanded-stx
                      (file->digest (syntax-source e))
                      (current-namespace)
@@ -94,7 +95,7 @@
          (orig-eval expanded-stx)]
         [else (orig-eval e)]))
 
-(define (after-run maybe-mod)
+(define (after-run _maybe-mod)
   (void))
 
 ;; cache : (hash/c path? cache-entry?)
