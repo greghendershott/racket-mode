@@ -267,10 +267,8 @@ TAB, and activate using RET -- for `racket-visit-definition' and
                (lambda ()
                  (browse-url (concat "file://" path "#" anchor))))
               (_
-               (pcase (racket--symbol-at-point-or-prompt nil "Documentation for: ")
-                 ((and (pred stringp) str)
-                  (lambda ()
-                    (racket--cmd/async `(doc ,(buffer-file-name) ,str)))))))))
+               (lambda ()
+                 (racket--cmd/async `(doc ,(buffer-file-name) ,str)))))))
        (racket--do-describe how str t visit-thunk doc-thunk)))))
 
 (defconst racket--check-syntax-overlay-name 'racket-check-syntax-overlay)
@@ -550,7 +548,17 @@ Otherwise, call the original error-function."
            (add-text-properties
             beg end
             (list 'help-echo               str
-                  'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))))
+                  'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
+           (when (string-equal str "no bound occurrences")
+             (add-face-text-property beg end '(:strike-through t)))))
+        (`(unused-require ,beg ,end)
+         (let ((beg (copy-marker beg t))
+               (end (copy-marker end t)))
+           (add-text-properties
+            beg end
+            (list 'help-echo               "unused require"
+                  'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
+           (add-face-text-property beg end '(:strike-through t))))
         (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
          (let ((def-beg (copy-marker def-beg t))
                (def-end (copy-marker def-end t))

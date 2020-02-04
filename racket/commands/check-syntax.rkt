@@ -139,6 +139,8 @@
                        [else
                         ;; https://gist.github.com/greghendershott/5dd59c00f8daa2ce0987ad343244489e
                         (log-racket-mode-check-syntax-error "bad path in ~v" syncheck)])]
+                [(vector 'syncheck:add-unused-require beg end)
+                 (item 'unused-require beg end)]
                 [_ #f])))))
          ;; [2] Consolidate the add-arrow/name-dup items into a hash table
          ;; with one item per definition. The key is the definition
