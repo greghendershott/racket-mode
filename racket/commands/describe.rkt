@@ -7,7 +7,6 @@
          (only-in xml xexpr->string)
          (only-in "../find.rkt" find-signature)
          "../identifier.rkt"
-         "../syntax.rkt"
          "../scribble.rkt")
 
 (provide type
@@ -20,11 +19,12 @@
   (or (type-or-contract v)
       (sig v)))
 
-(define (sig how v) ;any/c -> (or/c #f string?)
+(define (sig how v) ;how/c any/c -> (or/c #f string?)
   (define as-str
     (match v
       [(? syntax? v) (syntax->datum v)]
       [(? symbol? v) (symbol->string v)]
+      [(? string? v) v]
       [_             #f]))
   (and as-str
        (match (find-signature how as-str)
@@ -70,12 +70,13 @@
 
 ;; If a symbol has installed documentation, display it.
 ;;
-;; Otherwise, walk the source to find the signature of its definition
-;; (because the argument names have explanatory value), and also look
-;; for Typed Racket type or a contract, if any.
+;; Otherwise, walk the source to find a function definition signature
+;; (the argument names may have explanatory value). When using a
+;; module->namespace, also look for Typed Racket type or a contract,
+;; if any.
 
 (define/contract (describe how str)
-  (-> (or/c 'namespace path-string? (cons/c path-string? string?))
+  (-> (or/c how/c (cons/c path-string? string?))
       string?
       string?)
   (match how

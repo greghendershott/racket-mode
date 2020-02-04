@@ -6,7 +6,8 @@
          syntax/modresolve
          "syntax.rkt")
 
-(provide ->identifier
+(provide how/c
+         ->identifier
          ->identifier-resolved-binding-info)
 
 ;;; Creating identifiers from symbols or strings
@@ -14,8 +15,10 @@
 ;; A simplifying helper for commands that want to work both ways, and
 ;; accept a first "how" or "context" argument that is either
 ;; 'namespace or a path-string.
+(define how/c (or/c 'namespace path-string?))
+
 (define/contract (->identifier how v k)
-  (-> (or/c 'namespace path-string?) (or/c symbol? string?) (-> syntax? any) any)
+  (-> how/c (or/c symbol? string?) (-> syntax? any) any)
   (match how
     ['namespace                       (->identifier/namespace   v k)]
     [(? (and string? path-string?) p) (->identifier/expansion p v k)]))
@@ -69,7 +72,7 @@
   ;; path index by instead using the path from syntax-source.
   (datum->syntax (syntax-property exp-mod-stx 'module-body-context)
                  sym
-                 (list path-str #f #f #f #f)))
+                 (list (string->path path-str) #f #f #f #f)))
 
 
 ;;; Massaging values returned by identifier-binding
@@ -173,7 +176,9 @@
 
     ;; Get a module binding
     (check-equal? (->identifier-resolved-binding-info path-str "a-module-binding" values)
-                  `((a-module-binding ,path-str) (a-module-binding ,path-str)))
+                  (let ([path (string->path path-str)])
+                    `((a-module-binding ,path)
+                      (a-module-binding ,path))))
 
     ;; Get a lexical binding: Should return false
     (check-false (->identifier-resolved-binding-info path-str "a-lexical-binding" values))

@@ -12,7 +12,7 @@
 (provide doc)
 
 (define/contract (doc how str)
-  (-> (or/c 'namespace path-string?) string? any)
+  (-> how/c string? any)
   (or (->identifier how str identifier-help)
       (perform-search str)))
 
