@@ -550,7 +550,7 @@ Otherwise, call the original error-function."
             (list 'help-echo               str
                   'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
            (when (string-equal str "no bound occurrences")
-             (add-face-text-property beg end '(:strike-through t)))))
+             (add-face-text-property beg end racket-check-syntax-unused-face))))
         (`(unused-require ,beg ,end)
          (let ((beg (copy-marker beg t))
                (end (copy-marker end t)))
@@ -558,7 +558,7 @@ Otherwise, call the original error-function."
             beg end
             (list 'help-echo               "unused require"
                   'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
-           (add-face-text-property beg end '(:strike-through t))))
+           (add-face-text-property beg end racket-check-syntax-unused-face)))
         (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
          (let ((def-beg (copy-marker def-beg t))
                (def-end (copy-marker def-end t))
@@ -571,15 +571,15 @@ Otherwise, call the original error-function."
             def-beg def-end
             (list 'racket-check-syntax-def (list req id uses)
                   'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
-          (dolist (use uses)
-            (pcase-let* ((`(,use-beg ,use-end) use))
-              (add-text-properties
-               use-beg use-end
-               (append
-                (list 'racket-check-syntax-use (list def-beg def-end)
-                      'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor))
-                (when (eq req 'local)
-                  (list 'help-echo "Defined locally"))))))))
+           (dolist (use uses)
+             (pcase-let* ((`(,use-beg ,use-end) use))
+               (add-text-properties
+                use-beg use-end
+                (append
+                 (list 'racket-check-syntax-use (list def-beg def-end)
+                       'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor))
+                 (when (eq req 'local)
+                   (list 'help-echo "Defined locally"))))))))
         (`(external-def ,beg ,end ,path ,subs ,ids)
          (let ((beg (copy-marker beg t))
                (end (copy-marker end t)))
@@ -605,7 +605,9 @@ Otherwise, call the original error-function."
            'racket-check-syntax-visit nil
            'racket-check-syntax-doc   nil
            'cursor-sensor-functions   nil))
-    ;; TODO: Remove 'face properties that have our special values, only
+    (racket--remove-face-text-properties (point-min) (point-max)
+                                         '(racket-check-syntax-error-face
+                                           racket-check-syntax-unused-face))
     (racket--unhighlight-all)))
 
 ;;; Mode line status

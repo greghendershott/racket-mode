@@ -360,6 +360,11 @@ level quieter. That way you can set the '* topic to a level like
   "Face `racket-check-syntax-mode' uses to highlight errors."
   "Check Syntax Error Face")
 
+(defface-racket racket-check-syntax-unused-face
+  '((t (:strike-through t)))
+  "Face `racket-check-syntax-mode' uses to highlight unused requires or definitions."
+  "Check Syntax Unused Face")
+
 (defface-racket racket-keyword-argument-face
   '((((background dark))
      (:foreground "IndianRed"))
