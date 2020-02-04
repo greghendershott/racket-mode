@@ -32,15 +32,13 @@
 (require 'racket-custom)
 (require 'racket-repl)
 (require 'racket-complete)
-(require 'racket-doc)
 (require 'racket-describe)
 (require 'racket-visit)
 (require 'racket-util)
 (require 'racket-show)
 (require 'rx)
 (require 'pos-tip)
-
-(declare-function racket--do-visit-def-or-mod "racket-edit.el")
+(require 'easymenu)
 
 ;; TODO: Expose as a defcustom? Or even as commands to turn on/off?
 ;; Also note there are really 3 categories here: 'local 'import
@@ -53,12 +51,31 @@ find that too \"noisy\", set this to nil.")
 
 (defvar racket-check-syntax-control-c-hash-keymap
   (racket--easy-keymap-define
-   '(("j" racket-check-syntax-next-definition)
-     ("k" racket-check-syntax-previous-definition)
-     ("n" racket-check-syntax-next-use)
-     ("p" racket-check-syntax-previous-use)
-     ("." racket-check-syntax-visit-definition)
-     ("r" racket-check-syntax-rename))) )
+   `(("j" ,#'racket-check-syntax-next-definition)
+     ("k" ,#'racket-check-syntax-previous-definition)
+     ("n" ,#'racket-check-syntax-next-use)
+     ("p" ,#'racket-check-syntax-previous-use)
+     ("." ,#'racket-check-syntax-visit-definition)
+     ("r" ,#'racket-check-syntax-rename))) )
+
+(defvar racket-check-syntax-mode-map
+  (racket--easy-keymap-define
+   `(("C-c #"   ,racket-check-syntax-control-c-hash-keymap)
+     ("M-."     ,#'racket-check-syntax-visit-definition)
+     ("C-c C-." ,#'racket-check-syntax-describe)
+     ("C-c C-d" ,#'racket-check-syntax-documentation))))
+
+(easy-menu-define racket-check-syntax-mode-menu racket-check-syntax-mode-map
+  "Menu for Racket Check Syntax mode."
+  '("Racket Check Syntax"
+    ["Visit Definition" racket-check-syntax-visit-definition]
+    ["Visit Module" racket-visit-module]
+    ["Return from Visit" racket-unvisit]
+    "---"
+    ["Racket Documentation" racket-check-syntax-documentation]
+    ["Describe" racket-check-syntax-describe]
+    "---"
+    ["Customize..." customize-mode]))
 
 (defvar-local racket--check-syntax-original-next-error-function next-error-function)
 
@@ -148,11 +165,7 @@ commands directly to whatever keys you prefer.
 \\{racket-check-syntax-mode-map}
 "
   :lighter racket-check-syntax-mode-lighter
-  :keymap (racket--easy-keymap-define
-           `(("C-c #"   ,racket-check-syntax-control-c-hash-keymap)
-             ("M-."     ,#'racket-check-syntax-visit-definition)
-             ("C-c C-." ,#'racket-check-syntax-describe)
-             ("C-c C-d" ,#'racket-check-syntax-documentation)))
+  :keymap racket-check-syntax-mode-map
   (unless (eq major-mode 'racket-mode)
     (setq racket-check-syntax-mode nil)
     (user-error "racket-check-syntax-mode only works with racket-mode buffers"))

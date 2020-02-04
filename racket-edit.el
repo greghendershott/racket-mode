@@ -1,6 +1,6 @@
 ;;; racket-edit.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2018 by Greg Hendershott.
+;; Copyright (c) 2013-2020 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -20,82 +20,13 @@
 
 (require 'cl-lib)
 (require 'cl-macs)
+(require 'comint)
 (require 'racket-custom)
+(require 'racket-cmd)
 (require 'racket-common)
 (require 'racket-complete)
-(require 'racket-describe)
 (require 'racket-util)
 (require 'hideshow)
-
-(defun racket-run (&optional prefix)
-  "Save and evaluate the buffer in REPL.
-
-With one C-u prefix, uses errortrace for improved stack traces.
-Otherwise follows the `racket-error-context' setting.
-
-With two C-u prefixes, instruments code for step debugging. See
-`racket-debug-mode' and the variable `racket-debuggable-files'.
-
-If point is within a Racket module form, the REPL \"enters\" that
-submodule (uses its language info and namespace).
-
-When you run again, the file is evaluated from scratch --- the
-custodian releases resources like threads and the evaluation
-environment is reset to the contents of the file. In other words,
-like DrRacket, this provides the predictability of a \"static\"
-baseline, plus the ability to explore interactively using the
-REPL.
-
-See also `racket-run-and-switch-to-repl', which is even more like
-DrRacket's Run because it selects the REPL window (gives it the
-focus), too.
-
-When `racket-retry-as-skeleton' is true, if your source file has
-an error, a \"skeleton\" of your file is evaluated to get
-identifiers from module languages, require forms, and
-definitions. That way, things like completion and
-`racket-describe' are more likely to work while you edit the file
-to fix the error. If not even the \"skeleton\" evaluation
-succeeds, you'll have only identifiers provided by racket/base,
-until you fix the error and run again.
-
-Output in the Racket REPL buffer that describes a file and
-position is automatically \"linkified\". Examples of such text
-include:
-
-- Racket error messages.
-- rackunit test failure location messages.
-- print representation of path objects.
-
-To visit these locations, move point there and press RET or mouse
-click. Or, use the standard `next-error' and `previous-error'
-commands."
-  (interactive "P")
-  (racket--repl-run (racket--what-to-run)
-                    (pcase prefix
-                      (`(4)  'high)
-                      (`(16) 'debug)
-                      (_     racket-error-context))))
-
-(defun racket-run-with-errortrace ()
-  "Run with `racket-error-context' temporarily set to \"high\".
-This is just `racket-run' with a C-u prefix. Defined as a function so
-it can be a menu target."
-  (interactive)
-  (racket-run '(4)))
-
-(defun racket-run-with-debugging ()
-  "Run with `racket-error-context' temporarily set to 'debug.
-This is just `racket-run' with a double C-u prefix. Defined as a
-function so it can be a menu target."
-  (interactive)
-  (racket-run '(16)))
-
-(defun racket-run-and-switch-to-repl (&optional prefix)
-  "This is `racket-run' followed by `racket-repl'."
-  (interactive "P")
-  (racket-run prefix)
-  (racket-repl))
 
 (defun racket-racket ()
   "Do \"racket <file>\" in a shell buffer."
@@ -103,58 +34,6 @@ function so it can be a menu target."
   (racket--shell (concat (shell-quote-argument racket-program)
                          " "
                          (shell-quote-argument (racket--buffer-file-name)))))
-
-(defun racket-test (&optional coverage)
-  "Run the \"test\" submodule.
-
-With prefix, runs with coverage instrumentation and highlights
-uncovered code.
-
-Put your tests in a \"test\" submodule. For example:
-
-#+BEGIN_SRC racket
-    (module+ test
-      (require rackunit)
-      (check-true #t))
-#+END_SRC
-
-Any rackunit test failure messages show the location. You may use
-`next-error' to jump to the location of each failing test.
-
-See also:
-- `racket-fold-all-tests'
-- `racket-unfold-all-tests'
-"
-  (interactive "P")
-  (let ((mod-path (list 'submod (racket--buffer-file-name) 'test))
-        (buf (current-buffer)))
-    (if (not coverage)
-        (racket--repl-run mod-path)
-      (message "Running test submodule with coverage instrumentation...")
-      (racket--repl-run
-       mod-path
-       'coverage
-       (lambda ()
-         (message "Getting coverage results...")
-         (racket--cmd/async
-          `(get-uncovered)
-          (lambda (xs)
-            (pcase xs
-              (`() (message "Full coverage."))
-              ((and xs `((,beg0 . ,_) . ,_))
-               (message "Missing coverage in %s place(s)." (length xs))
-               (with-current-buffer buf
-                 (dolist (x xs)
-                   (let ((o (make-overlay (car x) (cdr x) buf)))
-                     (overlay-put o 'name 'racket-uncovered-overlay)
-                     (overlay-put o 'priority 100)
-                     (overlay-put o 'face font-lock-warning-face)))
-                 (goto-char beg0)))))))))))
-
-(add-hook 'racket--repl-before-run-hook #'racket--remove-coverage-overlays)
-
-(defun racket--remove-coverage-overlays ()
-  (remove-overlays (point-min) (point-max) 'name 'racket-uncovered-overlay))
 
 (defun racket-raco-test ()
   "Do \"raco test -x <file>\" in a shell buffer to run the \"test\" submodule."
@@ -487,6 +366,36 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
               (up-list)
             (forward-sexp)))
       (scan-error nil))))
+
+;;; Completion
+
+(defvar racket--completion-candidates (list racket-type-list
+                                            racket-keywords
+                                            racket-builtins-1-of-2
+                                            racket-builtins-2-of-2))
+
+(defun racket--completion-candidates-for-prefix (prefix)
+  (cl-reduce (lambda (results strs)
+               (append results (all-completions prefix strs)))
+             racket--completion-candidates
+             :initial-value ()))
+
+(defun racket-complete-at-point ()
+  "A value for the variable `completion-at-point-functions'.
+
+Completion candidates are drawn from the same symbols used for
+font-lock. This is a static list. If you want dynamic, smarter
+completion candidates, enable the minor mode
+`racket-check-syntax-mode'."
+  (racket--call-with-completion-prefix-positions
+   (lambda (beg end)
+     (list beg
+           end
+           (completion-table-dynamic
+            #'racket--completion-candidates-for-prefix)
+           :predicate #'identity
+           :exclusive 'no))))
+
 
 (provide 'racket-edit)
 

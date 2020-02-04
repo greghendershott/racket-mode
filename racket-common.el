@@ -28,8 +28,6 @@
 (require 'racket-ppss)
 (require 'racket-util)
 
-(declare-function racket-complete-at-point "racket-complete.el" (&optional predicate))
-
 (defvar racket-mode-abbrev-table nil)
 (define-abbrev-table 'racket-mode-abbrev-table ())
 
@@ -240,8 +238,6 @@ property whose value is STRING. The close | syntax is set by
   (setq-local fill-paragraph-function #'lisp-fill-paragraph)
   (setq-local adaptive-fill-mode nil)
   (setq-local outline-regexp ";;; \\|(....")
-  (setq-local completion-at-point-functions (list #'racket-complete-at-point))
-  (setq-local eldoc-documentation-function nil)
   (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function))
 
 

@@ -18,40 +18,8 @@
 
 (require 'racket-cmd)
 (require 'racket-util)
+(require 'racket-visit)
 (require 'shr)
-(declare-function racket--do-visit-def-or-mod "racket-edit.el")
-
-;; TODO: Rename to racket-repl-describe and move to racket-repl.el
-(defun racket-describe (&optional prefix)
-"Describe the identifier at point in a `*Racket Describe*` buffer.
-
-The intent is to give a quick reminder or introduction to
-something, regardless of whether it has installed documentation
--- and to do so within Emacs, without switching to a web browser.
-
-This buffer is also displayed when you use `company-mode' and
-press F1 or C-h in its pop up completion list.
-
-- If the identifier has installed Racket documentation, then a
-  simplified version of the HTML is presented in the buffer,
-  including the \"blue box\", documentation prose, and examples.
-
-- Otherwise, if the identifier is a function, then its signature
-  is displayed, for example `(name arg-1-name arg-2-name)`. If it
-  has a contract or a Typed Racket type, that is also displayed.
-
-You can quit the buffer by pressing q. Also, at the bottom of the
-buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for `racket-visit-definition' and
-`racket-doc'."
-  (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Describe: ")
-    ((and (pred stringp) str)
-     (racket--do-describe 'namespace str t
-                          (lambda ()
-                            (racket--do-visit-def-or-mod `(def namespace ,str)))
-                          (lambda ()
-                            (racket--cmd/async `(doc namespace ,str)))))))
 
 (defun racket--do-describe (how
                             str

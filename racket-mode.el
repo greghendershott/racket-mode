@@ -65,9 +65,9 @@
      ("M-C-u"       racket-backward-up-list)
      ("C-c C-p"     racket-cycle-paren-shapes)
      ("M-C-y"       racket-insert-lambda)
-     ("C-c C-d"     racket-doc)
-     ("C-c C-."     racket-describe)
-     ("M-."         racket-visit-definition)
+     ;; ("C-c C-d"     racket-doc)
+     ;; ("C-c C-."     racket-describe)
+     ;; ("M-."         racket-visit-definition)
      ("M-C-."       racket-visit-module)
      ("M-,"         racket-unvisit)
      ("C-c C-f"     racket-fold-all-tests)
@@ -111,7 +111,7 @@
     ["Align" racket-align]
     ["Unalign" racket-unalign]
     "---"
-    ["Visit Definition" racket-visit-definition]
+    ;; ["Visit Definition" racket-visit-definition]
     ["Visit Module" racket-visit-module]
     ["Return from Visit" racket-unvisit]
     "---"
@@ -125,8 +125,8 @@
     ["Trim Requires" racket-trim-requires]
     ["Use #lang racket/base" racket-base-requires]
     "---"
-    ["Racket Documentation" racket-doc]
-    ["Describe" racket-describe]
+    ;; ["Racket Documentation" racket-doc]
+    ;; ["Describe" racket-describe]
     ["Start Faster" racket-mode-optimize-startup]
     ["Customize..." customize-mode]))
 
@@ -141,7 +141,9 @@
 \\{racket-mode-map}"
   (racket--common-variables)
   (racket--variables-imenu)
-  (hs-minor-mode t))
+  (hs-minor-mode t)
+  (setq-local completion-at-point-functions (list #'racket-complete-at-point))
+  (setq-local eldoc-documentation-function nil))
 
 ;;;###autoload
 (progn
