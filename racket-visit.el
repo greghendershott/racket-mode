@@ -22,42 +22,6 @@
 
 ;;; visiting defs and mods
 
-(defun racket-visit-definition (&optional prefix)
-  "Visit definition of identifier at point.
-
-If there is no identifier at point, prompt for it.
-
-With a prefix, always prompt for the identifier.
-
-Use `racket-unvisit' to return.
-
-Please keep in mind the following limitations:
-
-- Only finds symbols defined in the current namespace. You may
-  need to `racket-run' the current buffer, first.
-
-- Only visits the definition of module-level identifiers --
-  things for which Racket's \"identifier-binding\" function
-  returns information. This does NOT include things such as
-  local (nested) function definitions or \"racket/class\" member
-  functions. To find those in the same file, you'll need to use a
-  normal Emacs text search function like `isearch-forward'.
-
-- If the definition is found in Racket's \"#%kernel\" module, it
-  will tell you so but won't visit the definition site."
-  (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")
-    (`nil nil)
-    (str (racket--visit-symbol-definition str))))
-
-(defun racket-lispy-visit-symbol-definition (str)
-  "Function called by lispy.el's `lispy-goto-symbol' for Racket
-symbol definition lookup."
-  (racket--visit-symbol-definition str))
-
-(defun racket--visit-symbol-definition (str)
-  (racket--do-visit-def-or-mod `(def namespace ,str)))
-
 (defun racket-visit-module (&optional prefix)
   "Visit definition of module at point, e.g. net/url or \"file.rkt\".
 

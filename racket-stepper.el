@@ -18,9 +18,8 @@
 
 (require 'easymenu)
 (require 'rx)
-(require 'racket-common)
+(require 'racket-cmd)
 (require 'racket-custom)
-(require 'racket-repl)
 (require 'racket-util)
 
 ;; Need to define this before racket-stepper-mode

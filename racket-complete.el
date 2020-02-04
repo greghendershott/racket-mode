@@ -19,7 +19,7 @@
 (require 'cl-lib)
 (require 'ido)
 (require 'racket-custom)
-(require 'racket-repl)
+;;(require 'racket-repl)
 (require 'racket-keywords-and-builtins)
 (require 'racket-describe)
 (require 'racket-visit)
@@ -78,38 +78,6 @@
 ;; override keys, and add things like completion-at-point-functions,
 ;; to enhance the simpler racket-mode.
 
-;;; namespace symbols i.e. completion candidates
-
-(defvar-local racket--namespace-symbols (list racket-type-list
-                                              racket-keywords
-                                              racket-builtins-1-of-2
-                                              racket-builtins-2-of-2)
-  "A list of list of Racket namespace symbols suitable for completion candidates.
-
-This var is local to each buffer, including the REPL buffer.
-
-Defaults to the `defconst' lists of strings we use for font-lock.
-To support this case -- while avoiding `concat' and allocation of
-such large lists of strings -- is why it is a list of list of
-strings.")
-
-(defun racket--refresh-namespace-symbols ()
-  "Both current `racket-mode' buffer and `racket-repl-mode' buffer (if any)."
-  (racket--cmd/async
-   '(syms)
-   (lambda (syms)
-     (setq racket--namespace-symbols (list syms))
-     (with-racket-repl-buffer
-       (setq racket--namespace-symbols (list syms))))))
-
-(add-hook 'racket--repl-after-run-hook #'racket--refresh-namespace-symbols)
-
-(defun racket--completion-candidates-for-prefix (prefix)
-  (cl-reduce (lambda (results strs)
-               (append results (all-completions prefix strs)))
-             racket--namespace-symbols
-             :initial-value ()))
-
 (defun racket--call-with-completion-prefix-positions (proc)
   (let ((beg (save-excursion (skip-syntax-backward "^-()>") (point))))
     (unless (or (eq beg (point-max))
@@ -123,110 +91,6 @@ strings.")
                (<= (+ beg 2) end) ;prefix at least 2 chars
                (funcall proc beg end))))
         (scan-error nil)))))
-
-(defun racket-complete-at-point ()
-  "A value for the variable `completion-at-point-functions'.
-
-Completion candidates are drawn from the namespace symbols
-resulting from the most recent `racket-run' of each .rkt file. If
-a file has never been run, candidates default to values also used
-for font-lock -- an assortment of symbols from common Racket
-modules such as `racket`, `typed/racket`, and `syntax/parse`.
-
-Returns extra :company-doc-buffer and :company-location
-properties for use by the `company-mode' backend `company-capf'
--- but not :company-docsig, because it is frequently impossible
-to supply this quickly enough or at all."
-  (racket--call-with-completion-prefix-positions
-   (lambda (beg end)
-     (list beg
-           end
-           (completion-table-dynamic
-            #'racket--completion-candidates-for-prefix)
-           :predicate #'identity
-           :exclusive 'no
-           ;; racket--get-type is too slow for :company-docsig
-           :company-doc-buffer #'racket--company-doc-buffer
-           :company-location #'racket--company-location))))
-
-(defun racket--company-doc-buffer (str)
-  (racket--do-describe 'namespace str))
-
-(defun racket--company-location (str)
-  (pcase (racket--cmd/await `(def-in-namespace ,str))
-    (`(,path ,line ,_) (cons path line))))
-
-;;; "types" (i.e. TR types, contracts, and/or function signatures)
-
-(defvar-local racket--type-cache (make-hash-table :test #'eq)
-  "Memoize \",type\" commands in Racket REPL.
-
-This var is local to each buffer, including the REPL buffer.
-
-`racket-run' should call `racket-invalidate-type-cache'.")
-
-(defun racket--invalidate-type-cache ()
-  "Both current `racket-mode' buffer and `racket-repl-mode' buffer (if any)."
-  (setq racket--type-cache (make-hash-table :test #'eq))
-  (with-racket-repl-buffer
-    (setq racket--type-cache (make-hash-table :test #'eq))))
-
-(add-hook 'racket--repl-before-run-hook #'racket--invalidate-type-cache)
-
-(defun racket--get-type (str)
-  (let* ((sym (intern str))
-         (v (gethash sym racket--type-cache)))
-    (or v
-        (and (racket--in-repl-or-its-file-p)
-             (pcase (racket--cmd/await `(type ,sym))
-               (`() `())
-               (v   (puthash sym v racket--type-cache)
-                    v))))))
-
-;;; eldoc
-
-(defun racket-eldoc-function ()
-  "A value suitable for the variable `eldoc-documentation-function'.
-
-By default Racket Mode sets `eldoc-documentation-function' to nil
--- no `eldoc-mode' support. You may set it to this function in a
-`racket-mode-hook' if you really want to use `eldoc-mode' with
-Racket. But it is not a very satisfying experience because Racket
-is not a very \"eldoc friendly\" language. Although Racket Mode
-attempts to discover argument lists, contracts, or types this
-doesn't work in many common cases:
-
-- Many Racket functions are defined in #%kernel. There's no easy
-  way to determine their argument lists. Most are not provided
-  with a contract.
-
-- Many of the interesting Racket forms are syntax (macros) not
-  functions. There's no easy way to determine their \"argument
-  lists\".
-
-A more satisfying experience is to use `racket-describe' or
-`racket-doc'."
-  (and (> (point) (point-min))
-       (save-excursion
-         (condition-case nil
-             ;; The char-before and looking-at checks below are to
-             ;; avoid calling `racket--get-type' when the sexp is
-             ;; quoted or when its first elem couldn't be a Racket
-             ;; function name.
-             (let* ((beg (progn
-                           (backward-up-list)
-                           (and (not (memq (char-before) '(?` ?' ?,)))
-                                (progn (forward-char 1) (point)))))
-                    (beg (and beg (looking-at "[^0-9#'`,\"]") beg))
-                    (end (and beg (progn (forward-sexp) (point))))
-                    (end (and end
-                              (char-after (point))
-                              (eq ?\s (char-syntax (char-after (point))))
-                              end))
-                    (sym (and beg end (buffer-substring-no-properties beg end)))
-                    (str (and sym (racket--get-type sym))))
-               str)
-           (scan-error nil)))))
 
 (provide 'racket-complete)
 

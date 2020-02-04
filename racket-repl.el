@@ -17,6 +17,7 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'racket-complete)
 (require 'racket-custom)
 (require 'racket-common)
 (require 'racket-util)
@@ -154,6 +155,136 @@ buffer to run command-line Racket."
   (unless noselect
     (select-window (get-buffer-window racket--repl-buffer-name t))))
 
+;;; Run
+
+;; Note: These commands are to be run when current-buffer is a
+;; `racket-mode' buffer. The reason they are defined here is because
+;; they use a `racket-repl-mode' buffer, and, one could use
+;; `racket-mode' to edit files without using these commands.
+
+;;;###autoload
+(defun racket-run (&optional prefix)
+  "Save and evaluate the buffer in REPL.
+
+With one C-u prefix, uses errortrace for improved stack traces.
+Otherwise follows the `racket-error-context' setting.
+
+With two C-u prefixes, instruments code for step debugging. See
+`racket-debug-mode' and the variable `racket-debuggable-files'.
+
+If point is within a Racket module form, the REPL \"enters\" that
+submodule (uses its language info and namespace).
+
+When you run again, the file is evaluated from scratch --- the
+custodian releases resources like threads and the evaluation
+environment is reset to the contents of the file. In other words,
+like DrRacket, this provides the predictability of a \"static\"
+baseline, plus the ability to explore interactively using the
+REPL.
+
+See also `racket-run-and-switch-to-repl', which is even more like
+DrRacket's Run because it selects the REPL window (gives it the
+focus), too.
+
+When `racket-retry-as-skeleton' is true, if your source file has
+an error, a \"skeleton\" of your file is evaluated to get
+identifiers from module languages, require forms, and
+definitions. That way, things like completion and
+`racket-describe' are more likely to work while you edit the file
+to fix the error. If not even the \"skeleton\" evaluation
+succeeds, you'll have only identifiers provided by racket/base,
+until you fix the error and run again.
+
+Output in the Racket REPL buffer that describes a file and
+position is automatically \"linkified\". Examples of such text
+include:
+
+- Racket error messages.
+- rackunit test failure location messages.
+- print representation of path objects.
+
+To visit these locations, move point there and press RET or mouse
+click. Or, use the standard `next-error' and `previous-error'
+commands."
+  (interactive "P")
+  (racket--repl-run (racket--what-to-run)
+                    (pcase prefix
+                      (`(4)  'high)
+                      (`(16) 'debug)
+                      (_     racket-error-context))))
+
+(defun racket-run-with-errortrace ()
+  "Run with `racket-error-context' temporarily set to \"high\".
+This is just `racket-run' with a C-u prefix. Defined as a function so
+it can be a menu target."
+  (interactive)
+  (racket-run '(4)))
+
+(defun racket-run-with-debugging ()
+  "Run with `racket-error-context' temporarily set to 'debug.
+This is just `racket-run' with a double C-u prefix. Defined as a
+function so it can be a menu target."
+  (interactive)
+  (racket-run '(16)))
+
+(defun racket-run-and-switch-to-repl (&optional prefix)
+  "This is `racket-run' followed by `racket-repl'."
+  (interactive "P")
+  (racket-run prefix)
+  (racket-repl))
+
+(defun racket-test (&optional coverage)
+  "Run the \"test\" submodule.
+
+With prefix, runs with coverage instrumentation and highlights
+uncovered code.
+
+Put your tests in a \"test\" submodule. For example:
+
+#+BEGIN_SRC racket
+    (module+ test
+      (require rackunit)
+      (check-true #t))
+#+END_SRC
+
+Any rackunit test failure messages show the location. You may use
+`next-error' to jump to the location of each failing test.
+
+See also:
+- `racket-fold-all-tests'
+- `racket-unfold-all-tests'
+"
+  (interactive "P")
+  (let ((mod-path (list 'submod (racket--buffer-file-name) 'test))
+        (buf (current-buffer)))
+    (if (not coverage)
+        (racket--repl-run mod-path)
+      (message "Running test submodule with coverage instrumentation...")
+      (racket--repl-run
+       mod-path
+       'coverage
+       (lambda ()
+         (message "Getting coverage results...")
+         (racket--cmd/async
+          `(get-uncovered)
+          (lambda (xs)
+            (pcase xs
+              (`() (message "Full coverage."))
+              ((and xs `((,beg0 . ,_) . ,_))
+               (message "Missing coverage in %s place(s)." (length xs))
+               (with-current-buffer buf
+                 (dolist (x xs)
+                   (let ((o (make-overlay (car x) (cdr x) buf)))
+                     (overlay-put o 'name 'racket-uncovered-overlay)
+                     (overlay-put o 'priority 100)
+                     (overlay-put o 'face font-lock-warning-face)))
+                 (goto-char beg0)))))))))))
+
+(add-hook 'racket--repl-before-run-hook #'racket--remove-coverage-overlays)
+
+(defun racket--remove-coverage-overlays ()
+  (remove-overlays (point-min) (point-max) 'name 'racket-uncovered-overlay))
+
 (defconst racket--minimum-required-version "6.0"
   "The minimum version of Racket required by run.rkt.
 
@@ -233,6 +364,8 @@ equivalent to #'ignore.
 
 - If the REPL is live, send a 'run command to the backend's TCP
   server."
+  (unless (eq major-mode 'racket-mode)
+    (user-error "Only works from a `racket-mode' buffer"))
   (run-hook-with-args 'racket--repl-before-run-hook)
   (let ((cmd (racket--repl-make-run-command (or what-to-run (racket--what-to-run))
                                             (or context-level racket-error-context)))
@@ -558,6 +691,203 @@ With prefix arg, open the N-th last shown image."
 (defun racket--repl-normal-output-filter (_txt)
   (racket-repl--replace-images))
 
+;;; Completion
+
+(defvar racket--repl-namespace-symbols nil)
+
+(defun racket--repl-refresh-namespace-symbols ()
+  (racket--cmd/async
+   '(syms)
+   (lambda (syms)
+     (setq racket--repl-namespace-symbols (list syms)))))
+
+(add-hook 'racket--repl-after-run-hook #'racket--repl-refresh-namespace-symbols)
+
+(defun racket--repl-completion-candidates-for-prefix (prefix)
+  (cl-reduce (lambda (results strs)
+               (append results (all-completions prefix strs)))
+             racket--repl-namespace-symbols
+             :initial-value ()))
+
+(defun racket-repl-complete-at-point ()
+  "A value for the variable `completion-at-point-functions'.
+
+Completion candidates are drawn from the REPL namespace symbols.
+
+Returns extra :company-doc-buffer and :company-location
+properties for use by the `company-mode' backend `company-capf'
+-- but not :company-docsig, because it is frequently impossible
+to supply this quickly enough or at all."
+  (racket--call-with-completion-prefix-positions
+   (lambda (beg end)
+     (list beg
+           end
+           (completion-table-dynamic
+            #'racket--repl-completion-candidates-for-prefix)
+           :predicate #'identity
+           :exclusive 'no
+           ;; racket--get-type is too slow for :company-docsig
+           :company-doc-buffer #'racket--repl-company-doc-buffer
+           :company-location #'racket--repl-company-location))))
+
+(defun racket--repl-company-doc-buffer (str)
+  (racket--do-describe 'namespace str))
+
+(defun racket--repl-company-location (str)
+  (pcase (racket--cmd/await `(def-in-namespace ,str))
+    (`(,path ,line ,_) (cons path line))))
+
+
+;;; eldoc
+
+
+(defvar racket--repl-type-cache (make-hash-table :test #'eq)
+  "Memoize \"type\" commands in Racket REPL.")
+
+(defun racket--repl-invalidate-type-cache ()
+  (setq racket--repl-type-cache (make-hash-table :test #'eq)))
+
+(add-hook 'racket--repl-before-run-hook #'racket--repl-invalidate-type-cache)
+
+(defun racket--repl-get-type (str)
+  (let* ((sym (intern str))
+         (v (gethash sym racket--repl-type-cache)))
+    (or v
+        (pcase (racket--cmd/await `(type ,sym))
+          (`() `())
+          (v   (puthash sym v racket--repl-type-cache)
+               v)))))
+
+(defun racket-repl-eldoc-function ()
+  "A value for the variable `eldoc-documentation-function'.
+
+By default `racket-repl-mode' sets `eldoc-documentation-function'
+to nil -- no `eldoc-mode' support. You may set it to this
+function in a `racket-repl-mode-hook' if you really want to use
+`eldoc-mode'. But it is not a very satisfying experience because
+Racket is not a very \"eldoc friendly\" language. Although Racket
+Mode attempts to discover argument lists, contracts, or types
+this doesn't work in many common cases:
+
+- Many Racket functions are defined in #%kernel. There's no easy
+  way to determine their argument lists. Most are not provided
+  with a contract.
+
+- Many of the interesting Racket forms are syntax (macros) not
+  functions. There's no easy way to determine their \"argument
+  lists\".
+
+A more satisfying experience is to use `racket-describe' or
+`racket-doc'."
+  (and (> (point) (point-min))
+       (save-excursion
+         (condition-case nil
+             ;; The char-before and looking-at checks below are to
+             ;; avoid calling `racket--get-type' when the sexp is
+             ;; quoted or when its first elem couldn't be a Racket
+             ;; function name.
+             (let* ((beg (progn
+                           (backward-up-list)
+                           (and (not (memq (char-before) '(?` ?' ?,)))
+                                (progn (forward-char 1) (point)))))
+                    (beg (and beg (looking-at "[^0-9#'`,\"]") beg))
+                    (end (and beg (progn (forward-sexp) (point))))
+                    (end (and end
+                              (char-after (point))
+                              (eq ?\s (char-syntax (char-after (point))))
+                              end))
+                    (sym (and beg end (buffer-substring-no-properties beg end)))
+                    (str (and sym (racket--repl-get-type sym))))
+               str)
+           (scan-error nil)))))
+
+;;; describe
+
+(defun racket-repl-describe (&optional prefix)
+"Describe the identifier at point in a `*Racket Describe*` buffer.
+
+The intent is to give a quick reminder or introduction to
+something, regardless of whether it has installed documentation
+-- and to do so within Emacs, without switching to a web browser.
+
+This buffer is also displayed when you use `company-mode' and
+press F1 or C-h in its pop up completion list.
+
+- If the identifier has installed Racket documentation, then a
+  simplified version of the HTML is presented in the buffer,
+  including the \"blue box\", documentation prose, and examples.
+
+- Otherwise, if the identifier is a function, then its signature
+  is displayed, for example `(name arg-1-name arg-2-name)`. If it
+  has a contract or a Typed Racket type, that is also displayed.
+
+You can quit the buffer by pressing q. Also, at the bottom of the
+buffer are Emacs buttons -- which you may navigate among using
+TAB, and activate using RET -- for `racket-visit-definition' and
+`racket-doc'."
+  (interactive "P")
+  (pcase (racket--symbol-at-point-or-prompt prefix "Describe: ")
+    ((and (pred stringp) str)
+     (racket--do-describe 'namespace str t
+                          (lambda ()
+                            (racket--do-visit-def-or-mod `(def namespace ,str)))
+                          (lambda ()
+                            (racket--cmd/async `(doc namespace ,str)))))))
+
+;;; Visit
+
+(defun racket-repl-visit-definition (&optional prefix)
+  "Visit definition of identifier at point.
+
+If there is no identifier at point, prompt for it.
+
+With a prefix, always prompt for the identifier.
+
+Use `racket-unvisit' to return.
+
+Please keep in mind the following limitations:
+
+- Finds symbols defined in the REPL's namespace, which only
+  includes imported and module binding -- but not local bindings.
+
+- If the definition is found in Racket's \"#%kernel\" module, it
+  will tell you so but won't visit the definition site."
+  (interactive "P")
+  (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")
+    ((and (pred stringp) str) (racket--repl-visit-symbol-definition str))))
+
+;; TODO: Move to racket-check-syntax-mode, or arrange for this to call
+;; that or this depending on current-buffer.
+(defun racket-lispy-visit-symbol-definition (str)
+  "Function called by lispy.el's `lispy-goto-symbol' for Racket
+symbol definition lookup."
+  (racket--repl-visit-symbol-definition str))
+
+(defun racket--repl-visit-symbol-definition (str)
+  (racket--do-visit-def-or-mod `(def namespace ,str)))
+
+;;; Doc
+
+(defun racket-repl-doc (&optional prefix)
+  "View documentation of the identifier or string at point.
+
+Uses the default external web browser.
+
+If point is an identifier required in the current namespace that
+has help, opens the web browser directly at that help
+topic. (i.e. Uses the identifier variant of racket/help.)
+
+Otherwise, opens the 'search for a term' page, where you can
+choose among multiple possibilities. (i.e. Uses the string
+variant of racket/help.)
+
+With a C-u prefix, prompts for the identifier or quoted string,
+instead of looking at point."
+  (interactive "P")
+  (pcase (racket--symbol-at-point-or-prompt prefix "Racket help for: ")
+    (`nil nil)
+    (str (racket--cmd/async `(doc ,str)))))
+
 ;;; racket-repl-mode
 
 (defvar racket-repl-mode-map
@@ -575,9 +905,9 @@ With prefix arg, open the N-th last shown image."
      ("C-c C-e e"       racket-expand-last-sexp)
      ("C-c C-e r"       racket-expand-region)
      ("M-C-y"           racket-insert-lambda)
-     ("C-c C-d"         racket-doc)
-     ("C-c C-."         racket-describe)
-     ("M-."             racket-visit-definition)
+     ("C-c C-d"         racket-repl-doc)
+     ("C-c C-."         racket-repl-describe)
+     ("M-."             racket-repl-visit-definition)
      ("C-M-."           racket-visit-module)
      ("M-,"             racket-unvisit)
      ("C-c C-z"         racket-repl-switch-to-edit)
@@ -619,6 +949,8 @@ With prefix arg, open the N-th last shown image."
   (setq-local comint-scroll-show-maximum-output nil) ;t slow for big outputs
   (setq-local mode-line-process nil)
   (setq-local comint-input-filter #'racket-repl--input-filter)
+  (setq-local completion-at-point-functions (list #'racket-repl-complete-at-point))
+  (setq-local eldoc-documentation-function nil)
   (add-hook 'comint-output-filter-functions #'racket--repl-normal-output-filter nil t)
   (compilation-setup t)
   (setq-local

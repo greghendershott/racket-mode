@@ -17,7 +17,6 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'cl-lib)
-(require 'racket-edit)
 (require 'racket-repl)
 
 (defvar racket--profile-results nil)
