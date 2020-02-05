@@ -439,6 +439,8 @@ used. See the latter for more information."
       (add-hook 'comint-output-filter-functions
                 #'racket--repl-startup-output-filter
                 nil t)
+      (add-hook 'racket--cmd-after-open-thunks
+                #'racket--repl-refresh-namespace-symbols)
       (let ((proc (get-buffer-process racket--repl-buffer-name)))
         (message "Starting %s to run %s ..." racket-program run.rkt)
         (set-process-coding-system proc 'utf-8 'utf-8) ;for e.g. λ
@@ -699,15 +701,12 @@ With prefix arg, open the N-th last shown image."
   (racket--cmd/async
    '(syms)
    (lambda (syms)
-     (setq racket--repl-namespace-symbols (list syms)))))
+     (setq racket--repl-namespace-symbols syms))))
 
-(add-hook 'racket--repl-after-run-hook #'racket--repl-refresh-namespace-symbols)
+(add-hook 'racket--repl-after-run-hook   #'racket--repl-refresh-namespace-symbols)
 
 (defun racket--repl-completion-candidates-for-prefix (prefix)
-  (cl-reduce (lambda (results strs)
-               (append results (all-completions prefix strs)))
-             racket--repl-namespace-symbols
-             :initial-value ()))
+  (all-completions prefix racket--repl-namespace-symbols))
 
 (defun racket-repl-complete-at-point ()
   "A value for the variable `completion-at-point-functions'.
@@ -726,7 +725,6 @@ to supply this quickly enough or at all."
             #'racket--repl-completion-candidates-for-prefix)
            :predicate #'identity
            :exclusive 'no
-           ;; racket--get-type is too slow for :company-docsig
            :company-doc-buffer #'racket--repl-company-doc-buffer
            :company-location #'racket--repl-company-location))))
 
