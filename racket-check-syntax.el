@@ -68,8 +68,13 @@ find that too \"noisy\", set this to nil.")
 (easy-menu-define racket-check-syntax-mode-menu racket-check-syntax-mode-map
   "Menu for Racket Check Syntax mode."
   '("Racket Check Syntax"
+    ["Next Definition" racket-check-syntax-next-definition]
+    ["Previous Definition" racket-check-syntax-previous-definition]
+    ["Next Use" racket-check-syntax-next-use]
+    ["Previous Use" racket-check-syntax-previous-use]
+    ["Rename" racket-check-syntax-rename]
+    "---"
     ["Visit Definition" racket-check-syntax-visit-definition]
-    ["Visit Module" racket-visit-module]
     ["Return from Visit" racket-unvisit]
     "---"
     ["Racket Documentation" racket-check-syntax-documentation]
