@@ -195,7 +195,7 @@
      (define hs
        (match* [kind-xexprs provide-xexprs]
          [[`() `()] `()]
-         [[ks   ps] `((span ([style "color: #C0C0C0"]) ,@ks 'nbsp ,@ps))]))
+         [[ks   ps] `((span () ,@ks 'nbsp ,@ps))]))
      `(div () ,@hs ,@xs)]))
 
 (module+ test
