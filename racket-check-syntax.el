@@ -658,8 +658,7 @@ won't be found merely from expansion."
            'racket-check-syntax-visit nil
            'racket-check-syntax-doc   nil
            'cursor-sensor-functions   nil))
-    (racket--remove-face-text-properties (point-min) (point-max)
-                                         '(racket-check-syntax-error-face
+    (racket--remove-face-text-properties '(racket-check-syntax-error-face
                                            racket-check-syntax-unused-face))
     (racket--unhighlight-all)))
 
