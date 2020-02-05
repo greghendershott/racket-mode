@@ -82,8 +82,6 @@ find that too \"noisy\", set this to nil.")
     "---"
     ["Customize..." customize-mode]))
 
-(defvar-local racket--check-syntax-original-next-error-function next-error-function)
-
 ;;;###autoload
 (define-minor-mode racket-check-syntax-mode
   "Use drracket/check-syntax to annotate and to enhance completion and visit definition.
@@ -182,9 +180,7 @@ commands directly to whatever keys you prefer.
          (add-hook 'completion-at-point-functions
                    #'racket-check-syntax-complete-at-point
                    nil t)
-         (setq-local racket--check-syntax-original-next-error-function
-                     next-error-function)
-         (setq-local next-error-function #'racket-check-syntax-next-error)
+         (setq next-error-function #'racket-check-syntax-next-error)
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 1)))
         (t
@@ -196,6 +192,7 @@ commands directly to whatever keys you prefer.
          (remove-hook 'completion-at-point-functions
                       #'racket-check-syntax-complete-at-point
                       t)
+         (kill-local-variable next-error-function) ;correct?
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 0)))))
 
@@ -462,16 +459,19 @@ If point is instead on a definition, then go to its first use."
                                            'entered)))))
 
 (defun racket--check-syntax-forward-prop (prop amt)
-  "Move point to the next or previous occurrence of PROP."
-  (let ((f (if (< 0 amt)
-               #'next-single-property-change
-             #'previous-single-property-change)))
-    (pcase (funcall f (point) prop)
+  "Move point to the next or previous occurrence of PROP, if any.
+If moved, return the new position, else nil."
+  ;; FIXME: Handle more than just -1 or 1
+  (let ((f (cl-case amt
+             (-1 #'previous-single-property-change)
+             ( 1 #'next-single-property-change))))
+    (pcase (and f (funcall f (point) prop))
       ((and (pred integerp) pos)
        ;; Unless this is where the prop starts, find that.
        (unless (get-text-property pos prop)
          (setq pos (funcall f pos prop)))
-       (when pos (goto-char pos))))))
+       (when pos (goto-char pos))
+       pos))))
 
 (defun racket-check-syntax-next-definition ()
   "Move point to the next definition."
@@ -483,18 +483,51 @@ If point is instead on a definition, then go to its first use."
   (interactive)
   (racket--check-syntax-forward-prop 'racket-check-syntax-def -1))
 
-(defun racket-check-syntax-next-error (&optional arg reset)
-  "Move point to the next check-syntax error, if any.
-Otherwise, call the original error-function."
+;;; Errors
+
+(defvar-local racket--check-syntax-errors       (vector))
+(defvar-local racket--check-syntax-errors-index 0)
+
+(defun racket--check-syntax-clear-errors ()
+  (setq racket--check-syntax-errors       (vector))
+  (setq racket--check-syntax-errors-index 0))
+
+(defun racket--check-syntax-add-error (path beg str)
+  (setq racket--check-syntax-errors
+        (vconcat racket--check-syntax-errors
+                 (vector (list path beg str)))))
+
+(defun racket-check-syntax-next-error (&optional amt reset)
+  "Our value for the variable `next-error-function'.
+
+If there are any check-syntax errors, move point to the next or
+previous one, if any.
+
+Otherwise delegate to `compilation-next-error-function' in
+`racket-repl-mode'. That way, things still work as you would want
+when using `racket-run', e.g. for runtime evaluation errors that
+won't be found merely from expansion."
   (interactive)
-  (pcase (save-excursion
-           (goto-char (point-min))
-           (racket--check-syntax-forward-prop 'racket-check-syntax-err 1))
-    ((and (pred integerp) pos)
-     (goto-char pos))
-    (_
-     (when racket--check-syntax-original-next-error-function
-       (funcall racket--check-syntax-original-next-error-function arg reset)))))
+  (let ((len (length racket--check-syntax-errors)))
+    (cond ((< 0 len)
+           (when reset
+             (setq racket--check-syntax-errors-index 0))
+           (setq racket--check-syntax-errors-index
+                 (+ racket--check-syntax-errors-index amt))
+           (cond ((and (<= 1 racket--check-syntax-errors-index)
+                       (<= racket--check-syntax-errors-index len))
+                  (pcase-let ((`(,path ,pos ,str)
+                               (aref racket--check-syntax-errors
+                                     (1- racket--check-syntax-errors-index))))
+                    (cond ((equal path (racket--buffer-file-name))
+                           (goto-char pos))
+                          (t
+                           (find-file path)
+                           (goto-char pos)))
+                    (message "%s" str)))
+                 (t (message "No more errors"))))
+          (t
+           (with-racket-repl-buffer (compilation-next-error-function amt reset))))))
 
 ;;; Update
 
@@ -510,6 +543,8 @@ Otherwise, call the original error-function."
                              (racket--restoring-current-buffer
                               #'racket--check-syntax-annotate))))
 
+;; TODO: Also provide a command wrapping this, for people who want to
+;; disable the timer and run manually.
 (defun racket--check-syntax-annotate (&optional after-thunk)
   (racket--check-syntax-set-status 'running)
   (racket--cmd/async
@@ -518,6 +553,7 @@ Otherwise, call the original error-function."
    (racket--restoring-current-buffer
     (lambda (response)
       (racket-show "")
+      (racket--check-syntax-clear-errors)
       (pcase response
         (`(check-syntax-ok
            (completions . ,completions)
@@ -539,6 +575,12 @@ Otherwise, call the original error-function."
     (dolist (x xs)
       (pcase x
         (`(error ,path ,beg ,end ,str)
+         ;; Show now using echo area, only. (Not tooltip because error
+         ;; loc might not be at point, or even in the selected
+         ;; window.. Not header-line also because that, plus unlikely
+         ;; to show whole error message in one line.)
+         (message "%s" str)
+         (racket--check-syntax-add-error path beg str)
          (when (equal path (racket--buffer-file-name))
            (let ((beg (copy-marker beg t))
                  (end (copy-marker end t)))
@@ -547,19 +589,12 @@ Otherwise, call the original error-function."
               (list 'help-echo               nil
                     'racket-check-syntax-def nil
                     'racket-check-syntax-use nil
-                    'racket-check-syntax-err nil
                     'cursor-sensor-functions nil))
              (add-text-properties
               beg end
               (list 'face                    racket-check-syntax-error-face
-                    'racket-check-syntax-err str
                     'help-echo               str
-                    'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
-             ;; Show now using echo area, only. (Not tooltip because
-             ;; error loc might not be at point. Not header-line
-             ;; because unlikely to show whole error message in one
-             ;; line.)
-             (message "%s" str))))
+                    'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor))))))
         (`(info ,beg ,end ,str)
          (let ((beg (copy-marker beg t))
                (end (copy-marker end t)))
@@ -614,12 +649,12 @@ Otherwise, call the original error-function."
 (defun racket--check-syntax-clear ()
   (with-silent-modifications
     (setq racket--check-syntax-completions nil)
+    (racket--check-syntax-clear-errors)
     (remove-text-properties
      (point-min) (point-max)
      (list 'help-echo                 nil
            'racket-check-syntax-def   nil
            'racket-check-syntax-use   nil
-           'racket-check-syntax-err   nil
            'racket-check-syntax-visit nil
            'racket-check-syntax-doc   nil
            'cursor-sensor-functions   nil))
