@@ -3,7 +3,6 @@
 (require racket/contract
          racket/format
          racket/match
-         syntax/modresolve
          "syntax.rkt")
 
 (provide how/c
@@ -58,8 +57,7 @@
   ;; For module bindings, identifier-binding will say that the binding
   ;; exists. Good! But. Until a module declaration is evaluated, the
   ;; module has no name. As a result, the module-path-index is
-  ;; reported as #<module-path-index='|expanded module|> -- i.e.
-  ;; (module-path-index-join #f #f) a.k.a. "self" module. That would
+  ;; reported as #<module-path-index='|expanded module|>. That would
   ;; resolve to <path:"/path/to/expanded module.rkt"> -- wrong.
   ;;
   ;; [With module->namespace, it's not merely expanded syntax, it's
@@ -68,8 +66,8 @@
   ;;
   ;; Work-around: Let's record the path in the identifier's
   ;; syntax-source. Doing so won't change what identifier-binding
-  ;; reports, but it means mpi->path can handle such a "self" module
-  ;; path index by instead using the path from syntax-source.
+  ;; reports, but it means mpi->path can handle such a module path
+  ;; index by instead using the path from syntax-source.
   (datum->syntax (syntax-property exp-mod-stx 'module-body-context)
                  sym
                  (list (string->path path-str) #f #f #f #f)))
@@ -116,10 +114,6 @@
             (cons nominal-source-id (id+mpi->path id nominal-source-mpi)))]
      [_ #f]))
 
-(define (self-module? mpi)
-  (define-values (a b) (module-path-index-split mpi))
-  (and (not a) (not b)))
-
 (define/contract (id+mpi->path id mpi)
   (-> identifier?
       module-path-index?
@@ -128,18 +122,16 @@
   (define (hash-percent-symbol v)
     (and (symbol? v)
          (regexp-match? #px"^#%" (symbol->string v))))
-  (cond [(self-module? mpi)
-         (list (syntax-source id))]
-        [else
-         (match (resolved-module-path-name
-                 (module-path-index-resolve mpi))
-           [(? hash-percent-symbol) 'kernel]
-           [(? path-string? path)   (list path)]
-           [(? symbol? sym)
-            (list (build-path (current-load-relative-directory)
-                              (~a sym ".rkt")))]
-           [(list (? path-string? path) (? symbol? subs) ...)
-            (list* path subs)])]))
+  (match (resolved-module-path-name
+          (module-path-index-resolve mpi))
+    [(? hash-percent-symbol) 'kernel]
+    [(? path-string? path)   (list path)]
+    ['|expanded module|      (list (syntax-source id))]
+    [(? symbol? sym)
+     (list (build-path (current-load-relative-directory)
+                       (~a sym ".rkt")))]
+    [(list (? path-string? path) (? symbol? subs) ...)
+     (list* path subs)]))
 
 (module+ test
   (require rackunit
