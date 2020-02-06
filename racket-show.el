@@ -17,33 +17,8 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'racket-util)
+(require 'racket-custom)
 (require 'pos-tip)
-
-(defvar racket-show-functions
-  (list #'racket-show-echo-area
-        ;#'racket-show-header-line
-        #'racket-show-pos-tip)
-  "A special hook variable to customize `racket-show'.
-
-Example functions include
-
-  - `racket-show-echo-area'
-  - `racket-show-pos-tip'
-  - `racket-show-header-line'
-
-Each function should accept two arguments: VAL and POS.
-
-VAL is:
-
-  - Non-blank string: Display the string somehow.
-
-  - Blank string: Hide any previously displayed string.
-
-  - nil: Hide any persistent UI that might have been created to
-    show strings, such as by `racket-show-header-line'.
-
-POS is the buffer position for which to show the message, nil
-meaning use some default position.")
 
 (defun racket-show (val &optional pos)
   (dolist (f racket-show-functions)

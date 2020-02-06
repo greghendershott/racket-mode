@@ -345,7 +345,7 @@ TAB, and activate using RET -- for `racket-visit-definition' and
   "When point is on a use, go to its definition.
 
 With a prefix, prompts you, but beware this only knows about
-definitions used in the main module, not submodules."
+definitions used in the file module, not submodules."
   (interactive)
   (unless (pcase (get-text-property (point) 'racket-check-syntax-use)
             (`(,beg ,_end)
