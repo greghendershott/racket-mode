@@ -360,7 +360,7 @@ definitions used in the main module, not submodules."
           (str (racket--do-visit-def-or-mod `(def ,(buffer-file-name) ,str))))
       (pcase (get-text-property (point) 'racket-check-syntax-visit)
         (`(,path ,subs ,ids)
-         (racket--do-visit-def-or-mod `(def/dr-jump ,path ,subs ,ids)))
+         (racket--do-visit-def-or-mod `(def/dr-jump ,(buffer-file-name) ,path ,subs ,ids)))
         (_
          (pcase (get-text-property (point) 'racket-check-syntax-def)
            (`(import ,id . ,_)
