@@ -19,37 +19,6 @@
 
 (define location/c (list/c path-string? natural-number/c natural-number/c))
 
-;; Handle `how` argument that is a path. That path doesn't necessarily
-;; exist as a file, or the file may be outdated. The path may simply
-;; be the syntax-source for a string we read and expanded, e.g. from
-;; an unsaved Emacs buffer. When we need to get syntax for such a
-;; path, we get it from our cache. Things like identifier-binding may
-;; tell us to look at such a path, or at a path for a real existing
-;; file. This helps sort out the various cases.
-
-(define (get-syntax how path-str k)
-  (match how
-    ['namespace                (file->syntax path-str k)]
-    [(? path-string? how-path) (if (path-string-equal? path-str how-path)
-                                   (path->existing-syntax path-str k)
-                                   (file->syntax          path-str k))]))
-
-(define (get-expanded-syntax how path-str k)
-  (match how
-    ['namespace                (file->expanded-syntax path-str k)]
-    [(? path-string? how-path) (if (path-string-equal? path-str how-path)
-                                   (path->existing-expanded-syntax path-str k)
-                                   (file->expanded-syntax          path-str k))]))
-
-(define (path-string-equal? a b)
-  (equal? (->path-string a)
-          (->path-string b)))
-
-(define (->path-string v)
-  (cond [(path? v)        (path->string v)]
-        [(path-string? v) v]
-        [else             (error 'path-string-equal? "not a path or path-string?" v)]))
-
 ;; Try to find a definition.
 (define/contract (find-definition how str)
   (-> how/c string?
@@ -63,8 +32,11 @@
 
 ;; Likewise, but using information already supplied by
 ;; drracket/check-syntax, i.e. this is how to "force" that "delay".
+;; (We could have done this earlier and returned this information as
+;; part of the original chek-syntax result -- but doing so would have
+;; been too slow.)
 (define/contract (find-definition/drracket-jump how path submods id-strs)
-  (-> how/c path-string? (listof symbol?) (listof string?)
+  (-> (and/c how/c (not/c 'namespace)) path-string? (listof symbol?) (listof string?)
       (or/c #f 'kernel location/c))
   (for/or ([id-str (in-list id-strs)])
     (match (def-in-file (string->symbol id-str) how path submods)
@@ -284,3 +256,39 @@
     (check-equal? (find-definition "/tmp/x.rkt" "module-variable-binding")
                   `(,path-str 1 79))))
 
+;; These `get-syntax` and `get-expanded-syntax` functions handle where
+;; we get the syntax.
+;;
+;; The special case is when `how` is a path-string. That path doesn't
+;; necessarily exist as a file, or the file may be outdated. The path
+;; may simply be the syntax-source for a string we read and expanded,
+;; e.g. from an unsaved Emacs buffer. So when we need to get syntax
+;; for such a path, we need to get it from our cache, from a file.
+;; (How it got in the cache previously was from some check-syntax.)
+;;
+;; Things like identifier-binding may tell us to look at such a path,
+;; or at a path for a real existing/updated file. This helps sort out
+;; the various cases.
+
+(define (get-syntax how path-str k)
+  (match how
+    ['namespace                (file->syntax path-str k)]
+    [(? path-string? how-path) (if (path-string-equal? path-str how-path)
+                                   (path->existing-syntax path-str k)
+                                   (file->syntax          path-str k))]))
+
+(define (get-expanded-syntax how path-str k)
+  (match how
+    ['namespace                (file->expanded-syntax path-str k)]
+    [(? path-string? how-path) (if (path-string-equal? path-str how-path)
+                                   (path->existing-expanded-syntax path-str k)
+                                   (file->expanded-syntax          path-str k))]))
+
+(define (path-string-equal? a b)
+  (equal? (->path-string a)
+          (->path-string b)))
+
+(define (->path-string v)
+  (cond [(path? v)        (path->string v)]
+        [(path-string? v) v]
+        [else             (error 'path-string-equal? "not a path or path-string?" v)]))

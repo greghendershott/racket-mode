@@ -262,20 +262,25 @@ TAB, and activate using RET -- for `racket-visit-definition' and
      (let ((how (pcase (get-text-property (point) 'racket-check-syntax-doc)
                   (`(,path ,anchor) `(,path . ,anchor))
                   (_                (buffer-file-name))))
-           ;; Effectively lazy `racket-check-syntax-visit-definition'
-           ;; where we capture the values from the buffer now.`
+           ;; These two thunks are effectively lazy
+           ;; `racket-check-syntax-visit-definition' and
+           ;; `racket-check-syntax-documentation' using values
+           ;; captured from the racket-mode buffer now. They are used
+           ;; if/when the user "clicks" a "button" in the Describe
+           ;; buffer. By the time that happens, this racket-mode
+           ;; buffer might no longer exist. Even if it exists, point
+           ;; may have changed.
            (visit-thunk
             (pcase (get-text-property (point) 'racket-check-syntax-visit)
               (`(,path ,subs ,ids)
                (lambda ()
-                 (racket--do-visit-def-or-mod `(def/dr-jump ,path ,subs ,ids))))
+                 (racket--do-visit-def-or-mod
+                  `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids))))
               (_
                (pcase (get-text-property (point) 'racket-check-syntax-def)
                  (`(import ,id . ,_)
                   (lambda ()
                     (racket--do-visit-def-or-mod `(mod ,id))))))))
-           ;; Effectively lazy `racket-check-syntax-documentation'
-           ;; where we capture the values from the buffer now.
            (doc-thunk
             (pcase (get-text-property (point) 'racket-check-syntax-doc)
               (`(,path ,anchor)
@@ -360,7 +365,8 @@ definitions used in the file module, not submodules."
           (str (racket--do-visit-def-or-mod `(def ,(buffer-file-name) ,str))))
       (pcase (get-text-property (point) 'racket-check-syntax-visit)
         (`(,path ,subs ,ids)
-         (racket--do-visit-def-or-mod `(def/dr-jump ,path ,subs ,ids)))
+         (racket--do-visit-def-or-mod
+          `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids)))
         (_
          (pcase (get-text-property (point) 'racket-check-syntax-def)
            (`(import ,id . ,_)
