@@ -830,7 +830,8 @@ TAB, and activate using RET -- for `racket-visit-definition' and
                           (lambda ()
                             (racket--do-visit-def-or-mod `(def namespace ,str)))
                           (lambda ()
-                            (racket--cmd/async `(doc namespace ,str)))))))
+                            (racket--cmd/async `(doc namespace ,str)
+                                               #'browse-url))))))
 
 ;;; Visit
 
@@ -883,8 +884,8 @@ With a C-u prefix, prompts for the identifier or quoted string,
 instead of looking at point."
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Racket help for: ")
-    (`nil nil)
-    (str (racket--cmd/async `(doc ,str)))))
+    ((and (pred stringp) str) (racket--cmd/async `(doc namespace ,str)
+                                                 #'browse-url))))
 
 ;;; racket-repl-mode
 

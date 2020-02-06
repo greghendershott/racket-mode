@@ -288,7 +288,8 @@ TAB, and activate using RET -- for `racket-visit-definition' and
                  (browse-url (concat "file://" path "#" anchor))))
               (_
                (lambda ()
-                 (racket--cmd/async `(doc ,(buffer-file-name) ,str)))))))
+                 (racket--cmd/async `(doc ,(buffer-file-name) ,str)
+                                    #'browse-url))))))
        (racket--do-describe how str t visit-thunk doc-thunk)))))
 
 (defconst racket--check-syntax-overlay-name 'racket-check-syntax-overlay)
@@ -381,7 +382,8 @@ definitions used in the file module, not submodules."
     (_
      (pcase (racket--symbol-at-point-or-prompt nil "Documentation for: ")
        ((and (pred stringp) str)
-        (racket--cmd/async `(doc ,(buffer-file-name) ,str)))))))
+        (racket--cmd/async `(doc ,(buffer-file-name) ,str)
+                           #'browse-url))))))
 
 (defun racket-check-syntax--forward-use (amt)
   "When point is on a use, go AMT uses forward. AMT may be negative.
