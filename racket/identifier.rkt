@@ -126,7 +126,10 @@
           (module-path-index-resolve mpi))
     [(? hash-percent-symbol) 'kernel]
     [(? path-string? path)   (list path)]
-    ['|expanded module|      (list (syntax-source id))]
+    [(or '|expanded module|
+         ;; Needed for Racket <7.0, not interned.
+         (app symbol->string "expanded module"))
+     (list (syntax-source id))]
     [(? symbol? sym)
      (list (build-path (current-load-relative-directory)
                        (~a sym ".rkt")))]
