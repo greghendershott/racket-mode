@@ -95,12 +95,19 @@
 (module+ test
   (require rackunit
            version/utils
+           (only-in xml string->xexpr)
            "../syntax.rkt")
   ;; Check something that is in the namespace resulting from
   ;; module->namespace on, say, this source file.
   (parameterize ([current-namespace (module->namespace (syntax-source #'this-file))])
-    (check-equal? (describe 'namespace "describe")
-                  "<div><h1>(describe how str)</h1><pre>(-&gt; (or/c (or/c (quote namespace) path-string?) (cons/c path-string? string?)) string? string?)</pre><br/></div>"))
+    (check-equal?
+     ;; Convert back to an xexpr because easier to grok test and also
+     ;; older xexpr->string probably used <br /> instead of <br/>.
+     (string->xexpr (describe 'namespace "describe"))
+     `(div ()
+       (h1 () "(describe how str)")
+       (pre ()  "(-" ">" " (or/c (or/c (quote namespace) path-string?) (cons/c path-string? string?)) string? string?)")
+       (br ()))))
 
   (when (version<=? "6.5" (version))
     ;; Check something that is not in the current namespace, but is an
@@ -116,5 +123,8 @@
     (string->expanded-syntax path-str code-str void)
 
     ;; Note that this doesn't find contracts, just sigs.
-    (check-equal? (describe path-str "fun")
-                  "<div><h1>(fun a b c)</h1><br/></div>")))
+    (check-equal?
+     (string->xexpr (describe path-str "fun"))
+     `(div ()
+       (h1 () "(fun a b c)")
+       (br ())))))
