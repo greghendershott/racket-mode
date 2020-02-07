@@ -60,10 +60,6 @@
   ;; reported as #<module-path-index='|expanded module|>. That would
   ;; resolve to <path:"/path/to/expanded module.rkt"> -- wrong.
   ;;
-  ;; [With module->namespace, it's not merely expanded syntax, it's
-  ;; also evaluated, so the module gets a name, so identifier-binding
-  ;; will report the path.]
-  ;;
   ;; Work-around: Let's record the path in the identifier's
   ;; syntax-source. Doing so won't change what identifier-binding
   ;; reports, but it means mpi->path can handle such a module path
@@ -75,7 +71,7 @@
 
 ;;; Massaging values returned by identifier-binding
 
-;; A composition that does the right thing, including when making an
+ ;; A composition that does the right thing, including when making an
 ;; identifier that is a module binding.
 (define (->identifier-resolved-binding-info how v k)
   (->identifier how v
@@ -119,22 +115,32 @@
       module-path-index?
       (or/c 'kernel
             (cons/c path-string? (listof symbol?))))
-  (define (hash-percent-symbol v)
-    (and (symbol? v)
-         (regexp-match? #px"^#%" (symbol->string v))))
-  (match (resolved-module-path-name
-          (module-path-index-resolve mpi))
-    [(? hash-percent-symbol) 'kernel]
-    [(? path-string? path)   (list path)]
-    [(or '|expanded module|
-         ;; Needed for Racket <7.0, not interned.
-         (app symbol->string "expanded module"))
-     (list (syntax-source id))]
-    [(? symbol? sym)
-     (list (build-path (current-load-relative-directory)
-                       (~a sym ".rkt")))]
-    [(list (? path-string? path) (? symbol? subs) ...)
-     (list* path subs)]))
+  (cond [;; We could check below for the interned -- or not in older
+         ;; Rackets -- symbol '|expanded module|. That seems smelly.
+         ;; Instead if we're a "self" module, and if the identifier
+         ;; has a location -- probably supplied above by our
+         ;; expanded-module+symbol->identifier -- use that source.
+         (and (self-module? mpi)
+              (syntax-source id))
+         (list (syntax-source id))]
+        [else
+         (match (resolved-module-path-name
+                 (module-path-index-resolve mpi))
+           [(? hash-percent-symbol) 'kernel]
+           [(? path-string? path)   (list path)]
+           [(? symbol? sym)
+            (list (build-path (current-load-relative-directory)
+                              (~a sym ".rkt")))]
+           [(list (? path-string? path) (? symbol? subs) ...)
+            (list* path subs)])]))
+
+(define (self-module? mpi)
+  (define-values (a b) (module-path-index-split mpi))
+  (and (not a) (not b)))
+
+(define (hash-percent-symbol v)
+  (and (symbol? v)
+       (regexp-match? #px"^#%" (symbol->string v))))
 
 (module+ test
   (require rackunit
