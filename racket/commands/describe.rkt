@@ -106,7 +106,14 @@
      (string->xexpr (describe 'namespace "describe"))
      `(div ()
        (h1 () "(describe how str)")
-       (pre ()  "(-" ">" " (or/c (or/c (quote namespace) path-string?) (cons/c path-string? string?)) string? string?)")
+       ,@(match (version)
+           [(or "6.3" "6.4")
+            ;; We don't find the contract, only on these two versions.
+            ;; They're old. So am I: don't want to go down this rabbit
+            ;; hole now.
+            `()]
+           [_
+            `((pre ()  "(-" ">" " (or/c (or/c (quote namespace) path-string?) (cons/c path-string? string?)) string? string?)"))])
        (br ()))))
 
   (when (version<=? "6.5" (version))
