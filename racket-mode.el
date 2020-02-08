@@ -30,7 +30,7 @@
 ;;; Code:
 
 (require 'racket-edit)
-(require 'racket-check-syntax)
+(require 'racket-xp)
 (require 'racket-smart-open)
 (require 'racket-imenu)
 (require 'racket-profile)
@@ -97,9 +97,9 @@
     ["Switch to REPL" racket-repl]
     ("Tools"
      ["Profile" racket-profile]
-     ["Check Syntax" racket-check-syntax-mode]
      ["Error Trace" racket-run-with-errortrace]
-     ["Step Debug" racket-run-with-debugging])
+     ["Step Debug" racket-run-with-debugging]
+     ["Toggle XP Mode" racket-xp-mode])
     "---"
     ["Comment" comment-dwim]
     ["Insert λ" racket-insert-lambda]

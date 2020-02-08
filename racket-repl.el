@@ -18,9 +18,11 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'racket-complete)
+(require 'racket-describe)
 (require 'racket-custom)
 (require 'racket-common)
 (require 'racket-util)
+(require 'racket-visit)
 (require 'racket-cmd)
 (require 'comint)
 (require 'compile)
@@ -855,8 +857,8 @@ Please keep in mind the following limitations:
   (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")
     ((and (pred stringp) str) (racket--repl-visit-symbol-definition str))))
 
-;; TODO: Move to racket-check-syntax-mode, or arrange for this to call
-;; that or this depending on current-buffer.
+;; TODO: Move to `racket-xp-mode', or arrange for this to call that or
+;; this depending on current-buffer.
 (defun racket-lispy-visit-symbol-definition (str)
   "Function called by lispy.el's `lispy-goto-symbol' for Racket
 symbol definition lookup."

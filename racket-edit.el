@@ -385,8 +385,7 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
 
 Completion candidates are drawn from the same symbols used for
 font-lock. This is a static list. If you want dynamic, smarter
-completion candidates, enable the minor mode
-`racket-check-syntax-mode'."
+completion candidates, enable the minor mode `racket-xp-mode'."
   (racket--call-with-completion-prefix-positions
    (lambda (beg end)
      (list beg

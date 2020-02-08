@@ -173,8 +173,8 @@ you probably also want to customize the \"reverse\":
   :type 'function
   :safe #'functionp)
 
-(defcustom racket-check-syntax-after-change-refresh-delay 1
-  "Seconds to wait before refreshing `racket-check-syntax-mode' annotations."
+(defcustom racket-xp-after-change-refresh-delay 1
+  "Seconds to wait before refreshing `racket-xp-mode' annotations."
   :tag "Racket Check-Syntax After Change Refresh Delay"
   :type 'integer
   :safe #'integerp
@@ -378,24 +378,24 @@ meaning use some default position."
        :tag ,tag
        :group 'racket-faces)))
 
-(defface-racket racket-check-syntax-def-face
+(defface-racket racket-xp-def-face
   '((t (:inherit match :underline (:style line))))
-  "Face `racket-check-syntax-mode' uses to highlight definitions."
+  "Face `racket-xp-mode' uses to highlight definitions."
   "Check Syntax Def Face")
 
-(defface-racket racket-check-syntax-use-face
+(defface-racket racket-xp-use-face
   '((t (:inherit match)))
-  "Face `racket-check-syntax-mode' uses to highlight uses."
+  "Face `racket-xp-mode' uses to highlight uses."
   "Check Syntax Use Face")
 
-(defface-racket racket-check-syntax-error-face
+(defface-racket racket-xp-error-face
   '((t (:underline (:color "red" :style wave))))
-  "Face `racket-check-syntax-mode' uses to highlight errors."
+  "Face `racket-xp-mode' uses to highlight errors."
   "Check Syntax Error Face")
 
-(defface-racket racket-check-syntax-unused-face
+(defface-racket racket-xp-unused-face
   '((t (:strike-through t)))
-  "Face `racket-check-syntax-mode' uses to highlight unused requires or definitions."
+  "Face `racket-xp-mode' uses to highlight unused requires or definitions."
   "Check Syntax Unused Face")
 
 (defface-racket racket-keyword-argument-face

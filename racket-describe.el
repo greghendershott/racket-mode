@@ -36,8 +36,8 @@ know or care about in this function.
 STR is the string form of an identifier that is to be described.
 
 DISPLAY-AND-POP-TO-P should be t for use by direct user commands
-like `racket-describe' and `racket-check-syntax-describe' -- in
-which the buffer is displayed -- and nil for use as
+like `racket-xp-describe' and `racket-repl-describe' -- in which
+the buffer is displayed -- and nil for use as
 a :company-doc-buffer function.
 
 VISIT-THUNK and DOC-THUNK are, when not nil, used to insert

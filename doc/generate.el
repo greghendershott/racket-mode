@@ -77,7 +77,7 @@
     racket-insert-closing
     racket-cycle-paren-shapes
     racket-backward-up-list
-    racket-check-syntax-mode
+    racket-xp-mode
     racket-unicode-input-method-enable
     racket-align
     racket-unalign
@@ -148,7 +148,7 @@
     racket-user-command-line-arguments
     racket-path-from-emacs-to-racket-function
     racket-path-from-racket-to-emacs-function
-    racket-check-syntax-after-change-refresh-delay
+    racket-xp-after-change-refresh-delay
     "REPL variables"
     racket-history-filter-regexp
     racket-images-inline
@@ -195,8 +195,9 @@
   '(racket-keyword-argument-face
     racket-selfeval-face
     racket-here-string-face
-    racket-check-syntax-def-face
-    racket-check-syntax-use-face
+    racket-xp-def-face
+    racket-xp-use-face
+    racket-xp-unused-face
     racket-logger-config-face
     racket-logger-topic-face
     racket-logger-fatal-face

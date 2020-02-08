@@ -17,9 +17,10 @@
 (require 'faceup)
 (require 'paredit)
 (require 'racket-mode)
+(require 'racket-xp)
 (require 'racket-repl)
 (require 'racket-edit)
-(require 'racket-check-syntax)
+(require 'racket-xp)
 (require 'racket-common)
 (require 'racket-custom)
 (require 'racket-repl)
@@ -159,9 +160,9 @@
     (should (not (get-process "racket-command<1>")))
     (delete-file pathname)))
 
-;;; Check-syntax
+;;; racket-xp-mode
 
-(ert-deftest racket-tests/check-syntax ()
+(ert-deftest racket-tests/xp ()
   (when (version<= "6.2" (racket--version))
     (let* ((racket--cmd-connect-attempts racket-tests/connect-attempts)
            (racket-command-port (racket-tests/next-free-port))
@@ -171,27 +172,27 @@
            (code "#lang racket/base\n(define foobar 42)\nfoobar\n"))
       (write-region code nil pathname nil 'no-wrote-file-message)
       (find-file pathname)
-      ;; In case running test interactively in Emacs when the config
-      ;; loads check-syntax-mode automatically, disable it first.
-      (racket-check-syntax-mode 0)
-      (racket-check-syntax-mode 1)
-      (should racket-check-syntax-mode)
+      ;; In case running test interactively in Emacs where the config
+      ;; loads `racket-xp-mode' automatically, disable it first.
+      (racket-xp-mode 0)
+      (racket-xp-mode 1)
+      (should racket-xp-mode)
       (racket-tests/wait-for-command-server) ;should start automatically
       (sit-for (if ci-p 30.0 3.0))
       (goto-char (point-min))
-      (racket-check-syntax-next-definition)
+      (racket-xp-next-definition)
       (should (racket-tests/see-forward "racket/base"))
-      (racket-check-syntax-next-definition)
+      (racket-xp-next-definition)
       (should (racket-tests/see-forward "foobar"))
       (should (equal (get-text-property (point) 'help-echo) "1 bound occurrence"))
-      (racket-check-syntax-next-use)
+      (racket-xp-next-use)
       (should (racket-tests/see-forward "foobar"))
       (should (equal (get-text-property (point) 'help-echo) "Defined locally"))
       (goto-char (point-max))
       (insert "foo")
       (completion-at-point)
       (should (racket-tests/see-back "foobar"))
-      (racket-check-syntax-mode 0)
+      (racket-xp-mode 0)
       (with-racket-repl-buffer
         (racket-repl-exit))
       (delete-file pathname))))

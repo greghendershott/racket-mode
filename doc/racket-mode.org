@@ -29,7 +29,7 @@ The [[https://www.racket-mode.com/][Racket Mode]] package consists of a variety 
 - Modes to support specific features, such as:
   - {{{ref(racket-logger-mode)}}}
   - {{{ref(racket-profile-mode)}}}
-  - {{{ref(racket-check-syntax-mode)}}}
+  - {{{ref(racket-xp-mode)}}}
   - {{{ref(racket-debug-mode)}}}
 
 For code, issues, and pull requests, see the [[https://github.com/greghendershott/racket-mode][Git repo]].
@@ -133,7 +133,7 @@ Of course that means there must exist some Racket namespace. When you first visi
 
 Similarly, after you change the file, including its ~require~ forms, you'll need to {{{kbd(C-c C-c)}}} again to make the resulting set of identifiers available for completion.
 
-Optional: You can enable a minor mode to get completion candidates from local defintions: {{{see(racket-check-syntax-mode)}}}.
+Optional: You can enable a minor mode to get completion candidates from local defintions: {{{see(racket-xp-mode)}}}.
 
 To have {{{kbd(TAB)}}} do completion as well as indent, add the following to your Emacs init file:
 

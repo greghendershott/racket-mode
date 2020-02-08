@@ -186,7 +186,7 @@ passed to Racket backend. Likewise text properties are stripped."
 
 (unless (fboundp 'add-face-text-property)
   (defun add-face-text-property (beg end prop)
-    "This isn't generally correct but is sufficient for our use in `racket-check-syntax-mode'."
+    "This isn't generally correct but is sufficient for our use in `racket-xp-mode'."
     (put-text-property beg end
                        'face
                        (cons prop

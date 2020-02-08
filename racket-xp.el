@@ -1,4 +1,4 @@
-;;; racket-check-syntax.el -*- lexical-binding: t -*-
+;;; racket-xp.el -*- lexical-binding: t -*-
 
 ;; Copyright (c) 2013-2020 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
@@ -43,48 +43,49 @@
 ;; TODO: Expose as a defcustom? Or even as commands to turn on/off?
 ;; Also note there are really 3 categories here: 'local 'import
 ;; 'module-lang, so could be more granularity.
-(defvar racket-check-syntax-highlight-imports-p nil
-  "Highlight imported definitions and uses thereof? When nil,
-only local defs/uses are highlighted. When t, all are highlighted
--- similar to how DrRacket draws arrows for everything. If you
-find that too \"noisy\", set this to nil.")
+(defvar racket-xp-highlight-imports-p nil
+  "Highlight imported definitions and uses thereof?
 
-(defvar racket-check-syntax-control-c-hash-keymap
+When nil, only local defs/uses are highlighted. When t, all are
+highlighted -- similar to how DrRacket draws arrows for
+everything. If you find that too \"noisy\", set this to nil.")
+
+(defvar racket-xp-control-c-hash-keymap
   (racket--easy-keymap-define
-   `(("j" ,#'racket-check-syntax-next-definition)
-     ("k" ,#'racket-check-syntax-previous-definition)
-     ("n" ,#'racket-check-syntax-next-use)
-     ("p" ,#'racket-check-syntax-previous-use)
-     ("." ,#'racket-check-syntax-visit-definition)
-     ("r" ,#'racket-check-syntax-rename))) )
+   `(("j" ,#'racket-xp-next-definition)
+     ("k" ,#'racket-xp-previous-definition)
+     ("n" ,#'racket-xp-next-use)
+     ("p" ,#'racket-xp-previous-use)
+     ("." ,#'racket-xp-visit-definition)
+     ("r" ,#'racket-xp-rename))) )
 
-(defvar racket-check-syntax-mode-map
+(defvar racket-xp-mode-map
   (racket--easy-keymap-define
-   `(("C-c #"   ,racket-check-syntax-control-c-hash-keymap)
-     ("M-."     ,#'racket-check-syntax-visit-definition)
-     ("C-c C-." ,#'racket-check-syntax-describe)
-     ("C-c C-d" ,#'racket-check-syntax-documentation))))
+   `(("C-c #"   ,racket-xp-control-c-hash-keymap)
+     ("M-."     ,#'racket-xp-visit-definition)
+     ("C-c C-." ,#'racket-xp-describe)
+     ("C-c C-d" ,#'racket-xp-documentation))))
 
-(easy-menu-define racket-check-syntax-mode-menu racket-check-syntax-mode-map
+(easy-menu-define racket-xp-mode-menu racket-xp-mode-map
   "Menu for Racket Check Syntax mode."
   '("Racket Check Syntax"
-    ["Next Definition" racket-check-syntax-next-definition]
-    ["Previous Definition" racket-check-syntax-previous-definition]
-    ["Next Use" racket-check-syntax-next-use]
-    ["Previous Use" racket-check-syntax-previous-use]
-    ["Rename" racket-check-syntax-rename]
+    ["Next Definition" racket-xp-next-definition]
+    ["Previous Definition" racket-xp-previous-definition]
+    ["Next Use" racket-xp-next-use]
+    ["Previous Use" racket-xp-previous-use]
+    ["Rename" racket-xp-rename]
     "---"
-    ["Visit Definition" racket-check-syntax-visit-definition]
+    ["Visit Definition" racket-xp-visit-definition]
     ["Return from Visit" racket-unvisit]
     "---"
-    ["Racket Documentation" racket-check-syntax-documentation]
-    ["Describe" racket-check-syntax-describe]
+    ["Racket Documentation" racket-xp-documentation]
+    ["Describe" racket-xp-describe]
     "---"
     ["Customize..." customize-mode]))
 
 ;;;###autoload
-(define-minor-mode racket-check-syntax-mode
-  "Use drracket/check-syntax to annotate and to enhance completion and visit definition.
+(define-minor-mode racket-xp-mode
+  "A minor mode that analyzes expanded code to explain and explore.
 
 This minor mode is an optional enhancement to `racket-mode' edit
 buffers. Like any minor mode, you can turn it on or off for a
@@ -92,8 +93,8 @@ specific buffer. If you always want to use it, put the following
 code in your Emacs init file:
 
 #+BEGIN_SRC elisp
-    (require 'racket-check-syntax)
-    (add-hook 'racket-mode-hook #'racket-check-syntax-mode)
+    (require 'racket-xp)
+    (add-hook 'racket-mode-hook #'racket-xp-mode)
 #+END_SRC
 
 Note: This mode won't do anything unless/until the Racket Mode
@@ -101,15 +102,25 @@ back end is running. It will try to start the back end
 automatically. You do /not/ need to `racket-run' the buffer you
 are editing.
 
+This mode uses the `drracket/check-syntax` package to analyze
+fully-expanded programs, without needing to evaluate a.k.a.
+\"run\" them. The resulting analysis provides information for:
+
+- Visually annotating bindings -- local or imported definitions
+  and references to them.
+
+- Completion candidates.
+
+- Defintions' source and documentation.
+
 When point is on a definition or use, related items are
-highlighted using `racket-check-syntax-def-face' and
-`racket-check-syntax-use-face' -- instead of drawing arrows as in
-Dr Racket -- and \"mouse over\". Information is displayed using
-the function(s) in the hook variable `racket-show-functions'; it
-is also available when hovering the mouse cursor. Note: If you
-find these features too distracting and/or slow, you may disable
-`cursor-sensor-mode'. The remaining features discussed below will
-still work.
+highlighted using `racket-xp-def-face' and `racket-xp-use-face'
+-- instead of drawing arrows as in Dr Racket -- and \"mouse
+over\". Information is displayed using the function(s) in the
+hook variable `racket-show-functions'; it is also available when
+hovering the mouse cursor. Note: If you find these features too
+distracting and/or slow, you may disable `cursor-sensor-mode'.
+The remaining features discussed below will still work.
 
 You may also use commands to navigate among a definition and its
 uses, or to rename a local definitions and all its uses.
@@ -132,55 +143,55 @@ Not only can they distinguish the `x`s, they understand that the
 two `define`s are different.
 
 - \"M-.\" is rebound from `racket-visit-definition' to
-  `racket-check-syntax-visit-definition'.
+  `racket-xp-visit-definition'.
 
 - \"C-c C-.\" is rebound from `racket-describe' to
-  `racket-check-syntax-describe'.
+  `racket-xp-describe'.
 
 - \"C-c C-d\" is rebound from `racket-doc` to
-  `racket-check-syntax-documentation'.
+  `racket-xp-documentation'.
 
-- `racket-check-syntax-complete-at-point' is added to the
-  variable `completion-at-point-functions'. Note that in this
-  case, it is not smart about submodules; identifiers are assumed
-  to be those from the file's module. In addition to supplying
-  completion candidates, it supports the :company-location
-  property to inspect the definition of a candidate, and
-  supports :company-doc-buffer to view documentation.
+- `racket-xp-complete-at-point' is added to the variable
+  `completion-at-point-functions'. Note that in this case, it is
+  not smart about submodules; identifiers are assumed to be those
+  from the file's module. In addition to supplying completion
+  candidates, it supports the :company-location property to
+  inspect the definition of a candidate and the
+  :company-doc-buffer property to view its documentation.
 
 When you edit the buffer, existing annotations are retained;
 their positions are updated to reflect the edit. Annotations for
 new or deleted text are not requested until after
-`racket-check-syntax-after-change-refresh-delay' seconds. The
-request is made asynchronously so that Emacs will not block --
-the drracket/check-syntax analysis can take even tens of seconds
-for even moderately complex source files. When the results are
-ready, all annotations for the buffer are completely refreshed.
+`racket-xp-after-change-refresh-delay' seconds. The request is
+made asynchronously so that Emacs will not block -- the
+drracket/check-syntax analysis can take even tens of seconds for
+even moderately complex source files. When the results are ready,
+all annotations for the buffer are completely refreshed.
 
 Tip: This mode follows the convention that a minor mode may only
-use a prefix key consisting of C-c followed by a punctuation key.
-As a result, `racket-check-syntax-control-c-hash-keymap' is bound
-to \"C-c #\" by default. Although you might find this awkward to
+use a prefix key consisting of \"C-c\" followed by a punctuation
+key. As a result, `racket-xp-control-c-hash-keymap' is bound to
+\"C-c #\" by default. Although you might find this awkward to
 type, remember that as an Emacs user, you are free to bind this
 map to a more convenient prefix, and/or bind any individual
 commands directly to whatever keys you prefer.
 
-\\{racket-check-syntax-mode-map}
+\\{racket-xp-mode-map}
 "
-  :lighter racket-check-syntax-mode-lighter
-  :keymap racket-check-syntax-mode-map
+  :lighter racket-xp-mode-lighter
+  :keymap racket-xp-mode-map
   (unless (eq major-mode 'racket-mode)
-    (setq racket-check-syntax-mode nil)
-    (user-error "racket-check-syntax-mode only works with racket-mode buffers"))
-  (cond (racket-check-syntax-mode
+    (setq racket-xp-mode nil)
+    (user-error "racket-xp-mode only works with racket-mode buffers"))
+  (cond (racket-xp-mode
          (racket--check-syntax-annotate)
          (add-hook 'after-change-functions
                    #'racket--check-syntax-after-change-hook
                    t t)
          (add-hook 'completion-at-point-functions
-                   #'racket-check-syntax-complete-at-point
+                   #'racket-xp-complete-at-point
                    nil t)
-         (setq next-error-function #'racket-check-syntax-next-error)
+         (setq next-error-function #'racket-xp-next-error)
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 1)))
         (t
@@ -190,7 +201,7 @@ commands directly to whatever keys you prefer.
                       #'racket--check-syntax-after-change-hook
                       t)
          (remove-hook 'completion-at-point-functions
-                      #'racket-check-syntax-complete-at-point
+                      #'racket-xp-complete-at-point
                       t)
          (kill-local-variable next-error-function) ;correct?
          (when (fboundp 'cursor-sensor-mode)
@@ -198,10 +209,10 @@ commands directly to whatever keys you prefer.
 
 (defvar-local racket--check-syntax-completions nil)
 
-(defun racket-check-syntax-complete-at-point ()
+(defun racket-xp-complete-at-point ()
   "A value for the variable `completion-at-point-functions'.
 
-`racket-check-syntax-mode' adds this in addition to the one set
+`racket-xp-mode' adds this in addition to the one set
 by `racket-mode'."
   (racket--call-with-completion-prefix-positions
    (lambda (beg end)
@@ -230,7 +241,7 @@ by `racket-mode'."
         (let ((str (substring-no-properties str)))
           (racket--do-describe how str))))))
 
-(defun racket-check-syntax-describe (&optional prefix)
+(defun racket-xp-describe (&optional prefix)
 "Describe the identifier at point in a `*Racket Describe*` buffer.
 
 The intent is to give a quick reminder or introduction to
@@ -254,35 +265,34 @@ TAB, and activate using RET -- for `racket-visit-definition' and
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Describe: ")
     ((and (pred stringp) str)
-     ;; When there is a racket-check-syntax-doc property, use its path
+     ;; When there is a racket-xp-doc property, use its path
      ;; and anchor, because that will be correct even for an
      ;; identifier in a submodule with different imports than the file
      ;; module. Else supply the file path-str, and the "describe"
      ;; command will treat it as a file module identifier.
-     (let ((how (pcase (get-text-property (point) 'racket-check-syntax-doc)
+     (let ((how (pcase (get-text-property (point) 'racket-xp-doc)
                   (`(,path ,anchor) `(,path . ,anchor))
                   (_                (buffer-file-name))))
            ;; These two thunks are effectively lazy
-           ;; `racket-check-syntax-visit-definition' and
-           ;; `racket-check-syntax-documentation' using values
-           ;; captured from the racket-mode buffer now. They are used
-           ;; if/when the user "clicks" a "button" in the Describe
-           ;; buffer. By the time that happens, this racket-mode
-           ;; buffer might no longer exist. Even if it exists, point
-           ;; may have changed.
+           ;; `racket-xp-visit-definition' and
+           ;; `racket-xp-documentation' using values captured from the
+           ;; racket-mode buffer now. They are used if/when the user
+           ;; "clicks" a "button" in the Describe buffer. By the time
+           ;; that happens, this racket-mode buffer might no longer
+           ;; exist. Even if it exists, point may have changed.
            (visit-thunk
-            (pcase (get-text-property (point) 'racket-check-syntax-visit)
+            (pcase (get-text-property (point) 'racket-xp-visit)
               (`(,path ,subs ,ids)
                (lambda ()
                  (racket--do-visit-def-or-mod
                   `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids))))
               (_
-               (pcase (get-text-property (point) 'racket-check-syntax-def)
+               (pcase (get-text-property (point) 'racket-xp-def)
                  (`(import ,id . ,_)
                   (lambda ()
                     (racket--do-visit-def-or-mod `(mod ,id))))))))
            (doc-thunk
-            (pcase (get-text-property (point) 'racket-check-syntax-doc)
+            (pcase (get-text-property (point) 'racket-xp-doc)
               (`(,path ,anchor)
                (lambda ()
                  (browse-url (concat "file://" path "#" anchor))))
@@ -292,7 +302,7 @@ TAB, and activate using RET -- for `racket-visit-definition' and
                                     #'browse-url))))))
        (racket--do-describe how str t visit-thunk doc-thunk)))))
 
-(defconst racket--check-syntax-overlay-name 'racket-check-syntax-overlay)
+(defconst racket--check-syntax-overlay-name 'racket-xp-overlay)
 
 (defun racket--check-syntax-overlay-p (o)
   (eq (overlay-get o 'name)
@@ -320,42 +330,42 @@ TAB, and activate using RET -- for `racket-visit-definition' and
          ((and s (pred racket--non-empty-string-p))
           (let ((end (next-single-property-change new 'help-echo)))
             (racket-show s end))))
-       (pcase (get-text-property new 'racket-check-syntax-def)
+       (pcase (get-text-property new 'racket-xp-def)
          (`(,kind ,_id ,(and uses `((,beg ,_end) . ,_)))
           (when (or (eq kind 'local)
-                    racket-check-syntax-highlight-imports-p)
-            (pcase (get-text-property beg 'racket-check-syntax-use)
+                    racket-xp-highlight-imports-p)
+            (pcase (get-text-property beg 'racket-xp-use)
               (`(,beg ,end)
-               (racket--highlight beg end racket-check-syntax-def-face)))
+               (racket--highlight beg end racket-xp-def-face)))
             (dolist (use uses)
               (pcase use
                 (`(,beg ,end)
-                 (racket--highlight beg end racket-check-syntax-use-face)))))))
-       (pcase (get-text-property new 'racket-check-syntax-use)
+                 (racket--highlight beg end racket-xp-use-face)))))))
+       (pcase (get-text-property new 'racket-xp-use)
          (`(,def-beg ,def-end)
-          (pcase (get-text-property def-beg 'racket-check-syntax-def)
+          (pcase (get-text-property def-beg 'racket-xp-def)
             (`(,kind ,_id ,uses)
              (when (or (eq kind 'local)
-                       racket-check-syntax-highlight-imports-p)
-               (racket--highlight def-beg def-end racket-check-syntax-def-face)
+                       racket-xp-highlight-imports-p)
+               (racket--highlight def-beg def-end racket-xp-def-face)
                (dolist (use uses)
                  (pcase use
                    (`(,beg ,end)
-                    (racket--highlight beg end racket-check-syntax-use-face))))))))))
+                    (racket--highlight beg end racket-xp-use-face))))))))))
       ('left
        (when (get-text-property old 'help-echo)
          (racket-show ""))
        (racket--unhighlight-all)))))
 
-(defun racket-check-syntax-visit-definition (&optional prefix)
+(defun racket-xp-visit-definition (&optional prefix)
   "When point is on a use, go to its definition.
 
 With a prefix, prompts you, but beware this only knows about
 definitions used in the file module, not submodules."
   (interactive)
-  (unless (pcase (get-text-property (point) 'racket-check-syntax-use)
+  (unless (pcase (get-text-property (point) 'racket-xp-use)
             (`(,beg ,_end)
-             (pcase (get-text-property beg 'racket-check-syntax-def)
+             (pcase (get-text-property beg 'racket-xp-def)
                (`(local ,_id ,_uses)
                 (racket--push-loc)
                 (goto-char beg)
@@ -364,19 +374,19 @@ definitions used in the file module, not submodules."
         (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")
           (`nil nil)
           (str (racket--do-visit-def-or-mod `(def ,(buffer-file-name) ,str))))
-      (pcase (get-text-property (point) 'racket-check-syntax-visit)
+      (pcase (get-text-property (point) 'racket-xp-visit)
         (`(,path ,subs ,ids)
          (racket--do-visit-def-or-mod
           `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids)))
         (_
-         (pcase (get-text-property (point) 'racket-check-syntax-def)
+         (pcase (get-text-property (point) 'racket-xp-def)
            (`(import ,id . ,_)
             (racket--do-visit-def-or-mod `(mod ,id)))))))))
 
-(defun racket-check-syntax-documentation ()
+(defun racket-xp-documentation ()
   "Show help found by check-syntax, if any, else `racket-doc'."
   (interactive)
-  (pcase (get-text-property (point) 'racket-check-syntax-doc)
+  (pcase (get-text-property (point) 'racket-xp-doc)
     (`(,path ,anchor)
      (browse-url (concat "file://" path "#" anchor)))
     (_
@@ -385,15 +395,15 @@ definitions used in the file module, not submodules."
         (racket--cmd/async `(doc ,(buffer-file-name) ,str)
                            #'browse-url))))))
 
-(defun racket-check-syntax--forward-use (amt)
+(defun racket-xp--forward-use (amt)
   "When point is on a use, go AMT uses forward. AMT may be negative.
 
 Moving before/after the first/last use wraps around.
 
 If point is instead on a definition, then go to its first use."
-  (pcase (get-text-property (point) 'racket-check-syntax-use)
+  (pcase (get-text-property (point) 'racket-xp-use)
     (`(,beg ,_end)
-     (pcase (get-text-property beg 'racket-check-syntax-def)
+     (pcase (get-text-property beg 'racket-xp-def)
        (`(,_kind ,_id ,uses)
         (let* ((pt (point))
                (ix-this (cl-loop for ix from 0 to (1- (length uses))
@@ -406,35 +416,35 @@ If point is instead on a definition, then go to its first use."
                           (if (< ix-next 0) (1- (length uses)) ix-next)))
                (next (nth ix-next uses)))
           (goto-char (car next))))))
-    (_ (pcase (get-text-property (point) 'racket-check-syntax-def)
+    (_ (pcase (get-text-property (point) 'racket-xp-def)
          (`(,_kind ,_id ((,beg ,_end) . ,_)) (goto-char beg))))))
 
-(defun racket-check-syntax-next-use ()
+(defun racket-xp-next-use ()
   "When point is on a use, go to the next, sibling use."
   (interactive)
-  (racket-check-syntax--forward-use 1))
+  (racket-xp--forward-use 1))
 
-(defun racket-check-syntax-previous-use ()
+(defun racket-xp-previous-use ()
   "When point is on a use, go to the previous, sibling use."
   (interactive)
-  (racket-check-syntax--forward-use -1))
+  (racket-xp--forward-use -1))
 
-(defun racket-check-syntax-rename ()
+(defun racket-xp-rename ()
   "Rename a local definition and its uses in the current file."
   (interactive)
   (pcase-let*
       (;; Try to get a def prop and a use prop at point
-       (def-prop     (get-text-property (point) 'racket-check-syntax-def))
-       (uses-prop    (get-text-property (point) 'racket-check-syntax-use))
+       (def-prop     (get-text-property (point) 'racket-xp-def))
+       (uses-prop    (get-text-property (point) 'racket-xp-use))
        (_            (unless (or uses-prop def-prop)
                        (user-error "Not a definition or use")))
        ;; OK, we have one of the props. Use it to get the the other one.
        (uses-prop    (or uses-prop
                          (pcase-let ((`(,_kind ,_id ((,beg ,_end) . ,_)) def-prop))
-                           (get-text-property beg 'racket-check-syntax-use))))
+                           (get-text-property beg 'racket-xp-use))))
        (def-prop     (or def-prop
                          (pcase-let ((`(,beg ,_end) uses-prop))
-                           (get-text-property beg 'racket-check-syntax-def))))
+                           (get-text-property beg 'racket-xp-def))))
        (`(,kind ,old-id ,uses-locs)  def-prop)
        (_            (unless (eq kind 'local)
                        (user-error "Can only rename local definitions, not imports")))
@@ -481,15 +491,15 @@ If moved, return the new position, else nil."
        (when pos (goto-char pos))
        pos))))
 
-(defun racket-check-syntax-next-definition ()
+(defun racket-xp-next-definition ()
   "Move point to the next definition."
   (interactive)
-  (racket--check-syntax-forward-prop 'racket-check-syntax-def 1))
+  (racket--check-syntax-forward-prop 'racket-xp-def 1))
 
-(defun racket-check-syntax-previous-definition ()
+(defun racket-xp-previous-definition ()
   "Move point to the previous definition."
   (interactive)
-  (racket--check-syntax-forward-prop 'racket-check-syntax-def -1))
+  (racket--check-syntax-forward-prop 'racket-xp-def -1))
 
 ;;; Errors
 
@@ -505,7 +515,7 @@ If moved, return the new position, else nil."
         (vconcat racket--check-syntax-errors
                  (vector (list path beg str)))))
 
-(defun racket-check-syntax-next-error (&optional amt reset)
+(defun racket-xp-next-error (&optional amt reset)
   "Our value for the variable `next-error-function'.
 
 If there are any check-syntax errors, move point to the next or
@@ -546,7 +556,7 @@ won't be found merely from expansion."
     (cancel-timer racket--check-syntax-timer))
   (racket--check-syntax-set-status 'outdated)
   (setq racket--check-syntax-timer
-        (run-with-idle-timer racket-check-syntax-after-change-refresh-delay
+        (run-with-idle-timer racket-xp-after-change-refresh-delay
                              nil ;no repeat
                              (racket--restoring-current-buffer
                               #'racket--check-syntax-annotate))))
@@ -595,12 +605,12 @@ won't be found merely from expansion."
              (remove-text-properties
               beg end
               (list 'help-echo               nil
-                    'racket-check-syntax-def nil
-                    'racket-check-syntax-use nil
+                    'racket-xp-def           nil
+                    'racket-xp-use           nil
                     'cursor-sensor-functions nil))
              (add-text-properties
               beg end
-              (list 'face                    racket-check-syntax-error-face
+              (list 'face                    racket-xp-error-face
                     'help-echo               str
                     'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor))))))
         (`(info ,beg ,end ,str)
@@ -611,7 +621,7 @@ won't be found merely from expansion."
             (list 'help-echo               str
                   'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
            (when (string-equal str "no bound occurrences")
-             (add-face-text-property beg end racket-check-syntax-unused-face))))
+             (add-face-text-property beg end racket-xp-unused-face))))
         (`(unused-require ,beg ,end)
          (let ((beg (copy-marker beg t))
                (end (copy-marker end t)))
@@ -619,7 +629,7 @@ won't be found merely from expansion."
             beg end
             (list 'help-echo               "unused require"
                   'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
-           (add-face-text-property beg end racket-check-syntax-unused-face)))
+           (add-face-text-property beg end racket-xp-unused-face)))
         (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
          (let ((def-beg (copy-marker def-beg t))
                (def-end (copy-marker def-end t))
@@ -630,14 +640,14 @@ won't be found merely from expansion."
                                 uses)))
            (add-text-properties
             def-beg def-end
-            (list 'racket-check-syntax-def (list req id uses)
+            (list 'racket-xp-def (list req id uses)
                   'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
            (dolist (use uses)
              (pcase-let* ((`(,use-beg ,use-end) use))
                (add-text-properties
                 use-beg use-end
                 (append
-                 (list 'racket-check-syntax-use (list def-beg def-end)
+                 (list 'racket-xp-use           (list def-beg def-end)
                        'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor))
                  (when (eq req 'local)
                    (list 'help-echo "Defined locally"))))))))
@@ -646,13 +656,13 @@ won't be found merely from expansion."
                (end (copy-marker end t)))
            (add-text-properties
             beg end
-            (list 'racket-check-syntax-visit (list path subs ids)))))
+            (list 'racket-xp-visit (list path subs ids)))))
         (`(doc ,beg ,end ,path ,anchor)
          (let ((beg (copy-marker beg t))
                (end (copy-marker end t)))
            (add-text-properties
             beg end
-            (list 'racket-check-syntax-doc (list path anchor)))))))))
+            (list 'racket-xp-doc (list path anchor)))))))))
 
 (defun racket--check-syntax-clear ()
   (with-silent-modifications
@@ -660,14 +670,14 @@ won't be found merely from expansion."
     (racket--check-syntax-clear-errors)
     (remove-text-properties
      (point-min) (point-max)
-     (list 'help-echo                 nil
-           'racket-check-syntax-def   nil
-           'racket-check-syntax-use   nil
-           'racket-check-syntax-visit nil
-           'racket-check-syntax-doc   nil
-           'cursor-sensor-functions   nil))
-    (racket--remove-face-text-properties '(racket-check-syntax-error-face
-                                           racket-check-syntax-unused-face))
+     (list 'help-echo               nil
+           'racket-xp-def           nil
+           'racket-xp-use           nil
+           'racket-xp-visit         nil
+           'racket-xp-doc           nil
+           'cursor-sensor-functions nil))
+    (racket--remove-face-text-properties '(racket-xp-error-face
+                                           racket-xp-unused-face))
     (racket--unhighlight-all)))
 
 ;;; Mode line status
@@ -678,16 +688,16 @@ won't be found merely from expansion."
   (setq racket--check-syntax-mode-status which)
   (force-mode-line-update))
 
-(defcustom racket-check-syntax-mode-lighter
+(defcustom racket-xp-mode-lighter
   '(:eval (racket--check-syntax-mode-lighter))
-  "Mode line lighter for `racket-check-syntax-mode'.
+  "Mode line lighter for `racket-xp-mode'.
 Set to nil to disable the mode line completely."
   :group 'racket-mode
   :risky t
   :type 'sexp)
 
 (defun racket--check-syntax-mode-lighter ()
-  (let ((prefix "RktChk"))
+  (let ((prefix "Rkt"))
     (pcase-let*
         ((status (and (racket--cmd-open-p)
                       racket--check-syntax-mode-status))
@@ -698,7 +708,7 @@ Set to nil to disable the mode line completely."
             ((err)      `("✗" '(:inherit error)
                           "Syntax error"))
             ((outdated) `("…" nil
-                          "Waiting `racket-check-syntax-after-change-refresh-delay'"))
+                          "Waiting `racket-xp-after-change-refresh-delay'"))
             ((running)  '("λ" nil
                           "Getting analysis from Racket Mode back-end and annotating"))
             (otherwise  '("λ" '(:strike-through t)
@@ -709,6 +719,6 @@ Set to nil to disable the mode line completely."
                              `())
                          help-echo ,help-echo)))))
 
-(provide 'racket-check-syntax)
+(provide 'racket-xp)
 
-;; racket-check-syntax.el ends here
+;; racket-xp.el ends here
