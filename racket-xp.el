@@ -16,19 +16,6 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
-;;; The general approach here:
-;;;
-;;; - Add 'help-echo and 'point-{entered left} text properties with
-;;;   information supplied by the drracket/check-syntax module.
-;;;
-;;; - Refresh in an after-change hook, plus an idle-timer delay.
-;;;
-;;; - Point motion hooks add/remove temporarily overlays to highlight
-;;;   defs and uses. (We can't draw GUI arrows as in Dr Racket.)
-;;;
-;;; - Use a header line so our information isn't "fighting" with other
-;;;   things using the echo area.
-
 (require 'racket-custom)
 (require 'racket-repl)
 (require 'racket-complete)
