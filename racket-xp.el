@@ -67,8 +67,8 @@ everything. If you find that too \"noisy\", set this to nil.")
      ("C-c C-d" ,#'racket-xp-documentation))))
 
 (easy-menu-define racket-xp-mode-menu racket-xp-mode-map
-  "Menu for Racket Check Syntax mode."
-  '("Racket Check Syntax"
+  "Menu for `racket-xp-mode'."
+  '("RacketXP"
     ["Next Definition" racket-xp-next-definition]
     ["Previous Definition" racket-xp-previous-definition]
     ["Next Use" racket-xp-next-use]
@@ -125,39 +125,29 @@ The remaining features discussed below will still work.
 You may also use commands to navigate among a definition and its
 uses, or to rename a local definitions and all its uses.
 
-Various features augment or replace those in plain `racket-mode'.
-One advantage they share is that they do /not/ require the file
-to be `racket-run' in order to work properly. Also they usually
-are smarter about identifiers in submodules. For example:
+In the following little example, not only does
+`drracket/check-syntax` distinguish the various `x` bindings, it
+understands the two different imports of `define`:
 
 #+BEGIN_SRC racket
   #lang racket/base
   (define x 1)
   x
+  (let ([x x])
+    (+ x 1))
   (module m typed/racket/base
     (define x 2)
     x)
 #+END_SRC
 
-Not only can they distinguish the `x`s, they understand that the
-two `define`s are different.
-
-- \"M-.\" is rebound from `racket-visit-definition' to
-  `racket-xp-visit-definition'.
-
-- \"C-c C-.\" is rebound from `racket-describe' to
-  `racket-xp-describe'.
-
-- \"C-c C-d\" is rebound from `racket-doc` to
-  `racket-xp-documentation'.
-
-- `racket-xp-complete-at-point' is added to the variable
-  `completion-at-point-functions'. Note that in this case, it is
-  not smart about submodules; identifiers are assumed to be those
-  from the file's module. In addition to supplying completion
-  candidates, it supports the :company-location property to
-  inspect the definition of a candidate and the
-  :company-doc-buffer property to view its documentation.
+The function `racket-xp-complete-at-point' is added to the
+variable `completion-at-point-functions'. Note that in this case,
+it is not smart about submodules; identifiers are assumed to be
+definitions from the file's module or its imports. In addition to
+supplying completion candidates, it supports the
+`:company-location` property to inspect the definition of a
+candidate and the `:company-doc-buffer` property to view its
+documentation.
 
 When you edit the buffer, existing annotations are retained;
 their positions are updated to reflect the edit. Annotations for
@@ -360,8 +350,9 @@ TAB, and activate using RET -- for `racket-visit-definition' and
 (defun racket-xp-visit-definition (&optional prefix)
   "When point is on a use, go to its definition.
 
-With a prefix, prompts you, but beware this only knows about
-definitions used in the file module, not submodules."
+With a prefix, prompts you, but in this case beware it assumes
+definitions in or imported by the file module -- not locals or
+definitions in submodules."
   (interactive)
   (unless (pcase (get-text-property (point) 'racket-xp-use)
             (`(,beg ,_end)
@@ -384,7 +375,7 @@ definitions used in the file module, not submodules."
             (racket--do-visit-def-or-mod `(mod ,id)))))))))
 
 (defun racket-xp-documentation ()
-  "Show help found by check-syntax, if any, else `racket-doc'."
+  "Show documentation for the identifier at point."
   (interactive)
   (pcase (get-text-property (point) 'racket-xp-doc)
     (`(,path ,anchor)

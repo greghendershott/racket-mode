@@ -127,8 +127,8 @@ a more-helpful error message."
 When true: If your source file has an error, a \"skeleton\" of
 your file is evaluated to get identifiers from module languages,
 `require` forms, and definitions. That way, things like
-completion and `racket-describe' are more likely to work while
-you edit the file to fix the error.
+completion and `racket-repl-describe' are more likely to work
+while you edit the file to fix the error.
 
 Otherwise, you'll have only identifiers provided by
 `racket/base`, until you fix the error and run again.
@@ -381,22 +381,22 @@ meaning use some default position."
 (defface-racket racket-xp-def-face
   '((t (:inherit match :underline (:style line))))
   "Face `racket-xp-mode' uses to highlight definitions."
-  "Check Syntax Def Face")
+  "Definition Face")
 
 (defface-racket racket-xp-use-face
   '((t (:inherit match)))
   "Face `racket-xp-mode' uses to highlight uses."
-  "Check Syntax Use Face")
+  "Use Face")
 
 (defface-racket racket-xp-error-face
   '((t (:underline (:color "red" :style wave))))
   "Face `racket-xp-mode' uses to highlight errors."
-  "Check Syntax Error Face")
+  "Error Face")
 
 (defface-racket racket-xp-unused-face
   '((t (:strike-through t)))
   "Face `racket-xp-mode' uses to highlight unused requires or definitions."
-  "Check Syntax Unused Face")
+  "Unused Face")
 
 (defface-racket racket-keyword-argument-face
   '((((background dark))

@@ -186,7 +186,7 @@ By default Racket Mode sets ~eldoc-documentation-function~ to ~nil~ --- no ~eldo
 
 - Many of the interesting Racket forms are syntax (macros) not functions. There's no easy way to determine their "argument lists".
 
-A more satisfying experience is to use {{{ref(racket-describe)}}} or {{{ref(racket-doc)}}}.
+A more satisfying experience is to use {{{ref(racket-xp-describe)}}} or {{{ref(racket-xp-documentation)}}}.
 
 ** Start faster
 

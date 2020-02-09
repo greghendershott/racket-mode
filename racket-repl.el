@@ -192,8 +192,8 @@ When `racket-retry-as-skeleton' is true, if your source file has
 an error, a \"skeleton\" of your file is evaluated to get
 identifiers from module languages, require forms, and
 definitions. That way, things like completion and
-`racket-describe' are more likely to work while you edit the file
-to fix the error. If not even the \"skeleton\" evaluation
+`racket-repl-describe' are more likely to work while you edit the
+file to fix the error. If not even the \"skeleton\" evaluation
 succeeds, you'll have only identifiers provided by racket/base,
 until you fix the error and run again.
 
@@ -777,8 +777,9 @@ this doesn't work in many common cases:
   functions. There's no easy way to determine their \"argument
   lists\".
 
-A more satisfying experience is to use `racket-describe' or
-`racket-doc'."
+A more satisfying experience is to use `racket-xp-describe',
+`racket-repl-describe', `racket-xp-documentation', or
+`racket-repl-doc'."
   (and (> (point) (point-min))
        (save-excursion
          (condition-case nil
@@ -919,7 +920,7 @@ instead of looking at point."
 
 (easy-menu-define racket-repl-mode-menu racket-repl-mode-map
   "Menu for Racket REPL mode."
-  '("Racket"
+  '("Racket-REPL"
     ["Break" comint-interrupt-subjob]
     ["Exit" racket-repl-exit]
     "---"

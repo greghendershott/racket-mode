@@ -22,7 +22,7 @@
 (require 'racket-debug)
 (require 'racket-profile)
 (require 'racket-edit)
-(require 'racket-check-syntax)
+(require 'racket-xp)
 (require 'racket-util)
 (require 'racket-show)
 (require 'racket-unicode-input-method)
@@ -40,9 +40,33 @@
 ;;; Commands
 
 (defconst racket-generate--commands
-  '("Run"
+  '("Edit"
+    racket-insert-lambda
+    racket-fold-all-tests
+    racket-unfold-all-tests
+    racket-tidy-requires
+    racket-trim-requires
+    racket-base-requires
+    racket-indent-line
+    racket-smart-open-bracket-mode
+    racket-insert-closing
+    racket-cycle-paren-shapes
+    racket-backward-up-list
+    racket-unicode-input-method-enable
+    racket-align
+    racket-unalign
+    racket-complete-at-point
+    "Explore"
+    racket-xp-mode
+    racket-xp-visit-definition
+    racket-xp-describe
+    racket-xp-documentation
+    "Run"
     racket-run
     racket-repl
+    racket-repl-describe
+    racket-repl-doc
+    racket-repl-visit-definition
     racket-racket
     racket-profile
     racket-profile-mode
@@ -56,32 +80,10 @@
     racket-send-region
     racket-send-definition
     racket-send-last-sexp
-    "Visit"
-    racket-visit-definition
+    "Collections"
     racket-visit-module
-    racket-unvisit
     racket-open-require-path
     racket-find-collection
-    "Learn"
-    racket-describe
-    racket-doc
-    "Edit"
-    racket-insert-lambda
-    racket-fold-all-tests
-    racket-unfold-all-tests
-    racket-tidy-requires
-    racket-trim-requires
-    racket-base-requires
-    racket-indent-line
-    racket-smart-open-bracket-mode
-    racket-insert-closing
-    racket-cycle-paren-shapes
-    racket-backward-up-list
-    racket-xp-mode
-    racket-unicode-input-method-enable
-    racket-align
-    racket-unalign
-    racket-complete-at-point
     "Macro expand"
     racket-stepper-mode
     racket-expand-file
@@ -89,7 +91,12 @@
     racket-expand-definition
     racket-expand-last-sexp
     "Other"
-    racket-mode-start-faster)
+    racket-unvisit
+    racket-mode-start-faster
+    "Showing information"
+    racket-show-echo-area
+    racket-show-header-line
+    racket-show-pos-tip)
   "Commands to include in the Reference.")
 
 (defun racket-generate--commands ()
@@ -100,6 +107,8 @@
 (defun racket-generate--command (s)
   (if (stringp s)
       (format "** %s\n\n" s)
+    (unless (fboundp s)
+      (error "not defined %s" s))
     (concat (format "*** %s\n" s)
             (and (interactive-form s)
                  (racket-generate--bindings-as-kbd s))
@@ -140,7 +149,6 @@
   '("General variables"
     racket-program
     racket-command-port
-    racket-command-startup
     racket-command-timeout
     racket-memory-limit
     racket-error-context
@@ -164,10 +172,7 @@
     "Experimental debugger variables"
     racket-debuggable-files
     "Showing information"
-    racket-show-functions
-    racket-show-echo-area
-    racket-show-header-line
-    racket-show-pos-tip)
+    racket-show-functions)
   "Variables to include in the Reference.")
 
 (defun racket-generate--variables ()
@@ -178,6 +183,8 @@
 (defun racket-generate--variable (s)
   (if (stringp s)
       (format "** %s\n\n" s)
+    (unless (boundp s)
+      (error "variable does not exist: %s" s))
     (concat (format "*** %s\n" s)
             (racket-generate--tweak-quotes
              (racket-generate--linkify
