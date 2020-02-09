@@ -174,9 +174,9 @@ commands directly to whatever keys you prefer.
     (setq racket-xp-mode nil)
     (user-error "racket-xp-mode only works with racket-mode buffers"))
   (cond (racket-xp-mode
-         (racket--check-syntax-annotate)
+         (racket--xp-annotate)
          (add-hook 'after-change-functions
-                   #'racket--check-syntax-after-change-hook
+                   #'racket--xp-after-change-hook
                    t t)
          (add-hook 'completion-at-point-functions
                    #'racket-xp-complete-at-point
@@ -186,9 +186,9 @@ commands directly to whatever keys you prefer.
            (cursor-sensor-mode 1)))
         (t
          (racket-show nil)
-         (racket--check-syntax-clear)
+         (racket--xp-clear)
          (remove-hook 'after-change-functions
-                      #'racket--check-syntax-after-change-hook
+                      #'racket--xp-after-change-hook
                       t)
          (remove-hook 'completion-at-point-functions
                       #'racket-xp-complete-at-point
@@ -197,7 +197,7 @@ commands directly to whatever keys you prefer.
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 0)))))
 
-(defvar-local racket--check-syntax-completions nil)
+(defvar-local racket--xp-completions nil)
 
 (defun racket-xp-complete-at-point ()
   "A value for the variable `completion-at-point-functions'.
@@ -210,13 +210,13 @@ by `racket-mode'."
            end
            (completion-table-dynamic
             (lambda (prefix)
-              (all-completions prefix racket--check-syntax-completions)))
+              (all-completions prefix racket--xp-completions)))
            :predicate          #'identity
            :exclusive          'no
-           :company-location   (racket--check-syntax-make-company-location-proc)
-           :company-doc-buffer (racket--check-syntax-make-company-doc-buffer-proc)))))
+           :company-location   (racket--xp-make-company-location-proc)
+           :company-doc-buffer (racket--xp-make-company-doc-buffer-proc)))))
 
-(defun racket--check-syntax-make-company-location-proc ()
+(defun racket--xp-make-company-location-proc ()
   (when (racket--cmd-open-p)
     (let ((how (buffer-file-name)))
       (lambda (str)
@@ -224,7 +224,7 @@ by `racket-mode'."
           (pcase (racket--cmd/await `(def ,how ,str))
             (`(,path ,line ,_) (cons path line))))))))
 
-(defun racket--check-syntax-make-company-doc-buffer-proc ()
+(defun racket--xp-make-company-doc-buffer-proc ()
   (when (racket--cmd-open-p)
     (let ((how (buffer-file-name)))
       (lambda (str)
@@ -292,27 +292,27 @@ TAB, and activate using RET -- for `racket-visit-definition' and
                                     #'browse-url))))))
        (racket--do-describe how str t visit-thunk doc-thunk)))))
 
-(defconst racket--check-syntax-overlay-name 'racket-xp-overlay)
+(defconst racket--xp-overlay-name 'racket-xp-overlay)
 
-(defun racket--check-syntax-overlay-p (o)
+(defun racket--xp-overlay-p (o)
   (eq (overlay-get o 'name)
-      racket--check-syntax-overlay-name))
+      racket--xp-overlay-name))
 
 (defun racket--highlight (beg end face)
-  (unless (cl-some #'racket--check-syntax-overlay-p
+  (unless (cl-some #'racket--xp-overlay-p
                    (overlays-in beg end))
     (let ((o (make-overlay beg end)))
-      (overlay-put o 'name racket--check-syntax-overlay-name)
+      (overlay-put o 'name racket--xp-overlay-name)
       (overlay-put o 'priority 0) ;below other overlays e.g. isearch
       (overlay-put o 'face face))))
 
 (defun racket--unhighlight (beg end)
-  (remove-overlays beg end 'name racket--check-syntax-overlay-name))
+  (remove-overlays beg end 'name racket--xp-overlay-name))
 
 (defun racket--unhighlight-all ()
   (racket--unhighlight (point-min) (point-max)))
 
-(defun racket--check-syntax-cursor-sensor (window old dir)
+(defun racket--xp-cursor-sensor (window old dir)
   (let ((new (window-point window)))
     (cl-case dir
       ('entered
@@ -461,13 +461,14 @@ If point is instead on a definition, then go to its first use."
           (goto-char beg)
           (insert new-id))))
     (goto-char (marker-position point-marker))
-    (racket--check-syntax-annotate
+    (racket--xp-annotate
      (lambda () ;nudge the cursor-sense stuff to refresh
-       (racket--check-syntax-cursor-sensor (selected-window)
-                                           (point-min)
-                                           'entered)))))
+       (when (and (boundp 'cursor-sensor-mode) cursor-sensor-mode)
+         (racket--xp-cursor-sensor (selected-window)
+                                   (point-min)
+                                   'entered))))))
 
-(defun racket--check-syntax-forward-prop (prop amt)
+(defun racket--xp-forward-prop (prop amt)
   "Move point to the next or previous occurrence of PROP, if any.
 If moved, return the new position, else nil."
   ;; FIXME: Handle more than just -1 or 1
@@ -485,25 +486,25 @@ If moved, return the new position, else nil."
 (defun racket-xp-next-definition ()
   "Move point to the next definition."
   (interactive)
-  (racket--check-syntax-forward-prop 'racket-xp-def 1))
+  (racket--xp-forward-prop 'racket-xp-def 1))
 
 (defun racket-xp-previous-definition ()
   "Move point to the previous definition."
   (interactive)
-  (racket--check-syntax-forward-prop 'racket-xp-def -1))
+  (racket--xp-forward-prop 'racket-xp-def -1))
 
 ;;; Errors
 
-(defvar-local racket--check-syntax-errors       (vector))
-(defvar-local racket--check-syntax-errors-index 0)
+(defvar-local racket--xp-errors       (vector))
+(defvar-local racket--xp-errors-index 0)
 
-(defun racket--check-syntax-clear-errors ()
-  (setq racket--check-syntax-errors       (vector))
-  (setq racket--check-syntax-errors-index 0))
+(defun racket--xp-clear-errors ()
+  (setq racket--xp-errors       (vector))
+  (setq racket--xp-errors-index 0))
 
-(defun racket--check-syntax-add-error (path beg str)
-  (setq racket--check-syntax-errors
-        (vconcat racket--check-syntax-errors
+(defun racket--xp-add-error (path beg str)
+  (setq racket--xp-errors
+        (vconcat racket--xp-errors
                  (vector (list path beg str)))))
 
 (defun racket-xp-next-error (&optional amt reset)
@@ -517,17 +518,17 @@ Otherwise delegate to `compilation-next-error-function' in
 when using `racket-run', e.g. for runtime evaluation errors that
 won't be found merely from expansion."
   (interactive)
-  (let ((len (length racket--check-syntax-errors)))
+  (let ((len (length racket--xp-errors)))
     (cond ((< 0 len)
            (when reset
-             (setq racket--check-syntax-errors-index 0))
-           (setq racket--check-syntax-errors-index
-                 (+ racket--check-syntax-errors-index amt))
-           (cond ((and (<= 1 racket--check-syntax-errors-index)
-                       (<= racket--check-syntax-errors-index len))
+             (setq racket--xp-errors-index 0))
+           (setq racket--xp-errors-index
+                 (+ racket--xp-errors-index amt))
+           (cond ((and (<= 1 racket--xp-errors-index)
+                       (<= racket--xp-errors-index len))
                   (pcase-let ((`(,path ,pos ,str)
-                               (aref racket--check-syntax-errors
-                                     (1- racket--check-syntax-errors-index))))
+                               (aref racket--xp-errors
+                                     (1- racket--xp-errors-index))))
                     (cond ((equal path (racket--buffer-file-name))
                            (goto-char pos))
                           (t
@@ -540,44 +541,44 @@ won't be found merely from expansion."
 
 ;;; Update
 
-(defvar-local racket--check-syntax-timer nil)
+(defvar-local racket--xp-timer nil)
 
-(defun racket--check-syntax-after-change-hook (_beg _end _len)
-  (when (timerp racket--check-syntax-timer)
-    (cancel-timer racket--check-syntax-timer))
-  (racket--check-syntax-set-status 'outdated)
-  (setq racket--check-syntax-timer
+(defun racket--xp-after-change-hook (_beg _end _len)
+  (when (timerp racket--xp-timer)
+    (cancel-timer racket--xp-timer))
+  (racket--xp-set-status 'outdated)
+  (setq racket--xp-timer
         (run-with-idle-timer racket-xp-after-change-refresh-delay
                              nil ;no repeat
                              (racket--restoring-current-buffer
-                              #'racket--check-syntax-annotate))))
+                              #'racket--xp-annotate))))
 
 ;; TODO: Also provide a command wrapping this, for people who want to
 ;; disable the timer and run manually.
-(defun racket--check-syntax-annotate (&optional after-thunk)
-  (racket--check-syntax-set-status 'running)
+(defun racket--xp-annotate (&optional after-thunk)
+  (racket--xp-set-status 'running)
   (racket--cmd/async
    `(check-syntax ,(or (racket--buffer-file-name) (buffer-name))
                   ,(buffer-substring-no-properties (point-min) (point-max)))
    (racket--restoring-current-buffer
     (lambda (response)
       (racket-show "")
-      (racket--check-syntax-clear-errors)
+      (racket--xp-clear-errors)
       (pcase response
         (`(check-syntax-ok
            (completions . ,completions)
            (annotations . ,annotations))
-         (racket--check-syntax-clear)
-         (setq racket--check-syntax-completions completions)
-         (racket--check-syntax-insert annotations)
-         (racket--check-syntax-set-status 'ok)
+         (racket--xp-clear)
+         (setq racket--xp-completions completions)
+         (racket--xp-insert annotations)
+         (racket--xp-set-status 'ok)
          (when (and annotations after-thunk)
            (funcall after-thunk)))
         (`(check-syntax-errors . ,xs)
-         (racket--check-syntax-insert xs)
-         (racket--check-syntax-set-status 'err)))))))
+         (racket--xp-insert xs)
+         (racket--xp-set-status 'err)))))))
 
-(defun racket--check-syntax-insert (xs)
+(defun racket--xp-insert (xs)
   "Insert text properties. Convert integer positions to markers."
   (with-silent-modifications
     (overlay-recenter (point-max)) ;faster
@@ -589,7 +590,7 @@ won't be found merely from expansion."
          ;; window.. Not header-line also because that, plus unlikely
          ;; to show whole error message in one line.)
          (message "%s" str)
-         (racket--check-syntax-add-error path beg str)
+         (racket--xp-add-error path beg str)
          (when (equal path (racket--buffer-file-name))
            (let ((beg (copy-marker beg t))
                  (end (copy-marker end t)))
@@ -603,14 +604,14 @@ won't be found merely from expansion."
               beg end
               (list 'face                    racket-xp-error-face
                     'help-echo               str
-                    'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor))))))
+                    'cursor-sensor-functions (list #'racket--xp-cursor-sensor))))))
         (`(info ,beg ,end ,str)
          (let ((beg (copy-marker beg t))
                (end (copy-marker end t)))
            (add-text-properties
             beg end
             (list 'help-echo               str
-                  'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
+                  'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))
            (when (string-equal str "no bound occurrences")
              (add-face-text-property beg end racket-xp-unused-face))))
         (`(unused-require ,beg ,end)
@@ -619,7 +620,7 @@ won't be found merely from expansion."
            (add-text-properties
             beg end
             (list 'help-echo               "unused require"
-                  'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
+                  'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))
            (add-face-text-property beg end racket-xp-unused-face)))
         (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
          (let ((def-beg (copy-marker def-beg t))
@@ -632,14 +633,14 @@ won't be found merely from expansion."
            (add-text-properties
             def-beg def-end
             (list 'racket-xp-def (list req id uses)
-                  'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor)))
+                  'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))
            (dolist (use uses)
              (pcase-let* ((`(,use-beg ,use-end) use))
                (add-text-properties
                 use-beg use-end
                 (append
                  (list 'racket-xp-use           (list def-beg def-end)
-                       'cursor-sensor-functions (list #'racket--check-syntax-cursor-sensor))
+                       'cursor-sensor-functions (list #'racket--xp-cursor-sensor))
                  (when (eq req 'local)
                    (list 'help-echo "Defined locally"))))))))
         (`(external-def ,beg ,end ,path ,subs ,ids)
@@ -655,10 +656,10 @@ won't be found merely from expansion."
             beg end
             (list 'racket-xp-doc (list path anchor)))))))))
 
-(defun racket--check-syntax-clear ()
+(defun racket--xp-clear ()
   (with-silent-modifications
-    (setq racket--check-syntax-completions nil)
-    (racket--check-syntax-clear-errors)
+    (setq racket--xp-completions nil)
+    (racket--xp-clear-errors)
     (remove-text-properties
      (point-min) (point-max)
      (list 'help-echo               nil
@@ -673,25 +674,25 @@ won't be found merely from expansion."
 
 ;;; Mode line status
 
-(defvar-local racket--check-syntax-mode-status nil)
+(defvar-local racket--xp-mode-status nil)
 
-(defun racket--check-syntax-set-status (&optional which)
-  (setq racket--check-syntax-mode-status which)
+(defun racket--xp-set-status (&optional which)
+  (setq racket--xp-mode-status which)
   (force-mode-line-update))
 
 (defcustom racket-xp-mode-lighter
-  '(:eval (racket--check-syntax-mode-lighter))
+  '(:eval (racket--xp-mode-lighter))
   "Mode line lighter for `racket-xp-mode'.
 Set to nil to disable the mode line completely."
   :group 'racket-mode
   :risky t
   :type 'sexp)
 
-(defun racket--check-syntax-mode-lighter ()
+(defun racket--xp-mode-lighter ()
   (let ((prefix "Rkt"))
     (pcase-let*
         ((status (and (racket--cmd-open-p)
-                      racket--check-syntax-mode-status))
+                      racket--xp-mode-status))
          (`(,suffix ,face ,help-echo)
           (cl-case status
             ((ok)       '("✓" nil
