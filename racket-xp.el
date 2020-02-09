@@ -353,18 +353,19 @@ TAB, and activate using RET -- for `racket-visit-definition' and
 With a prefix, prompts you, but in this case beware it assumes
 definitions in or imported by the file module -- not locals or
 definitions in submodules."
-  (interactive)
-  (unless (pcase (get-text-property (point) 'racket-xp-use)
-            (`(,beg ,_end)
-             (pcase (get-text-property beg 'racket-xp-def)
-               (`(local ,_id ,_uses)
-                (racket--push-loc)
-                (goto-char beg)
-                t))))
+  (interactive "P")
+  (unless (unless prefix
+            (pcase (get-text-property (point) 'racket-xp-use)
+              (`(,beg ,_end)
+               (pcase (get-text-property beg 'racket-xp-def)
+                 (`(local ,_id ,_uses)
+                  (racket--push-loc)
+                  (goto-char beg)
+                  t)))))
     (if prefix
         (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")
-          (`nil nil)
-          (str (racket--do-visit-def-or-mod `(def ,(buffer-file-name) ,str))))
+          ((and (pred stringp) str)
+           (racket--do-visit-def-or-mod `(def ,(buffer-file-name) ,str))))
       (pcase (get-text-property (point) 'racket-xp-visit)
         (`(,path ,subs ,ids)
          (racket--do-visit-def-or-mod
@@ -374,14 +375,22 @@ definitions in submodules."
            (`(import ,id . ,_)
             (racket--do-visit-def-or-mod `(mod ,id)))))))))
 
-(defun racket-xp-documentation ()
-  "Show documentation for the identifier at point."
-  (interactive)
+(defun racket-xp-documentation (&optional prefix)
+  "Show documentation for the identifier at point.
+
+This gives a \"file:\" URL to `browse-url', which typically opens
+an external web browser, but see that and the variable
+`browse-url-browser-function'.
+
+With a prefix, prompts you, but in this case beware it assumes
+definitions in or imported by the file module -- not locals or
+definitions in submodules."
+  (interactive "P")
   (pcase (get-text-property (point) 'racket-xp-doc)
-    (`(,path ,anchor)
+    ((and `(,path ,anchor) (guard (not prefix)))
      (browse-url (concat "file://" path "#" anchor)))
     (_
-     (pcase (racket--symbol-at-point-or-prompt nil "Documentation for: ")
+     (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: ")
        ((and (pred stringp) str)
         (racket--cmd/async `(doc ,(buffer-file-name) ,str)
                            #'browse-url))))))
