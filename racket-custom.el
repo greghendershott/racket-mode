@@ -174,9 +174,12 @@ you probably also want to customize the \"reverse\":
   :safe #'functionp)
 
 (defcustom racket-xp-after-change-refresh-delay 1
-  "Seconds to wait before refreshing `racket-xp-mode' annotations."
+  "Seconds to wait before refreshing `racket-xp-mode' annotations.
+
+Set to nil to disable automatic refresh and manually use `racket-xp-annotate'."
   :tag "Racket Check-Syntax After Change Refresh Delay"
-  :type 'integer
+  :type '(choice (integer :tag "Seconds")
+                 (const :tag "Off" nil))
   :safe #'integerp
   :group 'racket)
 

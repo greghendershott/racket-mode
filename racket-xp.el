@@ -44,7 +44,8 @@ everything. If you find that too \"noisy\", set this to nil.")
      ("n" ,#'racket-xp-next-use)
      ("p" ,#'racket-xp-previous-use)
      ("." ,#'racket-xp-visit-definition)
-     ("r" ,#'racket-xp-rename))) )
+     ("r" ,#'racket-xp-rename)
+     ("g" ,#'racket-xp-annotate))))
 
 (defvar racket-xp-mode-map
   (racket--easy-keymap-define
@@ -68,6 +69,7 @@ everything. If you find that too \"noisy\", set this to nil.")
     ["Racket Documentation" racket-xp-documentation]
     ["Describe" racket-xp-describe]
     "---"
+    ["Annotate Now" racket-xp-annotate-]
     ["Customize..." customize-mode]))
 
 ;;;###autoload
@@ -457,12 +459,7 @@ If point is instead on a definition, then go to its first use."
           (goto-char beg)
           (insert new-id))))
     (goto-char (marker-position point-marker))
-    (racket--xp-annotate
-     (lambda () ;nudge the cursor-sense stuff to refresh
-       (when (and (boundp 'cursor-sensor-mode) cursor-sensor-mode)
-         (racket--xp-cursor-sensor (selected-window)
-                                   (point-min)
-                                   'entered))))))
+    (racket-xp-annotate)))
 
 (defun racket--xp-forward-prop (prop amt)
   "Move point to the next or previous occurrence of PROP, if any.
@@ -543,14 +540,27 @@ won't be found merely from expansion."
   (when (timerp racket--xp-timer)
     (cancel-timer racket--xp-timer))
   (racket--xp-set-status 'outdated)
-  (setq racket--xp-timer
-        (run-with-idle-timer racket-xp-after-change-refresh-delay
-                             nil ;no repeat
-                             (racket--restoring-current-buffer
-                              #'racket--xp-annotate))))
+  (when racket-xp-after-change-refresh-delay
+    (setq racket--xp-timer
+          (run-with-idle-timer racket-xp-after-change-refresh-delay
+                               nil      ;no repeat
+                               (racket--restoring-current-buffer
+                                #'racket--xp-annotate)))))
 
-;; TODO: Also provide a command wrapping this, for people who want to
-;; disable the timer and run manually.
+(defun racket-xp-annotate ()
+  "Request the buffer to be analyzed and annotated.
+
+If you have set `racket-xp-after-change-refresh-delay' to nil --
+or to a very large amount -- you can use this command to annotate
+manually."
+  (interactive)
+  (racket--xp-annotate
+   (lambda () ;nudge the cursor-sensor stuff to refresh
+       (when (and (boundp 'cursor-sensor-mode) cursor-sensor-mode)
+         (racket--xp-cursor-sensor (selected-window)
+                                   (point-min)
+                                   'entered)))))
+
 (defun racket--xp-annotate (&optional after-thunk)
   (racket--xp-set-status 'running)
   (racket--cmd/async
@@ -696,7 +706,7 @@ Set to nil to disable the mode line completely."
             ((err)      `("✗" '(:inherit error)
                           "Syntax error"))
             ((outdated) `("…" nil
-                          "Waiting `racket-xp-after-change-refresh-delay'"))
+                          "Outdated: Waiting for `racket-xp-after-change-refresh-delay' or manual `racket-xp-annotate'"))
             ((running)  '("λ" nil
                           "Getting analysis from Racket Mode back-end and annotating"))
             (otherwise  '("λ" '(:strike-through t)
