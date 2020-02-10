@@ -3,8 +3,6 @@
 (require racket/format
          (only-in racket/list remove-duplicates)
          racket/match
-         racket/path
-         racket/promise
          racket/set
          racket/class
          syntax/parse/define
@@ -17,211 +15,198 @@
 
 (provide check-syntax)
 
-(define-logger racket-mode-check-syntax)
-
-(define (time-apply/log what proc args)
-  (define-values (vs cpu real gc) (time-apply proc args))
-  (define (fmt n) (~v #:align 'right #:min-width 4 n))
-  (log-racket-mode-check-syntax-info "~a cpu | ~a real | ~a gc <= ~a"
-                                     (fmt cpu) (fmt real) (fmt gc) what)
-  (apply values vs))
-
-(define-simple-macro (with-time/log what e ...+)
-  (time-apply/log what (λ () e ...) '()))
+;; Note: Instead of using the `show-content` wrapper, we give already
+;; fully expanded syntax directly to `make-traversal`. Why? Expansion
+;; can be slow. 1. We need exp stx for other purposes here. Dumb to
+;; expand twice. 2. We might not even need to expand once, now:
+;; string->expanded-syntax maintains a cache.
+;;
+;; [One nuance of caching expanded syntax is that we also cache the
+;; namespace used while expanding -- that needs to be the
+;; current-namespace for things like module->imports. Likewise
+;; currently-load-relative-directory. That is why
+;; string->expanded-syntax uses a "call-with" "continuation style": it
+;; sets parameters when calling the continuation function.]
 
 (define (check-syntax path-str code-str)
-  (with-time/log (~a "total " path-str)
-    (-check-syntax path-str code-str)))
-
-(define (-check-syntax path-str code-str)
-  ;; Note: We adjust all positions to 1-based Emacs `point' values.
-  ;;
-  ;; Note: Instead of using `show-content`, pass already-expanded stx
-  ;; directly to `make-traversal`. Why? 1. We also need expanded stx
-  ;; for other purposes, below. Expansion can be slow. Dumb to do
-  ;; twice. 2. Furthermore, we maintain a cache of expanded stx in
-  ;; syntax.rkt. Smarter to do zero or one times.
-  ;;
-  ;; One nuance of caching expanded syntax is that we also cache the
-  ;; namespace used while expanding -- that needs to be the
-  ;; current-namespace for things like module->imports.
   (define path (string->path path-str))
   (with-handlers ([exn:fail? (handle-fail path-str)])
-    (string->expanded-syntax
-     path code-str
-     ;; Calls us with correct parameterization of current-namespace
-     ;; and current-load-relative-directory.
-     (λ (stx)
-       (define o (new build-trace% [src path]))
-       (parameterize ([current-annotations o])
-         (define-values (expanded-expression expansion-completed)
-           (make-traversal (current-namespace)
-                           (current-load-relative-directory)))
-         (with-time/log 'drracket/check-syntax/expanded-expression
-           (expanded-expression stx))
-         (with-time/log 'drracket/check-syntax/expansion-completed
-           (expansion-completed)))
-       (define synchecks (send o get-trace))
+    (with-time/log (~a "total " path-str)
+      (string->expanded-syntax path
+                               code-str
+                               (analyze path code-str)))))
 
-         ;;
-         ;; Annotations
-         ;;;
+(define ((analyze path code-str) stx)
+  (define o (new build-trace% [src path]))
+  (parameterize ([current-annotations o])
+    (define-values (expanded-expression expansion-completed)
+      (make-traversal (current-namespace)
+                      (current-load-relative-directory)))
+    (with-time/log 'drracket/check-syntax/expanded-expression
+      (expanded-expression stx))
+    (with-time/log 'drracket/check-syntax/expansion-completed
+      (expansion-completed)))
+  (define synchecks (send o get-trace))
 
-         ;; I've seen drracket/check-syntax return bogus positions for e.g.
-         ;; add-mouse-over-status so here's some validation.
+  ;;
+  ;; Annotations
+  ;;
 
-       (define code-len (string-length code-str))
-       (define (valid-pos? pos) (and (<= 0 pos) (< pos code-len)))
-       (define (valid-beg/end? beg end)
-         (and (< beg end) (valid-pos? beg) (valid-pos? end)))
+  ;; Note: We adjust all positions to 1-based Emacs `point' values.
 
-         ;; [1] Most syncheck:xxx items we simply transform 1:1.
+  ;; I've seen drracket/check-syntax return bogus positions for e.g.
+  ;; add-mouse-over-status so here's some validation.
+  (define code-len (string-length code-str))
+  (define (valid-pos? pos) (and (<= 0 pos) (< pos code-len)))
+  (define (valid-beg/end? beg end)
+    (and (< beg end) (valid-pos? beg) (valid-pos? end)))
 
-       (define infos
-         (with-time/log 'infos
-           (remove-dupes-and-falses
-            (for/list ([x (in-list synchecks)])
-              ;; Give these all a common prefix so we can sort.
-              (define (item sym beg end . more)
-                (list* sym (add1 beg) (add1 end) more))
-              (match x
-                [(vector 'syncheck:add-mouse-over-status beg end str)
-                 #:when (valid-beg/end? beg end)
-                 ;; Avoid silly "imported from “\"file.rkt\"”"
-                 (define cleansed (regexp-replace* #px"[“””]" str ""))
-                 (item 'info beg end
-                       cleansed)]
-                [(vector 'syncheck:add-docs-menu
+  ;; [1] Most syncheck:xxx items we simply transform 1:1.
+  (define infos
+    (with-time/log 'infos
+      (remove-dupes-and-falses
+       (for/list ([x (in-list synchecks)])
+         ;; Give these all a common prefix so we can sort.
+         (define (item sym beg end . more)
+           (list* sym (add1 beg) (add1 end) more))
+         (match x
+           [(vector 'syncheck:add-mouse-over-status beg end str)
+            #:when (valid-beg/end? beg end)
+            ;; Avoid silly "imported from “\"file.rkt\"”"
+            (define cleansed (regexp-replace* #px"[“””]" str ""))
+            (item 'info beg end
+                  cleansed)]
+           [(vector 'syncheck:add-docs-menu
+                    beg
+                    end
+                    _sym
+                    _
+                    (app path->string help-path-str)
+                    _anchor
+                    help-anchor-text)
+            (item 'doc beg end
+                  help-path-str
+                  help-anchor-text)]
+           [(and (vector 'syncheck:add-jump-to-definition
                          beg
                          end
-                         _sym
-                         _
-                         (app path->string help-path-str)
-                         _anchor
-                         help-anchor-text)
-                 (item 'doc beg end
-                       help-path-str
-                       help-anchor-text)]
-                [(and (vector 'syncheck:add-jump-to-definition
-                              beg
-                              end
-                              (app symbol->string drracket-id-str)
-                              path
-                              submods)
-                      syncheck)
-                 ;; drracket/check-syntax only reports the file, not
-                 ;; the position within. We can find that using our
-                 ;; def-in-file.
-                 ;;
-                 ;; drracket/check-syntax uses identifier-binding which
-                 ;; isn't smart about contracting and/or renaming
-                 ;; provides. As a result, the value of the id here can
-                 ;; be wrong. e.g. For "make-traversal" it will report
-                 ;; "provide/contract-id-make-traversal.1". It's good
-                 ;; to try both ids with def-in-file.
-                 ;;
-                 ;; However, doing so here/now would be quite slow.
-                 ;; Futhermore, a user might not actually use the jumps
-                 ;; -- maybe not any, probably not most, certainly not
-                 ;; all. So instead do a "lazy" approach here where we
-                 ;; simply return both possible id names, and the
-                 ;; filename and submods. The front end can call a
-                 ;; find-definition/drracket-jump command, to "force"
-                 ;; if/as/when needed.
-                 (cond [(file-exists? path)
-                        (define orig-str (substring code-str beg end))
-                        (item 'external-def beg end
-                              path
-                              submods
-                              (if (equal? drracket-id-str orig-str)
-                                  (list drracket-id-str)
-                                  (list drracket-id-str orig-str)))]
-                       [else
-                        ;; https://gist.github.com/greghendershott/5dd59c00f8daa2ce0987ad343244489e
-                        (log-racket-mode-check-syntax-error "bad path in ~v" syncheck)])]
-                [(vector 'syncheck:add-unused-require beg end)
-                 (item 'unused-require beg end)]
-                [_ #f])))))
-         ;; [2] Consolidate the add-arrow/name-dup items into a hash table
-         ;; with one item per definition. The key is the definition
-         ;; position. The value is the set of its uses' positions.
+                         (app symbol->string drracket-id-str)
+                         path
+                         submods)
+                 syncheck)
+            ;; - drracket/check-syntax only reports the file, not the
+            ;;   position within. We can find that using our
+            ;;   def-in-file.
+            ;;
+            ;; - drracket/check-syntax uses identifier-binding which
+            ;;   isn't smart about contracting and/or renaming
+            ;;   provides. As a result, the value of the id here can
+            ;;   be wrong. e.g. For "make-traversal" it will report
+            ;;   "provide/contract-id-make-traversal.1". It's good to
+            ;;   try both ids with def-in-file.
+            ;;
+            ;; However, calling def-in-file here/now for all jumps
+            ;; would be quite slow. Futhermore, a user might not
+            ;; actually use the jumps -- maybe not any, probably not
+            ;; most, certainly not all.
+            ;;
+            ;; Sound like a job for a thunk, e.g. racket/promise
+            ;; delay/force? We can't marshal a promise between Racket
+            ;; back end and Emacs front end. We can do the moral
+            ;; equivalent: Simply return the info that the front end
+            ;; should give to the "def/drr" command if/as/when needed.
+            (cond [(file-exists? path)
+                   (define orig-str (substring code-str beg end))
+                   (item 'external-def beg end
+                         path
+                         submods
+                         (if (equal? drracket-id-str orig-str)
+                             (list drracket-id-str)
+                             (list drracket-id-str orig-str)))]
+                  [else
+                   ;; https://gist.github.com/greghendershott/5dd59c00f8daa2ce0987ad343244489e
+                   (log-racket-mode-check-syntax-warning "bad path in ~v" syncheck)
+                   #f])]
+           [(vector 'syncheck:add-unused-require beg end)
+            (item 'unused-require beg end)]
+           [_ #f])))))
 
-       (define ht-defs/uses (make-hash))
-       (with-time/log 'make-ht-defs/uses
-         (for ([x (in-list synchecks)])
-           (match x
-             [(or (vector 'syncheck:add-arrow/name-dup
-                          def-beg def-end
-                          use-beg use-end
-                          _ _ req _)
-                  (vector 'syncheck:add-arrow/name-dup/pxpy
-                          def-beg def-end _ _
-                          use-beg use-end _ _
-                          _ _ req _))
-              (hash-update! ht-defs/uses
-                            (list (substring code-str def-beg def-end)
-                                  (match req
-                                    ['module-lang 'module-lang]
-                                    [#t           'import]
-                                    [#f           'local])
-                                  (add1 def-beg)
-                                  (add1 def-end))
-                            (λ (v) (set-add v (list (add1 use-beg)
-                                                    (add1 use-end))))
-                            (set))]
-             [_ #f])))
-         ;; Convert the hash table into a list, sorting the usage positions.
+  ;; [2] Consolidate the add-arrow/name-dup items into a hash table
+  ;; with one item per definition. The key is the definition position.
+  ;; The value is the set of its uses' positions.
+  (define ht-defs/uses (make-hash))
+  (with-time/log 'make-ht-defs/uses
+    (for ([x (in-list synchecks)])
+      (match x
+        [(or (vector 'syncheck:add-arrow/name-dup
+                     def-beg def-end
+                     use-beg use-end
+                     _ _ req _)
+             (vector 'syncheck:add-arrow/name-dup/pxpy
+                     def-beg def-end _ _
+                     use-beg use-end _ _
+                     _ _ req _))
+         (hash-update! ht-defs/uses
+                       (list (substring code-str def-beg def-end)
+                             (match req
+                               ['module-lang 'module-lang]
+                               [#t           'import]
+                               [#f           'local])
+                             (add1 def-beg)
+                             (add1 def-end))
+                       (λ (v) (set-add v (list (add1 use-beg)
+                                               (add1 use-end))))
+                       (set))]
+        [_ #f])))
+  ;; Convert the hash table into a list sorted by use positions.
+  (define defs/uses
+    (with-time/log 'defs/uses
+      (for/list ([(def uses) (in-hash ht-defs/uses)])
+        (match-define (list sym req def-beg def-end) def)
+        (list 'def/uses
+              def-beg def-end
+              req sym
+              (sort (set->list uses) < #:key car)))))
 
-       (define defs/uses
-         (with-time/log 'defs/uses
-           (for/list ([(def uses) (in-hash ht-defs/uses)])
-             (match-define (list sym req def-beg def-end) def)
-             (list 'def/uses
-                   def-beg def-end
-                   req sym
-                   (sort (set->list uses) < #:key car)))))
-         ;; [3] `annotations` = `infos` + `defs/uses`
+  ;; [3] `annotations` = `infos` + `defs/uses`
+  (define annotations (sort (append infos defs/uses) < #:key cadr))
 
-       (define annotations (sort (append infos defs/uses) < #:key cadr))
+  ;;
+  ;; Completion candidates (including their defn locs)
+  ;;
 
-         ;;
-         ;; Completion candidates (including their defn locs)
-         ;;
+  (define completions-set (mutable-set))
 
-       (define completions-set (mutable-set))
+  ;; [1] Locals. When a definition isn't yet used, there will be no
+  ;; syncheck:add-arrow annotation because drracket doesn't need to
+  ;; draw an arrow from something to nothing. There _will_ however be
+  ;; an "no bound occurrences" mouseover. Although it's hacky to match
+  ;; on a string like that, it's the best way to get _all_ local
+  ;; completion candidates. It's the same reason why we go to the work
+  ;; in imported-completions to find _everything_ imported, that
+  ;; _could_ be used.
+  (for ([x (in-list synchecks)])
+    (match x
+      [(vector 'syncheck:add-mouse-over-status beg end
+               (or "no bound occurrences"
+                   (pregexp "^\\d+ bound occurrences?$")))
+       #:when (valid-beg/end? beg end)
+       (set-add! completions-set
+                 (substring code-str beg end))]
+      [_ (void)]))
 
-         ;; [1] Locals. When a definition isn't yet used, there will be no
-         ;; syncheck:add-arrow annotation because drracket doesn't need to
-         ;; draw an arrow from something to nothing. There _will_ however
-         ;; be an "no bound occurrences" mouseover. Although it's hacky to
-         ;; match on a string like that, it's the best way to get _all_
-         ;; local completion candidates. It's the same reason why we go to
-         ;; the work in imported-completions to find _everything_ imported,
-         ;; that _could_ be used.
+  ;; [2] Imports
+  (with-time/log 'imports
+    (imports stx completions-set))
+  (define completions (sort (set->list completions-set)
+                            string<=?))
 
-       (for ([x (in-list synchecks)])
-         (match x
-           [(vector 'syncheck:add-mouse-over-status beg end
-                    (or "no bound occurrences"
-                        (pregexp "^\\d+ bound occurrences?$")))
-            #:when (valid-beg/end? beg end)
-            (set-add! completions-set
-                      (substring code-str beg end))]
-           [_ (void)]))
-         ;; [2] Imports
-
-       (with-time/log 'imports
-         (imports stx completions-set))
-       (define completions (sort (set->list completions-set)
-                                 string<=?))
-
-         ;;
-         ;; Final answer for Emacs front-end
-         ;;
-
-       (list 'check-syntax-ok
-             (cons 'completions completions)
-             (cons 'annotations annotations))))))
+  ;;
+  ;; Final answer for Emacs front-end
+  ;;
+  (list 'check-syntax-ok
+        (cons 'completions completions)
+        (cons 'annotations annotations)))
 
 (define ((handle-fail path) e)
   (cons 'check-syntax-errors
@@ -258,3 +243,17 @@
   (check-this-file (path->string (syntax-source #'here)))
   ;; Again to exercise and test cache
   (check-this-file (path->string (syntax-source #'here))))
+
+;;; logger / timing
+
+(define-logger racket-mode-check-syntax)
+
+(define (time-apply/log what proc args)
+  (define-values (vs cpu real gc) (time-apply proc args))
+  (define (fmt n) (~v #:align 'right #:min-width 4 n))
+  (log-racket-mode-check-syntax-info "~a cpu | ~a real | ~a gc <= ~a"
+                                     (fmt cpu) (fmt real) (fmt gc) what)
+  (apply values vs))
+
+(define-simple-macro (with-time/log what e ...+)
+  (time-apply/log what (λ () e ...) '()))
