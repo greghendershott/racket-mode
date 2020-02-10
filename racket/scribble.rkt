@@ -8,6 +8,7 @@
          racket/match
          racket/path
          racket/string
+         racket/promise
          scribble/xref
          scribble/blueboxes
          setup/xref
@@ -21,12 +22,12 @@
          blueboxes)
 
 (define blueboxes
-  (let ([cache (make-blueboxes-cache #t)]
+  (let ([cache (delay (make-blueboxes-cache #t))]
         [xref (load-collections-xref)])
     (lambda (str)
       (define stx (namespace-symbol->identifier (string->symbol str)))
       (define tag (xref-binding->definition-tag xref stx 0))
-      (define strs (and tag (fetch-blueboxes-strs tag #:blueboxes-cache cache)))
+      (define strs (and tag (fetch-blueboxes-strs tag #:blueboxes-cache (force cache))))
       (and strs (string-replace (string-join (cdr strs) "\n") " " " ")))))
 
 ;;; Extract Scribble documentation as modified HTML suitable for
