@@ -30,11 +30,13 @@
 
 (define (check-syntax path-str code-str)
   (define path (string->path path-str))
-  (with-handlers ([exn:fail? (handle-fail path-str)])
-    (with-time/log (~a "total " path-str)
-      (string->expanded-syntax path
-                               code-str
-                               (analyze path code-str)))))
+  (parameterize ([error-display-handler our-error-display-handler]
+                 [typed-racket-errors '()])
+    (with-handlers ([exn:fail? (handle-fail path-str)])
+      (with-time/log (~a "total " path-str)
+        (string->expanded-syntax path
+                                 code-str
+                                 (analyze path code-str))))))
 
 (define ((analyze path code-str) stx)
   (define o (new build-trace% [src path]))
@@ -208,24 +210,47 @@
         (cons 'completions completions)
         (cons 'annotations annotations)))
 
+(define (remove-dupes-and-falses xs)
+  (remove-duplicates (filter values xs)))
+
+;; Typed Racket can report multiple errors. The protcol is it calls
+;; error-display-handler for each one. There is a final, actual
+;; exn:fail:syntax raised, but it's not useful for us: Although its
+;; srclocs correspond to each location, its message is just a summary.
+;; Here we collect the message and locations in a parameter, and when
+;; the final summary exn is raised, we ignore it and use these.
+(define typed-racket-errors (make-parameter '()))
+(define (our-error-display-handler msg exn)
+  (match exn
+    [(exn:fail:syntax (pregexp "^[^ ]+ Type Checker: ")
+                      _cms
+                      (list _stx))
+     #:when (exn:srclocs? exn)
+     (match (exn-srclocs->our-list exn)
+       [(list v) ;just one
+        (typed-racket-errors
+         (append (typed-racket-errors)
+                 (list v)))]
+       [_ (void)])]
+    [_ (void)]))
+
 (define ((handle-fail path) e)
   (cons 'check-syntax-errors
-        (cond [(exn:srclocs? e)
-               ;; FIXME: This isn't satisfactory with e.g. Typed Racket.
-               ;; The messages are all e.g. "3 type-check problems",
-               ;; not the actual specific problems/locations.
-               (for/list ([sl (in-list ((exn:srclocs-accessor e) e))])
-                 (match sl
-                   [(srcloc path _ _ ofs span)
-                    (list 'error (path->string path)
-                          ofs (+ ofs span)
-                          (exn-message e))]))]
+        (cond [(not (null? (typed-racket-errors)))
+               (typed-racket-errors)]
+              [(exn:srclocs? e)
+               (exn-srclocs->our-list e)]
               [else
                (list
                 (list 'error path 1 0 (exn-message e)))])))
 
-(define (remove-dupes-and-falses xs)
-  (remove-duplicates (filter values xs)))
+(define (exn-srclocs->our-list e)
+  (for/list ([sl (in-list ((exn:srclocs-accessor e) e))])
+    (match sl
+      [(srcloc path _ _ ofs span)
+       (list 'error (path->string path)
+             ofs (+ ofs span)
+             (exn-message e))])))
 
 (module+ example
   (require racket/file)
