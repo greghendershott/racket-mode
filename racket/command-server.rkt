@@ -13,7 +13,8 @@
          "interactions.rkt"
          "md5.rkt"
          "mod.rkt"
-         "util.rkt")
+         "util.rkt"
+         "scribble.rkt")
 
 (lazy-require
  ["commands/check-syntax.rkt" (check-syntax)]
@@ -166,6 +167,7 @@
     [`(describe ,str)                  (describe str)]
     [`(doc ,str)                       (doc str)]
     [`(type ,v)                        (type v)]
+    [`(blueboxes ,str)                 (blueboxes str)]
     [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
     [`(macro-stepper/next)             (macro-stepper/next)]
     [`(requires/tidy ,reqs)            (requires/tidy reqs)]

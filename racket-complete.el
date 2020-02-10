@@ -193,6 +193,29 @@ A more satisfying experience is to use `racket-describe' or
                str)
            (scan-error nil)))))
 
+(defun racket-blueboxes-eldoc-function ()
+  (and (racket--repl-live-p)
+       (save-excursion
+         (condition-case nil
+             ;; The char-before and looking-at checks below are to
+             ;; avoid calling `racket--get-type' when the sexp is
+             ;; quoted or when its first elem couldn't be a Racket
+             ;; function name.
+             (let* ((beg (progn
+                           (backward-up-list)
+                           (and (not (memq (char-before) '(?` ?' ?,)))
+                                (progn (forward-char 1) (point)))))
+                    (beg (and beg (looking-at "[^0-9#'`,\"]") beg))
+                    (end (and beg (progn (forward-sexp) (point))))
+                    (end (and end
+                              (char-after (point))
+                              (eq ?\s (char-syntax (char-after (point))))
+                              end))
+                    (sym (and beg end (buffer-substring-no-properties beg end)))
+                    (str (and sym (racket--cmd/await `(blueboxes ,sym)))))
+               str)
+           (scan-error nil)))))
+
 ;;; describe
 
 (defun racket-describe (&optional prefix)

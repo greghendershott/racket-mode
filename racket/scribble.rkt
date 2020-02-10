@@ -7,7 +7,9 @@
          racket/function
          racket/match
          racket/path
+         racket/string
          scribble/xref
+         scribble/blueboxes
          setup/xref
          (only-in xml
                   xml->xexpr
@@ -15,7 +17,19 @@
                   xexpr->string))
 
 (provide scribble-doc/html
-         binding->path+anchor)
+         binding->path+anchor
+         blueboxes)
+
+(define blueboxes
+  (let ([cache (make-blueboxes-cache #t)]
+        [xref (load-collections-xref)])
+    (lambda (str)
+      (define stx (namespace-symbol->identifier (string->symbol str)))
+      (define tag (xref-binding->definition-tag xref stx 0))
+      (when tag
+        (define strs (fetch-blueboxes-strs tag #:blueboxes-cache cache))
+        (when strs
+          (string-replace (string-join (cdr strs) "\n") " " " "))))))
 
 ;;; Extract Scribble documentation as modified HTML suitable for
 ;;; Emacs' shr renderer.
