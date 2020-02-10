@@ -26,10 +26,8 @@
     (lambda (str)
       (define stx (namespace-symbol->identifier (string->symbol str)))
       (define tag (xref-binding->definition-tag xref stx 0))
-      (when tag
-        (define strs (fetch-blueboxes-strs tag #:blueboxes-cache cache))
-        (when strs
-          (string-replace (string-join (cdr strs) "\n") " " " "))))))
+      (define strs (and tag (fetch-blueboxes-strs tag #:blueboxes-cache cache)))
+      (and strs (string-replace (string-join (cdr strs) "\n") " " " ")))))
 
 ;;; Extract Scribble documentation as modified HTML suitable for
 ;;; Emacs' shr renderer.
