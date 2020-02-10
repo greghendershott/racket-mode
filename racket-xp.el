@@ -587,7 +587,6 @@ manually."
 (defun racket--xp-insert (xs)
   "Insert text properties. Convert integer positions to markers."
   (with-silent-modifications
-    (overlay-recenter (point-max)) ;faster
     (dolist (x xs)
       (pcase x
         (`(error ,path ,beg ,end ,str)
