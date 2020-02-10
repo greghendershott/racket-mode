@@ -80,67 +80,6 @@ asychronously."
   :risky t
   :group 'racket)
 
-(defcustom racket-memory-limit 2048
-  "Terminate the Racket process if memory use exceeds this value in MB.
-Changes to this value take effect upon the next `racket-run'. A value
-of 0 means no limit.
-
-Caveat: This uses Racket's `custodian-limit-memory`, which does
-not enforce the limit exactly. Instead, the program will be
-terminated upon the first garbage collection where memory exceeds
-the limit (maybe by a significant amount)."
-  :tag "Memory Limit"
-  :type 'integer
-  :safe #'integerp
-  :group 'racket)
-
-(defcustom racket-error-context 'medium
-  "The level of context used for `racket-run' error stack traces.
-
-Each level improves stack trace information, but causes your
-program to run more slowly.
-
-  - 'low corresponds to `compile-context-preservation-enabled`
-    `#f`.
-
-  - 'medium corresponds to `compile-context-preservation-enabled`
-    `#t`, which disables some optimizations like inlining.
-
-  - 'high corresponds to `compile-context-preservation-enabled`
-    `#t` and to use of `errortrace`, which heavily instruments
-    your code and therefore may be significantly slower.
-
-Tip: Regardless of this setting, you can enable 'high errortrace
-for a specific `racket-run' using a C-u prefix. This lets you
-normally run with a faster setting, and temporarily re-run to get
-a more-helpful error message."
-  :tag "Error Context"
-  :type '(radio (const :tag "Low" low)
-                (const :tag "Medium (slower)" medium)
-                (const :tag "High (much slower)" high))
-  :risky t
-  :group 'racket)
-
-(defcustom racket-retry-as-skeleton t
-  "Retry a \"skeleton\" of files with errors, for identifier names?
-
-When true: If your source file has an error, a \"skeleton\" of
-your file is evaluated to get identifiers from module languages,
-`require` forms, and definitions. That way, things like
-completion and `racket-repl-describe' are more likely to work
-while you edit the file to fix the error.
-
-Otherwise, you'll have only identifiers provided by
-`racket/base`, until you fix the error and run again.
-
-You might want to disable this if you work with files that take a
-very long time to expand --- because this feature needs to expand
-again when there is an error."
-  :tag "Retry as Skeleton?"
-  :type 'boolean
-  :safe #'booleanp
-  :group 'racket)
-
 (defcustom racket-path-from-emacs-to-racket-function
   #'identity
   "A function used to transform Emacs Lisp pathnames before supplying to the Racket back end.
@@ -171,24 +110,104 @@ you probably also want to customize the \"reverse\":
 `racket-path-from-emacs-to-racket-function'."
   :tag "Path from Racket to Emacs Function"
   :type 'function
-  :safe #'functionp)
+  :safe #'functionp
+  :group 'racket)
+
+;;; Xp Mode
+
+(defgroup racket-xp nil
+  "`racket-xp-mode' options"
+  :tag "Xp Mode"
+  :group 'racket)
 
 (defcustom racket-xp-after-change-refresh-delay 1
   "Seconds to wait before refreshing `racket-xp-mode' annotations.
 
 Set to nil to disable automatic refresh and manually use `racket-xp-annotate'."
-  :tag "Racket Check-Syntax After Change Refresh Delay"
+  :tag "Racket XP Mode After Change Refresh Delay"
   :type '(choice (integer :tag "Seconds")
                  (const :tag "Off" nil))
   :safe #'integerp
-  :group 'racket)
+  :group 'racket-xp)
+
+(defcustom racket-xp-mode-lighter
+  '(:eval (racket--xp-mode-lighter))
+  "Mode line lighter for `racket-xp-mode'.
+
+Set to nil to disable the mode line completely."
+  :tag "Racket Xp Mode Lighter"
+  :type 'sexp
+  :risky t
+  :group 'racket-xp)
 
 ;;; REPL
 
 (defgroup racket-repl nil
-  "REPL Options"
+  "`racket-repl-mode' options"
   :tag "REPL"
   :group 'racket)
+
+(defcustom racket-memory-limit 2048
+  "Terminate the Racket process if memory use exceeds this value in MB.
+
+Changes to this value take effect upon the next `racket-run'. A value
+of 0 means no limit.
+
+Caveat: This uses Racket's `custodian-limit-memory`, which does
+not enforce the limit exactly. Instead, the program will be
+terminated upon the first garbage collection where memory exceeds
+the limit (maybe by a significant amount)."
+  :tag "Memory Limit"
+  :type 'integer
+  :safe #'integerp
+  :group 'racket-repl)
+
+(defcustom racket-error-context 'medium
+  "The level of context used for `racket-run' error stack traces.
+
+Each level improves stack trace information, but causes your
+program to run more slowly.
+
+  - 'low corresponds to `compile-context-preservation-enabled`
+    `#f`.
+
+  - 'medium corresponds to `compile-context-preservation-enabled`
+    `#t`, which disables some optimizations like inlining.
+
+  - 'high corresponds to `compile-context-preservation-enabled`
+    `#t` and to use of `errortrace`, which heavily instruments
+    your code and therefore may be significantly slower.
+
+Tip: Regardless of this setting, you can enable 'high errortrace
+for a specific `racket-run' using a C-u prefix. This lets you
+normally run with a faster setting, and temporarily re-run to get
+a more-helpful error message."
+  :tag "Error Context"
+  :type '(radio (const :tag "Low" low)
+                (const :tag "Medium (slower)" medium)
+                (const :tag "High (much slower)" high))
+  :risky t
+  :group 'racket-repl)
+
+(defcustom racket-retry-as-skeleton t
+  "Retry a \"skeleton\" of files with errors, for identifier names?
+
+When true: If your source file has an error, a \"skeleton\" of
+your file is evaluated to get identifiers from module languages,
+`require` forms, and definitions. That way, things like
+completion and `racket-repl-describe' are more likely to work
+while you edit the file to fix the error.
+
+Otherwise, you'll have only identifiers provided by
+`racket/base`, until you fix the error and run again.
+
+You might want to disable this if you work with files that take a
+very long time to expand --- because this feature needs to expand
+again when there is an error."
+  :tag "Retry as Skeleton?"
+  :type 'boolean
+  :safe #'booleanp
+  :group 'racket-repl)
 
 (defcustom racket-history-filter-regexp "\\`\\s *\\S ?\\S ?\\s *\\'"
   "Input matching this regexp are not saved on the history list.
@@ -221,15 +240,16 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   :group 'racket-repl)
 
 (defcustom racket-pretty-print t
-  "Use pretty-print instead of print in REPL."
+  "Use pretty-print instead of print in REPL?"
   :tag "Pretty Print"
   :type 'boolean
   :safe #'booleanp
   :group 'racket-repl)
 
 (defcustom racket-use-repl-submit-predicate nil
-  "Should `racket-repl-submit' use a drracket:submit-predicate? A
-language can provide such a predicate, for example when the
+  "Should `racket-repl-submit' use a drracket:submit-predicate?
+
+A language can provide such a predicate, for example when the
 language syntax is not s-expressions. When t `racket-repl-submit'
 will use this to decide whether to submit your input, yet."
   :tag "Use REPL Submit Predicate"
@@ -246,6 +266,7 @@ will use this to decide whether to submit your input, yet."
 
 (defcustom racket-indent-curly-as-sequence t
   "Indent `{}` with items aligned with the head item?
+
 This is indirectly disabled if `racket-indent-sequence-depth' is 0.
 This is safe to set as a file-local variable."
   :tag "Indent Curly As Sequence"
@@ -255,6 +276,7 @@ This is safe to set as a file-local variable."
 
 (defcustom racket-indent-sequence-depth 0
   "To what depth should `racket-indent-line' search.
+
 This affects the indentation of forms like '() `() #() --
 and {} if `racket-indent-curly-as-sequence' is t --- but not
 #'() #`() ,() ,@(). A zero value disables, giving the normal
@@ -269,6 +291,7 @@ file-local variable."
 
 (defcustom racket-pretty-lambda nil
   "Display lambda keywords using λ. This is DEPRECATED.
+
 Instead use `prettify-symbols-mode' in newer verisons of Emacs,
 or, use `racket-insert-lambda' to insert actual λ characters."
   :tag "Pretty Lambda"
@@ -292,8 +315,9 @@ and/or `racket-repl-mode-map' keymaps."
       (or (seq "module" (zero-or-one (any ?* ?+)))
           "library"))
   "Regexp for the start of a `module`-like form.
-Affects what `beginning-of-defun' will move to.
-This is safe to set as a file-local variable."
+
+Affects what `beginning-of-defun' will move to. This is safe to
+set as a file-local variable."
   :tag "Top Level Forms"
   :type 'string
   :safe #'stringp

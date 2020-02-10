@@ -69,8 +69,7 @@ everything. If you find that too \"noisy\", set this to nil.")
     ["Racket Documentation" racket-xp-documentation]
     ["Describe" racket-xp-describe]
     "---"
-    ["Annotate Now" racket-xp-annotate-]
-    ["Customize..." customize-mode]))
+    ["Annotate Now" racket-xp-annotate]))
 
 ;;;###autoload
 (define-minor-mode racket-xp-mode
@@ -684,14 +683,6 @@ manually."
 (defun racket--xp-set-status (&optional which)
   (setq racket--xp-mode-status which)
   (force-mode-line-update))
-
-(defcustom racket-xp-mode-lighter
-  '(:eval (racket--xp-mode-lighter))
-  "Mode line lighter for `racket-xp-mode'.
-Set to nil to disable the mode line completely."
-  :group 'racket-mode
-  :risky t
-  :type 'sexp)
 
 (defun racket--xp-mode-lighter ()
   (let ((prefix "Rkt"))
