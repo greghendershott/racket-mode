@@ -31,7 +31,7 @@
 (define (check-syntax path-str code-str)
   (define path (string->path path-str))
   (parameterize ([error-display-handler our-error-display-handler]
-                 [typed-racket-errors '()])
+                 [pre-exn-errors '()])
     (with-handlers ([exn:fail? (handle-fail path-str)])
       (with-time/log (~a "total " path-str)
         (string->expanded-syntax path
@@ -182,7 +182,7 @@
   ;; [1] Locals. When a definition isn't yet used, there will be no
   ;; syncheck:add-arrow annotation because drracket doesn't need to
   ;; draw an arrow from something to nothing. There _will_ however be
-  ;; an "no bound occurrences" mouseover. Although it's hacky to match
+  ;; a "no bound occurrences" mouseover. Although it's hacky to match
   ;; on a string like that, it's the best way to get _all_ local
   ;; completion candidates. It's the same reason why we go to the work
   ;; in imported-completions to find _everything_ imported, that
@@ -216,33 +216,36 @@
 ;; Typed Racket can report multiple errors. The protcol is it calls
 ;; error-display-handler for each one. There is a final, actual
 ;; exn:fail:syntax raised, but it's not useful for us: Although its
-;; srclocs correspond to each location, its message is just a summary.
-;; Here we collect the message and locations in a parameter, and when
-;; the final summary exn is raised, we ignore it and use these.
-(define typed-racket-errors (make-parameter '()))
+;; srclocs correspond the locations, its message is just a summary.
+;; Here we collect each message and location in a parameter, and when
+;; the final summary exn is raised, we ignore it and use these. Note
+;; that Typed Racket is the only such example I'm aware of, but if
+;; something else wanted to report multiple errors, and it used a
+;; similar approach, we'd handle it here, too.
+(define pre-exn-errors (make-parameter '()))
 (define (our-error-display-handler msg exn)
-  (match exn
-    [(exn:fail:syntax (pregexp "^[^ ]+ Type Checker: ")
-                      _cms
-                      (list _stx))
-     #:when (exn:srclocs? exn)
-     (match (exn-srclocs->our-list exn)
-       [(list v) ;just one
-        (typed-racket-errors
-         (append (typed-racket-errors)
-                 (list v)))]
-       [_ (void)])]
-    [_ (void)]))
+  (when (and (exn:fail:syntax? exn)
+             (exn:srclocs? exn))
+    (pre-exn-errors (append (pre-exn-errors)
+                            (exn-srclocs->our-list exn)))))
 
 (define ((handle-fail path) e)
   (cons 'check-syntax-errors
-        (cond [(not (null? (typed-racket-errors)))
-               (typed-racket-errors)]
-              [(exn:srclocs? e)
-               (exn-srclocs->our-list e)]
-              [else
-               (list
-                (list 'error path 1 0 (exn-message e)))])))
+        (cond
+          ;; Multiple errors. See comment above.
+          [(not (null? (pre-exn-errors)))
+           (pre-exn-errors)]
+          ;; A single error, with one or more locations from least to
+          ;; most specific. This is the intended use of
+          ;; exn:fail:syntax -- not multiple errors.
+          [(exn:srclocs? e)
+           (exn-srclocs->our-list e)]
+          ;; A single error with no srcloc at all. Although this might
+          ;; happen with arbitrary runtime errors (?), it's unlikely
+          ;; with exn:fail:syntax during expansion.
+          [else
+           (list
+            (list 'error path 1 0 (exn-message e)))])))
 
 (define (exn-srclocs->our-list e)
   (for/list ([sl (in-list ((exn:srclocs-accessor e) e))])
