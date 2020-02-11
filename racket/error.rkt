@@ -186,7 +186,7 @@
                   Can't suggest packages to install, because pkg/db get-catalogs is '().
                   To configure:
                   1. Start DrRacket.
-                  2. Choose "File | Package Mananger".
+                  2. Choose "File | Package Manager".
                   3. Click "Available from Catalog".
                   4. When prompted, click "Update".
                   -----})]
