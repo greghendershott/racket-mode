@@ -15,25 +15,16 @@
 (module+ test
   (require rackunit))
 
-(define (sig how v) ;how/c any/c -> (or/c #f string?)
-  (define as-str
-    (match v
-      [(? syntax? v) (syntax->datum v)]
-      [(? symbol? v) (symbol->string v)]
-      [(? string? v) v]
-      [_             #f]))
-  (and as-str
-       (match (find-signature how as-str)
-         [#f #f]
-         [x (~a x)])))
-
 ;;; type
 
-(define/contract (type how v)
-  (-> how/c any/c (or/c #f string?))
+(define/contract (type how str)
+  (-> how/c string? (or/c #f string?))
   (or (and (eq? how 'namespace)
-           (type-or-contract v))
-      (sig how v)))
+           (->identifier 'namespace str type-or-contract))
+      (->identifier how str identifier->bluebox)
+      (match (find-signature how str)
+        [#f #f]
+        [x (~a x)])))
 
 (define (type-or-contract v) ;any/c -> (or/c #f string?)
   (or
@@ -76,10 +67,14 @@
                      (or (path+anchor->html (binding->path+anchor stx))
                          (sig-and/or-type how stx))))]))
 
-(define (sig-and/or-type how stx)
+(define/contract (sig-and/or-type how stx)
+  (-> how/c identifier? string?)
   (define dat (syntax->datum stx))
-  (define s (sig how dat))
-  (define t (and (eq? how 'namespace) (type-or-contract stx)))
+  (define s (match (find-signature how (symbol->string dat))
+              [#f #f]
+              [x (~a x)]))
+  (define t (and (eq? how 'namespace)
+                 (type-or-contract stx)))
   (xexpr->string
    `(div ()
      (h1 () ,(or s (~a dat)))

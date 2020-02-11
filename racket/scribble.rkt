@@ -8,7 +8,12 @@
          racket/function
          racket/match
          racket/path
+         racket/promise
+         racket/string
+         (only-in scribble/core
+                  tag?)
          scribble/xref
+         scribble/blueboxes
          setup/xref
          (only-in xml
                   xml->xexpr
@@ -16,14 +21,17 @@
                   xexpr->string))
 
 (provide binding->path+anchor
-         path+anchor->html)
+         path+anchor->html
+         identifier->bluebox)
 
 ;;; Extract Scribble documentation as modified HTML suitable for
 ;;; Emacs' shr renderer.
 
+(define xref (delay (load-collections-xref)))
+
 (define/contract (binding->path+anchor stx)
   (-> syntax? (or/c #f (cons/c path-string? string?)))
-  (let* ([xref (load-collections-xref)]
+  (let* ([xref (force xref)]
          [tag  (and (identifier? stx)
                     (xref-binding->definition-tag xref stx 0))]
          [p+a  (and tag
@@ -205,3 +213,17 @@
                     (img ([x "x"] [src "foo.png"] [y "y"]))))
    `(div ()
      (img ([src "file:///path/to/foo.png"] [x "x"] [y "y"])))))
+
+
+;; Delay this in case we're loaded only for `doc`.
+(define bluebox-cache (delay (make-blueboxes-cache #t)))
+
+(define/contract (identifier->bluebox stx)
+  (-> identifier? (or/c #f string?))
+  (match (xref-binding->definition-tag (force xref) stx 0)
+    [(? tag? tag)
+     (match (fetch-blueboxes-strs tag #:blueboxes-cache (force bluebox-cache))
+       [(list* _kind strs)
+        (string-replace (string-join strs "\n") " " " ")]
+       [_ #f])]
+    [_ #f]))

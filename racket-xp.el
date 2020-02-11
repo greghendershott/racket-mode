@@ -20,6 +20,7 @@
 (require 'racket-repl)
 (require 'racket-complete)
 (require 'racket-describe)
+(require 'racket-eldoc)
 (require 'racket-visit)
 (require 'racket-util)
 (require 'racket-show)
@@ -280,6 +281,42 @@ TAB, and activate using RET -- for `racket-visit-definition' and
                                     #'browse-url))))))
        (racket--do-describe how str t visit-thunk doc-thunk)))))
 
+(defun racket-xp-eldoc-function ()
+  "A value for the variable `eldoc-documentation-function'.
+
+By default `racket-xp-mode' sets `eldoc-documentation-function'
+to nil -- no `eldoc-mode' support. You may set it to this
+function in a `racket-xp-mode-hook' if you really want to use
+`eldoc-mode'. But it is not a very satisfying experience because
+Racket is not a very \"eldoc friendly\" language.
+
+Sometimes we can discover function signatures from source -- but
+this can be slow.
+
+Many interesting Racket forms are syntax (macros) without any
+easy way to discover their \"argument lists\". Similarly many
+Racket functions or syntax are defined in #%kernel and the source
+is not available. If they have documentation with a \"bluebox\",
+we can show it -- but often it is not a single-line format
+typical for eldoc.
+
+Finally, when `racket-xp-after-change-refresh-delay' is a small
+value, you may start to type some expression, and pause for
+guidance from `eldoc-mode'. However in its incomplete form your
+expression might be a syntax error. The resulting error message
+might \"fight\" with `eldoc-mode' in the echo area. You could
+avoid this by setting the variable `racket-show-functions' not to
+include `racket-show-echo-area'. Even so, and worse, the syntax
+error might result in a namespace that is empty -- in which case
+we won't find blueboxes, types, or contracts.
+
+So if you are expecting an eldoc experience similar to Emacs
+Lisp, you will be disappointed.
+
+A more satisfying experience is to use `racket-xp-describe'
+or `racket-repl-describe'."
+  (racket--do-eldoc (racket--buffer-file-name)))
+
 (defconst racket--xp-overlay-name 'racket-xp-overlay)
 
 (defun racket--xp-overlay-p (o)
@@ -502,8 +539,8 @@ If moved, return the new position, else nil."
 (defun racket-xp-next-error (&optional amt reset)
   "Our value for the variable `next-error-function'.
 
-If there are any check-syntax errors, move point to the next or
-previous one, if any.
+If there are any check-syntax errors, moves among them, wrapping
+around at the first and last errors.
 
 Otherwise delegate to `compilation-next-error-function' in
 `racket-repl-mode'. That way, things still work as you would want
@@ -511,25 +548,23 @@ when using `racket-run', e.g. for runtime evaluation errors that
 won't be found merely from expansion."
   (interactive)
   (let ((len (length racket--xp-errors)))
-    (cond ((< 0 len)
-           (when reset
-             (setq racket--xp-errors-index 0))
-           (setq racket--xp-errors-index
-                 (+ racket--xp-errors-index amt))
-           (cond ((and (<= 1 racket--xp-errors-index)
-                       (<= racket--xp-errors-index len))
-                  (pcase-let ((`(,path ,pos ,str)
-                               (aref racket--xp-errors
-                                     (1- racket--xp-errors-index))))
-                    (cond ((equal path (racket--buffer-file-name))
-                           (goto-char pos))
-                          (t
-                           (find-file path)
-                           (goto-char pos)))
-                    (message "%s" str)))
-                 (t (message "No more errors"))))
-          (t
-           (with-racket-repl-buffer (compilation-next-error-function amt reset))))))
+    (if (zerop len)
+        (with-racket-repl-buffer
+          (compilation-next-error-function amt reset))
+      (if reset
+          (setq racket--xp-errors-index 0)
+        (setq racket--xp-errors-index
+              (mod (+ racket--xp-errors-index amt)
+                   len)))
+      (pcase-let ((`(,path ,pos ,str)
+                   (aref racket--xp-errors
+                         racket--xp-errors-index)))
+        (cond ((equal path (racket--buffer-file-name))
+               (goto-char pos))
+              (t
+               (find-file path)
+               (goto-char pos)))
+        (message "%s" str)))))
 
 ;;; Update
 

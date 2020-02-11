@@ -19,6 +19,7 @@
 
 (require 'racket-complete)
 (require 'racket-describe)
+(require 'racket-eldoc)
 (require 'racket-custom)
 (require 'racket-common)
 (require 'racket-util)
@@ -737,27 +738,6 @@ to supply this quickly enough or at all."
   (pcase (racket--cmd/await `(def-in-namespace ,str))
     (`(,path ,line ,_) (cons path line))))
 
-
-;;; eldoc
-
-
-(defvar racket--repl-type-cache (make-hash-table :test #'eq)
-  "Memoize \"type\" commands in Racket REPL.")
-
-(defun racket--repl-invalidate-type-cache ()
-  (setq racket--repl-type-cache (make-hash-table :test #'eq)))
-
-(add-hook 'racket--repl-before-run-hook #'racket--repl-invalidate-type-cache)
-
-(defun racket--repl-get-type (str)
-  (let* ((sym (intern str))
-         (v (gethash sym racket--repl-type-cache)))
-    (or v
-        (pcase (racket--cmd/await `(type ,sym))
-          (`() `())
-          (v   (puthash sym v racket--repl-type-cache)
-               v)))))
-
 (defun racket-repl-eldoc-function ()
   "A value for the variable `eldoc-documentation-function'.
 
@@ -765,42 +745,27 @@ By default `racket-repl-mode' sets `eldoc-documentation-function'
 to nil -- no `eldoc-mode' support. You may set it to this
 function in a `racket-repl-mode-hook' if you really want to use
 `eldoc-mode'. But it is not a very satisfying experience because
-Racket is not a very \"eldoc friendly\" language. Although Racket
-Mode attempts to discover argument lists, contracts, or types
-this doesn't work in many common cases:
+Racket is not a very \"eldoc friendly\" language.
 
-- Many Racket functions are defined in #%kernel. There's no easy
-  way to determine their argument lists. Most are not provided
-  with a contract.
+Sometimes we can discover argument lists from source -- but this
+can be slow.
 
-- Many of the interesting Racket forms are syntax (macros) not
-  functions. There's no easy way to determine their \"argument
-  lists\".
+For code that has been run in the REPL, we can use its namespace
+to discover contracts or types -- but otherwise we cannot.
 
-A more satisfying experience is to use `racket-xp-describe',
-`racket-repl-describe', `racket-xp-documentation', or
+Many interesting Racket forms are syntax (macros) without any
+easy way to discover their \"argument lists\". Similarly many
+Racket functions or syntax are defined in #%kernel and the source
+is not available. If they have documentation with a \"bluebox\",
+we can show it -- but often it is not a single-line format
+typical for eldoc.
+
+So if you are expecting an eldoc experience similar to Emacs
+Lisp, you will be disappointed.
+
+A more satisfying experience is to use `racket-repl-describe' or
 `racket-repl-doc'."
-  (and (> (point) (point-min))
-       (save-excursion
-         (condition-case nil
-             ;; The char-before and looking-at checks below are to
-             ;; avoid calling `racket--get-type' when the sexp is
-             ;; quoted or when its first elem couldn't be a Racket
-             ;; function name.
-             (let* ((beg (progn
-                           (backward-up-list)
-                           (and (not (memq (char-before) '(?` ?' ?,)))
-                                (progn (forward-char 1) (point)))))
-                    (beg (and beg (looking-at "[^0-9#'`,\"]") beg))
-                    (end (and beg (progn (forward-sexp) (point))))
-                    (end (and end
-                              (char-after (point))
-                              (eq ?\s (char-syntax (char-after (point))))
-                              end))
-                    (sym (and beg end (buffer-substring-no-properties beg end)))
-                    (str (and sym (racket--repl-get-type sym))))
-               str)
-           (scan-error nil)))))
+  (racket--do-eldoc 'namespace))
 
 ;;; describe
 
