@@ -35,10 +35,10 @@
                    (getenv "CI"))
   "Is there an environment variable saying we're running on CI?")
 
-(defconst racket-tests/connect-attempts (if ci-p (* 15 60) (* 2 60))
+(defconst racket-tests/connect-attempts (if ci-p (* 5 60) 30)
   "Attempts to connect to command server. Very long when running on CI.")
 
-(defconst racket-tests/command-timeout (if ci-p (* 15 60) 30)
+(defconst racket-tests/command-timeout (if ci-p (* 5 60) 30)
   "Timeout for synchronous commands. Very long when running on CI.")
 
 (defun racket-tests/type (typing)
@@ -94,8 +94,7 @@
 
 (ert-deftest racket-tests/repl ()
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
-  (let ((tab-always-indent 'complete)
-        (racket--cmd-connect-attempts racket-tests/connect-attempts)
+  (let ((racket--cmd-connect-attempts racket-tests/connect-attempts)
         (racket-command-port (racket-tests/next-free-port))
         (racket-command-timeout racket-tests/command-timeout))
     (racket-repl)
@@ -105,7 +104,9 @@
       (racket-tests/wait-for-command-server)
 
       ;; Completion
-      (racket-tests/type&press "current-out" "TAB")
+      (racket-tests/eventually #'identity racket--repl-namespace-symbols)
+      (racket-tests/type "current-out")
+      (completion-at-point)
       (should (racket-tests/see-back "current-output-port"))
       (racket-tests/press "RET")
       (should (racket-tests/see-back "#<procedure:current-output-port>\n> "))
