@@ -242,7 +242,8 @@ buffer are Emacs buttons -- which you may navigate among using
 TAB, and activate using RET -- for `racket-visit-definition' and
 `racket-doc'."
   (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Describe: ")
+  (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
+                                            racket--xp-completions)
     ((and (pred stringp) str)
      ;; When there is a racket-xp-doc property, use its path
      ;; and anchor, because that will be correct even for an
@@ -388,7 +389,8 @@ definitions in submodules."
                   (goto-char beg)
                   t)))))
     (if prefix
-        (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")
+        (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: "
+                                                  racket--xp-completions)
           ((and (pred stringp) str)
            (racket--do-visit-def-or-mod `(def ,(buffer-file-name) ,str))))
       (pcase (get-text-property (point) 'racket-xp-visit)
@@ -415,7 +417,8 @@ definitions in submodules."
     ((and `(,path ,anchor) (guard (not prefix)))
      (browse-url (concat "file://" path "#" anchor)))
     (_
-     (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: ")
+     (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: "
+                                               racket--xp-completions)
        ((and (pred stringp) str)
         (racket--cmd/async `(doc ,(buffer-file-name) ,str)
                            #'browse-url))))))
@@ -624,11 +627,6 @@ manually."
     (dolist (x xs)
       (pcase x
         (`(error ,path ,beg ,end ,str)
-         ;; Show now using echo area, only. (Not tooltip because error
-         ;; loc might not be at point, or even in the selected
-         ;; window.. Not header-line also because that, plus unlikely
-         ;; to show whole error message in one line.)
-         (message "%s" str)
          (racket--xp-add-error path beg str)
          (when (equal path (racket--buffer-file-name))
            (let ((beg (copy-marker beg t))

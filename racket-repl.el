@@ -792,7 +792,8 @@ buffer are Emacs buttons -- which you may navigate among using
 TAB, and activate using RET -- for `racket-visit-definition' and
 `racket-doc'."
   (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Describe: ")
+  (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
+                                            racket--repl-namespace-symbols)
     ((and (pred stringp) str)
      (racket--do-describe 'namespace str t
                           (lambda ()
@@ -820,7 +821,8 @@ Please keep in mind the following limitations:
 - If the definition is found in Racket's \"#%kernel\" module, it
   will tell you so but won't visit the definition site."
   (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: ")
+  (pcase (racket--symbol-at-point-or-prompt prefix "Visit definition of: "
+                                            racket--repl-namespace-symbols)
     ((and (pred stringp) str) (racket--repl-visit-symbol-definition str))))
 
 ;; TODO: Move to `racket-xp-mode', or arrange for this to call that or
@@ -851,7 +853,8 @@ variant of racket/help.)
 With a C-u prefix, prompts for the identifier or quoted string,
 instead of looking at point."
   (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Racket help for: ")
+  (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: "
+                                            racket--repl-namespace-symbols)
     ((and (pred stringp) str) (racket--cmd/async `(doc namespace ,str)
                                                  #'browse-url))))
 
