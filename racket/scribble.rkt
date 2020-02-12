@@ -24,24 +24,23 @@
          path+anchor->html
          identifier->bluebox)
 
-;;; Extract Scribble documentation as modified HTML suitable for
-;;; Emacs' shr renderer.
+(module+ test
+  (require rackunit))
 
-(define xref (delay (load-collections-xref)))
+(define xref (delay/thread (load-collections-xref)))
 
 (define/contract (binding->path+anchor stx)
-  (-> syntax? (or/c #f (cons/c path-string? string?)))
+  (-> identifier? (or/c #f (cons/c path-string? string?)))
   (let* ([xref (force xref)]
-         [tag  (and (identifier? stx)
-                    (xref-binding->definition-tag xref stx 0))]
-         [p+a  (and tag
-                    (our-xref-tag->path+anchor xref tag))])
+         [tag  (xref-binding->definition-tag xref stx 0)]
+         [p+a  (and tag (tag->path+anchor xref tag))])
     p+a))
 
-;; Return as cons not values; easier to handle in "`and` chains".
-(define (our-xref-tag->path+anchor xref tag)
+(define (tag->path+anchor xref tag)
   (define-values (path anchor) (xref-tag->path+anchor xref tag))
   (and path anchor (cons path anchor)))
+
+;;; Scribble docs as HTML suitable for Emacs' shr renderer
 
 (define/contract (path+anchor->html path+anchor)
   (-> (or/c #f (cons/c path-string? string?))
@@ -50,7 +49,7 @@
     [(cons path anchor)
      (let* ([xexpr (get-raw-xexpr path anchor)]
             [xexpr (and xexpr (massage-xexpr path xexpr))]
-            [html   (and xexpr (xexpr->string xexpr))])
+            [html  (and xexpr (xexpr->string xexpr))])
        html)]
     [_ #f]))
 
@@ -77,7 +76,6 @@
     [xs     `(div () ,@xs)]))
 
 (module+ test
-  (require rackunit)
   (test-case "procedure"
     (check-not-false (path+anchor->html (binding->path+anchor #'print))))
   (test-case "syntax"
@@ -214,9 +212,9 @@
    `(div ()
      (img ([src "file:///path/to/foo.png"] [x "x"] [y "y"])))))
 
+;;; Blueboxes
 
-;; Delay this in case we're loaded only for `doc`.
-(define bluebox-cache (delay (make-blueboxes-cache #t)))
+(define bluebox-cache (delay/thread (make-blueboxes-cache #t)))
 
 (define/contract (identifier->bluebox stx)
   (-> identifier? (or/c #f string?))
@@ -224,6 +222,13 @@
     [(? tag? tag)
      (match (fetch-blueboxes-strs tag #:blueboxes-cache (force bluebox-cache))
        [(list* _kind strs)
-        (string-replace (string-join strs "\n") " " " ")]
+        (string-replace (string-join strs "\n")
+                        "\u00A0"
+                        " ")]
        [_ #f])]
     [_ #f]))
+
+(module+ test
+  (check-equal? (identifier->bluebox #'list)
+                "(list v ...) -> list?\n  v : any/c")
+  (check-false (identifier->bluebox (datum->syntax #f (gensym)))))
