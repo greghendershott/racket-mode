@@ -764,7 +764,7 @@ So if you are expecting an eldoc experience similar to Emacs
 Lisp, you will be disappointed.
 
 A more satisfying experience is to use `racket-repl-describe' or
-`racket-repl-doc'."
+`racket-repl-documentation'."
   (racket--do-eldoc 'namespace))
 
 ;;; describe
@@ -835,7 +835,7 @@ symbol definition lookup."
 
 ;;; Doc
 
-(defun racket-repl-doc (&optional prefix)
+(defun racket-repl-documentation (&optional prefix)
   "View documentation of the identifier or string at point.
 
 Uses the default external web browser.
@@ -872,7 +872,7 @@ instead of looking at point."
      ("C-c C-e e"       racket-expand-last-sexp)
      ("C-c C-e r"       racket-expand-region)
      ("M-C-y"           racket-insert-lambda)
-     ("C-c C-d"         racket-repl-doc)
+     ("C-c C-d"         racket-repl-documentation)
      ("C-c C-."         racket-repl-describe)
      ("M-."             racket-repl-visit-definition)
      ("C-M-."           racket-visit-module)

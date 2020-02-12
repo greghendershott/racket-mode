@@ -65,7 +65,7 @@
     racket-run
     racket-repl
     racket-repl-describe
-    racket-repl-doc
+    racket-repl-documentation
     racket-repl-visit-definition
     racket-racket
     racket-profile
