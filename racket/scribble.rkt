@@ -30,7 +30,7 @@
 (define xref (delay/thread (load-collections-xref)))
 
 (define/contract (binding->path+anchor stx)
-  (-> identifier? (or/c #f (cons/c path-string? string?)))
+  (-> identifier? (or/c #f (cons/c path-string? (or/c #f string?))))
   (let* ([xref (force xref)]
          [tag  (xref-binding->definition-tag xref stx 0)]
          [p+a  (and tag (tag->path+anchor xref tag))])
@@ -43,7 +43,7 @@
 ;;; Scribble docs as HTML suitable for Emacs' shr renderer
 
 (define/contract (path+anchor->html path+anchor)
-  (-> (or/c #f (cons/c path-string? string?))
+  (-> (or/c #f (cons/c path-string? (or/c #f string?)))
       (or/c #f string?))
   (match path+anchor
     [(cons path anchor)

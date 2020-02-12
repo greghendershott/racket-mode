@@ -55,12 +55,18 @@
 ;; if any.
 
 (define/contract (describe how str)
-  (-> (or/c how/c (cons/c path-string? string?))
+  (-> (or/c how/c
+            (cons/c path-string? string?)
+            (list/c path-string?))
       string?
       string?)
   (match how
-    [(and (cons (? path-string?) (? string?)) path+anchor)
-     (path+anchor->html path+anchor)]
+    [(list (? path-string? path))
+     (or (path+anchor->html (cons path #f))
+         "Documentation not found")]
+    [(cons (? path-string? path) (? string? anchor))
+     (or (path+anchor->html (cons path anchor))
+         "Documentation not found")]
     [(and (or 'namespace (? path-string?)) how)
      (->identifier how str
                    (λ (stx)
@@ -108,7 +114,7 @@
             ;; hole now.
             `()]
            [_
-            `((pre ()  "(-" ">" " (or/c (or/c (quote namespace) path-string?) (cons/c path-string? string?)) string? string?)"))])
+            `((pre ()  "(-" ">" " (or/c (or/c (quote namespace) path-string?) (cons/c path-string? string?) (list/c path-string?)) string? string?)"))])
        (br ()))))
 
   (when (version<=? "6.5" (version))
