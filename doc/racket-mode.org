@@ -24,13 +24,16 @@ The [[https://www.racket-mode.com/][Racket Mode]] package consists of a variety 
 
 - ~racket-mode~: A major mode for editing ~.rkt~ files.
 
-- ~racket-repl-mode~: A major mode for a Racket REPL. This uses a "back end server" written in Racket, which is responsible for running files and implementing commands that cannot be implemented in Emacs Lisp.[fn:pkg]
+- {{{ref(racket-xp-mode)}}}: An optional minor mode that enhances ~racket-mode~ to explain and explore code.
 
-- Modes to support specific features, such as:
+- ~racket-repl-mode~: A major mode for running programs providing a REPL.
+
+- Various other modes to support specific features:
   - {{{ref(racket-logger-mode)}}}
   - {{{ref(racket-profile-mode)}}}
-  - {{{ref(racket-xp-mode)}}}
   - {{{ref(racket-debug-mode)}}}
+
+Racket Mode uses a "back end server" written in Racket, which is responsible for running files and implementing commands that cannot be implemented in Emacs Lisp.[fn:pkg]
 
 For code, issues, and pull requests, see the [[https://github.com/greghendershott/racket-mode][Git repo]].
 
@@ -127,15 +130,15 @@ Racket Mode supports four, increasing levels of font-lock:
 
 In Emacs, a major mode may supply a "completion-at-point function". This function is used by manual completion commands like ~complete-symbol~ (bound by default to {{{kbd(C-M-i)}}}), as well as by auto-completion packages like ~company-mode~.
 
-Racket Mode supplies such a function, which draws on all identifiers /currently defined in the Racket namespace/.
+- ~racket-mode~ supplies ~racket-complete-at-point~, which simply supplies the same symbols that it knows how to font-lock. This does /not/ require the Racket Mode back end to be running. But of course the completion candidates do not correspond to your program's definitions or those it imports. This is a static, "better than nothing" fallback.
 
-Of course that means there must exist some Racket namespace. When you first visit a ~.rkt~ file, you need to {{{kbd(C-c C-c)}}} to {{{ref(racket-run)}}}. That makes the namespace match the file, and makes its identifiers available to Racket Mode. (Otherwise, as a fallback, Racket Mode uses the same list of identifiers for which it has defined {{{ref(Font-lock (syntax highlighting))}}}.)
+- ~racket-xp-mode~ --- an optional minor mode that enhances ~racket-mode~ --- supplies ~racket-xp-complete-at-point~, which uses a static anaylsis to find local and imported binding names. Although this requires the Racket Mode back end to be running --- and will automatically start it --- it does /not/ require the edit buffer to be ~racket-run~.
 
-Similarly, after you change the file, including its ~require~ forms, you'll need to {{{kbd(C-c C-c)}}} again to make the resulting set of identifiers available for completion.
+- ~racket-repl-mode~ supplies ~racket-repl-complete-at-point~, which uses the result of ~namespace-mapped-symbols~ on the program currently running in the REPL.
 
-Optional: You can enable a minor mode to get completion candidates from local defintions: {{{see(racket-xp-mode)}}}.
+These completion functions are set by default. (However, ~racket-xp-mode~ is not enabled by default. To do so: {{{ref(racket-xp-mode)}}}.)
 
-To have {{{kbd(TAB)}}} do completion as well as indent, add the following to your Emacs init file:
+If you want {{{kbd(TAB)}}} to do completion as well as indent, add the following to your Emacs init file:
 
 #+BEGIN_SRC lisp
 (setq tab-always-indent 'complete)
@@ -180,7 +183,7 @@ If instead of paredit you prefer [[https://melpa.org/#/smartparens][smartparens]
 
 ** eldoc
 
-By default Racket Mode sets ~eldoc-documentation-function~ to ~nil~ --- no ~eldoc-mode~ support. You may set it to ~racket-eldoc-function~ in a ~racket-mode-hook~ if you really want to use ~eldoc-mode~ with Racket. But it is not a very satisfying experience because Racket is not a very "eldoc-friendly" language. Although Racket Mode attempts to discover argument lists, contracts, or types this doesn't work in many common cases:
+By default Racket Mode sets ~eldoc-documentation-function~ to ~nil~ --- no ~eldoc-mode~ support. You may set it to ~racket-eldoc-function~ in a ~racket-mode-hook~ and ~racket-repl-mode-hook~ if you really want to use ~eldoc-mode~ with Racket. But it is not a very satisfying experience because Racket is not a very "eldoc-friendly" language. Although Racket Mode attempts to discover argument lists, contracts, or types this doesn't work in many common cases:
 
 - Many Racket primitives are defined in ~#%kernel~ or ~#%runtime~. There's no easy way to determine their argument lists. Most do not ~provide~ a contract.
 

@@ -142,10 +142,23 @@ When you edit the buffer, existing annotations are retained;
 their positions are updated to reflect the edit. Annotations for
 new or deleted text are not requested until after
 `racket-xp-after-change-refresh-delay' seconds. The request is
-made asynchronously so that Emacs will not block -- the
-drracket/check-syntax analysis can take even tens of seconds for
-even moderately complex source files. When the results are ready,
-all annotations for the buffer are completely refreshed.
+made asynchronously so that Emacs will not block -- for
+moderately complex source files, it can take some seconds simply
+to fully expand them, as well as a little more time for the
+`drracket/check-syntax` analysis. When the results are ready, all
+annotations for the buffer are completely refreshed.
+
+You may also set `racket-xp-after-change-refresh-delay' to nil
+and use the `racket-xp-annotate' command manually.
+
+The mode line changes to reflect the current status of
+annotations, and whether or not you had a syntax error.
+
+If you have one or more syntax errors, use the standard
+`next-error' command and key bindings to navigate among them.
+Although most languages will stop after the first syntax error,
+some like Typed Racket will try to collect and report multiple
+errors.
 
 Tip: This mode follows the convention that a minor mode may only
 use a prefix key consisting of \"C-c\" followed by a punctuation
@@ -222,6 +235,10 @@ by `racket-mode'."
 
 (defun racket-xp-describe (&optional prefix)
 "Describe the identifier at point in a `*Racket Describe*` buffer.
+
+With a prefix, prompts you, but in this case beware it assumes
+definitions in or imported by the file module -- not locals or
+definitions in submodules.
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation

@@ -98,7 +98,7 @@ Run
 * racket-run::
 * racket-repl::
 * racket-repl-describe::
-* racket-repl-doc::
+* racket-repl-documentation::
 * racket-repl-visit-definition::
 * racket-racket::
 * racket-profile::
@@ -220,21 +220,24 @@ The @uref{https://www.racket-mode.com/,Racket Mode} package consists of a variet
 @code{racket-mode}: A major mode for editing @code{.rkt} files.
 
 @item
-@code{racket-repl-mode}: A major mode for a Racket REPL. This uses a ``back end server'' written in Racket, which is responsible for running files and implementing commands that cannot be implemented in Emacs Lisp.@footnote{Racket Mode's Racket code is also delivered as part of the Emacs package --- @emph{not} as a Racket package. Delivering both Emacs and Racket code in one Emacs package simplifies installation and updates. The main drawback is that the Racket code is not automatically byte-compiled, as would normally be done by @code{raco pkg install}. To address this: @xref{racket-mode-start-faster}.}
+@ref{racket-xp-mode}: An optional minor mode that enhances @code{racket-mode} to explain and explore code.
 
 @item
-Modes to support specific features, such as:
+@code{racket-repl-mode}: A major mode for running programs providing a REPL.
+
+@item
+Various other modes to support specific features:
 @itemize
 @item
 @ref{racket-logger-mode}
 @item
 @ref{racket-profile-mode}
 @item
-@ref{racket-xp-mode}
-@item
 @ref{racket-debug-mode}
 @end itemize
 @end itemize
+
+Racket Mode uses a ``back end server'' written in Racket, which is responsible for running files and implementing commands that cannot be implemented in Emacs Lisp.@footnote{Racket Mode's Racket code is also delivered as part of the Emacs package --- @emph{not} as a Racket package. Delivering both Emacs and Racket code in one Emacs package simplifies installation and updates. The main drawback is that the Racket code is not automatically byte-compiled, as would normally be done by @code{raco pkg install}. To address this: @xref{racket-mode-start-faster}.}
 
 For code, issues, and pull requests, see the @uref{https://github.com/greghendershott/racket-mode,Git repo}.
 
@@ -377,15 +380,20 @@ Racket Mode supports four, increasing levels of font-lock:
 
 In Emacs, a major mode may supply a ``completion-at-point function''. This function is used by manual completion commands like @code{complete-symbol} (bound by default to @kbd{C-M-i} ), as well as by auto-completion packages like @code{company-mode}.
 
-Racket Mode supplies such a function, which draws on all identifiers @emph{currently defined in the Racket namespace}.
+@itemize
+@item
+@code{racket-mode} supplies @code{racket-complete-at-point}, which simply supplies the same symbols that it knows how to font-lock. This does @emph{not} require the Racket Mode back end to be running. But of course the completion candidates do not correspond to your program's definitions or those it imports. This is a static, ``better than nothing'' fallback.
 
-Of course that means there must exist some Racket namespace. When you first visit a @code{.rkt} file, you need to @kbd{C-c C-c}  to @ref{racket-run}. That makes the namespace match the file, and makes its identifiers available to Racket Mode. (Otherwise, as a fallback, Racket Mode uses the same list of identifiers for which it has defined @ref{Font-lock (syntax highlighting)}.)
+@item
+@code{racket-xp-mode} --- an optional minor mode that enhances @code{racket-mode} --- supplies @code{racket-xp-complete-at-point}, which uses a static anaylsis to find local and imported binding names. Although this requires the Racket Mode back end to be running --- and will automatically start it --- it does @emph{not} require the edit buffer to be @code{racket-run}.
 
-Similarly, after you change the file, including its @code{require} forms, you'll need to @kbd{C-c C-c}  again to make the resulting set of identifiers available for completion.
+@item
+@code{racket-repl-mode} supplies @code{racket-repl-complete-at-point}, which uses the result of @code{namespace-mapped-symbols} on the program currently running in the REPL.
+@end itemize
 
-Optional: You can enable a minor mode to get completion candidates from local defintions: @xref{racket-xp-mode}.
+These completion functions are set by default. (However, @code{racket-xp-mode} is not enabled by default. To do so: @ref{racket-xp-mode}.)
 
-To have @kbd{TAB}  do completion as well as indent, add the following to your Emacs init file:
+If you want @kbd{TAB}  to do completion as well as indent, add the following to your Emacs init file:
 
 @lisp
 (setq tab-always-indent 'complete)
@@ -437,7 +445,7 @@ If instead of paredit you prefer @uref{https://melpa.org/#/smartparens,smartpare
 @node eldoc
 @section eldoc
 
-By default Racket Mode sets @code{eldoc-documentation-function} to @code{nil} --- no @code{eldoc-mode} support. You may set it to @code{racket-eldoc-function} in a @code{racket-mode-hook} if you really want to use @code{eldoc-mode} with Racket. But it is not a very satisfying experience because Racket is not a very ``eldoc-friendly'' language. Although Racket Mode attempts to discover argument lists, contracts, or types this doesn't work in many common cases:
+By default Racket Mode sets @code{eldoc-documentation-function} to @code{nil} --- no @code{eldoc-mode} support. You may set it to @code{racket-eldoc-function} in a @code{racket-mode-hook} and @code{racket-repl-mode-hook} if you really want to use @code{eldoc-mode} with Racket. But it is not a very satisfying experience because Racket is not a very ``eldoc-friendly'' language. Although Racket Mode attempts to discover argument lists, contracts, or types this doesn't work in many common cases:
 
 @itemize
 @item
@@ -1015,10 +1023,23 @@ When you edit the buffer, existing annotations are retained;
 their positions are updated to reflect the edit. Annotations for
 new or deleted text are not requested until after
 @ref{racket-xp-after-change-refresh-delay} seconds. The request is
-made asynchronously so that Emacs will not block -- the
-drracket/check-syntax analysis can take even tens of seconds for
-even moderately complex source files. When the results are ready,
-all annotations for the buffer are completely refreshed.
+made asynchronously so that Emacs will not block -- for
+moderately complex source files, it can take some seconds simply
+to fully expand them, as well as a little more time for the
+@code{drracket/check-syntax} analysis. When the results are ready, all
+annotations for the buffer are completely refreshed.
+
+You may also set @ref{racket-xp-after-change-refresh-delay} to nil
+and use the @code{racket-xp-annotate} command manually.
+
+The mode line changes to reflect the current status of
+annotations, and whether or not you had a syntax error.
+
+If you have one or more syntax errors, use the standard
+@code{next-error} command and key bindings to navigate among them.
+Although most languages will stop after the first syntax error,
+some like Typed Racket will try to collect and report multiple
+errors.
 
 Tip: This mode follows the convention that a minor mode may only
 use a prefix key consisting of ``C-c'' followed by a punctuation
@@ -1037,6 +1058,8 @@ commands directly to whatever keys you prefer.
 @tab @ref{racket-xp-documentation}
 @item @kbd{C-c C-.} 
 @tab @ref{racket-xp-describe}
+@item @kbd{C-c # g} 
+@tab @code{racket-xp-annotate}
 @item @kbd{C-c # r} 
 @tab @code{racket-xp-rename}
 @item @kbd{C-c # .} 
@@ -1058,8 +1081,9 @@ commands directly to whatever keys you prefer.
 
 When point is on a use, go to its definition.
 
-With a prefix, prompts you, but beware this only knows about
-definitions used in the file module, not submodules.
+With a prefix, prompts you, but in this case beware it assumes
+definitions in or imported by the file module -- not locals or
+definitions in submodules.
 
 @node racket-xp-describe
 @subsection racket-xp-describe
@@ -1067,6 +1091,10 @@ definitions used in the file module, not submodules.
 @kbd{M-x}  @code{racket-xp-describe} @kbd{RET} 
 
 Describe the identifier at point in a @code{*Racket Describe*} buffer.
+
+With a prefix, prompts you, but in this case beware it assumes
+definitions in or imported by the file module -- not locals or
+definitions in submodules.
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
@@ -1096,7 +1124,15 @@ TAB, and activate using RET -- for @code{racket-visit-definition} and
 
 @kbd{M-x}  @code{racket-xp-documentation} @kbd{RET} 
 
-Show help found by check-syntax, if any, else @code{racket-doc}.
+Show documentation for the identifier at point.
+
+This gives a ``file:'' URL to @code{browse-url}, which typically opens
+an external web browser, but see that and the variable
+@code{browse-url-browser-function}.
+
+With a prefix, prompts you, but in this case beware it assumes
+definitions in or imported by the file module -- not locals or
+definitions in submodules.
 
 @node Run
 @section Run
@@ -1105,7 +1141,7 @@ Show help found by check-syntax, if any, else @code{racket-doc}.
 * racket-run::
 * racket-repl::
 * racket-repl-describe::
-* racket-repl-doc::
+* racket-repl-documentation::
 * racket-repl-visit-definition::
 * racket-racket::
 * racket-profile::
@@ -1226,10 +1262,10 @@ buffer are Emacs buttons -- which you may navigate among using
 TAB, and activate using RET -- for @code{racket-visit-definition} and
 @code{racket-doc}.
 
-@node racket-repl-doc
-@subsection racket-repl-doc
+@node racket-repl-documentation
+@subsection racket-repl-documentation
 
-@kbd{M-x}  @code{racket-repl-doc} @kbd{RET} 
+@kbd{M-x}  @code{racket-repl-documentation} @kbd{RET} 
 
 View documentation of the identifier or string at point.
 
@@ -1860,6 +1896,7 @@ asychronously.
 @subsection racket-memory-limit
 
 Terminate the Racket process if memory use exceeds this value in MB.
+
 Changes to this value take effect upon the next @ref{racket-run}. A value
 of 0 means no limit.
 
@@ -1975,6 +2012,8 @@ you probably also want to customize the ``reverse'':
 
 Seconds to wait before refreshing @ref{racket-xp-mode} annotations.
 
+Set to nil to disable automatic refresh and manually use @code{racket-xp-annotate}.
+
 @node REPL variables
 @section REPL variables
 
@@ -2011,7 +2050,7 @@ Which system image viewer program to invoke upon M-x
 @node racket-pretty-print
 @subsection racket-pretty-print
 
-Use pretty-print instead of print in REPL.
+Use pretty-print instead of print in REPL?
 
 @node Other variables
 @section Other variables
@@ -2028,6 +2067,7 @@ Use pretty-print instead of print in REPL.
 @subsection racket-indent-curly-as-sequence
 
 Indent @code{@{@}} with items aligned with the head item?
+
 This is indirectly disabled if @ref{racket-indent-sequence-depth} is 0.
 This is safe to set as a file-local variable.
 
@@ -2035,6 +2075,7 @@ This is safe to set as a file-local variable.
 @subsection racket-indent-sequence-depth
 
 To what depth should @ref{racket-indent-line} search.
+
 This affects the indentation of forms like '() `() #() --
 and @{@} if @ref{racket-indent-curly-as-sequence} is t --- but not
 #'() #`() ,() ,@@(). A zero value disables, giving the normal
@@ -2047,6 +2088,7 @@ file-local variable.
 @subsection racket-pretty-lambda
 
 Display lambda keywords using λ. This is DEPRECATED.
+
 Instead use @code{prettify-symbols-mode} in newer verisons of Emacs,
 or, use @ref{racket-insert-lambda} to insert actual λ characters.
 
