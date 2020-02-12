@@ -33,7 +33,7 @@
 ;; Likewise, but using information already supplied by
 ;; drracket/check-syntax, i.e. this is how to "force" that "delay".
 ;; (We could have done this earlier and returned this information as
-;; part of the original chek-syntax result -- but doing so would have
+;; part of the original check-syntax result -- but doing so would have
 ;; been too slow.)
 (define/contract (find-definition/drracket-jump how path submods id-strs)
   (-> (and/c how/c (not/c 'namespace)) path-string? (listof symbol?) (listof string?)
