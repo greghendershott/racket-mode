@@ -28,6 +28,8 @@
 (require 'pos-tip)
 (require 'easymenu)
 
+(declare-function racket-complete-at-point "racket-mode.el")
+
 ;; TODO: Expose as a defcustom? Or even as commands to turn on/off?
 ;; Also note there are really 3 categories here: 'local 'import
 ;; 'module-lang, so could be more granularity.
@@ -180,9 +182,12 @@ commands directly to whatever keys you prefer.
          (add-hook 'after-change-functions
                    #'racket--xp-after-change-hook
                    t t)
+         (remove-hook 'completion-at-point-functions
+                      #'racket-complete-at-point
+                      t)
          (add-hook 'completion-at-point-functions
                    #'racket-xp-complete-at-point
-                   nil t)
+                   t t)
          (setq next-error-function #'racket-xp-next-error)
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 1)))
@@ -195,6 +200,9 @@ commands directly to whatever keys you prefer.
          (remove-hook 'completion-at-point-functions
                       #'racket-xp-complete-at-point
                       t)
+         (add-hook 'completion-at-point-functions
+                   #'racket-complete-at-point
+                   t t)
          (kill-local-variable next-error-function) ;correct?
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 0)))))
