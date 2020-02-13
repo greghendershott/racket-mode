@@ -146,6 +146,10 @@ If you want {{{kbd(TAB)}}} to do completion as well as indent, add the following
 
 This changes the behavior of Emacs' standard ~indent-for-tab-command~, to which {{{kbd(TAB)}}} is bound by default in ~racket-mode~ and ~racket-repl-mode~.
 
+** Indent
+
+Indentation can be customized in a way similar to lisp-mode and scheme-mode: {{{ref(racket-indent-line)}}}.
+
 ** paredit
 
 If you use [[https://melpa.org/#/paredit][paredit]], you might want to add keybindings to ~paredit-mode-map~:
@@ -188,6 +192,8 @@ By default Racket Mode sets ~eldoc-documentation-function~ to ~nil~ --- no ~eldo
 - Many Racket primitives are defined in ~#%kernel~ or ~#%runtime~. There's no easy way to determine their argument lists. Most do not ~provide~ a contract.
 
 - Many of the interesting Racket forms are syntax (macros) not functions. There's no easy way to determine their "argument lists".
+
+- When a form has documentation, Racket Mode can show the \"bluebox\" -- but often that does not fit in a single line as you would normally expect with eldoc.
 
 A more satisfying experience is to use {{{ref(racket-xp-describe)}}} or {{{ref(racket-xp-documentation)}}}.
 

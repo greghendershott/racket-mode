@@ -50,6 +50,7 @@ Configure
 * Key bindings::
 * Font-lock (syntax highlighting)::
 * Completion::
+* Indent::
 * paredit::
 * smartparens::
 * eldoc::
@@ -335,6 +336,7 @@ You can @code{setq} this directly in your Emacs init file (@verb{,~/.emacs,} or 
 * Key bindings::
 * Font-lock (syntax highlighting)::
 * Completion::
+* Indent::
 * paredit::
 * smartparens::
 * eldoc::
@@ -401,6 +403,11 @@ If you want @kbd{TAB}  to do completion as well as indent, add the following to 
 
 This changes the behavior of Emacs' standard @code{indent-for-tab-command}, to which @kbd{TAB}  is bound by default in @code{racket-mode} and @code{racket-repl-mode}.
 
+@node Indent
+@section Indent
+
+Indentation can be customized in a way similar to lisp-mode and scheme-mode: @ref{racket-indent-line}.
+
 @node paredit
 @section paredit
 
@@ -453,6 +460,9 @@ Many Racket primitives are defined in @code{#%kernel} or @code{#%runtime}. There
 
 @item
 Many of the interesting Racket forms are syntax (macros) not functions. There's no easy way to determine their ``argument lists''.
+
+@item
+When a form has documentation, Racket Mode can show the \"bluebox\'' -- but often that does not fit in a single line as you would normally expect with eldoc.
 @end itemize
 
 A more satisfying experience is to use @ref{racket-xp-describe} or @ref{racket-xp-documentation}.
@@ -648,18 +658,23 @@ typed/racket/base''.
 
 Indent current line as Racket code.
 
+Normally you don't need to use this command directly, it is used
+automatically when you press keys like RET or TAB. However you
+might refer to it when configuring custom indentation, explained
+below.
+
 This behaves like @code{lisp-indent-line}, except that whole-line
 comments are treated the same regardless of whether they start
 with single or double semicolons.
 
 @itemize
 @item
-Automatically indents forms that start with @code{begin} in the usual
-way that @code{begin} is indented.
+Automatically indents forms that start with ``begin'' in the
+usual way that ``begin'' is indented.
 
 @item
-Automatically indents forms that start with @code{def} or @code{with-} in the
-usual way that @code{define} is indented.
+Automatically indents forms that start with ``def'' or
+``with-'' in the usual way that ``define'' is indented.
 
 @item
 Has rules for many specific standard Racket forms.
@@ -667,37 +682,44 @@ Has rules for many specific standard Racket forms.
 
 To extend, use your Emacs init file to
 
-(put SYMBOL `racket-indent-function INDENT)
+@example
+(put SYMBOL 'racket-indent-function INDENT)
+@end example
 
-where @code{SYMBOL} is the name of the Racket form (e.g. ~'test-case~)
-and @code{INDENT} is an integer or the symbol ~'defun~. When @code{INDENT}
-is an integer, the meaning is the same as for
-@code{lisp-indent-function} and @code{scheme-indent-function}: Indent the
-first @code{n} arguments specially and then indent any further
-arguments like a body.
+SYMBOL is the name of the Racket form like ``'test-case'' and
+INDENT is an integer or the symbol ``'defun''. When INDENT is an
+integer, the meaning is the same as for lisp-indent-function and
+scheme-indent-function: Indent the first INDENT arguments
+specially and indent any further arguments like a body.
 
-For example in your @code{.emacs} file you could use:
+For example:
 
-(put `test-case `racket-indent-function 1)
+@example
+(put 'test-case 'racket-indent-function 1)
+@end example
 
-to change the indent of @code{test-case} from this:
+This will change the indent of @code{test-case} from this:
 
+@example
 (test-case foo
-           blah
-           blah)
+	   blah
+	   blah)
+@end example
 
 to this:
 
+@example
 (test-case foo
   blah
   blah)
+@end example
 
 If @code{racket-indent-function} has no property for a symbol,
-@code{scheme-indent-function} is also considered (although the with-x
-indents defined by @code{scheme-mode} are ignored). This is only to
-help people who may have extensive @code{scheme-indent-function}
-settings, particularly in the form of file or dir local
-variables. Otherwise prefer @code{racket-indent-function}.
+scheme-indent-function is also considered, although the ``with-''
+indents defined by scheme-mode are ignored. This is only to help
+people who may have extensive scheme-indent-function settings,
+particularly in the form of file or dir local variables.
+Otherwise prefer putting properties on @code{racket-indent-function}.
 
 @node racket-smart-open-bracket-mode
 @subsection racket-smart-open-bracket-mode

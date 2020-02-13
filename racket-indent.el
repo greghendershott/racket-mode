@@ -63,51 +63,63 @@
 (defun racket-indent-line (&optional _whole-exp)
   "Indent current line as Racket code.
 
+Normally you don't need to use this command directly, it is used
+automatically when you press keys like RET or TAB. However you
+might refer to it when configuring custom indentation, explained
+below.
+
 This behaves like `lisp-indent-line', except that whole-line
 comments are treated the same regardless of whether they start
 with single or double semicolons.
 
-- Automatically indents forms that start with `begin` in the usual
-  way that `begin` is indented.
+- Automatically indents forms that start with \"begin\" in the
+  usual way that \"begin\" is indented.
 
-- Automatically indents forms that start with `def` or `with-` in the
-  usual way that `define` is indented.
+- Automatically indents forms that start with \"def\" or
+  \"with-\" in the usual way that \"define\" is indented.
 
 - Has rules for many specific standard Racket forms.
 
 To extend, use your Emacs init file to
 
+#+BEGIN_SRC racket
     (put SYMBOL 'racket-indent-function INDENT)
+#+END_SRC
 
-where `SYMBOL` is the name of the Racket form (e.g. `'test-case`)
-and `INDENT` is an integer or the symbol `'defun`. When `INDENT`
-is an integer, the meaning is the same as for
-`lisp-indent-function` and `scheme-indent-function`: Indent the
-first `n` arguments specially and then indent any further
-arguments like a body.
+SYMBOL is the name of the Racket form like \"'test-case\" and
+INDENT is an integer or the symbol \"'defun\". When INDENT is an
+integer, the meaning is the same as for lisp-indent-function and
+scheme-indent-function: Indent the first INDENT arguments
+specially and indent any further arguments like a body.
 
-For example in your `.emacs` file you could use:
+For example:
 
+#+BEGIN_SRC racket
     (put 'test-case 'racket-indent-function 1)
+#+END_SRC
 
-to change the indent of `test-case` from this:
+This will change the indent of `test-case` from this:
 
+#+BEGIN_SRC racket
     (test-case foo
                blah
                blah)
+#+END_SRC
 
 to this:
 
+#+BEGIN_SRC racket
     (test-case foo
       blah
       blah)
+#+END_SRC
 
-If `racket-indent-function` has no property for a symbol,
-`scheme-indent-function` is also considered (although the with-x
-indents defined by `scheme-mode` are ignored). This is only to
-help people who may have extensive `scheme-indent-function`
-settings, particularly in the form of file or dir local
-variables. Otherwise prefer `racket-indent-function`."
+If `racket-indent-function' has no property for a symbol,
+scheme-indent-function is also considered, although the \"with-\"
+indents defined by scheme-mode are ignored. This is only to help
+people who may have extensive scheme-indent-function settings,
+particularly in the form of file or dir local variables.
+Otherwise prefer putting properties on `racket-indent-function'."
   (interactive)
   (pcase (racket--calculate-indent)
     (`()  nil)
