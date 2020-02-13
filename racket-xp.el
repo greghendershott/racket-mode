@@ -731,8 +731,8 @@ manually."
            'racket-xp-visit         nil
            'racket-xp-doc           nil
            'cursor-sensor-functions nil))
-    (racket--remove-face-text-properties '(racket-xp-error-face
-                                           racket-xp-unused-face))
+    (racket--remove-face-text-properties (list racket-xp-error-face
+                                               racket-xp-unused-face))
     (racket--unhighlight-all)))
 
 ;;; Mode line status
@@ -752,18 +752,16 @@ manually."
           (cl-case status
             ((ok)       '("✓" nil
                           "Syntax OK"))
-            ((err)      `("✗" '(:inherit error)
+            ((err)      `("✗" (face (:inherit error))
                           "Syntax error"))
             ((outdated) `("…" nil
                           "Outdated: Waiting for `racket-xp-after-change-refresh-delay' or manual `racket-xp-annotate'"))
             ((running)  '("λ" nil
                           "Getting analysis from Racket Mode back-end and annotating"))
-            (otherwise  '("λ" '(:strike-through t)
+            (otherwise  '("λ" (face (:strike-through t))
                           "Racket Mode back-end not available")))))
       `(" " (:propertize ,(concat prefix suffix)
-                         ,@(if face
-                               `(face ,face)
-                             `())
+                         ,@face
                          help-echo ,help-echo)))))
 
 (provide 'racket-xp)
