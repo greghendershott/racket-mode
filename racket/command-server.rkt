@@ -122,8 +122,14 @@
                       (equal? launch-token (elisp-read in)))
             (display-commented "Authorization failed; exiting")
             (exit 1)) ;see #327
+
+          ;; Because we have multiple command threads running, we
+          ;; should synchronize writing responses to the TCP output
+          ;; port. To do so, we use a channel. Threads running
+          ;; `do-command/queue-response` put to the channel. The
+          ;; `write-reponses-forever` thread empties it.
           (define response-channel (make-channel))
-          (define ((do-command/put-response nonce sexp))
+          (define ((do-command/queue-response nonce sexp))
             (channel-put
              response-channel
              (cons
@@ -133,17 +139,18 @@
                 (parameterize ([current-namespace
                                 (context-ns command-server-context)])
                   `(ok ,(command sexp command-server-context)))))))
-          (define (get/write-response)
+          (define (write-responses-forever)
             (elisp-writeln (sync response-channel
                                  debug-notify-channel)
                            out)
             (flush-output out)
-            (get/write-response))
+            (write-responses-forever))
+
           ;; With all the pieces defined, let's go:
-          (thread get/write-response)
+          (thread write-responses-forever)
           (let read-a-command ()
             (match (elisp-read in)
-              [(cons nonce sexp) (thread (do-command/put-response nonce sexp))
+              [(cons nonce sexp) (thread (do-command/queue-response nonce sexp))
                                  (read-a-command)]
               [(? eof-object?)   (void)])))
         (custodian-shutdown-all custodian))
