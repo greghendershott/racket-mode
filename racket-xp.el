@@ -417,7 +417,17 @@ definitions in submodules."
         (_
          (pcase (get-text-property (point) 'racket-xp-def)
            (`(import ,id . ,_)
-            (racket--do-visit-def-or-mod `(mod ,id)))))))))
+            (racket--do-visit-def-or-mod `(mod ,id)))
+           (_
+            ;; If it's not annotated with racket-xp-visit and it's not
+            ;; a module, try doing a general search. This might only
+            ;; result in showing a "defined in #%kernel" or "not
+            ;; found" message -- but that's better UX than nothing at
+            ;; all happening.
+            (pcase (racket--symbol-at-point-or-prompt nil "Visit definition of: "
+                                                      racket--xp-completions)
+              ((and (pred stringp) str)
+               (racket--do-visit-def-or-mod `(def ,(buffer-file-name) ,str)))))))))))
 
 (defun racket-xp-documentation (&optional prefix)
   "Show documentation for the identifier at point.
