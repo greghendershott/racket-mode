@@ -1,13 +1,8 @@
 #lang racket/base
 ;; Do NOT use `at-exp` in this file! See issue #290.
 
-(require racket/cmdline
-         racket/contract/base
-         racket/contract/region
-         racket/format
-         racket/match
+(require racket/match
          racket/set
-         racket/string
          "channel.rkt"
          "command-server.rkt"
          (only-in "debug.rkt" make-debug-eval-handler)
