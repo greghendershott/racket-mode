@@ -12,13 +12,13 @@ env:
     # testing with newer Emacs.)                                     #
     ##################################################################
     # Emacs 24.3
-    - EMACS_CI=emacs-24-3 RACKET_VERSION=7.5
+    - EMACS_CI=emacs-24-3 RACKET_VERSION=7.6
     - EMACS_CI=emacs-24-3 RACKET_VERSION=HEAD
     # Emacs 24.5
-    - EMACS_CI=emacs-24-5 RACKET_VERSION=7.5
+    - EMACS_CI=emacs-24-5 RACKET_VERSION=7.6
     - EMACS_CI=emacs-24-5 RACKET_VERSION=HEAD
     # Emacs 25.1
-    - EMACS_CI=emacs-25-1 RACKET_VERSION=7.5
+    - EMACS_CI=emacs-25-1 RACKET_VERSION=7.6
     - EMACS_CI=emacs-25-1 RACKET_VERSION=HEAD
     # Emacs 26.1
     - EMACS_CI=emacs-26-1 RACKET_VERSION=6.2
@@ -38,12 +38,13 @@ env:
     - EMACS_CI=emacs-26-1 RACKET_VERSION=7.3
     - EMACS_CI=emacs-26-1 RACKET_VERSION=7.4
     - EMACS_CI=emacs-26-1 RACKET_VERSION=7.5
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=7.6
     - EMACS_CI=emacs-26-1 RACKET_VERSION=HEAD
     - EMACS_CI=emacs-26-1 RACKET_VERSION=HEADCS
     # Emacs snapshot. Because slow to make, test against only some key
     # versions of Racket like latest stable and HEAD. Also list these
     # jobs below under `allow_failures`, and use `fast_finish`.
-    - EMACS_CI=emacs-snapshot RACKET_VERSION=7.5
+    - EMACS_CI=emacs-snapshot RACKET_VERSION=7.6
     - EMACS_CI=emacs-snapshot RACKET_VERSION=HEAD
 
 matrix:
@@ -55,7 +56,7 @@ matrix:
     - env: EMACS_CI=emacs-26-1 RACKET_VERSION=HEAD
     - env: EMACS_CI=emacs-26-1 RACKET_VERSION=HEADCS
     # bleeding edge Emacs
-    - env: EMACS_CI=emacs-snapshot RACKET_VERSION=7.5
+    - env: EMACS_CI=emacs-snapshot RACKET_VERSION=7.6
     - env: EMACS_CI=emacs-snapshot RACKET_VERSION=HEAD
   fast_finish: true
 
