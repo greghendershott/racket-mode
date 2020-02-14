@@ -32,7 +32,7 @@
   (define path (string->path path-str))
   (parameterize ([error-display-handler our-error-display-handler]
                  [pre-exn-errors '()])
-    (with-handlers ([exn:fail? (handle-fail path-str)])
+    (with-handlers ([exn:fail? (handle-fail path-str code-str)])
       (with-time/log (~a "total " path-str)
         (string->expanded-syntax path
                                  code-str
@@ -229,7 +229,10 @@
     (pre-exn-errors (append (pre-exn-errors)
                             (exn-srclocs->our-list exn)))))
 
-(define ((handle-fail path) e)
+(define ((handle-fail path-str code-str) e)
+  (define (default)
+    (list
+     (list 'error path-str 1 (add1 (string-length code-str)) (exn-message e))))
   (cons 'check-syntax-errors
         (cond
           ;; Multiple errors. See comment above.
@@ -239,13 +242,13 @@
           ;; most specific. This is the intended use of
           ;; exn:fail:syntax -- not multiple errors.
           [(exn:srclocs? e)
-           (exn-srclocs->our-list e)]
+           (match (exn-srclocs->our-list e)
+             [(list) (default)] ;can happen e.g. exn:read:syntax
+             [xs xs])]
           ;; A single error with no srcloc at all. Although this might
           ;; happen with arbitrary runtime errors (?), it's unlikely
           ;; with exn:fail:syntax during expansion.
-          [else
-           (list
-            (list 'error path 1 0 (exn-message e)))])))
+          [else (default)])))
 
 (define (exn-srclocs->our-list e)
   (for/list ([sl (in-list ((exn:srclocs-accessor e) e))])
@@ -259,6 +262,8 @@
   (require racket/file)
   (define (check-file path)
     (time (check-syntax path (file->string path))))
+  (check-file "/home/greg/src/deals/db/base.rkt")
+  #;
   (check-file (path->string (syntax-source #'here))))
 
 (module+ test
