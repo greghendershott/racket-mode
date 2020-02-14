@@ -93,7 +93,7 @@ back end is running. It will try to start the back end
 automatically. You do /not/ need to `racket-run' the buffer you
 are editing.
 
-This mode uses the `drracket/check-syntax` package to analyze
+This mode uses the drracket/check-syntax package to analyze
 fully-expanded programs, without needing to evaluate a.k.a.
 \"run\" them. The resulting analysis provides information for:
 
@@ -117,8 +117,8 @@ You may also use commands to navigate among a definition and its
 uses, or to rename a local definitions and all its uses.
 
 In the following little example, not only does
-`drracket/check-syntax` distinguish the various `x` bindings, it
-understands the two different imports of `define`:
+drracket/check-syntax distinguish the various \"x\" bindings, it
+understands the two different imports of \"define\":
 
 #+BEGIN_SRC racket
   #lang racket/base
@@ -136,8 +136,8 @@ variable `completion-at-point-functions'. Note that in this case,
 it is not smart about submodules; identifiers are assumed to be
 definitions from the file's module or its imports. In addition to
 supplying completion candidates, it supports the
-`:company-location` property to inspect the definition of a
-candidate and the `:company-doc-buffer` property to view its
+\":company-location\" property to inspect the definition of a
+candidate and the \":company-doc-buffer\" property to view its
 documentation.
 
 When you edit the buffer, existing annotations are retained;
@@ -147,7 +147,7 @@ new or deleted text are not requested until after
 made asynchronously so that Emacs will not block -- for
 moderately complex source files, it can take some seconds simply
 to fully expand them, as well as a little more time for the
-`drracket/check-syntax` analysis. When the results are ready, all
+drracket/check-syntax analysis. When the results are ready, all
 annotations for the buffer are completely refreshed.
 
 You may also set `racket-xp-after-change-refresh-delay' to nil
