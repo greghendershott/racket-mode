@@ -262,8 +262,6 @@
   (require racket/file)
   (define (check-file path)
     (time (check-syntax path (file->string path))))
-  (check-file "/home/greg/src/deals/db/base.rkt")
-  #;
   (check-file (path->string (syntax-source #'here))))
 
 (module+ test
