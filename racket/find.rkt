@@ -14,8 +14,22 @@
 ;; id in the case of a contract-out and a rename-out, both. For
 ;; `(provide (contract-out [rename orig new contract]))`
 ;; identifier-binding reports (1) the contract-wrapper as the id, and
-;; (2) `new` as the nominal-id -- but NOT (3) `orig`. So we try other
-;; strategies here.
+;; (2) `new` as the nominal-id -- but NOT (3) `orig`. We handle
+;; such cases here. See `def-in-files`.
+;;
+;; FIXME: This fails for a case like `make-traversal` as required via
+;; drracket/check-syntax.rkt -- which in turn requires it from
+;; drracket/private/syncheck/traversals.rkt and re-provides it with a
+;; contract. As a result, identifier-binding reports:
+;;
+;; '((provide/contract-id-make-traversal.1
+;;    #<path:___/drracket/check-syntax.rkt>)
+;;   (make-traversal
+;;    #<path:___/drracket/check-syntax.rkt>))
+;;
+;; The key point there is that neither path is correct -- neither is
+;; #<path:___/drracket/private/syncheck/traversals.rkt>. If so, our
+;; algo below would still find it.
 
 (define location/c (list/c path-string? natural-number/c natural-number/c))
 
@@ -78,7 +92,7 @@
             [(list* id path submods) (def-in-file id how path submods)]))]
        [_ #f]))))
 
-(define/contract (def-in-file id how path submods)
+(define/contract (def-in-file id-sym how path submods)
   (-> symbol? how/c path-string? (listof symbol?)
       (or/c #f stx+path+mods/c))
   (define (sub-stx stx)
@@ -86,16 +100,17 @@
   (match (or (get-expanded-syntax
               how path
               (λ (stx)
-                ($definition id (sub-stx stx))))
+                ($definition id-sym (sub-stx stx))))
              (get-syntax
               how path
               (λ (stx)
-                (match ($renaming-provide id (sub-stx stx))
-                  [(? syntax? s)
+                (match ($renaming-provide id-sym (sub-stx stx))
+                  [(? identifier? id)
+                   (define id-sym (syntax-e id))
                    (get-expanded-syntax
                     how path
                     (λ (stx)
-                      ($definition (syntax-e s) (sub-stx stx))))]
+                      ($definition id-sym (sub-stx stx))))]
                   [_ #f]))))
     [(? syntax? stx) (list stx path submods)]
     [_  #f]))
@@ -107,14 +122,14 @@
 (define ((make-eq-sym? sym) stx)
   (and (eq? sym (syntax-e stx)) stx))
 
-(define (file-module path)
+(define (file-module-name path)
   (match (path->string (last (explode-path path)))
     [(pregexp "(.+?)\\.rkt$" (list _ v)) (string->symbol v)]))
 
 ;; Return bodies (wrapped in begin) of the module indicated by
 ;; file and sub-mod-syms.
 (define (submodule path sub-mod-syms stx)
-  (submodule* (cons (file-module path) sub-mod-syms) stx))
+  (submodule* (cons (file-module-name path) sub-mod-syms) stx))
 
 (define (submodule* mods stx)
   (match-define (cons this more) mods)
@@ -238,9 +253,10 @@
     [_ #f]))
 
 (module+ test
-  ;; Note: Many more tests in test/find.rkt.
+  ;; Just a quick smoke test. See test/find.rkt for many more tests.
   ;;
-  ;; Exercise where the "how" is a path-string, meaning look up that path from our cache, not on disk.
+  ;; Exercise where the "how" is a path-string, meaning look up that
+  ;; path from our cache, not on disk.
   (require racket/format
            version/utils)
   (when (version<=? "6.5" (version))
@@ -261,10 +277,10 @@
 ;;
 ;; The special case is when `how` is a path-string. That path doesn't
 ;; necessarily exist as a file, or the file may be outdated. The path
-;; may simply be the syntax-source for a string we read and expanded,
-;; e.g. from an unsaved Emacs buffer. So when we need to get syntax
-;; for such a path, we need to get it from our cache, from a file.
-;; (How it got in the cache previously was from some check-syntax.)
+;; may simply be the syntax-source for a string from an unsaved Emacs
+;; buffer. So when we need to get syntax for such a path, we need to
+;; get it from our cache -- NOT from a file. (How it got in the cache
+;; previously was from some check-syntax.)
 ;;
 ;; Things like identifier-binding may tell us to look at such a path,
 ;; or at a path for a real existing/updated file. This helps sort out
