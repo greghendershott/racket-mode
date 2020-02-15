@@ -28,8 +28,8 @@
 ;;    #<path:___/drracket/check-syntax.rkt>))
 ;;
 ;; The key point there is that neither path is correct -- neither is
-;; #<path:___/drracket/private/syncheck/traversals.rkt>. If so, our
-;; algo below would still find it.
+;; #<path:___/drracket/private/syncheck/traversals.rkt>. If one were,
+;; our algo below would still work.
 
 (define location/c (list/c path-string? natural-number/c natural-number/c))
 
@@ -52,13 +52,18 @@
 (define/contract (find-definition/drracket-jump how path submods id-strs)
   (-> (and/c how/c (not/c 'namespace)) path-string? (listof symbol?) (listof string?)
       (or/c #f 'kernel location/c))
-  (for/or ([id-str (in-list id-strs)])
-    (match (def-in-file (string->symbol id-str) how path submods)
-      [(list stx path _submods)
-       (list (->path-string (or (syntax-source stx) path))
-             (or (syntax-line stx) 1)
-             (or (syntax-column stx) 0))]
-      [v v])))
+  (or (for/or ([id-str (in-list id-strs)])
+        (match (def-in-file (string->symbol id-str) how path submods)
+          [(list stx path _submods)
+           (list (->path-string (or (syntax-source stx) path))
+                 (or (syntax-line stx) 1)
+                 (or (syntax-column stx) 0))]
+          [v v]))
+      ;; As a fallback, at least return the reported file. It might
+      ;; not contain the actual definition, but it might have a
+      ;; re-provide and people can hopefully find that and use
+      ;; visit-definition again to get to the true source.
+      (list path 1 0)))
 
 ;; Try to find the definition of `str`, returning its signature or #f.
 ;; When defined in 'kernel, returns a form saying so, not #f.
