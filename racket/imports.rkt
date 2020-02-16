@@ -24,8 +24,8 @@
 ;; done by check-syntax, before the user even runs the file (if ever).
 ;;
 ;; module->exports is a good starting point, but not the whole answer:
-;; Imports can be filtered and renamed -- e.g. only-in, prefix-in,
-;; rename-in.
+;; Imports can be filtered and renamed -- e.g. only-in, except-in,
+;; prefix-in, rename-in.
 ;;
 ;; AFAICT there is no good way to get completions from all imported
 ;; identifiers, except attempting to parse the complete #%require
@@ -200,9 +200,9 @@
                   (for-syntax (rename-in racket/syntax [format-id FORMAT-ID]))
                   (submod "." sub))
          (eprintf "I should not print!"))))
-  (let (;; The world according to namespace-mapped-symbols
+  (let (;; The world according to `namespace-mapped-symbols`
         [nsms (list->set nsms)]
-        ;; The world according to our imported-completions
+        ;; The world according to our `imports`
         [cs (parameterize ([current-namespace (make-base-namespace)])
               (define stx (expand mod/stx))
               (time (imports stx)))])
@@ -241,21 +241,22 @@
   ;; (check-not-exn (imports stx)) on many files in the Racket
   ;; distribution. Grammar mistakes will raise exn:fail:syntax.
   (require rackunit
-           syntax/modresolve
            racket/path
            "syntax.rkt")
   (define (check path)
     (parameterize ([current-load-relative-directory (path-only path)]
                    [current-namespace               (make-base-namespace)])
-      (define stx (file->expanded-syntax path))
-      (check-not-exn (λ () (imports stx))
-                     (format "#%require grammar handles ~v" path))))
-  (for ([roots (in-list '(("racket.rkt" "typed")
-                          ("core.rkt" "typed-racket")
-                          ("main.rkt" "racket")))])
-    (for* ([v (in-directory
-               (path-only
-                (apply collection-file-path roots)))]
-           #:when (equal? #"rkt" (filename-extension v)))
-      (println v)
-      (check v))))
+      (file->expanded-syntax
+       path
+       (λ (stx)
+         (check-not-exn (λ () (imports stx))
+                        (format "#%require grammar handles ~v" path))))))
+  (for* ([roots (in-list '(("racket.rkt" "typed")
+                           ("core.rkt" "typed-racket")
+                           ("main.rkt" "racket")))]
+         [path  (in-directory
+                 (path-only
+                  (apply collection-file-path roots)))]
+         #:when (equal? #"rkt" (filename-extension path)))
+    (println path)
+    (check path)))
