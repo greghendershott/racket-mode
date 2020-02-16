@@ -652,80 +652,74 @@ manually."
          (when (and annotations after-thunk)
            (funcall after-thunk)))
         (`(check-syntax-errors . ,xs)
+         ;; Don't `racket--xp-clear': The old completions and
+         ;; annotations might be helpful to user?
          (racket--xp-insert xs)
          (racket--xp-set-status 'err)))))))
 
 (defun racket--xp-insert (xs)
-  "Insert text properties. Convert integer positions to markers."
+  "Insert text properties."
   (with-silent-modifications
     (dolist (x xs)
       (pcase x
         (`(error ,path ,beg ,end ,str)
          (racket--xp-add-error path beg str)
          (when (equal path (racket--buffer-file-name))
-           (let ((beg (copy-marker beg t))
-                 (end (copy-marker end t)))
-             (remove-text-properties
-              beg end
-              (list 'help-echo               nil
-                    'racket-xp-def           nil
-                    'racket-xp-use           nil
-                    'cursor-sensor-functions nil))
-             (add-text-properties
-              beg end
-              (list 'face                    racket-xp-error-face
-                    'help-echo               str
-                    'cursor-sensor-functions (list #'racket--xp-cursor-sensor))))))
+           (remove-text-properties
+            beg end
+            (list 'help-echo               nil
+                  'racket-xp-def           nil
+                  'racket-xp-use           nil
+                  'cursor-sensor-functions nil))
+           (add-text-properties
+            beg end
+            (list 'face                    racket-xp-error-face
+                  'help-echo               str
+                  'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))))
         (`(info ,beg ,end ,str)
-         (let ((beg (copy-marker beg t))
-               (end (copy-marker end t)))
-           (add-text-properties
-            beg end
-            (list 'help-echo               str
-                  'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))
-           (when (string-equal str "no bound occurrences")
-             (add-face-text-property beg end racket-xp-unused-face))))
-        (`(unused-require ,beg ,end)
-         (let ((beg (copy-marker beg t))
-               (end (copy-marker end t)))
-           (add-text-properties
-            beg end
-            (list 'help-echo               "unused require"
-                  'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))
+         (add-text-properties
+          beg end
+          (list 'help-echo               str
+                'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))
+         (when (string-equal str "no bound occurrences")
            (add-face-text-property beg end racket-xp-unused-face)))
+        (`(unused-require ,beg ,end)
+         (add-text-properties
+          beg end
+          (list 'help-echo               "unused require"
+                'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))
+         (add-face-text-property beg end racket-xp-unused-face))
         (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
          (let ((def-beg (copy-marker def-beg t))
                (def-end (copy-marker def-end t))
-               (uses    (mapcar (lambda (xs)
-                                  (mapcar (lambda (x)
-                                            (copy-marker x t))
-                                          xs))
+               (uses    (mapcar (lambda (use)
+                                  (mapcar (lambda (pos)
+                                            (copy-marker pos t))
+                                          use))
                                 uses)))
            (add-text-properties
-            def-beg def-end
+            (marker-position def-beg)
+            (marker-position def-end)
             (list 'racket-xp-def (list req id uses)
                   'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))
            (dolist (use uses)
              (pcase-let* ((`(,use-beg ,use-end) use))
                (add-text-properties
-                use-beg use-end
+                (marker-position use-beg)
+                (marker-position use-end)
                 (append
                  (list 'racket-xp-use           (list def-beg def-end)
                        'cursor-sensor-functions (list #'racket--xp-cursor-sensor))
                  (when (eq req 'local)
                    (list 'help-echo "Defined locally"))))))))
         (`(external-def ,beg ,end ,path ,subs ,ids)
-         (let ((beg (copy-marker beg t))
-               (end (copy-marker end t)))
-           (add-text-properties
-            beg end
-            (list 'racket-xp-visit (list path subs ids)))))
+         (add-text-properties
+          beg end
+          (list 'racket-xp-visit (list path subs ids))))
         (`(doc ,beg ,end ,path ,anchor)
-         (let ((beg (copy-marker beg t))
-               (end (copy-marker end t)))
-           (add-text-properties
-            beg end
-            (list 'racket-xp-doc (list path anchor)))))))))
+         (add-text-properties
+          beg end
+          (list 'racket-xp-doc (list path anchor))))))))
 
 (defun racket--xp-clear ()
   (with-silent-modifications
