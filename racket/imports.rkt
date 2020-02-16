@@ -39,19 +39,25 @@
 
   (define (handle-module stx)
     (syntax-case stx (module #%module-begin #%plain-module-begin #%require)
-      [(module _ lang (#%module-begin e ...))
+      [(module _id lang (#%module-begin e ...))
        (handle-module-level #'(e ...) #'lang)]
-      [(module _ lang (#%plain-module-begin e ...))
+      [(module _id lang (#%plain-module-begin e ...))
        (handle-module-level #'(e ...) #'lang)]))
 
   (define (handle-module-level es lang)
     (module-exported-strings lang lang)
     (for ([e (in-syntax es)])
-      (syntax-case* e (#%require) symbolic-compare?
+      (syntax-case* e (#%require module module*) symbolic-compare?
         [(#%require e ...)
          (for ([spec (in-syntax #'(e ...))])
            (handle-raw-require-spec spec lang))]
-        [_ (void)])))
+        [(module _id sub-mod-lang (_mb e ...))
+         (handle-module-level #'(e ...) #'sub-mod-lang)]
+        [(module* _id sub-mod-lang (_mb e ...))
+         (handle-module-level #'(e ...) (if (syntax-e #'sub-mod-lang)
+                                            #'sub-mod-lang
+                                            lang))]
+        [ _ (void)])))
 
   (define (handle-raw-require-spec spec lang)
     (syntax-case* spec (for-meta for-syntax for-template for-label just-meta) symbolic-compare?
@@ -76,7 +82,7 @@
   (define (handle-phaseless-spec spec lang)
     (syntax-case* spec (only prefix all-except prefix-all-except rename)
         symbolic-compare?
-      [(only raw-module-path id ...)
+      [(only _raw-module-path id ...)
        (set-union! sos
                    (syntax->string-set #'(id ...)))]
       [(prefix prefix-id raw-module-path)
@@ -110,11 +116,11 @@
     ;; current-namespace and current-load-relative-directory.
     (define (add-exports mp)
       (define-values (vars stxs) (module->exports mp))
-      (define orig (mutable-set))
-      (for* ([vars+stxs (in-list (list vars stxs))]
-             [phases (in-list vars+stxs)]
-             [export (in-list (cdr phases))])
-        (set-add! orig (->str (car export))))
+      (define orig
+        (for*/mutable-set ([vars+stxs (in-list (list vars stxs))]
+                           [phases    (in-list vars+stxs)]
+                           [export    (in-list (cdr phases))])
+          (->str (car export))))
       ;; If imports are from the module language, then {except rename
       ;; prefix}-in do NOT remove imports under the original name.
       ;; Otherwise they do.
