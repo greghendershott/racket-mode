@@ -17,14 +17,15 @@
 ;; string-xxx function I'm not yet using in this file?" So we want to
 ;; supply that full set.
 ;;
-;; Furthermore, import names can be munged (e.g. `prefix-in` or
-;; `rename-in`) so module->exports isn't the whole, correct answer.
-;;
 ;; If you have a namespace from module->namespace, you can use
 ;; namespace-mapped-symbols -- easy! However we do NOT want to
 ;; instantiate the module, i.e. "run the user's code". We want to
 ;; supply this information using the same sort of "passive" analaysis
 ;; done by check-syntax, before the user even runs the file (if ever).
+;;
+;; module->exports is a good starting point, but not the whole answer:
+;; Imports can be filtered and renamed -- e.g. only-in, prefix-in,
+;; rename-in.
 ;;
 ;; AFAICT there is no good way to get completions from all imported
 ;; identifiers, except attempting to parse the complete #%require

@@ -174,7 +174,7 @@
   (define annotations (sort (append infos defs/uses) < #:key cadr))
 
   ;;
-  ;; Completion candidates (including their defn locs)
+  ;; Completion candidates
   ;;
 
   (define completions-set (mutable-set))
@@ -185,7 +185,7 @@
   ;; a "no bound occurrences" mouseover. Although it's hacky to match
   ;; on a string like that, it's the best way to get _all_ local
   ;; completion candidates. It's the same reason why we go to the work
-  ;; in imported-completions to find _everything_ imported, that
+  ;; in imported-completions to find _everything_ imported that
   ;; _could_ be used.
   (for ([x (in-list synchecks)])
     (match x
@@ -213,10 +213,10 @@
 (define (remove-dupes-and-falses xs)
   (remove-duplicates (filter values xs)))
 
-;; Typed Racket can report multiple errors. The protcol is it calls
+;; Typed Racket can report multiple errors. The protocol: it calls
 ;; error-display-handler for each one. There is a final, actual
 ;; exn:fail:syntax raised, but it's not useful for us: Although its
-;; srclocs correspond the locations, its message is just a summary.
+;; srclocs correspond to the locations, its message is just a summary.
 ;; Here we collect each message and location in a parameter, and when
 ;; the final summary exn is raised, we ignore it and use these. Note
 ;; that Typed Racket is the only such example I'm aware of, but if
@@ -238,12 +238,12 @@
           ;; Multiple errors. See comment above.
           [(not (null? (pre-exn-errors)))
            (pre-exn-errors)]
-          ;; A single error, with one or more locations from least to
+          ;; A single error, with zero or more locations from least to
           ;; most specific. This is the intended use of
           ;; exn:fail:syntax -- not multiple errors.
           [(exn:srclocs? e)
            (match (exn-srclocs->our-list e)
-             [(list) (default)] ;can happen e.g. exn:read:syntax
+             [(list) (default)] ;can happen with e.g. exn:read:syntax
              [xs xs])]
           ;; A single error with no srcloc at all. Although this might
           ;; happen with arbitrary runtime errors (?), it's unlikely
