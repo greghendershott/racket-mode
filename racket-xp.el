@@ -52,14 +52,22 @@ everything. If you find that too \"noisy\", set this to nil.")
 
 (defvar racket-xp-mode-map
   (racket--easy-keymap-define
-   `(("C-c #"   ,racket-xp-control-c-hash-keymap)
-     ("M-."     ,#'racket-xp-visit-definition)
-     ("C-c C-." ,#'racket-xp-describe)
-     ("C-c C-d" ,#'racket-xp-documentation))))
+   `(("C-c #"     ,racket-xp-control-c-hash-keymap)
+     ("M-."       ,#'racket-xp-visit-definition)
+     ("C-c C-."   ,#'racket-xp-describe)
+     ("C-c C-d"   ,#'racket-xp-documentation)
+     (("C-x `"
+       "M-g n"
+       "M-g M-n") ,#'racket-xp-next-error)
+     (("M-g n"
+       "M-g M-n") ,#'racket-xp-previous-error))))
 
 (easy-menu-define racket-xp-mode-menu racket-xp-mode-map
   "Menu for `racket-xp-mode'."
   '("RacketXP"
+    ["Next Error" racket-xp-next-error]
+    ["Previous Error" racket-xp-previous-error]
+    "---"
     ["Next Definition" racket-xp-next-definition]
     ["Previous Definition" racket-xp-previous-definition]
     ["Next Use" racket-xp-next-use]
@@ -156,11 +164,10 @@ and use the `racket-xp-annotate' command manually.
 The mode line changes to reflect the current status of
 annotations, and whether or not you had a syntax error.
 
-If you have one or more syntax errors, use the standard
-`next-error' command and key bindings to navigate among them.
-Although most languages will stop after the first syntax error,
-some like Typed Racket will try to collect and report multiple
-errors.
+If you have one or more syntax errors, `racket-xp-next-error' and
+`racket-xp-previous-error' to navigate among them. Although most
+languages will stop after the first syntax error, some like Typed
+Racket will try to collect and report multiple errors.
 
 Tip: This mode follows the convention that a minor mode may only
 use a prefix key consisting of \"C-c\" followed by a punctuation
@@ -188,7 +195,6 @@ commands directly to whatever keys you prefer.
          (add-hook 'completion-at-point-functions
                    #'racket-xp-complete-at-point
                    t t)
-         (setq next-error-function #'racket-xp-next-error)
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 1)))
         (t
@@ -203,7 +209,6 @@ commands directly to whatever keys you prefer.
          (add-hook 'completion-at-point-functions
                    #'racket-complete-at-point
                    t t)
-         (kill-local-variable next-error-function) ;correct?
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 0)))))
 
@@ -573,8 +578,8 @@ If moved, return the new position, else nil."
         (vconcat racket--xp-errors
                  (vector (list path beg str)))))
 
-(defun racket-xp-next-error (&optional amt reset)
-  "Our value for the variable `next-error-function'.
+(defun racket--xp-next-error (&optional amt reset)
+  "Move AMT errors, if any.
 
 If there are any check-syntax errors, moves among them, wrapping
 around at the first and last errors.
@@ -602,6 +607,14 @@ won't be found merely from expansion."
                (find-file path)
                (goto-char pos)))
         (message "%s" str)))))
+
+(defun racket-xp-next-error ()
+  (interactive)
+  (racket--xp-next-error 1 nil))
+
+(defun racket-xp-previous-error ()
+  (interactive)
+  (racket--xp-next-error -1 nil))
 
 ;;; Update
 
