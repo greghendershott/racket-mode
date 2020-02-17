@@ -111,8 +111,17 @@
 ;; `fully-qualify-error-path`. Here we handle only strings we create
 ;; ourselves, such as for the Context "stack trace".
 (define (source-location->string x)
-  (match-define (srcloc src line col pos span) x)
-  (format "~a:~a:~a" src (or line "1") (or col "1")))
+  (define src
+    ;; Although I want to find/fix this properly upstream -- is
+    ;; something a path-string? when it should be a path? -- for now
+    ;; just catch here the case where the source is a string like
+    ;; "\"/path/to/file.rkt\"" i.e. in quotes.
+    (match (srcloc-source x)
+      [(pregexp "^\"(.+)\"$" (list _ unquoted)) unquoted]
+      [v v]))
+  (define line (or (srcloc-line x) "1"))
+  (define col  (or (srcloc-column x) "1"))
+  (format "~a:~a:~a" src line col))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;
