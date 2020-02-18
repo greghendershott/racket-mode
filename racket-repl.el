@@ -425,6 +425,7 @@ used. See the latter for more information."
     (error "Racket REPL already running."))
   (racket--assert-version racket--minimum-required-version)
   (let ((run.rkt (funcall racket-adjust-run-rkt racket--run.rkt)))
+    (message "Starting %s to run %s ..." racket-program run.rkt)
     (with-current-buffer
         (make-comint racket--repl-buffer-name/raw ;w/o *stars*
                      racket-program
@@ -444,10 +445,9 @@ used. See the latter for more information."
                 nil t)
       (add-hook 'racket--cmd-after-open-thunks
                 #'racket--repl-refresh-namespace-symbols)
-      (let ((proc (get-buffer-process racket--repl-buffer-name)))
-        (message "Starting %s to run %s ..." racket-program run.rkt)
-        (set-process-coding-system proc 'utf-8 'utf-8) ;for e.g. λ
-        (racket-repl-mode)))))
+      (set-process-coding-system (get-buffer-process racket--repl-buffer-name)
+                                 'utf-8 'utf-8) ;for e.g. λ
+      (racket-repl-mode))))
 
 (defun racket--repl-startup-output-filter (_txt)
   "As soon as the REPL process displays its first output --

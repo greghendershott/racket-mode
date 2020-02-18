@@ -54,16 +54,14 @@ Most code should use `racket--cmd-open-p' to check this.")
        (timerp racket--cmd-connect-timer)))
 
 (defun racket--cmd-connect-schedule-start ()
-  (if (racket--cmd-connect-scheduled-p)
-      (message "IGNORING (racket--cmd-connect-schedule-start): already started")
+  (unless (racket--cmd-connect-scheduled-p)
     (setq racket--cmd-connect-timer
           (run-at-time 0.5 nil
                        #'racket--cmd-connect-attempt
                        1))))
 
 (defun racket--cmd-connect-schedule-retry (attempt)
-  (if (not (racket--cmd-connect-scheduled-p))
-      (message "IGNORING (racket--cmd-connect-schedule-retry %s): not already started" attempt)
+  (when (racket--cmd-connect-scheduled-p)
     (cancel-timer racket--cmd-connect-timer)
     (setq racket--cmd-connect-timer
           (run-at-time 1.0 nil
@@ -71,8 +69,7 @@ Most code should use `racket--cmd-open-p' to check this.")
                        (1+ attempt)))))
 
 (defun racket--cmd-connect-stop ()
-  (if (not (racket--cmd-connect-scheduled-p))
-      (message "IGNORING (racket--cmd-connect-schedule-stop): not already started")
+  (when (racket--cmd-connect-scheduled-p)
     (cancel-timer racket--cmd-connect-timer)
     (setq racket--cmd-connect-timer nil)))
 
@@ -93,16 +90,18 @@ When we do make a connection, call
     :nowait  t
     :sentinel
     (lambda (proc event)
-      ;;(message "sentinel got (%S %S) [attempt %s]" proc (substring event 0 -1) attempt)
+      ;; (message "sentinel got (%S %S) [attempt %s]" proc (substring event 0 -1) attempt)
       (cond ((string-match-p "^open" event)
              (let ((buf (generate-new-buffer (concat " *" (process-name proc) "*"))))
                (set-process-buffer proc buf)
                (buffer-disable-undo buf))
              (set-process-filter proc #'racket--cmd-process-filter)
              (process-send-string proc (concat racket--cmd-auth "\n"))
-             (message "Connected to %s process on port %s after %s attempt%s"
-                      proc racket-command-port attempt (if (= 1 attempt) "" "s"))
              (run-at-time 0.1 nil
+                          #'message
+                          "Connected to %s process on port %s after %s attempt%s"
+                          proc racket-command-port attempt (if (= 1 attempt) "" "s"))
+             (run-at-time 0.2 nil
                           #'racket--call-cmd-after-open-thunks)
              (racket--cmd-connect-stop))
 
@@ -120,10 +119,12 @@ When we do make a connection, call
              ;; see #383 -- we can't `kill-buffer' now here in the
              ;; process sentinel. Instead do soon.
              (pcase (process-buffer proc)
-               (`() nil)
-               (buf (run-at-time 0.1 nil #'kill-buffer buf))))
+               ((and (pred bufferp) buf)
+                (run-at-time 0.1 nil #'kill-buffer buf))))
 
-            (t (message "sentinel surprised by (%S %S) [attempt %s]" proc event attempt)))))))
+            (t (run-at-time 0.1 nil
+                            #'message "sentinel surprised by (%S %S) [attempt %s]"
+                            proc event attempt)))))))
 
 (defvar racket--cmd-after-open-thunks nil
   "List of thunks to call when upon connection to the command server.
