@@ -59,10 +59,15 @@
                 (seteq))
   annotated)
 
-(define break-when/c (or/c 'all 'none (cons/c path-string? pos/c)))
+;; The first contract is suitable for "edge" with Emacs Lisp. Second
+;; is important for actual `next-break` value so that `break?` compare
+;; of source works; see #425.
+(define break-when/c        (or/c 'all 'none (cons/c path-string? pos/c)))
+(define break-when-strict/c (or/c 'all 'none (cons/c path?        pos/c)))
+
 (define/contract next-break
-  (case-> (-> break-when/c)
-          (-> break-when/c void))
+  (case-> (-> break-when-strict/c)
+          (-> break-when-strict/c void))
   (let ([v 'none])
     (case-lambda [() v]
                  [(v!) (set! v v!)])))
@@ -170,7 +175,7 @@
 
 (define/contract (calc-next-break before/after break-when top-mark ccm)
   (-> (or/c 'before 'after) (or/c break-when/c 'over 'out) mark/c continuation-mark-set?
-      any)
+      break-when-strict/c)
   (define (big-step frames)
     (define num-marks (length (debug-marks (current-continuation-marks))))
     (or (for/or ([frame  (in-list frames)]
@@ -185,10 +190,14 @@
                  (cons src right))))
         'all))
   (match* [break-when before/after]
+    [['all  _]       'all]
     [['out  _]       (big-step                (debug-marks ccm))]
     [['over 'before] (big-step (cons top-mark (debug-marks ccm)))]
     [['over 'after]  'all]
-    [[v     _]       v]))
+    [[(cons (? path? path)            pos) _]
+     (cons path pos)]
+    [[(cons (? path-string? path-str) pos) _]
+     (cons (string->path path-str) pos)]))
 
 (define break-id/c nat/c)
 (define/contract new-break-id
