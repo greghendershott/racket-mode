@@ -3,7 +3,8 @@
 (require racket/match
          "fresh-line.rkt")
 
-(provide current-sync/yield
+(provide make-get-interaction
+         current-sync/yield
          get-interaction)
 
 ;; A channel to which a thread puts interactions that it reads using
@@ -22,10 +23,13 @@
 ;; One wrinkle is we need to be careful about calling yield instead of
 ;; sync when the gui is active. See issue #326.
 
-;; FIXME??: This used to be under the REPL custodian. Is it OK for it
-;; _not_ to be, now? For instance what if user runs another file, but
-;; this is still using the previous current-read-interaction value?
-(define chan (make-channel))
+(define current-chan (make-parameter #f))
+
+;; Call this from a REPL thread after current-input-port is set
+;; appropriately (e.g. to a TCP input port not stdin).
+(define (make-get-interaction)
+  (current-chan (make-channel))
+  (thread read-interaction/put-channel))
 
 (define (read-interaction/put-channel)
   (define in ((current-get-interaction-input-port)))
@@ -34,18 +38,16 @@
       ((current-read-interaction) (object-name in) in))) ;[^1]
   (match (read-interaction)
     [(? eof-object?) (sync in)] ;[^2]
-    [(? exn:fail? e) (channel-put chan e)] ;raise in other thread
-    [v (channel-put chan v)])
+    [(? exn:fail? e) (channel-put (current-chan) e)] ;raise in other thread
+    [v (channel-put (current-chan) v)])
   (read-interaction/put-channel))
-
-(void (thread read-interaction/put-channel))
 
 (define current-sync/yield (make-parameter sync)) ;see issue #326
 
 (define (get-interaction prompt)
-  (match (or (sync/timeout 0.01 chan) ;see issue #311
+  (match (or (sync/timeout 0.01 (current-chan)) ;see issue #311
              (begin (display-prompt prompt)
-                    ((current-sync/yield) chan)))
+                    ((current-sync/yield) (current-chan))))
     [(? exn:fail? exn) (raise exn)]
     [v v]))
 

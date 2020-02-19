@@ -1,17 +1,18 @@
 #lang racket/base
 ;; Do NOT use `at-exp` in this file! See issue #290.
 
-(require racket/match
+(require racket/contract
+         racket/match
          racket/set
+         racket/tcp
          "channel.rkt"
-         "command-server.rkt"
-         (only-in "debug.rkt" make-debug-eval-handler)
+         (only-in "debug.rkt" make-debug-eval-handler next-break)
          "elisp.rkt"
          "error.rkt"
          "gui.rkt"
          "instrument.rkt"
          "interactions.rkt"
-         "logger.rkt"
+         "md5.rkt"
          "mod.rkt"
          "namespace.rkt"
          "print.rkt"
@@ -19,57 +20,76 @@
          "util.rkt"
          "welcome.rkt")
 
-;; Main moving parts:
-;;
-;; 1. This main thread, which receives a couple messages on a channel
-;;    (see channel.rkt). One message is a `rerun` struct with info
-;;    about a new file/module to run. The main thread loops forever
-;;    (the `run` function tail calls itself forever). The special case
-;;    of racket/gui/base is handled with a custom module names
-;;    resolver and another message.
-;;
-;; 2. A thread created for each run; loads a module and goes into
-;;    a read-eval-print-loop.
-;;
-;; 3. A thread for a command server that listens on a TCP port (see
-;;    command-server.rkt). One of the commands is a `run` command.
+(provide start-repl-session-server
+         run
+         call-with-session-context
+         current-session-id
+         current-session-maybe-mod
+         current-session-md5
+         current-session-submit-pred)
 
-(module+ main
-  (define-values (command-port launch-token run-info)
-    (match (current-command-line-arguments)
-      [(vector port)
-       (values (string->number port)
-               #f
-               rerun-default)]
-      [(vector port launch-token run-command)
-       (values (string->number port)
-               (elisp-read (open-input-string launch-token))
-               (match (elisp-read (open-input-string run-command))
-                 [(list 'run what mem pp ctx args dbgs skel)
-                  (rerun (->mod/existing what)
-                         mem
-                         (as-racket-bool pp)
-                         ctx
-                         (list->vector args)
-                         (list->set (map string->path dbgs))
-                         (as-racket-bool skel)
-                         void)]
-                 [v (eprintf "Bad command-line arguments: ~v => ~v\n" run-command v)
-                    (exit)]))]
-      [v
-       (eprintf "Bad command-line arguments: ~v\n" v)
-       (exit)]))
-  (start-command-server command-port launch-token)
-  (start-logger-server (add1 command-port) launch-token)
-  ;; Emacs on Windows comint-mode needs buffering disabled.
-  (when (eq? (system-type 'os) 'windows)
-    (file-stream-buffer-mode (current-output-port) 'none))
-  (welcome (and (rerun-maybe-mod run-info) #t))
-  (flush-output)
+(define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
+
+(define-struct/contract session
+  ([thread      thread?]
+   [ns          namespace?]
+   [maybe-mod   (or/c #f mod?)]
+   [md5         string?]
+   [submit-pred (or/c #f drracket:submit-predicate/c)]))
+
+(define sessions (make-hash))
+
+(define current-session-id (make-parameter #f))
+(define current-session-maybe-mod (make-parameter #f))
+(define current-session-md5 (make-parameter #f))
+(define current-session-submit-pred (make-parameter #f))
+
+(define (call-with-session-context sid proc . args)
+  (match (and sid (hash-ref sessions sid #f))
+    [(session thread ns maybe-mod md5 submit-pred)
+     (parameterize ([current-namespace ns]
+                    [current-session-id sid]
+                    [current-session-md5 md5]
+                    [current-session-maybe-mod maybe-mod]
+                    [current-session-submit-pred submit-pred])
+       (apply proc args))]
+    [_ (apply proc args)]))
+
+(define (start-repl-session-server port launch-token)
+  (thread
+   (λ ()
+     (define listener (tcp-listen port 4 #t "127.0.0.1"))
+     (let accept-a-connection ()
+       (with-handlers ([exn:fail? void]) ;just disconnect; see #327
+         (define-values (in out) (tcp-accept listener))
+         (parameterize ([current-input-port  in]
+                        [current-output-port out]
+                        [current-error-port out])
+           (file-stream-buffer-mode in  'none) ;???
+           (file-stream-buffer-mode out 'none) ;???
+           ;; Immediately after connecting, the client must send us
+           ;; exactly the same launch token value that it gave us as a
+           ;; command line argument when it started us. Else we close
+           ;; the connection. See issue #327.
+           (display-commented "Enter launch token")
+           (cond [(and launch-token
+                       (equal? launch-token (elisp-read in)))
+                  (define session-id (gensym 'repl-session-))
+                  (elisp-writeln `(ok ,session-id) out)
+                  (parameterize ([current-session-id session-id])
+                    (thread repl-manager-thread-thunk))]
+                 [else
+                  (display-commented "Authorization failed")
+                  (close-input-port in)
+                  (close-output-port out)])))
+       (accept-a-connection)))))
+
+(define (repl-manager-thread-thunk)
+  (welcome #f)
   (parameterize ([error-display-handler our-error-display-handler])
-    (run run-info)))
+    (do-run rerun-default)))
 
-(define (run rr) ;rerun? -> void?
+(define (do-run rr) ;rerun? -> void?
   (match-define (rerun maybe-mod
                        mem-limit
                        pretty-print?
@@ -123,9 +143,11 @@
          ;; in the non-gui case, we call `thread` below in the body of
          ;; the parameterize* form, so that's fine.)
          [current-eventspace ((txt/gui void make-eventspace))])
-      ;; repl-thunk will be called from another thread -- either a plain
-      ;; thread when racket/gui/base is not (yet) instantiated, or, from
-      ;; (eventspace-handler-thread (current-eventspace)).
+      ;; repl-thunk will either be used as the thunk for a thread we
+      ;; make directly -- or, when racket/gui/base is instantiated,
+      ;; installed as the current eventspace's event queue via
+      ;; queue-callback, running under (eventspace-handler-thread
+      ;; (current-eventspace)).
       (define (repl-thunk)
         ;; 0. Command line arguments
         (current-command-line-arguments cmd-line-args)
@@ -149,9 +171,15 @@
                 (current-namespace
                  (dynamic-require/some-namespace maybe-mod retry-as-skeleton?))
                 (maybe-warn-about-submodules mod-path context-level)
-                (check-top-interaction)))))
-        ;; 3. Tell command server to use our namespace and module.
-        (attach-command-server (current-namespace) maybe-mod)
+                (check-#%top-interaction)))))
+        ;; 3. Record information about our session
+        (hash-set! sessions
+                   (current-session-id)
+                   (session (current-thread)
+                            (current-namespace)
+                            maybe-mod
+                            (maybe-mod->md5 maybe-mod)
+                            (get-repl-submit-predicate maybe-mod)))
         ;; 3b. And call the ready-thunk command-server gave us from a
         ;; run command, so that it can send a response for the run
         ;; command. Because the command server runs on a different
@@ -161,6 +189,7 @@
         ;; 4. read-eval-print-loop
         (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
                        [current-module-name-resolver module-name-resolver-for-repl])
+          (make-get-interaction)
           ;; Note that read-eval-print-loop catches all non-break
           ;; exceptions.
           (read-eval-print-loop)))
@@ -189,8 +218,60 @@
   (custodian-shutdown-all repl-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match message
-    [(? rerun? new-rr) (run new-rr)]
-    [(load-gui repl?)  (require-gui repl?) (run rr)]))
+    [(? rerun? new-rr) (do-run new-rr)]
+    [(load-gui repl?)  (require-gui repl?) (do-run rr)]))
+
+;; command, called from command-server thread
+(define/contract (run what mem pp ctx args dbgs skel)
+  (-> list? number? elisp-bool/c context-level? list? (listof path-string?) elisp-bool/c
+      list?)
+  (define ready-channel (make-channel))
+  (channel-put message-to-main-thread-channel
+               (rerun (->mod/existing what)
+                      mem
+                      (as-racket-bool pp)
+                      ctx
+                      (list->vector args)
+                      (list->set (map string->path dbgs))
+                      (as-racket-bool skel)
+                      (λ () (channel-put ready-channel what))))
+  ;; Waiting for this allows the command response to be used as the
+  ;; all-clear for additional commands that need the module load to be
+  ;; done and entering a REPL for that module. For example, to compose
+  ;; run with get-profile or get-uncovered.
+  (sync ready-channel))
+
+(define/contract ((make-prompt-read m))
+  (-> (or/c #f mod?) (-> any))
+  (begin0 (get-interaction (maybe-mod->prompt-string m))
+    ;; let debug-instrumented code break again
+    (next-break 'all)))
+
+(define (maybe-mod->md5 m)
+  (define-values (dir file _) (maybe-mod->dir/file/rmp m))
+  (if (and dir file)
+      (file->md5 (build-path dir file))
+      ""))
+
+;; <https://docs.racket-lang.org/tools/lang-languages-customization.html#(part._.R.E.P.L_.Submit_.Predicate)>
+(define/contract (get-repl-submit-predicate m)
+  (-> (or/c #f mod?) (or/c #f drracket:submit-predicate/c))
+  (define-values (dir file rmp) (maybe-mod->dir/file/rmp m))
+  (define path (and dir file (build-path dir file)))
+  (and path rmp
+       (or (with-handlers ([exn:fail? (λ _ #f)])
+            (match (with-input-from-file (build-path dir file) read-language)
+              [(? procedure? get-info)
+               (match (get-info 'drracket:submit-predicate #f)
+                 [#f #f]
+                 [v  v])]
+              [_ #f]))
+           (with-handlers ([exn:fail? (λ _ #f)])
+             (match (module->language-info rmp #t)
+               [(vector mp name val)
+                (define get-info ((dynamic-require mp name) val))
+                (get-info 'drracket:submit-predicate #f)]
+               [_ #f])))))
 
 (define (maybe-configure-runtime mod-path)
   ;; Do configure-runtime when available.
@@ -212,7 +293,7 @@
     (when (module-declared? cr-submod)
       (dynamic-require cr-submod #f))))
 
-(define (check-top-interaction)
+(define (check-#%top-interaction)
   ;; Check that the lang defines #%top-interaction
   (unless (memq '#%top-interaction (namespace-mapped-symbols))
     (display-commented

@@ -2,17 +2,12 @@
 
 (require racket/contract
          racket/format
-         racket/function
          racket/lazy-require
          racket/match
-         racket/set
-         racket/tcp
-         "channel.rkt"
          "debug.rkt"
          "elisp.rkt"
-         "interactions.rkt"
-         "md5.rkt"
          "mod.rkt"
+         "run.rkt"
          "util.rkt")
 
 (lazy-require
@@ -28,71 +23,17 @@
  ["find.rkt"                  (find-definition
                                find-definition/drracket-jump)])
 
-(provide start-command-server
-         attach-command-server
-         make-prompt-read)
+(provide command-server-loop)
 
-(define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
-
-(define-struct/contract context
-  ([ns          namespace?]
-   [maybe-mod   (or/c #f mod?)]
-   [md5         string?]
-   [submit-pred (or/c #f drracket:submit-predicate/c)]))
-
-(define command-server-context (context (make-base-namespace) #f "" #f))
-
-(define/contract (attach-command-server ns maybe-mod)
-  (-> namespace? (or/c #f mod?) any)
-  (set-debug-repl-namespace! ns)
-  (set! command-server-context
-        (context ns
-                 maybe-mod
-                 (maybe-mod->md5 maybe-mod)
-                 (get-repl-submit-predicate maybe-mod))))
-
-(define (maybe-mod->md5 m)
-  (define-values (dir file _) (maybe-mod->dir/file/rmp m))
-  (if (and dir file)
-      (file->md5 (build-path dir file))
-      ""))
-
-;; <https://docs.racket-lang.org/tools/lang-languages-customization.html#(part._.R.E.P.L_.Submit_.Predicate)>
-(define/contract (get-repl-submit-predicate m)
-  (-> (or/c #f mod?) (or/c #f drracket:submit-predicate/c))
-  (define-values (dir file rmp) (maybe-mod->dir/file/rmp m))
-  (define path (and dir file (build-path dir file)))
-  (and path rmp
-       (or (with-handlers ([exn:fail? (λ _ #f)])
-            (match (with-input-from-file (build-path dir file) read-language)
-              [(? procedure? get-info)
-               (match (get-info 'drracket:submit-predicate #f)
-                 [#f #f]
-                 [v  v])]
-              [_ #f]))
-           (with-handlers ([exn:fail? (λ _ #f)])
-             (match (module->language-info rmp #t)
-               [(vector mp name val)
-                (define get-info ((dynamic-require mp name) val))
-                (get-info 'drracket:submit-predicate #f)]
-               [_ #f])))))
-
-;; The command server accepts a single TCP connection at a time.
+;; Command requests and responses are a subset of valid Emacs Lisp
+;; s-expressions: See elisp-read and elisp-write.
 ;;
-;; Immediately after connecting, the client must send us exactly the
-;; same '(accept ,random-value) value that it gave us as a command
-;; line argument when it started us. Else we exit. See issue #327.
+;; Command requests are (nonce session-id command param ...).
 ;;
-;; Normally Emacs will make only one connection to us, ever. If the
-;; user exits the REPL, then our entire Racket process exits. (Just in
-;; case, we have an accept-a-connection loop below. It handles any
-;; exns -- like exn:network -- not handled during command processing.
-;; It uses a custodian to clean up.)
-;;
-;; Command requests and responses "on the wire" are a subset of valid
-;; Emacs Lisp s-expressions: See elisp-read and elisp-write.
-;;
-;; Command requests are (nonce command param ...).
+;; `session-id` should be a REPL session ID returned from opening a
+;; new connection to the REPL server, for commands that need to be
+;; associated with a specific REPL session. (For other commands, this
+;; may be nil a.k.a. #f).
 ;;
 ;; A thread is spun off to handle each request, so that a long-running
 ;; command won't block others. The nonce supplied with the request is
@@ -109,119 +50,86 @@
 ;; Typically our Emacs code will silently ignore these; the
 ;; affirmative break response allows the command callback to be
 ;; cleaned up.
-(define (start-command-server port launch-token)
-  (thread
-   (thunk
-    (define listener (tcp-listen port 4 #t "127.0.0.1"))
-    (let accept-a-connection ()
-      (define custodian (make-custodian))
-      (parameterize ([current-custodian custodian])
-        (with-handlers ([exn:fail? void]) ;just disconnect; see #327
-          (define-values (in out) (tcp-accept listener))
-          (unless (or (not launch-token)
-                      (equal? launch-token (elisp-read in)))
-            (display-commented "Authorization failed; exiting")
-            (exit 1)) ;see #327
 
-          ;; Because we have multiple command threads running, we
-          ;; should synchronize writing responses to the TCP output
-          ;; port. To do so, we use a channel. Threads running
-          ;; `do-command/queue-response` put to the channel. The
-          ;; `write-reponses-forever` thread empties it.
-          (define response-channel (make-channel))
-          (define ((do-command/queue-response nonce sexp))
-            (channel-put
-             response-channel
-             (cons
-              nonce
-              (with-handlers ([exn:fail?  (λ (e) `(error ,(exn-message e)))]
-                              [exn:break? (λ (e) `(break))])
-                (parameterize ([current-namespace
-                                (context-ns command-server-context)])
-                  `(ok ,(command sexp command-server-context)))))))
-          (define (write-responses-forever)
-            (elisp-writeln (sync response-channel
-                                 debug-notify-channel)
-                           out)
-            (flush-output out)
-            (write-responses-forever))
+(define (command-server-loop in out)
+  ;; Because we have multiple command threads running, we should
+  ;; synchronize writing responses to the output port. To do so, we
+  ;; use a channel. Threads running `do-command/queue-response` put to
+  ;; the channel. The `write-reponses-forever` thread empties it.
+  (define response-channel (make-channel))
+  (define ((do-command/queue-response nonce sid sexp))
+    (channel-put
+     response-channel
+     (cons
+      nonce
+      (with-handlers ([exn:fail?  (λ (e) `(error ,(exn-message e)))]
+                      [exn:break? (λ (e) `(break))])
+        `(ok ,(call-with-session-context sid command sexp))))))
+  (define (write-responses-forever)
+    (elisp-writeln (sync response-channel
+                         debug-notify-channel)
+                   out)
+    (flush-output out)
+    (write-responses-forever))
 
-          ;; With all the pieces defined, let's go:
-          (thread write-responses-forever)
-          (let read-a-command ()
-            (match (elisp-read in)
-              [(cons nonce sexp) (thread (do-command/queue-response nonce sexp))
-                                 (read-a-command)]
-              [(? eof-object?)   (void)])))
-        (custodian-shutdown-all custodian))
-      (accept-a-connection))))
-  (void))
+  ;; With all the pieces defined, let's go:
+  (thread write-responses-forever)
+  (elisp-writeln `(ready) out)
+  (let read-a-command ()
+    (match (elisp-read in)
+      [(list* nonce sid sexp) (thread (do-command/queue-response nonce sid sexp))
+                              (read-a-command)]
+      [(? eof-object?)        (void)]))  )
 
-(define/contract ((make-prompt-read m))
-  (-> (or/c #f mod?) (-> any))
-  (begin0 (get-interaction (maybe-mod->prompt-string m))
-    (next-break 'all))) ;let debug-instrumented code break again
-
-(define/contract (command sexpr the-context)
-  (-> pair? context? any/c)
-  (match-define (context _ns maybe-mod md5 submit-pred) the-context)
-  (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
+(define/contract (command sexpr)
+  (-> pair? any/c)
+  (define-values (dir file mod-path) (maybe-mod->dir/file/rmp
+                                      (current-session-maybe-mod)))
   (define path (and dir file (build-path dir file)))
   ;; Note: Intentionally no "else" match clause -- let caller handle
   ;; exn and supply a consistent exn response format.
   (match sexpr
-    [`(run ,what ,mem ,pp? ,ctx ,args ,dbg ,skel?)
-     (run what mem pp? ctx args dbg skel?)]
+    ;; Commands that do NOT need a REPL session
     [`(no-op)                          #t]
-    [`(path+md5)                       (cons (or path 'top) md5)]
-    [`(syms)                           (syms)]
+    [`(check-syntax ,path-str ,code)   (check-syntax path-str code)]
+    [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
+    [`(macro-stepper/next)             (macro-stepper/next)]
+    [`(find-collection ,str)           (find-collection str)]
+    [`(exit)                           (exit)]
+
+    ;; Commands that MIGHT need a REPL session for context (e.g. its
+    ;; namespace), if their first "how" argument is 'namespace.
     [`(def ,how ,str)                  (find-definition how str)]
     [`(def/drr ,how ,path ,subs ,ids)  (find-definition/drracket-jump how path subs ids)]
-    [`(mod ,sym)                       (find-module sym maybe-mod)]
     [`(describe ,how ,str)             (describe how str)]
     [`(doc ,how ,str)                  (doc how str)]
     [`(type ,how ,v)                   (type how v)]
-    [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
-    [`(macro-stepper/next)             (macro-stepper/next)]
+
+    ;; Commands that DEFINITELY DO need a REPL session for context,
+    ;; e.g. its namespace. Should they pass a session-id explicitly,
+    ;; now?
+    [`(run ,what ,mem ,pp? ,ctx ,args ,dbg ,skel?)
+     (run what mem pp? ctx args dbg skel?)]
+    [`(path+md5)                       (cons (or path 'top) (current-session-md5))]
+    [`(syms)                           (syms)]
+    [`(mod ,sym)                       (find-module sym (current-session-maybe-mod))]
     [`(requires/tidy ,reqs)            (requires/tidy reqs)]
     [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
     [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]
-    [`(find-collection ,str)           (find-collection str)]
     [`(get-profile)                    (get-profile)]
     [`(get-uncovered)                  (get-uncovered path)]
-    [`(check-syntax ,path-str ,code)   (check-syntax path-str code)]
     [`(eval ,v)                        (eval-command v)]
-    [`(repl-submit? ,str ,eos?)        (repl-submit? submit-pred str eos?)]
+    [`(repl-submit? ,str ,eos?)        (repl-submit? str eos?)]
     [`(debug-eval ,src ,l ,c ,p ,code) (debug-eval src l c p code)]
     [`(debug-resume ,v)                (debug-resume v)]
-    [`(debug-disable)                  (debug-disable)]
-    [`(exit)                           (exit)]))
+    [`(debug-disable)                  (debug-disable)]))
 
 ;;; A few commands defined here
 
-(define/contract (run what mem pp ctx args dbgs skel)
-  (-> list? number? elisp-bool/c context-level? list? (listof path-string?) elisp-bool/c
-      list?)
-  (define ready-channel (make-channel))
-  (channel-put message-to-main-thread-channel
-               (rerun (->mod/existing what)
-                      mem
-                      (as-racket-bool pp)
-                      ctx
-                      (list->vector args)
-                      (list->set (map string->path dbgs))
-                      (as-racket-bool skel)
-                      (λ () (channel-put ready-channel what))))
-  ;; Waiting for this allows the command response to be used as the
-  ;; all-clear for additional commands that need the module load to be
-  ;; done and entering a REPL for that module. For example, to compose
-  ;; run with get-profile or get-uncovered.
-  (sync ready-channel))
-
-(define/contract (repl-submit? submit-pred text eos)
-  (-> (or/c #f drracket:submit-predicate/c) string? elisp-bool/c (or/c 'default #t #f))
-  (if submit-pred
-      (submit-pred (open-input-string text) (as-racket-bool eos))
+(define/contract (repl-submit? text eos)
+  (-> string? elisp-bool/c (or/c 'default #t #f))
+  (if (current-session-submit-pred)
+      ((current-session-submit-pred) (open-input-string text) (as-racket-bool eos))
       'default))
 
 (define (syms)
