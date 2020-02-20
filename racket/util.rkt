@@ -2,7 +2,9 @@
 
 (require (for-syntax racket/base
                      syntax/parse)
-         syntax/stx)
+         syntax/stx
+         syntax/parse/define
+         racket/format)
 
 (provide display-commented
          with-dynamic-requires
@@ -11,7 +13,15 @@
          syntax-or-sexpr->sexpr
          nat/c
          pos/c
-         in-syntax)
+         inc!
+         in-syntax
+         log-racket-mode-debug
+         log-racket-mode-info
+         log-racket-mode-warning
+         log-racket-mode-error
+         log-racket-mode-fatal
+         time-apply/log
+         with-time/log)
 
 (define (display-commented str)
   (eprintf "; ~a\n"
@@ -40,6 +50,9 @@
 (define nat/c exact-nonnegative-integer?)
 (define pos/c exact-positive-integer?)
 
+(define-simple-macro (inc! v:id)
+  (set! v (add1 v)))
+
 ;;; in-syntax: Not defined until Racket 6.3
 
 (define-sequence-syntax in-syntax
@@ -52,3 +65,17 @@
 (define (in-syntax/proc stx)
   (or (stx->list stx)
       (raise-type-error 'in-syntax "stx-list" stx)))
+
+;;; logger / timing
+
+(define-logger racket-mode)
+
+(define (time-apply/log what proc args)
+  (define-values (vs cpu real gc) (time-apply proc args))
+  (define (fmt n) (~v #:align 'right #:min-width 4 n))
+  (log-racket-mode-debug "~a cpu | ~a real | ~a gc <= ~a"
+                         (fmt cpu) (fmt real) (fmt gc) what)
+  (apply values vs))
+
+(define-simple-macro (with-time/log what e ...+)
+  (time-apply/log what (λ () e ...) '()))

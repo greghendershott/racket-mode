@@ -20,111 +20,93 @@
 ;;; TCP connection to back end command server
 
 (require 'racket-custom)
+(require 'racket-util)
 
-(declare-function racket--repl-live-p "racket-repl")
-(declare-function racket--repl-start  "racket-repl")
 (declare-function  racket--debug-on-break "racket-debug" (response))
 (autoload         'racket--debug-on-break "racket-debug")
+
+(defvar racket--cmd-name "racket-process"
+  "Name for both the process and its associated buffer")
+
+(defun racket--cmd-process ()
+  "Process for talking to the command server.
+Most code should use `racket--cmd-open-p' to check this."
+  (get-buffer-process racket--cmd-name))
+
+(defun racket--cmd-open-p ()
+  "Does an open process exist for the command server?"
+  (and (racket--cmd-process)
+       (eq 'run (process-status (racket--cmd-process)))))
+
+
+
+(defconst racket--minimum-required-version "6.0"
+  "The minimum version of Racket required by run.rkt.
+
+Although some functionality may require an even newer version of
+Racket, run.rkt will handle that via `dynamic-require` and
+fallbacks. The version number here is a baseline for run.rkt to
+be able to load at all.")
+
+(defvar racket--run.rkt (expand-file-name "main.rkt" racket--rkt-source-dir)
+  "Pathname of run.rkt.")
+
+(defvar racket-adjust-run-rkt #'identity
+  "A function used to transform the variable `racket--run.rkt'.
+
+You probably don't need to change this unless you are developing
+Racket Mode, AND run Emacs on Windows Subsystem for Linux, AND
+want to run your programs using Windows Racket.exe, AND have the
+Racket Mode source code under \"/mnt\". Whew. In that case you
+can set this variable to the function `racket-wsl-to-windows' so
+that Racket Mode can find its own run.rkt file.")
+
+(defun racket--version ()
+  "Get the `racket-program' version as a string."
+  (with-temp-message "Checking Racket version ..."
+    (with-temp-buffer
+      (call-process racket-program nil t nil "--version")
+      (goto-char (point-min))
+      ;; Welcome to Racket v6.12.
+      ;; Welcome to Racket v7.0.0.6.
+      (save-match-data
+        (re-search-forward "[0-9]+\\(?:\\.[0-9]+\\)*")
+        (match-string 0)))))
+
+(defun racket--assert-version (at-least)
+  "Raise a `user-error' unless Racket is version AT-LEAST."
+  (let ((have (racket--version)))
+    (unless (version<= at-least have)
+      (user-error "Racket Mode needs at least Racket version %s but you have %s"
+                  at-least have))))
+
 
 (defvar racket--cmd-auth nil
   "A value we give the Racket back-end when we launch it and when we connect.
 See issue #327.")
 
-(defvar racket--cmd-proc nil
-  "Process for talking to the command server.
-Most code should use `racket--cmd-open-p' to check this.")
+(defun racket--cmd-open ()
+  ;; Never create more "racket-process<1>" etc processes.
+  (racket--cmd-close)
+  (racket--assert-version racket--minimum-required-version)
+  (prog1
+      (make-process
+       :name            racket--cmd-name
+       :connection-type 'pipe
+       :noquery         t
+       :buffer          (get-buffer-create racket--cmd-name)
+       :stderr          (get-buffer-create "racket-process-stderr")
+       :command         (list racket-program
+                              (funcall racket-adjust-run-rkt racket--run.rkt)
+                              (number-to-string racket-command-port)
+                              (setq racket--cmd-auth (format "%S" `(auth ,(random)))))
+       :filter          #'racket--cmd-process-filter)
+    (racket--call-cmd-after-open-thunks)))
 
-(defun racket--cmd-open-p ()
-  "Does an open process exist for the command server?"
-  (and racket--cmd-proc
-       (eq 'open (process-status racket--cmd-proc))))
+(defun racket--cmd-close ()
+  (pcase (get-process racket--cmd-name)
+    ((and (pred (processp)) proc) (delete-process proc))))
 
-(defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
-  "A hash from nonce to callback function.")
-(defvar racket--cmd-nonce 0
-  "Number that increments for each command request we send.")
-
-(defvar racket--cmd-connect-attempts 15
-  "How many times to `racket--cmd-connect-attempt', at roughly 1 second intervals.")
-
-(defvar racket--cmd-connect-timer nil)
-
-(defun racket--cmd-connect-scheduled-p ()
-  (and racket--cmd-connect-timer
-       (timerp racket--cmd-connect-timer)))
-
-(defun racket--cmd-connect-schedule-start ()
-  (unless (racket--cmd-connect-scheduled-p)
-    (setq racket--cmd-connect-timer
-          (run-at-time 0.5 nil
-                       #'racket--cmd-connect-attempt
-                       1))))
-
-(defun racket--cmd-connect-schedule-retry (attempt)
-  (when (racket--cmd-connect-scheduled-p)
-    (cancel-timer racket--cmd-connect-timer)
-    (setq racket--cmd-connect-timer
-          (run-at-time 1.0 nil
-                       #'racket--cmd-connect-attempt
-                       (1+ attempt)))))
-
-(defun racket--cmd-connect-stop ()
-  (when (racket--cmd-connect-scheduled-p)
-    (cancel-timer racket--cmd-connect-timer)
-    (setq racket--cmd-connect-timer nil)))
-
-
-(defun racket--cmd-connect-attempt (attempt)
-  "Attempt to make a TCP connection to the command server.
-If that fails, retry by scheduling ourself to run again later.
-When we do make a connection, call
-`racket--repl-call-after-live-thunks'."
-  (unless (featurep 'make-network-process '(:nowait t))
-    (error "Racket Mode needs Emacs make-network-process to support the :nowait feature"))
-  (setq
-   racket--cmd-proc
-   (make-network-process
-    :name    "racket-command"
-    :host    "127.0.0.1"
-    :service racket-command-port
-    :nowait  t
-    :sentinel
-    (lambda (proc event)
-      ;; (message "sentinel got (%S %S) [attempt %s]" proc (substring event 0 -1) attempt)
-      (cond ((string-match-p "^open" event)
-             (let ((buf (generate-new-buffer (concat " *" (process-name proc) "*"))))
-               (set-process-buffer proc buf)
-               (buffer-disable-undo buf))
-             (set-process-filter proc #'racket--cmd-process-filter)
-             (process-send-string proc (concat racket--cmd-auth "\n"))
-             (run-at-time 0.1 nil
-                          #'message
-                          "Connected to %s process on port %s after %s attempt%s"
-                          proc racket-command-port attempt (if (= 1 attempt) "" "s"))
-             (run-at-time 0.2 nil
-                          #'racket--call-cmd-after-open-thunks)
-             (racket--cmd-connect-stop))
-
-            ((string-match-p "^failed" event)
-             (delete-process proc) ;we'll get called with "deleted" event, below
-             (racket--cmd-connect-schedule-retry attempt)
-             (if (<= attempt racket--cmd-connect-attempts)
-                 (racket--cmd-connect-schedule-retry attempt)
-               (racket--cmd-connect-stop)))
-
-            ((or (string-match-p "^deleted" event)
-                 (string-match-p "^connection broken by remote peer" event))
-             (clrhash racket--cmd-nonce->callback)
-             ;; If process has a buffer -- and do check that it does,
-             ;; see #383 -- we can't `kill-buffer' now here in the
-             ;; process sentinel. Instead do soon.
-             (pcase (process-buffer proc)
-               ((and (pred bufferp) buf)
-                (run-at-time 0.1 nil #'kill-buffer buf))))
-
-            (t (run-at-time 0.1 nil
-                            #'message "sentinel surprised by (%S %S) [attempt %s]"
-                            proc event attempt)))))))
 
 (defvar racket--cmd-after-open-thunks nil
   "List of thunks to call when upon connection to the command server.
@@ -147,23 +129,7 @@ after it is, call THUNK."
       (funcall thunk)
     ;; Do later
     (push thunk racket--cmd-after-open-thunks)
-    ;; Next, let's make "later" happen:
-    ;;
-    ;; Remember that our back end process has two aspects: stdio
-    ;; connected to a comint buffer ("the REPL"), and, a TCP server
-    ;; ("the command server"). Furthermore, connecting to the latter
-    ;; is something we retry on a timer until it succeeds, so that we
-    ;; don't block.
-    (if (not (racket--repl-live-p))
-        ;; The REPL process is not live, so call `racket--repl-start',
-        ;; which also arranges for `racket--cmd-connect-attempt' to be
-        ;; called eventually.
-        (racket--repl-start)
-      ;; The REPL process is live, but we have no connection to the
-      ;; command server. Unless we're already connecting, start
-      ;; connecting now.
-      (unless (racket--cmd-connect-scheduled-p)
-        (racket--cmd-connect-schedule-start)))))
+    (racket--cmd-open)))
 
 (defun racket--cmd-process-filter (proc string)
   "Parse complete sexprs from the process output and give them to
@@ -185,6 +151,11 @@ after it is, call THUNK."
                       t)))
               (scan-error nil)))))))
 
+(defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
+  "A hash from nonce to callback function.")
+(defvar racket--cmd-nonce 0
+  "Number that increments for each command request we send.")
+
 (defun racket--cmd-dispatch-response (response)
   "Do something with a sexpr sent to us from the command server.
 Mostly these are responses to command requests. Strictly speaking
@@ -200,8 +171,11 @@ to one command request."
          (run-at-time 0.001 nil callback response))))
     (_ nil)))
 
-(defun racket--cmd/async-raw (command-sexpr &optional callback)
+(defun racket--cmd/async-raw (repl-session-id command-sexpr &optional callback)
   "Send COMMAND-SEXPR and return. Later call CALLBACK with the response sexp.
+
+REPL-SESSION-ID may be nil for commands that do not need to run
+in a specific namespace.
 
 If CALLBACK is not supplied or nil, defaults to `ignore'.
 
@@ -227,12 +201,17 @@ we save a thunk to run when it does become available, and call
      (when (and callback
                 (not (equal callback #'ignore)))
        (puthash racket--cmd-nonce callback racket--cmd-nonce->callback))
-     (process-send-string racket--cmd-proc
-                          (format "%S\n" (cons racket--cmd-nonce
-                                               command-sexpr))))))
+     (process-send-string
+      (racket--cmd-process)
+      (format "%S\n" (cons racket--cmd-nonce
+                           (cons repl-session-id
+                                 command-sexpr)))))))
 
-(defun racket--cmd/async (command-sexpr &optional callback)
+(defun racket--cmd/async (repl-session-id command-sexpr &optional callback)
   "You probably want to use this instead of `racket--cmd/async-raw'.
+
+REPL-SESSION-ID may be nil for commands that do not need to run
+in a specific namespace.
 
 CALLBACK is only called for 'ok responses, with (ok v ...)
 unwrapped to (v ...).
@@ -255,6 +234,7 @@ during CALLBACK, because neglecting to do so is a likely
 mistake."
   (let ((buf (current-buffer)))
     (racket--cmd/async-raw
+     repl-session-id
      command-sexpr
      (if callback
          (lambda (response)
@@ -265,11 +245,15 @@ mistake."
              (v           (message "Unknown command response: %S" v))))
        #'ignore))))
 
-(defun racket--cmd/await (command-sexpr)
-  "Send COMMAND-SEXPR. Await and return an 'ok response value, or raise `error'."
+(defun racket--cmd/await (repl-session-id command-sexpr)
+  "Send COMMAND-SEXPR. Await and return an 'ok response value, or raise `error'.
+
+REPL-SESSION-ID may be nil for commands that do not need to run
+in a specific namespace."
   (let* ((awaiting 'RACKET-REPL-AWAITING)
          (response awaiting))
-    (racket--cmd/async-raw command-sexpr
+    (racket--cmd/async-raw repl-session-id
+                           command-sexpr
                            (lambda (v) (setq response v)))
     (with-timeout (racket-command-timeout
                    (error "racket-command process timeout"))

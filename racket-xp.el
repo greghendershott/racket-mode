@@ -236,7 +236,7 @@ by `racket-mode'."
     (let ((how (buffer-file-name)))
       (lambda (str)
         (let ((str (substring-no-properties str)))
-          (pcase (racket--cmd/await `(def ,how ,str))
+          (pcase (racket--cmd/await nil `(def ,how ,str))
             (`(,path ,line ,_) (cons path line))))))))
 
 (defun racket--xp-make-company-doc-buffer-proc ()
@@ -244,7 +244,7 @@ by `racket-mode'."
     (let ((how (buffer-file-name)))
       (lambda (str)
         (let ((str (substring-no-properties str)))
-          (racket--do-describe how str))))))
+          (racket--do-describe how nil str))))))
 
 (defun racket-xp-describe (&optional prefix)
 "Describe the identifier at point in a `*Racket Describe*` buffer.
@@ -295,12 +295,13 @@ TAB, and activate using RET -- for `racket-visit-definition' and
               (`(,path ,subs ,ids)
                (lambda ()
                  (racket--do-visit-def-or-mod
+                  nil
                   `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids))))
               (_
                (pcase (get-text-property (point) 'racket-xp-def)
                  (`(import ,id . ,_)
                   (lambda ()
-                    (racket--do-visit-def-or-mod `(mod ,id))))))))
+                    (racket--do-visit-def-or-mod nil `(mod ,id))))))))
            (doc-thunk
             (pcase (get-text-property (point) 'racket-xp-doc)
               (`(,path ,anchor)
@@ -308,9 +309,10 @@ TAB, and activate using RET -- for `racket-visit-definition' and
                  (browse-url (concat "file://" path "#" anchor))))
               (_
                (lambda ()
-                 (racket--cmd/async `(doc ,(buffer-file-name) ,str)
+                 (racket--cmd/async nil
+                                    `(doc ,(buffer-file-name) ,str)
                                     #'browse-url))))))
-       (racket--do-describe how str t visit-thunk doc-thunk)))))
+       (racket--do-describe how nil str t visit-thunk doc-thunk)))))
 
 (defun racket-xp-eldoc-function ()
   "A value for the variable `eldoc-documentation-function'.
@@ -346,7 +348,7 @@ Lisp, you will be disappointed.
 
 A more satisfying experience is to use `racket-xp-describe'
 or `racket-repl-describe'."
-  (racket--do-eldoc (racket--buffer-file-name)))
+  (racket--do-eldoc (racket--buffer-file-name) nil))
 
 (defconst racket--xp-overlay-name 'racket-xp-overlay)
 
@@ -414,7 +416,7 @@ definitions in submodules."
       (pcase (racket--symbol-at-point-or-prompt t "Visit definition of: "
                                                 racket--xp-completions)
         ((and (pred stringp) str)
-         (racket--do-visit-def-or-mod `(def ,(buffer-file-name) ,str))))
+         (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str))))
     (or (pcase (get-text-property (point) 'racket-xp-use)
           (`(,beg ,_end)
            (pcase (get-text-property beg 'racket-xp-def)
@@ -425,11 +427,12 @@ definitions in submodules."
         (pcase (get-text-property (point) 'racket-xp-visit)
           (`(,path ,subs ,ids)
            (racket--do-visit-def-or-mod
+            nil
             `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids)))
           (_
            (pcase (get-text-property (point) 'racket-xp-def)
              (`(import ,id . ,_)
-              (racket--do-visit-def-or-mod `(mod ,id)))
+              (racket--do-visit-def-or-mod nil `(mod ,id)))
              (_
               ;; If it's not annotated with racket-xp-visit and it's not
               ;; a module, try doing a general search. This might only
@@ -439,7 +442,7 @@ definitions in submodules."
               (pcase (racket--symbol-at-point-or-prompt nil "Visit definition of: "
                                                         racket--xp-completions)
                 ((and (pred stringp) str)
-                 (racket--do-visit-def-or-mod `(def ,(buffer-file-name) ,str)))))))))))
+                 (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str)))))))))))
 
 (defun racket-xp-documentation (&optional prefix)
   "Show documentation for the identifier at point.
@@ -459,7 +462,8 @@ definitions in submodules."
      (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: "
                                                racket--xp-completions)
        ((and (pred stringp) str)
-        (racket--cmd/async `(doc ,(buffer-file-name) ,str)
+        (racket--cmd/async nil
+                           `(doc ,(buffer-file-name) ,str)
                            #'browse-url))))))
 
 (defun racket-xp--forward-use (amt)
@@ -648,6 +652,7 @@ manually."
 (defun racket--xp-annotate (&optional after-thunk)
   (racket--xp-set-status 'running)
   (racket--cmd/async
+   nil
    `(check-syntax ,(or (racket--buffer-file-name) (buffer-name))
                   ,(buffer-substring-no-properties (point-min) (point-max)))
    (racket--restoring-current-buffer

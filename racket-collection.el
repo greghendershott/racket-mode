@@ -51,6 +51,7 @@ See also: `racket-visit-module' and `racket-open-require-path'."
     (`() nil)
     (coll
      (racket--cmd/async
+      nil
       `(find-collection ,coll)
       (lambda (result)
         (pcase result

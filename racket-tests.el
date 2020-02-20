@@ -94,17 +94,19 @@
 
 (ert-deftest racket-tests/repl ()
   "Start REPL. Confirm we get Welcome message and prompt. Exit REPL."
-  (let ((racket--cmd-connect-attempts racket-tests/connect-attempts)
-        (racket-command-port (racket-tests/next-free-port))
+  (let ((racket-command-port (racket-tests/next-free-port))
         (racket-command-timeout racket-tests/command-timeout))
     (racket-repl)
+    (racket-tests/eventually #'get-buffer racket--repl-buffer-name)
     (with-racket-repl-buffer
       (should (racket-tests/see-back-rx
                "Welcome to Racket v?[0-9.]+\\(?: \\[cs\\].\\)?[\n]\\(?:;.*[\n]\\)*> "))
-      (racket-tests/wait-for-command-server)
 
       ;; Completion
-      (racket-tests/eventually #'identity racket--repl-namespace-symbols)
+      (should
+       (racket-tests/eventually #'member
+                                "current-output-port"
+                                racket--repl-namespace-symbols))
       (racket-tests/type "current-out")
       (completion-at-point)
       (should (racket-tests/see-back "current-output-port"))
@@ -134,43 +136,35 @@
 
       ;; Exit
       (racket-tests/type&press "(exit)" "RET")
-      (should (racket-tests/see-back "Process Racket REPL finished\n")))))
+      (should (racket-tests/see-back "Process *Racket REPL* connection broken by remote peer\n")))))
 
 ;;; Run
 
 (ert-deftest racket-tests/run ()
-  (let* ((racket--cmd-connect-attempts racket-tests/connect-attempts)
-         (racket-command-port (racket-tests/next-free-port))
+  (let* ((racket-command-port (racket-tests/next-free-port))
          (racket-command-timeout racket-tests/command-timeout)
          (pathname (make-temp-file "test" nil ".rkt"))
          (name     (file-name-nondirectory pathname))
          (code "#lang racket/base\n(define foobar 42)\nfoobar\n"))
-    (should (not (get-process "racket-command")))
-    (should (not (get-process "racket-command<1>")))
     (write-region code nil pathname nil 'no-wrote-file-message)
     (find-file pathname)
     (racket-run)
-    (racket-tests/wait-for-command-server)
-    (should (get-process "racket-command"))
-    (should (not (get-process "racket-command<1>")))
+    (racket-tests/eventually #'get-buffer racket--repl-buffer-name)
     (with-racket-repl-buffer
       (should (racket-tests/see-back (concat "\n" name "> ")))
       (racket-repl-exit)
-      (should (racket-tests/see-back "Process Racket REPL finished\n")))
-    (should (not (get-process "racket-command")))
-    (should (not (get-process "racket-command<1>")))
+      (should (racket-tests/see-back "Process *Racket REPL* connection broken by remote peer\n")))
     (delete-file pathname)))
 
 ;;; racket-xp-mode
 
 (ert-deftest racket-tests/xp ()
   (when (version<= "6.2" (racket--version))
-    (let* ((racket--cmd-connect-attempts racket-tests/connect-attempts)
-           (racket-command-port (racket-tests/next-free-port))
+    (let* ((racket-command-port (racket-tests/next-free-port))
            (racket-command-timeout racket-tests/command-timeout)
            (pathname (make-temp-file "test" nil ".rkt"))
            (name     (file-name-nondirectory pathname))
-           (code "#lang racket/base\n(define foobar 42)\nfoobar\n"))
+           (code     "#lang racket/base\n(define foobar 42)\nfoobar\n"))
       (write-region code nil pathname nil 'no-wrote-file-message)
       (find-file pathname)
       ;; In case running test interactively in Emacs where the config
@@ -179,7 +173,7 @@
       (racket-xp-mode 1)
       (should racket-xp-mode)
       (racket-tests/wait-for-command-server) ;should start automatically
-      (sit-for (if ci-p 30.0 3.0))
+      (sit-for (if ci-p 30.0 3.0)) ;wait for annotations
       (goto-char (point-min))
       (racket-xp-next-definition)
       (should (racket-tests/see-forward "racket/base"))
@@ -194,8 +188,6 @@
       (completion-at-point)
       (should (racket-tests/see-back "foobar"))
       (racket-xp-mode 0)
-      (with-racket-repl-buffer
-        (racket-repl-exit))
       (delete-file pathname))))
 
 ;;; Indentation

@@ -25,6 +25,7 @@
 (require 'racket-cmd)
 (require 'racket-common)
 (require 'racket-complete)
+(require 'racket-repl)
 (require 'racket-util)
 (require 'hideshow)
 
@@ -114,12 +115,13 @@ See also: `racket-trim-requires' and `racket-base-requires'."
   (pcase (racket--top-level-requires 'find)
     (`nil (user-error "The file module has no requires; nothing to do"))
     (reqs (racket--cmd/async
-           `(requires/tidy ,reqs))
-          (lambda (result)
-            (pcase result
-              ("" nil)
-              (new (goto-char (racket--top-level-requires 'kill))
-                   (insert (concat new "\n"))))))))
+           racket--repl-session-id
+           `(requires/tidy ,reqs)
+           (lambda (result)
+             (pcase result
+               ("" nil)
+               (new (goto-char (racket--top-level-requires 'kill))
+                    (insert (concat new "\n")))))))))
 
 (defun racket-trim-requires ()
   "Like `racket-tidy-requires' but also deletes unnecessary requires.
@@ -142,6 +144,7 @@ See also: `racket-base-requires'."
    (pcase (racket--top-level-requires 'find)
      (`nil (user-error "The file module has no requires; nothing to do"))
      (reqs (racket--cmd/async
+            racket--repl-session-id
             `(requires/trim
               ,(racket--buffer-file-name)
               ,reqs)
@@ -189,6 +192,7 @@ typed/racket/base\"."
     (racket--save-if-changed)
     (let ((reqs (racket--top-level-requires 'find)))
       (racket--cmd/async
+       racket--repl-session-id
        `(requires/base
          ,(racket--buffer-file-name)
          ,reqs)

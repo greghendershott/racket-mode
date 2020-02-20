@@ -22,6 +22,7 @@
 (require 'shr)
 
 (defun racket--do-describe (how
+                            repl-session-id
                             str
                             &optional
                             display-and-pop-to-p
@@ -48,7 +49,8 @@ Returns the buffer in which the description was written."
   ;; elements are out of order when an existing Racket Describe buffer
   ;; hasn't had a `quit-window' -- by re-creating the buffer.
   (with-current-buffer (racket--get-buffer-recreate "*Racket Describe*")
-    (let* ((html (racket--cmd/await `(describe ,how ,str)))
+    (let* ((html (racket--cmd/await repl-session-id
+                                    `(describe ,how ,str)))
            ;; Because shr removes leading &nbsp; from <td> elements --
            ;; which messes up the indentation of s-expressions
            ;; including contracts -- replace &nbsp with `spc' in the

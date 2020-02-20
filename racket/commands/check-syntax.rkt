@@ -5,13 +5,13 @@
          racket/match
          racket/set
          racket/class
-         syntax/parse/define
          drracket/check-syntax
          ;; drracket/check-syntax does not re-provide build-trace%
          (only-in drracket/private/syncheck/traversals
                   build-trace%)
          "../imports.rkt"
-         "../syntax.rkt")
+         "../syntax.rkt"
+         "../util.rkt")
 
 (provide check-syntax)
 
@@ -127,7 +127,7 @@
                              (list drracket-id-str orig-str)))]
                   [else
                    ;; https://gist.github.com/greghendershott/5dd59c00f8daa2ce0987ad343244489e
-                   (log-racket-mode-check-syntax-warning "bad path in ~v" syncheck)
+                   (log-racket-mode-warning "bad path in ~v" syncheck)
                    #f])]
            [(vector 'syncheck:add-unused-require beg end)
             (item 'unused-require beg end)]
@@ -274,17 +274,3 @@
   (check-this-file (path->string (syntax-source #'here)))
   ;; Again to exercise and test cache
   (check-this-file (path->string (syntax-source #'here))))
-
-;;; logger / timing
-
-(define-logger racket-mode-check-syntax)
-
-(define (time-apply/log what proc args)
-  (define-values (vs cpu real gc) (time-apply proc args))
-  (define (fmt n) (~v #:align 'right #:min-width 4 n))
-  (log-racket-mode-check-syntax-info "~a cpu | ~a real | ~a gc <= ~a"
-                                     (fmt cpu) (fmt real) (fmt gc) what)
-  (apply values vs))
-
-(define-simple-macro (with-time/log what e ...+)
-  (time-apply/log what (λ () e ...) '()))

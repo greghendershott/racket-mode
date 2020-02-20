@@ -3,8 +3,7 @@
 (require racket/contract
          racket/match
          racket/port
-         racket/set
-         racket/string)
+         racket/set)
 
 (provide elisp-read
          elisp-writeln

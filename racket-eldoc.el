@@ -18,7 +18,7 @@
 
 (require 'racket-cmd)
 
-(defun racket--do-eldoc (how)
+(defun racket--do-eldoc (how repl-session-id)
   (and (racket--cmd-open-p)
        (> (point) (point-min))
        (save-excursion
@@ -37,7 +37,8 @@
                               (eq ?\s (char-syntax (char-after (point))))
                               end))
                     (sym (and beg end (buffer-substring-no-properties beg end)))
-                    (str (and sym (racket--cmd/await `(type ,how ,sym)))))
+                    (str (and sym (racket--cmd/await repl-session-id
+                                                     `(type ,how ,sym)))))
                str)
            (scan-error nil)))))
 

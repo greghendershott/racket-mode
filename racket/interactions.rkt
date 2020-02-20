@@ -1,7 +1,8 @@
 #lang racket/base
 
 (require racket/match
-         "fresh-line.rkt")
+         "fresh-line.rkt"
+         "util.rkt")
 
 (provide make-get-interaction
          current-sync/yield
@@ -22,6 +23,15 @@
 ;;
 ;; One wrinkle is we need to be careful about calling yield instead of
 ;; sync when the gui is active. See issue #326.
+;;
+;; Another wrinkle: We should handle eof-object? and exn:fail:network?
+;; by doing an exit and letting the exit-handler in run.rkt cleanup
+;; the TCP connection. This handles the case where e.g. the user kills
+;; the REPL buffer and its process on the client/Emacs side. We used
+;; to have code here in an effort support lang/datalog using eof as an
+;; expression separator -- but that just causes an endless loop 100%
+;; CPU spike with an abandoned tcp-input-port. So give up on that,
+;; reverting issue #305.
 
 (define current-chan (make-parameter #f))
 
@@ -35,9 +45,10 @@
   (define in ((current-get-interaction-input-port)))
   (define (read-interaction)
     (with-handlers ([exn:fail? values])
-      ((current-read-interaction) (object-name in) in))) ;[^1]
+      ((current-read-interaction) (object-name in) in)))
   (match (read-interaction)
-    [(? eof-object?) (sync in)] ;[^2]
+    [(? eof-object?) (log-racket-mode-info "read-interaction: eof")
+                     (exit 'get-interaction-eof)]
     [(? exn:fail? e) (channel-put (current-chan) e)] ;raise in other thread
     [v (channel-put (current-chan) v)])
   (read-interaction/put-channel))
@@ -48,6 +59,8 @@
   (match (or (sync/timeout 0.01 (current-chan)) ;see issue #311
              (begin (display-prompt prompt)
                     ((current-sync/yield) (current-chan))))
+    [(? exn:fail:network?) (log-racket-mode-info "get-interaction: exn:fail:network\n")
+                           (exit 'get-interaction-exn:fail:network)]
     [(? exn:fail? exn) (raise exn)]
     [v v]))
 
@@ -58,29 +71,3 @@
   (display "> ")
   (flush-output)
   (zero-column!))
-
-;; "Footnote" comments about make-prompt-read and many attempts to fix
-;; issue #305.
-;;
-;; [^1]: datalog/lang expects each interaction to be EOF terminated.
-;;       This seems to be a DrRacket convention (?). We could make
-;;       that work here if we composed open-input-string with
-;;       read-line. But that would fail for valid multi-line
-;;       expressions in langs like racket/base e.g. "(+ 1\n2)". We
-;;       could have Emacs racket-repl-submit append some marker that
-;;       lets us know to combine multiple lines here -- but we'd have
-;;       to be careful to eat the marker and avoid combining lines
-;;       when the user is entering input for their own program that
-;;       uses `read-line` etc. Trying to be clever here is maybe not
-;;       smart. I _think_ the safest thing is for each lang like
-;;       datalog to implement current-read-interaction like it says on
-;;       the tin -- it can parse just one expression/statement from a
-;;       normal, "infinite" input port; if that means the lang parser
-;;       has to be tweaked for a single-expression/statement mode of
-;;       usage, so be it.
-;;
-;; [^2]: The eof-object? clause is here only for datalog/lang
-;;       configure-runtime.rkt. Its `the-read` returns eof if
-;;       char-ready? is false. WAT. Why doesn't it just block like a
-;;       normal read-interaction handler? Catch this and wait for more
-;;       input to be available before calling it again.

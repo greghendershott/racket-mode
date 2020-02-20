@@ -86,6 +86,7 @@ file-local variable.")
 ;;;###autoload
 (defun racket--debug-send-definition (beg end)
   (racket--cmd/async
+   racket--repl-session-id
    (save-excursion
      (goto-char beg)
      (list 'debug-eval
@@ -120,7 +121,8 @@ file-local variable.")
   (let ((info (if value-prompt-p
                   (racket--debug-prompt-for-new-values)
                 racket--debug-break-info)))
-    (racket--cmd/async `(debug-resume (,next-break ,info))))
+    (racket--cmd/async racket--repl-session-id
+                       `(debug-resume (,next-break ,info))))
   (racket-debug-mode -1)
   (setq racket--debug-break-positions nil)
   (setq racket--debug-break-locals nil)
@@ -184,7 +186,7 @@ file-local variable.")
 
 (defun racket-debug-disable ()
   (interactive)
-  (racket--cmd/async `(debug-disable))
+  (racket--cmd/async racket--repl-session-id `(debug-disable))
   (racket-debug-mode -1)
   (setq racket--debug-break-positions nil)
   (setq racket--debug-break-locals nil)

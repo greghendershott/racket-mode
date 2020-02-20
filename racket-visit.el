@@ -44,7 +44,7 @@ See also: `racket-find-collection'."
            (racket--push-loc)
            (find-file (expand-file-name (substring v 1 -1)))
            (message "Type M-, to return"))
-          (t (racket--do-visit-def-or-mod `(mod ,v))))))
+          (t (racket--do-visit-def-or-mod nil `(mod ,v))))))
 
 (defun racket--module-at-point ()
   "Treat point as a Racket module path name, possibly in a multi-in form."
@@ -83,10 +83,11 @@ See also: `racket-find-collection'."
                  v
                  (if relative-p "\"" ""))))))) ;1
 
-(defun racket--do-visit-def-or-mod (cmd)
+(defun racket--do-visit-def-or-mod (repl-session-id cmd)
   (unless (memq major-mode '(racket-mode racket-repl-mode racket-describe-mode))
     (user-error "That doesn't work in %s" major-mode))
   (racket--cmd/async
+   repl-session-id
    cmd
    (lambda (result)
      (pcase result

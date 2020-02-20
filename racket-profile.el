@@ -49,6 +49,7 @@ delete compiled/*.zo files."
    (lambda (_n/a)
      (message "Getting profile results...")
      (racket--cmd/async
+      racket--repl-session-id
       `(get-profile)
       (lambda (results)
         (message "")
@@ -61,7 +62,9 @@ delete compiled/*.zo files."
 
 (defun racket--profile-refresh ()
   (interactive)
-  (setq racket--profile-results (racket--cmd/await `(get-profile)))
+  (setq racket--profile-results
+        (racket--cmd/await racket--repl-session-id
+                           `(get-profile)))
   (racket--profile-draw))
 
 (defun racket--profile-draw ()

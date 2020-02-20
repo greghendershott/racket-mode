@@ -58,6 +58,7 @@
   ;; the channel. The `write-reponses-forever` thread empties it.
   (define response-channel (make-channel))
   (define ((do-command/queue-response nonce sid sexp))
+    (log-racket-mode-info "(~v ~v ~v)" nonce sid sexp)
     (channel-put
      response-channel
      (cons
@@ -89,13 +90,27 @@
   ;; Note: Intentionally no "else" match clause -- let caller handle
   ;; exn and supply a consistent exn response format.
   (match sexpr
+    ;; Currently, we're called from `call-with-session-context` which
+    ;; uses the possibly non-nil session id to look up the possible
+    ;; REPL session, and set some parameters. That's because I chose
+    ;; to make the session ID an additional "prefix" parameter for ALL
+    ;; commands, like the nonce, and just after the nonce (see above).
+    ;; That was convenient to let call-with-session-context wrap
+    ;; everything, and not fiddle with individual commands. However.
+    ;; Only _some_ commands need a valid session ID. It might be
+    ;; clearer (if more tedious) to make that be an explicit new
+    ;; argument for only such commands. And for those commands that
+    ;; already have a "how" argument, instead of supplying 'namespace,
+    ;; they would supply the session ID. Just in case I do that,
+    ;; someday, I'm grouping the commands in these three categories,
+    ;; below.
+
     ;; Commands that do NOT need a REPL session
     [`(no-op)                          #t]
     [`(check-syntax ,path-str ,code)   (check-syntax path-str code)]
     [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
     [`(macro-stepper/next)             (macro-stepper/next)]
     [`(find-collection ,str)           (find-collection str)]
-    [`(exit)                           (exit)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
     ;; namespace), if their first "how" argument is 'namespace.
@@ -122,7 +137,8 @@
     [`(repl-submit? ,str ,eos?)        (repl-submit? str eos?)]
     [`(debug-eval ,src ,l ,c ,p ,code) (debug-eval src l c p code)]
     [`(debug-resume ,v)                (debug-resume v)]
-    [`(debug-disable)                  (debug-disable)]))
+    [`(debug-disable)                  (debug-disable)]
+    [`(exit)                           (exit-repl-session (current-session-id))]))
 
 ;;; A few commands defined here
 

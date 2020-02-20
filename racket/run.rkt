@@ -23,10 +23,15 @@
 (provide start-repl-session-server
          run
          call-with-session-context
+         exit-repl-session
          current-session-id
          current-session-maybe-mod
          current-session-md5
          current-session-submit-pred)
+
+;;; REPL session "housekeeping"
+
+(define next-session-number 0)
 
 (define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
 
@@ -35,7 +40,8 @@
    [ns          namespace?]
    [maybe-mod   (or/c #f mod?)]
    [md5         string?]
-   [submit-pred (or/c #f drracket:submit-predicate/c)]))
+   [submit-pred (or/c #f drracket:submit-predicate/c)])
+  #:transparent)
 
 (define sessions (make-hash))
 
@@ -44,45 +50,102 @@
 (define current-session-md5 (make-parameter #f))
 (define current-session-submit-pred (make-parameter #f))
 
+;;; Functionality provided for command server
+
+;; A way to parameterize commands that need to work with a specific
+;; REPL session. Called from command-server thread.
 (define (call-with-session-context sid proc . args)
-  (match (and sid (hash-ref sessions sid #f))
-    [(session thread ns maybe-mod md5 submit-pred)
+  (log-racket-mode-debug "~v" sessions)
+  (match (hash-ref sessions sid #f)
+    [(and (session thread ns maybe-mod md5 submit-pred) s)
+     (log-racket-mode-debug "call-with-session-context ~v => ~v" sid s)
      (parameterize ([current-namespace ns]
                     [current-session-id sid]
                     [current-session-md5 md5]
                     [current-session-maybe-mod maybe-mod]
                     [current-session-submit-pred submit-pred])
        (apply proc args))]
-    [_ (apply proc args)]))
+    [_
+     (log-racket-mode-debug "call-with-session-context ~v" sid)
+     (apply proc args)]))
+
+;; Command. Called from command-server thread
+(define (exit-repl-session sid)
+  (match (hash-ref sessions sid #f)
+    [(session thd _ns _mm _md5 _submit)
+     (log-racket-mode-debug "exit-repl: break-thread for ~v" sid)
+     (break-thread thd 'terminate)]
+    [_ (log-racket-mode-error "exit-repl: ~v not in `sessions`" sid)]))
+
+
+;; Command. Alled from command-server thread
+(define/contract (run what mem pp ctx args dbgs skel)
+  (-> list? number? elisp-bool/c context-level? list? (listof path-string?) elisp-bool/c
+      list?)
+  (define ready-channel (make-channel))
+  (channel-put message-to-main-thread-channel
+               (rerun (->mod/existing what)
+                      mem
+                      (as-racket-bool pp)
+                      ctx
+                      (list->vector args)
+                      (list->set (map string->path dbgs))
+                      (as-racket-bool skel)
+                      (λ () (channel-put ready-channel what))))
+  ;; Waiting for this allows the command response to be used as the
+  ;; all-clear for additional commands that need the module load to be
+  ;; done and entering a REPL for that module. For example, to compose
+  ;; run with get-profile or get-uncovered.
+  (sync ready-channel))
+
+;;; REPL session server
 
 (define (start-repl-session-server port launch-token)
-  (thread
-   (λ ()
-     (define listener (tcp-listen port 4 #t "127.0.0.1"))
-     (let accept-a-connection ()
-       (with-handlers ([exn:fail? void]) ;just disconnect; see #327
-         (define-values (in out) (tcp-accept listener))
-         (parameterize ([current-input-port  in]
-                        [current-output-port out]
-                        [current-error-port out])
-           (file-stream-buffer-mode in  'none) ;???
-           (file-stream-buffer-mode out 'none) ;???
-           ;; Immediately after connecting, the client must send us
-           ;; exactly the same launch token value that it gave us as a
-           ;; command line argument when it started us. Else we close
-           ;; the connection. See issue #327.
-           (display-commented "Enter launch token")
-           (cond [(and launch-token
-                       (equal? launch-token (elisp-read in)))
-                  (define session-id (gensym 'repl-session-))
-                  (elisp-writeln `(ok ,session-id) out)
-                  (parameterize ([current-session-id session-id])
-                    (thread repl-manager-thread-thunk))]
-                 [else
-                  (display-commented "Authorization failed")
-                  (close-input-port in)
-                  (close-output-port out)])))
-       (accept-a-connection)))))
+  (thread (listener-thread-thunk port launch-token)))
+
+(define ((listener-thread-thunk port launch-token))
+  (define listener (tcp-listen port 4 #t "127.0.0.1"))
+  (let accept-a-connection ()
+    (define custodian (make-custodian))
+    (parameterize ([current-custodian custodian])
+      ;; `exit` in a REPL should terminate that REPL -- not then
+      ;; entire back end server. Also, this is opportunity to remove
+      ;; the session from `sessions` hash table.
+      (define (our-exit-handler code)
+        (log-racket-mode-info "(our-exit-handler ~v) (current-session-id)=~v"
+                              code (current-session-id))
+        (when (current-session-id) ;might exit before session created
+          (hash-remove! sessions (current-session-id))
+          (log-racket-mode-debug "sessions: ~v" sessions))
+        (custodian-shutdown-all custodian))
+      (parameterize ([exit-handler our-exit-handler])
+        (define-values (in out) (tcp-accept listener))
+        (parameterize ([current-input-port  in]
+                       [current-output-port out]
+                       [current-error-port  out])
+          (for ([p (in-list (list in out))])
+            (file-stream-buffer-mode p 'none)) ;would 'line be sufficient?
+          ;; Immediately after connecting, the client must send us
+          ;; exactly the same launch token value that it gave us as a
+          ;; command line argument when it started us. Else we close
+          ;; the connection. See issue #327.
+          (define supplied-token (elisp-read in))
+          (unless (equal? launch-token supplied-token)
+            (log-racket-mode-fatal "Authorization failed: ~v"
+                                   supplied-token)
+            (exit 'racket-mode-repl-auth-failure))
+          ;; Then we must write a sexpr containing the session-id,
+          ;; which the client can use in certain commands that
+          ;; need to run in the context of a specific REPL.
+          (define session-id (format "repl-session-~a"
+                                     (begin0 next-session-number
+                                       (inc! next-session-number))))
+          (elisp-writeln `(ok ,session-id) out)
+          ;; And now we can start the REPL in its own thread.
+          (log-racket-mode-info "start ~v" session-id)
+          (parameterize ([current-session-id session-id])
+            (thread repl-manager-thread-thunk)))))
+    (accept-a-connection)))
 
 (define (repl-manager-thread-thunk)
   (welcome #f)
@@ -180,6 +243,7 @@
                             maybe-mod
                             (maybe-mod->md5 maybe-mod)
                             (get-repl-submit-predicate maybe-mod)))
+        (log-racket-mode-debug "sessions: ~v" sessions)
         ;; 3b. And call the ready-thunk command-server gave us from a
         ;; run command, so that it can send a response for the run
         ;; command. Because the command server runs on a different
@@ -220,26 +284,6 @@
   (match message
     [(? rerun? new-rr) (do-run new-rr)]
     [(load-gui repl?)  (require-gui repl?) (do-run rr)]))
-
-;; command, called from command-server thread
-(define/contract (run what mem pp ctx args dbgs skel)
-  (-> list? number? elisp-bool/c context-level? list? (listof path-string?) elisp-bool/c
-      list?)
-  (define ready-channel (make-channel))
-  (channel-put message-to-main-thread-channel
-               (rerun (->mod/existing what)
-                      mem
-                      (as-racket-bool pp)
-                      ctx
-                      (list->vector args)
-                      (list->set (map string->path dbgs))
-                      (as-racket-bool skel)
-                      (λ () (channel-put ready-channel what))))
-  ;; Waiting for this allows the command response to be used as the
-  ;; all-clear for additional commands that need the module load to be
-  ;; done and entering a REPL for that module. For example, to compose
-  ;; run with get-profile or get-uncovered.
-  (sync ready-channel))
 
 (define/contract ((make-prompt-read m))
   (-> (or/c #f mod?) (-> any))

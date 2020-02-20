@@ -57,7 +57,7 @@
   :group 'racket)
 
 (defcustom racket-command-port 55555
-  "Port number for Racket REPL command server."
+  "Port number for Racket REPL server."
   :tag "Command Port"
   :type 'integer
   :risky t
@@ -73,8 +73,8 @@
 
 Note: This is mostly obsolete, fortunately, because it applies
 only to commands that must block the Emacs UI until they get a
-response. Instead most commands these days receive their response
-asychronously."
+response. Instead most Racket Mode commands these days receive
+their response asychronously."
   :tag "Command Timeout"
   :type 'integer
   :risky t
