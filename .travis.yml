@@ -7,23 +7,16 @@ env:
   matrix:
     ##################################################################
     # To keep the matrix from growing too big/slow, test older Emacs #
-    # only against very newer Rackets. (Hopefully any problems with  #
+    # only against very new Rackets. (Hopefully any problems with    #
     # older Rackets will be discovered elsewhere in the matrix when  #
     # testing with newer Emacs.)                                     #
     ##################################################################
-    # Emacs 24.3
-    - EMACS_CI=emacs-24-3 RACKET_VERSION=7.6
-    - EMACS_CI=emacs-24-3 RACKET_VERSION=HEAD
-    # Emacs 24.5
-    - EMACS_CI=emacs-24-5 RACKET_VERSION=7.6
-    - EMACS_CI=emacs-24-5 RACKET_VERSION=HEAD
     # Emacs 25.1
     - EMACS_CI=emacs-25-1 RACKET_VERSION=7.6
+    - EMACS_CI=emacs-25-1 RACKET_VERSION=7.6 RACKET_CS=1
     - EMACS_CI=emacs-25-1 RACKET_VERSION=HEAD
+    - EMACS_CI=emacs-25-1 RACKET_VERSION=HEADCS
     # Emacs 26.1
-    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.2
-    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.3
-    - EMACS_CI=emacs-26-1 RACKET_VERSION=6.4
     - EMACS_CI=emacs-26-1 RACKET_VERSION=6.5
     - EMACS_CI=emacs-26-1 RACKET_VERSION=6.6
     - EMACS_CI=emacs-26-1 RACKET_VERSION=6.7
@@ -39,6 +32,7 @@ env:
     - EMACS_CI=emacs-26-1 RACKET_VERSION=7.4
     - EMACS_CI=emacs-26-1 RACKET_VERSION=7.5
     - EMACS_CI=emacs-26-1 RACKET_VERSION=7.6
+    - EMACS_CI=emacs-26-1 RACKET_VERSION=7.6 RACKET_CS=1
     - EMACS_CI=emacs-26-1 RACKET_VERSION=HEAD
     - EMACS_CI=emacs-26-1 RACKET_VERSION=HEADCS
     # Emacs snapshot. Because slow to make, test against only some key
@@ -50,9 +44,8 @@ env:
 matrix:
   allow_failures:
     # bleeding edge Racket
-    - env: EMACS_CI=emacs-24-3 RACKET_VERSION=HEAD
-    - env: EMACS_CI=emacs-24-5 RACKET_VERSION=HEAD
     - env: EMACS_CI=emacs-25-1 RACKET_VERSION=HEAD
+    - env: EMACS_CI=emacs-25-1 RACKET_VERSION=HEADCS
     - env: EMACS_CI=emacs-26-1 RACKET_VERSION=HEAD
     - env: EMACS_CI=emacs-26-1 RACKET_VERSION=HEADCS
     # bleeding edge Emacs

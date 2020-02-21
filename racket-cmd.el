@@ -40,7 +40,7 @@ Most code should use `racket--cmd-open-p' to check this."
 
 
 
-(defconst racket--minimum-required-version "6.0"
+(defconst racket--minimum-required-version "6.5"
   "The minimum version of Racket required by run.rkt.
 
 Although some functionality may require an even newer version of

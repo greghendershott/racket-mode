@@ -85,17 +85,6 @@ a list of all modes in which Racket is edited."
                      (cons x (racket--take-while xs pred))
                    `()))))
 
-(defun racket--thing-at-point (thing &optional no-properties)
-  "Like `thing-at-point' in Emacs 25+: Optional arg NO-PROPERTIES.
-Someday when we no longer support Emacs 24, we could delete this
-and callers just use `thing-at-point'."
-  (pcase (thing-at-point thing)
-    ((and (guard no-properties)
-          (pred stringp)
-          str)
-     (substring-no-properties str))
-    (v v)))
-
 (defconst racket--el-source-dir
   (file-name-directory (or load-file-name (racket--buffer-file-name)))
   "Path to dir of our Emacs Lisp source files.
@@ -175,7 +164,7 @@ prompt uses `read-from-minibuffer' when COMPLETIONS is nil, else
 `ido-completing-read'. Returns `stringp' not `symbolp' to
 simplify using the result in a sexpr that can be passed to Racket
 backend. Likewise text properties are stripped."
-  (let ((sap (racket--thing-at-point 'symbol t)))
+  (let ((sap (thing-at-point 'symbol t)))
     (if (or force-prompt-p (not sap))
         (let ((s (if completions
                      (ido-completing-read prompt completions nil nil sap)

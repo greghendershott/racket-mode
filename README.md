@@ -11,7 +11,7 @@ major mode for a Racket REPL. The edit/run experience is similar to
 [Racket]: https://www.racket-lang.org/
 [DrRacket]: https://docs.racket-lang.org/drracket/
 
-Compatible with **Emacs 24.3+** and **Racket 6.2+**.
+Compatible with **Emacs 25.1+** and **Racket 6.5+**.
 
 ## Documentation
 

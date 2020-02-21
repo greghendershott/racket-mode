@@ -3,7 +3,7 @@
 ;; Copyright (c) 2013-2020 by Greg Hendershott.
 
 ;; Package: racket-mode
-;; Package-Requires: ((emacs "24.3") (faceup "0.0.2") (pos-tip "20191127.1028"))
+;; Package-Requires: ((emacs "25.1") (faceup "0.0.2") (pos-tip "20191127.1028"))
 ;; Author: Greg Hendershott
 ;; URL: https://www.racket-mode.com/
 
@@ -23,7 +23,7 @@
 ;; - Focus on Racket lang.
 ;; - Follow DrRacket concepts where applicable.
 ;; - Thorough font-lock and indent.
-;; - Compatible with Emacs 24.3+ and Racket 6.2+.
+;; - Compatible with Emacs 25.1+ and Racket 6.5+.
 ;;
 ;; Details: https://github.com/greghendershott/racket-mode
 

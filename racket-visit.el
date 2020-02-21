@@ -55,7 +55,7 @@ See also: `racket-find-collection'."
   (save-excursion
     (when (eq ?\" (char-syntax (char-after))) ;2
       (forward-char))
-    (pcase (racket--thing-at-point 'filename t)
+    (pcase (thing-at-point 'filename t)
       (`() `())
       (v
        (let* ((ppss       (syntax-ppss))
@@ -74,7 +74,7 @@ See also: `racket-find-collection'."
                                   (unless (eq relative-p
                                               (and (racket--ppss-string-p ppss) t)) ;1
                                     (user-error "multi-in mixes absolute and relative paths"))
-                                  (racket--thing-at-point 'filename t)))
+                                  (thing-at-point 'filename t)))
                             (scan-error nil))))
          (concat (if relative-p "\"" "") ;1
                  (if multi-in

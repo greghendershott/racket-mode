@@ -53,9 +53,6 @@
   "When `racket--mode-edits-racket-p' instead use `prog-indent-sexp'."
   (apply (if (racket--mode-edits-racket-p) #'prog-indent-sexp orig)
          args))
-;; I don't want to muck with the old `defadvice' for this. Instead use
-;; `advice-add' in Emacs 24.4+. Although we still support Emacs 24.3,
-;; not sure how much longer; I'm OK having it silently not work.
 (when (fboundp 'advice-add)
   (advice-add 'lisp-indent-line :around #'racket--lisp-indent-line-advice)
   (advice-add 'indent-sexp :around #'racket--indent-sexp-advice))

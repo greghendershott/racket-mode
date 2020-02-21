@@ -144,48 +144,40 @@
 
 (module+ test
   (require rackunit
-           version/utils
            "syntax.rkt")
   ;; Check something that is in the namespace resulting from
   ;; module->namespace on, say, this source file.
   (parameterize ([current-namespace (module->namespace (syntax-source #'here))])
     (check-not-false (->identifier-resolved-binding-info 'namespace 'match values))
     (check-not-false (->identifier-resolved-binding-info 'namespace "match" values)))
-  (when (version<=? "6.5" (version))
-    ;; Check something that is not in the current namespace, but is an
-    ;; identifier in the lexical context of an expanded module form --
-    ;; including imported identifiers -- from the expanded syntax
-    ;; cache.
-    (define path-str "/path/to/foobar.rkt")
-    (define code-str (~a '(module foobar racket/base
-                           (require net/url racket/set)
-                           (let ([a-lexical-binding 42])
-                            a-lexical-binding)
-                           (define a-module-binding 42)
-                           a-module-binding)))
 
-    ;; Get the expanded syntax in our cache
-    (string->expanded-syntax path-str code-str void)
-
-    ;; Simple imported binding
-    (check-not-false (->identifier-resolved-binding-info path-str 'set? values))
-    (check-not-false (->identifier-resolved-binding-info path-str "set?" values))
-
-    ;; Import where renaming/contracting is involved
-    (check-not-false (->identifier-resolved-binding-info path-str 'get-pure-port values))
-    (check-not-false (->identifier-resolved-binding-info path-str "get-pure-port" values))
-
-    ;; Get a module binding
-    (check-equal? (->identifier-resolved-binding-info path-str "a-module-binding" values)
-                  (let ([path (string->path path-str)])
-                    `((a-module-binding ,path)
-                      (a-module-binding ,path))))
-
-    ;; Get a lexical binding: Should return false
-    (check-false (->identifier-resolved-binding-info path-str "a-lexical-binding" values))
-
-    ;; Get something that's not a binding in at all: Should return false
-    (check-false (->identifier-resolved-binding-info path-str "ASDFASDFDS" values))
-
-    ;; Get whatever in some file not in expanded syntax cache: Should return false
-    (check-false (->identifier-resolved-binding-info "not/yet/expanded.rkt" "whatever" values))))
+  ;; Check something that is not in the current namespace, but is an
+  ;; identifier in the lexical context of an expanded module form --
+  ;; including imported identifiers -- from the expanded syntax
+  ;; cache.
+  (define path-str "/path/to/foobar.rkt")
+  (define code-str (~a '(module foobar racket/base
+                         (require net/url racket/set)
+                         (let ([a-lexical-binding 42])
+                          a-lexical-binding)
+                         (define a-module-binding 42)
+                         a-module-binding)))
+  ;; Get the expanded syntax in our cache
+  (string->expanded-syntax path-str code-str void)
+  ;; Simple imported binding
+  (check-not-false (->identifier-resolved-binding-info path-str 'set? values))
+  (check-not-false (->identifier-resolved-binding-info path-str "set?" values))
+  ;; Import where renaming/contracting is involved
+  (check-not-false (->identifier-resolved-binding-info path-str 'get-pure-port values))
+  (check-not-false (->identifier-resolved-binding-info path-str "get-pure-port" values))
+  ;; Get a module binding
+  (check-equal? (->identifier-resolved-binding-info path-str "a-module-binding" values)
+                (let ([path (string->path path-str)])
+                  `((a-module-binding ,path)
+                    (a-module-binding ,path))))
+  ;; Get a lexical binding: Should return false
+  (check-false (->identifier-resolved-binding-info path-str "a-lexical-binding" values))
+  ;; Get something that's not a binding in at all: Should return false
+  (check-false (->identifier-resolved-binding-info path-str "ASDFASDFDS" values))
+  ;; Get whatever in some file not in expanded syntax cache: Should return false
+  (check-false (->identifier-resolved-binding-info "not/yet/expanded.rkt" "whatever" values)))

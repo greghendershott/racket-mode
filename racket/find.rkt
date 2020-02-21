@@ -262,20 +262,18 @@
   ;;
   ;; Exercise where the "how" is a path-string, meaning look up that
   ;; path from our cache, not on disk.
-  (require racket/format
-           version/utils)
-  (when (version<=? "6.5" (version))
-    (define path-str "/tmp/x.rkt")
-    (define code-str (~a `(module x racket/base
-                           (define (module-function-binding x y z) (+ 1 x))
-                           (define module-variable-binding 42))))
-    (string->expanded-syntax path-str code-str void)
-    (check-equal? (find-signature path-str "module-function-binding")
-                  '(module-function-binding x y z))
-    (check-equal? (find-definition "/tmp/x.rkt" "module-function-binding")
-                  `(,path-str 1 31))
-    (check-equal? (find-definition "/tmp/x.rkt" "module-variable-binding")
-                  `(,path-str 1 79))))
+  (require racket/format)
+  (define path-str "/tmp/x.rkt")
+  (define code-str (~a `(module x racket/base
+                         (define (module-function-binding x y z) (+ 1 x))
+                         (define module-variable-binding 42))))
+  (string->expanded-syntax path-str code-str void)
+  (check-equal? (find-signature path-str "module-function-binding")
+                '(module-function-binding x y z))
+  (check-equal? (find-definition "/tmp/x.rkt" "module-function-binding")
+                `(,path-str 1 31))
+  (check-equal? (find-definition "/tmp/x.rkt" "module-variable-binding")
+                `(,path-str 1 79)))
 
 ;; These `get-syntax` and `get-expanded-syntax` functions handle where
 ;; we get the syntax.

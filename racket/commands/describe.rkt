@@ -95,7 +95,6 @@
 
 (module+ test
   (require rackunit
-           version/utils
            (only-in xml string->xexpr)
            "../syntax.rkt")
   ;; Check something that is in the namespace resulting from
@@ -107,32 +106,22 @@
      (string->xexpr (describe 'namespace "describe"))
      `(div ()
        (h1 () "(describe how str)")
-       ,@(match (version)
-           [(or "6.3" "6.4")
-            ;; We don't find the contract, only on these two versions.
-            ;; They're old. So am I: don't want to go down this rabbit
-            ;; hole now.
-            `()]
-           [_
-            `((pre ()  "(-" ">" " (or/c (or/c (quote namespace) path-string?) (cons/c path-string? string?) (list/c path-string?)) string? string?)"))])
+       (pre ()  "(-" ">" " (or/c (or/c (quote namespace) path-string?) (cons/c path-string? string?) (list/c path-string?)) string? string?)")
        (br ()))))
 
-  (when (version<=? "6.5" (version))
-    ;; Check something that is not in the current namespace, but is an
-    ;; identifier in the lexical context of an expanded module form --
-    ;; including imported identifiers -- from the expanded syntax
-    ;; cache.
-    (define path-str "/path/to/foobar.rkt")
-    (define code-str (~a '(module foobar racket/base
-                           (define (fun a b c)
-                            (void)))))
-
-    ;; Get the expanded syntax in our cache
-    (string->expanded-syntax path-str code-str void)
-
-    ;; Note that this doesn't find contracts, just sigs.
-    (check-equal?
-     (string->xexpr (describe path-str "fun"))
-     `(div ()
-       (h1 () "(fun a b c)")
-       (br ())))))
+  ;; Check something that is not in the current namespace, but is an
+  ;; identifier in the lexical context of an expanded module form --
+  ;; including imported identifiers -- from the expanded syntax
+  ;; cache.
+  (define path-str "/path/to/foobar.rkt")
+  (define code-str (~a '(module foobar racket/base
+                         (define (fun a b c)
+                          (void)))))
+  ;; Get the expanded syntax in our cache
+  (string->expanded-syntax path-str code-str void)
+  ;; Note that this doesn't find contracts, just sigs.
+  (check-equal?
+   (string->xexpr (describe path-str "fun"))
+   `(div ()
+     (h1 () "(fun a b c)")
+     (br ()))))
