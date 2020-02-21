@@ -410,13 +410,17 @@ This does not display the buffer or change the selected window."
        ;; We only use it to obtain the REPL session ID.
        (let ((hook nil))
          (setq hook (lambda (txt)
-                      (remove-hook 'comint-output-filter-functions hook t)
-                      (pcase (read txt)
-                        (`(ok ,v)
-                         (setq racket--repl-session-id v)
-                         (run-with-timer 0.1 nil callback))
-                        (_ (error "did not expect %s" txt)))))
-         (add-hook 'comint-output-filter-functions hook nil t))
+                      (remove-hook 'comint-preoutput-filter-functions hook t)
+                      (with-temp-buffer
+                        (insert txt)
+                        (goto-char (point-min))
+                        (pcase (read (current-buffer))
+                          (`(ok ,v)
+                           (setq racket--repl-session-id v)
+                           (run-with-timer 0.1 nil callback)
+                           (buffer-substring (point) (point-max)))
+                          (_ (error "did not expect %s" txt))))))
+         (add-hook 'comint-preoutput-filter-functions hook nil t))
 
        (make-comint-in-buffer racket--repl-buffer-name
                               (current-buffer)
