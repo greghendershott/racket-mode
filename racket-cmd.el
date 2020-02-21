@@ -178,11 +178,7 @@ Important: Do not assume that `current-buffer' is the same when
 CALLBACK is called, as it was when the command was sent. If you
 need to do something to do that original buffer, save the
 `current-buffer' in a `let' and use it in a `with-current-buffer'
-form. See `racket--restoring-current-buffer'.
-
-If the command server is not available, we do not block. Instead
-we save a thunk to run when it does become available, and call
-`racket--repl-start' which also does not block."
+form. See `racket--restoring-current-buffer'."
   (racket--call-when-connected-to-command-server
    (lambda (process)
      (cl-incf racket--cmd-nonce)
