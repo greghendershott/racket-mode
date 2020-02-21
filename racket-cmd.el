@@ -25,20 +25,28 @@
 (declare-function  racket--debug-on-break "racket-debug" (response))
 (autoload         'racket--debug-on-break "racket-debug")
 
+(defun racket-start-back-end ()
+  "Start the back end process used by Racket Mode.
+
+If the process is already started, this command will stop and restart it."
+  (interactive)
+  (racket--cmd-open))
+
+(defun racket-stop-back-end ()
+  "Stop the back end process used by Racket Mode.
+
+If the process is not already started, this does nothing."
+  (interactive)
+  (racket--cmd-close))
+
 (defvar racket--cmd-name "racket-process"
   "Name for both the process and its associated buffer")
 
-(defun racket--cmd-process ()
-  "Process for talking to the command server.
-Most code should use `racket--cmd-open-p' to check this."
-  (get-buffer-process racket--cmd-name))
-
 (defun racket--cmd-open-p ()
-  "Does an open process exist for the command server?"
-  (and (racket--cmd-process)
-       (eq 'run (process-status (racket--cmd-process)))))
-
-
+  "Does a running process exist for the command server?"
+  (pcase (get-process racket--cmd-name)
+    ((and (pred (processp)) proc)
+     (eq 'run (process-status proc)))))
 
 (defconst racket--minimum-required-version "6.5"
   "The minimum version of Racket required by run.rkt.
@@ -89,47 +97,27 @@ See issue #327.")
   ;; Never create more "racket-process<1>" etc processes.
   (racket--cmd-close)
   (racket--assert-version racket--minimum-required-version)
-  (prog1
-      (make-process
-       :name            racket--cmd-name
-       :connection-type 'pipe
-       :noquery         t
-       :buffer          (get-buffer-create racket--cmd-name)
-       :stderr          (get-buffer-create "racket-process-stderr")
-       :command         (list racket-program
-                              (funcall racket-adjust-run-rkt racket--run.rkt)
-                              (number-to-string racket-command-port)
-                              (setq racket--cmd-auth (format "%S" `(auth ,(random)))))
-       :filter          #'racket--cmd-process-filter)
-    (racket--call-cmd-after-open-thunks)))
+  (make-process
+   :name            racket--cmd-name
+   :connection-type 'pipe
+   :noquery         t
+   :buffer          (get-buffer-create racket--cmd-name)
+   :stderr          (get-buffer-create "racket-process-stderr")
+   :command         (list racket-program
+                          (funcall racket-adjust-run-rkt racket--run.rkt)
+                          (number-to-string racket-command-port)
+                          (setq racket--cmd-auth (format "%S" `(auth ,(random)))))
+   :filter          #'racket--cmd-process-filter))
 
 (defun racket--cmd-close ()
   (pcase (get-process racket--cmd-name)
     ((and (pred (processp)) proc) (delete-process proc))))
 
-
-(defvar racket--cmd-after-open-thunks nil
-  "List of thunks to call when upon connection to the command server.
-Thunks are popped off the list when called; in other words this
-is NOT like an Emacs hook variable.")
-
-(defun racket--call-cmd-after-open-thunks ()
-  (while racket--cmd-after-open-thunks
-    (funcall (pop racket--cmd-after-open-thunks))))
-
-(defun racket--call-when-connected-to-command-server (thunk)
-  "Call THUNK, connecting to command server if necessary without blocking.
-
-If the command server is available now, call THUNK now.
-
-Otherwise, take steps to make the command server available, and
-after it is, call THUNK."
-  (if (racket--cmd-open-p)
-      ;; Do now
-      (funcall thunk)
-    ;; Do later
-    (push thunk racket--cmd-after-open-thunks)
-    (racket--cmd-open)))
+(defun racket--call-when-connected-to-command-server (func)
+  "Call FUNC, starting the back end process if necessary."
+  (unless (racket--cmd-open-p)
+    (racket--cmd-open))
+  (funcall func (get-process racket--cmd-name)))
 
 (defun racket--cmd-process-filter (proc string)
   "Parse complete sexprs from the process output and give them to
@@ -196,13 +184,13 @@ If the command server is not available, we do not block. Instead
 we save a thunk to run when it does become available, and call
 `racket--repl-start' which also does not block."
   (racket--call-when-connected-to-command-server
-   (lambda ()
+   (lambda (process)
      (cl-incf racket--cmd-nonce)
      (when (and callback
                 (not (equal callback #'ignore)))
        (puthash racket--cmd-nonce callback racket--cmd-nonce->callback))
      (process-send-string
-      (racket--cmd-process)
+      process
       (format "%S\n" (cons racket--cmd-nonce
                            (cons repl-session-id
                                  command-sexpr)))))))
