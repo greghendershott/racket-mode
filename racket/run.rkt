@@ -108,11 +108,11 @@
   (let accept-a-connection ()
     (define custodian (make-custodian))
     (parameterize ([current-custodian custodian])
-      ;; `exit` in a REPL should terminate that REPL -- not then
-      ;; entire back end server. Also, this is opportunity to remove
-      ;; the session from `sessions` hash table.
+      ;; `exit` in a REPL should terminate that REPL session -- not
+      ;; the entire back end server. Also, this is opportunity to
+      ;; remove the session from `sessions` hash table.
       (define (our-exit-handler code)
-        (log-racket-mode-info "(our-exit-handler ~v) (current-session-id)=~v"
+        (log-racket-mode-info "(our-exit-handler ~v) ~v"
                               code (current-session-id))
         (when (current-session-id) ;might exit before session created
           (hash-remove! sessions (current-session-id))
@@ -141,7 +141,8 @@
                                      (begin0 next-session-number
                                        (inc! next-session-number))))
           (elisp-writeln `(ok ,session-id) out)
-          ;; And now we can start the REPL in its own thread.
+          (flush-output out)
+          ;; And now we can start the REPL session manager thread.
           (log-racket-mode-info "start ~v" session-id)
           (parameterize ([current-session-id session-id])
             (thread repl-manager-thread-thunk)))))

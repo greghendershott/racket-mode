@@ -406,20 +406,26 @@ This does not display the buffer or change the selected window."
    `(no-op) ;automatically start back-end if necessary
    (lambda (_n/a)
      (with-current-buffer (get-buffer-create racket--repl-buffer-name)
-       ;; Add a hook that removes itself the first time it is called.
-       ;; We only use it to obtain the REPL session ID.
-       (let ((hook nil))
+       ;; Add a pre-output hook that reads `(ok ,id) -- possibly over
+       ;; multiple calls -- to set `racket--repl-session-id' then
+       ;; removes itself.
+       (let ((hook nil)
+             (buf  (generate-new-buffer " *racket-repl-session-id-reader*")))
          (setq hook (lambda (txt)
-                      (remove-hook 'comint-preoutput-filter-functions hook t)
-                      (with-temp-buffer
+                      (with-current-buffer buf
+                        (goto-char (point-max))
                         (insert txt)
-                        (goto-char (point-min))
-                        (pcase (read (current-buffer))
-                          (`(ok ,v)
-                           (setq racket--repl-session-id v)
-                           (run-with-timer 0.1 nil callback)
-                           (buffer-substring (point) (point-max)))
-                          (_ (error "did not expect %s" txt))))))
+                        (goto-char (point-min)))
+                      (pcase (ignore-errors (read buf))
+                        (`(ok ,id)
+                         (setq racket--repl-session-id id)
+                         (run-with-timer 0.1 nil callback)
+                         (remove-hook 'comint-preoutput-filter-functions hook t)
+                         (prog1
+                             (with-current-buffer buf
+                               (buffer-substring (point) (point-max)))
+                           (kill-buffer buf)))
+                        (_ ""))))
          (add-hook 'comint-preoutput-filter-functions hook nil t))
 
        (make-comint-in-buffer racket--repl-buffer-name
