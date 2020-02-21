@@ -423,7 +423,10 @@ This does not display the buffer or change the selected window."
                          (remove-hook 'comint-preoutput-filter-functions hook t)
                          (prog1
                              (with-current-buffer buf
-                               (buffer-substring (point) (point-max)))
+                               (buffer-substring (if (eq (char-after) ?\n)
+                                                     (1+ (point))
+                                                   (point))
+                                                 (point-max)))
                            (kill-buffer buf)))
                         (_ ""))))
          (add-hook 'comint-preoutput-filter-functions hook nil t))
