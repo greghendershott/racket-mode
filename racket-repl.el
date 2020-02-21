@@ -29,6 +29,7 @@
 (require 'compile)
 (require 'easymenu)
 (require 'cl-lib)
+(require 'cl-macs)
 (require 'rx)
 
 ;; Don't (require 'racket-debug). Mutual dependency. Instead:
@@ -159,17 +160,18 @@ you want things like \"enter!\". But in some sense you'd be
 REPL as intended, then you might as well use a plain Emacs shell
 buffer to run command-line Racket."
   (interactive "P")
-  (cond ((racket--repl-live-p)
-         (racket--repl-display-buffer-and-move-to-end)
-         (unless noselect
-           (select-window (get-buffer-window racket--repl-buffer-name t))))
-        (t
-         (racket--repl-start
-          (lambda ()
-            (racket--repl-refresh-namespace-symbols)
-            (racket--repl-display-buffer-and-move-to-end)
-            (unless noselect
-              (select-window (get-buffer-window racket--repl-buffer-name t))))))))
+  (cl-labels
+      ((display-and-maybe-select
+        ()
+        (racket--repl-display-buffer-and-move-to-end)
+        (unless noselect
+          (select-window (get-buffer-window racket--repl-buffer-name t)))))
+    (if (racket--repl-live-p)
+        (display-and-maybe-select)
+      (racket--repl-start
+       (lambda ()
+         (racket--repl-refresh-namespace-symbols)
+         (display-and-maybe-select))))))
 
 ;;; Run
 
