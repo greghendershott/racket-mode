@@ -53,6 +53,7 @@
 (defun racket-tests/eventually (proc &rest args)
   (with-timeout (racket-tests/command-timeout nil)
     (while (not (apply proc args))
+      (accept-process-output)
       (sit-for 1))
     t))
 
