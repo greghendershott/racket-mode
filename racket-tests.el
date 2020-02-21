@@ -35,9 +35,6 @@
                    (getenv "CI"))
   "Is there an environment variable saying we're running on CI?")
 
-(defconst racket-tests/connect-attempts (if ci-p (* 5 60) 30)
-  "Attempts to connect to command server. Very long when running on CI.")
-
 (defconst racket-tests/command-timeout (if ci-p (* 5 60) 30)
   "Timeout for synchronous commands. Very long when running on CI.")
 
