@@ -51,11 +51,9 @@ var, plus some logic elsewhere to know which of multiple REPL
 sessions a command is supposed to use.")
 
 (defun racket--call-with-repl-buffer (proc)
-  (let ((buf (get-buffer racket--repl-buffer-name)))
-    (unless buf
-      (error "with-racket-repl-buffer: buffer does not exist `%s'"
-             racket--repl-buffer-name))
-    (with-current-buffer buf (funcall proc))))
+  (pcase (get-buffer racket--repl-buffer-name)
+    ((and (pred bufferp) buf)
+     (with-current-buffer buf (funcall proc)))))
 
 (defmacro with-racket-repl-buffer (&rest body)
   "Execute forms in BODY with `racket-repl-mode' temporarily current buffer.."
