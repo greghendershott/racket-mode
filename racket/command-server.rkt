@@ -111,6 +111,9 @@
     [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
     [`(macro-stepper/next)             (macro-stepper/next)]
     [`(find-collection ,str)           (find-collection str)]
+    [`(requires/tidy ,reqs)            (requires/tidy reqs)]
+    [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
+    [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
     ;; namespace), if their first "how" argument is 'namespace.
@@ -128,9 +131,6 @@
     [`(path+md5)                       (cons (or path 'top) (current-session-md5))]
     [`(syms)                           (syms)]
     [`(mod ,sym)                       (find-module sym (current-session-maybe-mod))]
-    [`(requires/tidy ,reqs)            (requires/tidy reqs)]
-    [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
-    [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]
     [`(get-profile)                    (get-profile)]
     [`(get-uncovered)                  (get-uncovered path)]
     [`(eval ,v)                        (eval-command v)]

@@ -16,7 +16,7 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
-;; racket-mode per se, i.e. the .rkt file buffers
+;; racket-mode per se, i.e. the mode for .rkt file buffers
 
 (require 'cl-lib)
 (require 'cl-macs)
@@ -115,7 +115,7 @@ See also: `racket-trim-requires' and `racket-base-requires'."
   (pcase (racket--top-level-requires 'find)
     (`nil (user-error "The file module has no requires; nothing to do"))
     (reqs (racket--cmd/async
-           racket--repl-session-id
+           nil
            `(requires/tidy ,reqs)
            (lambda (result)
              (pcase result
@@ -126,8 +126,8 @@ See also: `racket-trim-requires' and `racket-base-requires'."
 (defun racket-trim-requires ()
   "Like `racket-tidy-requires' but also deletes unnecessary requires.
 
-Note: This only works when the source file can be evaluated with
-no errors.
+Note: This only works when the source file can be fully expanded
+with no errors.
 
 Note: This only works for requires at the top level of a source
 file using #lang. It does NOT work for require forms inside
@@ -144,7 +144,7 @@ See also: `racket-base-requires'."
    (pcase (racket--top-level-requires 'find)
      (`nil (user-error "The file module has no requires; nothing to do"))
      (reqs (racket--cmd/async
-            racket--repl-session-id
+            nil
             `(requires/trim
               ,(racket--buffer-file-name)
               ,reqs)
@@ -168,8 +168,8 @@ memory footprint.
 Also, as does `racket-trim-requires', this removes unneeded
 modules and tidies everything into a single, sorted require form.
 
-Note: This only works when the source file can be evaluated with
-no errors.
+Note: This only works when the source file can be fully expanded
+with no errors.
 
 Note: This only works for requires at the top level of a source
 file using #lang. It does NOT work for require forms inside
@@ -192,7 +192,7 @@ typed/racket/base\"."
     (racket--save-if-changed)
     (let ((reqs (racket--top-level-requires 'find)))
       (racket--cmd/async
-       racket--repl-session-id
+       nil
        `(requires/base
          ,(racket--buffer-file-name)
          ,reqs)
