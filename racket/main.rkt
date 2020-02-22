@@ -4,7 +4,7 @@
          racket/port
          "logger.rkt"
          "command-server.rkt"
-         "run.rkt")
+         "repl.rkt")
 
 (module+ main
   (define-values (command-port launch-token)

@@ -117,5 +117,5 @@
        ;; `racket-visit-definition` takes text from an Emacs buffer.
        (λ () (with-input-from-file file read)))))
   (for ([file '("commands/requires.rkt"
-                "run.rkt")])
+                "repl.rkt")])
     (check-non-bof-location (build-path here file))))

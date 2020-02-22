@@ -7,7 +7,7 @@
          "debug.rkt"
          "elisp.rkt"
          "mod.rkt"
-         "run.rkt"
+         "repl.rkt"
          "util.rkt")
 
 (lazy-require

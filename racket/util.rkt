@@ -14,6 +14,7 @@
          nat/c
          pos/c
          inc!
+         memq?
          in-syntax
          log-racket-mode-debug
          log-racket-mode-info
@@ -52,6 +53,9 @@
 
 (define-simple-macro (inc! v:id)
   (set! v (add1 v)))
+
+(define-syntax-rule (memq? x xs)
+  (and (memq x xs) #t))
 
 ;;; in-syntax: Not defined until Racket 6.3
 

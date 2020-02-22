@@ -5,7 +5,6 @@
          racket/match
          racket/set
          racket/tcp
-         "channel.rkt"
          (only-in "debug.rkt" make-debug-eval-handler next-break)
          "elisp.rkt"
          "error.rkt"
@@ -36,62 +35,115 @@
 (define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
 
 (define-struct/contract session
-  ([thread      thread?]
-   [ns          namespace?]
-   [maybe-mod   (or/c #f mod?)]
-   [md5         string?]
-   [submit-pred (or/c #f drracket:submit-predicate/c)])
+  ([thread        thread?]  ;the repl manager thread
+   [repl-msg-chan channel?] ;see repl-message structs
+   [ns            namespace?]
+   [maybe-mod     (or/c #f mod?)]
+   [md5           string?]
+   [submit-pred   (or/c #f drracket:submit-predicate/c)])
   #:transparent)
 
 (define sessions (make-hash))
 
 (define current-session-id (make-parameter #f))
+(define current-repl-msg-chan (make-parameter #f))
 (define current-session-maybe-mod (make-parameter #f))
 (define current-session-md5 (make-parameter #f))
 (define current-session-submit-pred (make-parameter #f))
 
-;;; Functionality provided for command server
+;;; Messages to each repl manager thread
+
+;; Definitions for context-level member of run-config struct
+
+(define profile/coverage-levels
+  ;; "sibling" levels that need instrument plus...
+  '(profile    ;profiling-enabled
+    coverage)) ;execute-counts-enabled
+
+(define instrument-levels
+  `(high     ;compile-context-preservation-enabled #t + instrument
+    ,@profile/coverage-levels))
+
+(define context-levels
+  `(low      ;compile-context-preservation-enabled #f
+    medium   ;compile-context-preservation-enabled #t
+    ,@instrument-levels
+    debug))
+
+(define (context-level? v)          (memq? v context-levels))
+(define (instrument-level? v)       (memq? v instrument-levels))
+(define (profile/coverage-level? v) (memq? v profile/coverage-levels))
+(define (debug-level? v)            (eq? v 'debug))
+
+;; The message structs
+
+(define-struct/contract repl-manager-thread-message ())
+
+(define-struct/contract (load-gui repl-manager-thread-message)
+  ([in-repl? boolean?]))
+
+(define-struct/contract (run-config repl-manager-thread-message)
+  ([maybe-mod       (or/c #f mod?)]
+   [memory-limit    exact-nonnegative-integer?] ;0 = no limit
+   [pretty-print?   boolean?]
+   [context-level   context-level?]
+   [cmd-line-args   (vectorof string?)]
+   [debug-files     (set/c path?)]
+   [retry-skeletal? boolean?]
+   [ready-thunk     (-> any/c)]))
+
+(define (initial-run-config ready-thunk)
+  (run-config #f    ;maybe-mod
+              0     ;memory-limit
+              #f    ;pretty-print?
+              'low  ;context-level
+              #()   ;cmd-line-args
+              (set) ;debug-files
+              #t    ;retry-skeletal?
+              ready-thunk))
+
+;;; Functionality provided for commands
 
 ;; A way to parameterize commands that need to work with a specific
 ;; REPL session. Called from command-server thread.
 (define (call-with-session-context sid proc . args)
   (log-racket-mode-debug "~v" sessions)
   (match (hash-ref sessions sid #f)
-    [(and (session thread ns maybe-mod md5 submit-pred) s)
+    [(and (session _thd chan ns maybe-mod md5 submit-pred) s)
      (log-racket-mode-debug "call-with-session-context ~v => ~v" sid s)
-     (parameterize ([current-namespace ns]
-                    [current-session-id sid]
-                    [current-session-md5 md5]
-                    [current-session-maybe-mod maybe-mod]
+     (parameterize ([current-repl-msg-chan       chan]
+                    [current-namespace           ns]
+                    [current-session-id          sid]
+                    [current-session-md5         md5]
+                    [current-session-maybe-mod   maybe-mod]
                     [current-session-submit-pred submit-pred])
        (apply proc args))]
     [_
-     (log-racket-mode-debug "call-with-session-context ~v" sid)
+     (log-racket-mode-debug "call-with-session-context ~v -- no session found" sid)
      (apply proc args)]))
 
 ;; Command. Called from command-server thread
 (define (exit-repl-session sid)
   (match (hash-ref sessions sid #f)
-    [(session thd _ns _mm _md5 _submit)
+    [(struct* session ([thread t]))
      (log-racket-mode-debug "exit-repl: break-thread for ~v" sid)
-     (break-thread thd 'terminate)]
+     (break-thread t 'terminate)]
     [_ (log-racket-mode-error "exit-repl: ~v not in `sessions`" sid)]))
-
 
 ;; Command. Called from command-server thread
 (define/contract (run what mem pp ctx args dbgs skel)
   (-> list? number? elisp-bool/c context-level? list? (listof path-string?) elisp-bool/c
       list?)
   (define ready-channel (make-channel))
-  (channel-put message-to-main-thread-channel
-               (rerun (->mod/existing what)
-                      mem
-                      (as-racket-bool pp)
-                      ctx
-                      (list->vector args)
-                      (list->set (map string->path dbgs))
-                      (as-racket-bool skel)
-                      (λ () (channel-put ready-channel what))))
+  (channel-put (current-repl-msg-chan)
+               (run-config (->mod/existing what)
+                           mem
+                           (as-racket-bool pp)
+                           ctx
+                           (list->vector args)
+                           (list->set (map string->path dbgs))
+                           (as-racket-bool skel)
+                           (λ () (channel-put ready-channel what))))
   ;; Waiting for this allows the command response to be used as the
   ;; all-clear for additional commands that need the module load to be
   ;; done and entering a REPL for that module. For example, to compose
@@ -152,18 +204,19 @@
     (welcome #f))
   (log-racket-mode-info "start ~v" session-id)
   (parameterize ([error-display-handler our-error-display-handler]
-                 [current-session-id    session-id])
-    (do-run (rerun-default ready-thunk))))
+                 [current-session-id    session-id]
+                 [current-repl-msg-chan (make-channel)])
+    (do-run (initial-run-config ready-thunk))))
 
-(define (do-run rr) ;rerun? -> void?
-  (match-define (rerun maybe-mod
-                       mem-limit
-                       pretty-print?
-                       context-level
-                       cmd-line-args
-                       debug-files
-                       retry-as-skeleton?
-                       ready-thunk) rr)
+(define (do-run cfg) ;run-config? -> void?
+  (match-define (run-config maybe-mod
+                            mem-limit
+                            pretty-print?
+                            context-level
+                            cmd-line-args
+                            debug-files
+                            retry-as-skeleton?
+                            ready-thunk)       cfg)
   (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
   ;; Always set current-directory and current-load-relative-directory
   ;; to match the source file.
@@ -229,8 +282,8 @@
               ;; dynamic-require/some-namespace.
               (define (load-exn-handler exn)
                 (display-exn exn)
-                (channel-put message-to-main-thread-channel
-                             (struct-copy rerun rr [maybe-mod #f]))
+                (channel-put (current-repl-msg-chan)
+                             (struct-copy run-config cfg [maybe-mod #f]))
                 (sync never-evt))
               (with-handlers ([exn? load-exn-handler])
                 (maybe-configure-runtime mod-path) ;FIRST: see #281
@@ -242,6 +295,7 @@
         (hash-set! sessions
                    (current-session-id)
                    (session (current-thread)
+                            (current-repl-msg-chan)
                             (current-namespace)
                             maybe-mod
                             (maybe-mod->md5 maybe-mod)
@@ -277,7 +331,7 @@
        [(and (or (? exn:break:terminate?) (? exn:break:hang-up?)) e) e]
        [(exn:break msg marks continue) (break-thread repl-thread) (continue)]
        [e e])
-     (λ () (sync message-to-main-thread-channel))))
+     (λ () (sync (current-repl-msg-chan)))))
   (match context-level
     ['profile  (clear-profile-info!)]
     ['coverage (clear-test-coverage-info!)]
@@ -285,8 +339,8 @@
   (custodian-shutdown-all repl-cust)
   (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match message
-    [(? rerun? new-rr) (do-run new-rr)]
-    [(load-gui repl?)  (require-gui repl?) (do-run rr)]))
+    [(? run-config? new-cfg) (do-run new-cfg)]
+    [(load-gui repl?)        (require-gui repl?) (do-run cfg)]))
 
 (define/contract ((make-prompt-read m))
   (-> (or/c #f mod?) (-> any))
@@ -354,7 +408,7 @@
                                   racket/gui/dynamic
                                   scheme/gui/base)))
         (unless (gui-required?)
-          (channel-put message-to-main-thread-channel
+          (channel-put (current-repl-msg-chan)
                        (load-gui repl?))
           (sync never-evt)))
       (orig-resolver mp rmp stx load?))
@@ -367,12 +421,12 @@
 
 ;;; Output handlers; see issues #381 #397
 
-(define the-default-output-handlers
+(define (the-default-output-handlers)
   (for/hash ([get/set (in-list (list port-write-handler
                                      port-display-handler
                                      port-print-handler))])
     (values get/set (get/set (current-output-port)))))
 
 (define (set-output-handlers)
-  (for ([(get/set v) (in-hash the-default-output-handlers)])
+  (for ([(get/set v) (in-hash (the-default-output-handlers))])
     (get/set (current-output-port) v)))
