@@ -16,8 +16,7 @@
          "namespace.rkt"
          "print.rkt"
          (only-in "syntax.rkt" with-expanded-syntax-caching-evaluator)
-         "util.rkt"
-         "welcome.rkt")
+         "util.rkt")
 
 (provide start-repl-session-server
          run
@@ -193,20 +192,21 @@
   (define session-id (format "repl-session-~a"
                              (begin0 next-session-number
                                (inc! next-session-number))))
-  (define (ready-thunk)
-    ;; Write a sexpr containing the session-id, which the client can
-    ;; use in certain commands that need to run in the context of a
-    ;; specific REPL. We wait to do so until the ready-thunk so that
-    ;; the `sessions` hash table has this session before any subsequent
-    ;; commands use call-with-session-context.
-    (elisp-writeln `(ok ,session-id) (current-output-port))
-    (flush-output)
-    (welcome #f))
   (log-racket-mode-info "start ~v" session-id)
   (parameterize ([error-display-handler our-error-display-handler]
                  [current-session-id    session-id]
                  [current-repl-msg-chan (make-channel)])
-    (do-run (initial-run-config ready-thunk))))
+    (do-run
+     (initial-run-config
+      (λ ()
+        ;; Write a sexpr containing the session-id, which the client
+        ;; can use in certain commands that need to run in the context
+        ;; of a specific REPL. We wait to do so until this ready-thunk
+        ;; to ensure the `sessions` hash table has this session before
+        ;; any subsequent commands use call-with-session-context.
+        (elisp-writeln `(ok ,session-id) (current-output-port))
+        (flush-output)
+        (display-commented (string-append "\n" (banner))))))))
 
 (define (do-run cfg) ;run-config? -> void?
   (match-define (run-config maybe-mod
