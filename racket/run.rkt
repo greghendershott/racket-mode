@@ -78,7 +78,7 @@
     [_ (log-racket-mode-error "exit-repl: ~v not in `sessions`" sid)]))
 
 
-;; Command. Alled from command-server thread
+;; Command. Called from command-server thread
 (define/contract (run what mem pp ctx args dbgs skel)
   (-> list? number? elisp-bool/c context-level? list? (listof path-string?) elisp-bool/c
       list?)
@@ -134,24 +134,26 @@
             (log-racket-mode-fatal "Authorization failed: ~v"
                                    supplied-token)
             (exit 'racket-mode-repl-auth-failure))
-          ;; Then we must write a sexpr containing the session-id,
-          ;; which the client can use in certain commands that
-          ;; need to run in the context of a specific REPL.
-          (define session-id (format "repl-session-~a"
-                                     (begin0 next-session-number
-                                       (inc! next-session-number))))
-          (elisp-writeln `(ok ,session-id) out)
-          (flush-output out)
-          ;; And now we can start the REPL session manager thread.
-          (log-racket-mode-info "start ~v" session-id)
-          (parameterize ([current-session-id session-id])
-            (thread repl-manager-thread-thunk)))))
+          (thread repl-manager-thread-thunk))))
     (accept-a-connection)))
 
 (define (repl-manager-thread-thunk)
-  (welcome #f)
-  (parameterize ([error-display-handler our-error-display-handler])
-    (do-run rerun-default)))
+  (define session-id (format "repl-session-~a"
+                             (begin0 next-session-number
+                               (inc! next-session-number))))
+  (define (ready-thunk)
+    ;; Write a sexpr containing the session-id, which the client can
+    ;; use in certain commands that need to run in the context of a
+    ;; specific REPL. We wait to do so until the ready-thunk so that
+    ;; the `sessions` hash table has this session before any subsequent
+    ;; commands use call-with-session-context.
+    (elisp-writeln `(ok ,session-id) (current-output-port))
+    (flush-output)
+    (welcome #f))
+  (log-racket-mode-info "start ~v" session-id)
+  (parameterize ([error-display-handler our-error-display-handler]
+                 [current-session-id    session-id])
+    (do-run (rerun-default ready-thunk))))
 
 (define (do-run rr) ;rerun? -> void?
   (match-define (rerun maybe-mod
@@ -245,13 +247,13 @@
                             (maybe-mod->md5 maybe-mod)
                             (get-repl-submit-predicate maybe-mod)))
         (log-racket-mode-debug "sessions: ~v" sessions)
-        ;; 3b. And call the ready-thunk command-server gave us from a
-        ;; run command, so that it can send a response for the run
-        ;; command. Because the command server runs on a different
-        ;; thread, it is probably waiting with (sync some-channel) and
-        ;; the thunk will simply channel-put.
+        ;; 4. Now that the program has run, and `sessions` is updated,
+        ;; call the ready-thunk. On REPL startup this lets us wait
+        ;; sending the repl-session-id until `sessions` is updated.
+        ;; And for subsequent run commands, this lets us it wait to
+        ;; send a response.
         (ready-thunk)
-        ;; 4. read-eval-print-loop
+        ;; 5. read-eval-print-loop
         (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
                        [current-module-name-resolver module-name-resolver-for-repl])
           (make-get-interaction)

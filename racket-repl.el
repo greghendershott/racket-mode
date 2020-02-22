@@ -419,7 +419,7 @@ This does not display the buffer or change the selected window."
                       (pcase (ignore-errors (read buf))
                         (`(ok ,id)
                          (setq racket--repl-session-id id)
-                         (run-with-timer 0.1 nil callback)
+                         (run-with-timer 0.001 nil callback)
                          (remove-hook 'comint-preoutput-filter-functions hook t)
                          (prog1
                              (with-current-buffer buf

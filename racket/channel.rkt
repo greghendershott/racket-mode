@@ -60,11 +60,12 @@
    [retry-skeletal? boolean?]
    [ready-thunk     (-> any/c)]))
 
-(define rerun-default (rerun #f
-                             0
-                             #f
-                             'low
-                             #()
-                             (set)
-                             #t
-                             void))
+(define (rerun-default ready-thunk)
+  (rerun #f
+         0
+         #f
+         'low
+         #()
+         (set)
+         #t
+         ready-thunk))

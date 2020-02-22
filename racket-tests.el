@@ -54,7 +54,7 @@
   (with-timeout (racket-tests/command-timeout nil)
     (while (not (apply proc args))
       (accept-process-output)
-      (sit-for 1))
+      (sit-for 1.0))
     t))
 
 (defun racket-tests/see-back-rx (rx)
@@ -95,7 +95,9 @@
   (let ((racket-command-port (racket-tests/next-free-port))
         (racket-command-timeout racket-tests/command-timeout))
     (racket-repl)
-    (racket-tests/eventually #'get-buffer racket--repl-buffer-name)
+    (should (racket-tests/eventually #'racket--cmd-open-p))
+    (should (racket-tests/eventually #'get-buffer racket--repl-buffer-name))
+    (should (racket-tests/eventually #'racket--repl-live-p))
     (with-racket-repl-buffer
       (should (racket-tests/see-back-rx
                "Welcome to Racket v?[0-9.]+\\(?: \\[cs\\].\\)?[\n]\\(?:;.*[\n]\\)*> "))
@@ -147,7 +149,8 @@
     (write-region code nil pathname nil 'no-wrote-file-message)
     (find-file pathname)
     (racket-run)
-    (racket-tests/eventually #'get-buffer racket--repl-buffer-name)
+    (should (racket-tests/eventually #'get-buffer racket--repl-buffer-name))
+    (should (racket-tests/eventually #'racket--repl-live-p))
     (with-racket-repl-buffer
       (should (racket-tests/see-back (concat "\n" name "> ")))
       (racket-repl-exit)
