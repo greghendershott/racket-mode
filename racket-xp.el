@@ -282,7 +282,7 @@ TAB, and activate using RET -- for `racket-visit-definition' and
      ;; command will treat it as a file module identifier.
      (let ((how (pcase (get-text-property (point) 'racket-xp-doc)
                   (`(,path ,anchor) `(,path . ,anchor))
-                  (_                (buffer-file-name))))
+                  (_                (racket--buffer-file-name))))
            ;; These two thunks are effectively lazy
            ;; `racket-xp-visit-definition' and
            ;; `racket-xp-documentation' using values captured from the
@@ -293,10 +293,11 @@ TAB, and activate using RET -- for `racket-visit-definition' and
            (visit-thunk
             (pcase (get-text-property (point) 'racket-xp-visit)
               (`(,path ,subs ,ids)
-               (lambda ()
-                 (racket--do-visit-def-or-mod
-                  nil
-                  `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids))))
+               (let ((bfn (racket--buffer-file-name)))
+                 (lambda ()
+                   (racket--do-visit-def-or-mod
+                    nil
+                    `(def/drr ,bfn ,path ,subs ,ids)))))
               (_
                (pcase (get-text-property (point) 'racket-xp-def)
                  (`(import ,id . ,_)
