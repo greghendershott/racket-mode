@@ -96,7 +96,7 @@
         (racket-command-timeout racket-tests/command-timeout))
     (racket-repl)
     (should (racket-tests/eventually #'racket--cmd-open-p))
-    (should (racket-tests/eventually #'get-buffer racket--repl-buffer-name))
+    (should (racket-tests/eventually #'get-buffer racket-repl-buffer-name))
     (should (racket-tests/eventually #'racket--repl-live-p))
     (with-racket-repl-buffer
       (should (racket-tests/see-back-rx
@@ -149,7 +149,7 @@
     (write-region code nil pathname nil 'no-wrote-file-message)
     (find-file pathname)
     (racket-run)
-    (should (racket-tests/eventually #'get-buffer racket--repl-buffer-name))
+    (should (racket-tests/eventually #'get-buffer racket-repl-buffer-name))
     (should (racket-tests/eventually #'racket--repl-live-p))
     (with-racket-repl-buffer
       (should (racket-tests/see-back (concat "\n" name "> ")))

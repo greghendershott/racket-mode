@@ -147,6 +147,22 @@ Set to nil to disable the mode line completely."
   :tag "REPL"
   :group 'racket)
 
+(defcustom racket-repl-buffer-name-function nil
+  "How to associate `racket-mode' edit buffers with `racket-repl-mode' buffers.
+
+The default is nil which is equivalent to
+`racket-repl-buffer-name-shared': One REPL buffer is shared.
+Other predefined choices include `racket-repl-buffer-name-unique'
+and `racket-repl-buffer-name-project'. Any such function takes no
+arguments, should look at `buffer-file-name' if necessary, and
+either `setq-default' or `setq-local' the variable
+`racket-repl-buffer-name' to a desired `racket-repl-mode' buffer
+name. As a result, `racket-run' commands will use a buffer of
+that name, creating it if necessary."
+  :tag "REPL Buffer Name Function"
+  :type 'function
+  :group 'racket-repl)
+
 (defcustom racket-memory-limit 2048
   "Terminate the Racket process if memory use exceeds this value in MB.
 

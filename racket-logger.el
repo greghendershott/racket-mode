@@ -174,7 +174,7 @@ use `pop-to-buffer'."
     (racket-logger--connect))
   ;; Give it a window if necessary
   (unless (get-buffer-window racket-logger--buffer-name)
-    (pcase (get-buffer-window racket--repl-buffer-name)
+    (pcase (get-buffer-window racket-repl-buffer-name)
       (`() (pop-to-buffer (get-buffer racket-logger--buffer-name)))
       (win (set-window-buffer (split-window win)
                               (get-buffer racket-logger--buffer-name)))))

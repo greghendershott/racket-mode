@@ -31,12 +31,14 @@
 
 (require 'racket-edit)
 (require 'racket-xp)
+(require 'racket-custom)
 (require 'racket-smart-open)
 (require 'racket-imenu)
 (require 'racket-profile)
 (require 'racket-logger)
 (require 'racket-stepper)
 (require 'racket-repl)
+(require 'racket-repl-buffer-name)
 (require 'racket-collection)
 (require 'racket-bug-report)
 (require 'racket-util)
@@ -133,6 +135,9 @@
   "Racket"
   "Major mode for editing Racket.
 \\{racket-mode-map}"
+  (if racket-repl-buffer-name-function
+      (funcall racket-repl-buffer-name-function)
+    (racket-repl-buffer-name-shared))
   (racket--common-variables)
   (racket--variables-imenu)
   (hs-minor-mode t)
