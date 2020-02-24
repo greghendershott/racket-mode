@@ -54,7 +54,7 @@ directory share a REPL."
 (defun racket-mode-maybe-offer-to-kill-repl-buffer ()
   "A `kill-buffer-hook' function.
 
-Offer to kill a `racket-mode-repl' when killing the last
+Offer to kill a `racket-repl-mode' buffer when killing the last
 `racket-mode' buffer using it. Although is not necessary to do
 so, a user might want to do some \"cleanup\" -- especially if
 they're using a `racket-repl-buffer-name-function' such as
