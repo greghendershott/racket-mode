@@ -19,8 +19,10 @@
 ;;; Some values suitable for `racket-repl-buffer-name-function',
 ;;; which set the variable `racket-repl-buffer-name'.
 
+(require 'cl-extra)
 (require 'racket-custom)
 (require 'racket-repl)
+(require 'racket-util)
 
 ;;;###autoload
 (defun racket-repl-buffer-name-shared ()
@@ -32,7 +34,7 @@
 (defun racket-repl-buffer-name-unique ()
   "Each `racket-mode' edit buffer gets its own `racket-repl-mode' buffer."
   (interactive)
-  (let ((name (concat "*Racket REPL: " (buffer-file-name) "*")))
+  (let ((name (concat "*Racket REPL: " (racket--buffer-file-name) "*")))
     (setq-local racket-repl-buffer-name name)))
 
 ;;;###autoload
@@ -42,7 +44,7 @@
 If no projectile project is found, then files in the same
 directory share a REPL."
   (interactive)
-  (let* ((dir  (file-name-directory (buffer-file-name)))
+  (let* ((dir  (file-name-directory (racket--buffer-file-name)))
          (root (or (and (fboundp 'projectile-project-root)
                         (projectile-project-root dir))
                    dir))
@@ -62,16 +64,22 @@ they're using a `racket-repl-buffer-name-function' such as
           (our-racket-repl-buffer-name racket-repl-buffer-name))
       (unless (cl-some (lambda (buffer)
                          (with-current-buffer buffer
-                           (and (not (equal our-buffer buffer))
-                                (eq major-mode 'racket-mode)
+                           (and (eq major-mode 'racket-mode)
+                                (not (equal our-buffer buffer))
                                 (equal racket-repl-buffer-name
                                        our-racket-repl-buffer-name))))
                        (buffer-list))
-        (when (and (get-buffer racket-repl-buffer-name)
-                   (y-or-n-p
-                    (format "No other buffers using %s -- kill it, too? "
-                            racket-repl-buffer-name)))
-          (kill-buffer racket-repl-buffer-name))))))
+        (pcase (get-buffer racket-repl-buffer-name)
+          ((and (pred bufferp) repl-buffer)
+           (when (y-or-n-p
+                  (format "No other `racket-mode' buffers are using %s -- kill it, too? "
+                          racket-repl-buffer-name))
+             ;; They already said yes. Avoid another prompt about
+             ;; killing the buffer's process.
+             (pcase (get-buffer-process repl-buffer)
+               ((and (pred processp) repl-process)
+                (set-process-query-on-exit-flag repl-process nil)))
+             (kill-buffer repl-buffer))))))))
 
 (provide 'racket-repl-buffer-name)
 
