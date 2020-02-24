@@ -185,6 +185,11 @@ If instead of paredit you prefer [[https://melpa.org/#/smartparens][smartparens]
 (require 'smartparens-config)
 #+END_SRC
 
+** Edit buffers and REPL buffers
+By default, all `racket-mode' edit buffers share one `racket-repl-mode' buffer. For example, if you `racket-run' "foo.rkt", the REPL prompt changes to "foo.rkt>", and the REPL is inside the file  module namespace. If you then `racket-run' "bar.rkt", the REPL prompt changes to "bar.rkt>", and you are in that namespace.
+
+If you prefer, you can use more than one REPL buffer, by customizing the variable {{{ref(racket-repl-buffer-name-function)}}}: Another option is to have one REPL buffer for each edit buffer, similar to Dr Racket. Yet another option is to have files belong to the same project all share the same REPL buffer. You can also define your own, custom function.
+
 ** eldoc
 
 By default Racket Mode sets ~eldoc-documentation-function~ to ~nil~ --- no ~eldoc-mode~ support. You may set it to ~racket-eldoc-function~ in a ~racket-mode-hook~ and ~racket-repl-mode-hook~ if you really want to use ~eldoc-mode~ with Racket. But it is not a very satisfying experience because Racket is not a very "eldoc-friendly" language. Although Racket Mode attempts to discover argument lists, contracts, or types this doesn't work in many common cases:

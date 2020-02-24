@@ -53,6 +53,7 @@ Configure
 * Indent::
 * paredit::
 * smartparens::
+* Edit buffers and REPL buffers::
 * eldoc::
 * Start faster::
 * Unicode input method::
@@ -68,6 +69,7 @@ Commands
 * Macro expand::
 * Other::
 * Showing information::
+* Associating edit buffers with REPL buffers::
 
 Edit
 
@@ -143,6 +145,12 @@ Showing information
 * racket-show-echo-area::
 * racket-show-header-line::
 * racket-show-pos-tip::
+
+Associating edit buffers with REPL buffers
+
+* racket-repl-buffer-name-shared::
+* racket-repl-buffer-name-unique::
+* racket-repl-buffer-name-project::
 Variables
 
 * General variables::
@@ -166,6 +174,7 @@ General variables
 
 REPL variables
 
+* racket-repl-buffer-name-function::
 * racket-history-filter-regexp::
 * racket-images-inline::
 * racket-images-keep-last::
@@ -339,6 +348,7 @@ You can @code{setq} this directly in your Emacs init file (@verb{,~/.emacs,} or 
 * Indent::
 * paredit::
 * smartparens::
+* Edit buffers and REPL buffers::
 * eldoc::
 * Start faster::
 * Unicode input method::
@@ -449,6 +459,13 @@ If instead of paredit you prefer @uref{https://melpa.org/#/smartparens,smartpare
 (require 'smartparens-config)
 @end lisp
 
+@node Edit buffers and REPL buffers
+@section Edit buffers and REPL buffers
+
+By default, all `racket-mode' edit buffers share one `racket-repl-mode' buffer. For example, if you `racket-run' ``foo.rkt'', the REPL prompt changes to ``foo.rkt>'', and the REPL is inside the file  module namespace. If you then `racket-run' ``bar.rkt'', the REPL prompt changes to ``bar.rkt>'', and you are in that namespace.
+
+If you prefer, you can use more than one REPL buffer, by customizing the variable @ref{racket-repl-buffer-name-function}: Another option is to have one REPL buffer for each edit buffer, similar to Dr Racket. Yet another option is to have files belong to the same project all share the same REPL buffer. You can also define your own, custom function.
+
 @node eldoc
 @section eldoc
 
@@ -515,6 +532,7 @@ You can also view these by using the normal Emacs help mechanism:
 * Macro expand::
 * Other::
 * Showing information::
+* Associating edit buffers with REPL buffers::
 @end menu
 
 @node Edit
@@ -609,8 +627,8 @@ See also: @ref{racket-trim-requires} and @ref{racket-base-requires}.
 
 Like @ref{racket-tidy-requires} but also deletes unnecessary requires.
 
-Note: This only works when the source file can be evaluated with
-no errors.
+Note: This only works when the source file can be fully expanded
+with no errors.
 
 Note: This only works for requires at the top level of a source
 file using #lang. It does NOT work for require forms inside
@@ -637,8 +655,8 @@ memory footprint.
 Also, as does @ref{racket-trim-requires}, this removes unneeded
 modules and tidies everything into a single, sorted require form.
 
-Note: This only works when the source file can be evaluated with
-no errors.
+Note: This only works when the source file can be fully expanded
+with no errors.
 
 Note: This only works for requires at the top level of a source
 file using #lang. It does NOT work for require forms inside
@@ -989,7 +1007,7 @@ back end is running. It will try to start the back end
 automatically. You do @emph{not} need to @ref{racket-run} the buffer you
 are editing.
 
-This mode uses the @code{drracket/check-syntax} package to analyze
+This mode uses the drracket/check-syntax package to analyze
 fully-expanded programs, without needing to evaluate a.k.a.
 ``run'' them. The resulting analysis provides information for:
 
@@ -1018,8 +1036,8 @@ You may also use commands to navigate among a definition and its
 uses, or to rename a local definitions and all its uses.
 
 In the following little example, not only does
-@code{drracket/check-syntax} distinguish the various @code{x} bindings, it
-understands the two different imports of @code{define}:
+drracket/check-syntax distinguish the various ``x'' bindings, it
+understands the two different imports of ``define'':
 
 @example
 #lang racket/base
@@ -1037,8 +1055,8 @@ variable @code{completion-at-point-functions}. Note that in this case,
 it is not smart about submodules; identifiers are assumed to be
 definitions from the file's module or its imports. In addition to
 supplying completion candidates, it supports the
-@code{:company-location} property to inspect the definition of a
-candidate and the @code{:company-doc-buffer} property to view its
+``:company-location'' property to inspect the definition of a
+candidate and the ``:company-doc-buffer'' property to view its
 documentation.
 
 When you edit the buffer, existing annotations are retained;
@@ -1048,7 +1066,7 @@ new or deleted text are not requested until after
 made asynchronously so that Emacs will not block -- for
 moderately complex source files, it can take some seconds simply
 to fully expand them, as well as a little more time for the
-@code{drracket/check-syntax} analysis. When the results are ready, all
+drracket/check-syntax analysis. When the results are ready, all
 annotations for the buffer are completely refreshed.
 
 You may also set @ref{racket-xp-after-change-refresh-delay} to nil
@@ -1057,11 +1075,10 @@ and use the @code{racket-xp-annotate} command manually.
 The mode line changes to reflect the current status of
 annotations, and whether or not you had a syntax error.
 
-If you have one or more syntax errors, use the standard
-@code{next-error} command and key bindings to navigate among them.
-Although most languages will stop after the first syntax error,
-some like Typed Racket will try to collect and report multiple
-errors.
+If you have one or more syntax errors, @code{racket-xp-next-error} and
+@code{racket-xp-previous-error} to navigate among them. Although most
+languages will stop after the first syntax error, some like Typed
+Racket will try to collect and report multiple errors.
 
 Tip: This mode follows the convention that a minor mode may only
 use a prefix key consisting of ``C-c'' followed by a punctuation
@@ -1074,6 +1091,12 @@ commands directly to whatever keys you prefer.
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
+@item @kbd{C-x ~} 
+@tab ~racket-xp-next-error'
+@item @kbd{M-g M-n} 
+@tab @code{racket-xp-previous-error}
+@item @kbd{M-g n} 
+@tab @code{racket-xp-previous-error}
 @item @kbd{M-.} 
 @tab @ref{racket-xp-visit-definition}
 @item @kbd{C-c C-d} 
@@ -1867,6 +1890,45 @@ Show things using @code{pos-tip-show} if available.
 
 A value for the variable @ref{racket-show-functions}.
 
+@node Associating edit buffers with REPL buffers
+@section Associating edit buffers with REPL buffers
+
+@menu
+* racket-repl-buffer-name-shared::
+* racket-repl-buffer-name-unique::
+* racket-repl-buffer-name-project::
+@end menu
+
+@node racket-repl-buffer-name-shared
+@subsection racket-repl-buffer-name-shared
+
+@kbd{M-x}  @code{racket-repl-buffer-name-shared} @kbd{RET} 
+
+All @code{racket-mode} edit buffers share one @code{racket-repl-mode} buffer.
+
+A value for the variable @ref{racket-repl-buffer-name-function}.
+
+@node racket-repl-buffer-name-unique
+@subsection racket-repl-buffer-name-unique
+
+@kbd{M-x}  @code{racket-repl-buffer-name-unique} @kbd{RET} 
+
+Each @code{racket-mode} edit buffer gets its own @code{racket-repl-mode} buffer.
+
+A value for the variable @ref{racket-repl-buffer-name-function}.
+
+@node racket-repl-buffer-name-project
+@subsection racket-repl-buffer-name-project
+
+@kbd{M-x}  @code{racket-repl-buffer-name-project} @kbd{RET} 
+
+Files belonging to a projectile project share a @code{racket-repl-mode} buffer.
+
+A value for the variable @ref{racket-repl-buffer-name-function}.
+
+If no projectile project is found, then files in the same
+directory share a REPL.
+
 @node Variables
 @chapter Variables
 
@@ -1902,7 +1964,7 @@ Pathname of the racket executable.
 @node racket-command-port
 @subsection racket-command-port
 
-Port number for Racket REPL command server.
+Port number for Racket REPL server.
 
 @node racket-command-timeout
 @subsection racket-command-timeout
@@ -1911,8 +1973,8 @@ How many seconds to wait for command server responses.
 
 Note: This is mostly obsolete, fortunately, because it applies
 only to commands that must block the Emacs UI until they get a
-response. Instead most commands these days receive their response
-asychronously.
+response. Instead most Racket Mode commands these days receive
+their response asychronously.
 
 @node racket-memory-limit
 @subsection racket-memory-limit
@@ -2040,12 +2102,31 @@ Set to nil to disable automatic refresh and manually use @code{racket-xp-annotat
 @section REPL variables
 
 @menu
+* racket-repl-buffer-name-function::
 * racket-history-filter-regexp::
 * racket-images-inline::
 * racket-images-keep-last::
 * racket-images-system-viewer::
 * racket-pretty-print::
 @end menu
+
+@node racket-repl-buffer-name-function
+@subsection racket-repl-buffer-name-function
+
+How to associate @code{racket-mode} edit buffers with @code{racket-repl-mode} buffers.
+
+The default is nil, which is equivalent to supplying
+@ref{racket-repl-buffer-name-shared}: One REPL buffer is shared.
+
+Other predefined choices include @ref{racket-repl-buffer-name-unique}
+and @ref{racket-repl-buffer-name-project}.
+
+Any such function takes no arguments, should look at
+@code{buffer-file-name} if necessary, and either @code{setq-default} or
+@code{setq-local} the variable @code{racket-repl-buffer-name} to a desired
+@code{racket-repl-mode} buffer name. As a result, @ref{racket-run}
+commands will use a buffer of that name, creating it if
+necessary.
 
 @node racket-history-filter-regexp
 @subsection racket-history-filter-regexp

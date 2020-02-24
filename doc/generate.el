@@ -27,6 +27,7 @@
 (require 'racket-show)
 (require 'racket-unicode-input-method)
 (require 'racket-smart-open)
+(require 'racket-repl-buffer-name)
 (require 'cl-lib)
 
 (defun racket-generate-reference.org ()
@@ -96,7 +97,11 @@
     "Showing information"
     racket-show-echo-area
     racket-show-header-line
-    racket-show-pos-tip)
+    racket-show-pos-tip
+    "Associating edit buffers with REPL buffers"
+    racket-repl-buffer-name-shared
+    racket-repl-buffer-name-unique
+    racket-repl-buffer-name-project)
   "Commands to include in the Reference.")
 
 (defun racket-generate--commands ()
@@ -158,6 +163,7 @@
     racket-path-from-racket-to-emacs-function
     racket-xp-after-change-refresh-delay
     "REPL variables"
+    racket-repl-buffer-name-function
     racket-history-filter-regexp
     racket-images-inline
     racket-images-keep-last

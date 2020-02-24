@@ -140,9 +140,9 @@
   (hs-minor-mode t)
   (setq-local completion-at-point-functions (list #'racket-complete-at-point))
   (setq-local eldoc-documentation-function nil)
-  (if racket-repl-buffer-name-function
-      (funcall racket-repl-buffer-name-function)
-    (racket-repl-buffer-name-shared))
+  (funcall (or (and (functionp racket-repl-buffer-name-function)
+                    racket-repl-buffer-name-function)
+               #'racket-repl-buffer-name-shared))
   (add-hook 'kill-buffer-hook
             #'racket-mode-maybe-offer-to-kill-repl-buffer))
 

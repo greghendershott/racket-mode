@@ -150,17 +150,27 @@ Set to nil to disable the mode line completely."
 (defcustom racket-repl-buffer-name-function nil
   "How to associate `racket-mode' edit buffers with `racket-repl-mode' buffers.
 
-The default is nil which is equivalent to
+The default is nil, which is equivalent to supplying
 `racket-repl-buffer-name-shared': One REPL buffer is shared.
+
 Other predefined choices include `racket-repl-buffer-name-unique'
-and `racket-repl-buffer-name-project'. Any such function takes no
-arguments, should look at `buffer-file-name' if necessary, and
-either `setq-default' or `setq-local' the variable
-`racket-repl-buffer-name' to a desired `racket-repl-mode' buffer
-name. As a result, `racket-run' commands will use a buffer of
-that name, creating it if necessary."
+and `racket-repl-buffer-name-project'.
+
+This is used when a `racket-mode' buffer is created. Changing
+this to a new value only affects `racket-mode' buffers created
+later.
+
+Any such function takes no arguments, should look at
+`buffer-file-name' if necessary, and either `setq-default' or
+`setq-local' the variable `racket-repl-buffer-name' to a desired
+`racket-repl-mode' buffer name. As a result, `racket-run'
+commands will use a buffer of that name, creating it if
+necessary."
   :tag "REPL Buffer Name Function"
-  :type 'function
+  :type '(choice (const :tag "One REPL buffer for all edit buffers" nil)
+                 (const :tag "One REPL buffer for all project edit buffers" racket-repl--buffer-name-project)
+                 (const :tag "One REPL buffer for each edit buffer" racket-repl--buffer-name-unique)
+                 (function :tag "Other function"))
   :group 'racket-repl)
 
 (defcustom racket-memory-limit 2048

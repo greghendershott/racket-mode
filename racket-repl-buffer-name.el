@@ -26,13 +26,17 @@
 
 ;;;###autoload
 (defun racket-repl-buffer-name-shared ()
-  "All `racket-mode' edit buffers share one `racket-repl-mode' buffer."
+  "All `racket-mode' edit buffers share one `racket-repl-mode' buffer.
+
+A value for the variable `racket-repl-buffer-name-function'."
   (interactive)
   (setq-default racket-repl-buffer-name "*Racket REPL*"))
 
 ;;;###autoload
 (defun racket-repl-buffer-name-unique ()
-  "Each `racket-mode' edit buffer gets its own `racket-repl-mode' buffer."
+  "Each `racket-mode' edit buffer gets its own `racket-repl-mode' buffer.
+
+A value for the variable `racket-repl-buffer-name-function'."
   (interactive)
   (let ((name (concat "*Racket REPL: " (racket--buffer-file-name) "*")))
     (setq-local racket-repl-buffer-name name)))
@@ -40,6 +44,8 @@
 ;;;###autoload
 (defun racket-repl-buffer-name-project ()
   "Files belonging to a projectile project share a `racket-repl-mode' buffer.
+
+A value for the variable `racket-repl-buffer-name-function'.
 
 If no projectile project is found, then files in the same
 directory share a REPL."
