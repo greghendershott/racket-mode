@@ -32,22 +32,46 @@
 (defun racket-repl-buffer-name-unique ()
   "Each `racket-mode' edit buffer gets its own `racket-repl-mode' buffer."
   (interactive)
-  (let ((name (concat "*Racket REPL "
-                      (buffer-file-name)
-                      "*")))
+  (let ((name (concat "*Racket REPL: " (buffer-file-name) "*")))
     (setq-local racket-repl-buffer-name name)))
 
 ;;;###autoload
 (defun racket-repl-buffer-name-project ()
-  "Files belonging to a projectile project share a `racket-repl-mode' buffer"
+  "Files belonging to a projectile project share a `racket-repl-mode' buffer.
+
+If no projectile project is found, then files in the same
+directory share a REPL."
   (interactive)
-  (let* ((project (if (fboundp 'projectile-project-name)
-                      (projectile-project-name)
-                    (file-name-directory (buffer-file-name))))
-         (name (concat "*Racket REPL project \""
-                       project
-                       "\"*")))
+  (let* ((dir  (file-name-directory (buffer-file-name)))
+         (root (or (and (fboundp 'projectile-project-root)
+                        (projectile-project-root dir))
+                   dir))
+         (name (concat "*Racket REPL: " root "*")))
     (setq-local racket-repl-buffer-name name)))
+
+(defun racket-mode-maybe-offer-to-kill-repl-buffer ()
+  "A `kill-buffer-hook' function.
+
+Offer to kill a `racket-mode-repl' when killing the last
+`racket-mode' buffer using it. Although is not necessary to do
+so, a user might want to do some \"cleanup\" -- especially if
+they're using a `racket-repl-buffer-name-function' such as
+`racket-repl-buffer-name-unique'."
+  (when (eq major-mode 'racket-mode)
+    (let ((our-buffer                  (current-buffer))
+          (our-racket-repl-buffer-name racket-repl-buffer-name))
+      (unless (cl-some (lambda (buffer)
+                         (with-current-buffer buffer
+                           (and (not (equal our-buffer buffer))
+                                (eq major-mode 'racket-mode)
+                                (equal racket-repl-buffer-name
+                                       our-racket-repl-buffer-name))))
+                       (buffer-list))
+        (when (and (get-buffer racket-repl-buffer-name)
+                   (y-or-n-p
+                    (format "No other buffers using %s -- kill it, too? "
+                            racket-repl-buffer-name)))
+          (kill-buffer racket-repl-buffer-name))))))
 
 (provide 'racket-repl-buffer-name)
 
