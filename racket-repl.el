@@ -53,9 +53,12 @@
 ;; they reduce to setting the variable `racket-repl-buffer-name'
 ;; globally and/or locally for `racket-mode' buffers -- that is the
 ;; fundamental representation. Similarly, each `racket-repl-mode'
-;; buffers has an always-buffer-local value for the variable
-;; `racket--repl-session-id'. Note that each variable has no
-;; particular meaning outside its use by each mode.
+;; buffer has an always-buffer-local value for the variable
+;; `racket--repl-session-id'. (Note that `racket-repl-buffer-name'
+;; only has meaning for `racket-mode' buffers, and
+;; `racket--repl-session-id' only has meaning for `racket-repl-mode'
+;; bufers. Emacs variables exist for all buffers in all modes. All we
+;; can do is remember to ignore them in some cases.)
 
 (defvar racket-repl-buffer-name "*Racket REPL*"
   "The name of the `racket-repl-mode' buffer associated with `racket-mode' buffer.
@@ -68,7 +71,8 @@ By default all `racket-mode' edit buffers share the same REPL.
 However, a buffer may `setq-local' this to some other value. This
 supports various use cases all the way up to a Dr Racket style
 where each `racket-mode' buffer has its own `racket-repl-mode'
-buffer.")
+buffer. See the defcustom `racket-repl-buffer-name-function' and
+example values for it in racket-repl-buffer-name.el.")
 
 (defvar-local racket--repl-session-id nil
   "The REPL session ID returned from the back end.
