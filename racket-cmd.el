@@ -48,14 +48,6 @@ If the process is not already started, this does nothing."
     ((and (pred (processp)) proc)
      (eq 'run (process-status proc)))))
 
-(defconst racket--minimum-required-version "6.5"
-  "The minimum version of Racket required by run.rkt.
-
-Although some functionality may require an even newer version of
-Racket, run.rkt will handle that via `dynamic-require` and
-fallbacks. The version number here is a baseline for run.rkt to
-be able to load at all.")
-
 (defvar racket--run.rkt (expand-file-name "main.rkt" racket--rkt-source-dir)
   "Pathname of run.rkt.")
 
@@ -69,26 +61,6 @@ Racket Mode source code under \"/mnt\". Whew. In that case you
 can set this variable to the function `racket-wsl-to-windows' so
 that Racket Mode can find its own run.rkt file.")
 
-(defun racket--version ()
-  "Get the `racket-program' version as a string."
-  (with-temp-message "Checking Racket version ..."
-    (with-temp-buffer
-      (call-process racket-program nil t nil "--version")
-      (goto-char (point-min))
-      ;; Welcome to Racket v6.12.
-      ;; Welcome to Racket v7.0.0.6.
-      (save-match-data
-        (re-search-forward "[0-9]+\\(?:\\.[0-9]+\\)*")
-        (match-string 0)))))
-
-(defun racket--assert-version (at-least)
-  "Raise a `user-error' unless Racket is version AT-LEAST."
-  (let ((have (racket--version)))
-    (unless (version<= at-least have)
-      (user-error "Racket Mode needs at least Racket version %s but you have %s"
-                  at-least have))))
-
-
 (defvar racket--cmd-auth nil
   "A value we give the Racket back-end when we launch it and when we connect.
 See issue #327.")
@@ -96,7 +68,6 @@ See issue #327.")
 (defun racket--cmd-open ()
   ;; Never create more "racket-process<1>" etc processes.
   (racket--cmd-close)
-  (racket--assert-version racket--minimum-required-version)
   (make-process
    :name            racket--cmd-name
    :connection-type 'pipe
