@@ -43,16 +43,21 @@ A value for the variable `racket-repl-buffer-name-function'."
 
 ;;;###autoload
 (defun racket-repl-buffer-name-project ()
-  "Files belonging to a projectile project share a `racket-repl-mode' buffer.
+  "All `racket-mode' buffers in a project share a `racket-repl-mode' buffer.
 
 A value for the variable `racket-repl-buffer-name-function'.
 
-If no projectile project is found, then files in the same
-directory share a REPL."
+The \"project\" is determined by trying, in order:
+
+- `projectile-project-root'
+- `vc-root-dir'
+- `file-name-directory'"
   (interactive)
   (let* ((dir  (file-name-directory (racket--buffer-file-name)))
          (root (or (and (fboundp 'projectile-project-root)
                         (projectile-project-root dir))
+                   (and (fboundp 'vc-root-dir)
+                        (vc-root-dir))
                    dir))
          (name (concat "*Racket REPL: " root "*")))
     (setq-local racket-repl-buffer-name name)))
