@@ -1922,12 +1922,20 @@ A value for the variable @ref{racket-repl-buffer-name-function}.
 
 @kbd{M-x}  @code{racket-repl-buffer-name-project} @kbd{RET} 
 
-Files belonging to a projectile project share a @code{racket-repl-mode} buffer.
+All @code{racket-mode} buffers in a project share a @code{racket-repl-mode} buffer.
 
 A value for the variable @ref{racket-repl-buffer-name-function}.
 
-If no projectile project is found, then files in the same
-directory share a REPL.
+The ``project'' is determined by trying, in order:
+
+@itemize
+@item
+@code{projectile-project-root}
+@item
+@code{vc-root-dir}
+@item
+@code{file-name-directory}
+@end itemize
 
 @node Variables
 @chapter Variables
@@ -2120,6 +2128,10 @@ The default is nil, which is equivalent to supplying
 
 Other predefined choices include @ref{racket-repl-buffer-name-unique}
 and @ref{racket-repl-buffer-name-project}.
+
+This is used when a @code{racket-mode} buffer is created. Changing
+this to a new value only affects @code{racket-mode} buffers created
+later.
 
 Any such function takes no arguments, should look at
 @code{buffer-file-name} if necessary, and either @code{setq-default} or

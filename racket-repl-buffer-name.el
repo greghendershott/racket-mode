@@ -16,9 +16,6 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
-;;; Some values suitable for `racket-repl-buffer-name-function',
-;;; which set the variable `racket-repl-buffer-name'.
-
 (require 'cl-extra)
 (require 'racket-custom)
 (require 'racket-repl)
@@ -63,7 +60,9 @@ The \"project\" is determined by trying, in order:
     (setq-local racket-repl-buffer-name name)))
 
 (defun racket-mode-maybe-offer-to-kill-repl-buffer ()
-  "A `kill-buffer-hook' function.
+  "Maybe offer to kill a `racket-repl-mode' buffer.
+
+A value for `kill-buffer-hook'.
 
 Offer to kill a `racket-repl-mode' buffer when killing the last
 `racket-mode' buffer using it. Although is not necessary to do
