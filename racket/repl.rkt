@@ -421,12 +421,12 @@
 
 ;;; Output handlers; see issues #381 #397
 
-(define (the-default-output-handlers)
+(define the-default-output-handlers
   (for/hash ([get/set (in-list (list port-write-handler
                                      port-display-handler
                                      port-print-handler))])
     (values get/set (get/set (current-output-port)))))
 
 (define (set-output-handlers)
-  (for ([(get/set v) (in-hash (the-default-output-handlers))])
+  (for ([(get/set v) (in-hash the-default-output-handlers)])
     (get/set (current-output-port) v)))
