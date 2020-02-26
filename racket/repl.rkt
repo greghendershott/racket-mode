@@ -13,7 +13,6 @@
          "interactions.rkt"
          "md5.rkt"
          "mod.rkt"
-         "namespace.rkt"
          "print.rkt"
          (only-in "syntax.rkt" with-expanded-syntax-caching-evaluator)
          "util.rkt")
@@ -88,7 +87,6 @@
    [context-level   context-level?]
    [cmd-line-args   (vectorof string?)]
    [debug-files     (set/c path?)]
-   [retry-skeletal? boolean?]
    [ready-thunk     (-> any/c)]))
 
 (define (initial-run-config ready-thunk)
@@ -98,7 +96,6 @@
               'low  ;context-level
               #()   ;cmd-line-args
               (set) ;debug-files
-              #t    ;retry-skeletal?
               ready-thunk))
 
 ;;; Functionality provided for commands
@@ -130,8 +127,8 @@
     [_ (log-racket-mode-error "exit-repl: ~v not in `sessions`" sid)]))
 
 ;; Command. Called from command-server thread
-(define/contract (run what mem pp ctx args dbgs skel)
-  (-> list? number? elisp-bool/c context-level? list? (listof path-string?) elisp-bool/c
+(define/contract (run what mem pp ctx args dbgs)
+  (-> list? number? elisp-bool/c context-level? list? (listof path-string?)
       list?)
   (define ready-channel (make-channel))
   (channel-put (current-repl-msg-chan)
@@ -141,7 +138,6 @@
                            ctx
                            (list->vector args)
                            (list->set (map string->path dbgs))
-                           (as-racket-bool skel)
                            (λ () (channel-put ready-channel what))))
   ;; Waiting for this allows the command response to be used as the
   ;; all-clear for additional commands that need the module load to be
@@ -215,7 +211,6 @@
                             context-level
                             cmd-line-args
                             debug-files
-                            retry-as-skeleton?
                             ready-thunk)       cfg)
   (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
   ;; Always set current-directory and current-load-relative-directory
@@ -288,7 +283,10 @@
               (with-handlers ([exn? load-exn-handler])
                 (maybe-configure-runtime mod-path) ;FIRST: see #281
                 (current-namespace
-                 (dynamic-require/some-namespace maybe-mod retry-as-skeleton?))
+                 (parameterize ([current-load-relative-directory dir]
+                                [current-directory               dir])
+                   (dynamic-require mod-path #f)
+                   (module->namespace mod-path)))
                 (maybe-warn-about-submodules mod-path context-level)
                 (check-#%top-interaction)))))
         ;; 3. Record information about our session

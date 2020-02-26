@@ -215,25 +215,10 @@ a more-helpful error message."
   :risky t
   :group 'racket-repl)
 
-(defcustom racket-retry-as-skeleton t
-  "Retry a \"skeleton\" of files with errors, for identifier names?
-
-When true: If your source file has an error, a \"skeleton\" of
-your file is evaluated to get identifiers from module languages,
-`require` forms, and definitions. That way, things like
-completion and `racket-repl-describe' are more likely to work
-while you edit the file to fix the error.
-
-Otherwise, you'll have only identifiers provided by
-`racket/base`, until you fix the error and run again.
-
-You might want to disable this if you work with files that take a
-very long time to expand --- because this feature needs to expand
-again when there is an error."
-  :tag "Retry as Skeleton?"
-  :type 'boolean
-  :safe #'booleanp
-  :group 'racket-repl)
+(make-obsolete-variable
+ 'racket-retry-as-skeleton
+ "The motivation for this is now N/A with `racket-xp-mode'."
+ "2020-02-26")
 
 (defcustom racket-history-filter-regexp "\\`\\s *\\S ?\\S ?\\s *\\'"
   "Input matching this regexp are not saved on the history list.

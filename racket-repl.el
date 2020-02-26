@@ -257,15 +257,6 @@ See also `racket-run-and-switch-to-repl', which is even more like
 DrRacket's Run because it selects the REPL window (gives it the
 focus), too.
 
-When `racket-retry-as-skeleton' is true, if your source file has
-an error, a \"skeleton\" of your file is evaluated to get
-identifiers from module languages, require forms, and
-definitions. That way, things like completion and
-`racket-repl-describe' are more likely to work while you edit the
-file to fix the error. If not even the \"skeleton\" evaluation
-succeeds, you'll have only identifiers provided by racket/base,
-until you fix the error and run again.
-
 Output in the Racket REPL buffer that describes a file and
 position is automatically \"linkified\". Examples of such text
 include:
@@ -442,8 +433,7 @@ WHAT-TO-RUN may be nil, meaning just a `racket/base` namespace."
           context-level
           racket-user-command-line-arguments
           (when (and what-to-run (eq context-level 'debug))
-            (racket--debuggable-files (car what-to-run)))
-          racket-retry-as-skeleton)))
+            (racket--debuggable-files (car what-to-run))))))
 
 (defun racket--repl-start (callback)
   "Create a `comint-mode' / `racket-repl-mode' buffer connected to a REPL session.

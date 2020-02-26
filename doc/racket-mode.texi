@@ -166,7 +166,6 @@ General variables
 * racket-command-timeout::
 * racket-memory-limit::
 * racket-error-context::
-* racket-retry-as-skeleton::
 * racket-user-command-line-arguments::
 * racket-path-from-emacs-to-racket-function::
 * racket-path-from-racket-to-emacs-function::
@@ -1223,15 +1222,6 @@ See also @code{racket-run-and-switch-to-repl}, which is even more like
 DrRacket's Run because it selects the REPL window (gives it the
 focus), too.
 
-When @ref{racket-retry-as-skeleton} is true, if your source file has
-an error, a ``skeleton'' of your file is evaluated to get
-identifiers from module languages, require forms, and
-definitions. That way, things like completion and
-@ref{racket-repl-describe} are more likely to work while you edit the
-file to fix the error. If not even the ``skeleton'' evaluation
-succeeds, you'll have only identifiers provided by racket/base,
-until you fix the error and run again.
-
 Output in the Racket REPL buffer that describes a file and
 position is automatically ``linkified''. Examples of such text
 include:
@@ -1957,7 +1947,6 @@ The ``project'' is determined by trying, in order:
 * racket-command-timeout::
 * racket-memory-limit::
 * racket-error-context::
-* racket-retry-as-skeleton::
 * racket-user-command-line-arguments::
 * racket-path-from-emacs-to-racket-function::
 * racket-path-from-racket-to-emacs-function::
@@ -2024,24 +2013,6 @@ Tip: Regardless of this setting, you can enable `high errortrace
 for a specific @ref{racket-run} using a C-u prefix. This lets you
 normally run with a faster setting, and temporarily re-run to get
 a more-helpful error message.
-
-@node racket-retry-as-skeleton
-@subsection racket-retry-as-skeleton
-
-Retry a ``skeleton'' of files with errors, for identifier names?
-
-When true: If your source file has an error, a ``skeleton'' of
-your file is evaluated to get identifiers from module languages,
-@code{require} forms, and definitions. That way, things like
-completion and @ref{racket-repl-describe} are more likely to work
-while you edit the file to fix the error.
-
-Otherwise, you'll have only identifiers provided by
-@code{racket/base}, until you fix the error and run again.
-
-You might want to disable this if you work with files that take a
-very long time to expand --- because this feature needs to expand
-again when there is an error.
 
 @node racket-user-command-line-arguments
 @subsection racket-user-command-line-arguments

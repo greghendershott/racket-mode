@@ -50,7 +50,6 @@
                             racket-command-timeout
                             racket-memory-limit
                             racket-error-context
-                            racket-retry-as-skeleton
                             racket-error-context
                             racket-history-filter-regexp
                             racket-images-inline

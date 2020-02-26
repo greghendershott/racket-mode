@@ -157,7 +157,6 @@
     racket-command-timeout
     racket-memory-limit
     racket-error-context
-    racket-retry-as-skeleton
     racket-user-command-line-arguments
     racket-path-from-emacs-to-racket-function
     racket-path-from-racket-to-emacs-function
