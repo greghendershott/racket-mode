@@ -64,6 +64,7 @@
     racket-xp-documentation
     "Run"
     racket-run
+    racket-run-module-at-point
     racket-repl
     racket-repl-describe
     racket-repl-documentation

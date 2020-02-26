@@ -211,7 +211,7 @@
                             context-level
                             cmd-line-args
                             debug-files
-                            ready-thunk)       cfg)
+                            ready-thunk)   cfg)
   (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
   ;; Always set current-directory and current-load-relative-directory
   ;; to match the source file.
@@ -272,14 +272,21 @@
         (with-expanded-syntax-caching-evaluator maybe-mod
           (when (and maybe-mod mod-path)
             (parameterize ([current-module-name-resolver module-name-resolver-for-run])
-              ;; When exn:fail? during module load, re-run with "empty"
-              ;; module. Note: Unlikely now that we're using
-              ;; dynamic-require/some-namespace.
+              ;; When exn:fail during module load, re-run.
               (define (load-exn-handler exn)
-                (display-exn exn)
+                (define new-mod
+                  (match mod-path
+                    [`(submod ,(== file) main)
+                     (log-racket-mode-debug "~v not found, retry as ~v"
+                                            mod-path (build-path dir file))
+                     (->mod/existing (build-path dir file))]
+                    ;; Else display exn and retry as "empty" REPL.
+                    [_
+                     (display-exn exn)
+                     #f]))
                 (channel-put (current-repl-msg-chan)
-                             (struct-copy run-config cfg [maybe-mod #f]))
-                (sync never-evt))
+                             (struct-copy run-config cfg [maybe-mod new-mod]))
+                (sync never-evt)) ;mananger thread will shutdown custodian
               (with-handlers ([exn? load-exn-handler])
                 (maybe-configure-runtime mod-path) ;FIRST: see #281
                 (current-namespace

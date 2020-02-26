@@ -47,7 +47,7 @@
 (defvar racket-mode-map
   (racket--easy-keymap-define
    '((("C-c C-c"
-       "C-c C-k")   racket-run)
+       "C-c C-k")   racket-run-module-at-point)
      ("C-c C-z"     racket-repl)
      ("<f5>"        racket-run-and-switch-to-repl)
      ("M-C-<f5>"    racket-racket)

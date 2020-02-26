@@ -235,16 +235,16 @@ buffer to run command-line Racket."
 
 ;;;###autoload
 (defun racket-run (&optional prefix)
-  "Save and evaluate the buffer in REPL.
+  "Save the buffer in REPL and run your program.
+
+Runs the `main` submodule, if any, otherwise the file's module.
+See also `racket-run-module-at-point'.
 
 With one C-u prefix, uses errortrace for improved stack traces.
 Otherwise follows the `racket-error-context' setting.
 
 With two C-u prefixes, instruments code for step debugging. See
 `racket-debug-mode' and the variable `racket-debuggable-files'.
-
-If point is within a Racket module form, the REPL \"enters\" that
-submodule (uses its language info and namespace).
 
 When you run again, the file is evaluated from scratch --- the
 custodian releases resources like threads and the evaluation
@@ -268,6 +268,19 @@ include:
 To visit these locations, move point there and press RET or mouse
 click. Or, use the standard `next-error' and `previous-error'
 commands."
+  (interactive "P")
+  (racket--repl-run (list (racket--buffer-file-name) 'main)
+                    (pcase prefix
+                      (`(4)  'high)
+                      (`(16) 'debug)
+                      (_     racket-error-context))))
+
+;;;###autoload
+(defun racket-run-module-at-point (&optional prefix)
+  "Save the buffer and run the moudule at point.
+
+Like `racket-run' but runs the module around point -- either the
+file module, or, a submodule nested at ny depth."
   (interactive "P")
   (racket--repl-run (racket--what-to-run)
                     (pcase prefix

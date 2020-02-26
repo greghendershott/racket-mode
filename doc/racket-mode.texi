@@ -99,6 +99,7 @@ Explore
 Run
 
 * racket-run::
+* racket-run-module-at-point::
 * racket-repl::
 * racket-repl-describe::
 * racket-repl-documentation::
@@ -1183,6 +1184,7 @@ definitions in submodules.
 
 @menu
 * racket-run::
+* racket-run-module-at-point::
 * racket-repl::
 * racket-repl-describe::
 * racket-repl-documentation::
@@ -1198,18 +1200,18 @@ definitions in submodules.
 @node racket-run
 @subsection racket-run
 
-@kbd{C-c C-k}  or @kbd{C-c C-c} 
+@kbd{M-x}  @code{racket-run} @kbd{RET} 
 
-Save and evaluate the buffer in REPL.
+Save the buffer in REPL and run your program.
+
+Runs the @code{main} submodule, if any, otherwise the file's module.
+See also @ref{racket-run-module-at-point}.
 
 With one C-u prefix, uses errortrace for improved stack traces.
 Otherwise follows the @ref{racket-error-context} setting.
 
 With two C-u prefixes, instruments code for step debugging. See
 @ref{racket-debug-mode} and the variable @ref{racket-debuggable-files}.
-
-If point is within a Racket module form, the REPL ``enters'' that
-submodule (uses its language info and namespace).
 
 When you run again, the file is evaluated from scratch --- the
 custodian releases resources like threads and the evaluation
@@ -1238,6 +1240,16 @@ print representation of path objects.
 To visit these locations, move point there and press RET or mouse
 click. Or, use the standard @code{next-error} and @code{previous-error}
 commands.
+
+@node racket-run-module-at-point
+@subsection racket-run-module-at-point
+
+@kbd{C-c C-k}  or @kbd{C-c C-c} 
+
+Save the buffer and run the moudule at point.
+
+Like @ref{racket-run} but runs the module around point -- either the
+file module, or, a submodule nested at ny depth.
 
 @node racket-repl
 @subsection racket-repl
