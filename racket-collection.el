@@ -134,26 +134,18 @@ See also: `racket-visit-module' and `racket-open-require-path'."
       racket--orp/nop))))
 
 (defun racket--orp/process ()
-  "Start process to run find-module-path-completions.rkt.
-
-To do so, prefer `make-process' when available (Emacs 25.1+)
-because we can filter stderr. This helps e.g. when Racket core
-developers insert an eprintf in racket/base.rkt or similar -- see
-issue #345."
+  "Start process to run find-module-path-completions.rkt."
   (let ((name   "racket-find-module-path-completions-process")
         (buffer " *racket-find-module-path-completions*")
         (stderr " *racket-find-module-path-completions-stderr*")
         (rkt    (funcall racket-adjust-run-rkt
                          (expand-file-name "find-module-path-completions.rkt"
                                            racket--rkt-source-dir))))
-    (if (fboundp 'make-process)
-        (make-process :name            name
-                      :buffer          buffer
-                      :command         (list racket-program rkt)
-                      :connection-type 'pipe
-                      :stderr          stderr)
-      (let ((process-connection-type nil)) ;use pipe not tty
-        (start-process name buffer racket-program rkt)))))
+    (make-process :name            name
+                  :buffer          buffer
+                  :command         (list racket-program rkt)
+                  :connection-type 'pipe
+                  :stderr          stderr)))
 
 (defun racket--orp/begin ()
   (setq racket--orp/tq (tq-create (racket--orp/process))))
