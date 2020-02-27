@@ -64,6 +64,7 @@
     racket-xp-documentation
     "Run"
     racket-run
+    racket-run-and-switch-to-repl
     racket-run-module-at-point
     racket-repl
     racket-repl-describe
@@ -317,12 +318,11 @@
                      sym)))))
 
 (defun racket-generate--key-description (xs)
-  "Like `key-description' but escapes some chars for our \"KBD\" texi macro.
-Currently only escapes comma."
+  "Like `key-description' but escapes some chars for our \"KBD\" texi macro."
   (with-temp-buffer
     (insert (key-description xs))
     (goto-char (point-min))
-    (while (re-search-forward (rx ?\,) nil t)
+    (while (re-search-forward (rx (or ?\, ?\`)) nil t)
       (replace-match "\\," t t))
     (buffer-substring-no-properties (point-min) (point-max))))
 

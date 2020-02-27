@@ -191,17 +191,13 @@ server and all REPL sessions."
 
 ;;;###autoload
 (defun racket-repl (&optional noselect)
-  "Show the Racket REPL buffer in some window.
-
-If NOSELECT is not nil, does not also select the REPL window.
+  "Show a Racket REPL buffer in some window.
 
 *IMPORTANT*
 
 The main, intended use of Racket Mode's REPL is that you
 `find-file' some specific .rkt file, then `racket-run' it. The
-REPL will then match that file. Also, various Racket Mode
-features will work, such as completion, visiting definitions, and
-so on.
+REPL will then match that file.
 
 If the REPL isn't running, and you want to start it for no file
 in particular? Then you could use this command. But the resulting
@@ -237,7 +233,7 @@ buffer to run command-line Racket."
 (defun racket-run (&optional prefix)
   "Save the buffer in REPL and run your program.
 
-Runs the `main` submodule, if any, otherwise the file's module.
+Runs the \"main\" submodule, if any, otherwise the file's module.
 See also `racket-run-module-at-point'.
 
 With one C-u prefix, uses errortrace for improved stack traces.
@@ -246,20 +242,23 @@ Otherwise follows the `racket-error-context' setting.
 With two C-u prefixes, instruments code for step debugging. See
 `racket-debug-mode' and the variable `racket-debuggable-files'.
 
-When you run again, the file is evaluated from scratch --- the
-custodian releases resources like threads and the evaluation
-environment is reset to the contents of the file. In other words,
-like DrRacket, this provides the predictability of a \"static\"
-baseline, plus the ability to explore interactively using the
-REPL.
+Each run occurs within a Racket custodian. Any prior run's
+custodian is shut down, releasing resources like threads and
+ports. Each run's evaluation environment is reset to the contents
+of the source file. In other words, like Dr Racket, this provides
+the benefit that your source file is the \"single source of
+truth\". At the same time, the run gives you a REPL inside the
+namespace of the module, giving you the ability to explore it
+interactively. Any explorations are temporary, unless you also
+make them to your source file, they will be lost on the next run.
 
 See also `racket-run-and-switch-to-repl', which is even more like
-DrRacket's Run because it selects the REPL window (gives it the
-focus), too.
+Dr Racket's Run command because it selects the REPL window after
+running.
 
-Output in the Racket REPL buffer that describes a file and
-position is automatically \"linkified\". Examples of such text
-include:
+In the `racket-repl-mode' buffer, output that describes a file
+and position is automatically \"linkified\". Examples of such
+text include:
 
 - Racket error messages.
 - rackunit test failure location messages.
@@ -279,8 +278,9 @@ commands."
 (defun racket-run-module-at-point (&optional prefix)
   "Save the buffer and run the moudule at point.
 
-Like `racket-run' but runs the module around point -- either the
-file module, or, a submodule nested at ny depth."
+Like `racket-run' but runs the innermost module around point.
+This may be a submodule nested at any depth, or the file's
+module."
   (interactive "P")
   (racket--repl-run (racket--what-to-run)
                     (pcase prefix

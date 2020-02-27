@@ -56,11 +56,11 @@ everything. If you find that too \"noisy\", set this to nil.")
      ("M-."       ,#'racket-xp-visit-definition)
      ("C-c C-."   ,#'racket-xp-describe)
      ("C-c C-d"   ,#'racket-xp-documentation)
-     (("C-x `"
-       "M-g n"
-       "M-g M-n") ,#'racket-xp-next-error)
      (("M-g n"
-       "M-g M-n") ,#'racket-xp-previous-error))))
+       "M-g M-n"
+       "C-x `")   ,#'racket-xp-next-error)
+     (("M-g p"
+       "M-g M-p") ,#'racket-xp-previous-error))))
 
 (easy-menu-define racket-xp-mode-menu racket-xp-mode-map
   "Menu for `racket-xp-mode'."
@@ -114,12 +114,12 @@ fully-expanded programs, without needing to evaluate a.k.a.
 
 When point is on a definition or use, related items are
 highlighted using `racket-xp-def-face' and `racket-xp-use-face'
--- instead of drawing arrows as in Dr Racket -- and \"mouse
-over\". Information is displayed using the function(s) in the
-hook variable `racket-show-functions'; it is also available when
-hovering the mouse cursor. Note: If you find these features too
-distracting and/or slow, you may disable `cursor-sensor-mode'.
-The remaining features discussed below will still work.
+-- instead of drawing arrows as in Dr Racket. Information is
+displayed using the function(s) in the hook variable
+`racket-show-functions'; it is also available when hovering the
+mouse cursor. Note: If you find these features too distracting
+and/or slow, you may disable `cursor-sensor-mode'. The remaining
+features discussed below will still work.
 
 You may also use commands to navigate among a definition and its
 uses, or to rename a local definitions and all its uses.
