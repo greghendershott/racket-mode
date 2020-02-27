@@ -309,10 +309,11 @@ TAB, and activate using RET -- for `racket-visit-definition' and
                (lambda ()
                  (browse-url (concat "file://" path "#" anchor))))
               (_
-               (lambda ()
-                 (racket--cmd/async nil
-                                    `(doc ,(buffer-file-name) ,str)
-                                    #'browse-url))))))
+               (let ((bfn (racket--buffer-file-name)))
+                 (lambda ()
+                   (racket--cmd/async nil
+                                      `(doc ,bfn ,str)
+                                      #'browse-url)))))))
        (racket--do-describe how nil str t visit-thunk doc-thunk)))))
 
 (defun racket-xp-eldoc-function ()
