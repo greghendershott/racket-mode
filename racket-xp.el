@@ -662,8 +662,18 @@ won't be found merely from expansion."
     (setq racket--xp-timer
           (run-with-idle-timer racket-xp-after-change-refresh-delay
                                nil      ;no repeat
-                               (racket--restoring-current-buffer
-                                #'racket--xp-annotate)))))
+                               (let ((buf (current-buffer)))
+                                 (lambda ()
+                                   (when (and (equal buf (current-buffer))
+                                              (not (racket--xp-completing-p)))
+                                     (racket--xp-annotate))))))))
+
+(defun racket--xp-completing-p ()
+  "Is completion underway?
+This is ad hoc and forensic."
+  (or (get-buffer-window "*Completions*")
+      (and (boundp 'company-pseudo-tooltip-overlay)
+           company-pseudo-tooltip-overlay)))
 
 (defun racket-xp-annotate ()
   "Request the buffer to be analyzed and annotated.
