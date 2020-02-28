@@ -209,6 +209,10 @@ Handles the thing where 'faces may be a single face or a list of faces."
                  (put-text-property beg end 'face new)))
               ((member old faces)
                (remove-text-properties beg end '(face nil))))
+        ;; When we modified something, ensure the region is
+        ;; re-fontified properly.
+        (when old
+          (font-lock-flush beg end))
         (setq pos end)))))
 
 (provide 'racket-util)
