@@ -15,6 +15,9 @@
 
 (provide check-syntax)
 
+(module+ test
+  (require rackunit))
+
 ;; Note: Instead of using the `show-content` wrapper, we give already
 ;; fully expanded syntax directly to `make-traversal`. Why? Expansion
 ;; can be slow. 1. We need exp stx for other purposes here. Dumb to
@@ -30,7 +33,7 @@
 
 (define (check-syntax path-str code-str)
   (define path (string->path path-str))
-  (parameterize ([error-display-handler our-error-display-handler]
+  (parameterize ([error-display-handler (our-error-display-handler path-str code-str)]
                  [pre-exn-errors '()])
     (with-handlers ([exn:fail? (handle-fail path-str code-str)])
       (with-time/log (~a "total " path-str)
@@ -223,40 +226,99 @@
 ;; something else wanted to report multiple errors, and it used a
 ;; similar approach, we'd handle it here, too.
 (define pre-exn-errors (make-parameter '()))
-(define (our-error-display-handler msg exn)
+(define ((our-error-display-handler path-str code-str) msg exn)
   (when (and (exn:fail:syntax? exn)
              (exn:srclocs? exn))
     (pre-exn-errors (append (pre-exn-errors)
-                            (exn-srclocs->our-list exn)))))
+                            (exn->errors path-str code-str exn)))))
 
 (define ((handle-fail path-str code-str) e)
-  (define (default)
-    (list
-     (list 'error path-str 1 (add1 (string-length code-str)) (exn-message e))))
-  (cons 'check-syntax-errors
-        (cond
-          ;; Multiple errors. See comment above.
-          [(not (null? (pre-exn-errors)))
-           (pre-exn-errors)]
-          ;; A single error, with zero or more locations from least to
-          ;; most specific. This is the intended use of
-          ;; exn:fail:syntax -- not multiple errors.
-          [(exn:srclocs? e)
-           (match (exn-srclocs->our-list e)
-             [(list) (default)] ;can happen with e.g. exn:read:syntax
-             [xs xs])]
-          ;; A single error with no srcloc at all. Although this might
-          ;; happen with arbitrary runtime errors (?), it's unlikely
-          ;; with exn:fail:syntax during expansion.
-          [else (default)])))
+  (cons
+   'check-syntax-errors
+   (cond
+     ;; Multiple errors. See comment above.
+     [(not (null? (pre-exn-errors)))
+      (pre-exn-errors)]
+     ;; The intended use of exn:srclocs is a _single_ error, with zero
+     ;; or more locations from least to most specific -- not multiple
+     ;; errors.
+     [(exn:srclocs? e)
+      (exn->errors path-str code-str e)]
+     ;; A single error with no srcloc at all. Although probably
+     ;; unlikely with exn:fail:syntax during expansion (as opposed to
+     ;; runtime errors) do handle it:
+     [else
+      (default-errors path-str code-str e)])))
 
-(define (exn-srclocs->our-list e)
-  (for/list ([sl (in-list ((exn:srclocs-accessor e) e))])
-    (match sl
-      [(srcloc path _ _ ofs span)
-       (list 'error (path->string path)
-             ofs (+ ofs span)
-             (exn-message e))])))
+(define (exn->errors path-str code-str e)
+  (define (->path-string v)
+    (match v
+      [(? path-string? v) v]
+      [(? path? v)        (path->string v)]))
+  (match ((exn:srclocs-accessor e) e)
+    [(list)
+     (match e
+       ;; exn:fail:syntax and exn:fail:read can have empty srclocs
+       ;; list -- but additional struct member has list of syntaxes
+       ;; from least to most specific. Use the most-specific, only.
+       [(or (exn:fail:syntax msg _marks (list _ ... stx))
+            (exn:fail:read   msg _marks (list _ ... stx)))
+        #:when (not (exn:fail:read:eof? e))
+        (define pos  (syntax-position stx))
+        (define span (syntax-span stx))
+        (cond [(and pos span)
+               (list
+                (list 'error
+                      (->path-string (or (syntax-source stx) path-str))
+                      pos
+                      (+ pos span)
+                      msg))]
+              [else (default-errors path-str code-str e)])]
+       [_ (default-errors path-str code-str e)])]
+    [(list _ ... (? srcloc? most-specific))
+     (match-define (srcloc path _ _ pos span) most-specific)
+     (list
+      (list 'error
+            (->path-string path)
+            pos
+            (+ pos span)
+            (exn-message e)))]
+    [_ (default-errors path-str code-str e)]))
+
+(define (default-errors path-str code-str e)
+  ;; As a fallback, here, we extract position from the exn-message.
+  ;; Unfortunately that's line:col and we need to return beg:end.
+  (define pos (exn-message->pos code-str (exn-message e)))
+  (list
+   (list 'error
+         path-str
+         pos
+         (add1 pos)
+         (exn-message e))))
+
+(define (exn-message->pos code-str msg)
+  (match msg
+    [(pregexp "^.+?:(\\d+)[:.](\\d+): "
+              (list _ (app string->number line) (app string->number col)))
+     (define in (open-input-string code-str))
+     (port-count-lines! in)
+     (let loop ([n 1])
+       (cond [(= n line)                   (+ 1 (file-position in) col)]
+             [(eof-object? (read-line in)) 1]
+             [else                         (loop (add1 n))]))]
+    [_ 1]))
+
+(module+ test
+  (check-equal?
+   (exn-message->pos "12\n4567\n9"
+                     ;      ^
+                     "/path/to/foo.rkt:2:2: some problem")
+   6)
+  (check-equal?
+   (exn-message->pos "012\n4567\n9"
+                     ;       ^
+                     "/path/to/foo.rkt:999:2: some problem")
+   1))
 
 (module+ example
   (require racket/file)
@@ -265,8 +327,7 @@
   (check-file (path->string (syntax-source #'here))))
 
 (module+ test
-  (require rackunit
-           racket/file)
+  (require racket/file)
   (define (check-this-file path)
     (check-not-exn
      (λ ()
