@@ -20,6 +20,7 @@
  ["commands/macro.rkt"        (macro-stepper macro-stepper/next)]
  ["commands/profile.rkt"      (get-profile)]
  ["commands/requires.rkt"     (requires/tidy requires/trim requires/base)]
+ ["commands/module-names.rkt" (module-names)]
  ["find.rkt"                  (find-definition
                                find-definition/drracket-jump)])
 
@@ -111,6 +112,7 @@
     [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
     [`(macro-stepper/next)             (macro-stepper/next)]
     [`(find-collection ,str)           (find-collection str)]
+    [`(module-names)                   (module-names)]
     [`(requires/tidy ,reqs)            (requires/tidy reqs)]
     [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
     [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]

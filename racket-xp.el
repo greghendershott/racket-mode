@@ -82,6 +82,13 @@ everything. If you find that too \"noisy\", set this to nil.")
     "---"
     ["Annotate Now" racket-xp-annotate]))
 
+(defvar-local racket--xp-completions nil
+  "Used by `racket-xp-complete-at-point-bindings'.")
+
+(defvar racket--xp-module-completions nil
+  "Used by `racket-xp-complete-at-point-module-names' and
+  initialized by `racket-xp-mode'.")
+
 ;;;###autoload
 (define-minor-mode racket-xp-mode
   "A minor mode that analyzes expanded code to explain and explore.
@@ -139,7 +146,7 @@ understands the two different imports of \"define\":
     x)
 #+END_SRC
 
-The function `racket-xp-complete-at-point' is added to the
+The function `racket-xp-complete-at-point-bindings' is added to the
 variable `completion-at-point-functions'. Note that in this case,
 it is not smart about submodules; identifiers are assumed to be
 definitions from the file's module or its imports. In addition to
@@ -193,8 +200,15 @@ commands directly to whatever keys you prefer.
                       #'racket-complete-at-point
                       t)
          (add-hook 'completion-at-point-functions
-                   #'racket-xp-complete-at-point
+                   #'racket-xp-complete-at-point-bindings
                    t t)
+         (add-hook 'completion-at-point-functions
+                   #'racket-xp-complete-at-point-module-names
+                   t t)
+         (racket--cmd/async nil
+                            `(module-names)
+                            (lambda (result)
+                              (setq racket--xp-module-completions result)))
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 1)))
         (t
@@ -204,7 +218,10 @@ commands directly to whatever keys you prefer.
                       #'racket--xp-after-change-hook
                       t)
          (remove-hook 'completion-at-point-functions
-                      #'racket-xp-complete-at-point
+                      #'racket-xp-complete-at-point-bindings
+                      t)
+         (remove-hook 'completion-at-point-functions
+                      #'racket-xp-complete-at-point-module-names
                       t)
          (add-hook 'completion-at-point-functions
                    #'racket-complete-at-point
@@ -212,24 +229,35 @@ commands directly to whatever keys you prefer.
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 0)))))
 
-(defvar-local racket--xp-completions nil)
+(defun racket-xp-complete-at-point-bindings ()
+  "A value for the variable `completion-at-point-functions'."
+  (unless (racket--in-require-form-p)
+    (racket--call-with-completion-prefix-positions
+     (lambda (beg end)
+       (list beg
+             end
+             (completion-table-dynamic
+              (lambda (prefix)
+                (all-completions prefix racket--xp-completions)))
+             :predicate          #'identity
+             :exclusive          'no
+             :company-location   (racket--xp-make-company-location-proc)
+             :company-doc-buffer (racket--xp-make-company-doc-buffer-proc))))))
 
-(defun racket-xp-complete-at-point ()
-  "A value for the variable `completion-at-point-functions'.
-
-`racket-xp-mode' adds this in addition to the one set
-by `racket-mode'."
-  (racket--call-with-completion-prefix-positions
-   (lambda (beg end)
-     (list beg
-           end
-           (completion-table-dynamic
-            (lambda (prefix)
-              (all-completions prefix racket--xp-completions)))
-           :predicate          #'identity
-           :exclusive          'no
-           :company-location   (racket--xp-make-company-location-proc)
-           :company-doc-buffer (racket--xp-make-company-doc-buffer-proc)))))
+(defun racket-xp-complete-at-point-module-names ()
+  "A value for the variable `completion-at-point-functions'."
+  (when (racket--in-require-form-p)
+    (racket--call-with-completion-prefix-positions
+     (lambda (beg end)
+       (list beg
+             end
+             (completion-table-dynamic
+              (lambda (prefix)
+                (all-completions prefix racket--xp-module-completions)))
+             :predicate          #'identity
+             :exclusive          'no
+             :company-location   nil
+             :company-doc-buffer nil)))))
 
 (defun racket--xp-make-company-location-proc ()
   (when (racket--cmd-open-p)

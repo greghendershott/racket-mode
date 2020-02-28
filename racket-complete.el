@@ -16,6 +16,8 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'racket-common)
+
 (defun racket--call-with-completion-prefix-positions (proc)
   (let ((beg (save-excursion (skip-syntax-backward "^-()>") (point))))
     (unless (or (eq beg (point-max))
@@ -29,6 +31,21 @@
                (<= (+ beg 2) end) ;prefix at least 2 chars
                (funcall proc beg end))))
         (scan-error nil)))))
+
+(defun racket--in-require-form-p ()
+  (save-excursion
+    (save-match-data
+      (racket--escape-string-or-comment)
+      (let ((done nil)
+            (result nil))
+        (condition-case ()
+            (while (not done)
+              (backward-up-list)
+              (when (looking-at (rx ?\( (or "require" "#%require")))
+                (setq done t)
+                (setq result t)))
+          (scan-error nil))
+        result))))
 
 (provide 'racket-complete)
 
