@@ -1,7 +1,6 @@
 #lang racket/base
 
-(require (for-syntax racket/base
-                     syntax/parse/lib/function-header)
+(require (for-syntax racket/base)
          syntax/stx
          syntax/parse/define
          racket/format
@@ -25,6 +24,7 @@
          log-racket-mode-fatal
          time-apply/log
          with-time/log
+         define-polyfill
          path-has-extension?
          path-replace-extension)
 
@@ -88,12 +88,12 @@
 
 ;;; Path extension for Racket versions < 6.6
 
-(define-simple-macro (define-polyfill (id:id formal:expr ...)
+(define-simple-macro (define-polyfill (id:id arg:expr ...)
                        #:module mod:id
                        body:expr ...+)
   (define id
     (with-handlers ([exn:fail? (λ (_exn)
-                                 (λ (formal ...) body ...))])
+                                 (λ (arg ...) body ...))])
       (dynamic-require 'mod 'id))))
 
 (define-polyfill (path-has-extension? path ext)

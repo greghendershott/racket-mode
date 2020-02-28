@@ -19,7 +19,8 @@
 ;;; devoted to this. For example "HELLO?\n" => "OK\n\n" / "ERROR\n\n".
 ;;; Thereafter the status quo loop.)
 
-(require racket/match)
+(require racket/match
+         "util.rkt")
 
 (module+ main
   (define dir (current-directory)) ;FIXME: Get from command-line
@@ -33,13 +34,12 @@
       (loop)))
   (exit 0))
 
+(define-polyfill (find-module-path-completions dir)
+  #:module drracket/find-module-path-completions
+  (λ (_str) (list)))
 
 (define (init dir)
-  (with-handlers ([exn:fail? (λ _ (λ _ (void)))])
-    ;; (error 'test-error) ;<- un-comment this to exercise failure path
-    (define fmpc (dynamic-require 'drracket/find-module-path-completions
-                                  'find-module-path-completions))
-    (define get (fmpc dir))
-    (λ (str)
-      (for ([x (in-list (get str))])
-        (displayln (path->string (cadr x)))))))
+  (define get (find-module-path-completions dir))
+  (λ (str)
+    (for ([x (in-list (get str))])
+      (displayln (path->string (cadr x))))))

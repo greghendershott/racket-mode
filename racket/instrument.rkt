@@ -8,7 +8,9 @@
          (only-in errortrace/stacktrace
                   stacktrace^
                   stacktrace@
-                  stacktrace-imports^)
+                  stacktrace-imports^
+                  original-stx
+                  expanded-stx)
          racket/format
          racket/match
          racket/unit
@@ -29,15 +31,6 @@
 ;;; Core instrumenting
 
 (define instrumenting-enabled (make-parameter #f))
-
-;; These two parameters added to errortrace/stacktrace circa 6.0. They
-;; help make-st-mark capture the original, unexpanded syntax, which is
-;; nicer to report in a stack trace. Lacking that in older Rackets,
-;; the srcloc is still correct and Emacs next-error will work.
-(define original-stx (with-handlers ([exn:fail? (λ _ (make-parameter #f))])
-                       (dynamic-require 'errortrace/stacktrace 'original-stx)))
-(define expanded-stx (with-handlers ([exn:fail? (λ _ (make-parameter #f))])
-                       (dynamic-require 'errortrace/stacktrace 'expanded-stx)))
 
 (define ((make-instrumented-eval-handler [orig-eval (current-eval)]) orig-exp)
   ;; This is modeled after the one in DrRacket.

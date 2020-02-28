@@ -166,11 +166,11 @@
 
 ;;; find-collection
 
+(define-polyfill (find-collection-dir str)
+  #:module find-collection/find-collection
+  (error 'find-collection-dir
+         "For this to work, you need to `raco pkg install raco-find-collection`"))
+
 (define/contract (find-collection str)
-  (-> path-string? (or/c 'find-collection-not-installed #f (listof string?)))
-  (define fcd (with-handlers ([exn:fail:filesystem:missing-module?
-                               (λ _ (error 'find-collection
-                                           "For this to work, you need to `raco pkg install raco-find-collection`."))])
-                (dynamic-require 'find-collection/find-collection
-                                 'find-collection-dir)))
-  (map path->string (fcd str)))
+  (-> path-string? (listof string?))
+  (map path->string (find-collection-dir str)))
