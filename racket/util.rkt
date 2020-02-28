@@ -1,10 +1,12 @@
 #lang racket/base
 
 (require (for-syntax racket/base
-                     syntax/parse)
+                     syntax/parse/lib/function-header)
          syntax/stx
          syntax/parse/define
-         racket/format)
+         racket/format
+         (only-in racket/path
+                  filename-extension))
 
 (provide display-commented
          with-dynamic-requires
@@ -22,17 +24,17 @@
          log-racket-mode-error
          log-racket-mode-fatal
          time-apply/log
-         with-time/log)
+         with-time/log
+         path-has-extension?
+         path-replace-extension)
 
 (define (display-commented str)
   (eprintf "; ~a\n"
            (regexp-replace* "\n" str "\n; ")))
 
-(define-syntax (with-dynamic-requires stx)
-  (syntax-parse stx
-    [(_ ([lib:id id:id] ...+) body:expr ...+)
-     #'(let ([id (dynamic-require 'lib 'id)] ...)
-         body ...)]))
+(define-simple-macro (with-dynamic-requires ([lib:id id:id] ...+) body ...+)
+  (let ([id (dynamic-require 'lib 'id)] ...)
+    body ...))
 
 (define (string->namespace-syntax str)
   (namespace-syntax-introduce
@@ -54,7 +56,7 @@
 (define-simple-macro (inc! v:id)
   (set! v (add1 v)))
 
-(define-syntax-rule (memq? x xs)
+(define (memq? x xs)
   (and (memq x xs) #t))
 
 ;;; in-syntax: Not defined until Racket 6.3
@@ -83,3 +85,31 @@
 
 (define-simple-macro (with-time/log what e ...+)
   (time-apply/log what (λ () e ...) '()))
+
+;;; Path extension for Racket versions < 6.6
+
+(define-simple-macro (define-polyfill (id:id formal:expr ...)
+                       #:module mod:id
+                       body:expr ...+)
+  (define id
+    (with-handlers ([exn:fail? (λ (_exn)
+                                 (λ (formal ...) body ...))])
+      (dynamic-require 'mod 'id))))
+
+(define-polyfill (path-has-extension? path ext)
+  #:module racket/path
+  (let ([ext (if (string? ext) (string->bytes/utf-8 ext) ext)])
+    (equal? (filename-extension path) ext)))
+
+(define-polyfill (path-replace-extension path ext)
+  #:module racket/path
+  (path-replace-suffix path ext))
+
+(module+ test
+  (require rackunit)
+  (check-true (path-has-extension? "/path/to/foo.EXT" "EXT"))
+  (check-true (path-has-extension? (build-path "/path/to/foo.EXT") "EXT"))
+  (check-equal? (path-replace-extension "/path/to/foo.OLD" ".NEW")
+                (build-path "/path/to/foo.NEW"))
+  (check-equal? (path-replace-extension (build-path "/path/to/foo.OLD") ".NEW")
+                (build-path "/path/to/foo.NEW")))
