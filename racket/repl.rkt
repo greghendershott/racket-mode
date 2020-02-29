@@ -426,6 +426,12 @@
 
 ;;; Output handlers; see issues #381 #397
 
+;; These are plain procedures not parameters. Therefore to reset them
+;; for each user program run, we must call them each time with the
+;; original value. What original value? It suffices to use the value
+;; in effect when this back end starts, i.e. the default
+;; port-xxx-handler.
+
 (define the-default-output-handlers
   (for/hash ([get/set (in-list (list port-write-handler
                                      port-display-handler
