@@ -380,25 +380,18 @@ A more satisfying experience is to use `racket-xp-describe'
 or `racket-repl-describe'."
   (racket--do-eldoc (racket--buffer-file-name) nil))
 
-(defconst racket--xp-overlay-name 'racket-xp-overlay)
+(defun racket--add-overlay (beg end face)
+  (let ((o (make-overlay beg end)))
+    (overlay-put o 'priority 0) ;below other overlays e.g. isearch
+    (overlay-put o 'face face)
+    o))
 
-(defun racket--xp-overlay-p (o)
-  (eq (overlay-get o 'name)
-      racket--xp-overlay-name))
+(defun racket--remove-overlays (beg end face)
+  (remove-overlays beg end 'face face))
 
-(defun racket--highlight (beg end face)
-  (unless (cl-some #'racket--xp-overlay-p
-                   (overlays-in beg end))
-    (let ((o (make-overlay beg end)))
-      (overlay-put o 'name racket--xp-overlay-name)
-      (overlay-put o 'priority 0) ;below other overlays e.g. isearch
-      (overlay-put o 'face face))))
-
-(defun racket--unhighlight (beg end)
-  (remove-overlays beg end 'name racket--xp-overlay-name))
-
-(defun racket--unhighlight-all ()
-  (racket--unhighlight (point-min) (point-max)))
+(defun racket--remove-overlays-in-buffer (&rest faces)
+  (dolist (face faces)
+    (racket--remove-overlays (point-min) (point-max) face)))
 
 (defun racket--xp-cursor-sensor (window old dir)
   (let ((new (window-point window)))
@@ -414,26 +407,27 @@ or `racket-repl-describe'."
                     racket-xp-highlight-imports-p)
             (pcase (get-text-property beg 'racket-xp-use)
               (`(,beg ,end)
-               (racket--highlight beg end racket-xp-def-face)))
+               (racket--add-overlay beg end racket-xp-def-face)))
             (dolist (use uses)
               (pcase use
                 (`(,beg ,end)
-                 (racket--highlight beg end racket-xp-use-face)))))))
+                 (racket--add-overlay beg end racket-xp-use-face)))))))
        (pcase (get-text-property new 'racket-xp-use)
          (`(,def-beg ,def-end)
           (pcase (get-text-property def-beg 'racket-xp-def)
             (`(,kind ,_id ,uses)
              (when (or (eq kind 'local)
                        racket-xp-highlight-imports-p)
-               (racket--highlight def-beg def-end racket-xp-def-face)
+               (racket--add-overlay def-beg def-end racket-xp-def-face)
                (dolist (use uses)
                  (pcase use
                    (`(,beg ,end)
-                    (racket--highlight beg end racket-xp-use-face))))))))))
+                    (racket--add-overlay beg end racket-xp-use-face))))))))))
       ('left
        (when (get-text-property old 'help-echo)
          (racket-show ""))
-       (racket--unhighlight-all)))))
+       (racket--remove-overlays-in-buffer racket-xp-def-face
+                                          racket-xp-use-face)))))
 
 (defun racket-xp-visit-definition (&optional prefix)
   "When point is on a use, go to its definition.
@@ -710,14 +704,18 @@ manually."
          (when (and annotations after-thunk)
            (funcall after-thunk)))
         (`(check-syntax-errors . ,xs)
-         ;; Don't `racket--xp-clear': The old completions and
-         ;; annotations might be helpful to user?
+         ;; Don't do full `racket--xp-clear': The old completions and
+         ;; some old annotations may be helpful to user while editing
+         ;; to correct the error. However do clear things related to
+         ;; previous _errors_.
+         (racket--xp-clear t)
          (racket--xp-insert xs)
          (racket--xp-set-status 'err)))))))
 
 (defun racket--xp-insert (xs)
   "Insert text properties."
   (with-silent-modifications
+    (overlay-recenter (point-max))
     (dolist (x xs)
       (pcase x
         (`(error ,path ,beg ,end ,str)
@@ -729,10 +727,11 @@ manually."
                   'racket-xp-def           nil
                   'racket-xp-use           nil
                   'cursor-sensor-functions nil))
+           (let ((o (racket--add-overlay beg end racket-xp-error-face)))
+             (overlay-put o 'before-string (propertize "✗" 'face '(:inherit error))))
            (add-text-properties
             beg end
-            (list 'face                    racket-xp-error-face
-                  'help-echo               str
+            (list 'help-echo               str
                   'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))))
         (`(info ,beg ,end ,str)
          (add-text-properties
@@ -740,13 +739,13 @@ manually."
           (list 'help-echo               str
                 'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))
          (when (string-equal str "no bound occurrences")
-           (add-face-text-property beg end racket-xp-unused-face)))
+           (racket--add-overlay beg end racket-xp-unused-face)))
         (`(unused-require ,beg ,end)
          (add-text-properties
           beg end
           (list 'help-echo               "unused require"
                 'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))
-         (add-face-text-property beg end racket-xp-unused-face))
+         (racket--add-overlay beg end racket-xp-unused-face))
         (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
          (let ((def-beg (copy-marker def-beg t))
                (def-end (copy-marker def-end t))
@@ -758,7 +757,7 @@ manually."
            (add-text-properties
             (marker-position def-beg)
             (marker-position def-end)
-            (list 'racket-xp-def (list req id uses)
+            (list 'racket-xp-def           (list req id uses)
                   'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))
            (dolist (use uses)
              (pcase-let* ((`(,use-beg ,use-end) use))
@@ -779,21 +778,23 @@ manually."
           beg end
           (list 'racket-xp-doc (list path anchor))))))))
 
-(defun racket--xp-clear ()
+(defun racket--xp-clear (&optional only-errors-p)
   (with-silent-modifications
-    (setq racket--xp-completions nil)
     (racket--xp-clear-errors)
-    (remove-text-properties
-     (point-min) (point-max)
-     (list 'help-echo               nil
-           'racket-xp-def           nil
-           'racket-xp-use           nil
-           'racket-xp-visit         nil
-           'racket-xp-doc           nil
-           'cursor-sensor-functions nil))
-    (racket--remove-face-text-properties (list racket-xp-error-face
-                                               racket-xp-unused-face))
-    (racket--unhighlight-all)))
+    (racket--remove-overlays-in-buffer racket-xp-error-face)
+    (unless only-errors-p
+      (setq racket--xp-completions nil)
+      (racket--remove-overlays-in-buffer racket-xp-def-face
+                                         racket-xp-use-face
+                                         racket-xp-unused-face)
+      (remove-text-properties
+       (point-min) (point-max)
+       (list 'help-echo               nil
+             'racket-xp-def           nil
+             'racket-xp-use           nil
+             'racket-xp-visit         nil
+             'racket-xp-doc           nil
+             'cursor-sensor-functions nil)))))
 
 ;;; Mode line status
 

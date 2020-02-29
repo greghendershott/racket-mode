@@ -177,44 +177,6 @@ backend. Likewise text properties are stripped."
             s))
       sap)))
 
-;;; face text properties
-
-(unless (fboundp 'add-face-text-property)
-  (defun add-face-text-property (beg end prop)
-    "This isn't generally correct but is sufficient for our use in `racket-xp-mode'."
-    (put-text-property beg end
-                       'face
-                       (cons prop
-                             (get-text-property beg 'face)))))
-
-(defun racket--remove-face-text-properties (faces)
-  "Remove specific faces, leaving behind others.
-Handles the thing where 'faces may be a single face or a list of faces."
-  (let ((pos (point-min)))
-    (while (and pos (< pos (point-max)))
-      (let* ((beg (or (and (get-text-property pos 'face) pos)
-                      (next-single-property-change pos 'face nil)))
-             (end (and beg
-                       (next-single-property-change beg 'face nil)))
-             (old (and beg end
-                       (get-text-property beg 'face))))
-        (cond ((not old) nil)
-              ((listp old)
-               (let* ((new (cl-remove-if (lambda (v)
-                                           (member v faces))
-                                         old))
-                      (new (pcase new
-                             (`(,one) one)
-                             (vs      vs))))
-                 (put-text-property beg end 'face new)))
-              ((member old faces)
-               (remove-text-properties beg end '(face nil))))
-        ;; When we modified something, ensure the region is
-        ;; re-fontified properly.
-        (when old
-          (font-lock-flush beg end))
-        (setq pos end)))))
-
 (provide 'racket-util)
 
 ;; racket-util.el ends here
