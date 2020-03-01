@@ -644,23 +644,36 @@ won't be found merely from expansion."
   (interactive)
   (racket--xp-next-error -1 nil))
 
-;;; Update
+;;; Change hook and idle timer
 
-(defvar-local racket--xp-timer nil)
+(defvar-local racket--xp-annotate-idle-timer nil)
 
 (defun racket--xp-after-change-hook (_beg _end _len)
-  (when (timerp racket--xp-timer)
-    (cancel-timer racket--xp-timer))
+  (when (timerp racket--xp-annotate-idle-timer)
+    (cancel-timer racket--xp-annotate-idle-timer))
   (racket--xp-set-status 'outdated)
   (when racket-xp-after-change-refresh-delay
-    (setq racket--xp-timer
-          (run-with-idle-timer racket-xp-after-change-refresh-delay
-                               nil      ;no repeat
-                               (let ((buf (current-buffer)))
-                                 (lambda ()
-                                   (when (and (equal buf (current-buffer))
-                                              (not (racket--xp-completing-p)))
-                                     (racket--xp-annotate))))))))
+    (racket--xp-start-idle-timer (current-buffer))))
+
+(defun racket--xp-start-idle-timer (buffer)
+  (setq racket--xp-annotate-idle-timer
+        (run-with-idle-timer racket-xp-after-change-refresh-delay
+                             nil        ;no repeat
+                             #'racket--xp-on-idle-timer
+                             buffer)))
+
+(defun racket--xp-on-idle-timer (buffer)
+  "Handle after-change-hook => idle-timer expiration.
+If no longer current-buffer, don't annotate at all. Otherwise, if
+we detect some completion process is underway, don't annotate
+now, set timer to check again later. Why? Typically, if the user
+then makes some completion choice, that will edit the buffer,
+causing the after-change-hook to run again, and schedule another
+idle timer. But just in case they don't, we schedule a retry."
+  (when (equal buffer (current-buffer))
+    (if (racket--xp-completing-p)
+        (racket--xp-start-idle-timer buffer)
+      (racket--xp-annotate))))
 
 (defun racket--xp-completing-p ()
   "Is completion underway?
@@ -668,6 +681,8 @@ This is ad hoc and forensic."
   (or (get-buffer-window "*Completions*")
       (and (boundp 'company-pseudo-tooltip-overlay)
            company-pseudo-tooltip-overlay)))
+
+;;; Annotation
 
 (defun racket-xp-annotate ()
   "Request the buffer to be analyzed and annotated.
