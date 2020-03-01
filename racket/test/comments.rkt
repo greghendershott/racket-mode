@@ -1,11 +1,6 @@
 #lang racket/base
 
 (require rackunit)
-(require syntax/macro-testing)
-
-;; proof we have nothing up our sleeve
-(check-exn exn:fail:syntax? (λ () (convert-syntax-error one)))
-(check-exn exn:fail:syntax? (λ () (convert-syntax-error two)))
 
 ;; examples for comment fontification
 

@@ -241,6 +241,38 @@ doesn't really fit that.")
               racket-here-string-face)))
       font-lock-comment-face)))
 
+;;; sexp comment helper machinery from `slime'
+
+(defmacro racket-point-moves-p (&rest body)
+  "Execute BODY and return true if the current buffer's point moved."
+  (declare (indent 0))
+  (let ((pointvar (cl-gensym "point-")))
+    `(let ((,pointvar (point)))
+       (save-current-buffer ,@body)
+       (/= ,pointvar (point)))))
+
+(defun racket-forward-sexp (&optional count)
+  "Like `forward-sexp', but understands sexp comments (#;),
+and skips comments."
+  (dotimes (_i (or count 1))
+    (racket-forward-cruft)
+    (forward-sexp)))
+
+(defun racket-forward-cruft ()
+  "Move forward over whitespace, comments, reader conditionals."
+  (while (racket-point-moves-p (skip-chars-forward " \t\n")
+                               (forward-comment (buffer-size))
+                               (inline (racket-forward-sexp-comment)))))
+
+(defconst racket-sexp-comment-regexp
+  (regexp-opt '("#;")))
+
+(defun racket-forward-sexp-comment ()
+  "Move past datum comments (#;)."
+  (when (looking-at racket-sexp-comment-regexp)
+    (goto-char (match-end 0))
+    (racket-forward-sexp)))
+
 ;;; sexp comments
 
 (defun racket--font-lock-sexp-comments (limit)
@@ -257,7 +289,7 @@ Instead we merely font-lock them to look like comments."
       (ignore-errors
         (let ((md (match-data)))
           (goto-char (match-beginning 2))
-          (forward-sexp 1)
+          (racket-forward-sexp 1)
           (setf (elt md 5) (point))     ;set (match-end 2)
           (set-match-data md)
           t)))))
@@ -295,13 +327,13 @@ similar, it will already be there."
         (save-excursion
           ;; Check for named let
           (when (looking-at (rx (+ space) (+ (or (syntax word) (syntax symbol)))))
-            (forward-sexp 1)
+            (racket-forward-sexp 1)
             (backward-sexp 1)
             (racket--sexp-set-face font-lock-function-name-face))
           ;; Set font-lock-multiline property on entire identifier
           ;; list. Avoids need for font-lock-extend-region function.
           (put-text-property (point)
-                             (save-excursion (forward-sexp 1) (point))
+                             (save-excursion (racket-forward-sexp 1) (point))
                              'font-lock-multiline t)
           (down-list 1) ;to the open paren of the first binding form
           (while (ignore-errors
@@ -312,10 +344,10 @@ similar, it will already be there."
                      (down-list 1)    ;to first id
                      (cl-loop
                       do (racket--sexp-set-face font-lock-variable-name-face)
-                      while (ignore-errors (forward-sexp 1) (backward-sexp 1) t))
+                      while (ignore-errors (racket-forward-sexp 1) (backward-sexp 1) t))
                      (backward-up-list))
                    (backward-up-list) ;to open paren of this binding form
-                   (forward-sexp 1)   ;to open paren of next binding form
+                   (racket-forward-sexp 1)   ;to open paren of next binding form
                    t))))))
   nil)
 
@@ -324,7 +356,7 @@ similar, it will already be there."
 (defun racket--inside-complete-sexp ()
   "Return whether point is inside a complete sexp."
   (condition-case ()
-      (save-excursion (backward-up-list) (forward-sexp 1) t)
+      (save-excursion (backward-up-list) (racket-forward-sexp 1) t)
     (error nil)))
 
 (defun racket--sexp-set-face (face &optional forcep)
@@ -334,7 +366,7 @@ region.
 
 Moves point to the end of the sexp."
   (racket--region-set-face (point)
-                           (progn (forward-sexp 1) (point))
+                           (progn (racket-forward-sexp 1) (point))
                            face
                            forcep))
 
