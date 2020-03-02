@@ -742,8 +742,7 @@ manually."
                   'racket-xp-def           nil
                   'racket-xp-use           nil
                   'cursor-sensor-functions nil))
-           (let ((o (racket--add-overlay beg end racket-xp-error-face)))
-             (overlay-put o 'before-string (propertize "✗" 'face '(:inherit error))))
+           (racket--add-overlay beg end racket-xp-error-face)
            (add-text-properties
             beg end
             (list 'help-echo               str
