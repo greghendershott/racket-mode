@@ -384,7 +384,12 @@ or `racket-repl-describe'."
   (let ((o (make-overlay beg end)))
     (overlay-put o 'priority 0) ;below other overlays e.g. isearch
     (overlay-put o 'face face)
+    (overlay-put o 'modification-hooks (list #'racket--modifying-overlay-deletes-it))
     o))
+
+(defun racket--modifying-overlay-deletes-it (o &rest _)
+  (let ((inhibit-modification-hooks t))
+    (delete-overlay o)))
 
 (defun racket--remove-overlays (beg end face)
   (remove-overlays beg end 'face face))
