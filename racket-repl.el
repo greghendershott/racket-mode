@@ -212,7 +212,7 @@ buffer to run command-line Racket."
   (cl-labels
       ((display-and-maybe-select
         ()
-        (racket--repl-display-buffer-and-move-to-end)
+        (display-buffer racket-repl-buffer-name)
         (unless noselect
           (select-window (get-buffer-window racket-repl-buffer-name t)))))
     (if (racket--repl-live-p)
@@ -428,12 +428,12 @@ be nil which is equivalent to #'ignore.
                     (funcall callback)))))
     (cond ((racket--repl-live-p)
            (racket--cmd/async (racket--repl-session-id) cmd after)
-           (racket--repl-display-buffer-and-move-to-end))
+           (display-buffer racket-repl-buffer-name))
           (t
            (racket--repl-start
             (lambda ()
               (racket--cmd/async (racket--repl-session-id) cmd after)
-              (racket--repl-display-buffer-and-move-to-end)))))))
+              (display-buffer racket-repl-buffer-name)))))))
 
 (defun racket--repl-make-run-command (what-to-run &optional context-level)
   "Form a `run` command sexpr for the backend.
@@ -546,7 +546,7 @@ Before sending the region, calls `racket-repl' and
 mark so that output goes on a fresh line, not on the same line as
 the prompt.
 
-Afterwards call `racket--repl-display-buffer-and-move-to-end'."
+Afterwards displays the buffer in some window."
   (unless (and start end)
     (error "start and end must not be nil"))
   ;; Save the current buffer in case something changes it before we
@@ -563,7 +563,7 @@ Afterwards call `racket--repl-display-buffer-and-move-to-end'."
       (with-current-buffer source-buffer
         (comint-send-region proc start end)
         (comint-send-string proc "\n")))
-    (racket--repl-display-buffer-and-move-to-end)))
+    (display-buffer racket-repl-buffer-name)))
 
 (defun racket-send-region (start end)
   "Send the current region (if any) to the Racket REPL."
@@ -631,14 +631,6 @@ Although they remain clickable they will be ignored by
 
 (add-hook 'racket--repl-before-run-hook #'racket--repl-forget-errors)
 
-(defun racket--repl-display-buffer-and-move-to-end ()
-  "Display the Racket REPL buffer in a window, and move point to end.
-Keep original window selected."
-  (display-buffer racket-repl-buffer-name)
-  (save-selected-window
-    (select-window (get-buffer-window racket-repl-buffer-name t))
-    (comint-show-maximum-output)))
-
 ;;; Inline images in REPL
 
 (defvar racket-image-cache-dir nil)
@@ -662,8 +654,9 @@ images in 'racket-image-cache-dir'."
                          racket-images-keep-last))
     (delete-file file)))
 
-(defun racket-repl--replace-images ()
-  "Replace all image patterns with actual images"
+(defun racket-repl-display-images (_txt)
+  "Replace all image patterns with actual images.
+A value for the variable `comint-output-filter-functions'."
   (with-silent-modifications
     (save-excursion
       (goto-char (point-min))
@@ -694,9 +687,6 @@ With prefix arg, open the N-th last shown image."
                        racket-images-system-viewer
                        (nth (- n 1) images))
       (error "There aren't %d recent images" n))))
-
-(defun racket--repl-normal-output-filter (_txt)
-  (racket-repl--replace-images))
 
 ;;; Completion
 
@@ -933,7 +923,7 @@ instead of looking at point."
   (setq-local comint-input-filter #'racket-repl--input-filter)
   (setq-local completion-at-point-functions (list #'racket-repl-complete-at-point))
   (setq-local eldoc-documentation-function nil)
-  (add-hook 'comint-output-filter-functions #'racket--repl-normal-output-filter nil t)
+  (add-hook 'comint-output-filter-functions #'racket-repl-display-images)
   (compilation-setup t)
   (setq-local
    compilation-error-regexp-alist
