@@ -115,9 +115,9 @@
                         (thread (repl src pos top-mark))))
   ;; The on-break-channel is how we notify the Emacs front-end. This
   ;; is a synchronous channel-put but it should return fairly quickly,
-  ;; as soon as the TCP command server gets and writes it. In other
-  ;; words, this is sent as a notification, unlike a command response
-  ;; as a result of a request.
+  ;; as soon as the command server gets and writes it. In other words,
+  ;; this is sent as a notification, unlike a command response as a
+  ;; result of a request.
   (define this-break-id (new-break-id))
   ;; If it is not possible to round-trip serialize/deserialize the
   ;; values, use the original values when stepping (don't attempt to

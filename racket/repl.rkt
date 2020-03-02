@@ -33,18 +33,20 @@
 (define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
 
 (define-struct/contract session
-  ([thread        thread?]  ;the repl manager thread
-   [repl-msg-chan channel?] ;see repl-message structs
-   [ns            namespace?]
-   [maybe-mod     (or/c #f mod?)]
-   [md5           string?]
-   [submit-pred   (or/c #f drracket:submit-predicate/c)])
+  ([thread           thread?]  ;the repl manager thread
+   [repl-msg-chan    channel?] ;see repl-message structs
+   [interaction-chan channel?]
+   [ns               namespace?]
+   [maybe-mod        (or/c #f mod?)]
+   [md5              string?]
+   [submit-pred      (or/c #f drracket:submit-predicate/c)])
   #:transparent)
 
 (define sessions (make-hash))
 
 (define current-session-id (make-parameter #f))
 (define current-repl-msg-chan (make-parameter #f))
+;current-interaction-chan defined in "interactions.rkt"
 (define current-session-maybe-mod (make-parameter #f))
 (define current-session-md5 (make-parameter #f))
 (define current-session-submit-pred (make-parameter #f))
@@ -105,9 +107,10 @@
 (define (call-with-session-context sid proc . args)
   (log-racket-mode-debug "~v" sessions)
   (match (hash-ref sessions sid #f)
-    [(and (session _thd chan ns maybe-mod md5 submit-pred) s)
+    [(and (session _thd msg-ch int-ch ns maybe-mod md5 submit-pred) s)
      (log-racket-mode-debug "call-with-session-context ~v => ~v" sid s)
-     (parameterize ([current-repl-msg-chan       chan]
+     (parameterize ([current-repl-msg-chan       msg-ch]
+                    [current-interaction-chan    int-ch]
                     [current-namespace           ns]
                     [current-session-id          sid]
                     [current-session-md5         md5]
@@ -189,9 +192,10 @@
                              (begin0 next-session-number
                                (inc! next-session-number))))
   (log-racket-mode-info "start ~v" session-id)
-  (parameterize ([error-display-handler our-error-display-handler]
-                 [current-session-id    session-id]
-                 [current-repl-msg-chan (make-channel)])
+  (parameterize ([error-display-handler    our-error-display-handler]
+                 [current-session-id       session-id]
+                 [current-repl-msg-chan    (make-channel)]
+                 [current-interaction-chan (make-get-interaction)])
     (do-run
      (initial-run-config
       (λ ()
@@ -301,6 +305,7 @@
                    (current-session-id)
                    (session (current-thread)
                             (current-repl-msg-chan)
+                            (current-interaction-chan)
                             (current-namespace)
                             maybe-mod
                             (maybe-mod->md5 maybe-mod)
@@ -315,7 +320,6 @@
         ;; 5. read-eval-print-loop
         (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
                        [current-module-name-resolver module-name-resolver-for-repl])
-          (make-get-interaction)
           ;; Note that read-eval-print-loop catches all non-break
           ;; exceptions.
           (read-eval-print-loop)))
@@ -334,7 +338,7 @@
     (call-with-exception-handler
      (match-lambda
        [(and (or (? exn:break:terminate?) (? exn:break:hang-up?)) e) e]
-       [(exn:break msg marks continue) (break-thread repl-thread) (continue)]
+       [(exn:break _msg _marks continue) (break-thread repl-thread) (continue)]
        [e e])
      (λ () (sync (current-repl-msg-chan)))))
   (match context-level
