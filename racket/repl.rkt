@@ -11,7 +11,6 @@
          "gui.rkt"
          "instrument.rkt"
          "interactions.rkt"
-         "md5.rkt"
          "mod.rkt"
          "print.rkt"
          (only-in "syntax.rkt" with-expanded-syntax-caching-evaluator)
@@ -23,7 +22,6 @@
          exit-repl-session
          current-session-id
          current-session-maybe-mod
-         current-session-md5
          current-session-submit-pred)
 
 ;;; REPL session "housekeeping"
@@ -38,7 +36,6 @@
    [interaction-chan channel?]
    [ns               namespace?]
    [maybe-mod        (or/c #f mod?)]
-   [md5              string?]
    [submit-pred      (or/c #f drracket:submit-predicate/c)])
   #:transparent)
 
@@ -48,7 +45,6 @@
 (define current-repl-msg-chan (make-parameter #f))
 ;current-interaction-chan defined in "interactions.rkt"
 (define current-session-maybe-mod (make-parameter #f))
-(define current-session-md5 (make-parameter #f))
 (define current-session-submit-pred (make-parameter #f))
 
 ;;; Messages to each repl manager thread
@@ -107,13 +103,12 @@
 (define (call-with-session-context sid proc . args)
   (log-racket-mode-debug "~v" sessions)
   (match (hash-ref sessions sid #f)
-    [(and (session _thd msg-ch int-ch ns maybe-mod md5 submit-pred) s)
+    [(and (session _thd msg-ch int-ch ns maybe-mod submit-pred) s)
      (log-racket-mode-debug "call-with-session-context ~v => ~v" sid s)
      (parameterize ([current-repl-msg-chan       msg-ch]
                     [current-interaction-chan    int-ch]
                     [current-namespace           ns]
                     [current-session-id          sid]
-                    [current-session-md5         md5]
                     [current-session-maybe-mod   maybe-mod]
                     [current-session-submit-pred submit-pred])
        (apply proc args))]
@@ -290,7 +285,7 @@
                      #f]))
                 (channel-put (current-repl-msg-chan)
                              (struct-copy run-config cfg [maybe-mod new-mod]))
-                (sync never-evt)) ;mananger thread will shutdown custodian
+                (sync never-evt)) ;manager thread will shutdown custodian
               (with-handlers ([exn? load-exn-handler])
                 (maybe-configure-runtime mod-path) ;FIRST: see #281
                 (current-namespace
@@ -308,7 +303,6 @@
                             (current-interaction-chan)
                             (current-namespace)
                             maybe-mod
-                            (maybe-mod->md5 maybe-mod)
                             (get-repl-submit-predicate maybe-mod)))
         (log-racket-mode-debug "sessions: ~v" sessions)
         ;; 4. Now that the program has run, and `sessions` is updated,
@@ -356,12 +350,6 @@
   (begin0 (get-interaction (maybe-mod->prompt-string m))
     ;; let debug-instrumented code break again
     (next-break 'all)))
-
-(define (maybe-mod->md5 m)
-  (define-values (dir file _) (maybe-mod->dir/file/rmp m))
-  (if (and dir file)
-      (file->md5 (build-path dir file))
-      ""))
 
 ;; <https://docs.racket-lang.org/tools/lang-languages-customization.html#(part._.R.E.P.L_.Submit_.Predicate)>
 (define/contract (get-repl-submit-predicate m)

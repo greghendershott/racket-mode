@@ -130,7 +130,7 @@
     ;; now?
     [`(run ,what ,mem ,pp? ,ctx ,args ,dbg)
      (run what mem pp? ctx args dbg)]
-    [`(path+md5)                       (cons (or path 'top) (current-session-md5))]
+    [`(path)                           (or path 'top)]
     [`(syms)                           (syms)]
     [`(mod ,sym)                       (find-module sym (current-session-maybe-mod))]
     [`(get-profile)                    (get-profile)]

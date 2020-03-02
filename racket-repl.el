@@ -495,28 +495,13 @@ This does not display the buffer or change the selected window."
 
 ;;; Misc
 
-(defun racket--repl-file-name+md5 ()
-  "Return the file and MD5 running in the REPL, or nil.
-
-The result can be nil if the REPL is not started, or if it is
-running no particular file as with the `,top` command."
-  (when (comint-check-proc racket-repl-buffer-name)
-    (pcase (racket--cmd/await (racket--repl-session-id)
-                              `(path+md5))
-      (`(,(and (pred stringp) path) . ,md5)
-       (cons (funcall racket-path-from-racket-to-emacs-function path)
-             md5))
-      (_ nil))))
-
 (defun racket-repl-file-name ()
   "Return the file running in the REPL, or nil.
 
 The result can be nil if the REPL is not started, or if it is
 running no particular file."
   (when (comint-check-proc racket-repl-buffer-name)
-    (pcase (racket--repl-file-name+md5)
-      (`(,(and (pred stringp) path) . ,_md5) path)
-      (_ nil))))
+    (racket--cmd/await (racket--repl-session-id) `(path))))
 
 (defun racket--in-repl-or-its-file-p ()
   "Is current-buffer `racket-repl-mode' or buffer for file active in it?"
