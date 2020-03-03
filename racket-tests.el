@@ -87,23 +87,22 @@
                racket-tests/see-forward))
   (put sym 'ert-explainer #'racket-tests/explain-see))
 
-(defun racket-tests/next-free-port ()
-  ;; (1+ racket-command-port) is used by the logging server so skip
-  ;; that, too!
-  (+ racket-command-port 2))
+(defun racket-tests/call-with-back-end-settings (thunk)
+  (let ((racket-command-port (+ racket-command-port 2)) ;skip default cmd & logger ports
+        (racket-command-timeout racket-tests/timeout))
+    (funcall thunk)))
 
-(defun racket-tests/wait-for-command-server ()
-  (racket-tests/eventually (racket--cmd-open-p)))
+(defmacro racket-tests/with-back-end-settings (&rest body)
+  (declare (indent 0) (debug t))
+  `(racket-tests/call-with-back-end-settings (lambda () ,@body)))
 
 ;;; REPL
 
 (ert-deftest racket-tests/repl ()
   "Start/exercise/stop REPL without any racket-run."
   (message "racket-tests/repl")
-  (let ((racket-command-port (racket-tests/next-free-port))
-        (racket-command-timeout racket-tests/timeout))
+  (racket-tests/with-back-end-settings
     (racket-repl)
-    (should (racket-tests/eventually (racket--cmd-open-p)))
     (should (racket-tests/eventually (get-buffer racket-repl-buffer-name)))
     (should (racket-tests/eventually (racket--repl-live-p)))
     (with-racket-repl-buffer
@@ -153,111 +152,108 @@
 (ert-deftest racket-tests/run ()
   "Start the REPL via a racket-run command."
   (message "racket-tests/run")
-  (let* ((racket-command-port (racket-tests/next-free-port))
-         (racket-command-timeout racket-tests/timeout)
-         (pathname (make-temp-file "test" nil ".rkt"))
-         (name     (file-name-nondirectory pathname))
-         (code "#lang racket/base\n(define foobar 42)\nfoobar\n"))
-    (write-region code nil pathname nil 'no-wrote-file-message)
-    (find-file pathname)
-    (racket-run)
-    (should (racket-tests/eventually (get-buffer racket-repl-buffer-name)))
-    (should (racket-tests/eventually (racket--repl-live-p)))
-    (with-racket-repl-buffer
-      (should (racket-tests/see-back (concat "\n" name "> ")))
-      (racket-repl-exit)
-      (should (racket-tests/see-back
-               "Process *Racket REPL* connection broken by remote peer\n"))
-      (kill-buffer))
-    (kill-buffer)
-    (delete-file pathname)))
+  (racket-tests/with-back-end-settings
+    (let* ((pathname (make-temp-file "test" nil ".rkt"))
+           (name     (file-name-nondirectory pathname))
+           (code "#lang racket/base\n(define foobar 42)\nfoobar\n"))
+      (write-region code nil pathname nil 'no-wrote-file-message)
+      (find-file pathname)
+      (racket-run)
+      (should (racket-tests/eventually (get-buffer racket-repl-buffer-name)))
+      (should (racket-tests/eventually (racket--repl-live-p)))
+      (with-racket-repl-buffer
+        (should (racket-tests/see-back (concat "\n" name "> ")))
+        (racket-repl-exit)
+        (should (racket-tests/see-back
+                 "Process *Racket REPL* connection broken by remote peer\n"))
+        (kill-buffer))
+      (kill-buffer)
+      (delete-file pathname))))
 
 ;;; racket-xp-mode
 
 (ert-deftest racket-tests/xp ()
   (message "racket-tests/xp")
-  (let* ((racket-command-port (racket-tests/next-free-port))
-         (racket-command-timeout racket-tests/timeout)
-         (pathname (make-temp-file "test" nil ".rkt"))
-         (name     (file-name-nondirectory pathname))
-         (code     "#lang racket/base\n(define foobar 42)\nfoobar\n"))
-    (write-region code nil pathname nil 'no-wrote-file-message)
-    (find-file pathname)
-    ;; In case running test interactively in Emacs where the config
-    ;; loads `racket-xp-mode' automatically, disable it first.
-    (racket-xp-mode 0)
-    (racket-xp-mode 1)
-    (should racket-xp-mode)
-    (should (racket-tests/eventually
-             (goto-char (point-min))
-             (racket-xp-next-definition)
-             (racket-tests/see-forward "racket/base")))
-    (racket-xp-next-definition)
-    (should (racket-tests/see-forward "foobar"))
-    (should (equal (get-text-property (point) 'help-echo) "1 bound occurrence"))
-    (racket-xp-next-use)
-    (should (racket-tests/see-forward "foobar"))
-    (should (equal (get-text-property (point) 'help-echo) "Defined locally"))
-    (goto-char (point-max))
-    (insert "foo")
-    (completion-at-point)
-    (should (racket-tests/see-back "foobar"))
-    (racket-xp-mode 0)
-    (kill-buffer)
-    (delete-file pathname)))
+  (racket-tests/with-back-end-settings
+    (let* ((pathname (make-temp-file "test" nil ".rkt"))
+           (name     (file-name-nondirectory pathname))
+           (code     "#lang racket/base\n(define foobar 42)\nfoobar\n"))
+      (write-region code nil pathname nil 'no-wrote-file-message)
+      (find-file pathname)
+      ;; In case running test interactively in Emacs where the config
+      ;; loads `racket-xp-mode' automatically, disable it first.
+      (racket-xp-mode 0)
+      (racket-xp-mode 1)
+      (should racket-xp-mode)
+      (should (racket-tests/eventually
+               (goto-char (point-min))
+               (racket-xp-next-definition)
+               (racket-tests/see-forward "racket/base")))
+      (racket-xp-next-definition)
+      (should (racket-tests/see-forward "foobar"))
+      (should (equal (get-text-property (point) 'help-echo) "1 bound occurrence"))
+      (racket-xp-next-use)
+      (should (racket-tests/see-forward "foobar"))
+      (should (equal (get-text-property (point) 'help-echo) "Defined locally"))
+      (goto-char (point-max))
+      (insert "foo")
+      (completion-at-point)
+      (should (racket-tests/see-back "foobar"))
+      (racket-xp-mode 0)
+      (kill-buffer)
+      (delete-file pathname))))
 
 ;;; Debugger
 
 (ert-deftest racket-tests/debugger ()
   (message "racket-tests/debugger")
-  (let* ((racket-command-port (racket-tests/next-free-port))
-         (racket-command-timeout racket-tests/timeout)
-         (pathname (make-temp-file "test" nil ".rkt"))
-         (name     (file-name-nondirectory pathname))
-         (code     "#lang racket/base\n(define (f x) (+ 1 x))\n(f 41)\n"))
-    (write-region code nil pathname nil 'no-wrote-file-message)
-    (find-file pathname)
-    (should (eq major-mode 'racket-mode))
-    (racket-run `(16))
-    (should (racket-tests/eventually (get-buffer racket-repl-buffer-name)))
-    (should (racket-tests/eventually (racket--repl-live-p)))
-    (should (racket-tests/eventually racket-debug-mode))
+  (racket-tests/with-back-end-settings
+    (let* ((pathname (make-temp-file "test" nil ".rkt"))
+           (name     (file-name-nondirectory pathname))
+           (code     "#lang racket/base\n(define (f x) (+ 1 x))\n(f 41)\n"))
+      (write-region code nil pathname nil 'no-wrote-file-message)
+      (find-file pathname)
+      (should (eq major-mode 'racket-mode))
+      (racket-run `(16))
+      (should (racket-tests/eventually (get-buffer racket-repl-buffer-name)))
+      (should (racket-tests/eventually (racket--repl-live-p)))
+      (should (racket-tests/eventually racket-debug-mode))
 
-    (with-racket-repl-buffer
-      (should (racket-tests/see-back (concat "\n[" name ":42]> ")))) ;debugger prompt
-    (should (racket-tests/see-char-property (point) 'face
-                                            racket-debug-break-face))
+      (with-racket-repl-buffer
+        (should (racket-tests/see-back (concat "\n[" name ":42]> ")))) ;debugger prompt
+      (should (racket-tests/see-char-property (point) 'face
+                                              racket-debug-break-face))
 
-    (racket-debug-step)
-    (with-racket-repl-buffer
-      (should (racket-tests/see-back (concat "\n[" name ":33]> "))))
-    (should (racket-tests/see-char-property (point) 'face
-                                            racket-debug-break-face))
-    (should (racket-tests/see-char-property  (- (point) 3) 'after-string
-                                             (propertize "41" 'face racket-debug-locals-face)))
+      (racket-debug-step)
+      (with-racket-repl-buffer
+        (should (racket-tests/see-back (concat "\n[" name ":33]> "))))
+      (should (racket-tests/see-char-property (point) 'face
+                                              racket-debug-break-face))
+      (should (racket-tests/see-char-property  (- (point) 3) 'after-string
+                                               (propertize "41" 'face racket-debug-locals-face)))
 
-    (racket-debug-step)
-    (with-racket-repl-buffer
-      (should (racket-tests/see-back (concat "\n[" name ":47]> "))))
-    (should (racket-tests/see-char-property  (point) 'after-string
-                                             (propertize "⇒ (values 42)" 'face racket-debug-result-face)))
+      (racket-debug-step)
+      (with-racket-repl-buffer
+        (should (racket-tests/see-back (concat "\n[" name ":47]> "))))
+      (should (racket-tests/see-char-property  (point) 'after-string
+                                               (propertize "⇒ (values 42)" 'face racket-debug-result-face)))
 
-    (racket-debug-step) ;no more debug breaks left
-    (with-racket-repl-buffer
-      (should (racket-tests/see-back (concat "\n" name "> "))))
-    (should-not (racket-tests/see-char-property (point) 'after-string
-                                                racket-debug-break-face))
-    (should (racket-tests/see-char-property (point) 'after-string
-                                            nil))
-    (should-not racket-debug-mode)
-    (with-racket-repl-buffer
-      (racket-repl-exit)
-      (should (racket-tests/see-back
-               "Process *Racket REPL* connection broken by remote peer\n"))
-      (kill-buffer))
+      (racket-debug-step)               ;no more debug breaks left
+      (with-racket-repl-buffer
+        (should (racket-tests/see-back (concat "\n" name "> "))))
+      (should-not (racket-tests/see-char-property (point) 'after-string
+                                                  racket-debug-break-face))
+      (should (racket-tests/see-char-property (point) 'after-string
+                                              nil))
+      (should-not racket-debug-mode)
+      (with-racket-repl-buffer
+        (racket-repl-exit)
+        (should (racket-tests/see-back
+                 "Process *Racket REPL* connection broken by remote peer\n"))
+        (kill-buffer))
 
-    (kill-buffer)
-    (delete-file pathname)))
+      (kill-buffer)
+      (delete-file pathname))))
 
 
 ;;; Indentation
