@@ -82,12 +82,12 @@ everything. If you find that too \"noisy\", set this to nil.")
     "---"
     ["Annotate Now" racket-xp-annotate]))
 
-(defvar-local racket--xp-completions nil
-  "Used by `racket-xp-complete-at-point-bindings'.")
+(defvar-local racket--xp-binding-completions nil
+  "Used by `racket-xp-complete-at-point")
 
 (defvar racket--xp-module-completions nil
-  "Used by `racket-xp-complete-at-point-module-names' and
-  initialized by `racket-xp-mode'.")
+  "Used by `racket-xp-complete-at-point and initialized by
+  `racket-xp-mode'.")
 
 ;;;###autoload
 (define-minor-mode racket-xp-mode
@@ -200,10 +200,7 @@ commands directly to whatever keys you prefer.
                       #'racket-complete-at-point
                       t)
          (add-hook 'completion-at-point-functions
-                   #'racket-xp-complete-at-point-bindings
-                   t t)
-         (add-hook 'completion-at-point-functions
-                   #'racket-xp-complete-at-point-module-names
+                   #'racket-xp-complete-at-point
                    t t)
          (racket--cmd/async nil
                             `(module-names)
@@ -218,10 +215,7 @@ commands directly to whatever keys you prefer.
                       #'racket--xp-after-change-hook
                       t)
          (remove-hook 'completion-at-point-functions
-                      #'racket-xp-complete-at-point-bindings
-                      t)
-         (remove-hook 'completion-at-point-functions
-                      #'racket-xp-complete-at-point-module-names
+                      #'racket-xp-complete-at-point
                       t)
          (add-hook 'completion-at-point-functions
                    #'racket-complete-at-point
@@ -229,45 +223,71 @@ commands directly to whatever keys you prefer.
          (when (fboundp 'cursor-sensor-mode)
            (cursor-sensor-mode 0)))))
 
-(defun racket-xp-complete-at-point-bindings ()
-  "A value for the variable `completion-at-point-functions'."
-  (unless (racket--in-require-form-p)
-    (racket--call-with-completion-prefix-positions
-     (lambda (beg end)
-       (list beg
-             end
-             (completion-table-dynamic
-              (lambda (prefix)
-                (all-completions prefix racket--xp-completions)))
-             :predicate          #'identity
-             :exclusive          'no
-             :company-location   (racket--xp-make-company-location-proc)
-             :company-doc-buffer (racket--xp-make-company-doc-buffer-proc))))))
-
-(defun racket-xp-complete-at-point-module-names ()
+(defun racket-xp-complete-at-point ()
   "A value for the variable `completion-at-point-functions'.
 
-Candidates are both absolute module paths like \"racket/path\"
-and relative paths like \"main.rkt\".
+- Within a textually apparent \"require\" form, when completing:
 
-Caveat: This does /not/ attempt to supply require subforms like
-\"only-in\" as candidates -- much less understand their syntax
-and know which kind of candidates to propose, where."
-  (when (racket--in-require-form-p)
-    (or (racket--call-with-completion-prefix-positions
-         (lambda (beg end)
-           (list beg
-                 end
-                 (completion-table-dynamic
-                  (lambda (prefix)
-                    (all-completions prefix racket--xp-module-completions)))
-                 :exclusive 'no)))
-        (pcase (thing-at-point 'filename t)
-          ((and (pred stringp) str)
-           (list (beginning-of-thing 'filename)
-                 (end-of-thing 'filename)
-                 (completion-file-name-table str #'file-exists-p t)
-                 :exclusive 'no ))))))
+  - A symbol immediately after an opening paren: Candidates are
+    names of require transformers.
+
+  - Another symbol: Candidates are absolute module paths like
+    \"racket/path\".
+
+  - Anything `thing-at-point' thinks is a filename: Candidates
+    are from `completion-file-name-table'.
+
+- Otherwise, when completing a symbol: Candidates are bindings as
+  found by drracket/checks-syntax plus our own back end analysis
+  of imported bindings."
+  (cond ((racket--in-require-form-p)
+         (or (racket--call-with-completion-prefix-positions
+              (lambda (beg end)
+                (if (eq ?\( (char-syntax (char-before beg)))
+                    (racket--xp-capf-require-transformers beg end)
+                  (racket--xp-capf-absolute-module-paths beg end))))
+             (racket--xp-capf-relative-module-paths)))
+        (t
+         (racket--call-with-completion-prefix-positions
+          #'racket--xp-capf-bindings))))
+
+(defun racket--xp-capf-bindings (beg end)
+  (list beg
+        end
+        (completion-table-dynamic
+         (lambda (prefix)
+           (all-completions prefix racket--xp-binding-completions)))
+        :predicate          #'identity
+        :exclusive          'no
+        :company-location   (racket--xp-make-company-location-proc)
+        :company-doc-buffer (racket--xp-make-company-doc-buffer-proc)))
+
+(defun racket--xp-capf-require-transformers (beg end)
+  "Note: Currently this returns too many candidates -- all
+available bindings, not just those that are require transformers.
+Although not ideal, I think it's less-worse than having some
+hardwired list of require transformers. In general with
+completion candidates, if you have to err, better to err on the
+side of too many not too few. Having said that, someday maybe our
+back end could give us the exact subset of available bindings
+that are require transformers."
+  (racket--xp-capf-bindings beg end))
+
+(defun racket--xp-capf-absolute-module-paths (beg end)
+  (list beg
+        end
+        (completion-table-dynamic
+         (lambda (prefix)
+           (all-completions prefix racket--xp-module-completions)))
+        :exclusive 'no))
+
+(defun racket--xp-capf-relative-module-paths ()
+  (pcase (thing-at-point 'filename t)
+    ((and (pred stringp) str)
+     (list (beginning-of-thing 'filename)
+           (end-of-thing 'filename)
+           (completion-file-name-table str #'file-exists-p t)
+           :exclusive 'no ))))
 
 (defun racket--xp-make-company-location-proc ()
   (when (racket--cmd-open-p)
@@ -311,7 +331,7 @@ TAB, and activate using RET -- for `racket-visit-definition' and
 `racket-doc'."
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
-                                            racket--xp-completions)
+                                            racket--xp-binding-completions)
     ((and (pred stringp) str)
      ;; When there is a racket-xp-doc property, use its path
      ;; and anchor, because that will be correct even for an
@@ -455,7 +475,7 @@ definitions in submodules."
   (interactive "P")
   (if prefix
       (pcase (racket--symbol-at-point-or-prompt t "Visit definition of: "
-                                                racket--xp-completions)
+                                                racket--xp-binding-completions)
         ((and (pred stringp) str)
          (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str))))
     (or (pcase (get-text-property (point) 'racket-xp-use)
@@ -481,7 +501,7 @@ definitions in submodules."
               ;; found" message -- but that's better UX than nothing at
               ;; all happening.
               (pcase (racket--symbol-at-point-or-prompt nil "Visit definition of: "
-                                                        racket--xp-completions)
+                                                        racket--xp-binding-completions)
                 ((and (pred stringp) str)
                  (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str)))))))))))
 
@@ -501,7 +521,7 @@ definitions in submodules."
      (browse-url (concat "file://" path "#" anchor)))
     (_
      (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: "
-                                               racket--xp-completions)
+                                               racket--xp-binding-completions)
        ((and (pred stringp) str)
         (racket--cmd/async nil
                            `(doc ,(buffer-file-name) ,str)
@@ -730,7 +750,7 @@ manually."
            (completions . ,completions)
            (annotations . ,annotations))
          (racket--xp-clear)
-         (setq racket--xp-completions completions)
+         (setq racket--xp-binding-completions completions)
          (racket--xp-insert annotations)
          (racket--xp-set-status 'ok)
          (when (and annotations after-thunk)
@@ -814,7 +834,7 @@ manually."
     (racket--xp-clear-errors)
     (racket--remove-overlays-in-buffer racket-xp-error-face)
     (unless only-errors-p
-      (setq racket--xp-completions nil)
+      (setq racket--xp-binding-completions nil)
       (racket--remove-overlays-in-buffer racket-xp-def-face
                                          racket-xp-use-face
                                          racket-xp-unused-face)
