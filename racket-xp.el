@@ -245,19 +245,29 @@ commands directly to whatever keys you prefer.
              :company-doc-buffer (racket--xp-make-company-doc-buffer-proc))))))
 
 (defun racket-xp-complete-at-point-module-names ()
-  "A value for the variable `completion-at-point-functions'."
+  "A value for the variable `completion-at-point-functions'.
+
+Candidates are both absolute module paths like \"racket/path\"
+and relative paths like \"main.rkt\".
+
+Caveat: This does /not/ attempt to supply require subforms like
+\"only-in\" as candidates -- much less understand their syntax
+and know which kind of candidates to propose, where."
   (when (racket--in-require-form-p)
-    (racket--call-with-completion-prefix-positions
-     (lambda (beg end)
-       (list beg
-             end
-             (completion-table-dynamic
-              (lambda (prefix)
-                (all-completions prefix racket--xp-module-completions)))
-             :predicate          #'identity
-             :exclusive          'no
-             :company-location   nil
-             :company-doc-buffer nil)))))
+    (or (racket--call-with-completion-prefix-positions
+         (lambda (beg end)
+           (list beg
+                 end
+                 (completion-table-dynamic
+                  (lambda (prefix)
+                    (all-completions prefix racket--xp-module-completions)))
+                 :exclusive 'no)))
+        (pcase (thing-at-point 'filename t)
+          ((and (pred stringp) str)
+           (list (beginning-of-thing 'filename)
+                 (end-of-thing 'filename)
+                 (completion-file-name-table str #'file-exists-p t)
+                 :exclusive 'no ))))))
 
 (defun racket--xp-make-company-location-proc ()
   (when (racket--cmd-open-p)
