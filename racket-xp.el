@@ -323,11 +323,13 @@ TAB, and activate using RET -- for `racket-visit-definition' and
                   (_                (racket--buffer-file-name))))
            ;; These two thunks are effectively lazy
            ;; `racket-xp-visit-definition' and
-           ;; `racket-xp-documentation' using values captured from the
-           ;; racket-mode buffer now. They are used if/when the user
-           ;; "clicks" a "button" in the Describe buffer. By the time
-           ;; that happens, this racket-mode buffer might no longer
-           ;; exist. Even if it exists, point may have changed.
+           ;; `racket-xp-documentation'. The thunks might be called
+           ;; later, if/when the user "clicks" a "button" in the
+           ;; `racket-describe-mode' buffer. By the time that happens,
+           ;; this `racket-mode' buffer might no longer exist. Even if
+           ;; it exists, point may have changed. That's why it is
+           ;; important to capture values from the `racket-mode'
+           ;; buffer, now.
            (visit-thunk
             (pcase (get-text-property (point) 'racket-xp-visit)
               (`(,path ,subs ,ids)
