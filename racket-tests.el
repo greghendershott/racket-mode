@@ -150,42 +150,40 @@
 ;;; Multi REPLs
 
 (ert-deftest racket-test/unique-repls ()
+  "Excercise one unique REPL per racket-mode buffer.
+Create file a.rkt with (define a \"a\") -- and so on for b.rkt,
+c.rkt. Visit each file, racket-run, and check as expected."
   (message "racket-test/unique-repls")
   (racket-tests/with-back-end-settings
-    ;; Configure to use one unique REPL per racket-mode buffer. Create
-    ;; several files, that simply define a variable with the file base
-    ;; name and whose value is a string of that same name. racket-run
-    ;; and see if all is as expected.
-    (let* ((racket-repl-buffer-name-function #'racket-repl-buffer-name-unique)
-           (names '("a" "b" "c"))
-           (rkt-buffers (dolist (name names)
-                          (let ((file (make-temp-file name nil ".rkt")))
-                            (write-region
-                             (format "#lang racket/base\n(define %s \"%s\")\n"
-                                     name name)
-                             nil file nil 'no-wrote-file-message)
-                            (find-file file)
-                            (current-buffer)))))
-      (dolist (rkt-buffer rkt-buffers)
-        (let* ((var (with-current-buffer rkt-buffer
-                      (goto-char 27)
-                      (buffer-substring-no-properties (point) (1+ (point)))))
-               (val (concat ?\" var ?\")))
-          (with-current-buffer rkt-buffer
-            (should (equal racket-repl-buffer-name
-                           (racket-repl-buffer-name-unique)))
-            (racket-run))
-          (with-racket-repl-buffer
-            (should (equal (buffer-name)
-                           (with-current-buffer rkt-buffer
+   (let* ((racket-repl-buffer-name-function #'racket-repl-buffer-name-unique)
+          (names '("a" "b" "c"))
+          (rkt-buffers (dolist (name names)
+                         (let ((file (make-temp-file name nil ".rkt"))
+                               (code (format "#lang racket/base\n(define %s \"%s\")\n"
+                                             name name)))
+                           (write-region code nil file nil 'no-wrote-file-message)
+                           (find-file file)
+                           (current-buffer)))))
+     (dolist (rkt-buffer rkt-buffers)
+       (let* ((var (with-current-buffer rkt-buffer
+                     (goto-char 27)
+                     (buffer-substring-no-properties (point) (1+ (point)))))
+              (val (concat ?\" var ?\")))
+         (with-current-buffer rkt-buffer
+           (should (equal racket-repl-buffer-name
+                          (racket-repl-buffer-name-unique)))
+           (racket-run))
+         (with-racket-repl-buffer
+           (should (equal (buffer-name)
+                          (with-current-buffer rkt-buffer
                             (racket-repl-buffer-name-unique))))
-            (racket-tests/type&press var "RET")
-            (should (racket-tests/see-back (concat val
-                                                   ?\n
-                                                   var ".rkt> ")))
-            (kill-buffer)))
-        (delete-file (buffer-file-name))
-        (kill-buffer)))))
+           (racket-tests/type&press var "RET")
+           (should (racket-tests/see-back (concat val
+                                                  ?\n
+                                                  var ".rkt> ")))
+           (kill-buffer)))
+       (delete-file (buffer-file-name))
+       (kill-buffer)))))
 
 ;;; Run
 
