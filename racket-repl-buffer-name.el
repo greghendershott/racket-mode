@@ -16,7 +16,6 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
-(require 'cl-extra)
 (require 'racket-custom)
 (require 'racket-repl)
 (require 'racket-util)
@@ -35,7 +34,7 @@ A value for the variable `racket-repl-buffer-name-function'."
 
 A value for the variable `racket-repl-buffer-name-function'."
   (interactive)
-  (let ((name (concat "*Racket REPL: " (racket--buffer-file-name) "*")))
+  (let ((name (format "*Racket REPL <%s>*" (racket--buffer-file-name))))
     (setq-local racket-repl-buffer-name name)))
 
 ;;;###autoload
@@ -56,7 +55,7 @@ The \"project\" is determined by trying, in order:
                    (and (fboundp 'vc-root-dir)
                         (vc-root-dir))
                    dir))
-         (name (concat "*Racket REPL: " root "*")))
+         (name (format "*Racket REPL <%s>*" root)))
     (setq-local racket-repl-buffer-name name)))
 
 (defun racket-mode-maybe-offer-to-kill-repl-buffer ()
@@ -70,26 +69,32 @@ so, a user might want to do some \"cleanup\" -- especially if
 they're using a `racket-repl-buffer-name-function' such as
 `racket-repl-buffer-name-unique'."
   (when (eq major-mode 'racket-mode)
-    (let ((our-buffer                  (current-buffer))
-          (our-racket-repl-buffer-name racket-repl-buffer-name))
-      (unless (cl-some (lambda (buffer)
-                         (with-current-buffer buffer
-                           (and (eq major-mode 'racket-mode)
-                                (not (equal our-buffer buffer))
-                                (equal racket-repl-buffer-name
-                                       our-racket-repl-buffer-name))))
-                       (buffer-list))
-        (pcase (get-buffer racket-repl-buffer-name)
-          ((and (pred bufferp) repl-buffer)
-           (when (y-or-n-p
-                  (format "No other `racket-mode' buffers are using %s -- kill it, too? "
-                          racket-repl-buffer-name))
-             ;; They already said yes. Avoid another prompt about
-             ;; killing the buffer's process.
-             (pcase (get-buffer-process repl-buffer)
-               ((and (pred processp) repl-process)
-                (set-process-query-on-exit-flag repl-process nil)))
-             (kill-buffer repl-buffer))))))))
+    (pcase (get-buffer racket-repl-buffer-name)
+      ((and (pred bufferp) repl-buffer)
+       (let ((n (1-
+                 (length
+                  (racket--buffers-using-repl racket-repl-buffer-name)))))
+         (if (zerop n)
+             (when (y-or-n-p
+                    (format "No other buffers using %s -- also kill it? "
+                            racket-repl-buffer-name))
+               ;; They already said yes. Avoid another prompt about
+               ;; killing the buffer's process.
+               (pcase (get-buffer-process repl-buffer)
+                 ((and (pred processp) repl-process)
+                  (set-process-query-on-exit-flag repl-process nil)))
+               (kill-buffer repl-buffer))
+           (message "%s other buffer%s still using %s"
+                    n
+                    (if (= n 1) "" "s")
+                    racket-repl-buffer-name)))))))
+
+(defun racket--buffers-using-repl (repl-buffer-name)
+  (seq-filter (lambda (buffer)
+                (with-current-buffer buffer
+                  (and (eq major-mode 'racket-mode)
+                       (equal racket-repl-buffer-name repl-buffer-name))))
+              (buffer-list)))
 
 (provide 'racket-repl-buffer-name)
 
