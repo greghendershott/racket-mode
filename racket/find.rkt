@@ -13,23 +13,17 @@
 ;; Note: Unfortunately identifier-binding can't report the definition
 ;; id in the case of a contract-out and a rename-out, both. For
 ;; `(provide (contract-out [rename orig new contract]))`
-;; identifier-binding reports (1) the contract-wrapper as the id, and
-;; (2) `new` as the nominal-id -- but NOT (3) `orig`. We handle
-;; such cases here. See `def-in-files`.
+;; identifier-binding reports (1) the contract wrapper as the id, and
+;; (2) `new` as the nominal-id -- but NOT (3) `orig`. We handle such
+;; cases; see `def-in-file` and its use of `$renaming-provde`, below.
 ;;
-;; FIXME: This fails for a case like `make-traversal` as required via
-;; drracket/check-syntax.rkt -- which in turn requires it from
-;; drracket/private/syncheck/traversals.rkt and re-provides it with a
-;; contract. As a result, identifier-binding reports:
-;;
-;; '((provide/contract-id-make-traversal.1
-;;    #<path:___/drracket/check-syntax.rkt>)
-;;   (make-traversal
-;;    #<path:___/drracket/check-syntax.rkt>))
-;;
-;; The key point there is that neither path is correct -- neither is
-;; #<path:___/drracket/private/syncheck/traversals.rkt>. If one were,
-;; our algo below would still work.
+;; Another tricky case: "foo" is defined in def.rkt. repro.rkt
+;; requires def.rkt and re-provides "foo" using contract-out. When
+;; user.rkt requires repro.rkt, identifier-binding will report "foo"
+;; the id (yay!) but report the defining file is repro.rkt -- not
+;; def.rkt (boo!). We handle such cases, at least for the command
+;; `find-definition/drracket-jump` below, i.e. what's normally used by
+;; M-x racket-xp-visit-definition on the front end.
 
 (define location/c (list/c path-string? natural-number/c natural-number/c))
 
@@ -59,10 +53,16 @@
                  (or (syntax-line stx) 1)
                  (or (syntax-column stx) 0))]
           [v v]))
-      ;; As a fallback, at least return the reported file. It might
-      ;; not contain the actual definition, but it might have a
-      ;; re-provide and people can hopefully find that and use
-      ;; visit-definition again to get to the true source.
+      ;; As a fallback: If we couldn't find the definition, maybe
+      ;; that's because the ostensible defining file re-provides and
+      ;; contract-outs the definition from another file. A user might
+      ;; try visit-definition again, and get there. Here, we
+      ;; effectively try that automatically, for them.
+      (and (not (path-string-equal? how path))
+           (for/or ([id-str (in-list id-strs)])
+             (find-definition path id-str)))
+      ;; As a final fallback, at least return the reported file, so
+      ;; the user has a head start.
       (list path 1 0)))
 
 ;; Try to find the definition of `str`, returning its signature or #f.
