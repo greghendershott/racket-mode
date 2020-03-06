@@ -519,7 +519,7 @@ If point is instead on a definition, then go to its first use."
 (defun racket--xp-forward-prop (prop amt)
   "Move point to the next or previous occurrence of PROP, if any.
 If moved, return the new position, else nil."
-  ;; FIXME: Handle more than just -1 or 1
+  ;; Someday/maybe: Handle more than just -1 or 1.
   (let ((f (cl-case amt
              (-1 #'previous-single-property-change)
              ( 1 #'next-single-property-change))))
