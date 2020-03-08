@@ -10,6 +10,10 @@
          find-definition/drracket-jump
          find-signature)
 
+(module+ test
+  (require rackunit
+           racket/format))
+
 ;; Note: Unfortunately identifier-binding can't report the definition
 ;; id in the case of a contract-out and a rename-out, both. For
 ;; `(provide (contract-out [rename orig new contract]))`
@@ -31,7 +35,7 @@
 (define/contract (find-definition how str)
   (-> how/c string?
       (or/c #f 'kernel location/c))
-  (match (def how str)
+  (match (find-def how str)
     [(list stx path _submods)
      (list (->path-string (or (syntax-source stx) path))
            (or (syntax-line stx) 1)
@@ -43,34 +47,30 @@
 ;; (We could have done this earlier and returned this information as
 ;; part of the original check-syntax result -- but doing so would have
 ;; been too slow.)
-(define/contract (find-definition/drracket-jump how path submods id-strs)
+(define/contract (find-definition/drracket-jump how-path src-path submods id-strs)
   (-> (and/c how/c (not/c 'namespace)) path-string? (listof symbol?) (listof string?)
       (or/c #f 'kernel location/c))
   (or (for/or ([id-str (in-list id-strs)])
-        (match (def-in-file (string->symbol id-str) how path submods)
+        (match (find-def-in-file (string->symbol id-str) how-path src-path submods)
           [(list stx path _submods)
            (list (->path-string (or (syntax-source stx) path))
                  (or (syntax-line stx) 1)
                  (or (syntax-column stx) 0))]
           [v v]))
-      ;; As a fallback: If we couldn't find the definition, maybe
-      ;; that's because the ostensible defining file re-provides and
-      ;; contract-outs the definition from another file. A user might
-      ;; try visit-definition again, and get there. Here, we
-      ;; effectively try that automatically, for them.
-      (and (not (path-string-equal? how path))
+      ;; Handle possible re-provide with a contract.
+      (and (not (path-string-equal? how-path src-path))
            (for/or ([id-str (in-list id-strs)])
-             (find-definition path id-str)))
+             (find-definition src-path id-str)))
       ;; As a final fallback, at least return the reported file, so
       ;; the user has a head start.
-      (list path 1 0)))
+      (list src-path 1 0)))
 
 ;; Try to find the definition of `str`, returning its signature or #f.
 ;; When defined in 'kernel, returns a form saying so, not #f.
 (define/contract (find-signature how str)
   (-> how/c string?
       (or/c #f pair?))
-  (match (def how str)
+  (match (find-def how str)
     ['kernel '("defined in #%kernel, signature unavailable")]
     [(list id-stx path submods)
      (get-syntax how path
@@ -83,7 +83,7 @@
 
 (define stx+path+mods/c (list/c syntax? path-string? (listof symbol?)))
 
-(define/contract (def how str)
+(define/contract (find-def how str)
   (-> how/c string?
       (or/c #f 'kernel stx+path+mods/c))
   (->identifier-resolved-binding-info
@@ -91,13 +91,22 @@
    (λ (results)
      (match results
        [(? list? bindings)
-        (for/or ([x (in-list (remove-duplicates bindings))])
-          (match x
-            [(cons _id 'kernel) 'kernel]
-            [(list* id path submods) (def-in-file id how path submods)]))]
+        (or (for/or ([x (in-list (remove-duplicates bindings))])
+              (match x
+                [(cons _id 'kernel) 'kernel]
+                [(list* id path submods) (find-def-in-file id how path submods)]))
+            ;; Handle possible re-provide with a contract.
+            (match results
+              [(list (list* src-id src-path src-subs)
+                     (list* nom-id _))
+               (and (or (equal? how 'namespace)
+                        (not (path-string-equal? how src-path)))
+                    (for/or ([id (in-list (list src-id nom-id))])
+                      (find-def (path->string src-path) (symbol->string id))))]
+              [_ #f]))]
        [_ #f]))))
 
-(define/contract (def-in-file id-sym how path submods)
+(define/contract (find-def-in-file id-sym how path submods)
   (-> symbol? how/c path-string? (listof symbol?)
       (or/c #f stx+path+mods/c))
   (define (sub-stx stx)
@@ -153,7 +162,6 @@
     [_ #f]))
 
 (module+ test
-  (require rackunit)
   (check-equal? (syntax->datum
                  (submodule "/path/to/file.rkt" '(a b c)
                             #'(module file racket
@@ -262,18 +270,26 @@
   ;;
   ;; Exercise where the "how" is a path-string, meaning look up that
   ;; path from our cache, not on disk.
-  (require racket/format)
-  (define path-str "/tmp/x.rkt")
-  (define code-str (~a `(module x racket/base
-                         (define (module-function-binding x y z) (+ 1 x))
-                         (define module-variable-binding 42))))
-  (string->expanded-syntax path-str code-str void)
-  (check-equal? (find-signature path-str "module-function-binding")
-                '(module-function-binding x y z))
-  (check-equal? (find-definition "/tmp/x.rkt" "module-function-binding")
-                `(,path-str 1 31))
-  (check-equal? (find-definition "/tmp/x.rkt" "module-variable-binding")
-                `(,path-str 1 79)))
+  (let ([path-str "/tmp/x.rkt"]
+        [code-str (~a `(module x racket/base
+                        (define (module-function-binding x y z) (+ 1 x))
+                        (define module-variable-binding 42)))])
+    (string->expanded-syntax path-str code-str void)
+    (check-equal? (find-signature path-str "module-function-binding")
+                  '(module-function-binding x y z))
+    (check-equal? (find-definition path-str "module-function-binding")
+                  `(,path-str 1 31))
+    (check-equal? (find-definition path-str "module-variable-binding")
+                  `(,path-str 1 79)))
+  ;; Exercise the "make-traversal" scenario described in comments
+  ;; above.
+  (let ([path-str "/tmp/x.rkt"]
+        [code-str (~a `(module x racket/base
+                        (require drracket/check-syntax)
+                        "make-traversal"))])
+    (string->expanded-syntax path-str code-str void)
+    (check-match (find-definition path-str "make-traversal")
+                 (list (pregexp "private/syncheck/traversals.rkt$") _ _))))
 
 ;; These `get-syntax` and `get-expanded-syntax` functions handle where
 ;; we get the syntax.

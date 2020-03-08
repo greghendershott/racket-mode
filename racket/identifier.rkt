@@ -132,7 +132,14 @@
             (list (build-path (current-load-relative-directory)
                               (~a sym ".rkt")))]
            [(list (? path-string? path) (? symbol? subs) ...)
-            (list* path subs)])]))
+            (list* path subs)]
+           ;; I've seen this odd case occur only when running
+           ;; test/find.rkt. The module path index is
+           ;; #<module-path-index:(submod "." m) + '|expanded
+           ;; module|>, and resolving that is (find-examples m) when
+           ;; it should be '(#</path/to/find-example.rkt> m).
+           [(list (? symbol?) (? symbol? subs) ...)
+            (list* (syntax-source id) subs)])]))
 
 (define (self-module? mpi)
   (define-values (a b) (module-path-index-split mpi))

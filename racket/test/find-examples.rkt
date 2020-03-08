@@ -2,7 +2,7 @@
 
 (require racket/contract)
 
-;; Examples for test/defn.rkt.
+;; Examples for test/find.rkt.
 
 (define (plain x) x)
 (provide plain)
@@ -53,3 +53,9 @@
 (provide a-number)
 (define a-parameter (make-parameter #f))
 (provide a-parameter)
+
+(module m racket/base
+  (define from-m #f)
+  (provide from-m))
+(require 'm)
+(provide (contract-out [from-m any/c]))
