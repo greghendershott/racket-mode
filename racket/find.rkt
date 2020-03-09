@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require racket/contract
+         (only-in racket/function curry)
          racket/list
          racket/match
          "identifier.rkt"
@@ -57,12 +58,15 @@
                  (or (syntax-line stx) 1)
                  (or (syntax-column stx) 0))]
           [v v]))
-      ;; Handle possible re-provide with a contract.
+      ;; Handle possible re-provide with a contract: Try again
+      ;; starting with that other src-path. i.e. Do automatically what
+      ;; the user could: Open that file, and try visit-definition
+      ;; again, there. from that.
       (and (not (path-string-equal? how-path src-path))
            (for/or ([id-str (in-list id-strs)])
              (find-definition src-path id-str)))
-      ;; As a final fallback, at least return the reported file, so
-      ;; the user has a head start.
+      ;; As a final fallback, return the reported file:1:0. At least
+      ;; give user a head start.
       (list src-path 1 0)))
 
 ;; Try to find the definition of `str`, returning its signature or #f.
@@ -75,8 +79,8 @@
     [(list id-stx path submods)
      (get-syntax how path
                  (λ (mod-stx)
-                   (define sub-stx (submodule path submods mod-stx))
-                   (match ($signature (syntax-e id-stx) sub-stx)
+                   (match ($signature (syntax-e id-stx)
+                                      (submodule-syntax submods mod-stx))
                      [(? syntax? stx) (syntax->datum stx)]
                      [_ #f])))]
     [v v]))
@@ -95,83 +99,82 @@
               (match x
                 [(cons _id 'kernel) 'kernel]
                 [(list* id path submods) (find-def-in-file id how path submods)]))
-            ;; Handle possible re-provide with a contract.
+            ;; Handle possible re-provide with a contract: Try again
+            ;; starting with that other src-path. i.e. Automatically
+            ;; do what the user could: Open that file, and try
+            ;; visit-definition again, there.
             (match results
               [(list (list* src-id src-path src-subs)
                      (list* nom-id _))
-               (and (or (equal? how 'namespace)
-                        (not (path-string-equal? how src-path)))
-                    (for/or ([id (in-list (list src-id nom-id))])
-                      (find-def (path->string src-path) (symbol->string id))))]
+               (or (and (or (equal? how 'namespace)
+                            (not (path-string-equal? how src-path)))
+                        (for/or ([id (in-list (list src-id nom-id))])
+                          (find-def (path->string src-path) (symbol->string id))))
+                   ;; As a final fallback, return the reported
+                   ;; file:1:0. At least give user a head start.
+                   (list (datum->syntax #f src-id (list src-path 1 0 #f #f))
+                         src-path
+                         '()))]
               [_ #f]))]
        [_ #f]))))
 
 (define/contract (find-def-in-file id-sym how path submods)
   (-> symbol? how/c path-string? (listof symbol?)
       (or/c #f stx+path+mods/c))
-  (define (sub-stx stx)
-    (submodule path submods stx))
+  (define subs (curry submodule-syntax submods))
   (match (or (get-expanded-syntax
               how path
               (λ (stx)
-                ($definition id-sym (sub-stx stx))))
+                ($definition id-sym (subs stx))))
              (get-syntax
               how path
               (λ (stx)
-                (match ($renaming-provide id-sym (sub-stx stx))
+                (match ($renaming-provide id-sym (subs stx))
                   [(? identifier? id)
                    (define id-sym (syntax-e id))
                    (get-expanded-syntax
                     how path
                     (λ (stx)
-                      ($definition id-sym (sub-stx stx))))]
+                      ($definition id-sym (subs stx))))]
                   [_ #f]))))
     [(? syntax? stx) (list stx path submods)]
     [_  #f]))
 
-;; For use with syntax-case*. When we use syntax-case for syntax-e equality.
-(define (syntax-e-eq? a b)
-  (eq? (syntax-e a) (syntax-e b)))
+;; Given a submodule path as a list of symbols, and the syntax for a
+;; file's entire module form: Return the (sub)module contents as
+;; #'(begin . contents).
+(define/contract (submodule-syntax sub-mod-syms stx)
+  (-> (listof symbol?) syntax? (or/c #f syntax?))
+  ;; Prepend #f as the outermost module name to match, meaning "any".
+  (sub-stx (cons #f sub-mod-syms) stx))
 
-(define ((make-eq-sym? sym) stx)
-  (and (eq? sym (syntax-e stx)) stx))
-
-(define (file-module-name path)
-  (match (path->string (last (explode-path path)))
-    [(pregexp "(.+?)\\.rkt$" (list _ v)) (string->symbol v)]))
-
-;; Return bodies (wrapped in begin) of the module indicated by
-;; file and sub-mod-syms.
-(define (submodule path sub-mod-syms stx)
-  (submodule* (cons (file-module-name path) sub-mod-syms) stx))
-
-(define (submodule* mods stx)
+(define (sub-stx mods stx)
   (match-define (cons this more) mods)
   (define (subs stxs)
     (if (empty? more)
         #`(begin . #,stxs)
-         (ormap (λ (stx) (submodule* more stx))
+         (ormap (λ (stx) (sub-stx more stx))
                 (syntax->list stxs))))
   (syntax-case* stx (module #%module-begin) syntax-e-eq?
     [(module name _ (#%module-begin . stxs))
-     (eq? this (syntax-e #'name))
+     (or (not this) (eq? this (syntax-e #'name)))
      (subs #'stxs)]
     [(module name _ . stxs)
-     (eq? this (syntax-e #'name))
+     (or (not this) (eq? this (syntax-e #'name)))
      (subs #'stxs)]
     [_ #f]))
 
 (module+ test
   (check-equal? (syntax->datum
-                 (submodule "/path/to/file.rkt" '(a b c)
-                            #'(module file racket
-                                (module a racket
-                                  (module not-b racket #f)
-                                  (module b racket
-                                    (module not-c racket #f)
-                                    (module c racket "bingo")
-                                    (module not-c racket #f))
-                                  (module not-b racket #f)))))
+                 (submodule-syntax '(a b c)
+                                   #'(module file racket
+                                       (module a racket
+                                         (module not-b racket #f)
+                                         (module b racket
+                                           (module not-c racket #f)
+                                           (module c racket "bingo")
+                                           (module not-c racket #f))
+                                         (module not-b racket #f)))))
                 '(begin "bingo")))
 
 ;; Given a symbol and syntax, return syntax corresponding to the
@@ -311,6 +314,13 @@
     [(? path-string? how-path) (if (path-string-equal? path-str how-path)
                                    (path->existing-syntax path-str k)
                                    (file->syntax          path-str k))]))
+
+;; For when we use syntax-case* simply for syntax-e equality.
+(define (syntax-e-eq? a b)
+  (eq? (syntax-e a) (syntax-e b)))
+
+(define ((make-eq-sym? sym) stx)
+  (and (eq? sym (syntax-e stx)) stx))
 
 (define (get-expanded-syntax how path-str k)
   (match how
