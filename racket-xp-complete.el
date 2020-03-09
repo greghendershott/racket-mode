@@ -19,7 +19,7 @@
 (require 'racket-complete)
 (require 'racket-describe)
 
-(defvar-local racket--xp-binding-completions nil
+(defvar racket--xp-binding-completions nil
   "Used by `racket-xp-complete-at-point'.")
 
 (defvar racket--xp-module-completions nil

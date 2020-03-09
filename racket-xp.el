@@ -239,8 +239,8 @@ press F1 or C-h in its pop up completion list.
 
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for `racket-visit-definition' and
-`racket-doc'."
+TAB, and activate using RET -- for `racket-xp-visit-definition'
+and `racket-xp-documentation'."
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
                                             racket--xp-binding-completions)
@@ -391,7 +391,7 @@ definitions in submodules."
         ((and (pred stringp) str)
          (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str))))
     (or
-     ;; Local
+     ;; Use of binding defined in this file
      (pcase (get-text-property (point) 'racket-xp-use)
        (`(,beg ,_end)
         (pcase (get-text-property beg 'racket-xp-def)
@@ -399,24 +399,32 @@ definitions in submodules."
            (racket--push-loc)
            (goto-char beg)
            t))))
-     ;; Annotated by drracket/check-syntax
+     ;; Something annotated for jump-to-def by drracket/check-syntax
      (pcase (get-text-property (point) 'racket-xp-visit)
        (`(,path ,subs ,ids)
         (racket--do-visit-def-or-mod
          nil
          `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids))))
-     ;; An imported module; visit the module
+     ;; Annotated by dr/cs as imported module; visit the module
      (pcase (get-text-property (point) 'racket-xp-def)
-       (`(import ,id . ,_)
-        (racket--do-visit-def-or-mod nil `(mod ,id))))
-     ;; Try using the 'def command. This might result in opening
-     ;; the defining file at 1:0, or in a "defined in #%kernel" or
-     ;; "not found" message. Ut that's better UX than nothing at
-     ;; all happening.
-     (pcase (racket--symbol-at-point-or-prompt nil "Visit definition of: "
-                                               racket--xp-binding-completions)
-       ((and (pred stringp) str)
-        (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str)))))))
+       (`(import ,_id . ,_)
+        (racket-visit-module prefix)))
+     ;; Something that, for whatever reason, drracket/check-syntax did
+     ;; not annotate.
+     (if (racket--in-require-form-p)
+         ;; If point within a textually apparent require form, assume
+         ;; it is more likely that dr/cs didn't annotate a module name
+         ;; (as opposed to some piece of require transformer syntax)
+         ;; and therefore defer to `racket-visit-module'.
+         (racket-visit-module)
+       ;; Try using the 'def command. This might result in opening the
+       ;; defining file at 1:0, or in a "defined in #%kernel" or "not
+       ;; found" message. Ut that's better UX than nothing at all
+       ;; happening.
+       (pcase (racket--symbol-at-point-or-prompt nil "Visit definition of: "
+                                                 racket--xp-binding-completions)
+         ((and (pred stringp) str)
+          (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str))))))))
 
 (defun racket-xp-documentation (&optional prefix)
   "Show documentation for the identifier at point.
@@ -663,7 +671,7 @@ manually."
            (completions . ,completions)
            (annotations . ,annotations))
          (racket--xp-clear)
-         (setq racket--xp-binding-completions completions)
+         (setq-local racket--xp-binding-completions completions)
          (racket--xp-insert annotations)
          (racket--xp-set-status 'ok)
          (when (and annotations after-thunk)
@@ -747,7 +755,7 @@ manually."
     (racket--xp-clear-errors)
     (racket--remove-overlays-in-buffer racket-xp-error-face)
     (unless only-errors-p
-      (setq racket--xp-binding-completions nil)
+      (setq-local racket--xp-binding-completions nil)
       (racket--remove-overlays-in-buffer racket-xp-def-face
                                          racket-xp-use-face
                                          racket-xp-unused-face)
