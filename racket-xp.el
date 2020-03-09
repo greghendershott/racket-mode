@@ -390,32 +390,33 @@ definitions in submodules."
                                                 racket--xp-binding-completions)
         ((and (pred stringp) str)
          (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str))))
-    (or (pcase (get-text-property (point) 'racket-xp-use)
-          (`(,beg ,_end)
-           (pcase (get-text-property beg 'racket-xp-def)
-             (`(local ,_id ,_uses)
-              (racket--push-loc)
-              (goto-char beg)
-              t))))
-        (pcase (get-text-property (point) 'racket-xp-visit)
-          (`(,path ,subs ,ids)
-           (racket--do-visit-def-or-mod
-            nil
-            `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids)))
-          (_
-           (pcase (get-text-property (point) 'racket-xp-def)
-             (`(import ,id . ,_)
-              (racket--do-visit-def-or-mod nil `(mod ,id)))
-             (_
-              ;; If it's not annotated with racket-xp-visit and it's not
-              ;; a module, try doing a general search. This might only
-              ;; result in showing a "defined in #%kernel" or "not
-              ;; found" message -- but that's better UX than nothing at
-              ;; all happening.
-              (pcase (racket--symbol-at-point-or-prompt nil "Visit definition of: "
-                                                        racket--xp-binding-completions)
-                ((and (pred stringp) str)
-                 (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str)))))))))))
+    (or
+     ;; Local
+     (pcase (get-text-property (point) 'racket-xp-use)
+       (`(,beg ,_end)
+        (pcase (get-text-property beg 'racket-xp-def)
+          (`(local ,_id ,_uses)
+           (racket--push-loc)
+           (goto-char beg)
+           t))))
+     ;; Annotated by drracket/check-syntax
+     (pcase (get-text-property (point) 'racket-xp-visit)
+       (`(,path ,subs ,ids)
+        (racket--do-visit-def-or-mod
+         nil
+         `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids))))
+     ;; An imported module; visit the module
+     (pcase (get-text-property (point) 'racket-xp-def)
+       (`(import ,id . ,_)
+        (racket--do-visit-def-or-mod nil `(mod ,id))))
+     ;; Try using the 'def command. This might result in opening
+     ;; the defining file at 1:0, or in a "defined in #%kernel" or
+     ;; "not found" message. Ut that's better UX than nothing at
+     ;; all happening.
+     (pcase (racket--symbol-at-point-or-prompt nil "Visit definition of: "
+                                               racket--xp-binding-completions)
+       ((and (pred stringp) str)
+        (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str)))))))
 
 (defun racket-xp-documentation (&optional prefix)
   "Show documentation for the identifier at point.
