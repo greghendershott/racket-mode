@@ -1,12 +1,17 @@
 #lang racket/base
 
-(require racket/contract
+(require (only-in macro-debugger/stepper-text
+                  stepper-text)
+         racket/contract
          racket/file
          racket/format
          racket/match
+         (only-in racket/path
+                  path-only)
          racket/pretty
          racket/system
          "../elisp.rkt"
+         "../repl.rkt"
          "../syntax.rkt"
          "../util.rkt")
 
@@ -18,6 +23,8 @@
 
 (define/contract (make-expr-stepper str)
   (-> string? step-thunk/c)
+  (unless (current-session-id)
+    (error 'make-expr-stepper "Does not work without a running REPL"))
   (define step-num #f)
   (define last-stx (string->namespace-syntax str))
   (define (step)
@@ -40,15 +47,16 @@
 
 (define/contract (make-file-stepper path into-base?)
   (-> (and/c path-string? absolute-path?) boolean? step-thunk/c)
-  ;; If the dynamic-require fails, just let it bubble up.
-  (define stepper-text (dynamic-require 'macro-debugger/stepper-text 'stepper-text))
   (define stx (file->syntax path))
-  (define-values (dir _name _dir) (split-path path))
-  (define raw-step (parameterize ([current-load-relative-directory dir])
+  (define dir (path-only path))
+  (define ns (make-base-namespace))
+  (define raw-step (parameterize ([current-load-relative-directory dir]
+                                  [current-namespace               ns])
                      (stepper-text stx
                                    (if into-base? (λ _ #t) (not-in-base)))))
   (define step-num #f)
   (define step-last-after "")
+  (log-racket-mode-debug "~v ~v ~v" path into-base? raw-step)
   (define/contract (step) step-thunk/c
     (cond [(not step-num)
            (set! step-num 0)
@@ -59,6 +67,7 @@
            (parameterize ([current-output-port out])
              (cond [(raw-step 'next)
                     (set! step-num (add1 step-num))
+                    (log-racket-mode-debug "~v" (get-output-string out))
                     (match-define (list title before after)
                       (step-parts (get-output-string out)))
                     (set! step-last-after after)

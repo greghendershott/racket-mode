@@ -1,6 +1,6 @@
 ;;; racket-stepper.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2018 by Greg Hendershott.
+;; Copyright (c) 2018-2020 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -20,6 +20,7 @@
 (require 'rx)
 (require 'racket-cmd)
 (require 'racket-custom)
+(require 'racket-repl)
 (require 'racket-util)
 
 ;; Need to define this before racket-stepper-mode
@@ -127,11 +128,21 @@ Uses Racket's `expand-once` in the namespace from the most recent
                             (buffer-substring-no-properties beg end)
                             prefix))))
 
+(defvar racket--stepper-repl-session-id nil
+  "The REPL session used when stepping.
+May be nil for 'file stepping, but must be valid for 'expr stepping.")
+
 (defun racket-stepper--start (which str into-base)
   "Ensure buffer and issue initial command.
 WHICH should be 'expr or 'file.
 STR should be the expression or pathname.
 INTO-BASE is treated as a raw prefix arg and converted to boolp."
+  (unless (eq major-mode 'racket-mode)
+    (error "Only works from racket-mode buffers"))
+  (setq racket--stepper-repl-session-id (racket--repl-session-id))
+  (unless (or racket--stepper-repl-session-id
+              (eq which 'file))
+    (error "Only works when the racket-mode buffer has a REPL buffer, and, you should racket-run first"))
   ;; Create buffer if necessary
   (unless (get-buffer racket-stepper--buffer-name)
     (with-current-buffer (get-buffer-create racket-stepper--buffer-name)
@@ -144,7 +155,7 @@ INTO-BASE is treated as a raw prefix arg and converted to boolp."
   (let ((inhibit-read-only t))
     (delete-region (point-min) (point-max))
     (insert "Starting macro expansion stepper... please wait...\n"))
-  (racket--cmd/async nil
+  (racket--cmd/async racket--stepper-repl-session-id
                      `(macro-stepper (,which . ,str)
                                      ,(and into-base t))
                      #'racket-stepper--insert))
@@ -165,7 +176,7 @@ INTO-BASE is treated as a raw prefix arg and converted to boolp."
 
 (defun racket-stepper-step ()
   (interactive)
-  (racket--cmd/async nil
+  (racket--cmd/async racket--stepper-repl-session-id
                      `(macro-stepper/next)
                      #'racket-stepper--insert))
 

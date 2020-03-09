@@ -57,9 +57,9 @@
 ;; variable `racket--repl-session-id'. (Note that
 ;; `racket-repl-buffer-name' only has meaning for `racket-mode'
 ;; buffers, and `racket--repl-session-id' only has meaning for
-;; `racket-repl-mode' bufers. Emacs variables _exist_ for all buffers
-;; using all major modes. All we can do is remember to ignore them in
-;; some modes.)
+;; `racket-repl-mode' buffers. Emacs variables exist for all buffers
+;; using all major modes. All we can do is remember in which buffers
+;; they mean something as opposed to being ignored..)
 
 (defvar racket-repl-buffer-name "*Racket REPL*"
   "The name of the `racket-repl-mode' buffer associated with `racket-mode' buffer.
