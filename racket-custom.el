@@ -140,6 +140,16 @@ Set to nil to disable the mode line completely."
   :risky t
   :group 'racket-xp)
 
+(defcustom racket-xp-highlight-unused-regexp "^[^_]"
+  "Only give `racket-xp-unused-face' to unused bindings that match this regexp.
+
+The default is to highlight indentifiers that do not start with
+an underline, which is a common convention."
+  :tag "Racket Xp Mode Do Not Highlight Unused Regexp"
+  :type 'regexp
+  :safe #'stringp
+  :group 'racket-xp)
+
 ;;; REPL
 
 (defgroup racket-repl nil

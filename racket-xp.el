@@ -710,7 +710,9 @@ manually."
           beg end
           (list 'help-echo               str
                 'cursor-sensor-functions (list #'racket--xp-cursor-sensor)))
-         (when (string-equal str "no bound occurrences")
+         (when (and (string-equal str "no bound occurrences")
+                    (string-match-p racket-xp-highlight-unused-regexp
+                                    (buffer-substring beg end)))
            (racket--add-overlay beg end racket-xp-unused-face)))
         (`(unused-require ,beg ,end)
          (add-text-properties

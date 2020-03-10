@@ -163,6 +163,7 @@
     racket-path-from-emacs-to-racket-function
     racket-path-from-racket-to-emacs-function
     racket-xp-after-change-refresh-delay
+    racket-xp-highlight-unused-regexp
     "REPL variables"
     racket-repl-buffer-name-function
     racket-history-filter-regexp
