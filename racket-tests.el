@@ -26,6 +26,7 @@
 (require 'racket-custom)
 (require 'racket-repl)
 (require 'racket-smart-open)
+(require 'racket-stepper)
 
 (defconst racket-tests/here-dir (faceup-this-file-directory)
   "The directory this file is located in.")
@@ -59,6 +60,15 @@
 
 (defmacro racket-tests/eventually (&rest body)
   `(racket-tests/call-until-true (lambda () ,@body)))
+
+(defmacro racket-tests/should-eventually (&rest body)
+  "Aside from avoiding some nesting, an advantage of this vs.
+composing `should` and eventually is that the `should` macro will
+be able to look up an ert-explainer property on the symbol
+supplied to it."
+  `(progn
+     (racket-tests/call-until-true (lambda () ,@body))
+     (should (progn ,@body))))
 
 (defun racket-tests/see-back-rx (rx)
   (racket-tests/eventually (looking-back rx (point-min))))
@@ -103,17 +113,15 @@
   (message "racket-tests/repl")
   (racket-tests/with-back-end-settings
     (racket-repl)
-    (should (racket-tests/eventually (get-buffer racket-repl-buffer-name)))
-    (should (racket-tests/eventually (racket--repl-live-p)))
+    (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
+    (racket-tests/should-eventually (racket--repl-live-p))
     (with-racket-repl-buffer
       (should (racket-tests/see-back-rx
                "Welcome to Racket v?[0-9.]+\\(?: \\[cs\\].\\)?[\n]\\(?:;.*[\n]\\)*> "))
 
       ;; Completion
-      (should
-       (racket-tests/eventually #'member
-                                "current-output-port"
-                                racket--repl-namespace-symbols))
+      (racket-tests/should-eventually (member "current-output-port"
+                                              racket--repl-namespace-symbols))
       (racket-tests/type "current-out")
       (completion-at-point)
       (should (racket-tests/see-back "current-output-port"))
@@ -197,8 +205,8 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (write-region code nil pathname nil 'no-wrote-file-message)
       (find-file pathname)
       (racket-run)
-      (should (racket-tests/eventually (get-buffer racket-repl-buffer-name)))
-      (should (racket-tests/eventually (racket--repl-live-p)))
+      (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
+      (racket-tests/should-eventually (racket--repl-live-p))
       (with-racket-repl-buffer
         (should (racket-tests/see-back (concat "\n" name "> ")))
         (racket-repl-exit)
@@ -223,10 +231,10 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (racket-xp-mode 0)
       (racket-xp-mode 1)
       (should racket-xp-mode)
-      (should (racket-tests/eventually
-               (goto-char (point-min))
-               (racket-xp-next-definition)
-               (racket-tests/see-forward "racket/base")))
+      (racket-tests/should-eventually
+       (goto-char (point-min))
+       (racket-xp-next-definition)
+       (racket-tests/see-forward "racket/base"))
       (racket-xp-next-definition)
       (should (racket-tests/see-forward "foobar"))
       (should (equal (get-text-property (point) 'help-echo) "1 bound occurrence"))
@@ -293,6 +301,138 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (kill-buffer)
       (delete-file pathname))))
 
+;;; Macro stepper
+
+(defconst racket-tests/expand-mod-name "foo")
+
+(defconst racket-tests/expand-shallow-0
+  "«f:Original»
+(module foo racket/base (#%module-begin (define x 42) x))
+
+")
+
+(defconst racket-tests/expand-shallow-1
+  "«f:Original»
+(module foo racket/base (#%module-begin (define x 42) x))
+
+«f:Final»
+
+")
+
+(ert-deftest racket-tests/expand-file-shallow ()
+  (message "racket-tests/expand-file-shallow")
+  (racket-tests/with-back-end-settings
+    (let* ((dir  (make-temp-file "test" t))
+           (path (concat dir "/" racket-tests/expand-mod-name ".rkt"))
+           (code "#lang racket/base\n(define x 42)\nx"))
+      (write-region code nil path nil 'no-wrote-file-message)
+      (find-file path)
+      (racket-expand-file)
+      (set-buffer "*Racket Stepper*")
+      (should (eq major-mode 'racket-stepper-mode))
+      (should (equal header-line-format "Press RET to step. C-h m to see help."))
+      (racket-tests/should-eventually
+       (faceup-test-font-lock-buffer nil racket-tests/expand-shallow-0))
+      (racket-tests/press "RET")
+      (racket-tests/should-eventually
+       (faceup-test-font-lock-buffer nil racket-tests/expand-shallow-1))
+      (kill-buffer)
+      (delete-file path))))
+
+(defconst racket-tests/expand-deep-0
+  "«f:Original»
+(module foo racket/base (#%module-begin (define x 42) x))
+
+")
+
+(defconst racket-tests/expand-deep-1
+  "«f:Original»
+(module foo racket/base (#%module-begin (define x 42) x))
+
+«f:1: Macro transformation»
+«x:@@ -1 +1,11 @@»
+«:diff-removed:-(module foo racket/base (#%module-begin (define x 42) x))»
+«:diff-added:+(module»
+«:diff-added:+ foo»
+«:diff-added:+ racket/base»
+«:diff-added:+ (printing:module-begin:1»
+«:diff-added:+  (module:1»
+«:diff-added:+   configure-runtime:1»
+«:diff-added:+   '#%kernel:1»
+«:diff-added:+   (#%require:1 racket/runtime-config:1)»
+«:diff-added:+   (configure:1 #f))»
+«:diff-added:+  (define x 42)»
+«:diff-added:+  x))»
+
+")
+
+(defconst racket-tests/expand-deep-2
+  "«f:Original»
+(module foo racket/base (#%module-begin (define x 42) x))
+
+«f:1: Macro transformation»
+«x:@@ -1 +1,11 @@»
+«:diff-removed:-(module foo racket/base (#%module-begin (define x 42) x))»
+«:diff-added:+(module»
+«:diff-added:+ foo»
+«:diff-added:+ racket/base»
+«:diff-added:+ (printing:module-begin:1»
+«:diff-added:+  (module:1»
+«:diff-added:+   configure-runtime:1»
+«:diff-added:+   '#%kernel:1»
+«:diff-added:+   (#%require:1 racket/runtime-config:1)»
+«:diff-added:+   (configure:1 #f))»
+«:diff-added:+  (define x 42)»
+«:diff-added:+  x))»
+
+«f:2: Macro transformation»
+«x:@@ -1,11 +1,13 @@»
+ (module
+  foo
+  racket/base
+«:diff-removed:- (printing:module-begin:1»
+«:diff-removed:-  (module:1»
+«:diff-removed:-   configure-runtime:1»
+«:diff-removed:-   '#%kernel:1»
+«:diff-removed:-   (#%require:1 racket/runtime-config:1)»
+«:diff-removed:-   (configure:1 #f))»
+«:diff-removed:-  (define x 42)»
+«:diff-removed:-  x))»
+«:diff-added:+ (#%module-begin:2»
+«:diff-added:+  (do-wrapping-module-begin:2»
+«:diff-added:+   print-result:2»
+«:diff-added:+   (module:1»
+«:diff-added:+    configure-runtime:1»
+«:diff-added:+    '#%kernel:1»
+«:diff-added:+    (#%require:1 racket/runtime-config:1)»
+«:diff-added:+    (configure:1 #f)))»
+«:diff-added:+  (do-wrapping-module-begin:2 print-result:2 (define x 42))»
+«:diff-added:+  (do-wrapping-module-begin:2 print-result:2 x)))»
+
+")
+
+(ert-deftest racket-tests/expand-file-deep ()
+  (message "racket-tests/expand-file-deep")
+  (racket-tests/with-back-end-settings
+    (let* ((dir  (make-temp-file "test" t))
+           (path (concat dir "/" racket-tests/expand-mod-name ".rkt"))
+           (code "#lang racket/base\n(define x 42)\nx"))
+      (write-region code nil path nil 'no-wrote-file-message)
+      (find-file path)
+      (racket-expand-file 4) ;; i.e. C-u prefix
+      (set-buffer "*Racket Stepper*")
+      (should (eq major-mode 'racket-stepper-mode))
+      (should (equal header-line-format "Press RET to step. C-h m to see help."))
+      (racket-tests/should-eventually
+       (faceup-test-font-lock-buffer nil racket-tests/expand-deep-0))
+      (racket-tests/press "RET")
+      (racket-tests/should-eventually
+       (faceup-test-font-lock-buffer nil racket-tests/expand-deep-1))
+      (racket-tests/press "RET")
+      (racket-tests/should-eventually
+       (faceup-test-font-lock-buffer nil racket-tests/expand-deep-2))
+      (kill-buffer)
+      (delete-file path))))
 
 ;;; Indentation
 
