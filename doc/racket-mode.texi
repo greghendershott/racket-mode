@@ -172,6 +172,7 @@ General variables
 * racket-path-from-emacs-to-racket-function::
 * racket-path-from-racket-to-emacs-function::
 * racket-xp-after-change-refresh-delay::
+* racket-xp-highlight-unused-regexp::
 
 REPL variables
 
@@ -1026,12 +1027,12 @@ Defintions' source and documentation.
 
 When point is on a definition or use, related items are
 highlighted using @ref{racket-xp-def-face} and @ref{racket-xp-use-face}
--- instead of drawing arrows as in Dr Racket -- and ``mouse
-over''. Information is displayed using the function(s) in the
-hook variable @ref{racket-show-functions}; it is also available when
-hovering the mouse cursor. Note: If you find these features too
-distracting and/or slow, you may disable @code{cursor-sensor-mode}.
-The remaining features discussed below will still work.
+-- instead of drawing arrows as in Dr Racket. Information is
+displayed using the function(s) in the hook variable
+@ref{racket-show-functions}; it is also available when hovering the
+mouse cursor. Note: If you find these features too distracting
+and/or slow, you may disable @code{cursor-sensor-mode}. The remaining
+features discussed below will still work.
 
 You may also use commands to navigate among a definition and its
 uses, or to rename a local definitions and all its uses.
@@ -1166,8 +1167,8 @@ is displayed, for example "(name arg-1-name arg-2-name)".
 
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for @code{racket-visit-definition} and
-@code{racket-doc}.
+TAB, and activate using RET -- for @ref{racket-xp-visit-definition}
+and @ref{racket-xp-documentation}.
 
 @node racket-xp-documentation
 @subsection racket-xp-documentation
@@ -1976,6 +1977,7 @@ The ``project'' is determined by trying, in order:
 * racket-path-from-emacs-to-racket-function::
 * racket-path-from-racket-to-emacs-function::
 * racket-xp-after-change-refresh-delay::
+* racket-xp-highlight-unused-regexp::
 @end menu
 
 @node racket-program
@@ -2101,6 +2103,14 @@ you probably also want to customize the ``reverse'':
 Seconds to wait before refreshing @ref{racket-xp-mode} annotations.
 
 Set to nil to disable automatic refresh and manually use @code{racket-xp-annotate}.
+
+@node racket-xp-highlight-unused-regexp
+@subsection racket-xp-highlight-unused-regexp
+
+Only give @ref{racket-xp-unused-face} to unused bindings that match this regexp.
+
+The default is to highlight indentifiers that do not start with
+an underline, which is a common convention.
 
 @node REPL variables
 @section REPL variables
