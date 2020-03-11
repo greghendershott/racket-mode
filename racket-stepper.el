@@ -56,7 +56,7 @@ Used by the commands `racket-expand-file',
 \\{racket-stepper-mode-map}
 "
   (setq header-line-format
-        "Press RET to step. C-h m to see help.")
+        "Press RET to step. C-u RET to step all. C-h m to see help.")
   (setq-local font-lock-defaults
               (list racket-stepper-font-lock-keywords
                     t)))        ;keywords only -- not strings/comments
@@ -160,24 +160,25 @@ INTO-BASE is treated as a raw prefix arg and converted to boolp."
                                      ,(and into-base t))
                      #'racket-stepper--insert))
 
-(defun racket-stepper--insert (step)
+(defun racket-stepper--insert (steps)
   (with-current-buffer racket-stepper--buffer-name
     (let ((inhibit-read-only t))
       (goto-char (point-max))
-      (pcase step
-        (`(original . ,text)
-         (delete-region (point-min) (point-max))
-         (insert "Original\n" text "\n" "\n"))
-        (`(final    . ,text) (insert "Final\n" text "\n"))
-        (`(,label   . ,diff) (insert label "\n" diff "\n")))
+      (dolist (step steps)
+        (pcase step
+          (`(original . ,text)
+           (delete-region (point-min) (point-max))
+           (insert "Original\n" text "\n" "\n"))
+          (`(final    . ,text) (insert "Final\n" text "\n"))
+          (`(,label   . ,diff) (insert label "\n" diff "\n"))))
       (racket-stepper-previous-item)
       (when (equal (selected-window) (get-buffer-window (current-buffer)))
         (recenter)))))
 
-(defun racket-stepper-step ()
-  (interactive)
+(defun racket-stepper-step (prefix)
+  (interactive "P")
   (racket--cmd/async racket--stepper-repl-session-id
-                     `(macro-stepper/next)
+                     `(macro-stepper/next ,(if prefix 'all 'next))
                      #'racket-stepper--insert))
 
 (defconst racket-stepper--item-rx

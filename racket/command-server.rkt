@@ -110,7 +110,7 @@
     [`(no-op)                          #t]
     [`(check-syntax ,path-str ,code)   (check-syntax path-str code)]
     [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
-    [`(macro-stepper/next)             (macro-stepper/next)]
+    [`(macro-stepper/next ,what)       (macro-stepper/next what)]
     [`(find-collection ,str)           (find-collection str)]
     [`(module-names)                   (module-names)]
     [`(requires/tidy ,reqs)            (requires/tidy reqs)]

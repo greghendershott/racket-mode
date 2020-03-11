@@ -18,35 +18,49 @@
 (provide macro-stepper
          macro-stepper/next)
 
-(define step-thunk/c (-> (cons/c (or/c 'original string? 'final) string?)))
-(define step-thunk #f)
+(define step/c (cons/c (or/c 'original string? 'final) string?))
+(define step-proc/c (-> (or/c 'next 'all) (listof step/c)))
+(define step-proc #f)
 
 (define/contract (make-expr-stepper str)
-  (-> string? step-thunk/c)
+  (-> string? step-proc/c)
   (unless (current-session-id)
     (error 'make-expr-stepper "Does not work without a running REPL"))
   (define step-num #f)
   (define last-stx (string->namespace-syntax str))
-  (define (step)
+  (define/contract (step what) step-proc/c
     (cond [(not step-num)
            (set! step-num 0)
-           (cons 'original (pretty-format-syntax last-stx))]
+           (list (cons 'original
+                       (pretty-format-syntax last-stx)))]
           [else
-           (define this-stx (expand-once last-stx))
-           (cond [(not (equal? (syntax->datum last-stx)
-                               (syntax->datum this-stx)))
-                  (begin0
-                      (cons (~a step-num ": expand-once")
-                            (diff-text (pretty-format-syntax last-stx)
-                                       (pretty-format-syntax this-stx)
-                                       #:unified 3))
-                    (set! last-stx this-stx))]
-                 [else
-                  (cons 'final (pretty-format-syntax this-stx))])]))
+           (define result
+             (let loop ()
+               (define this-stx (expand-once last-stx))
+               (cond [(equal? (syntax->datum last-stx)
+                              (syntax->datum this-stx))
+                      (cond [(eq? what 'all)
+                             (list (cons 'final
+                                         (pretty-format-syntax this-stx)))]
+                            [else (list)])]
+                     [else
+                      (set! step-num (add1 step-num))
+                      (define step
+                        (cons (~a step-num ": expand-once")
+                              (diff-text (pretty-format-syntax last-stx)
+                                         (pretty-format-syntax this-stx)
+                                         #:unified 3)))
+                      (set! last-stx this-stx)
+                      (cond [(eq? what 'all) (cons step (loop))]
+                            [else (list step)])])))
+           (match result
+             [(list) (list (cons 'final
+                                 (pretty-format-syntax last-stx)))]
+             [v v])]))
   step)
 
 (define/contract (make-file-stepper path into-base?)
-  (-> (and/c path-string? absolute-path?) boolean? step-thunk/c)
+  (-> (and/c path-string? absolute-path?) boolean? step-proc/c)
   (define stx (file->syntax path))
   (define dir (path-only path))
   (define ns (make-base-namespace))
@@ -57,42 +71,62 @@
   (define step-num #f)
   (define step-last-after "")
   (log-racket-mode-debug "~v ~v ~v" path into-base? raw-step)
-  (define/contract (step) step-thunk/c
+  (define/contract (step what) step-proc/c
     (cond [(not step-num)
            (set! step-num 0)
-           (cons 'original
-                 (pretty-format-syntax stx))]
+           (list (cons 'original
+                       (pretty-format-syntax stx)))]
           [else
            (define out (open-output-string))
-           (parameterize ([current-output-port out])
-             (cond [(raw-step 'next)
-                    (set! step-num (add1 step-num))
-                    (log-racket-mode-debug "~v" (get-output-string out))
-                    (match-define (list title before after)
-                      (step-parts (get-output-string out)))
-                    (set! step-last-after after)
-                    (cons (~a step-num ": " title)
-                          (diff-text before after #:unified 3))]
-                   [else
-                    (cons 'final step-last-after)]))]))
+           (cond [(parameterize ([current-output-port out])
+                    (raw-step what))
+                  (log-racket-mode-debug "~v" (get-output-string out))
+                  (define in (open-input-string (get-output-string out)))
+                  (let loop ()
+                    (match (parameterize ([current-input-port in])
+                             (read-step))
+                      [(? eof-object?)
+                       (cond [(eq? what 'all)
+                              (list (cons 'final step-last-after))]
+                             [else (list)])]
+                      [(list title before after)
+                       (set! step-num (add1 step-num))
+                       (set! step-last-after after)
+                       (cons (cons (~a step-num ": " title)
+                                   (diff-text before after #:unified 3))
+                             (loop))]))]
+                 [else
+                  (list (cons 'final step-last-after))])]))
   step)
+
+(define (read-step)
+  (define title (read-line))
+  (define before (read))
+  (define _arrow (read)) ; '==>
+  (define after (read))
+  (read-line)
+  (match (read-line)
+    [(? eof-object? e) e]
+    [_ (list title
+            (pretty-format #:mode 'write before)
+            (pretty-format #:mode 'write  after))]))
 
 (define/contract (macro-stepper what into-base?)
   (-> (or/c (cons/c 'expr string?) (cons/c 'file path-string?)) elisp-bool/c
-      (cons/c 'original string?))
-  (set! step-thunk
+      (list/c step/c))
+  (set! step-proc
         (match what
           [(cons 'expr str)  (make-expr-stepper str)]
           [(cons 'file path) (make-file-stepper path (as-racket-bool into-base?))]))
-  (macro-stepper/next))
+  (macro-stepper/next 'next))
 
-(define/contract (macro-stepper/next)
-  (-> (cons/c (or/c 'original 'final string?) string?))
-  (unless step-thunk
+(define/contract (macro-stepper/next what) step-proc/c
+  (unless step-proc
     (error 'macro-stepper "Nothing to expand"))
-  (define v (step-thunk))
-  (when (eq? 'final (car v))
-    (set! step-thunk #f))
+  (define v (step-proc what))
+  (match v
+    [(list (cons 'final _)) (set! step-proc #f)]
+    [_ (void)])
   v)
 
 ;; Borrowed from xrepl.
@@ -105,12 +139,6 @@
                       (map (λ (s) (namespace-symbol->identifier (car s)))
                            (cdr (assq 0 stxs)))))))
           (λ (id) (not (ormap (λ (s) (free-identifier=? id s)) base-stxs))))))
-
-(define (step-parts str)
-  (match str
-    [(pregexp "^(.+?)\n(.+?)\n +==>\n(.+?)\n+$"
-              (list _ title before after))
-     (list title before after)]))
 
 (define (diff-text before-text after-text #:unified [-U 3])
   (define template "racket-mode-syntax-diff-~a")

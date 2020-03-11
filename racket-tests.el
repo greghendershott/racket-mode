@@ -1,6 +1,6 @@
 ;;; racket-tests.el
 
-;; Copyright (c) 2013-2019 by Greg Hendershott.
+;; Copyright (c) 2013-2020 by Greg Hendershott.
 
 ;; License:
 ;; This is free software; you can redistribute it and/or modify it
@@ -61,14 +61,14 @@
 (defmacro racket-tests/eventually (&rest body)
   `(racket-tests/call-until-true (lambda () ,@body)))
 
-(defmacro racket-tests/should-eventually (&rest body)
+(defmacro racket-tests/should-eventually (expr)
   "Aside from avoiding some nesting, an advantage of this vs.
 composing `should` and eventually is that the `should` macro will
 be able to look up an ert-explainer property on the symbol
 supplied to it."
   `(progn
-     (racket-tests/call-until-true (lambda () ,@body))
-     (should (progn ,@body))))
+     (racket-tests/call-until-true (lambda () ,expr))
+     (should ,expr)))
 
 (defun racket-tests/see-back-rx (rx)
   (racket-tests/eventually (looking-back rx (point-min))))
@@ -113,8 +113,8 @@ supplied to it."
   (message "racket-tests/repl")
   (racket-tests/with-back-end-settings
     (racket-repl)
-    (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
-    (racket-tests/should-eventually (racket--repl-live-p))
+    (racket-tests/eventually (get-buffer racket-repl-buffer-name))
+    (racket-tests/eventually (racket--repl-live-p))
     (with-racket-repl-buffer
       (should (racket-tests/see-back-rx
                "Welcome to Racket v?[0-9.]+\\(?: \\[cs\\].\\)?[\n]\\(?:;.*[\n]\\)*> "))
@@ -232,9 +232,9 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (racket-xp-mode 1)
       (should racket-xp-mode)
       (racket-tests/should-eventually
-       (goto-char (point-min))
-       (racket-xp-next-definition)
-       (racket-tests/see-forward "racket/base"))
+       (progn (goto-char (point-min))
+              (racket-xp-next-definition)
+              (racket-tests/see-forward "racket/base")))
       (racket-xp-next-definition)
       (should (racket-tests/see-forward "foobar"))
       (should (equal (get-text-property (point) 'help-echo) "1 bound occurrence"))
@@ -261,9 +261,9 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (find-file pathname)
       (should (eq major-mode 'racket-mode))
       (racket-run `(16))
-      (should (racket-tests/eventually (get-buffer racket-repl-buffer-name)))
-      (should (racket-tests/eventually (racket--repl-live-p)))
-      (should (racket-tests/eventually racket-debug-mode))
+      (racket-tests/eventually (get-buffer racket-repl-buffer-name))
+      (racket-tests/eventually (racket--repl-live-p))
+      (racket-tests/should-eventually racket-debug-mode)
 
       (with-racket-repl-buffer
         (should (racket-tests/see-back (concat "\n[" name ":42]> ")))) ;debugger prompt
@@ -301,7 +301,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (kill-buffer)
       (delete-file pathname))))
 
-;;; Macro stepper
+;;; Macro stepper: File "shallow"
 
 (defconst racket-tests/expand-mod-name "foo")
 
@@ -330,7 +330,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (racket-expand-file)
       (set-buffer "*Racket Stepper*")
       (should (eq major-mode 'racket-stepper-mode))
-      (should (equal header-line-format "Press RET to step. C-h m to see help."))
+      (should (equal header-line-format "Press RET to step. C-u RET to step all. C-h m to see help."))
       (racket-tests/should-eventually
        (faceup-test-font-lock-buffer nil racket-tests/expand-shallow-0))
       (racket-tests/press "RET")
@@ -338,6 +338,8 @@ c.rkt. Visit each file, racket-run, and check as expected."
        (faceup-test-font-lock-buffer nil racket-tests/expand-shallow-1))
       (kill-buffer)
       (delete-file path))))
+
+;;; Macro stepper: File "deep"
 
 (defconst racket-tests/expand-deep-0
   "«f:Original»
@@ -350,19 +352,17 @@ c.rkt. Visit each file, racket-run, and check as expected."
 (module foo racket/base (#%module-begin (define x 42) x))
 
 «f:1: Macro transformation»
-«x:@@ -1 +1,11 @@»
+«x:@@ -1 +1,9 @@»
 «:diff-removed:-(module foo racket/base (#%module-begin (define x 42) x))»
-«:diff-added:+(module»
-«:diff-added:+ foo»
-«:diff-added:+ racket/base»
-«:diff-added:+ (printing:module-begin:1»
-«:diff-added:+  (module:1»
-«:diff-added:+   configure-runtime:1»
-«:diff-added:+   '#%kernel:1»
-«:diff-added:+   (#%require:1 racket/runtime-config:1)»
-«:diff-added:+   (configure:1 #f))»
-«:diff-added:+  (define x 42)»
-«:diff-added:+  x))»
+«:diff-added:+(module foo racket/base»
+«:diff-added:+  (printing:module-begin:1»
+«:diff-added:+   (module:1»
+«:diff-added:+    configure-runtime:1»
+«:diff-added:+    '#%kernel:1»
+«:diff-added:+    (#%require:1 racket/runtime-config:1)»
+«:diff-added:+    (configure:1 #f))»
+«:diff-added:+   (define x 42)»
+«:diff-added:+   x))»
 
 ")
 
@@ -371,43 +371,39 @@ c.rkt. Visit each file, racket-run, and check as expected."
 (module foo racket/base (#%module-begin (define x 42) x))
 
 «f:1: Macro transformation»
-«x:@@ -1 +1,11 @@»
+«x:@@ -1 +1,9 @@»
 «:diff-removed:-(module foo racket/base (#%module-begin (define x 42) x))»
-«:diff-added:+(module»
-«:diff-added:+ foo»
-«:diff-added:+ racket/base»
-«:diff-added:+ (printing:module-begin:1»
-«:diff-added:+  (module:1»
-«:diff-added:+   configure-runtime:1»
-«:diff-added:+   '#%kernel:1»
-«:diff-added:+   (#%require:1 racket/runtime-config:1)»
-«:diff-added:+   (configure:1 #f))»
-«:diff-added:+  (define x 42)»
-«:diff-added:+  x))»
-
-«f:2: Macro transformation»
-«x:@@ -1,11 +1,13 @@»
- (module
-  foo
-  racket/base
-«:diff-removed:- (printing:module-begin:1»
-«:diff-removed:-  (module:1»
-«:diff-removed:-   configure-runtime:1»
-«:diff-removed:-   '#%kernel:1»
-«:diff-removed:-   (#%require:1 racket/runtime-config:1)»
-«:diff-removed:-   (configure:1 #f))»
-«:diff-removed:-  (define x 42)»
-«:diff-removed:-  x))»
-«:diff-added:+ (#%module-begin:2»
-«:diff-added:+  (do-wrapping-module-begin:2»
-«:diff-added:+   print-result:2»
+«:diff-added:+(module foo racket/base»
+«:diff-added:+  (printing:module-begin:1»
 «:diff-added:+   (module:1»
 «:diff-added:+    configure-runtime:1»
 «:diff-added:+    '#%kernel:1»
 «:diff-added:+    (#%require:1 racket/runtime-config:1)»
-«:diff-added:+    (configure:1 #f)))»
-«:diff-added:+  (do-wrapping-module-begin:2 print-result:2 (define x 42))»
-«:diff-added:+  (do-wrapping-module-begin:2 print-result:2 x)))»
+«:diff-added:+    (configure:1 #f))»
+«:diff-added:+   (define x 42)»
+«:diff-added:+   x))»
+
+«f:2: Macro transformation»
+«x:@@ -1,9 +1,11 @@»
+ (module foo racket/base
+«:diff-removed:-  (printing:module-begin:1»
+«:diff-removed:-   (module:1»
+«:diff-removed:-    configure-runtime:1»
+«:diff-removed:-    '#%kernel:1»
+«:diff-removed:-    (#%require:1 racket/runtime-config:1)»
+«:diff-removed:-    (configure:1 #f))»
+«:diff-removed:-   (define x 42)»
+«:diff-removed:-   x))»
+«:diff-added:+  (#%module-begin:2»
+«:diff-added:+   (do-wrapping-module-begin:2»
+«:diff-added:+    print-result:2»
+«:diff-added:+    (module:1»
+«:diff-added:+     configure-runtime:1»
+«:diff-added:+     '#%kernel:1»
+«:diff-added:+     (#%require:1 racket/runtime-config:1)»
+«:diff-added:+     (configure:1 #f)))»
+«:diff-added:+   (do-wrapping-module-begin:2 print-result:2 (define x 42))»
+«:diff-added:+   (do-wrapping-module-begin:2 print-result:2 x)))»
 
 ")
 
@@ -422,7 +418,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (racket-expand-file 4) ;; i.e. C-u prefix
       (set-buffer "*Racket Stepper*")
       (should (eq major-mode 'racket-stepper-mode))
-      (should (equal header-line-format "Press RET to step. C-h m to see help."))
+      (should (equal header-line-format "Press RET to step. C-u RET to step all. C-h m to see help."))
       (racket-tests/should-eventually
        (faceup-test-font-lock-buffer nil racket-tests/expand-deep-0))
       (racket-tests/press "RET")
@@ -433,6 +429,131 @@ c.rkt. Visit each file, racket-run, and check as expected."
        (faceup-test-font-lock-buffer nil racket-tests/expand-deep-2))
       (kill-buffer)
       (delete-file path))))
+
+;;; Macro stepper: Expression
+
+(defconst racket-tests/expand-expression-0
+  "«f:Original»
+(cond ((< 1 2) #t) (else #f))
+
+")
+
+(defconst racket-tests/expand-expression-1
+  "«f:Original»
+(cond ((< 1 2) #t) (else #f))
+
+«f:1: expand-once»
+«x:@@ -1 +1 @@»
+«:diff-removed:-(cond ((< 1 2) #t) (else #f))»
+«:diff-added:+(if (< 1 2) (let-values () #t) (let-values () #f))»
+
+")
+
+(defconst racket-tests/expand-expression-2
+  "«f:Original»
+(cond ((< 1 2) #t) (else #f))
+
+«f:1: expand-once»
+«x:@@ -1 +1 @@»
+«:diff-removed:-(cond ((< 1 2) #t) (else #f))»
+«:diff-added:+(if (< 1 2) (let-values () #t) (let-values () #f))»
+
+«f:2: expand-once»
+«x:@@ -1 +1 @@»
+«:diff-removed:-(if (< 1 2) (let-values () #t) (let-values () #f))»
+«:diff-added:+(if (#%app < 1 2) (let-values () '#t) (let-values () '#f))»
+
+")
+
+(defconst racket-tests/expand-expression-3
+  "«f:Original»
+(cond ((< 1 2) #t) (else #f))
+
+«f:1: expand-once»
+«x:@@ -1 +1 @@»
+«:diff-removed:-(cond ((< 1 2) #t) (else #f))»
+«:diff-added:+(if (< 1 2) (let-values () #t) (let-values () #f))»
+
+«f:2: expand-once»
+«x:@@ -1 +1 @@»
+«:diff-removed:-(if (< 1 2) (let-values () #t) (let-values () #f))»
+«:diff-added:+(if (#%app < 1 2) (let-values () '#t) (let-values () '#f))»
+
+«f:3: expand-once»
+«x:@@ -1 +1 @@»
+«:diff-removed:-(if (#%app < 1 2) (let-values () '#t) (let-values () '#f))»
+«:diff-added:+(if (#%app < '1 '2) (let-values () '#t) (let-values () '#f))»
+
+")
+
+(defconst racket-tests/expand-expression-4
+  "«f:Original»
+(cond ((< 1 2) #t) (else #f))
+
+«f:1: expand-once»
+«x:@@ -1 +1 @@»
+«:diff-removed:-(cond ((< 1 2) #t) (else #f))»
+«:diff-added:+(if (< 1 2) (let-values () #t) (let-values () #f))»
+
+«f:2: expand-once»
+«x:@@ -1 +1 @@»
+«:diff-removed:-(if (< 1 2) (let-values () #t) (let-values () #f))»
+«:diff-added:+(if (#%app < 1 2) (let-values () '#t) (let-values () '#f))»
+
+«f:3: expand-once»
+«x:@@ -1 +1 @@»
+«:diff-removed:-(if (#%app < 1 2) (let-values () '#t) (let-values () '#f))»
+«:diff-added:+(if (#%app < '1 '2) (let-values () '#t) (let-values () '#f))»
+
+«f:Final»
+(if (#%app < '1 '2) (let-values () '#t) (let-values () '#f))
+")
+
+(ert-deftest racket-tests/expand-expression ()
+  (message "racket-tests/expand-expression")
+  (racket-tests/with-back-end-settings
+    (let* ((pathname (make-temp-file "test" nil ".rkt"))
+           (name     (file-name-nondirectory pathname))
+           (code "#lang racket/base\n(cond [(< 1 2) #t] [else #f])\n"))
+      (write-region code nil pathname nil 'no-wrote-file-message)
+      (find-file pathname)
+
+      (racket-run)
+      (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
+      (racket-tests/should-eventually (racket--repl-live-p))
+      (with-racket-repl-buffer
+        (should (racket-tests/see-back (concat "\n" name "> "))))
+
+      (goto-char (point-max)) ;after the cond expression
+      (racket-expand-last-sexp)
+      (set-buffer "*Racket Stepper*")
+      (should (eq major-mode 'racket-stepper-mode))
+      (should (equal header-line-format "Press RET to step. C-u RET to step all. C-h m to see help."))
+      (racket-tests/should-eventually
+       (faceup-test-font-lock-buffer nil racket-tests/expand-expression-0))
+
+      (racket-tests/press "RET")
+      (racket-tests/should-eventually
+       (faceup-test-font-lock-buffer nil racket-tests/expand-expression-1))
+      (racket-tests/press "RET")
+      (racket-tests/should-eventually
+       (faceup-test-font-lock-buffer nil racket-tests/expand-expression-2))
+      (racket-tests/press "RET")
+      (racket-tests/should-eventually
+       (faceup-test-font-lock-buffer nil racket-tests/expand-expression-3))
+      (racket-tests/press "RET")
+      (racket-tests/should-eventually
+       (faceup-test-font-lock-buffer nil racket-tests/expand-expression-4))
+
+      (with-racket-repl-buffer
+        (racket-repl-exit)
+        (should (racket-tests/see-back
+                 "Process *Racket REPL* connection broken by remote peer\n"))
+        (kill-buffer))
+
+      (kill-buffer)
+      (delete-file pathname))))
+
 
 ;;; Indentation
 
