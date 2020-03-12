@@ -61,6 +61,7 @@
 
 (define/contract (make-file-stepper path into-base?)
   (-> (and/c path-string? absolute-path?) boolean? step-proc/c)
+  (assert-file-stepper-works)
   (define stx (file->syntax path))
   (define dir (path-only path))
   (define ns (make-base-namespace))
@@ -110,6 +111,12 @@
     [_ (list title
             (pretty-format #:mode 'write before)
             (pretty-format #:mode 'write  after))]))
+
+(define (assert-file-stepper-works)
+  (define step (stepper-text #'(module example racket/base 42)))
+  (unless (step 'next)
+    (error 'macro-debugger/stepper-text
+           "does not work in your version of Racket.\nPlease try an older or newer version.")))
 
 (define/contract (macro-stepper what into-base?)
   (-> (or/c (cons/c 'expr string?) (cons/c 'file path-string?)) elisp-bool/c

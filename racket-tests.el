@@ -320,24 +320,26 @@ c.rkt. Visit each file, racket-run, and check as expected."
 ")
 
 (ert-deftest racket-tests/expand-file-shallow ()
-  (message "racket-tests/expand-file-shallow")
-  (racket-tests/with-back-end-settings
-    (let* ((dir  (make-temp-file "test" t))
-           (path (concat dir "/" racket-tests/expand-mod-name ".rkt"))
-           (code "#lang racket/base\n(define x 42)\nx"))
-      (write-region code nil path nil 'no-wrote-file-message)
-      (find-file path)
-      (racket-expand-file)
-      (set-buffer "*Racket Stepper*")
-      (should (eq major-mode 'racket-stepper-mode))
-      (should (equal header-line-format "Press RET to step. C-u RET to step all. C-h m to see help."))
-      (racket-tests/should-eventually
-       (faceup-test-font-lock-buffer nil racket-tests/expand-shallow-0))
-      (racket-tests/press "RET")
-      (racket-tests/should-eventually
-       (faceup-test-font-lock-buffer nil racket-tests/expand-shallow-1))
-      (kill-buffer)
-      (delete-file path))))
+  (if (racket-tests/version-7.6-p)
+      (message "Skipping racket-tests/expand-file-shallow for Racket 7.6")
+    (message "racket-tests/expand-file-shallow")
+    (racket-tests/with-back-end-settings
+      (let* ((dir  (make-temp-file "test" t))
+             (path (concat dir "/" racket-tests/expand-mod-name ".rkt"))
+             (code "#lang racket/base\n(define x 42)\nx"))
+        (write-region code nil path nil 'no-wrote-file-message)
+        (find-file path)
+        (racket-expand-file)
+        (set-buffer "*Racket Stepper*")
+        (should (eq major-mode 'racket-stepper-mode))
+        (should (equal header-line-format "Press RET to step. C-u RET to step all. C-h m to see help."))
+        (racket-tests/should-eventually
+         (faceup-test-font-lock-buffer nil racket-tests/expand-shallow-0))
+        (racket-tests/press "RET")
+        (racket-tests/should-eventually
+         (faceup-test-font-lock-buffer nil racket-tests/expand-shallow-1))
+        (kill-buffer)
+        (delete-file path)))))
 
 ;;; Macro stepper: File "deep"
 
@@ -408,27 +410,29 @@ c.rkt. Visit each file, racket-run, and check as expected."
 ")
 
 (ert-deftest racket-tests/expand-file-deep ()
-  (message "racket-tests/expand-file-deep")
-  (racket-tests/with-back-end-settings
-    (let* ((dir  (make-temp-file "test" t))
-           (path (concat dir "/" racket-tests/expand-mod-name ".rkt"))
-           (code "#lang racket/base\n(define x 42)\nx"))
-      (write-region code nil path nil 'no-wrote-file-message)
-      (find-file path)
-      (racket-expand-file 4) ;; i.e. C-u prefix
-      (set-buffer "*Racket Stepper*")
-      (should (eq major-mode 'racket-stepper-mode))
-      (should (equal header-line-format "Press RET to step. C-u RET to step all. C-h m to see help."))
-      (racket-tests/should-eventually
-       (faceup-test-font-lock-buffer nil racket-tests/expand-deep-0))
-      (racket-tests/press "RET")
-      (racket-tests/should-eventually
-       (faceup-test-font-lock-buffer nil racket-tests/expand-deep-1))
-      (racket-tests/press "RET")
-      (racket-tests/should-eventually
-       (faceup-test-font-lock-buffer nil racket-tests/expand-deep-2))
-      (kill-buffer)
-      (delete-file path))))
+  (if (racket-tests/version-7.6-p)
+      (message "Skipping racket-tests/expand-file-deep for Racket 7.6")
+    (message "racket-tests/expand-file-deep")
+    (racket-tests/with-back-end-settings
+      (let* ((dir  (make-temp-file "test" t))
+             (path (concat dir "/" racket-tests/expand-mod-name ".rkt"))
+             (code "#lang racket/base\n(define x 42)\nx"))
+        (write-region code nil path nil 'no-wrote-file-message)
+        (find-file path)
+        (racket-expand-file 4) ;; i.e. C-u prefix
+        (set-buffer "*Racket Stepper*")
+        (should (eq major-mode 'racket-stepper-mode))
+        (should (equal header-line-format "Press RET to step. C-u RET to step all. C-h m to see help."))
+        (racket-tests/should-eventually
+         (faceup-test-font-lock-buffer nil racket-tests/expand-deep-0))
+        (racket-tests/press "RET")
+        (racket-tests/should-eventually
+         (faceup-test-font-lock-buffer nil racket-tests/expand-deep-1))
+        (racket-tests/press "RET")
+        (racket-tests/should-eventually
+         (faceup-test-font-lock-buffer nil racket-tests/expand-deep-2))
+        (kill-buffer)
+        (delete-file path)))))
 
 ;;; Macro stepper: Expression
 
@@ -586,6 +590,14 @@ FILE is interpreted as relative to this source directory."
   "Font-lock of example/*.rkt shouldn't change."
   (should (racket-tests/same-faceup "racket/example/indent.rkt"))
   (should (racket-tests/same-faceup "racket/example/example.rkt")))
+
+;;; version check
+
+(defun racket-tests/version-7.6-p ()
+  (equal "Welcome to Racket v7.6.\n"
+         (with-temp-buffer
+           (call-process racket-program nil t nil "--version")
+           (buffer-substring-no-properties (point-min) (point-max)))))
 
 (provide 'racket-tests)
 

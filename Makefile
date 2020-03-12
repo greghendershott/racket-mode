@@ -42,4 +42,4 @@ test-racket:
 	$(RACKET) -l raco test -x ./racket/commands/*.rkt
 
 test-elisp:
-	$(BATCHEMACS) -l ert -l racket-tests.el -f ert-run-tests-batch-and-exit
+	$(BATCHEMACS) -l ert -l racket-tests.el -eval '(setq racket-program "$(RACKET)")' -f ert-run-tests-batch-and-exit
