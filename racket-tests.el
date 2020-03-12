@@ -594,10 +594,13 @@ FILE is interpreted as relative to this source directory."
 ;;; version check
 
 (defun racket-tests/version-7.6-p ()
-  (equal "Welcome to Racket v7.6.\n"
-         (with-temp-buffer
-           (call-process racket-program nil t nil "--version")
-           (buffer-substring-no-properties (point-min) (point-max)))))
+  "Is `racket-program' \"7.6\" or  \"7.6 [cs]\"?"
+  (and (string-match-p
+        "^Welcome to Racket v7.6"
+        (with-temp-buffer
+          (call-process racket-program nil t nil "--version")
+          (buffer-substring-no-properties (point-min) (point-max))))
+       t))
 
 (provide 'racket-tests)
 
