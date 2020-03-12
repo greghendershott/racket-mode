@@ -199,11 +199,11 @@ c.rkt. Visit each file, racket-run, and check as expected."
   "Start the REPL via a racket-run command."
   (message "racket-tests/run")
   (racket-tests/with-back-end-settings
-    (let* ((pathname (make-temp-file "test" nil ".rkt"))
-           (name     (file-name-nondirectory pathname))
+    (let* ((path (make-temp-file "test" nil ".rkt"))
+           (name (file-name-nondirectory path))
            (code "#lang racket/base\n(define foobar 42)\nfoobar\n"))
-      (write-region code nil pathname nil 'no-wrote-file-message)
-      (find-file pathname)
+      (write-region code nil path nil 'no-wrote-file-message)
+      (find-file path)
       (racket-run)
       (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
       (racket-tests/should-eventually (racket--repl-live-p))
@@ -214,18 +214,18 @@ c.rkt. Visit each file, racket-run, and check as expected."
                  "Process *Racket REPL* connection broken by remote peer\n"))
         (kill-buffer))
       (kill-buffer)
-      (delete-file pathname))))
+      (delete-file path))))
 
 ;;; racket-xp-mode
 
 (ert-deftest racket-tests/xp ()
   (message "racket-tests/xp")
   (racket-tests/with-back-end-settings
-    (let* ((pathname (make-temp-file "test" nil ".rkt"))
-           (name     (file-name-nondirectory pathname))
-           (code     "#lang racket/base\n(define foobar 42)\nfoobar\n"))
-      (write-region code nil pathname nil 'no-wrote-file-message)
-      (find-file pathname)
+    (let* ((path (make-temp-file "test" nil ".rkt"))
+           (name (file-name-nondirectory path))
+           (code "#lang racket/base\n(define foobar 42)\nfoobar\n"))
+      (write-region code nil path nil 'no-wrote-file-message)
+      (find-file path)
       ;; In case running test interactively in Emacs where the config
       ;; loads `racket-xp-mode' automatically, disable it first.
       (racket-xp-mode 0)
@@ -247,18 +247,18 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (should (racket-tests/see-back "foobar"))
       (racket-xp-mode 0)
       (kill-buffer)
-      (delete-file pathname))))
+      (delete-file path))))
 
 ;;; Debugger
 
 (ert-deftest racket-tests/debugger ()
   (message "racket-tests/debugger")
   (racket-tests/with-back-end-settings
-    (let* ((pathname (make-temp-file "test" nil ".rkt"))
-           (name     (file-name-nondirectory pathname))
-           (code     "#lang racket/base\n(define (f x) (+ 1 x))\n(f 41)\n"))
-      (write-region code nil pathname nil 'no-wrote-file-message)
-      (find-file pathname)
+    (let* ((path (make-temp-file "test" nil ".rkt"))
+           (name (file-name-nondirectory path))
+           (code "#lang racket/base\n(define (f x) (+ 1 x))\n(f 41)\n"))
+      (write-region code nil path nil 'no-wrote-file-message)
+      (find-file path)
       (should (eq major-mode 'racket-mode))
       (racket-run `(16))
       (racket-tests/eventually (get-buffer racket-repl-buffer-name))
@@ -299,7 +299,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
         (kill-buffer))
 
       (kill-buffer)
-      (delete-file pathname))))
+      (delete-file path))))
 
 ;;; Macro stepper: File "shallow"
 
@@ -516,11 +516,11 @@ c.rkt. Visit each file, racket-run, and check as expected."
 (ert-deftest racket-tests/expand-expression ()
   (message "racket-tests/expand-expression")
   (racket-tests/with-back-end-settings
-    (let* ((pathname (make-temp-file "test" nil ".rkt"))
-           (name     (file-name-nondirectory pathname))
+    (let* ((path (make-temp-file "test" nil ".rkt"))
+           (name (file-name-nondirectory path))
            (code "#lang racket/base\n(cond [(< 1 2) #t] [else #f])\n"))
-      (write-region code nil pathname nil 'no-wrote-file-message)
-      (find-file pathname)
+      (write-region code nil path nil 'no-wrote-file-message)
+      (find-file path)
 
       (racket-run)
       (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
@@ -556,7 +556,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
         (kill-buffer))
 
       (kill-buffer)
-      (delete-file pathname))))
+      (delete-file path))))
 
 
 ;;; Indentation
