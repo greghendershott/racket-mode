@@ -20,34 +20,22 @@
 ;; `(provide (contract-out [rename orig new contract]))`
 ;; identifier-binding reports (1) the contract wrapper as the id, and
 ;; (2) `new` as the nominal-id -- but NOT (3) `orig`. We handle such
-;; cases; see `def-in-file` and its use of `$renaming-provde`, below.
+;; cases; see `find-def-in-file` and its use of `$renaming-provde`,
+;; below.
 ;;
 ;; Another tricky case: "foo" is defined in def.rkt. repro.rkt
 ;; requires def.rkt and re-provides "foo" using contract-out. When
 ;; user.rkt requires repro.rkt, identifier-binding will report "foo"
 ;; the id (yay!) but report the defining file is repro.rkt -- not
-;; def.rkt (boo!). We handle such cases, at least for the command
-;; `find-definition/drracket-jump` below, i.e. what's normally used by
-;; M-x racket-xp-visit-definition on the front end.
+;; def.rkt (boo!). We handle such cases.
 
 (define location/c (list/c path-string? natural-number/c natural-number/c))
 
-;; Try to find a definition.
-(define/contract (find-definition how str)
-  (-> how/c string?
-      (or/c #f 'kernel location/c))
-  (match (find-def how str)
-    [(list stx path _submods)
-     (list (->path-string (or (syntax-source stx) path))
-           (or (syntax-line stx) 1)
-           (or (syntax-column stx) 0))]
-    [v v]))
-
-;; Likewise, but using information already supplied by
-;; drracket/check-syntax, i.e. this is how to "force" that "delay".
-;; (We could have done this earlier and returned this information as
-;; part of the original check-syntax result -- but doing so would have
-;; been too slow.)
+;; Try to find a definition, using as a head start information
+;; supplied by drracket/check-syntax. It did the "fast" work for all
+;; uses (calling identifier-binding) and we recorded that answer to
+;; give the front end. If the user wants to visit any of those, the
+;; front end gives us that info, and we do the "slow" work.
 (define/contract (find-definition/drracket-jump how-path src-path submods id-strs)
   (-> (and/c how/c (not/c 'namespace)) path-string? (listof symbol?) (listof string?)
       (or/c #f 'kernel location/c))
@@ -68,6 +56,17 @@
       ;; As a final fallback, return the reported file:1:0. At least
       ;; give user a head start.
       (list src-path 1 0)))
+
+;; Try to find a definition.
+(define/contract (find-definition how str)
+  (-> how/c string?
+      (or/c #f 'kernel location/c))
+  (match (find-def how str)
+    [(list stx path _submods)
+     (list (->path-string (or (syntax-source stx) path))
+           (or (syntax-line stx) 1)
+           (or (syntax-column stx) 0))]
+    [v v]))
 
 ;; Try to find the definition of `str`, returning its signature or #f.
 ;; When defined in 'kernel, returns a form saying so, not #f.
