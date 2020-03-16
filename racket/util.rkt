@@ -8,7 +8,6 @@
                   filename-extension))
 
 (provide display-commented
-         with-dynamic-requires
          string->namespace-syntax
          syntax-or-sexpr->syntax
          syntax-or-sexpr->sexpr
@@ -31,10 +30,6 @@
 (define (display-commented str)
   (eprintf "; ~a\n"
            (regexp-replace* "\n" str "\n; ")))
-
-(define-simple-macro (with-dynamic-requires ([lib:id id:id] ...+) body ...+)
-  (let ([id (dynamic-require 'lib 'id)] ...)
-    body ...))
 
 (define (string->namespace-syntax str)
   (namespace-syntax-introduce

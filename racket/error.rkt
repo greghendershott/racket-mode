@@ -1,6 +1,8 @@
 #lang at-exp racket/base
 
-(require racket/format
+(require (only-in pkg/db get-catalogs)
+         (only-in pkg/lib pkg-catalog-suggestions-for-module)
+         racket/format
          racket/match
          (only-in racket/path path-only)
          racket/runtime-path
@@ -180,40 +182,28 @@
                                            '())))
     (check-equal? (get-output-string o) "")))
 
-(define maybe-suggest-packages
-  (with-handlers ([exn:fail? (λ _ void)])
-    (with-dynamic-requires ([racket/base exn:missing-module?]
-                            [racket/base exn:missing-module-accessor]
-                            [pkg/db      get-catalogs]
-                            [pkg/lib     pkg-catalog-suggestions-for-module])
-      (λ (exn)
-        (when (exn:missing-module? exn)
-          (match (get-catalogs)
-            [(list)
-             (display-commented
-              @~a{-----
-                  Can't suggest packages to install, because pkg/db get-catalogs is '().
-                  To configure:
-                  1. Start DrRacket.
-                  2. Choose "File | Package Manager".
-                  3. Click "Available from Catalog".
-                  4. When prompted, click "Update".
-                  -----})]
-            [_
-             (define mod ((exn:missing-module-accessor exn) exn))
-             (match (pkg-catalog-suggestions-for-module mod)
-               [(list) void]
-               [(list p)
-                (display-commented
-                 @~a{Try "raco pkg install @|p|" ?})]
-               [(? list? ps)
-                (display-commented
-                 @~a{Try "raco pkg install" one of @(string-join ps ", ") ?})]
-               [_ void])]))))))
+(define (maybe-suggest-packages exn)
+  (when (exn:missing-module? exn)
+    (match (get-catalogs)
+      [(list)
+       (display-commented
+        @~a{-----
+            Can't suggest packages to install, because pkg/db get-catalogs is '().
+            To configure:
+            1. Start DrRacket.
+            2. Choose "File | Package Manager".
+            3. Click "Available from Catalog".
+            4. When prompted, click "Update".
+            -----})]
+      [_
+       (define mod ((exn:missing-module-accessor exn) exn))
+       (match (pkg-catalog-suggestions-for-module mod)
+         [(list) void]
+         [(list p)
+          (display-commented
+           @~a{Try "raco pkg install @|p|" ?})]
+         [(? list? ps)
+          (display-commented
+           @~a{Try "raco pkg install" one of @(string-join ps ", ") ?})]
+         [_ void])])))
 
-(module+ test
-  ;; Point of this test is older Rackets where the with-handlers
-  ;; clause is exercised.
-  (check-not-exn
-   (λ ()
-     (maybe-suggest-packages (exn:fail "" (current-continuation-marks))))))
