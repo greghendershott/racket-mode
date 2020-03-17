@@ -190,6 +190,7 @@
                  (cons src right))))
         'all))
   (match* [break-when before/after]
+    [['none _]       'none]
     [['all  _]       'all]
     [['out  _]       (big-step                (debug-marks ccm))]
     [['over 'before] (big-step (cons top-mark (debug-marks ccm)))]
