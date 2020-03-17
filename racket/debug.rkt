@@ -6,6 +6,7 @@
          racket/format
          racket/list
          racket/match
+         (only-in racket/path path-only)
          racket/set
          syntax/modread
          "debug-annotator.rkt"
@@ -332,12 +333,11 @@
 
 (define (load-module/annotate file m)
   (display-commented (format "~v" `(load-module/annotate ,file ,m)))
-  (define-values (base _ __) (split-path file))
   (call-with-input-file* file
     (λ (in)
       (port-count-lines! in)
       (parameterize ([read-accept-compiled #f]
-                     [current-load-relative-directory base])
+                     [current-load-relative-directory (path-only file)])
         (with-module-reading-parameterization
           (λ ()
             (define e (parameterize ([current-namespace (make-base-namespace)])
