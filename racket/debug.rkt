@@ -4,16 +4,13 @@
          gui-debugger/marks
          racket/contract
          racket/format
-         racket/lazy-require
          racket/list
          racket/match
          racket/set
-         racket/string
          syntax/modread
+         "debug-annotator.rkt"
          "interactions.rkt"
          "util.rkt")
-
-(lazy-require ["debug-annotator.rkt" (annotate-for-single-stepping)])
 
 (module+ test
   (require rackunit))
@@ -333,7 +330,6 @@
                   (eval-syntax (annotate (expand-syntax top-stx))))]
                [else (orig-eval top-stx)])]))
 
-;; This never seems to be called ???
 (define (load-module/annotate file m)
   (display-commented (format "~v" `(load-module/annotate ,file ,m)))
   (define-values (base _ __) (split-path file))
