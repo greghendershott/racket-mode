@@ -21,12 +21,7 @@
          debug-resume
          debug-disable
          make-debug-eval-handler
-         next-break
-         set-debug-repl-namespace!)
-
-(define debug-repl-ns (make-base-namespace))
-(define (set-debug-repl-namespace! ns)
-  (set! debug-repl-ns ns))
+         next-break)
 
 ;; A gui-debugger/marks "mark" is a thunk that returns a
 ;; full-mark-struct -- although gui-debugger/marks doesn't provide
@@ -109,8 +104,7 @@
   ;; Start a debug repl on its own thread, because below we're going to
   ;; block indefinitely with (channel-get on-resume-channel), waiting for
   ;; the Emacs front end to issue a debug-resume command.
-  (define repl-thread (parameterize ([current-namespace debug-repl-ns])
-                        (thread (repl src pos top-mark))))
+  (define repl-thread (thread (repl src pos top-mark)))
   ;; The on-break-channel is how we notify the Emacs front-end. This
   ;; is a synchronous channel-put but it should return fairly quickly,
   ;; as soon as the command server gets and writes it. In other words,
@@ -207,7 +201,6 @@
   (-> continuation-mark-set? (listof mark/c))
   (continuation-mark-set->list ccm debug-key))
 
-
 ;;; Debug REPL
 
 (define ((repl src pos top-mark))
@@ -243,7 +236,7 @@
           (identifier? #'id)
           (hash-has-key? ht (syntax->datum #'id)))
      (let ([set (hash-ref ht (syntax->datum #'id))]
-           [v   (eval #'e debug-repl-ns)])
+           [v   (eval #'e)])
        (set v)
        #`(void))]
     ;; Wrap stx in a let-syntax form with a make-set!-transformer for
