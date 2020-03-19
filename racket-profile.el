@@ -46,7 +46,7 @@ delete compiled/*.zo files."
   (racket--repl-run
    nil
    'profile
-   (lambda (_n/a)
+   (lambda ()
      (message "Getting profile results...")
      (racket--cmd/async
       (racket--repl-session-id)
