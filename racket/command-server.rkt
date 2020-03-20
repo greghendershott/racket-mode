@@ -58,15 +58,22 @@
   ;; use a channel. Threads running `do-command/queue-response` put to
   ;; the channel. The `write-reponses-forever` thread empties it.
   (define response-channel (make-channel))
-  (define ((do-command/queue-response nonce sid sexp))
-    (log-racket-mode-info "(~v ~v ~v)" nonce sid sexp)
-    (channel-put
-     response-channel
-     (cons
-      nonce
-      (with-handlers ([exn:fail?  (λ (e) `(error ,(exn-message e)))]
-                      [exn:break? (λ (e) `(break))])
-        `(ok ,(call-with-session-context sid command sexp))))))
+
+  (define (do-command/queue-response nonce sid sexp)
+    (define (thk)
+      (channel-put
+       response-channel
+       (cons
+        nonce
+        (with-handlers ([exn:fail?  (λ (e) `(error ,(exn-message e)))]
+                        [exn:break? (λ (e) `(break))])
+          `(ok ,(call-with-session-context sid command sexp))))))
+    ;; Make "label" for logging. A thread name comes from its thunk ∴
+    ;; renaming the thunk lets us log the thread more informatively.
+    (define label (command-invocation-label nonce sid sexp))
+    (log-racket-mode-info label)
+    (procedure-rename thk (string->symbol label)))
+
   (define (write-responses-forever)
     (elisp-writeln (sync response-channel
                          debug-notify-channel)
@@ -82,6 +89,15 @@
       [(list* nonce sid sexp) (thread (do-command/queue-response nonce sid sexp))
                               (read-a-command)]
       [(? eof-object?)        (void)]))  )
+
+(define (command-invocation-label nonce sid sexp)
+  (~v
+   (list nonce
+         (if (null? sid) "*" sid)
+         (let limit-strings ([v sexp])
+           (cond [(list? v)   (map limit-strings v)]
+                 [(string? v) (~a #:max-width 80 #:limit-marker "⋯" v)]
+                 [else        v])))))
 
 (define/contract (command sexpr)
   (-> pair? any/c)
