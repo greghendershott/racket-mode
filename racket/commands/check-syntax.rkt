@@ -18,6 +18,48 @@
 (module+ test
   (require rackunit))
 
+;; Our front-end issues check-syntax requests after the user edits a
+;; buffer, plus a short idle delay (e.g. 1 second).
+;;
+;; On complex inputs it can take many seconds to expand and analyze.
+;; (By far mostly the expansion; although we do cache expanded syntax,
+;; that doesn't always help.)
+;;
+;; As a result, we might be called to do a path-str for which a
+;; previous command thread is still running. Although that will work
+;; _correctly_, eventually, it is wasteful -- both here in the
+;; back-end (calculating) and in the front-end (updating buffer
+;; properties).
+;;
+;; Instead: We'd like to kill the old command thread and inform our
+;; front-end that the old command was "canceled". We can do so here
+;; simply by `break-threading`ing the thread already running the
+;; command for the same file.
+;;
+;; How/why this works: See how command-server.rkt handles exn:break by
+;; returning a `(break)` response, and, how racket-cmd.el handles that
+;; by doing nothing (except cleaning up its nonce->callback
+;; hash-table).
+
+(define check-syntax
+  (let ([sema (make-semaphore 1)] ;guard concurrent use of ht
+        [ht   (make-hash)])       ;path-str -> thread
+    (λ (path-str code-str)
+      (dynamic-wind
+        (λ () (call-with-semaphore
+               sema
+               (λ ()
+                 (define (break-thread/log thd)
+                   (log-racket-mode-info "cancel ~v" thd)
+                   (break-thread thd))
+                 (cond [(hash-ref ht path-str #f) => break-thread/log])
+                 (hash-set! ht path-str (current-thread)))))
+        (λ () (do-check-syntax path-str code-str))
+        (λ () (call-with-semaphore
+               sema
+               (λ ()
+                 (hash-remove! ht path-str))))))))
+
 ;; Note: Instead of using the `show-content` wrapper, we give already
 ;; fully expanded syntax directly to `make-traversal`. Why? Expansion
 ;; can be slow. 1. We need exp stx for other purposes here. Dumb to
@@ -31,7 +73,7 @@
 ;; string->expanded-syntax uses a "call-with" "continuation style": it
 ;; sets parameters when calling the continuation function.]
 
-(define (check-syntax path-str code-str)
+(define (do-check-syntax path-str code-str)
   (define path (string->path path-str))
   (parameterize ([error-display-handler (our-error-display-handler path-str code-str)]
                  [pre-exn-errors '()])
@@ -323,7 +365,7 @@
 (module+ example
   (require racket/file)
   (define (check-file path)
-    (time (check-syntax path (file->string path))))
+    (time (do-check-syntax path (file->string path))))
   (check-file (path->string (syntax-source #'here))))
 
 (module+ test
@@ -331,7 +373,7 @@
   (define (check-this-file path)
     (check-not-exn
      (λ ()
-       (time (void (check-syntax path (file->string path)))))))
+       (time (void (do-check-syntax path (file->string path)))))))
   (check-this-file (path->string (syntax-source #'here)))
   ;; Again to exercise and test cache
   (check-this-file (path->string (syntax-source #'here))))
