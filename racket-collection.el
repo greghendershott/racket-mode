@@ -185,10 +185,7 @@ at the top, marked with \"->\".
 - C-n and C-p move among the choices.
 - RET on a directory adds its contents to the choices.
 - RET on a file exits doing `find-file'.
-- C-g aborts.
-
-Note: This requires Racket 6.1.1.6 or newer. Otherwise it won't
-error, it will just never return any matches."
+- C-g aborts."
   (interactive)
   (racket--orp/begin)
   (setq racket--orp/active t)

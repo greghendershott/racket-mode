@@ -1702,9 +1702,6 @@ RET on a file exits doing @code{find-file}.
 C-g aborts.
 @end itemize
 
-Note: This requires Racket 6.1.1.6 or newer. Otherwise it won't
-error, it will just never return any matches.
-
 @node racket-find-collection
 @subsection racket-find-collection
 
