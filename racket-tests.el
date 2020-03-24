@@ -227,24 +227,30 @@ c.rkt. Visit each file, racket-run, and check as expected."
            (code "#lang racket/base\n(define foobar 42)\nfoobar\n"))
       (write-region code nil path nil 'no-wrote-file-message)
       (find-file path)
-      (racket-profile)
-      (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
-      (racket-tests/should-eventually (racket--repl-live-p))
-      (with-racket-repl-buffer
-        (should (racket-tests/see-back (concat "\n" name "> "))))
-      (racket-tests/should-eventually (get-buffer "*Racket Profile*"))
-      (with-current-buffer (get-buffer "*Racket Profile*")
-        (racket-tests/should-eventually (eq major-mode 'racket-profile-mode))
-        (racket-tests/should-eventually (equal header-line-format
-                                               "    Calls   MSEC Name (inferred)      File"))
-        (kill-buffer))
-      (with-racket-repl-buffer
-        (racket-repl-exit)
-        (should (racket-tests/see-back
-                 "Process *Racket REPL* connection broken by remote peer\n"))
-        (kill-buffer))
-      (kill-buffer)
-      (delete-file path))))
+      ;; Capture racket-repl-buffer-name from the `racket-mode' buffer,
+      ;; before `racket-profile' protentially creates/displays/selects
+      ;; the `racket-profile-mode' buffer.
+      (let ((repl-name racket-repl-buffer-name))
+        (racket-profile)
+        (racket-tests/should-eventually (get-buffer repl-name))
+        (with-current-buffer repl-name
+          (racket-tests/should-eventually
+           (racket-tests/see-back (concat "\n" name "> "))))
+
+        (racket-tests/should-eventually (get-buffer "*Racket Profile*"))
+        (with-current-buffer (get-buffer "*Racket Profile*")
+          (racket-tests/should-eventually (eq major-mode 'racket-profile-mode))
+          (racket-tests/should-eventually (equal header-line-format
+                                                 "    Calls   MSEC Name (inferred)      File"))
+          (kill-buffer))
+
+        (with-current-buffer repl-name
+          (racket-repl-exit)
+          (should (racket-tests/see-back
+                   "Process *Racket REPL* connection broken by remote peer\n"))
+          (kill-buffer))
+        (kill-buffer)
+        (delete-file path)))))
 
 ;;; racket-xp-mode
 
