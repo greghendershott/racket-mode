@@ -8,7 +8,7 @@
          "repl.rkt")
 
 (module+ main
-  (define expected-version "6.5")
+  (define expected-version "6.9")
   (define actual-version (version))
   (unless (version<=? expected-version actual-version)
     (error 'racket-mode "needs at least Racket ~a but you have ~a"
