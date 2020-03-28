@@ -187,10 +187,10 @@
                              (begin0 next-session-number
                                (inc! next-session-number))))
   (log-racket-mode-info "start ~v" session-id)
-  (parameterize ([error-display-handler    our-error-display-handler]
-                 [current-session-id       session-id]
-                 [current-repl-msg-chan    (make-channel)]
-                 [current-interaction-chan (make-get-interaction)])
+  (parameterize* ([error-display-handler    our-error-display-handler]
+                  [current-session-id       session-id] ;before make-get-interaction
+                  [current-repl-msg-chan    (make-channel)]
+                  [current-interaction-chan (make-get-interaction)])
     (do-run
      (initial-run-config
       (λ ()
