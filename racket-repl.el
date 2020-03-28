@@ -303,10 +303,16 @@ function so it can be a menu target."
   (racket-run '(16)))
 
 (defun racket-run-and-switch-to-repl (&optional prefix)
-  "This is `racket-run' followed by `racket-repl'."
+  "This is `racket-run' followed by selecting the REPL buffer window."
   (interactive "P")
-  (racket-run prefix)
-  (racket-repl))
+  (racket--repl-run (list (racket--buffer-file-name) 'main)
+                    (pcase prefix
+                      (`(4)  'high)
+                      (`(16) 'debug)
+                      (_     racket-error-context))
+                    (lambda ()
+                      (display-buffer racket-repl-buffer-name)
+                      (select-window (get-buffer-window racket-repl-buffer-name t)))))
 
 (defun racket-test (&optional coverage)
   "Run the \"test\" submodule.
