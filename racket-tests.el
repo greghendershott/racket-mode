@@ -227,6 +227,8 @@ c.rkt. Visit each file, racket-run, and check as expected."
            (code "#lang racket/base\n(define foobar 42)\nfoobar\n"))
       (write-region code nil path nil 'no-wrote-file-message)
       (find-file path)
+      (racket-tests/should-eventually (equal buffer-file-name path))
+      (racket-tests/should-eventually (equal major-mode 'racket-mode))
       ;; Capture racket-repl-buffer-name from the `racket-mode' buffer,
       ;; before `racket-profile' protentially creates/displays/selects
       ;; the `racket-profile-mode' buffer.
