@@ -101,10 +101,10 @@
 ;; A way to parameterize commands that need to work with a specific
 ;; REPL session. Called from command-server thread.
 (define (call-with-session-context sid proc . args)
-  (log-racket-mode-debug "~v" sessions)
   (match (hash-ref sessions sid #f)
     [(and (session _thd msg-ch int-ch ns maybe-mod submit-pred) s)
-     (log-racket-mode-debug "call-with-session-context ~v => ~v" sid s)
+     (log-racket-mode-debug "call-with-session-context: ~v => ~v"
+                            sid s)
      (parameterize ([current-repl-msg-chan       msg-ch]
                     [current-interaction-chan    int-ch]
                     [current-namespace           ns]
@@ -113,7 +113,10 @@
                     [current-session-submit-pred submit-pred])
        (apply proc args))]
     [_
-     (log-racket-mode-debug "call-with-session-context ~v -- no session found" sid)
+     (if (equal? sid '())
+         (log-racket-mode-debug "call-with-session-context: no specific session")
+         (log-racket-mode-warning "call-with-session-context: ~v not found in ~v"
+                                  sid sessions))
      (apply proc args)]))
 
 ;; Command. Called from command-server thread
