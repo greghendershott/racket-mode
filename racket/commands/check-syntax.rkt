@@ -235,7 +235,6 @@
             < #:key cadr))
 
     (define/public (get-locals)
-      (log-racket-mode-debug "locals: ~v" locals)
       locals)
 
     (super-new)))
