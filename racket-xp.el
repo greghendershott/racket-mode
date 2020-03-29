@@ -404,11 +404,13 @@ definitions in submodules."
        (`(,path ,subs ,ids)
         (racket--do-visit-def-or-mod
          nil
-         `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids))))
+         `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids))
+        t))
      ;; Annotated by dr/cs as imported module; visit the module
      (pcase (get-text-property (point) 'racket-xp-def)
        (`(import ,_id . ,_)
-        (racket-visit-module prefix)))
+        (racket-visit-module prefix)
+        t))
      ;; Something that, for whatever reason, drracket/check-syntax did
      ;; not annotate.
      (if (racket--in-require-form-p)
