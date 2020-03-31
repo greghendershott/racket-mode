@@ -2106,7 +2106,7 @@ Set to nil to disable automatic refresh and manually use @code{racket-xp-annotat
 
 Only give @ref{racket-xp-unused-face} to unused bindings that match this regexp.
 
-The default is to highlight indentifiers that do not start with
+The default is to highlight identifiers that do not start with
 an underline, which is a common convention.
 
 @node REPL variables
