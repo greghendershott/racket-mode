@@ -236,7 +236,7 @@ property whose value is STRING. The close | syntax is set by
   (setq-local paragraph-separate paragraph-start)
   (setq-local paragraph-ignore-fill-prefix t)
   (setq-local fill-paragraph-function #'lisp-fill-paragraph)
-  (setq-local adaptive-fill-mode nil)
+  (setq-local adaptive-fill-mode t)
   (setq-local outline-regexp ";;; \\|(....")
   (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function))
 
