@@ -252,7 +252,9 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   :safe #'integerp
   :group 'racket-repl)
 
-(defcustom racket-images-system-viewer "display"
+(defcustom racket-images-system-viewer (if (eq system-type 'darwin)
+                                           "open"
+                                         "display")
   "Which system image viewer program to invoke upon M-x
  `racket-view-last-image'."
   :tag "Images System Viewer"
