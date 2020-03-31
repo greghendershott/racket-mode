@@ -138,6 +138,24 @@ comment
 «s:"#;"»
 (whatever)
 
+«m:;; »«x:Issue 432
+»
+«m:#;» «m:#;» «x:'comment-me» «x:'comment-me» «:racket-selfeval-face:'but-not-me»
+
+«m:#;#;» «x:'comment-me» «x:'comment-me» «:racket-selfeval-face:'but-not-me»
+
+«m:#;» «m:#;» «m:#;» «x:'comment-me» «x:'comment-me» «x:'comment-me» «:racket-selfeval-face:'but-not-me»
+
+«m:#;#;#;» «x:'comment-me» «x:'comment-me» «x:'comment-me» «:racket-selfeval-face:'but-not-me»
+
+«m:#;» «m:;; »«x:comment
+»«m:;; »«x:comment
+»«m:#;» «x:#| comment |#»
+«x:'comment-me»
+«x:'comment-me»
+«:racket-selfeval-face:'but-not-me»
+
+
 («k:define» «v:x» «:racket-here-string-face:#<<FOO
 asdfasdf
 asdfasdf
@@ -145,12 +163,12 @@ asdfasdf
 FOO
 »  )
 
-#;(«k:define» «v:x» «:racket-here-string-face:#<<BAR
+«m:#;»«x:(define x #<<BAR
 asdfasdf
 asdfasdf
 asdfasdf
 BAR
-»    )
+    )»
 
 |identifier with spaces|
 

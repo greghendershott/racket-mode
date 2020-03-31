@@ -138,6 +138,24 @@ comment
 "#;"
 (whatever)
 
+;; Issue 432
+
+#; #; 'comment-me 'comment-me 'but-not-me
+
+#;#; 'comment-me 'comment-me 'but-not-me
+
+#; #; #; 'comment-me 'comment-me 'comment-me 'but-not-me
+
+#;#;#; 'comment-me 'comment-me 'comment-me 'but-not-me
+
+#; ;; comment
+;; comment
+#; #| comment |#
+'comment-me
+'comment-me
+'but-not-me
+
+
 (define x #<<FOO
 asdfasdf
 asdfasdf
