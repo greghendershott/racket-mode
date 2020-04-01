@@ -629,6 +629,21 @@ FILE is interpreted as relative to this source directory."
   (should (racket-tests/same-faceup "racket/example/indent.rkt"))
   (should (racket-tests/same-faceup "racket/example/example.rkt")))
 
+;;; fill-paragraph comment issue 437
+
+(ert-deftest racket-tests/fill-paragraph-comment ()
+  (with-current-buffer (get-buffer-create "issue-437.rkt")
+    (racket-mode)
+    (insert ";; blah blah blah\n")
+    (insert ";; blah blah blah\n")
+    (forward-line -1)
+    (fill-paragraph)
+    (goto-char (point-max))
+    (should (racket-tests/see-back
+             ";; blah blah blah blah blah blah\n"))
+    (kill-buffer (current-buffer))))
+
+
 ;;; version check
 
 (defun racket-tests/version-7.6-p ()
