@@ -174,11 +174,10 @@
 
 (define/contract (eval-command str)
   (-> string? string?)
-  (define results
-    (call-with-values (λ ()
-                        ((current-eval) (string->namespace-syntax str)))
-                      list))
-  (~a (map ~v results) "\n"))
+  (call-with-values (λ ()
+                      ((current-eval) (string->namespace-syntax str)))
+                    (λ vs
+                      (apply ~a #:separator "\n" (map ~v vs)))))
 
 ;;; find-collection
 

@@ -601,6 +601,8 @@ without the #; prefix."
 (defun racket-eval-last-sexp ()
   "Eval the previous sexp asynchronously and `message' the result."
   (interactive)
+  (unless (racket--repl-live-p)
+    (user-error "No REPL session available"))
   (racket--cmd/async
    (racket--repl-session-id)
    `(eval
