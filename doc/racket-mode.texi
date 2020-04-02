@@ -1093,22 +1093,16 @@ commands directly to whatever keys you prefer.
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{C-x ,} 
-@tab @code{racket-xp-next-error}
-@item @kbd{M-g p} 
-@tab @code{racket-xp-previous-error}
-@item @kbd{M-g M-p} 
-@tab @code{racket-xp-previous-error}
-@item @kbd{M-g M-n} 
-@tab @code{racket-xp-next-error}
-@item @kbd{M-g n} 
-@tab @code{racket-xp-next-error}
 @item @kbd{M-.} 
 @tab @ref{racket-xp-visit-definition}
 @item @kbd{C-c C-d} 
 @tab @ref{racket-xp-documentation}
 @item @kbd{C-c C-.} 
 @tab @ref{racket-xp-describe}
+@item @kbd{C-c # P} 
+@tab @code{racket-xp-previous-error}
+@item @kbd{C-c # N} 
+@tab @code{racket-xp-next-error}
 @item @kbd{C-c # g} 
 @tab @code{racket-xp-annotate}
 @item @kbd{C-c # r} 
@@ -1256,7 +1250,7 @@ commands.
 
 @kbd{<f5>} 
 
-This is @ref{racket-run} followed by @ref{racket-repl}.
+This is @ref{racket-run} followed by selecting the REPL buffer window.
 
 @node racket-run-module-at-point
 @subsection racket-run-module-at-point

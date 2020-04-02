@@ -48,19 +48,16 @@ everything. If you find that too \"noisy\", set this to nil.")
      ("p" ,#'racket-xp-previous-use)
      ("." ,#'racket-xp-visit-definition)
      ("r" ,#'racket-xp-rename)
-     ("g" ,#'racket-xp-annotate))))
+     ("g" ,#'racket-xp-annotate)
+     ("N" ,#'racket-xp-next-error)
+     ("P" ,#'racket-xp-previous-error))))
 
 (defvar racket-xp-mode-map
   (racket--easy-keymap-define
    `(("C-c #"     ,racket-xp-control-c-hash-keymap)
      ("M-."       ,#'racket-xp-visit-definition)
      ("C-c C-."   ,#'racket-xp-describe)
-     ("C-c C-d"   ,#'racket-xp-documentation)
-     (("M-g n"
-       "M-g M-n"
-       "C-x `")   ,#'racket-xp-next-error)
-     (("M-g p"
-       "M-g M-p") ,#'racket-xp-previous-error))))
+     ("C-c C-d"   ,#'racket-xp-documentation))))
 
 (easy-menu-define racket-xp-mode-menu racket-xp-mode-map
   "Menu for `racket-xp-mode'."
@@ -70,8 +67,10 @@ everything. If you find that too \"noisy\", set this to nil.")
     "---"
     ["Next Definition" racket-xp-next-definition]
     ["Previous Definition" racket-xp-previous-definition]
+    "---"
     ["Next Use" racket-xp-next-use]
     ["Previous Use" racket-xp-previous-use]
+    "---"
     ["Rename" racket-xp-rename]
     "---"
     ["Visit Definition" racket-xp-visit-definition]
@@ -572,15 +571,14 @@ If moved, return the new position, else nil."
 If there are any check-syntax errors, moves among them, wrapping
 around at the first and last errors.
 
-Otherwise delegate to `compilation-next-error-function' in
-`racket-repl-mode'. That way, things still work as you would want
-when using `racket-run', e.g. for runtime evaluation errors that
-won't be found merely from expansion."
+Otherwise delegate to `next-error'. That way, things still work
+as you would want when using `racket-run' -- e.g. for runtime
+evaluation errors that won't be found merely from expansion -- or
+`compilation-mode'."
   (interactive)
   (let ((len (length racket--xp-errors)))
     (if (zerop len)
-        (with-racket-repl-buffer
-          (compilation-next-error-function amt reset))
+        (next-error amt reset)
       (if reset
           (setq racket--xp-errors-index 0)
         (setq racket--xp-errors-index
