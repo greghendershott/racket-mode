@@ -39,12 +39,12 @@ If the process is not already started, this does nothing."
   (interactive)
   (racket--cmd-close))
 
-(defvar racket--cmd-name "racket-process"
+(defconst racket--cmd-process-name "racket-process"
   "Name for both the process and its associated buffer")
 
 (defun racket--cmd-open-p ()
   "Does a running process exist for the command server?"
-  (pcase (get-process racket--cmd-name)
+  (pcase (get-process racket--cmd-process-name)
     ((and (pred (processp)) proc)
      (eq 'run (process-status proc)))))
 
@@ -66,14 +66,13 @@ that Racket Mode can find its own run.rkt file.")
 See issue #327.")
 
 (defun racket--cmd-open ()
-  ;; Never create more "racket-process<1>" etc processes.
-  (racket--cmd-close)
+  (racket--cmd-close) ;never create multi processes e.g. "racket-process<1>"
   (make-process
-   :name            racket--cmd-name
+   :name            racket--cmd-process-name
    :connection-type 'pipe
    :noquery         t
-   :buffer          (get-buffer-create racket--cmd-name)
-   :stderr          (get-buffer-create "racket-process-stderr")
+   :buffer          (get-buffer-create (concat "*" racket--cmd-process-name "*"))
+   :stderr          (get-buffer-create (concat "*" racket--cmd-process-name "-stderr*"))
    :command         (list racket-program
                           (funcall racket-adjust-run-rkt racket--run.rkt)
                           (number-to-string racket-command-port)
@@ -81,14 +80,14 @@ See issue #327.")
    :filter          #'racket--cmd-process-filter))
 
 (defun racket--cmd-close ()
-  (pcase (get-process racket--cmd-name)
+  (pcase (get-process racket--cmd-process-name)
     ((and (pred (processp)) proc) (delete-process proc))))
 
 (defun racket--call-when-connected-to-command-server (func)
   "Call FUNC, starting the back end process if necessary."
   (unless (racket--cmd-open-p)
     (racket--cmd-open))
-  (funcall func (get-process racket--cmd-name)))
+  (funcall func (get-process racket--cmd-process-name)))
 
 (defun racket--cmd-process-filter (proc string)
   "Parse complete sexprs from the process output and give them to
