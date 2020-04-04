@@ -71,8 +71,8 @@ See issue #327.")
    :name            racket--cmd-process-name
    :connection-type 'pipe
    :noquery         t
-   :buffer          (get-buffer-create (concat "*" racket--cmd-process-name "*"))
-   :stderr          (get-buffer-create (concat "*" racket--cmd-process-name "-stderr*"))
+   :buffer          (get-buffer-create (concat " *" racket--cmd-process-name "*"))
+   :stderr          (get-buffer-create (concat " *" racket--cmd-process-name "-stderr*"))
    :command         (list racket-program
                           (funcall racket-adjust-run-rkt racket--run.rkt)
                           (number-to-string racket-command-port)
