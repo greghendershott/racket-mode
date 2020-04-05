@@ -76,7 +76,8 @@ values for it in racket-repl-buffer-name.el.")
 (defvar-local racket--repl-session-id nil
   "The REPL session ID returned from the back end.
 
-Must be supplied in command requests, although for some commands it can be nil.
+Must be supplied in command requests, although for some commands
+it can be nil.
 
 Important: This variable only means something in each
 `racket-repl-mode' buffer. It has no meaning in `racket-mode' or
@@ -928,7 +929,6 @@ instead of looking at point."
   (setq-local comint-prompt-read-only t)
   (setq-local comint-scroll-show-maximum-output nil) ;t slow for big outputs
   (setq-local mode-line-process nil)
-  (setq-local comint-input-filter #'racket-repl--input-filter)
   (setq-local completion-at-point-functions (list #'racket-repl-complete-at-point))
   (setq-local eldoc-documentation-function nil)
   (add-hook 'comint-output-filter-functions #'racket-repl-display-images)
@@ -945,7 +945,40 @@ instead of looking at point."
           #'racket--adjust-group-1 2 3)
      ;; Any path struct
      (list (rx "#<path:" (group-n 1 (+? (not (any ?\>)))) ?\>)
-           #'racket--adjust-group-1 nil nil 0))))
+           #'racket--adjust-group-1 nil nil 0)))
+  ;; Persistent history
+  (setq-local comint-input-filter #'racket-repl--input-filter)
+  (make-directory racket--config-dir t)
+  (setq-local comint-input-ring-file-name
+              (expand-file-name (racket--buffer-name-slug)
+                                racket--config-dir))
+  (comint-read-input-ring t)
+  (add-hook 'kill-buffer-hook #'comint-write-input-ring)
+  (add-hook 'kill-emacs-hook #'racket--repl-save-all-histories))
+
+(defun racket--repl-save-all-histories ()
+  "Call comint-write-input-ring for all `racket-repl-mode' buffers.
+A suitable value for the hook `kill-emacs-hook'."
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (when (eq major-mode 'racket-repl-mode)
+        (comint-write-input-ring)))))
+
+(defun racket--buffer-name-slug ()
+  "Change `buffer-name' to a string that is a valid filename."
+  ;; 3. Finally use `shell-quote-argument' to try to catch anything
+  ;; else.
+  (shell-quote-argument
+   ;; 2. But not leading or trailing ?-
+   (replace-regexp-in-string
+    (rx (or (seq bos (+ ?-))
+            (seq (+ ?-) eos)))
+    ""
+    ;; 1. Replace runs of anything that is not alnum with a single ?-.
+    (replace-regexp-in-string
+     (rx (+ (not (any alnum))))
+     "-"
+     (buffer-name)))))
 
 (defun racket--adjust-group-1 ()
   (list (funcall racket-path-from-racket-to-emacs-function (match-string 1))))

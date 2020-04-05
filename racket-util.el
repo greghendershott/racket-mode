@@ -177,6 +177,10 @@ backend. Likewise text properties are stripped."
             s))
       sap)))
 
+
+(defconst racket--config-dir (file-name-as-directory
+                              (locate-user-emacs-file "racket-mode")))
+
 (provide 'racket-util)
 
 ;; racket-util.el ends here
