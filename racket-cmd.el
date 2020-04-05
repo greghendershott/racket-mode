@@ -17,7 +17,7 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
-;;; TCP connection to back end command server
+;;; Back end command server process
 
 (require 'racket-custom)
 (require 'racket-util)
