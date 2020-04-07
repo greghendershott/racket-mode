@@ -187,6 +187,26 @@ If you run this command, ever, you should run it again after:
     (when (y-or-n-p prompt)
       (async-shell-command command))))
 
+;;; Commands that predate `racket-xp-mode'
+
+(defun racket-doc ()
+  "Instead please use `racket-xp-documentation' or `racket-repl-documentation'.
+See: <https://github.com/greghendershott/racket-mode/issues/439>"
+  (interactive)
+  (describe-function 'racket-doc))
+
+(defun racket-describe ()
+  "Instead please use `racket-xp-describe' or `racket-repl-describe'.
+See: <https://github.com/greghendershott/racket-mode/issues/439>"
+  (interactive)
+  (describe-function 'racket-describe))
+
+(defun racket-visit-definition ()
+  "Instead please use `racket-xp-visit-definition' or `racket-repl-visit-definition'.
+See: <https://github.com/greghendershott/racket-mode/issues/439>"
+  (interactive)
+  (describe-function 'racket-visit-definition))
+
 (provide 'racket-mode)
 
 ;;; racket-mode.el ends here
