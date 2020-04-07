@@ -792,8 +792,8 @@ press F1 or C-h in its pop up completion list.
 
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for `racket-visit-definition' and
-`racket-doc'."
+TAB, and activate using RET -- for `racket-repl-visit-definition'
+and `racket-repl-documentation'."
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
                                             racket--repl-namespace-symbols)
