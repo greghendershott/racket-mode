@@ -93,13 +93,19 @@
               (or
                ;; #d #e #i or no hash prefix
                (seq (? "#" (any "dei"))
-                    (or (seq (? (any "-+"))
-                             (1+ digit)
-                             (? (any "./") (1+ digit)))
-                        (seq (1+ digit)
-                             ?e
-                             (? (any "-+"))
-                             (1+ digit))))
+                    (? (any "-+"))
+                    (1+ digit)
+                    (? (any "./") (1+ digit))
+                    (? ?e
+                       (? (any "-+"))
+                       (1+ digit))
+                    (? ?+
+                       (1+ digit)
+                       (? (any "./") (1+ digit))
+                       (? ?e
+                          (? (any "-+"))
+                          (1+ digit))
+                       ?i))
                ;; #x
                (seq "#x"
                     (? (any "-+"))

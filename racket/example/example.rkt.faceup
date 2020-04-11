@@ -305,6 +305,16 @@ BAR
    «:racket-selfeval-face:#xf.f»
    «:racket-selfeval-face:#x-f»
    «:racket-selfeval-face:#xf»
+
+   «m:;; »«x:exact complex, e.g. issue #445
+»   «:racket-selfeval-face:1+2i»
+   «:racket-selfeval-face:1/2+3/4i»
+   «:racket-selfeval-face:1.0+3.0e7i»
+
+   «m:;; »«x:negative exponent, e.g. issue #442
+»   «:racket-selfeval-face:2.0e1»
+   «:racket-selfeval-face:-2.0e2»
+   «:racket-selfeval-face:-1e-1»
    ))
 
 («b:define/contract» («f:valid-bucket-name?» s «:racket-keyword-argument-face:#:keyword» [dns-compliant? «:racket-selfeval-face:#t»])

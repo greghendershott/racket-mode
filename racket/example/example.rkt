@@ -305,6 +305,16 @@ BAR
    #xf.f
    #x-f
    #xf
+
+   ;; exact complex, e.g. issue #445
+   1+2i
+   1/2+3/4i
+   1.0+3.0e7i
+
+   ;; negative exponent, e.g. issue #442
+   2.0e1
+   -2.0e2
+   -1e-1
    ))
 
 (define/contract (valid-bucket-name? s #:keyword [dns-compliant? #t])
