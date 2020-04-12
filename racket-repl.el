@@ -172,8 +172,16 @@ end of an interactive expression/statement."
         (not (or (equal beg end) blankp)))
     (scan-error nil)))
 
+(defun racket-repl-break ()
+  "Send a break to the REPL program's main thread."
+  (interactive)
+  (cond ((racket--cmd-open-p) ;don't auto-start the back end
+         (racket--cmd/async (racket--repl-session-id) `(break break)))
+        (t
+         (user-error "Back end is not running"))))
+
 (defun racket-repl-exit (&optional killp)
-  "End the Racket REPL process.
+  "Send a terminate break to the REPL program's main thread.
 
 Effectively the same as entering `(exit)` at the prompt, but
 works even when the module language doesn't provide any binding
@@ -186,7 +194,7 @@ server and all REPL sessions."
          (message "Killing entire Racket Mode back end process")
          (racket--cmd-close))
         ((racket--cmd-open-p) ;don't auto-start the back end
-         (racket--cmd/async (racket--repl-session-id) `(exit)))
+         (racket--cmd/async (racket--repl-session-id) `(break terminate)))
         (t
          (user-error "Back end is not running"))))
 
@@ -893,6 +901,7 @@ instead of looking at point."
      ("M-,"             racket-unvisit)
      ("C-c C-z"         racket-repl-switch-to-edit)
      ("C-c C-l"         racket-logger)
+     ("C-c C-c"         racket-repl-break)
      ("C-c C-\\"        racket-repl-exit)
      ((")" "]" "}")     racket-insert-closing)))
   "Keymap for Racket REPL mode.")
@@ -900,7 +909,7 @@ instead of looking at point."
 (easy-menu-define racket-repl-mode-menu racket-repl-mode-map
   "Menu for Racket REPL mode."
   '("Racket-REPL"
-    ["Break" comint-interrupt-subjob]
+    ["Break" racket-repl-break]
     ["Exit" racket-repl-exit]
     "---"
     ["Insert Lambda" racket-insert-lambda] ;λ in string breaks menu

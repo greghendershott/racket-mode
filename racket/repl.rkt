@@ -19,27 +19,36 @@
 (provide start-repl-session-server
          run
          call-with-session-context
-         exit-repl-session
+         break-repl-thread
          current-session-id
          current-session-maybe-mod
          current-session-submit-pred)
 
 ;;; REPL session "housekeeping"
 
+;; Session IDs are strings based on a number
 (define next-session-number 0)
 
-(define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
+;; Each REPL session has an entry in this hash-table.
+(define sessions (make-hash)) ;string? => (or/c base-session? session?)
 
-(define-struct/contract session
-  ([thread           thread?]  ;the repl manager thread
-   [repl-msg-chan    channel?] ;see repl-message structs
-   [interaction-chan channel?]
-   [ns               namespace?]
-   [maybe-mod        (or/c #f mod?)]
-   [submit-pred      (or/c #f drracket:submit-predicate/c)])
+;; Before module->namespace has returned, this is what we have in the
+;; `sessions` hash-table. Most importantly, knowing the repl thread
+;; allows us to break-thread it even while module->namespace is still
+;; running; see the command break-repl-thread, below.
+(struct base-session
+  (thread           ;thread? the repl manager thread
+   repl-msg-chan    ;channel?
+   interaction-chan ;channel?
+   maybe-mod)       ;(or/c #f mod?)
   #:transparent)
 
-(define sessions (make-hash))
+;; After module->namespace has returned, we can update the `sessions`
+;; hash-table to include more information.
+(struct session base-session
+  (ns               ;namespace?
+   submit-pred)     ;(or/c #f drracket:submit-predicate/c)
+  #:transparent)
 
 (define current-session-id (make-parameter #f))
 (define current-repl-msg-chan (make-parameter #f))
@@ -99,18 +108,26 @@
 ;;; Functionality provided for commands
 
 ;; A way to parameterize commands that need to work with a specific
-;; REPL session. Called from command-server thread.
+;; REPL session. Called from a command-server thread.
 (define (call-with-session-context sid proc . args)
   (match (hash-ref sessions sid #f)
-    [(and (session _thd msg-ch int-ch ns maybe-mod submit-pred) s)
+    [(and (session _thd msg-ch int-ch maybe-mod ns submit-pred) s)
      (log-racket-mode-debug "call-with-session-context: ~v => ~v"
                             sid s)
-     (parameterize ([current-repl-msg-chan       msg-ch]
+     (parameterize ([current-session-id          sid]
+                    [current-repl-msg-chan       msg-ch]
                     [current-interaction-chan    int-ch]
-                    [current-namespace           ns]
-                    [current-session-id          sid]
                     [current-session-maybe-mod   maybe-mod]
+                    [current-namespace           ns]
                     [current-session-submit-pred submit-pred])
+       (apply proc args))]
+    [(and (base-session _thd msg-ch int-ch maybe-mod) s)
+     (log-racket-mode-debug "call-with-session-context: ~v => ~v"
+                            sid s)
+     (parameterize ([current-session-id          sid]
+                    [current-repl-msg-chan       msg-ch]
+                    [current-interaction-chan    int-ch]
+                    [current-session-maybe-mod   maybe-mod])
        (apply proc args))]
     [_
      (if (equal? sid '())
@@ -119,15 +136,16 @@
                                   sid sessions))
      (apply proc args)]))
 
-;; Command. Called from command-server thread
-(define (exit-repl-session sid)
+;; Command. Called from a command-server thread
+(define/contract (break-repl-thread sid kind)
+  (-> any/c (or/c 'break 'hang-up 'terminate) any)
   (match (hash-ref sessions sid #f)
-    [(struct* session ([thread t]))
-     (log-racket-mode-debug "exit-repl: break-thread for ~v" sid)
-     (break-thread t 'terminate)]
-    [_ (log-racket-mode-error "exit-repl: ~v not in `sessions`" sid)]))
+    [(struct* base-session ([thread t]))
+     (log-racket-mode-debug "break-repl-thread: ~v ~v" sid kind)
+     (break-thread t (case kind [(hang-up terminate) kind] [else #f]))]
+    [_ (log-racket-mode-error "break-repl-thread: ~v not in `sessions`" sid)]))
 
-;; Command. Called from command-server thread
+;; Command. Called from a command-server thread
 (define/contract (run what mem pp ctx args dbgs)
   (-> list? number? elisp-bool/c context-level? list? (listof path-string?)
       list?)
@@ -270,7 +288,15 @@
         ;; 1. Set print hooks and output handlers
         (set-print-parameters pretty-print?)
         (set-output-handlers)
-        ;; 2. If module, require and enter its namespace, etc.
+        ;; 2. Record as much info about our session as we can, before
+        ;; possibly entering module->namespace.
+        (hash-set! sessions
+                   (current-session-id)
+                   (base-session (current-thread)
+                                 (current-repl-msg-chan)
+                                 (current-interaction-chan)
+                                 maybe-mod))
+        ;; 3. If module, require and enter its namespace, etc.
         (with-expanded-syntax-caching-evaluator maybe-mod
           (when (and maybe-mod mod-path)
             (parameterize ([current-module-name-resolver module-name-resolver-for-run])
@@ -298,23 +324,25 @@
                    (module->namespace mod-path)))
                 (maybe-warn-about-submodules mod-path context-level)
                 (check-#%top-interaction)))))
-        ;; 3. Record information about our session
+        ;; 4. Record full information about our session, now that
+        ;; current-namespace is definitely the appropriate value,
+        ;; and it is OK to call get-repl-submit-predicate.
         (hash-set! sessions
                    (current-session-id)
                    (session (current-thread)
                             (current-repl-msg-chan)
                             (current-interaction-chan)
-                            (current-namespace)
                             maybe-mod
+                            (current-namespace)
                             (get-repl-submit-predicate maybe-mod)))
         (log-racket-mode-debug "sessions: ~v" sessions)
-        ;; 4. Now that the program has run, and `sessions` is updated,
+        ;; 5. Now that the program has run, and `sessions` is updated,
         ;; call the ready-thunk. On REPL startup this lets us wait
         ;; sending the repl-session-id until `sessions` is updated.
         ;; And for subsequent run commands, this lets us it wait to
         ;; send a response.
         (ready-thunk)
-        ;; 5. read-eval-print-loop
+        ;; 6. read-eval-print-loop
         (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
                        [current-module-name-resolver module-name-resolver-for-repl])
           ;; Note that read-eval-print-loop catches all non-break
@@ -355,6 +383,7 @@
     (next-break 'all)))
 
 ;; <https://docs.racket-lang.org/tools/lang-languages-customization.html#(part._.R.E.P.L_.Submit_.Predicate)>
+(define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
 (define/contract (get-repl-submit-predicate m)
   (-> (or/c #f mod?) (or/c #f drracket:submit-predicate/c))
   (define-values (dir file rmp) (maybe-mod->dir/file/rmp m))
