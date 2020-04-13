@@ -10,6 +10,7 @@
          racket/set
          syntax/modread
          "debug-annotator.rkt"
+         "elisp.rkt"
          "interactions.rkt"
          "util.rkt")
 
@@ -91,6 +92,8 @@
   (define pos (case before/after
                 [(before)    (syntax-position stx)]
                 [(after)  (+ (syntax-position stx) (syntax-span stx) -1)]))
+  (define max-width 128)
+  (define limit-marker "⋯")
   (define locals
     (for*/list ([binding  (in-list (mark-bindings top-mark))]
                 [stx      (in-value (first binding))]
@@ -100,7 +103,9 @@
             (syntax-position stx)
             (syntax-span stx)
             (syntax->datum stx)
-            (~v (get/set!)))))
+            (~v #:max-width    max-width
+                #:limit-marker limit-marker
+                (get/set!)))))
   ;; Start a debug repl on its own thread, because below we're going to
   ;; block indefinitely with (channel-get on-resume-channel), waiting for
   ;; the Emacs front end to issue a debug-resume command.
@@ -114,8 +119,14 @@
   ;; If it is not possible to round-trip serialize/deserialize the
   ;; values, use the original values when stepping (don't attempt to
   ;; substitute user-supplied values).
-  (define cannot-serialize "'cannot-serialize")
-  (define serialized-vals (if (serializable? vals) (~s vals) cannot-serialize))
+  (define (maybe-serialized-vals)
+    (let ([str (~s vals)])
+      (if (and (serializable? vals)
+               (<= (string-length str) max-width))
+          (cons #t str)
+          (cons #f (~s #:max-width    max-width
+                       #:limit-marker limit-marker
+                       vals)))))
   (channel-put on-break-channel
                (list 'debug-break
                      (cons src pos)
@@ -124,7 +135,7 @@
                      (cons this-break-id
                            (case before/after
                              [(before) (list 'before)]
-                             [(after)  (list 'after serialized-vals)]))))
+                             [(after)  (list 'after (maybe-serialized-vals))]))))
   ;; Wait for debug-resume command to put to on-resume-channel. If
   ;; wrong break ID, ignore and wait again.
   (let wait ()
@@ -133,11 +144,14 @@
           [(list break-when (list (== this-break-id) 'before))
            (next-break (calc-next-break before/after break-when top-mark ccm))
            #f]
-          [(list break-when (list (== this-break-id) (or 'before 'after) vals-str))
+          [(list break-when (list (== this-break-id) 'before new-vals-str))
            (next-break (calc-next-break before/after break-when top-mark ccm))
-           (if (equal? serialized-vals cannot-serialize)
-               vals
-               (read-str/default vals-str vals))]
+           (read-str/default new-vals-str vals)]
+          [(list break-when (list (== this-break-id) 'after new-vals-pair))
+           (next-break (calc-next-break before/after break-when top-mark ccm))
+           (match new-vals-pair
+             [(cons #t  new-vals-str) (read-str/default new-vals-str vals)]
+             [(cons '() _)            vals])]
           [_ (wait)])
       (kill-thread repl-thread)
       (newline))))
@@ -274,7 +288,7 @@
 (define locals/c (listof (list/c path-string? pos/c pos/c symbol? string?)))
 (define break-vals/c (cons/c break-id/c
                              (or/c (list/c 'before)
-                                   (list/c 'after string?))))
+                                   (list/c 'after (cons/c boolean? string?)))))
 (define on-break/c (list/c 'debug-break
                            break-when/c
                            breakable-positions/c
@@ -285,7 +299,7 @@
 (define resume-vals/c (cons/c break-id/c
                               (or/c (list/c 'before)
                                     (list/c 'before string?)
-                                    (list/c 'after string?))))
+                                    (list/c 'after (cons/c elisp-bool/c string?)))))
 (define on-resume/c (list/c (or/c break-when/c 'out 'over) resume-vals/c))
 (define/contract on-resume-channel (channel/c on-resume/c) (make-channel))
 

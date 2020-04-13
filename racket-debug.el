@@ -109,8 +109,9 @@ file-local variable.")
        (buf  (pop-to-buffer buf)))
      (goto-char pos)
      (pcase vals
-       (`(,_id before)   (message "Break before expression"))
-       (`(,_id after ,s) (message "Break after expression: (values %s" (substring s 1))))
+       (`(,_id before)          (message "Break before expression"))
+       (`(,_id after (,_ . ,s)) (message "Break after expression: (values %s"
+                                         (substring s 1))))
      (setq racket--debug-break-positions positions)
      (setq racket--debug-break-locals locals)
      (setq racket--debug-break-info vals)
@@ -133,11 +134,12 @@ file-local variable.")
     (`(,id before)
      (pcase (read-from-minibuffer "Skip step, substituting values: " "()")
        ((or `nil "" "()") `(,id before))
-       (str  `(,id before ,str))))
-    (`(,id after ,orig)
+       (str               `(,id before ,str))))
+    (`(,id after (t . ,orig))
      (pcase (read-from-minibuffer "Step, replacing result values: " orig)
-       ((or `nil "" "()") `(,id after ,orig))
-       (new  `(,id after ,new))))))
+       ((or `nil "" "()") `(,id after (t . ,orig)))
+       (new               `(,id after (t . ,new)))))
+    (v v)))
 
 (defun racket-debug-step (&optional prefix)
   "Resume to next breakable position. With prefix, substitute values."
@@ -291,7 +293,7 @@ How to debug:
          pos (+ pos span)
          'after-string (propertize val 'face racket-debug-locals-face))))
     (pcase racket--debug-break-info
-      (`(,_id after ,str)
+      (`(,_id after (,_ . ,str))
        (let ((eol (line-end-position)))
          (racket--debug-make-overlay
           (1- eol) eol
