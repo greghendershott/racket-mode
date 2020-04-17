@@ -11,7 +11,7 @@
          racket/pretty
          racket/system
          "../elisp.rkt"
-         "../repl.rkt"
+         "../repl-session.rkt"
          "../syntax.rkt"
          "../util.rkt")
 

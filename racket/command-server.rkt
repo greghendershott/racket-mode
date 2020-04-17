@@ -8,6 +8,7 @@
          "elisp.rkt"
          "mod.rkt"
          "repl.rkt"
+         "repl-session.rkt"
          "util.rkt")
 
 (lazy-require

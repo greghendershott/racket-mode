@@ -12,6 +12,7 @@
          "debug-annotator.rkt"
          "elisp.rkt"
          "interactions.rkt"
+         "repl-session.rkt"
          "util.rkt")
 
 (module+ test
@@ -224,9 +225,19 @@
 (define ((make-prompt-read src pos top-mark))
   (define-values (_base name _dir) (split-path src))
   (define stx (get-interaction (format "[~a:~a]" name pos)))
-  (with-locals stx (mark-bindings top-mark)))
+  (call-with-session-context (current-session-id)
+                             with-locals stx (mark-bindings top-mark)))
 
 (define (with-locals stx bindings)
+  ;; Before or during module->namespace -- i.e. during a racket-run --
+  ;; current-namespace won't (can't) yet be a namespace with module
+  ;; body bindings. Indeed it might be from make-base-empty-namespace,
+  ;; and not even include racket/base bindings such as #%app. In that
+  ;; case make them available. That way the debug REPL at least can
+  ;; handle expressions involving local bindings.
+  (unless (member '#%app (namespace-mapped-symbols))
+    (log-racket-mode-debug "debug prompt-read namespace-require racket/base")
+    (namespace-require 'racket/base))
   ;; Note that mark-bindings is ordered from inner to outer scopes --
   ;; and can include outer variables shadowed by inner ones. So use
   ;; only the first occurence of each identifier symbol we encounter.

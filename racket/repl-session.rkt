@@ -1,0 +1,86 @@
+#lang at-exp racket/base
+
+(require racket/format
+         racket/match
+         "interactions.rkt"
+         "util.rkt")
+
+(provide next-session-id!
+         call-with-session-context
+         current-session-id
+         current-repl-msg-chan
+         current-session-maybe-mod
+         current-session-submit-pred
+         (struct-out session)
+         get-session
+         set-session!
+         remove-session!)
+
+;;; REPL session "housekeeping"
+
+;; Session IDs are strings based on a number
+(define next-session-number 0)
+
+(define (next-session-id!)
+  (format "repl-session-~a"
+          (begin0 next-session-number
+            (inc! next-session-number))))
+
+;; Each REPL session has an entry in this hash-table.
+(define sessions (make-hash)) ;string? => (or/c base-session? session?)
+
+;; Before module->namespace has returned, this is what we have in the
+;; `sessions` hash-table. Most importantly, knowing the repl thread
+;; allows us to break-thread it even while module->namespace is still
+;; running; see the command break-repl-thread, below.
+(struct session
+  (thread           ;thread? the repl manager thread
+   repl-msg-chan    ;channel?
+   interaction-chan ;channel?
+   maybe-mod        ;(or/c #f mod?)
+   namespace        ;namespace?
+   submit-pred)     ;(or/c #f drracket:submit-predicate/c)
+  #:transparent)
+
+(define current-session-id (make-parameter #f))
+(define current-repl-msg-chan (make-parameter #f))
+;current-interaction-chan defined in "interactions.rkt"
+(define current-session-maybe-mod (make-parameter #f))
+(define current-session-submit-pred (make-parameter #f))
+
+;; A way to parameterize e.g. commands that need to work with a
+;; specific REPL session. Called from e.g. a command-server thread.
+(define (call-with-session-context sid proc . args)
+  (match (get-session sid)
+    [(? session? s)
+     (log-racket-mode-debug @~a{(call-with-session-context @~v[sid] @~v[proc] @~v[args]) => @~v[s]})
+     (parameterize ([current-session-id          sid]
+                    [current-repl-msg-chan       (session-repl-msg-chan s)]
+                    [current-interaction-chan    (session-interaction-chan s)]
+                    [current-session-maybe-mod   (session-maybe-mod s)]
+                    [current-namespace           (session-namespace s)]
+                    [current-session-submit-pred (session-submit-pred s)])
+       (apply proc args))]
+    [_
+     (if (equal? sid '())
+         (log-racket-mode-debug @~a{(call-with-session-context @~v[sid] @~v[proc] @~v[args]): no specific session})
+         (log-racket-mode-warning @~a{(call-with-session-context @~v[sid] @~v[proc] @~v[args]): @~v[sid] not found in @~v[sessions]}))
+     (apply proc args)]))
+
+(define (get-session sid)
+  (hash-ref sessions sid #f))
+
+(define (set-session! sid maybe-mod repl-submit-predicate)
+  (hash-set! sessions
+             sid
+             (session (current-thread)
+                      (current-repl-msg-chan)
+                      (current-interaction-chan)
+                      maybe-mod
+                      (current-namespace)
+                      repl-submit-predicate))
+  (log-racket-mode-debug @~a{(set-session! @~v[sid] @~v[maybe-mod] @~v[repl-submit-predicate]) => sessions: @~v[sessions]}))
+
+(define (remove-session! sid)
+  (hash-remove! sessions sid)
+  (log-racket-mode-debug @~a{(remove-session! @~v[sid]) => sessions: @~v[sessions]}))
