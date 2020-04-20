@@ -1,4 +1,4 @@
-;;; racket-custom.el
+;;; racket-custom.el -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2013-2020 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
@@ -379,9 +379,9 @@ level quieter. That way you can set the '* topic to a level like
   :group 'racket-other)
 
 (defcustom racket-show-functions
-  (list #'racket-show-echo-area
-        ;; #'racket-show-header-line
-        #'racket-show-pos-tip)
+  (list 'racket-show-echo-area
+        ;; 'racket-show-header-line
+        'racket-show-pos-tip)
   "A special hook variable to customize `racket-show'.
 
 Example functions include

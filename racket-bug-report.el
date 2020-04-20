@@ -1,6 +1,6 @@
-;;; racket-bug-report.el
+;;; racket-bug-report.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2016 by Greg Hendershott.
+;; Copyright (c) 2013-2020 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -18,7 +18,7 @@
 
 (require 'cl-lib)
 (require 'package)
-(require 'racket-util)
+(require 'racket-custom)
 
 ;;;###autoload
 (defun racket-bug-report ()
@@ -37,32 +37,34 @@
       (cl-labels ((id-val (id) (list id
                                      (condition-case () (symbol-value id)
                                        (error 'UNDEFINED)))))
-        (let ((emacs-uptime (emacs-uptime)))
-          (pp `(,@(mapcar #'id-val
-                          `(emacs-version
-                            emacs-uptime
-                            system-type
-                            major-mode
-                            racket--el-source-dir
-                            racket--rkt-source-dir
-                            racket-program
-                            racket-command-port
-                            racket-command-timeout
-                            racket-memory-limit
-                            racket-error-context
-                            racket-error-context
-                            racket-history-filter-regexp
-                            racket-images-inline
-                            racket-images-keep-last
-                            racket-use-repl-submit-predicate
-                            racket-images-system-viewer
-                            racket-pretty-print
-                            racket-indent-curly-as-sequence
-                            racket-indent-sequence-depth
-                            racket-pretty-lambda
-                            racket-smart-open-bracket-enable
-                            racket-module-forms
-                            racket-logger-config)))))
+        (pp `(,@(mapcar #'id-val
+                        `(emacs-version
+                          system-type
+                          major-mode
+                          racket--el-source-dir
+                          racket--rkt-source-dir
+                          racket-program
+                          racket-command-port
+                          racket-command-timeout
+                          racket-xp-after-change-refresh-delay
+                          racket-xp-highlight-unused-regexp
+                          racket-repl-buffer-name-function
+                          racket-memory-limit
+                          racket-error-context
+                          racket-history-filter-regexp
+                          racket-images-inline
+                          racket-images-keep-last
+                          racket-images-system-viewer
+                          racket-images-system-viewer
+                          racket-use-repl-submit-predicate
+                          racket-pretty-print
+                          racket-indent-curly-as-sequence
+                          racket-indent-sequence-depth
+                          racket-pretty-lambda
+                          racket-smart-open-bracket-enable
+                          racket-module-forms
+                          racket-logger-config
+                          racket-show-functions))))
         ;; Show lists of enabled and disabled minor modes, each sorted by name.
         (let* ((minor-modes (cl-remove-duplicates
                              (append minor-mode-list

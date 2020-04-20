@@ -1,4 +1,4 @@
-;;; racket-mode.el --- Major mode for Racket language.
+;;; racket-mode.el -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2013-2020 by Greg Hendershott.
 

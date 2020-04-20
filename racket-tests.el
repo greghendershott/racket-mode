@@ -1,4 +1,4 @@
-;;; racket-tests.el
+;;; racket-tests.el -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2013-2020 by Greg Hendershott.
 
@@ -260,7 +260,6 @@ c.rkt. Visit each file, racket-run, and check as expected."
   (message "racket-tests/xp")
   (racket-tests/with-back-end-settings
     (let* ((path (make-temp-file "test" nil ".rkt"))
-           (name (file-name-nondirectory path))
            (code "#lang racket/base\n(define foobar 42)\nfoobar\n"))
       (write-region code nil path nil 'no-wrote-file-message)
       (find-file path)
