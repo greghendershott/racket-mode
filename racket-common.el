@@ -114,18 +114,17 @@
     ((rx "#;")
      (0 "'"))
     ;; Treat "complex" reader literals as a single sexp for nav and
-    ;; indent, by marking the stuff after the # as prefix syntax.
+    ;; indent, by also marking as prefix syntax the stuff after the #.
     ;; Racket predefines reader literals like #"" #rx"" #px"" #hash()
     ;; #hasheq() #fx3(0 1 2) #s() and so on. I think these -- plus any
     ;; user defined reader extensions -- can all be covered with the
     ;; following general rx. Also it seems sufficient to look for just
     ;; the opening delimiter -- the ( [ { or " -- here.
     ((rx (group ?#
-                (*?
-                 (and (not (any ?|))  ;not multiline comment; see #362
-                      (or (syntax symbol)
-                          (syntax word)))))
-         (or ?\" ?\( ?\[ ?\{))
+                (??
+                 (not (any ?| ?:))    ;not comment #362 or kw arg #448
+                 (*? (or (syntax symbol) (syntax word)))))
+         (any ?\" ?\( ?\[ ?\{))
      (1 "'"))
     ;; Syntax quoting
     ((rx ?# (or ?` ?' ?,))

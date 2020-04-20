@@ -353,3 +353,13 @@ BAR
 »#«s:"1"»
 #«s:"22"»
 #«s:"333"»
+
+«m:;; »«x:Issue 448
+»(fun «:racket-keyword-argument-face:#:1» #«s:"a"»)
+(fun «:racket-keyword-argument-face:#:12» #«s:"a"»)
+(fun «:racket-keyword-argument-face:#:123» #«s:"a"»)
+(fun «:racket-keyword-argument-face:#:1234» #«s:"a"»)
+(fun «:racket-keyword-argument-face:#:1» «:racket-selfeval-face:#px»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:12» «:racket-selfeval-face:#px»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:123» «:racket-selfeval-face:#px»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:1234» «:racket-selfeval-face:#px»«s:"a"»)
