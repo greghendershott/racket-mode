@@ -140,9 +140,8 @@
   (define session-id (next-session-id!))
   (log-racket-mode-info "start ~v" session-id)
   (parameterize* ([error-display-handler    our-error-display-handler]
-                  [current-session-id       session-id] ;before make-get-interaction
-                  [current-repl-msg-chan    (make-channel)]
-                  [current-interaction-chan (make-get-interaction)])
+                  [current-session-id       session-id]
+                  [current-repl-msg-chan    (make-channel)])
     (do-run
      (initial-run-config
       (λ ()
@@ -201,7 +200,6 @@
          [instrumenting-enabled (instrument-level? context-level)]
          [profiling-enabled (eq? context-level 'profile)]
          [test-coverage-enabled (eq? context-level 'coverage)]
-         [current-sync/yield (txt/gui sync yield)]
          ;; LAST: `current-eventspace` because `make-eventspace`
          ;; creates an event handler thread -- now. We want that
          ;; thread to inherit the parameterizations above. (Otherwise

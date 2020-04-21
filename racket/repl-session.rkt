@@ -2,7 +2,6 @@
 
 (require racket/format
          racket/match
-         "interactions.rkt"
          "util.rkt")
 
 (provide next-session-id!
@@ -27,16 +26,11 @@
             (inc! next-session-number))))
 
 ;; Each REPL session has an entry in this hash-table.
-(define sessions (make-hash)) ;string? => (or/c base-session? session?)
+(define sessions (make-hash)) ;string? => session?
 
-;; Before module->namespace has returned, this is what we have in the
-;; `sessions` hash-table. Most importantly, knowing the repl thread
-;; allows us to break-thread it even while module->namespace is still
-;; running; see the command break-repl-thread, below.
 (struct session
   (thread           ;thread? the repl manager thread
    repl-msg-chan    ;channel?
-   interaction-chan ;channel?
    maybe-mod        ;(or/c #f mod?)
    namespace        ;namespace?
    submit-pred)     ;(or/c #f drracket:submit-predicate/c)
@@ -44,7 +38,6 @@
 
 (define current-session-id (make-parameter #f))
 (define current-repl-msg-chan (make-parameter #f))
-;current-interaction-chan defined in "interactions.rkt"
 (define current-session-maybe-mod (make-parameter #f))
 (define current-session-submit-pred (make-parameter #f))
 
@@ -56,7 +49,6 @@
      (log-racket-mode-debug @~a{(call-with-session-context @~v[sid] @~v[proc] @~v[args]) => @~v[s]})
      (parameterize ([current-session-id          sid]
                     [current-repl-msg-chan       (session-repl-msg-chan s)]
-                    [current-interaction-chan    (session-interaction-chan s)]
                     [current-session-maybe-mod   (session-maybe-mod s)]
                     [current-namespace           (session-namespace s)]
                     [current-session-submit-pred (session-submit-pred s)])
@@ -75,7 +67,6 @@
              sid
              (session (current-thread)
                       (current-repl-msg-chan)
-                      (current-interaction-chan)
                       maybe-mod
                       (current-namespace)
                       repl-submit-predicate))
