@@ -37,7 +37,7 @@
                    (getenv "CI"))
   "Is there an environment variable saying we're running on CI?")
 
-(defconst racket-tests/timeout (if ci-p (* 5 60) 10))
+(defconst racket-tests/timeout (if ci-p 30 10))
 
 (defun racket-tests/type (typing)
   (let ((blink-matching-paren nil)) ;suppress "Matches " messages
@@ -100,7 +100,9 @@ supplied to it."
 (defun racket-tests/call-with-back-end-settings (thunk)
   (let ((racket-command-port (+ racket-command-port 2)) ;skip default cmd & logger ports
         (racket-command-timeout racket-tests/timeout))
-    (funcall thunk)))
+    (unwind-protect
+        (funcall thunk)
+      (racket-stop-back-end))))
 
 (defmacro racket-tests/with-back-end-settings (&rest body)
   (declare (indent 0) (debug t))
@@ -278,7 +280,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (racket-tests/should-eventually
        (progn (goto-char (point-min))
               (racket-xp-next-definition)
-              (racket-tests/see-forward "racket/base")))
+              (looking-at (regexp-quote "racket/base"))))
       (racket-xp-next-definition)
       (should (racket-tests/see-forward "foobar"))
       (should (equal (get-text-property (point) 'help-echo) "1 bound occurrence"))
@@ -305,8 +307,8 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (find-file path)
       (should (eq major-mode 'racket-mode))
       (racket-run `(16))
-      (racket-tests/eventually (get-buffer racket-repl-buffer-name))
-      (racket-tests/eventually (racket--repl-live-p))
+      (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
+      (racket-tests/should-eventually (racket--repl-live-p))
       (racket-tests/should-eventually racket-debug-mode)
 
       (with-racket-repl-buffer
@@ -331,8 +333,6 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (racket-debug-step)               ;no more debug breaks left
       (with-racket-repl-buffer
         (should (racket-tests/see-back (concat "\n" name "> "))))
-      (should-not (racket-tests/see-char-property (point) 'after-string
-                                                  racket-debug-break-face))
       (should (racket-tests/see-char-property (point) 'after-string
                                               nil))
       (should-not racket-debug-mode)
