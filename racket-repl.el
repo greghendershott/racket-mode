@@ -956,6 +956,7 @@ instead of looking at point."
      (list (rx "#<path:" (group-n 1 (+? (not (any ?\>)))) ?\>)
            #'racket--adjust-group-1 nil nil 0)))
   ;; Persistent history
+  (setq-local comint-input-autoexpand nil) ;#450
   (setq-local comint-input-filter #'racket-repl--input-filter)
   (make-directory racket--config-dir t)
   (setq-local comint-input-ring-file-name
