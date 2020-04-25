@@ -6,6 +6,7 @@
          racket/match
          "debug.rkt"
          "elisp.rkt"
+         "logger.rkt"
          "mod.rkt"
          "repl.rkt"
          "repl-session.rkt"
@@ -77,6 +78,7 @@
 
   (define (write-responses-forever)
     (elisp-writeln (sync response-channel
+                         logger-notify-channel
                          debug-notify-channel)
                    out)
     (flush-output out)
@@ -125,6 +127,7 @@
 
     ;; Commands that do NOT need a REPL session
     [`(no-op)                          #t]
+    [`(logger ,v)                      (channel-put logger-command-channel v)]
     [`(check-syntax ,path-str ,code)   (check-syntax path-str code)]
     [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
     [`(macro-stepper/next ,what)       (macro-stepper/next what)]

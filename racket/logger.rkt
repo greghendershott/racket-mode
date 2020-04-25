@@ -1,12 +1,10 @@
 #lang at-exp racket/base
 
 (require racket/match
-         racket/format
-         racket/tcp
-         "elisp.rkt"
-         "util.rkt")
+         racket/format)
 
-(provide start-logger-server)
+(provide (rename-out [command-channel logger-command-channel]
+                     [notify-channel logger-notify-channel]))
 
 ;; "On start-up, Racket creates an initial logger that is used to
 ;; record events from the core run-time system. For example, an 'debug
@@ -14,42 +12,29 @@
 ;; Collection)." Use that; don't create new one. See issue #325.
 (define global-logger (current-logger))
 
-(define (start-logger-server port launch-token)
-  (void (thread (logger-thread port launch-token))))
+(define command-channel (make-channel))
+(define notify-channel (make-channel))
 
-(define ((logger-thread port launch-token))
-  (define listener (tcp-listen port 4 #t "127.0.0.1"))
-  (let accept ()
-    (define-values (in out) (tcp-accept listener))
-    (unless (or (not launch-token)
-                      (equal? launch-token (elisp-read in)))
-            (display-commented "Authorization failed; exiting")
-            (exit 1))
-    ;; Assumption: Any network fail means the client has disconnected,
-    ;; therefore we should go back to waiting to accept a connection.
-    (with-handlers ([exn:fail:network? void])
-      (let wait ([receiver never-evt])
-        ;; Assumption: Our Emacs code will write complete sexprs,
-        ;; therefore when `in` becomes ready `read` will return
-        ;; without blocking.
-        (match (sync in receiver)
-          [(? input-port? in) (match (read in)
-                                [(? eof-object?) (void)]
-                                [v               (wait (make-receiver v))])]
-          [(vector level message _v topic)
-           (parameterize ([current-output-port out])
-             (display-log level topic message)
-             (flush-output))
-           (wait receiver)])))
-    (close-input-port in)
-    (close-output-port out)
-    (accept)))
+(define (logger-thread)
+  (let wait ([receiver (make-receiver '((racket-mode . info)
+                                        (*           . warning)))])
+    (sync
+     (handle-evt command-channel
+                 (λ (v)
+                   (wait (make-receiver v))))
+     (handle-evt receiver
+                 (match-lambda
+                   [(vector level message _v topic)
+                    (channel-put notify-channel
+                                 `(logger
+                                   ,(~a (label level) " "
+                                        (ensure-topic-in-message topic message)
+                                        "\n")))
+                    (wait receiver)])))))
 
-(define (display-log level topic message)
-  (display (label level))
-  (display " ")
-  (display (ensure-topic-in-message topic message))
-  (newline))
+;; Go ahead and start this early so we can see our own
+;; log-racket-mode-xxx ouput in the front end.
+(void (thread logger-thread))
 
 (define (ensure-topic-in-message topic message)
   (match message

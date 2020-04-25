@@ -3,7 +3,6 @@
 (require racket/match
          racket/port
          version/utils
-         "logger.rkt"
          "command-server.rkt"
          "repl.rkt")
 
@@ -31,5 +30,4 @@
     (parameterize ([current-input-port  (open-input-bytes #"")]
                    [current-output-port (open-output-nowhere)])
       (start-repl-session-server command-port launch-token)
-      (start-logger-server (add1 command-port) launch-token)
       (command-server-loop stdin stdout))))

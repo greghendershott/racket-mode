@@ -25,6 +25,10 @@
 (declare-function  racket--debug-on-break "racket-debug" (response))
 (autoload         'racket--debug-on-break "racket-debug")
 
+(declare-function  racket--logger-on-notify "racket-logger" (str))
+(autoload         'racket--logger-on-notify "racket-logger")
+
+
 (defun racket-start-back-end ()
   "Start the back end process used by Racket Mode.
 
@@ -117,9 +121,11 @@ See issue #327.")
 (defun racket--cmd-dispatch-response (response)
   "Do something with a sexpr sent to us from the command server.
 Mostly these are responses to command requests. Strictly speaking
-'debug-break is a \"notification\", i.e. /not/ one direct response
-to one command request."
+'logger and 'debug-break are \"notifications\", i.e. /not/ one
+direct response to one command request."
   (pcase response
+    (`(logger ,str)
+     (run-at-time 0.001 nil #'racket--logger-on-notify str))
     (`(debug-break . ,response)
      (run-at-time 0.001 nil #'racket--debug-on-break response))
     (`(,nonce . ,response)
