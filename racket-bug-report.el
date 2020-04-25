@@ -44,7 +44,6 @@
                           racket--el-source-dir
                           racket--rkt-source-dir
                           racket-program
-                          racket-command-port
                           racket-command-timeout
                           racket-xp-after-change-refresh-delay
                           racket-xp-highlight-unused-regexp

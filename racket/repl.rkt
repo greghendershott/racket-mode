@@ -18,6 +18,7 @@
          "util.rkt")
 
 (provide start-repl-session-server
+         repl-tcp-port-number
          run
          break-repl-thread)
 
@@ -83,6 +84,9 @@
 (define/contract (run what mem pp ctx args dbgs)
   (-> list? number? elisp-bool/c context-level? list? (listof path-string?)
       list?)
+  (unless (current-repl-msg-chan)
+    (error 'run "current-repl-msg-chan was #f; current-session-id=~v"
+           (current-session-id)))
   (define ready-channel (make-channel))
   (channel-put (current-repl-msg-chan)
                (run-config (->mod/existing what)
@@ -100,11 +104,18 @@
 
 ;;; REPL session server
 
-(define (start-repl-session-server port launch-token)
-  (thread (listener-thread-thunk port launch-token)))
+;; Define these at the module level so they are initialized by the
+;; time other threads run.
+(define listener (tcp-listen 0 64 #f "127.0.0.1"))
+(define repl-tcp-port-number
+  (let-values ([(_loc-addr port _rem-addr _rem-port) (tcp-addresses listener #t)])
+    (log-racket-mode-info "TCP port ~v chosen for REPL sessions" port)
+    port))
 
-(define ((listener-thread-thunk port launch-token))
-  (define listener (tcp-listen port 4 #t "127.0.0.1"))
+(define (start-repl-session-server launch-token)
+  (thread (listener-thread-thunk launch-token)))
+
+(define ((listener-thread-thunk launch-token))
   (let accept-a-connection ()
     (define custodian (make-custodian))
     (parameterize ([current-custodian custodian])

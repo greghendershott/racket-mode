@@ -16,7 +16,7 @@
 (define notify-channel (make-channel))
 
 (define (logger-thread)
-  (let wait ([receiver (make-receiver '((racket-mode . info)
+  (let wait ([receiver (make-receiver '((racket-mode . debug)
                                         (*           . warning)))])
     (sync
      (handle-evt command-channel

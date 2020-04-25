@@ -98,8 +98,7 @@ supplied to it."
   (put sym 'ert-explainer #'racket-tests/explain-see))
 
 (defun racket-tests/call-with-back-end-settings (thunk)
-  (let ((racket-command-port (+ racket-command-port 2)) ;skip default cmd & logger ports
-        (racket-command-timeout racket-tests/timeout))
+  (let ((racket-command-timeout racket-tests/timeout))
     (unwind-protect
         (funcall thunk)
       (racket-stop-back-end))))

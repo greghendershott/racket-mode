@@ -164,7 +164,6 @@ Variables
 General variables
 
 * racket-program::
-* racket-command-port::
 * racket-command-timeout::
 * racket-memory-limit::
 * racket-error-context::
@@ -1314,8 +1313,8 @@ has a contract or a Typed Racket type, that is also displayed.
 
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for @code{racket-visit-definition} and
-@code{racket-doc}.
+TAB, and activate using RET -- for @ref{racket-repl-visit-definition}
+and @ref{racket-repl-documentation}.
 
 @node racket-repl-documentation
 @subsection racket-repl-documentation
@@ -1426,11 +1425,7 @@ during initialization.
 
 @kbd{C-c C-l} 
 
-Create the @ref{racket-logger-mode} buffer and connect to logger output.
-
-If the @code{racket-repl-mode} buffer is displayed in a window, split
-that window and put the logger in the bottom window. Otherwise,
-use @code{pop-to-buffer}.
+Create the @ref{racket-logger-mode} buffer.
 
 @node racket-logger-mode
 @subsection racket-logger-mode
@@ -1447,13 +1442,9 @@ using @code{racket-logger-topic-level}.
 For more information see:
   @uref{https://docs.racket-lang.org/reference/logging.html}
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{C-c C-z} 
-@tab @ref{racket-repl}
-@item @kbd{x} 
-@tab @code{racket-logger-exit}
 @item @kbd{g} 
 @tab @code{racket-logger-clear}
 @item @kbd{p} 
@@ -1960,7 +1951,6 @@ The ``project'' is determined by trying, in order:
 
 @menu
 * racket-program::
-* racket-command-port::
 * racket-command-timeout::
 * racket-memory-limit::
 * racket-error-context::
@@ -1975,11 +1965,6 @@ The ``project'' is determined by trying, in order:
 @subsection racket-program
 
 Pathname of the racket executable.
-
-@node racket-command-port
-@subsection racket-command-port
-
-Port number for Racket REPL server.
 
 @node racket-command-timeout
 @subsection racket-command-timeout

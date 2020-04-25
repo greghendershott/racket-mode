@@ -128,6 +128,7 @@
     ;; Commands that do NOT need a REPL session
     [`(no-op)                          #t]
     [`(logger ,v)                      (channel-put logger-command-channel v)]
+    [`(repl-tcp-port-number)           repl-tcp-port-number]
     [`(check-syntax ,path-str ,code)   (check-syntax path-str code)]
     [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
     [`(macro-stepper/next ,what)       (macro-stepper/next what)]

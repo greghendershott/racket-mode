@@ -14,10 +14,10 @@
            expected-version
            actual-version))
 
-  (define-values (command-port launch-token)
+  (define launch-token
     (match (current-command-line-arguments)
-      [(vector port token)
-       (values (string->number port) token)]
+      [(vector token)
+       token]
       [v
        (eprintf "Bad command-line arguments: ~v\n" v)
        (exit)]))
@@ -29,5 +29,5 @@
     ;; Set no-ops so e.g. rando print can't bork the command I/O.
     (parameterize ([current-input-port  (open-input-bytes #"")]
                    [current-output-port (open-output-nowhere)])
-      (start-repl-session-server command-port launch-token)
+      (start-repl-session-server launch-token)
       (command-server-loop stdin stdout))))

@@ -56,12 +56,10 @@
   :risky t
   :group 'racket)
 
-(defcustom racket-command-port 55555
-  "Port number for Racket REPL server."
-  :tag "Command Port"
-  :type 'integer
-  :risky t
-  :group 'racket)
+(make-obsolete-variable
+ 'racket-command-port
+ "This no longer has any effect. The Racket Mode back end chooses an ephemeral TCP port for REPL sessions and I/O."
+ "2020-04-25")
 
 (make-obsolete-variable
   'racket-command-startup

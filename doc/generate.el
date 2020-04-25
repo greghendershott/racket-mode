@@ -155,7 +155,6 @@
 (defconst racket-generate--variables
   '("General variables"
     racket-program
-    racket-command-port
     racket-command-timeout
     racket-memory-limit
     racket-error-context

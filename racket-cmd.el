@@ -79,7 +79,6 @@ See issue #327.")
    :stderr          (get-buffer-create (concat " *" racket--cmd-process-name "-stderr*"))
    :command         (list racket-program
                           (funcall racket-adjust-run-rkt racket--run.rkt)
-                          (number-to-string racket-command-port)
                           (setq racket--cmd-auth (format "%S" `(auth ,(random)))))
    :filter          #'racket--cmd-process-filter))
 

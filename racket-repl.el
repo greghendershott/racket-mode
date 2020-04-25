@@ -442,11 +442,15 @@ be nil which is equivalent to #'ignore.
                   (when callback
                     (funcall callback)))))
     (cond ((racket--repl-live-p)
+           (unless (racket--repl-session-id)
+             (error "No REPL session"))
            (racket--cmd/async (racket--repl-session-id) cmd after)
            (display-buffer racket-repl-buffer-name))
           (t
            (racket--repl-start
             (lambda ()
+              (unless (racket--repl-session-id)
+                (error "No REPL session"))
               (racket--cmd/async (racket--repl-session-id) cmd after)
               (display-buffer racket-repl-buffer-name)))))))
 
@@ -469,39 +473,42 @@ WHAT-TO-RUN may be nil, meaning just a `racket/base` namespace."
 Sets `racket--repl-session-id'.
 
 This does not display the buffer or change the selected window."
+  ;; Issue the command to learn the ephemeral TCP port chosen by the
+  ;; back end for REPL I/O. As a bonus, this will start the back end
+  ;; if necessary.
   (racket--cmd/async
    nil
-   `(no-op) ;automatically start back-end if necessary
-   (lambda (_n/a)
+   `(repl-tcp-port-number)
+   (lambda (repl-tcp-port-number)
      (with-current-buffer (get-buffer-create racket-repl-buffer-name)
-       ;; Add a pre-output hook that reads `(ok ,id) -- possibly over
-       ;; multiple calls -- to set `racket--repl-session-id' then
-       ;; removes itself.
-       (let ((hook nil)
-             (buf  (generate-new-buffer " *racket-repl-session-id-reader*")))
+       ;; Add a pre-output hook that -- possibly over multiple calls
+       ;; to accumulate text -- reads `(ok ,id) to set
+       ;; `racket--repl-session-id' then removes itself.
+       (let ((hook      nil)
+             (read-buf  (generate-new-buffer " *racket-repl-session-id-reader*")))
          (setq hook (lambda (txt)
-                      (with-current-buffer buf
+                      (with-current-buffer read-buf
                         (goto-char (point-max))
                         (insert txt)
                         (goto-char (point-min)))
-                      (pcase (ignore-errors (read buf))
+                      (pcase (ignore-errors (read read-buf))
                         (`(ok ,id)
                          (setq racket--repl-session-id id)
                          (run-with-timer 0.001 nil callback)
                          (remove-hook 'comint-preoutput-filter-functions hook t)
                          (prog1
-                             (with-current-buffer buf
+                             (with-current-buffer read-buf
                                (buffer-substring (if (eq (char-after) ?\n)
                                                      (1+ (point))
                                                    (point))
                                                  (point-max)))
-                           (kill-buffer buf)))
+                           (kill-buffer read-buf)))
                         (_ ""))))
          (add-hook 'comint-preoutput-filter-functions hook nil t))
 
        (make-comint-in-buffer racket-repl-buffer-name
                               (current-buffer)
-                              (cons "127.0.0.1" racket-command-port))
+                              (cons "127.0.0.1" repl-tcp-port-number))
        (process-send-string (get-buffer-process (current-buffer))
                             (format "%S\n" racket--cmd-auth))
        (set-process-coding-system (get-buffer-process (current-buffer))
