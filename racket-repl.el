@@ -506,14 +506,21 @@ This does not display the buffer or change the selected window."
                         (_ ""))))
          (add-hook 'comint-preoutput-filter-functions hook nil t))
 
-       (make-comint-in-buffer racket-repl-buffer-name
-                              (current-buffer)
-                              (cons "127.0.0.1" repl-tcp-port-number))
-       (process-send-string (get-buffer-process (current-buffer))
-                            (format "%S\n" racket--cmd-auth))
-       (set-process-coding-system (get-buffer-process (current-buffer))
-                                  'utf-8 'utf-8) ;for e.g. λ
-       (racket-repl-mode)))))
+       (condition-case ()
+           (progn
+             (make-comint-in-buffer racket-repl-buffer-name
+                                    (current-buffer)
+                                    (cons "127.0.0.1" repl-tcp-port-number))
+             (process-send-string (get-buffer-process (current-buffer))
+                                  (format "%S\n" racket--cmd-auth))
+             (set-process-coding-system (get-buffer-process (current-buffer))
+                                        'utf-8 'utf-8) ;for e.g. λ
+             (racket-repl-mode))
+         (file-error
+          (let ((kill-buffer-query-functions nil)
+                (kill-buffer-hook nil))
+            (kill-buffer)) ;don't leave partially initialized REPL buffer
+          (message "Could not connect to REPL server at 127.0.0.1:%s" repl-tcp-port-number)))))))
 
 ;;; Misc
 

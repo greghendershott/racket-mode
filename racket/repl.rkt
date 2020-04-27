@@ -104,9 +104,14 @@
 
 ;;; REPL session server
 
-;; Define these at the module level so they are initialized by the
-;; time other threads run.
-(define listener (tcp-listen 0 64 #f "127.0.0.1"))
+;; Define these at the module level so that they are initialized when
+;; the module loads -- before other threads like the session manager
+;; or command manager threads try to use them.
+(define listener
+  (tcp-listen 0  ;choose port dynamically, a.k.a. "ephemeral" port
+              64
+              #f ;reuse? not recommended for ephemeral ports
+              "127.0.0.1"))
 (define repl-tcp-port-number
   (let-values ([(_loc-addr port _rem-addr _rem-port) (tcp-addresses listener #t)])
     (log-racket-mode-info "TCP port ~v chosen for REPL sessions" port)
