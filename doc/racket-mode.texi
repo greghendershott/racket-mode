@@ -398,7 +398,7 @@ In Emacs, a major mode may supply a ``completion-at-point function''. This funct
 @code{racket-mode} supplies @code{racket-complete-at-point}, which simply supplies the same symbols that it knows how to font-lock. This does @emph{not} require the Racket Mode back end to be running. But of course the completion candidates do not correspond to your program's definitions or those it imports. This is a static, ``better than nothing'' fallback.
 
 @item
-@code{racket-xp-mode} --- an optional minor mode that enhances @code{racket-mode} --- supplies @code{racket-xp-complete-at-point}, which uses a static anaylsis to find local and imported binding names. Although this requires the Racket Mode back end to be running --- and will automatically start it --- it does @emph{not} require the edit buffer to be @code{racket-run}.
+@code{racket-xp-mode} --- an optional minor mode that enhances @code{racket-mode} --- supplies @code{racket-xp-complete-at-point}, which uses a static analysis to find local and imported binding names. Although this requires the Racket Mode back end to be running --- and will automatically start it --- it does @emph{not} require the edit buffer to be @code{racket-run}.
 
 @item
 @code{racket-repl-mode} supplies @code{racket-repl-complete-at-point}, which uses the result of @code{namespace-mapped-symbols} on the program currently running in the REPL.
