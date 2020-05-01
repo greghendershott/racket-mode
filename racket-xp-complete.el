@@ -41,7 +41,7 @@
     are from `completion-file-name-table'.
 
 - Otherwise, when completing a symbol: Candidates are bindings as
-  found by drracket/checks-syntax plus our own back end analysis
+  found by drracket/check-syntax plus our own back end analysis
   of imported bindings."
   (cond ((racket--in-require-form-p)
          (or (racket--call-with-completion-prefix-positions
@@ -87,10 +87,13 @@ that are require transformers."
 (defun racket--xp-capf-relative-module-paths ()
   (pcase (thing-at-point 'filename t)
     ((and (pred stringp) str)
-     (list (beginning-of-thing 'filename)
-           (end-of-thing 'filename)
-           (completion-file-name-table str #'file-exists-p t)
-           :exclusive 'no ))))
+     (pcase-let ((`(,beg . ,end) (bounds-of-thing-at-point 'filename)))
+       (pcase (completion-file-name-table str #'file-exists-p t)
+         ((and (pred identity) table)
+          (list beg
+                end
+                table
+                :exclusive 'no )))))))
 
 (defun racket--xp-make-company-location-proc ()
   (when (racket--cmd-open-p)
