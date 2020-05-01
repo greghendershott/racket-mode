@@ -35,6 +35,43 @@ sure your PR updates all of:
 1. the `Package-Requires:` line in `racket-mode.el`
 2. the `deps` target in `makefile`
 
+## Pointing Emacs to your Git clone
+
+After ensuring all dependencies of Racket More are installed, it
+suffices to add the path to your local clone of Racket Mode to
+`load-path` and require the package:
+
+```elisp
+(add-to-list 'load-path "/path/to/the/git-clone/dir")
+(require 'racket-mode)
+```
+
+Note that these lines will override any previous references to Racket
+Mode in your Emacs configuration.  In particular, if you have Racket
+Mode installed as an Emacs package, after evaluating these lines you
+will use Racket Mode from your local Git repository.
+
+If you use `use-package`, you can simply replace
+
+```elisp
+(use-package racket-mode
+    :ensure t)
+```
+
+with
+
+```elisp
+(use-package racket-mode
+    :load-path "/path/to/the/git-clone/dir")
+```
+
+You might also need to:
+
+* run <kbd>M-x package-delete</kbd> <kbd>racket-mode</kbd> so that the
+  ELPA package is not loaded from `.emacs.d/elpa`,
+
+* restart Emacs.
+
 ## doc/generate.el
 
 We generate reference documentation from doc strings for commands, variables, and faces.
