@@ -966,9 +966,18 @@ instead of looking at point."
               (any ?\: ?\.)
               (group-n 3 (+ digit)))
           #'racket--adjust-group-1 2 3)
-     ;; Any path struct
-     (list (rx "#<path:" (group-n 1 (+? (not (any ?\>)))) ?\>)
-           #'racket--adjust-group-1 nil nil 0)))
+    ;; Any path struct
+    (list (rx "#<path:" (group-n 1 (+? (not (any ?\>)))) ?\>)
+          #'racket--adjust-group-1 nil nil 0)
+    ;; Any (srcloc path line column ...) struct
+    (list (rx "(" "srcloc" (+ space)
+              ;; path
+              "\"" (group-n 1 (+? any)) "\""
+              ;; line
+              (+ space) (group-n 2 (+ digit))
+              ;; column
+              (+ space) (group-n 3 (+ digit)))
+          #'racket--adjust-group-1 2 3 0 1)))
   ;; Persistent history
   (setq-local comint-input-autoexpand nil) ;#450
   (setq-local comint-input-filter #'racket-repl--input-filter)
