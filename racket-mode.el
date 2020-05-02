@@ -1,4 +1,4 @@
-;;; racket-mode.el -*- lexical-binding: t; -*-
+;;; racket-mode.el --- Racket editing, REPL, and more  -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2013-2020 by Greg Hendershott.
 
