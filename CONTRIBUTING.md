@@ -37,7 +37,7 @@ sure your PR updates all of:
 
 ## Pointing Emacs to your Git clone
 
-After ensuring all dependencies of Racket More are installed, it
+After ensuring all dependencies of Racket Mode are installed, it
 suffices to add the path to your local clone of Racket Mode to
 `load-path` and require the package:
 
