@@ -59,26 +59,11 @@
 
 (define/contract (call-with-expanded-syntax-caching-evaluator maybe-mod thk)
   (-> (or/c mod? #f) (-> any) any)
-  (before-run maybe-mod)
-  (begin0
-      (parameterize ([current-eval (make-eval-handler maybe-mod)])
-        (thk))
-    (after-run maybe-mod)))
+  (parameterize ([current-eval (make-eval-handler maybe-mod)])
+    (thk)))
 
 (define-simple-macro (with-expanded-syntax-caching-evaluator mm:expr e:expr ...+)
   (call-with-expanded-syntax-caching-evaluator mm (λ () e ...)))
-
-;; Call this early in a file run, _before_ any evaluation.
-(define (before-run _maybe-mod)
-  ;; Don't actually flush the entire cache anymore. Because we're also
-  ;; using this for check-syntax. TODO: Some new strategy, or, let the
-  ;; cache grow indefinitely?
-  ;;
-  ;; Note: The case of same path with different digest is handled when
-  ;; we lookup items from the hash. It's considered a cache miss, we
-  ;; expand again, and that is the new value in the hash for that
-  ;; path.
-  (void))
 
 (define ((make-eval-handler _maybe-mod [orig-eval (current-eval)]) e)
   (cond [(and (syntax? e)
@@ -94,9 +79,6 @@
                      (current-load-relative-directory))
          (orig-eval expanded-stx)]
         [else (orig-eval e)]))
-
-(define (after-run _maybe-mod)
-  (void))
 
 ;; cache : (hash/c path? cache-entry?)
 (struct cache-entry (stx exp-stx digest namespace load-relative-directory))
