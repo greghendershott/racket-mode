@@ -6,9 +6,11 @@
          racket/match
          racket/set
          racket/class
+         syntax/parse/define
          drracket/check-syntax
          (only-in version/utils version<=?)
          "../imports.rkt"
+         (prefix-in online-check-syntax-monitor: "../online-check-syntax.rkt")
          "../syntax.rkt"
          "../util.rkt")
 
@@ -74,30 +76,32 @@
 
 (define (do-check-syntax path-str code-str)
   (define path (string->path path-str))
-  (parameterize ([error-display-handler (our-error-display-handler path-str code-str)]
-                 [pre-exn-errors '()])
+  (parameterize ([current-annotations   (new annotations-collector%
+                                             [src      path]
+                                             [code-str code-str])]
+                 [error-display-handler (our-error-display-handler path-str code-str)]
+                 [pre-exn-errors        '()])
     (with-handlers ([exn:fail? (handle-fail path-str code-str)])
       (with-time/log (~a "total " path-str)
-        (string->expanded-syntax path
-                                 code-str
-                                 (analyze path code-str))))))
+        (online-check-syntax-monitor:reset! path)
+        (string->expanded-syntax path code-str analyze)))))
 
-(define ((analyze path code-str) stx)
-  (define o (new annotations-collector%
-                 [src      path]
-                 [code-str code-str]))
-  (parameterize ([current-annotations o])
-    (define-values (expanded-expression expansion-completed)
-      (make-traversal (current-namespace)
-                      (current-load-relative-directory)))
-    (with-time/log 'drracket/check-syntax/expanded-expression
-      (expanded-expression stx))
-    (with-time/log 'drracket/check-syntax/expansion-completed
-      (expansion-completed)))
+(define (analyze stx)
+  ;; Get cached logger messages into current-annotations (these occur
+  ;; _during_ expansion, and we cache fully-expanded syntax).
+  (online-check-syntax-monitor:get (syntax-source stx))
 
-  (define annotations (send o get-annotations))
+  (define-values (expanded-expression expansion-completed)
+    (make-traversal (current-namespace)
+                    (current-load-relative-directory)))
+  (with-time/log 'drracket/check-syntax/expanded-expression
+    (expanded-expression stx))
+  (with-time/log 'drracket/check-syntax/expansion-completed
+    (expansion-completed))
 
-  (define completions-set (send o get-locals))
+  (define annotations (send (current-annotations) get-annotations))
+
+  (define completions-set (send (current-annotations) get-locals))
   (with-time/log 'imports
     (imports stx completions-set))
   (define completions (sort (set->list completions-set)
@@ -256,22 +260,29 @@
                             (exn->errors path-str code-str exn)))))
 
 (define ((handle-fail path-str code-str) e)
-  (cons
-   'check-syntax-errors
-   (cond
-     ;; Multiple errors. See comment above.
-     [(not (null? (pre-exn-errors)))
-      (pre-exn-errors)]
-     ;; The intended use of exn:srclocs is a _single_ error, with zero
-     ;; or more locations from least to most specific -- not multiple
-     ;; errors.
-     [(exn:srclocs? e)
-      (exn->errors path-str code-str e)]
-     ;; A single error with no srcloc at all. Although probably
-     ;; unlikely with exn:fail:syntax during expansion (as opposed to
-     ;; runtime errors) do handle it:
-     [else
-      (default-errors path-str code-str e)])))
+  (define errors
+    (cond
+      ;; Multiple errors. See comment above.
+      [(not (null? (pre-exn-errors)))
+       (pre-exn-errors)]
+      ;; The intended use of exn:srclocs is a _single_ error, with zero
+      ;; or more locations from least to most specific -- not multiple
+      ;; errors.
+      [(exn:srclocs? e)
+       (exn->errors path-str code-str e)]
+      ;; A single error with no srcloc at all. Although probably
+      ;; unlikely with exn:fail:syntax during expansion (as opposed to
+      ;; runtime errors) do handle it:
+      [else
+       (default-errors path-str code-str e)]))
+
+  ;; There might be annotations from the online-check-syntax-logger protocol:
+  (online-check-syntax-monitor:get (string->path path-str))
+  (define annotations (send (current-annotations) get-annotations))
+
+  (list 'check-syntax-errors
+        (cons 'errors      errors)
+        (cons 'annotations annotations)))
 
 (define (exn->errors path-str code-str e)
   (define (->path-string v)

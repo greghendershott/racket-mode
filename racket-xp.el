@@ -676,13 +676,16 @@ manually."
          (racket--xp-set-status 'ok)
          (when (and annotations after-thunk)
            (funcall after-thunk)))
-        (`(check-syntax-errors . ,xs)
+        (`(check-syntax-errors
+           (errors      . ,errors)
+           (annotations . ,annotations))
          ;; Don't do full `racket--xp-clear': The old completions and
          ;; some old annotations may be helpful to user while editing
          ;; to correct the error. However do clear things related to
          ;; previous _errors_.
          (racket--xp-clear t)
-         (racket--xp-insert xs)
+         (racket--xp-insert errors)
+         (racket--xp-insert annotations)
          (racket--xp-set-status 'err)))))))
 
 (defun racket--xp-insert (xs)

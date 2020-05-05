@@ -6,7 +6,8 @@
          (only-in racket/path path-only)
          syntax/modread
          syntax/parse/define
-         "mod.rkt")
+         "mod.rkt"
+         (prefix-in online-check-syntax-monitor: "online-check-syntax.rkt"))
 
 (provide with-expanded-syntax-caching-evaluator
          file->syntax
@@ -119,6 +120,7 @@
        (k exp-stx))]
     [_
      (log-racket-mode-syntax-cache-info "file->expanded-syntax cache MISS ~v ~v" path digest)
+     (online-check-syntax-monitor:reset! path)
      (file->syntax
       path
       (λ (stx)
@@ -143,6 +145,7 @@
        (k exp-stx))]
     [_
      (log-racket-mode-syntax-cache-info "string->expanded-syntax cache MISS ~v ~v" path digest)
+     (online-check-syntax-monitor:reset! path)
      (string->syntax
       path-str code-str
       (λ (stx)
