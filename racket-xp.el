@@ -743,9 +743,7 @@ manually."
                 (marker-position use-end)
                 (append
                  (list 'racket-xp-use           (list def-beg def-end)
-                       'cursor-sensor-functions (list #'racket--xp-cursor-sensor))
-                 (when (eq req 'local)
-                   (list 'help-echo "Defined locally"))))))))
+                       'cursor-sensor-functions (list #'racket--xp-cursor-sensor))))))))
         (`(external-def ,beg ,end ,path ,subs ,ids)
          (add-text-properties
           beg end

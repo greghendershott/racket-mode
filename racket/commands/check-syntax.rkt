@@ -1,14 +1,14 @@
 #lang racket/base
 
-(require (for-syntax racket/base)
+(require data/interval-map
+         (for-syntax racket/base)
+         racket/dict
          racket/format
-         (only-in racket/list remove-duplicates)
          racket/match
          racket/set
+         racket/string
          racket/class
-         syntax/parse/define
          drracket/check-syntax
-         (only-in version/utils version<=?)
          "../imports.rkt"
          (prefix-in online-check-syntax-monitor: "../online-check-syntax.rkt")
          "../syntax.rkt"
@@ -114,7 +114,8 @@
   (class (annotations-mixin object%)
     (init-field src code-str)
 
-    (define infos (mutable-set))
+    (define annos (mutable-set))
+    (define mouse-overs (make-interval-map))
     (define ht-defs/uses (make-hash))
     (define locals (mutable-set))
 
@@ -152,14 +153,17 @@
                           (add1 def-end))
                     (λ (v) (set-add v (list (add1 use-beg)
                                             (add1 use-end))))
-                    (set)))
+                    (set))
+      (unless require-arrow?
+        (send this syncheck:add-mouse-over-status "" use-beg use-end "Defined locally")))
 
     (define/override (syncheck:add-mouse-over-status _text beg end status)
       (when (valid-beg/end? beg end)
         ;; Avoid silly "imported from “\"file.rkt\"”"
         (define cleansed (regexp-replace* #px"[“””]" status ""))
-        (set-add! infos (item 'info beg end
-                              cleansed))
+        (interval-map-update*! mouse-overs beg end
+                               (λ (s) (set-add s cleansed))
+                               (set cleansed))
 
         ;; Local completions candidates. When a definition isn't yet
         ;; used, there will be no syncheck:add-arrow annotation
@@ -200,7 +204,7 @@
       ;; should give to the "def/drr" command if/as/when needed.
       (when (file-exists? path)
         (define drracket-id-str (symbol->string id-sym))
-        (set-add! infos
+        (set-add! annos
                   (item 'external-def beg end
                         (path->string path)
                         submods
@@ -212,14 +216,14 @@
     #;(define/override (syncheck:add-require-open-menu _text start-pos end-pos file) (void))
 
     (define/override (syncheck:add-docs-menu _text beg end _sym _label path _anchor anchor-text)
-      (set-add! infos (item 'doc beg end
+      (set-add! annos (item 'doc beg end
                             (path->string path)
                             anchor-text)))
 
     #;(define/override (syncheck:add-id-set to-be-renamed/poss dup-name?) (void))
 
     (define/override (syncheck:add-unused-require _req-src beg end)
-      (set-add! infos (item 'unused-require beg end)))
+      (set-add! annos (item 'unused-require beg end)))
 
     (define/public (get-annotations)
       ;; Convert ht-defs/uses to a list of defs, each of whose uses
@@ -232,9 +236,13 @@
                   def-beg def-end
                   req sym
                   (sort (set->list uses) < #:key car)))))
-      ;; annotations = infos + defs/uses, converted to a list sorted
-      ;; by positions.
-      (sort (append (set->list infos)
+      ;; annotations = annos + mouse-overs + defs/uses, converted to a
+      ;; list sorted by positions.
+      (sort (append (set->list annos)
+                    (for/list ([(beg/end v) (in-dict mouse-overs)])
+                      (item 'info (car beg/end) (cdr beg/end)
+                            (string-join (sort (set->list v) string<=?)
+                                         "; ")))
                     defs/uses)
             < #:key cadr))
 
