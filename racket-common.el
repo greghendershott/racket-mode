@@ -113,6 +113,22 @@
     ;; comment. Instead special-case `racket-send-last-sexp'.
     ((rx "#;")
      (0 "'"))
+    ;; Character literals. See:
+    ;; <https://docs.racket-lang.org/reference/reader.html#(part._parse-character)>
+    ((rx (group "#\\" (or "nul" "null"
+                          "backspace"
+                          "tab" "vtab"
+                          "newline" "linefeed"
+                          "page"
+                          "return"
+                          "space"
+                          "rubout"
+                          (** 3 3 (any (?0 . ?7)))
+                          (seq ?u (** 1 4 hex-digit))
+                          (seq ?U (** 1 6 hex-digit))
+                          anything))
+         (or (not alphabetic) eol))
+     (1 "w"))
     ;; Treat "complex" reader literals as a single sexp for nav and
     ;; indent, by also marking as prefix syntax the stuff after the #.
     ;; Racket predefines reader literals like #"" #rx"" #px"" #hash()

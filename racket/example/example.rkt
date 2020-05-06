@@ -363,3 +363,21 @@ BAR
 (fun #:12 #px"a")
 (fun #:123 #px"a")
 (fun #:1234 #px"a")
+
+;; Issue 463
+(or (equal? c #\") (equal? c #\'))
+#\" #\"
+#\" ;comment
+#\' #\'
+#\' ;comment
+#\nul #\null #\backspace #\tab #\vtab #\newline #\linefeed
+#\page #\return #\space #\rubout
+#\012
+#\uF
+#\uFF
+#\uFFF
+#\uFFFF
+#\Ufffff
+#\Uffffff
+#\a #\z
+#\λ

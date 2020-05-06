@@ -363,3 +363,21 @@ BAR
 (fun «:racket-keyword-argument-face:#:12» «:racket-selfeval-face:#px»«s:"a"»)
 (fun «:racket-keyword-argument-face:#:123» «:racket-selfeval-face:#px»«s:"a"»)
 (fun «:racket-keyword-argument-face:#:1234» «:racket-selfeval-face:#px»«s:"a"»)
+
+«m:;; »«x:Issue 463
+»(«k:or» («b:equal?» c «:racket-selfeval-face:#\"») («b:equal?» c «:racket-selfeval-face:#\'»))
+«:racket-selfeval-face:#\"» «:racket-selfeval-face:#\"»
+«:racket-selfeval-face:#\"» «m:;»«x:comment
+»«:racket-selfeval-face:#\'» «:racket-selfeval-face:#\'»
+«:racket-selfeval-face:#\'» «m:;»«x:comment
+»«:racket-selfeval-face:#\nul» «:racket-selfeval-face:#\null» «:racket-selfeval-face:#\backspace» «:racket-selfeval-face:#\tab» «:racket-selfeval-face:#\vtab» «:racket-selfeval-face:#\newline» «:racket-selfeval-face:#\linefeed»
+«:racket-selfeval-face:#\page» «:racket-selfeval-face:#\return» «:racket-selfeval-face:#\space» «:racket-selfeval-face:#\rubout»
+«:racket-selfeval-face:#\012»
+«:racket-selfeval-face:#\uF»
+«:racket-selfeval-face:#\uFF»
+«:racket-selfeval-face:#\uFFF»
+«:racket-selfeval-face:#\uFFFF»
+«:racket-selfeval-face:#\Ufffff»
+«:racket-selfeval-face:#\Uffffff»
+«:racket-selfeval-face:#\a» «:racket-selfeval-face:#\z»
+«:racket-selfeval-face:#\λ»
