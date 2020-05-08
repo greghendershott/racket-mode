@@ -183,6 +183,12 @@ commands directly to whatever keys you prefer.
   (unless (eq major-mode 'racket-mode)
     (setq racket-xp-mode nil)
     (user-error "racket-xp-mode only works with racket-mode buffers"))
+  (setq-local text-property-default-nonsticky
+              (append text-property-default-nonsticky
+                      '((racket-xp-def . t)
+                        (racket-xp-use . t)
+                        (racket-xp-visit . t)
+                        (racket-xp-doc . t))))
   (cond (racket-xp-mode
          (racket--xp-annotate)
          (add-hook 'after-change-functions
