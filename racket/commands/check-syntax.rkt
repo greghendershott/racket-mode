@@ -1,7 +1,6 @@
 #lang racket/base
 
 (require data/interval-map
-         (for-syntax racket/base)
          racket/dict
          racket/format
          racket/match
@@ -10,7 +9,8 @@
          racket/class
          drracket/check-syntax
          "../imports.rkt"
-         (prefix-in online-check-syntax-monitor: "../online-check-syntax.rkt")
+         (only-in "../online-check-syntax.rkt"
+                  [get get-online-check-syntax-messages])
          "../syntax.rkt"
          "../util.rkt")
 
@@ -83,14 +83,9 @@
                  [pre-exn-errors        '()])
     (with-handlers ([exn:fail? (handle-fail path-str code-str)])
       (with-time/log (~a "total " path-str)
-        (online-check-syntax-monitor:reset! path)
         (string->expanded-syntax path code-str analyze)))))
 
 (define (analyze stx)
-  ;; Get cached logger messages into current-annotations (these occur
-  ;; _during_ expansion, and we cache fully-expanded syntax).
-  (online-check-syntax-monitor:get (syntax-source stx))
-
   (define-values (expanded-expression expansion-completed)
     (make-traversal (current-namespace)
                     (current-load-relative-directory)))
@@ -99,7 +94,9 @@
   (with-time/log 'drracket/check-syntax/expansion-completed
     (expansion-completed))
 
-  (define annotations (send (current-annotations) get-annotations))
+  (define annotations
+    (with-time/log 'get-annotations
+      (send (current-annotations) get-annotations)))
 
   (define completions-set (send (current-annotations) get-locals))
   (with-time/log 'imports
@@ -114,14 +111,12 @@
   (class (annotations-mixin object%)
     (init-field src code-str)
 
-    (define annos (mutable-set))
-    (define mouse-overs (make-interval-map))
+    (define im-mouse-overs (make-interval-map))
+    (define im-external-defs (make-interval-map))
+    (define im-docs (make-interval-map))
+    (define im-unused-requires (make-interval-map))
     (define ht-defs/uses (make-hash))
     (define locals (mutable-set))
-
-    ;; Give infos all a common prefix so we can sort.
-    (define (item sym beg end . more)
-      (list* sym (add1 beg) (add1 end) more))
 
     ;; I've seen drracket/check-syntax return bogus positions for e.g.
     ;; add-mouse-over-status so here's some validation.
@@ -133,8 +128,6 @@
     (define/override (syncheck:find-source-object stx)
       (and (equal? src (syntax-source stx))
            src))
-
-    #;(define/override (syncheck:add-tail-arrow _from-text _from-pos _to-text to-pos) (void))
 
     (define/override (syncheck:add-arrow/name-dup/pxpy
                       _def-text def-beg def-end _def-px _def-py
@@ -155,13 +148,13 @@
                                             (add1 use-end))))
                     (set))
       (unless require-arrow?
-        (send this syncheck:add-mouse-over-status "" use-beg use-end "Defined locally")))
+        (send this syncheck:add-mouse-over-status "" use-beg use-end "defined locally")))
 
     (define/override (syncheck:add-mouse-over-status _text beg end status)
       (when (valid-beg/end? beg end)
         ;; Avoid silly "imported from “\"file.rkt\"”"
         (define cleansed (regexp-replace* #px"[“””]" status ""))
-        (interval-map-update*! mouse-overs beg end
+        (interval-map-update*! im-mouse-overs beg end
                                (λ (s) (set-add s cleansed))
                                (set cleansed))
 
@@ -177,8 +170,6 @@
         (when (or (equal? status "no bound occurrences")
                   (regexp-match? #px"^\\d+ bound occurrences?$" status))
           (set-add! locals (substring code-str beg end)))))
-
-    #;(define/override (syncheck:add-background-color _text start fin color) (void))
 
     (define/override (syncheck:add-jump-to-definition text beg end id-sym path submods)
       ;; - drracket/check-syntax only reports the file, not the
@@ -204,28 +195,30 @@
       ;; should give to the "def/drr" command if/as/when needed.
       (when (file-exists? path)
         (define drracket-id-str (symbol->string id-sym))
-        (set-add! annos
-                  (item 'external-def beg end
-                        (path->string path)
-                        submods
-                        (if (equal? drracket-id-str text)
-                            (list drracket-id-str)
-                            (list drracket-id-str text))))))
-
-    #;(define/override (syncheck:add-definition-target _text start-pos end-pos id mods) (void))
-    #;(define/override (syncheck:add-require-open-menu _text start-pos end-pos file) (void))
+        (interval-map-set! im-external-defs beg end
+                           (list (path->string path)
+                                 submods
+                                 (if (equal? drracket-id-str text)
+                                     (list drracket-id-str)
+                                     (list drracket-id-str text))))))
 
     (define/override (syncheck:add-docs-menu _text beg end _sym _label path _anchor anchor-text)
-      (set-add! annos (item 'doc beg end
-                            (path->string path)
-                            anchor-text)))
-
-    #;(define/override (syncheck:add-id-set to-be-renamed/poss dup-name?) (void))
+      (interval-map-set! im-docs beg end
+                         (list (path->string path)
+                               anchor-text)))
 
     (define/override (syncheck:add-unused-require _req-src beg end)
-      (set-add! annos (item 'unused-require beg end)))
+      (interval-map-set! im-unused-requires beg end (list)))
 
     (define/public (get-annotations)
+      ;; Obtain any online-check-syntax log message values and treat
+      ;; them as mouse-overs.
+      (for ([v (in-set (get-online-check-syntax-messages src))])
+        (match-define (list beg end string-or-thunk) v)
+        (define (force v) (if (procedure? v) (v) v))
+        (send this syncheck:add-mouse-over-status
+              "" beg end (force string-or-thunk)))
+
       ;; Convert ht-defs/uses to a list of defs, each of whose uses
       ;; are sorted by positions.
       (define defs/uses
@@ -236,14 +229,24 @@
                   def-beg def-end
                   req sym
                   (sort (set->list uses) < #:key car)))))
-      ;; annotations = annos + mouse-overs + defs/uses, converted to a
-      ;; list sorted by positions.
-      (sort (append (set->list annos)
-                    (for/list ([(beg/end v) (in-dict mouse-overs)])
-                      (item 'info (car beg/end) (cdr beg/end)
-                            (string-join (sort (set->list v) string<=?)
-                                         "; ")))
-                    defs/uses)
+      ;; Convert the interval maps for other annotations into simple
+      ;; lists of the form (list symbol beg end value ...). Also add1
+      ;; positions for Emacs.
+      (define (im->list im sym [proc values])
+        (for/list ([(beg/end vs) (in-dict im)])
+          (match-define (cons beg end) beg/end)
+          (list* sym (add1 beg) (add1 end) (proc vs))))
+      (define (mouse-over-set->result v)
+        (list ;im->list expects a list
+         (string-join (sort (set->list v) string<=?)
+                      "; ")))
+      ;; Append all and sort by `beg` position
+      (sort (append
+             defs/uses
+             (im->list im-mouse-overs     'info mouse-over-set->result)
+             (im->list im-external-defs   'external-def)
+             (im->list im-docs            'doc)
+             (im->list im-unused-requires 'unused-require))
             < #:key cadr))
 
     (define/public (get-locals)
@@ -284,8 +287,9 @@
       [else
        (default-errors path-str code-str e)]))
 
-  ;; There might be annotations from the online-check-syntax-logger protocol:
-  (online-check-syntax-monitor:get (string->path path-str))
+  ;; Even if expansion failed, there might be annotations from the
+  ;; online-check-syntax-logger protocol -- indeed that scenario is a
+  ;; motivation for the protocol -- so be sure to use them here.
   (define annotations (send (current-annotations) get-annotations))
 
   (list 'check-syntax-errors

@@ -285,7 +285,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (should (equal (get-text-property (point) 'help-echo) "1 bound occurrence"))
       (racket-xp-next-use)
       (should (racket-tests/see-forward "foobar"))
-      (should (equal (get-text-property (point) 'help-echo) "Defined locally"))
+      (should (equal (get-text-property (point) 'help-echo) "defined locally"))
       (goto-char (point-max))
       (insert "foo")
       (completion-at-point)
