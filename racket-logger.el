@@ -79,6 +79,7 @@ For more information see:
 "
   (setq-local font-lock-defaults (list racket-logger-font-lock-keywords))
   (setq-local truncate-lines t)
+  (setq-local buffer-undo-list t) ;disable undo
   (setq-local window-point-insertion-type t))
 
 (defconst racket--logger-buffer-name "*Racket Logger*")
