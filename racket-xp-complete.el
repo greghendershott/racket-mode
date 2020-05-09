@@ -89,11 +89,14 @@ that are require transformers."
     ((and (pred stringp) str)
      (pcase-let ((`(,beg . ,end) (bounds-of-thing-at-point 'filename)))
        (pcase (completion-file-name-table str #'file-exists-p t)
-         ((and (pred identity) table)
-          (list beg
-                end
-                table
-                :exclusive 'no )))))))
+         ((and (pred listp) table)
+          (let* ((dir (file-name-directory str))
+                 (table (mapcar (lambda (v) (concat dir v)) ;#466
+                                table)))
+            (list beg
+                  end
+                  table
+                  :exclusive 'no))))))))
 
 (defun racket--xp-make-company-location-proc ()
   (when (racket--cmd-open-p)
