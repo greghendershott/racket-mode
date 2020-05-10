@@ -1030,9 +1030,21 @@ highlighted using @ref{racket-xp-def-face} and @ref{racket-xp-use-face}
 -- instead of drawing arrows as in Dr Racket. Information is
 displayed using the function(s) in the hook variable
 @ref{racket-show-functions}; it is also available when hovering the
-mouse cursor. Note: If you find these features too distracting
-and/or slow, you may disable @code{cursor-sensor-mode}. The remaining
-features discussed below will still work.
+mouse cursor.
+
+Note: If you find these point-motion features too distracting
+and/or slow, in your @code{racket-xp-mode-hook} you may disable them:
+
+@lisp
+(require 'racket-xp)
+(add-hook 'racket-xp-mode-hook
+	  (lambda ()
+	    (remove-hook 'pre-redisplay-functions
+			 #'racket-xp-pre-redisplay
+			 t))
+@end lisp
+
+The remaining features discussed below will still work.
 
 You may also use commands to navigate among a definition and its
 uses, or to rename a local definitions and all its uses.
