@@ -43,7 +43,7 @@ If the process is not already started, this does nothing."
   (interactive)
   (racket--cmd-close))
 
-(defconst racket--cmd-process-name "racket-process"
+(defconst racket--cmd-process-name "racket"
   "Name for both the process and its associated buffer")
 
 (defun racket--cmd-open-p ()
@@ -76,7 +76,12 @@ See issue #327.")
    :connection-type 'pipe
    :noquery         t
    :buffer          (get-buffer-create (concat " *" racket--cmd-process-name "*"))
-   :stderr          (get-buffer-create (concat " *" racket--cmd-process-name "-stderr*"))
+   :stderr          (make-pipe-process
+                     :name     (concat racket--cmd-process-name "-stderr")
+                     :buffer   (concat "*" racket--cmd-process-name "-stderr*")
+                     :noquery  t
+                     :filter   #'racket--cmd-process-stderr-filter
+                     :sentinel #'ignore)
    :command         (list racket-program
                           (funcall racket-adjust-run-rkt racket--run.rkt)
                           (setq racket--cmd-auth (format "%S" `(auth ,(random)))))
@@ -111,6 +116,24 @@ See issue #327.")
                       (racket--cmd-dispatch-response (read sexp))
                       t)))
               (scan-error nil)))))))
+
+(defun racket--cmd-process-stderr-filter (proc string)
+  "A default process filter but also automatically display the buffer.
+
+Intended to surface error messages that wouldn't be shown by the
+command server or even appear in the racket-mode logger. Added as
+part of investigating issue #468.
+
+This assumes the process sentinel is set to `ignore' so we're not
+displaying the buffer for noise like \"process finished\"
+messages."
+  (when (buffer-live-p (process-buffer proc))
+    (with-current-buffer (process-buffer proc)
+      (save-excursion
+        (goto-char (process-mark proc))
+        (insert string)
+        (set-marker (process-mark proc) (point))))
+    (display-buffer (process-buffer proc))))
 
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
   "A hash from nonce to callback function.")
