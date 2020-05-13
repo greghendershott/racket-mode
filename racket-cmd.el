@@ -65,12 +65,23 @@ Racket Mode source code under \"/mnt\". Whew. In that case you
 can set this variable to the function `racket-wsl-to-windows' so
 that Racket Mode can find its own run.rkt file.")
 
+(defun racket--cmd-require-drracket-package ()
+  (unless
+      (zerop
+       (call-process racket-program
+                     nil                ;infile
+                     nil                ;destination
+                     nil                ;display
+                     "-e" "(require drracket/check-syntax)"))
+    (user-error "The Racket Mode back end cannot start; please `raco pkg install drracket'")))
+
 (defvar racket--cmd-auth nil
   "A value we give the Racket back-end when we launch it and when we connect.
 See issue #327.")
 
 (defun racket--cmd-open ()
   (racket--cmd-close) ;never create multi processes e.g. "racket-process<1>"
+  (racket--cmd-require-drracket-package)
   (make-process
    :name            racket--cmd-process-name
    :connection-type 'pipe
