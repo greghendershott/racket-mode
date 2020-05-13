@@ -167,6 +167,7 @@
     racket-repl-buffer-name-function
     racket-history-filter-regexp
     racket-images-inline
+    racket-imagemagick-props
     racket-images-keep-last
     racket-images-system-viewer
     racket-pretty-print

@@ -243,6 +243,26 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   :safe #'booleanp
   :group 'racket-repl)
 
+(defcustom racket-imagemagick-props nil
+  "ImageMagick property list given to `create-image'.
+
+For example, to scale images whose width is larger than 500
+pixels, supply (:max-width 500).
+
+This is ignored unless `racket-images-inline' is t and Emacs is
+built with with ImageMagick support."
+  :tag "ImageMagick Props"
+  :type '(plist :key-type symbol
+                :value-type (choice number string))
+  :options '((:max-width integer)
+             (:max-height integer)
+             (:background string)
+             (:width integer)
+             (:height integer)
+             (:rotation float))
+  :risky t
+  :group 'racket-repl)
+
 (defcustom racket-images-keep-last 100
   "How many images to keep in the image cache."
   :tag "Images Keep Last"

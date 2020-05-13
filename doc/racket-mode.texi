@@ -178,6 +178,7 @@ REPL variables
 * racket-repl-buffer-name-function::
 * racket-history-filter-regexp::
 * racket-images-inline::
+* racket-imagemagick-props::
 * racket-images-keep-last::
 * racket-images-system-viewer::
 * racket-pretty-print::
@@ -2095,6 +2096,7 @@ an underline, which is a common convention.
 * racket-repl-buffer-name-function::
 * racket-history-filter-regexp::
 * racket-images-inline::
+* racket-imagemagick-props::
 * racket-images-keep-last::
 * racket-images-system-viewer::
 * racket-pretty-print::
@@ -2132,6 +2134,17 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters.
 @subsection racket-images-inline
 
 Whether to display inline images in the REPL.
+
+@node racket-imagemagick-props
+@subsection racket-imagemagick-props
+
+ImageMagick property list given to @code{create-image}.
+
+For example, to scale images whose width is larger than 500
+pixels, supply (:max-width 500).
+
+This is ignored unless @ref{racket-images-inline} is t and Emacs is
+built with with ImageMagick support.
 
 @node racket-images-keep-last
 @subsection racket-images-keep-last

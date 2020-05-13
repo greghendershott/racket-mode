@@ -13,7 +13,7 @@
 ;;
 ;; Write bytes to a temporary file and return "#<Image: filename>".
 (define (save-temporary-image png-bytes)
-  (define filename (make-temporary-file "racket-image-~a.png"))
+  (define filename (make-temporary-file "racket-image-~a.svg"))
   (with-output-to-file filename #:exists 'truncate
     (λ () (display png-bytes)))
   (format "#<Image: ~a>" filename))
@@ -22,5 +22,5 @@
   (convertible? v))
 
 (define (convert-image v)
-  (cond [(and (convertible? v) (convert v 'png-bytes)) => save-temporary-image]
+  (cond [(and (convertible? v) (convert v 'svg-bytes)) => save-temporary-image]
         [else v]))
