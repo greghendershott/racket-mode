@@ -1,7 +1,6 @@
 #lang racket/base
 
 (require (for-syntax racket/base)
-         gui-debugger/marks
          racket/contract
          racket/format
          racket/list
