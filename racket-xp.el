@@ -368,7 +368,8 @@ or `racket-repl-describe'."
       (pcase (get-text-property point 'help-echo)
         ((and s (pred racket--non-empty-string-p))
          (racket-show s
-                      (next-single-property-change point 'help-echo)))
+                      (or (next-single-property-change point 'help-echo)
+                          (point-max))))
         (_ (racket-show "")))
       (let ((def (get-text-property point 'racket-xp-def))
             (use (get-text-property point 'racket-xp-use)))
@@ -776,6 +777,7 @@ manually."
 
 (defun racket--xp-clear (&optional only-errors-p)
   (with-silent-modifications
+    (racket-show "")
     (racket--xp-clear-errors)
     (racket--remove-overlays-in-buffer racket-xp-error-face)
     (unless only-errors-p

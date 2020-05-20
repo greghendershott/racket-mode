@@ -97,6 +97,7 @@
     racket-unvisit
     racket-mode-start-faster
     "Showing information"
+    racket-show-pseudo-tooltip
     racket-show-echo-area
     racket-show-header-line
     racket-show-pos-tip

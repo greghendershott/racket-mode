@@ -144,6 +144,7 @@ Other
 
 Showing information
 
+* racket-show-pseudo-tooltip::
 * racket-show-echo-area::
 * racket-show-header-line::
 * racket-show-pos-tip::
@@ -1870,10 +1871,31 @@ error message due to the bytecode being different versions.
 @section Showing information
 
 @menu
+* racket-show-pseudo-tooltip::
 * racket-show-echo-area::
 * racket-show-header-line::
 * racket-show-pos-tip::
 @end menu
+
+@node racket-show-pseudo-tooltip
+@subsection racket-show-pseudo-tooltip
+
+Show using an overlay that resembles a tooltip.
+
+This is nicer than @ref{racket-show-pos-tip} because it:
+
+@itemize
+@item
+Doesn't flicker while navigating.
+@item
+Doesn't disappear after a timeout.
+@item
+Performs well when @code{x-gtk-use-system-tooltips} is nil.
+@end itemize
+
+On the other hand, this does not look as nice when displaying
+text that spans multiple lines. In that case, we simply
+left-justify everything and do not draw any border.
 
 @node racket-show-echo-area
 @subsection racket-show-echo-area
@@ -2274,9 +2296,11 @@ file-local variable.
 
 A special hook variable to customize @code{racket-show}.
 
-Example functions include
+Example functions include:
 
 @itemize
+@item
+@ref{racket-show-pseudo-tooltip}
 @item
 @ref{racket-show-echo-area}
 @item
@@ -2301,8 +2325,11 @@ nil: Hide any persistent UI that might have been created to
 show strings, such as by @ref{racket-show-header-line}.
 @end itemize
 
-POS is the buffer position for which to show the message, nil
-meaning use some default position.
+POS is the buffer position for which to show the message. It may
+be nil only when VAL is nil or a blank string. When the buffer
+content is a span, POS should be the end of the span. That way,
+for example, a function that shows a tooltip can position it not
+to hide the interesting span in the buffer.
 
 @node Faces
 @chapter Faces
