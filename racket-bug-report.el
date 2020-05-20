@@ -40,6 +40,7 @@
         (pp `(,@(mapcar #'id-val
                         `(emacs-version
                           system-type
+                          x-gtk-use-system-tooltips
                           major-mode
                           racket--el-source-dir
                           racket--rkt-source-dir
