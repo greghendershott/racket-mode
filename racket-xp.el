@@ -780,18 +780,18 @@ manually."
     (racket-show "")
     (racket--xp-clear-errors)
     (racket--remove-overlays-in-buffer racket-xp-error-face)
+    (remove-text-properties (point-min) (point-max)
+                            (list 'help-echo nil))
     (unless only-errors-p
       (setq-local racket--xp-binding-completions nil)
       (racket--remove-overlays-in-buffer racket-xp-def-face
                                          racket-xp-use-face
                                          racket-xp-unused-face)
-      (remove-text-properties
-       (point-min) (point-max)
-       (list 'help-echo       nil
-             'racket-xp-def   nil
-             'racket-xp-use   nil
-             'racket-xp-visit nil
-             'racket-xp-doc   nil)))))
+      (remove-text-properties (point-min) (point-max)
+                              (list 'racket-xp-def   nil
+                                    'racket-xp-use   nil
+                                    'racket-xp-visit nil
+                                    'racket-xp-doc   nil)))))
 
 ;;; Mode line status
 
