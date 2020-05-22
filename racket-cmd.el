@@ -28,7 +28,7 @@
 (declare-function  racket--logger-on-notify "racket-logger" (str))
 (autoload         'racket--logger-on-notify "racket-logger")
 
-
+;;;###autoload
 (defun racket-start-back-end ()
   "Start the back end process used by Racket Mode.
 
@@ -36,6 +36,7 @@ If the process is already started, this command will stop and restart it."
   (interactive)
   (racket--cmd-open))
 
+;;;###autoload
 (defun racket-stop-back-end ()
   "Stop the back end process used by Racket Mode.
 
@@ -43,8 +44,8 @@ If the process is not already started, this does nothing."
   (interactive)
   (racket--cmd-close))
 
-(defconst racket--cmd-process-name "racket"
-  "Name for both the process and its associated buffer")
+(defconst racket--cmd-process-name "racket-mode-back-end"
+  "Used to name the process and its associated buffer.")
 
 (defun racket--cmd-open-p ()
   "Does a running process exist for the command server?"
@@ -117,6 +118,22 @@ See issue #327.")
                       t)))
               (scan-error nil)))))))
 
+(defvar racket--display-stderr-p t)
+
+;;;###autoload
+(defun racket-toggle-display-back-end-stderr ()
+  "Toggle whether the Racket Mode back end stderr buffer displays automatically.
+
+If you toggle this off, the buffer will still accumulate error
+messages -- it just won't `display-buffer' every time it is
+updated. You might prefer this if you are hacking on Racket or
+Racket Mode, temporarily have things in a state where the back
+end cannot start, and don't need to be notified repeatedly."
+  (interactive)
+  (setq racket--display-stderr-p (not racket--display-stderr-p))
+  (message "Racket Mode back end stderr buffer %s display automatically"
+           (if racket--display-stderr-p "WILL" "will NOT")))
+
 (defun racket--cmd-process-stderr-filter (proc string)
   "A default process filter but also automatically display the buffer.
 
@@ -129,11 +146,14 @@ displaying the buffer for noise like \"process finished\"
 messages."
   (when (buffer-live-p (process-buffer proc))
     (with-current-buffer (process-buffer proc)
+      (setq header-line-format
+            "M-x racket-toggle-display-back-end-stderr to change automatically displaying this buffer")
+      (goto-char (process-mark proc))
       (save-excursion
-        (goto-char (process-mark proc))
         (insert string)
         (set-marker (process-mark proc) (point))))
-    (display-buffer (process-buffer proc))))
+    (when racket--display-stderr-p
+      (display-buffer (process-buffer proc)))))
 
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
   "A hash from nonce to callback function.")
