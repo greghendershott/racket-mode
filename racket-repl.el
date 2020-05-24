@@ -959,7 +959,7 @@ instead of looking at point."
   (setq-local mode-line-process nil)
   (setq-local completion-at-point-functions (list #'racket-repl-complete-at-point))
   (setq-local eldoc-documentation-function nil)
-  (add-hook 'comint-output-filter-functions #'racket-repl-display-images)
+  (add-hook 'comint-output-filter-functions #'racket-repl-display-images nil t)
   (compilation-setup t)
   (setq-local
    compilation-error-regexp-alist
