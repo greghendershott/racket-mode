@@ -991,8 +991,8 @@ instead of looking at point."
               (expand-file-name (racket--buffer-name-slug)
                                 racket--config-dir))
   (comint-read-input-ring t)
-  (add-hook 'kill-buffer-hook #'comint-write-input-ring)
-  (add-hook 'kill-emacs-hook #'racket--repl-save-all-histories))
+  (add-hook 'kill-buffer-hook #'comint-write-input-ring nil t)
+  (add-hook 'kill-emacs-hook #'racket--repl-save-all-histories nil t))
 
 (defun racket--repl-save-all-histories ()
   "Call comint-write-input-ring for all `racket-repl-mode' buffers.
