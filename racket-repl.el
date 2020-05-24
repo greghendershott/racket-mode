@@ -671,7 +671,7 @@ Although they remain clickable they will be ignored by
   (and racket-image-cache-dir
        (file-directory-p racket-image-cache-dir)
        (let ((files (directory-files-and-attributes
-                     racket-image-cache-dir t "racket-image-[0-9]*.svg")))
+                     racket-image-cache-dir t "^racket-image-.+")))
          (mapcar #'car
                  (sort files (lambda (a b)
                                (< (float-time (nth 6 a))
@@ -691,14 +691,12 @@ A value for the variable `comint-output-filter-functions'."
   (with-silent-modifications
     (save-excursion
       (goto-char (point-min))
-      (while (re-search-forward  "\"#<Image: \\(.+racket-image-.+\\.svg\\)>\"" nil t)
-        ;; can't pass a filename to create-image because emacs might
-        ;; not display it before it gets deleted (race condition)
-        (let* ((file (match-string 1))
-               (begin (match-beginning 0))
-               (end (match-end 0)))
-          (delete-region begin end)
-          (goto-char begin)
+      (while (re-search-forward "\"#<Image: \\(.+racket-image-.+\\)>\"" nil t)
+        (let* ((beg (match-beginning 0))
+               (end (match-end 0))
+               (file (match-string 1)))
+          (delete-region beg end)
+          (goto-char beg)
           (if (and racket-images-inline (display-images-p))
               (insert-image (apply #'create-image
                                    file
@@ -708,7 +706,7 @@ A value for the variable `comint-output-filter-functions'."
                                    (when (image-type-available-p 'imagemagick)
                                      racket-imagemagick-props))
                             "[image]")
-            (goto-char begin)
+            (goto-char beg)
             (insert "[image] ; use M-x racket-view-last-image to view"))
           (setq racket-image-cache-dir (file-name-directory file))
           (racket-repl--clean-image-cache))))))
