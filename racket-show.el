@@ -19,6 +19,7 @@
 (require 'racket-util)
 (require 'racket-custom)
 (require 'pos-tip)
+(require 'cl-macs)
 
 (defun racket-show (val &optional pos)
   "See the variable `racket-show-functions' for information about VAL and POS."
@@ -65,7 +66,7 @@ A value for the variable `racket-show-functions'."
        (fboundp 'x-show-tip)
        (not (memq window-system (list nil 'pc)))))
 
-(defvar-local racket--pseudo-tooltip-overlay nil)
+(defvar-local racket--pseudo-tooltip-overlays nil)
 
 (defun racket-show-pseudo-tooltip (v &optional pos)
   "Show using an overlay that resembles a tooltip.
@@ -79,17 +80,18 @@ This is nicer than `racket-show-pos-tip' because it:
 On the other hand, this does not look as nice when displaying
 text that spans multiple lines. In that case, we simply
 left-justify everything and do not draw any border."
-  (cond ((racket--non-empty-string-p v)
-         (when racket--pseudo-tooltip-overlay
-           (delete-overlay racket--pseudo-tooltip-overlay))
-         (setq-local racket--pseudo-tooltip-overlay
-                     (racket--make-pseudo-tooltip-overlay v pos)))
-        (racket--pseudo-tooltip-overlay
-         (delete-overlay racket--pseudo-tooltip-overlay)
-         (setq-local racket--pseudo-tooltip-overlay
-                     nil))))
+  (racket--delete-pseudo-tooltip-overlays)
+  (when (racket--non-empty-string-p v)
+    (setq-local racket--pseudo-tooltip-overlays
+                (racket--make-pseudo-tooltip-overlays v pos))))
 
-(defun racket--make-pseudo-tooltip-overlay (text pos)
+(defun racket--delete-pseudo-tooltip-overlays ()
+  (dolist (ov racket--pseudo-tooltip-overlays)
+    (delete-overlay ov))
+  (setq-local racket--pseudo-tooltip-overlays nil))
+
+(defun racket--make-pseudo-tooltip-overlays (text pos)
+  "Create one or more overlays for a pseudo tooltip, returning them in a list."
   (if (string-match-p "\n" text)
       ;; When text is multi-line, we don't try to simulate a tooltip,
       ;; exactly. Instead we simply "insert" the multiple lines left
@@ -102,32 +104,65 @@ left-justify everything and do not draw any border."
              (eol (save-excursion (goto-char pos) (point-at-eol)))
              (ov (make-overlay eol (1+ eol))))
         (overlay-put ov 'after-string text)
-        ov)
+        (list ov))
     ;; Otherwise we simulate a tooltip displayed one line below pos,
     ;; and one column right (although it might start further left
     ;; depending on window-width) "over" any existing text.
-    (pcase-let* ((text (propertize (concat " " text " ")
-                                   'face
-                                   `(:inherit default
-                                     :foreground ,(face-foreground 'tooltip)
-                                     :background ,(face-background 'tooltip)
-                                     :box (:line-width -1))))
-                 (text-len (length text))
-                 (bol (save-excursion (goto-char pos) (point-at-bol)))
-                 (eol (save-excursion (goto-char pos) (point-at-eol)))
-                 ;; Position the tooltip on the next line, indented to
-                 ;; `pos' -- but not so far it ends off right edge.
-                 (indent (max 0 (min (- pos bol)
-                                     (- (window-width) text-len))))
-                 (beg (+ eol indent 1))
-                 (next-eol (save-excursion (goto-char (1+ eol)) (point-at-eol))))
+    (pcase-let*
+        ((text     (propertize (concat " " text " ")
+                               'face
+                               `(:inherit default
+                                 :foreground ,(face-foreground 'tooltip)
+                                 :background ,(face-background 'tooltip)
+                                 :box (:line-width -1))))
+         (text-len (length text))
+         (bol      (save-excursion (goto-char pos) (point-at-bol)))
+         (eol      (save-excursion (goto-char pos) (point-at-eol)))
+         ;; Position the tooltip on the next line, indented to `pos'
+         ;; -- but not so far it ends off right edge.
+         (indent   (max 0 (min (- pos bol)
+                               (- (window-width) text-len))))
+         (beg      (+ eol indent 1))
+         (next-eol (save-excursion (goto-char (1+ eol)) (point-at-eol))))
       ;; If the tip starts before next-eol, create an overlay with the
       ;; 'display property, covering the span of the tooltip text but
       ;; not beyond next-eol.
+      ;;
+      ;; As a further wrinkle, when the overlay does not cover the
+      ;; entire rest of the line, our new text might not be exactly
+      ;; the same pixel width as the text we replace -- causing the
+      ;; remaining text to shift. This can happen e.g. due to Unicode
+      ;; characters like λ. Furthermore, our replacement text can be
+      ;; two pixels wider because :box (:line-width -1) doesn't seem
+      ;; to work as advertised. So, we add _another_ overlay simply to
+      ;; replace the character following our tooltip with a space of
+      ;; the necessary pixel width to keep things aligned. Although
+      ;; covering the character with a space isn't great -- even if
+      ;; you justify it as a sort of "shadow" (?) -- it is less-worse
+      ;; than having the remainder of the line jiggle as the tooltip
+      ;; apears and disappears.
       (if (< beg next-eol)
-          (let ((ov (make-overlay beg (min next-eol (+ beg text-len)))))
-            (overlay-put ov 'display text)
-            ov)
+          (cl-labels ((text-pixel-width
+                       (beg end)
+                       (car (window-text-pixel-size nil beg end))))
+            (let* ((end  (min next-eol (+ beg text-len)))
+                   (ov   (make-overlay beg end))
+                   (old  (text-pixel-width beg end))
+                   (_    (overlay-put ov 'display text))
+                   (new  (text-pixel-width beg end))
+                   (diff (- new old)))
+              (cons
+               ov
+               (when (and (not (zerop diff))
+                          (< end next-eol))
+                 (let* ((ov-spacer   (make-overlay end (1+ end)))
+                        (width       (text-pixel-width end (1+ end)))
+                        (space-width (abs (- width diff))))
+                   (overlay-put ov-spacer
+                                'display
+                                `(space
+                                  :width (,space-width)))
+                   (list ov-spacer))))))
         ;; Else the tip starts after next-eol. So, create an overlay
         ;; on the newline, and use an after-string, where we prefix
         ;; enough blank spaces before the tooltip text itself to get
@@ -135,7 +170,7 @@ left-justify everything and do not draw any border."
         (let* ((ov (make-overlay (1- next-eol) next-eol))
                (blanks (make-string (- beg next-eol) 32)))
           (overlay-put ov 'after-string (concat blanks text))
-          ov)))))
+          (list ov))))))
 
 (provide 'racket-show)
 
