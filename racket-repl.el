@@ -700,11 +700,12 @@ A value for the variable `comint-output-filter-functions'."
           (if (and racket-images-inline (display-images-p))
               (insert-image (apply #'create-image
                                    file
-                                   (when (image-type-available-p 'imagemagick)
-                                     'imagemagick)
-                                   nil ;file not data
-                                   (when (image-type-available-p 'imagemagick)
-                                     racket-imagemagick-props))
+                                   (and (image-type-available-p 'imagemagick)
+                                        racket-imagemagick-props
+                                        'imagemagick)
+                                   nil  ;file not data
+                                   (and (image-type-available-p 'imagemagick)
+                                        racket-imagemagick-props))
                             "[image]")
             (goto-char beg)
             (insert "[image] ; use M-x racket-view-last-image to view"))

@@ -244,13 +244,15 @@ Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
   :group 'racket-repl)
 
 (defcustom racket-imagemagick-props nil
-  "ImageMagick property list given to `create-image'.
+  "Use ImageMagick with these properties for REPL images.
+
+When this property list is not empty -- and the variable
+`racket-images-inline' is true, and Emacs is built with with
+ImageMagick support -- then `create-image' is called with
+\"imagemagick\" as the type and with this property list.
 
 For example, to scale images whose width is larger than 500
-pixels, supply (:max-width 500).
-
-This is ignored unless `racket-images-inline' is t and Emacs is
-built with with ImageMagick support."
+pixels, supply (:max-width 500)."
   :tag "ImageMagick Props"
   :type '(plist :key-type symbol
                 :value-type (choice number string))
