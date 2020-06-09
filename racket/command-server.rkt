@@ -24,6 +24,7 @@
  ["commands/describe.rkt"     (describe type)]
  ["commands/find-module.rkt"  (find-module)]
  ["commands/help.rkt"         (doc)]
+ ["commands/lexindent-shim.rkt" (lexindent)]
  ["commands/macro.rkt"        (macro-stepper macro-stepper/next)]
  ["commands/requires.rkt"     (requires/tidy requires/trim requires/base)]
  ["commands/module-names.rkt" (module-names)]
@@ -142,6 +143,7 @@
     [`(requires/find ,str)             (libs-exporting-documented str)]
     [`(doc-index-names)                (doc-index-names)]
     [`(doc-index-lookup ,str)          (doc-index-lookup str)]
+    [`(lexindent . ,more)              (apply lexindent more)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
     ;; namespace), if their first "how" argument is 'namespace.
