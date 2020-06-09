@@ -28,6 +28,11 @@
 (declare-function  racket--logger-on-notify "racket-logger" (str))
 (autoload         'racket--logger-on-notify "racket-logger")
 
+(defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
+  "A hash from nonce to callback function.")
+(defvar racket--cmd-nonce 0
+  "Number that increments for each command request we send.")
+
 ;;;###autoload
 (defvar racket-start-back-end-hook nil
   "Hook run after `racket-start-back-end'.")
@@ -113,12 +118,12 @@ See issue #327.")
 
 (defun racket--cmd-close ()
   (pcase (get-process racket--cmd-process-name)
-    ((and (pred (processp)) proc) (delete-process proc)))
-  ;; Also kill buffer; helpful in case it contains unread output
-  ;; (perhaps because the output was un-read-able, e.g. invalid ELisp
-  ;; expression).
+    ((and (pred (processp)) proc)
+     (delete-process proc)
+     (clrhash racket--cmd-nonce->callback)))
   (pcase (get-buffer (concat " *" racket--cmd-process-name "*"))
-    ((and (pred (bufferp)) buf) (kill-buffer buf))))
+    ((and (pred (bufferp)) buf)
+     (kill-buffer buf))))
 
 (defun racket--cmd-process-stderr-filter (proc string)
   "Show back end process stderr via `message'.
@@ -143,11 +148,6 @@ Won't show noise like \"process finished\" if process sentinel is
                                         (point)))
                        (racket--cmd-dispatch-response sexp)
                        t)))))))
-
-(defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
-  "A hash from nonce to callback function.")
-(defvar racket--cmd-nonce 0
-  "Number that increments for each command request we send.")
 
 (defun racket--cmd-dispatch-response (response)
   "Do something with a sexpr sent to us from the command server.
