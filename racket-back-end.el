@@ -26,9 +26,7 @@
 ;;
 ;; The back end accepts commands and returns responses, as well as
 ;; giving non-command-response notifications (logging, debugging),
-;; which is handled in racket-cmd.el. The back end also accepts
-;; connections on a TCP port for one or more REPL sessions, which is
-;; handled in racket-repl.el.
+;; which is handled in racket-cmd.el.
 ;;
 ;; When some buffer needs a back end, which back end does it use?
 ;; That's the concern of the back end configuration code in this file.
@@ -123,14 +121,6 @@ buffer, DIRECTORY determines:
 
 - Whether the back end is local or remote.
 
-- The host name. Used to make TCP/IP connections to a back end
-  for REPL sesssions. When remote used for SSH connections to
-  start the back end process.
-
-  This may be a Host alias from ~/.ssh/config with a HostName, in
-  which case HostName is used as the actual host name for both
-  SSH and TCP/IP connections.
-
 - When remote, any explicit user and port used to make SSH
   connections (as opposed to relying on values from
   ~/.ssh/config).
@@ -155,30 +145,10 @@ of a back end:
   supply the localname there (not a full `file-remote-p'). The
   default value is \"/tmp/racket-mode-back-end\".
 
-- :repl-tcp-accept-host
-
-  Host from which the back end TCP REPL server will accept
-  connections. \"127.0.0.1\" means it will accept only local
-  connections. \"0.0.0.0\" means it will accept connections from
-  anywhere --- which usually is risky unless the remote is behind
-  a firewall that limits connections!
-
-- :repl-tcp-port
-
-  The port number the back end TCP REPL server uses to listen for
-  connections.
-
-  Note that this is `numberp' --- not `stringp'.
-
-  When 0, this means the back end chooses an available port --- a
-  so-called \"ephemeral\" port. Usually that is practical only on
-  a local host. Otherwise a specific port number should be used,
-  and, remember to allow that in the remote's firewall.
-
 - :windows
 
-  Whether the back end uses Windows style path names. Used to do
-  translation betwen slashes and backslashes between the Emacs
+  Whether the back end uses Windows style path names. Used to
+  translate betwen slashes and backslashes between the Emacs
   front end (which uses slashes even on Windows) and the Racket
   back end (which expects native backslashes on Windows).
 
@@ -195,27 +165,9 @@ of a back end:
 The default property values are appropriate for whether
 DIRECTORY is local or remote:
 
-- When DIRECTORY is remote, :repl-tcp-port is set to 55555,
-  :repl-tcp-accept-host is set to \"0.0.0.0\" (accepts
-  connections from anywhere), and :windows is nil.
+- When DIRECTORY is remote, :windows defaults to nil.
 
-  When working with back ends on remote hosts, *remember to check
-  your remote host firewall*. Your goal is to make sure things
-  work for you --- but only for you.
-
-  Probably you want the firewall to limit from where it accepts
-  SSH connections.
-
-  Also you need the firewall to accept connections on
-  :repl-tcp-port, but again, limiting from where --- either in
-  the firewall or by setting :repl-tcp-accept-host to a value
-  that is /not/ \"0.0.0.0\".
-
-- Otherwise, reasonable defaults are used for a local back end:
-  :repl-tcp-port is set to 0 (meaning the back end picks an
-  ephemeral port), :repl-tcp-accept-host is set to \"127.0.0.1\"
-  (meaning the back end only accept TCP connections locally),
-  and :windows is set based on `system-type'.
+- Otherwise, :windows defaults to a value based on `system-type'.
 
 Although the default values usually \"just work\" for local and
 remote back ends, you might want a special configuration. Here
@@ -260,10 +212,6 @@ are a few examples.
            :remote-source-dir    (or (plist-get plist :remote-source-dir)
                                      (unless local-p
                                        "/tmp/racket-mode-back-end"))
-           :repl-tcp-accept-host (or (plist-get plist :repl-tcp-accept-host)
-                                     (if local-p "127.0.0.1" "0.0.0.0"))
-           :repl-tcp-port        (or (plist-get plist :repl-tcp-port)
-                                     (if local-p 0 55555))
            :restart-watch-directories (plist-get plist :restart-watch-directories)
            ;; These booleanp things need to distinguish nil meaning
            ;; "user specififed false" from "user did not specify
@@ -291,8 +239,6 @@ are a few examples.
             (number-or-null-p (n) (or (not n) (numberp n))))
     (check #'stringp :directory)
     (check #'string-or-null-p :racket-program)
-    (check #'stringp :repl-tcp-accept-host)
-    (check #'numberp :repl-tcp-port)
     (when (file-remote-p (plist-get plist :directory))
       (check #'stringp :remote-source-dir)
       (check #'file-name-absolute-p :remote-source-dir))
@@ -374,40 +320,6 @@ Instead need the following."
 ;;(racket--file-name-sans-remote-method "/ssh:host:/path/to/foo.rkt")
 ;;(racket--file-name-sans-remote-method "/ssh:user@host:/path/to/foo.rkt")
 ;;(racket--file-name-sans-remote-method "/ssh:user@host#123:/path/to/foo.rkt")
-
-(defun racket--back-end-actual-host ()
-  "Return actual host name, considering possible ~/.ssh/config HostName.
-
-The user may have supplied a tramp file name using a Host defined
-in ~/.ssh/config, which has a HostName option that is the actual
-host name. The ssh command of course uses that config so we can
-start a back end process just fine. However `racket-repl-mode'
-needs to open a TCP connection at the same host, hence this
-helper function."
-  (pcase-let ((`(,host ,_user ,_port _name)
-               (racket--file-name->host+user+port+name
-                (plist-get (racket-back-end) :directory))))
-    (racket--back-end-ssh-config-lookup host)))
-
-(defun racket--back-end-ssh-config-lookup (host)
-  "Return HOST or its HostName if any from ~/.ssh/config."
-  (condition-case nil
-      (with-temp-buffer
-        (insert-file-contents-literally "~/.ssh/config")
-        (goto-char (point-min))
-        ;; Dumb parsing with regular expressions:
-        (save-match-data
-          (let ((case-fold-search t))
-            ;; Find start of desired Host block
-            (re-search-forward (concat "host[ ]+" host "[ \n]"))
-            ;; Find start of next Host or Match block, as limit
-            (let ((limit (save-excursion
-                           (or (re-search-forward "\\(?:host\\|match\\) " nil t)
-                               (point-max)))))
-              ;; Find HostName if any
-              (search-forward-regexp "hostname[ ]+\\([^ \n]+\\)" limit)
-              (match-string 1)))))
-    (error host)))
 
 (defun racket--back-end-local-p (&optional back-end)
   (not (file-remote-p (plist-get (or back-end (racket-back-end))

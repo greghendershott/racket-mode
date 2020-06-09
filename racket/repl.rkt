@@ -10,24 +10,25 @@
          (only-in racket/path path-only file-name-from-path)
          racket/set
          (only-in racket/string string-join)
-         racket/tcp
          (only-in "debug.rkt" make-debug-eval-handler next-break)
          "elisp.rkt"
          "error.rkt"
          "gui.rkt"
+         "interaction.rkt"
          "instrument.rkt"
-         "interactions.rkt"
          "print.rkt"
+         "repl-output.rkt"
          "repl-session.rkt"
          "stack-checkpoint.rkt"
          (only-in "syntax.rkt" make-caching-load/use-compiled-handler)
          "util.rkt")
 
-(provide start-repl-session-server
-         repl-tcp-port-number
+(provide repl-start
+         repl-exit
          run
          repl-break
-         repl-zero-column
+         repl-submit
+         repl-input
          maybe-module-path->file)
 
 ;;; Messages to each repl manager thread
@@ -80,19 +81,37 @@
               ready-thunk))
 
 ;; Command. Called from a command-server thread
-(struct break (kind))
-(define/contract (repl-break kind)
-  (-> (or/c 'break 'hang-up 'terminate) any)
+(define (repl-start sid)
+  (when (get-session sid)
+    (error 'repl-start "session already exists with id ~a" sid))
+  (define ready-ch (make-channel))
+  (thread (repl-manager-thread-thunk sid ready-ch))
+  (sync ready-ch))
+
+(define (repl-exit)
   (unless (current-repl-msg-chan)
-    (error 'repl-break "No REPL session to break"))
-  (channel-put (current-repl-msg-chan) (break kind)))
+    (error 'repl-exit "No REPL session to exit"))
+  (channel-put (current-repl-msg-chan) 'exit))
 
 ;; Command. Called from a command-server thread
-(struct zero-column (chan))
-(define (repl-zero-column)
-  (define ch (make-channel))
-  (channel-put (current-repl-msg-chan) (zero-column ch))
-  (sync ch))
+(define (repl-break)
+  (unless (current-repl-msg-chan)
+    (error 'repl-break "No REPL session to break"))
+  (channel-put (current-repl-msg-chan) 'break))
+
+;; Command. Called from a command-server thread
+(define/contract (repl-submit str)
+  (-> string? any)
+  (unless (current-submissions)
+    (error 'repl-submit "No REPL session for submit"))
+  (channel-put (current-submissions) str))
+
+;; Command. Called from a command-server thread
+(define/contract (repl-input str)
+  (-> string? any)
+  (unless (current-repl-msg-chan)
+    (error 'repl-input "No REPL session for input"))
+  (channel-put (current-repl-msg-chan) `(input ,(string->bytes/utf-8 str))))
 
 ;; Command. Called from a command-server thread
 (define/contract (run what subs mem pp cols pix/char ctx args dbgs)
@@ -142,77 +161,22 @@
     [(list* 'submod p xs) (string-join (cons (name p) (map ~a xs)) "/")]
     [#f                   ""]))
 
-;;; REPL session server
+;;; REPL sessions
 
-(define repl-tcp-port-number #f)
-
-(define (start-repl-session-server launch-token accept-host tcp-port)
-  (define listener
-    (tcp-listen tcp-port ;0 == choose port dynamically, a.k.a. "ephemeral" port
-                64
-                (not (zero? tcp-port)) ;reuse not good for ephemeral ports
-                accept-host))
-  (set! repl-tcp-port-number
-        (let-values ([(_loc-addr port _rem-addr _rem-port) (tcp-addresses listener #t)])
-          port))
-  (log-racket-mode-info "Accepting TCP connections from host ~v on port ~v"
-                        accept-host
-                        repl-tcp-port-number)
-  (thread (listener-thread-thunk launch-token listener)))
-
-(define ((listener-thread-thunk launch-token listener))
-  (let accept-a-connection ()
-    (define custodian (make-custodian))
-    (parameterize ([current-custodian custodian])
-      ;; `exit` in a REPL should terminate that REPL session -- not
-      ;; the entire back end server. Also, this is opportunity to
-      ;; remove the session from `sessions` hash table.
-      (define (our-exit-handler code)
-        (log-racket-mode-info "(our-exit-handler ~v) ~v"
-                              code (current-session-id))
-        (when (current-session-id) ;might exit before session created
-          (remove-session! (current-session-id)))
-        (custodian-shutdown-all custodian))
-      (parameterize ([exit-handler our-exit-handler])
-        (define-values (in out) (tcp-accept listener))
-        (parameterize ([current-input-port  in]
-                       [current-output-port out]
-                       [current-error-port  out])
-          (file-stream-buffer-mode in (if (eq? (system-type) 'windows)
-                                          'none
-                                          'block)) ;#582
-          (file-stream-buffer-mode out 'none)
-          ;; Immediately after connecting, the client must send us
-          ;; exactly the same launch token value that it gave us as a
-          ;; command line argument when it started us. Else we close
-          ;; the connection. See issue #327.
-          (define supplied-token (elisp-read in))
-          (unless (equal? launch-token supplied-token)
-            (log-racket-mode-fatal "Authorization failed: ~v"
-                                   supplied-token)
-            (exit 'racket-mode-repl-auth-failure))
-          (port-count-lines! in)  ;but for #519 #556 see interactions.rkt
-          (port-count-lines! out) ;for fresh-line
-          (thread repl-manager-thread-thunk))))
-    (accept-a-connection)))
-
-(define (repl-manager-thread-thunk)
-  (define session-id (next-session-id!))
-  (log-racket-mode-info "start ~v" session-id)
-  (parameterize* ([error-display-handler racket-mode-error-display-handler]
-                  [current-session-id    session-id]
-                  [current-repl-msg-chan (make-channel)])
+(define ((repl-manager-thread-thunk session-id ready-ch))
+  (log-racket-mode-info "starting repl session ~v" session-id)
+  ;; Make pipe for user program input (as distinct form repl-submit
+  ;; input).
+  (parameterize* ([current-session-id    session-id]
+                  [current-repl-msg-chan (make-channel)]
+                  [current-submissions   (make-channel)]
+                  [error-display-handler racket-mode-error-display-handler])
+    (set-session! session-id #f)
     (do-run
      (initial-run-config
       (λ ()
-        ;; Write a sexpr containing the session-id, which the client
-        ;; can use in certain commands that need to run in the context
-        ;; of a specific REPL. We wait to do so until this ready-thunk
-        ;; to ensure the `sessions` hash table has this session before
-        ;; any subsequent commands use call-with-session-context.
-        (elisp-writeln `(ok ,session-id))
-        (flush-output)
-        (display-commented (string-append "\n" (banner))))))))
+        (channel-put ready-ch #t)
+        (repl-output-message (banner)))))))
 
 (define (do-run cfg) ;run-config? -> void?
   (match-define (run-config maybe-mod
@@ -225,30 +189,41 @@
                             cmd-line-args
                             debug-files
                             ready-thunk)   cfg)
+  (repl-output-run (maybe-module-path->prompt-string maybe-mod))
   (define file (maybe-module-path->file maybe-mod))
   (define dir (path-only file))
   ;; Set current-directory -- but not current-load-relative-directory,
   ;; see #492 -- to the source file's directory.
   (current-directory dir)
-  ;; Make srcloc->string provide full pathnames
-  (prevent-path-elision-by-srcloc->string)
   ;; Custodian for the REPL.
   (define repl-cust (make-custodian))
   (when (< 0 mem-limit)
     (custodian-limit-memory repl-cust
                             (inexact->exact (round (* 1024 1024 mem-limit)))
                             repl-cust))
+  (define (our-exit [_v #f])
+    (repl-output-exit)
+    (custodian-shutdown-all repl-cust)
+    (remove-session! (current-session-id)))
+  (exit-handler our-exit)
+
+  ;; Input for user program (as distinct from REPL submissions, for
+  ;; which see current-submissions and get-interaction).
+  (define-values (user-pipe-in user-pipe-out) (make-pipe #f 'repl))
 
   ;; repl-thunk loads the user program and enters read-eval-print-loop
   (define (repl-thunk)
     ;; Command line arguments
     (current-command-line-arguments cmd-line-args)
-    ;; Set print hooks and output handlers
-    (set-print-parameters pretty-print? columns pixels/char)
+    ;; Set ports, current-print handler, and output handlers
+    (current-input-port user-pipe-in)
+    (current-output-port (make-repl-output-port))
+    (current-error-port  (make-repl-error-port))
+    (current-print (make-racket-mode-print-handler pretty-print? columns pixels/char))
     (set-output-handlers)
     ;; Record as much info about our session as we can, before
     ;; possibly entering module->namespace.
-    (set-session! (current-session-id) maybe-mod #f)
+    (set-session! (current-session-id) maybe-mod)
     ;; Set our initial value for current-namespace. When no module,
     ;; this will be the ns used in the REPL. Otherwise this is simply
     ;; the intial ns used for module->namespace, below, which returns
@@ -281,17 +256,11 @@
           (configure/require/enter maybe-mod extra-submods-to-run dir)
           (check-#%top-interaction))))
     ;; Update information about our session -- now that
-    ;; current-namespace is possibly updated, and, it is OK to call
-    ;; get-repl-submit-predicate.
-    (set-session! (current-session-id)
-                  maybe-mod
-                  (get-repl-submit-predicate maybe-mod))
+    ;; current-namespace is possibly updated.
+    (set-session! (current-session-id) maybe-mod)
     ;; Now that user's program has run, and `sessions` is updated,
-    ;; call the ready-thunk. On REPL session startup this lets us
-    ;; postpone sending the repl-session-id until `sessions` is
-    ;; updated. And for subsequent run commands, this lets us it wait
-    ;; to send a response, which is useful for commands that want to
-    ;; run after a run command has finished.
+    ;; call the ready-thunk: useful for commands that want to run
+    ;; after a run command has finished.
     (ready-thunk)
     ;; And finally, enter read-eval-print-loop.
     (parameterize ([current-prompt-read (make-prompt-read maybe-mod)])
@@ -318,18 +287,22 @@
                            [(profile)  (clear-profile-info!)]
                            [(coverage) (clear-test-coverage-info!)])
                          (custodian-shutdown-all repl-cust)
-                         (fresh-line)
                          (do-run c)]
-      [(zero-column ch)  (zero-column!)
-                         (channel-put ch 'done)]
-      [(break kind)      (break-thread repl-thread (if (eq? kind 'break) #f kind))]
-      [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)])
-    (get-message)))
+      ['break            (break-thread repl-thread #f)
+                         (get-message)]
+      [`(input ,bstr)    (write-bytes bstr user-pipe-out)
+                         (get-message)]
+      ['exit             (our-exit)]
+      [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)
+         (get-message)])))
 
-(define ((make-prompt-read m))
-  (begin0 (get-interaction (maybe-module-path->prompt-string m))
-    ;; let debug-instrumented code break again
-    (next-break 'all)))
+(define (make-prompt-read maybe-mod)
+  (define (racket-mode-prompt-read)
+    (define prompt (maybe-module-path->prompt-string maybe-mod))
+    (define stx (get-interaction prompt))
+    (next-break 'all) ;let debug-instrumented code break again
+    stx)
+  racket-mode-prompt-read)
 
 ;; Change one of our non-false maybe-mod values (for which we use path
 ;; objects, not path-strings) into a module-path applied to
@@ -379,30 +352,10 @@
           (raise-argument-error 'runtime-configure "(listof (vector any any any))" infos))
         (for-each info-load infos)))))
 
-;; <https://docs.racket-lang.org/tools/lang-languages-customization.html#(part._.R.E.P.L_.Submit_.Predicate)>
-(define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
-(define/contract (get-repl-submit-predicate m)
-  (-> (or/c #f module-path?) (or/c #f drracket:submit-predicate/c))
-  (and m
-       (or (with-handlers ([exn:fail? (λ _ #f)])
-             (match (with-input-from-file (maybe-module-path->file m)
-                      read-language)
-               [(? procedure? get-info)
-                (match (get-info 'drracket:submit-predicate #f)
-                  [#f #f]
-                  [v  v])]
-               [_ #f]))
-           (with-handlers ([exn:fail? (λ _ #f)])
-             (match (module->language-info m #t)
-               [(vector mp name val)
-                (define get-info ((dynamic-require mp name) val))
-                (get-info 'drracket:submit-predicate #f)]
-               [_ #f])))))
-
 (define (check-#%top-interaction)
   ;; Check that the lang defines #%top-interaction
   (unless (memq '#%top-interaction (namespace-mapped-symbols))
-    (display-commented
+    (repl-output-message
      "Because the language used by this module provides no #%top-interaction\n you will be unable to evaluate expressions here in the REPL.")))
 
 ;;; Output handlers; see issues #381 #397

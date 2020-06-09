@@ -15,18 +15,18 @@
                   stacktrace-imports^
                   original-stx
                   expanded-stx)
-         racket/dict
          racket/format
          racket/match
          racket/set
          racket/unit
          syntax/parse
+         "repl-output.rkt"
          "repl-session.rkt"
          "util.rkt")
 
 (provide make-instrumented-eval-handler
          error-context-display-depth
-         print-error-trace
+         get-error-trace
          instrumenting-enabled
          test-coverage-enabled
          clear-test-coverage-info!
@@ -89,7 +89,7 @@
     [(#%app time-apply . _)
      (unless (set-member? warned-sessions (current-session-id))
        (set-add! warned-sessions (current-session-id))
-       (display-commented
+       (repl-output-message
         @~a{Warning: time or time-apply used in errortrace annotated code.
             Instead use command-line racket for more-accurate measurements.
             (Will not warn again for this REPL session.)}))
@@ -121,12 +121,19 @@
                         loc
                         expr)))]))
 
-;; print-error-trace
-;;
-;; Just re-provide the one from errortrace-lib because (a) it works
-;; and (b) the `make-st-mark' representation is intentionally not
-;; documented.
-
+;; Functional alternative to print-error-trace.
+(define (get-error-trace e)
+  (for/list ([_ (error-context-display-depth)]
+             [stx (in-list
+                   (map st-mark-source
+                        (continuation-mark-set->list (exn-continuation-marks e)
+                                                     errortrace-key)))])
+    (cons (syntax->datum stx)
+          (srcloc (syntax-source stx)
+                  (syntax-line stx)
+                  (syntax-column stx)
+                  (syntax-position stx)
+                  (syntax-span stx)))))
 
 ;;; Test coverage
 

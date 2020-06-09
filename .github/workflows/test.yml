@@ -13,9 +13,9 @@ jobs:
         emacs_version:
           - '25.1'              # our minimum supported version
           - '26.3'
-          - '28.1'              # most recent release
+          - '29.1'              # most recent release
         racket_version:
-          - '6.9'               # our minimum supported version
+          - '6.12'              # our minimum supported version
           - 'stable'            # most recent release
         # Also include bleeding edge snapshots of both Emacs and
         # Racket. Note that "allow_failure: true" doesn't seem to
@@ -46,10 +46,12 @@ jobs:
         run: make show-versions
       - name: Install Emacs Packages
         run: make deps
-      - name: Compile Elisp
+      - name: Compile Emacs Lisp
         run: make compile
-      - name: Run Tests
-        run: make test
+      - name: Run Emacs Lisp Tests
+        run: make test-elisp
+      - name: Run Racket Tests
+        run: xvfb-run make test-racket
 
   windows:
     runs-on: windows-latest
@@ -57,7 +59,7 @@ jobs:
       fail-fast: false
       matrix:
         emacs_version:
-          - '28.1'              # most recent release
+          - '29.1'              # most recent release
         racket_version:
           - 'stable'            # most recent release
     name: Windows Emacs ${{ matrix.emacs_version }} and Racket ${{ matrix.racket_version }}
@@ -78,6 +80,7 @@ jobs:
         run: make deps
       - name: Compile Elisp
         run: make compile
-      - name: Run Tests
-        run: make test
-
+      - name: Run Emacs Lisp Tests
+        run: make test-elisp
+      - name: Run Racket Tests
+        run: make test-racket

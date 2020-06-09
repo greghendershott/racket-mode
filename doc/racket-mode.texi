@@ -65,6 +65,7 @@ Update
 * Updating just Racket Mode::
 Configure
 
+* Which major mode to use::
 * Key bindings::
 * Font-lock (syntax highlighting)::
 * Completion at point::
@@ -83,6 +84,7 @@ Configure
 Commands
 
 * Edit::
+* Hash Langs::
 * Explore::
 * Run::
 * Test::
@@ -110,6 +112,15 @@ Edit
 * racket-align::
 * racket-unalign::
 * racket-complete-at-point::
+
+Hash Langs
+
+* racket-hash-lang-mode::
+* racket-hash-lang-backward::
+* racket-hash-lang-forward::
+* racket-hash-lang-up::
+* racket-hash-lang-down::
+* racket-hash-lang-C-M-q-dwim::
 
 Explore
 
@@ -178,6 +189,7 @@ Other
 Variables
 
 * General variables::
+* Hash lang variables::
 * REPL variables::
 * Other variables::
 * Experimental debugger variables::
@@ -194,7 +206,13 @@ General variables
 * racket-browse-url-function::
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
+* racket-xp-binding-font-lock-face-modes::
 * racket-documentation-search-location::
+
+Hash lang variables
+
+* racket-hash-lang-token-face-alist::
+* racket-hash-lang-module-language-hook::
 
 REPL variables
 
@@ -281,6 +299,12 @@ All
 * racket-xp-unused-face::
 * racket-xp-tail-target-face::
 * racket-xp-tail-position-face::
+* racket-xp-binding-lang-face::
+* racket-xp-binding-lang-use-face::
+* racket-xp-binding-import-face::
+* racket-xp-binding-import-use-face::
+* racket-xp-binding-local-face::
+* racket-xp-binding-local-use-face::
 * racket-logger-config-face::
 * racket-logger-topic-face::
 * racket-logger-fatal-face::
@@ -292,6 +316,13 @@ All
 * racket-ext-link-face::
 * racket-doc-output-face::
 * racket-doc-litchar-face::
+* racket-repl-message::
+* racket-repl-prompt::
+* racket-repl-value::
+* racket-repl-error-message::
+* racket-repl-error-location::
+* racket-repl-stdout::
+* racket-repl-stderr::
 @end detailmenu
 @end menu
 
@@ -304,13 +335,16 @@ The @uref{https://www.racket-mode.com/,Racket Mode} package consists of a variet
 
 @itemize
 @item
-@code{racket-mode}: A major mode for editing @code{.rkt} files.
+@code{racket-mode}: A major mode to edit @code{.rkt} files. Generally assumes @code{#lang racket}.
 
 @item
-@ref{racket-xp-mode}: An optional minor mode that enhances @code{racket-mode} to explain and explore code.
+@ref{racket-hash-lang-mode}: An alternative to @code{racket-mode} using behavior specified by a @code{#lang} for colors, indent, expression navigation, etc. @emph{Experimental}.
 
 @item
-@code{racket-repl-mode}: A major mode for running programs providing a REPL.
+@ref{racket-xp-mode}: A minor mode to enhance either edit mode. Explain and explore code, similar to background check-syntax in Dr Racket.
+
+@item
+@code{racket-repl-mode}: A major mode to run programs and use a REPL.
 
 @item
 Various other modes to support specific features:
@@ -326,7 +360,7 @@ Various other modes to support specific features:
 
 For code, issues, and pull requests, see the @uref{https://github.com/greghendershott/racket-mode,Git repo}.
 
-To fund this work, see @uref{https://github.com/users/greghendershott/sponsorship,GitHub Sponsors} or @uref{https://www.paypal.me/greghendershott,PayPal}.
+To sponsor this work, see @uref{https://github.com/users/greghendershott/sponsorship,GitHub Sponsors} or @uref{https://www.paypal.me/greghendershott,PayPal}.
 
 @node Install Update and Uninstall
 @chapter Install, Update, and Uninstall
@@ -490,6 +524,7 @@ On macOS, downloading Racket doesn't add its @code{bin} directory to your @code{
 
 You can @code{setq} this directly in your Emacs init file (@verb{,~/.emacs,} or @verb{,~/.emacs.d/init.el,}), or, use @kbd{M-x}  @code{customize}, as you prefer.
 @menu
+* Which major mode to use::
 * Key bindings::
 * Font-lock (syntax highlighting)::
 * Completion at point::
@@ -506,6 +541,40 @@ You can @code{setq} this directly in your Emacs init file (@verb{,~/.emacs,} or 
 * Ligatures::
 @end menu
 
+@node Which major mode to use
+@section Which major mode to use
+
+Racket is a programming language.
+
+Racket is also a ``language-oriented programming language''. Most Racket source files contain a `#lang` line. The lang may be an s-expression lang like @code{racket}, or an at-expression lang like @code{scribble/manual}, or something completely different like @code{datalog} or @code{rhombus}.
+
+The Racket Mode package offers a choice of two major modes to use in buffers for viewing and editing source code. Each has pros and cons.
+
+Whereas @code{racket-mode} is in the tradition of Emacs @code{lisp-mode} and @code{scheme-mode} and assumes s-expression langs, @code{racket-hash-lang-mode} takes the approach of DrRacket to work for all langs.
+
+@itemize
+@item
+@code{racket-mode} is the original, ``classic'' mode for @code{#lang racket} and related s-expression languages. It is implemented entirely in Emacs and does @emph{not} need Racket Mode's back end racket process running. Font-lock (coloring) uses rules for a fixed set of identifiers from @code{racket} lang and popular modules like @code{racket/match}. Indentation uses rules for a fixed set of forms, and may be customized (see below).
+
+@item
+@code{racket-hash-lang-mode} uses font-lock (colors) and indentation determined by the lang; to get this information it @emph{does} need the Racket Mode's back end racket process running. Although basic editing should feel fast, you might notice some delay when indenting. You might see colors appear after a small delay (but it will not block editing). Speaking of colors, they will be ``plainer'' than @code{racket-mode} -- mostly just for different kinds of tokens like numbers, comments, strings, and keywords. This looks similar to DrRacket. However if you @emph{also} enable the minor mode @code{racket-xp-mode}, it will eventually add more colors at definition and use sites, and vary the colors depending on whether the identifier is local, imported, or from the module language. So you may see the ``syntax'' highlighting appear fairly quickly from @code{racket-hash-lang-mode}, and later see more ``semantic'' highlighting contributed by @code{racket-xp-mode}. The end result will be about as rich, although not exactly the same, as @code{racket-mode}.
+@end itemize
+
+You can use different major modes for different kinds of files:
+
+@itemize
+@item
+For editing @code{.rkt} files and s-expression langs, which mode to use is personal preference.
+
+@item
+For @code{.scrbl} and at-expression langs like @code{scribble/manual}, @code{racket-hash-lang-mode} is probably better than @code{racket-mode}. (Note there is also an unrelated @code{scribble-mode} package.)
+
+@item
+For non-s-expression langs like @code{datalog} or @code{rhombus} (@code{.rhm}), @code{racket-hash-lang-mode} is definitely better than @code{racket-mode}. (Note there is also an unrelated @code{rhombus-mode} package.)
+@end itemize
+
+You can use @code{auto-mode-alist} to tell Emacs which major mode to use initially for certain file extensions. Also, in a buffer you can use @code{M-x racket-mode} and @code{M-x racket-hash-lang-mode} to switch between them.
+
 @node Key bindings
 @section Key bindings
 
@@ -521,6 +590,10 @@ Likewise for @code{racket-repl-mode-hook} and @code{racket-repl-mode-map}.
 
 @node Font-lock (syntax highlighting)
 @section Font-lock (syntax highlighting)
+
+@quotation
+Note: The alternative major mode @ref{racket-hash-lang-mode} disables all of the following behavior and uses colors determined by the #lang.
+@end quotation
 
 Font-lock (as Emacs calls syntax highlighting) can be controlled using the variable @code{font-lock-maximum-decoration}, which defaults to @code{t} (maximum). You can set it to a number, where @code{0} is the lowest level. You can even supply an association list to specify different values for different major modes.
 
@@ -623,12 +696,20 @@ In any case, using the Emacs xref API allows for consistent command names, short
 @node Indent
 @section Indent
 
+@quotation
+Note: The alternative major mode @ref{racket-hash-lang-mode} disables all of the following behavior and uses indentation determined by the #lang.
+@end quotation
+
 Indentation can be customized in a way similar to lisp-mode and scheme-mode: @ref{racket-indent-line}.
 
 (Indentation preserves your line breaks. If you want to use an auto-reformatter --- an expressive pretty printer that chooses line breaks while computing an optimal layout --- the Racket package @uref{https://docs.racket-lang.org/fmt/,fmt} is supported by the Emacs package @uref{https://github.com/lassik/emacs-format-all-the-code,emacs-format-all-the-code}.)
 
 @node paredit
 @section paredit
+
+@quotation
+Note: If you use @ref{racket-hash-lang-mode}, you can use @code{racket-hash-lang-mode-hook} to enable/disable paredit based on the specific #lang.
+@end quotation
 
 If you use @uref{https://melpa.org/#/paredit,paredit}, you might want to add keybindings to @code{paredit-mode-map}:
 
@@ -768,25 +849,25 @@ To learn more about how @emph{many} REPLs are used: @xref{racket-repl-buffer-nam
 
 In the common case there is only one back end, on the same local host as Emacs, and it is used for @code{.rkt} files in any directory.
 
-@image{scenario-0,,, Emacs front end and one local back end. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+@image{scenario-0,,, Emacs front end and one local back end. Command I/O via pipe (local) or ssh (remote). Each back end provides zero or more REPLs.,.svg}
 
 However you can configure using any number of back ends on any number of local or remote hosts.
 
 As one example, you can have multiple back ends on the local host. One back end is used for a project under a specific subdirectory, and the other back end for all others. (Perhaps one project needs Racket built from source, and everything else uses an installed, older version of Racket. By using different back ends, not only will @code{racket-run} use the desired version of Racket for a file, so will commands for documentation or visiting definitions.)
 
-@image{scenario-1,,, Emacs front end and two local back ends --- one for a project path. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+@image{scenario-1,,, Emacs front end and two local back ends --- one for a project path. Command I/O via pipe (local) or ssh (remote). Each back end provides zero or more REPLs.,.svg}
 
 Furthermore, you could work with a project located on a remote host, whose files you edit using TRAMP. You also want the back end to run there. For a remote host, Racket Mode copies its back end source files to the remote when necessary, and runs the back end using ssh.
 
-@image{scenario-2,,, Emacs front end and a back end on a remote host. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+@image{scenario-2,,, Emacs front end and a back end on a remote host. Command I/O via pipe (local) or ssh (remote). Each back end provides zero or more REPLs.,.svg}
 
 Of course the remote can also use different back ends for different paths.
 
-@image{scenario-3,,, Emacs front end and two back ends on a remote host. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+@image{scenario-3,,, Emacs front end and two back ends on a remote host. Command I/O via pipe (local) or ssh (remote). Each back end provides zero or more REPLs.,.svg}
 
 And of course you can have multiple remotes.
 
-@image{scenario-4,,, Emacs front end and two back ends each on two remote hosts. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+@image{scenario-4,,, Emacs front end and two back ends each on two remote hosts. Command I/O via pipe (local) or ssh (remote). Each back end provides zero or more REPLs.,.svg}
 
 If you need any of these ``fancy'' configurations: @xref{racket-add-back-end}.
 
@@ -811,6 +892,7 @@ You can also view these by using the normal Emacs help mechanism:
 
 @menu
 * Edit::
+* Hash Langs::
 * Explore::
 * Run::
 * Test::
@@ -1415,6 +1497,141 @@ Completion candidates are drawn from the same symbols used for
 font-lock. This is a static list. If you want dynamic, smarter
 completion candidates, enable the minor mode @ref{racket-xp-mode}.
 
+@node Hash Langs
+@section Hash Langs
+
+@menu
+* racket-hash-lang-mode::
+* racket-hash-lang-backward::
+* racket-hash-lang-forward::
+* racket-hash-lang-up::
+* racket-hash-lang-down::
+* racket-hash-lang-C-M-q-dwim::
+@end menu
+
+@node racket-hash-lang-mode
+@subsection racket-hash-lang-mode
+
+@kbd{M-x}  @code{racket-hash-lang-mode}
+
+Use color-lexer, indent, and navigation supplied by a #lang.
+
+An experimental major mode alternative to @ref{racket-mode} for
+source file edit buffers.
+
+In your Emacs configuration, you may want to update the
+variable @code{auto-mode-alist} to use @ref{racket-hash-lang-mode} for
+file extensions like ``.rkt'', ``.scrbl'', and/or ``.rhm''.
+
+See also the customization variable
+@ref{racket-hash-lang-token-face-alist} and the hook variable
+@ref{racket-hash-lang-module-language-hook}.
+
+A discussion of the information provided by a Racket language:
+
+@uref{https://docs.racket-lang.org/tools/lang-languages-customization.html}
+
+Note that langs supply colors only for lexer tokens like strings
+and comments. If you enable the minor mode @ref{racket-xp-mode}, it
+can contribute more colors; see the customization variable
+@ref{racket-xp-binding-font-lock-face-modes}.
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@item Key
+@tab Binding
+@item @kbd{RET} 
+@tab @code{newline-and-indent}
+@item @kbd{C-M-q} 
+@tab @ref{racket-hash-lang-C-M-q-dwim}
+@item @kbd{C-M-d} 
+@tab @ref{racket-hash-lang-down}
+@item @kbd{C-M-u} 
+@tab @ref{racket-hash-lang-up}
+@item @kbd{C-M-f} 
+@tab @ref{racket-hash-lang-forward}
+@item @kbd{C-M-b} 
+@tab @ref{racket-hash-lang-backward}
+@item @kbd{C-M-y} 
+@tab @ref{racket-insert-lambda}
+@item @kbd{TAB} 
+@tab @code{indent-for-tab-command}
+@item @kbd{C-c C-x C-f} 
+@tab @ref{racket-open-require-path}
+@item @kbd{C-c C-e f} 
+@tab @ref{racket-expand-file}
+@item @kbd{C-c C-o} 
+@tab @ref{racket-profile}
+@item @kbd{C-c C-l} 
+@tab @ref{racket-logger}
+@item @kbd{C-c C-t} 
+@tab @ref{racket-test}
+@item @kbd{C-c C-z} 
+@tab @ref{racket-repl}
+@item @kbd{C-c C-k} 
+@tab @ref{racket-run-module-at-point}
+@item @kbd{C-c C-c} 
+@tab @ref{racket-run-module-at-point}
+@end multitable
+
+
+
+
+In addition to any hooks its parent mode @code{prog-mode} might have run,
+this mode runs the hook @code{racket-hash-lang-mode-hook}, as the final step
+during initialization.
+
+@node racket-hash-lang-backward
+@subsection racket-hash-lang-backward
+
+@kbd{C-M-b} 
+
+Like @code{backward-sexp} but uses #lang supplied navigation.
+
+@node racket-hash-lang-forward
+@subsection racket-hash-lang-forward
+
+@kbd{C-M-f} 
+
+Like @code{forward-sexp} but uses #lang supplied navigation.
+
+@node racket-hash-lang-up
+@subsection racket-hash-lang-up
+
+@kbd{C-M-u} 
+
+Like @code{backward-up-list} but uses #lang supplied navigation.
+
+@node racket-hash-lang-down
+@subsection racket-hash-lang-down
+
+@kbd{C-M-d} 
+
+Like @code{down-list} but uses #lang supplied navigation.
+
+@node racket-hash-lang-C-M-q-dwim
+@subsection racket-hash-lang-C-M-q-dwim
+
+@kbd{C-M-q} 
+
+Fill or indent depending on lang lexer's token at point.
+
+When the lang lexer token is@dots{}
+
+@itemize
+@item
+``text'', for example in Scribble document text, do
+@code{fill-paragraph}.
+
+@item
+``comment'', do @code{fill-comment}.
+
+@item
+``whitespace'', give an error message.
+
+@item
+anything else, do @code{prog-indent-sexp}.
+@end itemize
+
 @node Explore
 @section Explore
 
@@ -1922,12 +2139,20 @@ identifier bindings and modules from the REPL's namespace.
 @tab @ref{racket-expand-definition}
 @item @kbd{C-c C-e f} 
 @tab @ref{racket-expand-file}
-@item @kbd{C-w} 
-@tab @code{comint-kill-region}
-@item @kbd{C-a} 
-@tab @code{comint-bol}
+@item @kbd{C-c C-o} 
+@tab @code{racket-repl-delete-output}
+@item @kbd{C-c C-n} 
+@tab @code{racket-repl-next-prompt}
+@item @kbd{C-c C-p} 
+@tab @code{racket-repl-previous-prompt}
+@item @kbd{C-c C-u} 
+@tab @code{racket-repl-clear-input}
 @item @kbd{C-M-y} 
 @tab @ref{racket-insert-lambda}
+@item @kbd{M-n} 
+@tab @code{racket-repl-next-input}
+@item @kbd{M-p} 
+@tab @code{racket-repl-previous-input}
 @item @kbd{C-M-q} 
 @tab @code{prog-indent-sexp}
 @item @kbd{C-M-u} 
@@ -1942,8 +2167,7 @@ identifier bindings and modules from the REPL's namespace.
 
 
 
-In addition to any hooks its parent mode @code{comint-mode} might have run,
-this mode runs the hook @code{racket-repl-mode-hook}, as the final step
+This mode runs the hook @code{racket-repl-mode-hook}, as the final step
 during initialization.
 
 @node racket-run
@@ -2000,22 +2224,9 @@ See also @ref{racket-run-and-switch-to-repl}, which is even more like
 Dr Racket's Run command because it selects the REPL window after
 running.
 
-In the @ref{racket-repl-mode} buffer, output that describes a file
-and position is automatically ``linkified''. Examples of such
-text include:
-
-@itemize
-@item
-Racket error messages.
-@item
-rackunit test failure location messages.
-@item
-print representation of path objects.
-@end itemize
-
-To visit these locations, move point there and press RET or mouse
+To visit error locations, move point there and press RET or mouse
 click. Or, use the standard @code{next-error} and @code{previous-error}
-commands.
+commands from either the edit or REPL buffer.
 
 @node racket-run-and-switch-to-repl
 @subsection racket-run-and-switch-to-repl
@@ -2437,7 +2648,7 @@ When the expression is a sexp comment, the sexp itself is sent,
 without the #; prefix.
 
 With a prefix argument (e.g. @kbd{C-u}  @kbd{C-x C-e} ), the sexp is copied
-into the REPL, followed by a ``;; ->'' line, to distinguish it
+into the REPL, followed by a ``=>'' line, to distinguish it
 from the zero or more values to which it evaluates.
 
 @node Collections
@@ -2675,6 +2886,7 @@ Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 
 @menu
 * General variables::
+* Hash lang variables::
 * REPL variables::
 * Other variables::
 * Experimental debugger variables::
@@ -2694,6 +2906,7 @@ Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 * racket-browse-url-function::
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
+* racket-xp-binding-font-lock-face-modes::
 * racket-documentation-search-location::
 @end menu
 
@@ -2810,6 +3023,30 @@ Only give @ref{racket-xp-unused-face} to unused bindings that match this regexp.
 The default is to highlight identifiers that do not start with
 an underline, which is a common convention.
 
+@node racket-xp-binding-font-lock-face-modes
+@subsection racket-xp-binding-font-lock-face-modes
+
+Major modes where @ref{racket-xp-mode} will fontify binding identifier sites.
+
+A `font-lock-face property is added for bindings from:
+
+@itemize
+@item
+the module language, using @ref{racket-xp-binding-lang-face} and
+@ref{racket-xp-binding-lang-use-face}.
+
+@item
+other imports, using @ref{racket-xp-binding-import-face} and
+@ref{racket-xp-binding-import-use-face}.
+
+@item
+local definitions, using @ref{racket-xp-binding-local-face} and
+@ref{racket-xp-binding-local-use-face}.
+@end itemize
+
+This has a visible effect only when there is @emph{not} also a
+`face property applied by the major mode's fontification.
+
 @node racket-documentation-search-location
 @subsection racket-documentation-search-location
 
@@ -2828,6 +3065,89 @@ Otherwise, the value is a string recognizable by @code{format}, with
 after applying @code{url-hexify-string}. Apart from ``%s'', the
 string should be a properly encoded URL.
 @end itemize
+
+@node Hash lang variables
+@section Hash lang variables
+
+@menu
+* racket-hash-lang-token-face-alist::
+* racket-hash-lang-module-language-hook::
+@end menu
+
+@node racket-hash-lang-token-face-alist
+@subsection racket-hash-lang-token-face-alist
+
+An association list from color-lexer token symbols to face symbols.
+
+Note: In many Racket languages, the lexer classifies tokens for
+identifiers as `symbol. In many programs, a majority of the
+source consists of identifiers at binding definition and use
+sites. Therefore the appearance of ``symbol'' tokens is
+significant, and a matter of personal preference.
+
+@itemize
+@item
+If you prefer a ``plainer'' appearance, similar to Dr Racket:
+Add `symbol with the value `default. This gives an
+explicit `face property that prevails over any
+`font-lock-face property that a minor mode might apply to
+enhance the basic fontification.
+
+@item
+If you prefer a more ``colorful'' appearance, similar to
+``classic'' @ref{racket-mode}: Do @emph{not} map `symbol tokens in
+this list. Instead enable @ref{racket-xp-mode} and let it do
+``semantic'' highlighting of bindings; see the customization
+variable @ref{racket-xp-binding-font-lock-face-modes}.
+@end itemize
+
+Note: Some tokens are hardwired and not customizable by this
+list: Comment tokens use the face @code{font-lock-comment-face},
+sometimes blended with other faces. Parenthesis tokens use the
+face @code{parenthesis} if defined, as by the paren-face package.
+String tokens use @code{font-lock-string-face}. Text tokens, e.g.
+Scribble text, use the face @code{default}
+
+@node racket-hash-lang-module-language-hook
+@subsection racket-hash-lang-module-language-hook
+
+Hook run when the module language changes.
+
+The hook is called when a file is first visited, and thereafter
+whenever the ``#lang'' line is edited -- provided that results in
+new language info; for example changing from ``#lang racket'' to
+``#lang racket/base'' will @emph{not} run the hook.
+
+The function is called with a string returned by the lang's
+``module-language'' info key. This info key is supplied
+automatically when a language is defined using
+syntax/module-reader:
+
+@uref{https://docs.racket-lang.org/syntax/reader-helpers.html#%28mod-path._syntax%2Fmodule-reader%29}.
+
+Otherwise a lang might not supply this and the value will be nil.
+
+The hook is useful when you want to vary Emacs behavior in ways
+that go beyond what a lang can describe. This may include
+enabling ``fancy'' or ``classic'' Emacs behaviors only for
+s-expression langs.
+
+For example, maybe you want to use @code{paredit-mode} when it is
+suitable for the module language, otherwise stick with the
+plainer @code{electric-pair-mode}.
+
+@lisp
+  (defun my-hook (module-language)
+    (cond
+     ((member module-language (list "racket" "racket/base"
+                                    "typed/racket" "typed/racket/base"))
+      (electric-pair-local-mode -1)
+      (paredit-mode 1))
+    (t
+     (paredit-mode -1)
+     (electric-pair-local-mode 1))))
+  (add-hook 'racket-hash-lang-module-language-hook #'my-hook)
+@end lisp
 
 @node REPL variables
 @section REPL variables
@@ -3015,10 +3335,13 @@ like ``debug'' and not get overhwelmed by these noisy topics.
 
 Normal hook done before various Racket Mode run commands.
 
+Here ``before'' means that the @ref{racket-repl-mode} buffer might not
+exist yet.
+
 When hook functions are called, @code{current-buffer} is that of the
-@ref{racket-mode} buffer when the run command was issued. If a hook
-function instead needs the @ref{racket-repl-mode} buffer, it should
-get that from the variable @code{racket-repl-buffer-name}.
+edit buffer when the run command was issued. If a hook function
+instead needs the @ref{racket-repl-mode} buffer, it should get that
+from the variable @code{racket-repl-buffer-name}.
 
 @node racket-after-run-hook
 @subsection racket-after-run-hook
@@ -3029,9 +3352,9 @@ Here ``after'' means that the run has completed and the REPL is
 waiting at another prompt.
 
 When hook functions are called, @code{current-buffer} is that of the
-@ref{racket-mode} buffer when the run command was issued. If a hook
-function instead needs the @ref{racket-repl-mode} buffer, it should
-get that from the variable @code{racket-repl-buffer-name}.
+buffer when the run command was issued. If a hook function
+instead needs the @ref{racket-repl-mode} buffer, it should get that
+from the variable @code{racket-repl-buffer-name}.
 
 @node racket-sexp-comment-fade
 @subsection racket-sexp-comment-fade
@@ -3358,15 +3681,6 @@ buffer, DIRECTORY determines:
 Whether the back end is local or remote.
 
 @item
-The host name. Used to make TCP/IP connections to a back end
-for REPL sesssions. When remote used for SSH connections to
-start the back end process.
-
-This may be a Host alias from ~/.ssh/config with a HostName, in
-which case HostName is used as the actual host name for both
-SSH and TCP/IP connections.
-
-@item
 When remote, any explicit user and port used to make SSH
 connections (as opposed to relying on values from
 ~/.ssh/config).
@@ -3397,32 +3711,10 @@ supply the localname there (not a full @code{file-remote-p}). The
 default value is ``/tmp/racket-mode-back-end''.
 
 @item
-:repl-tcp-accept-host
-
-Host from which the back end TCP REPL server will accept
-connections. ``127.0.0.1'' means it will accept only local
-connections. ``0.0.0.0'' means it will accept connections from
-anywhere --- which usually is risky unless the remote is behind
-a firewall that limits connections!
-
-@item
-:repl-tcp-port
-
-The port number the back end TCP REPL server uses to listen for
-connections.
-
-Note that this is @code{numberp} --- not @code{stringp}.
-
-When 0, this means the back end chooses an available port --- a
-so-called ``ephemeral'' port. Usually that is practical only on
-a local host. Otherwise a specific port number should be used,
-and, remember to allow that in the remote's firewall.
-
-@item
 :windows
 
-Whether the back end uses Windows style path names. Used to do
-translation betwen slashes and backslashes between the Emacs
+Whether the back end uses Windows style path names. Used to
+translate betwen slashes and backslashes between the Emacs
 front end (which uses slashes even on Windows) and the Racket
 back end (which expects native backslashes on Windows).
 
@@ -3443,28 +3735,10 @@ DIRECTORY is local or remote:
 
 @itemize
 @item
-When DIRECTORY is remote, :repl-tcp-port is set to 55555,
-:repl-tcp-accept-host is set to ``0.0.0.0'' (accepts
-connections from anywhere), and :windows is nil.
-
-When working with back ends on remote hosts, @strong{remember to check
-your remote host firewall}. Your goal is to make sure things
-work for you --- but only for you.
-
-Probably you want the firewall to limit from where it accepts
-SSH connections.
-
-Also you need the firewall to accept connections on
-:repl-tcp-port, but again, limiting from where --- either in
-the firewall or by setting :repl-tcp-accept-host to a value
-that is @emph{not} ``0.0.0.0''.
+When DIRECTORY is remote, :windows defaults to nil.
 
 @item
-Otherwise, reasonable defaults are used for a local back end:
-:repl-tcp-port is set to 0 (meaning the back end picks an
-ephemeral port), :repl-tcp-accept-host is set to ``127.0.0.1''
-(meaning the back end only accept TCP connections locally),
-and :windows is set based on @code{system-type}.
+Otherwise, :windows defaults to a value based on @code{system-type}.
 @end itemize
 
 Although the default values usually ``just work'' for local and
@@ -3569,6 +3843,12 @@ A value for the variable @ref{racket-shell-or-terminal-function}.
 * racket-xp-unused-face::
 * racket-xp-tail-target-face::
 * racket-xp-tail-position-face::
+* racket-xp-binding-lang-face::
+* racket-xp-binding-lang-use-face::
+* racket-xp-binding-import-face::
+* racket-xp-binding-import-use-face::
+* racket-xp-binding-local-face::
+* racket-xp-binding-local-use-face::
 * racket-logger-config-face::
 * racket-logger-topic-face::
 * racket-logger-fatal-face::
@@ -3580,6 +3860,13 @@ A value for the variable @ref{racket-shell-or-terminal-function}.
 * racket-ext-link-face::
 * racket-doc-output-face::
 * racket-doc-litchar-face::
+* racket-repl-message::
+* racket-repl-prompt::
+* racket-repl-value::
+* racket-repl-error-message::
+* racket-repl-error-location::
+* racket-repl-stdout::
+* racket-repl-stderr::
 @end menu
 
 @node racket-keyword-argument-face
@@ -3615,12 +3902,12 @@ Face for here strings.
 @node racket-xp-def-face
 @subsection racket-xp-def-face
 
-Face @ref{racket-xp-mode} uses to highlight definitions.
+Face @ref{racket-xp-mode} uses when point is on a definition.
 
 @node racket-xp-use-face
 @subsection racket-xp-use-face
 
-Face @ref{racket-xp-mode} uses to highlight uses.
+Face @ref{racket-xp-mode} uses when point is on a use.
 
 @node racket-xp-unused-face
 @subsection racket-xp-unused-face
@@ -3636,6 +3923,48 @@ Face @ref{racket-xp-mode} uses to highlight targets of a tail position.
 @subsection racket-xp-tail-position-face
 
 Face @ref{racket-xp-mode} uses to highlight expressions in a tail position.
+
+@node racket-xp-binding-lang-face
+@subsection racket-xp-binding-lang-face
+
+Face @ref{racket-xp-mode} gives to the module language name.
+
+See the variable @ref{racket-xp-binding-font-lock-face-modes}.
+
+@node racket-xp-binding-lang-use-face
+@subsection racket-xp-binding-lang-use-face
+
+Face @ref{racket-xp-mode} gives uses of bindings imported from the module language.
+
+See the variable @ref{racket-xp-binding-font-lock-face-modes}.
+
+@node racket-xp-binding-import-face
+@subsection racket-xp-binding-import-face
+
+Face @ref{racket-xp-mode} gives to imported module names.
+
+See the variable @ref{racket-xp-binding-font-lock-face-modes}.
+
+@node racket-xp-binding-import-use-face
+@subsection racket-xp-binding-import-use-face
+
+Face @ref{racket-xp-mode} gives uses of imported bindings.
+
+See the variable @ref{racket-xp-binding-font-lock-face-modes}.
+
+@node racket-xp-binding-local-face
+@subsection racket-xp-binding-local-face
+
+Face @ref{racket-xp-mode} gives to local definitions.
+
+See the variable @ref{racket-xp-binding-font-lock-face-modes}.
+
+@node racket-xp-binding-local-use-face
+@subsection racket-xp-binding-local-use-face
+
+Face @ref{racket-xp-mode} gives to uses of local definitions.
+
+See the variable @ref{racket-xp-binding-font-lock-face-modes}.
 
 @node racket-logger-config-face
 @subsection racket-logger-config-face
@@ -3695,6 +4024,41 @@ Face @code{racket-describe-mode} uses for Scribble @@example or @@interactions o
 @subsection racket-doc-litchar-face
 
 Face @code{racket-describe-mode} uses for Scribble @@litchar.
+
+@node racket-repl-message
+@subsection racket-repl-message
+
+Face @ref{racket-repl-mode} uses for messages from the back end.
+
+@node racket-repl-prompt
+@subsection racket-repl-prompt
+
+Face @ref{racket-repl-mode} uses for prompts.
+
+@node racket-repl-value
+@subsection racket-repl-value
+
+Face @ref{racket-repl-mode} uses for values output by current-print.
+
+@node racket-repl-error-message
+@subsection racket-repl-error-message
+
+Face @ref{racket-repl-mode} uses for error messages.
+
+@node racket-repl-error-location
+@subsection racket-repl-error-location
+
+Face @ref{racket-repl-mode} uses for error locations.
+
+@node racket-repl-stdout
+@subsection racket-repl-stdout
+
+Face @ref{racket-repl-mode} uses for output to current-output-port.
+
+@node racket-repl-stderr
+@subsection racket-repl-stderr
+
+Face @ref{racket-repl-mode} uses for output to current-error-port.
 
 @c Emacs 25.2.2 (Org mode 8.2.10)
 @bye

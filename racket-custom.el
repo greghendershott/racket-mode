@@ -146,6 +146,72 @@ an underline, which is a common convention."
   :safe #'stringp
   :group 'racket-xp)
 
+(defcustom racket-xp-binding-font-lock-face-modes '(racket-hash-lang-mode)
+  "Major modes where `racket-xp-mode' will fontify binding identifier sites.
+
+A \\='font-lock-face property is added for bindings from:
+
+  - the module language, using `racket-xp-binding-lang-face' and
+    `racket-xp-binding-lang-use-face'.
+
+  - other imports, using `racket-xp-binding-import-face' and
+    `racket-xp-binding-import-use-face'.
+
+  - local definitions, using `racket-xp-binding-local-face' and
+    `racket-xp-binding-local-use-face'.
+
+This has a visible effect only when there is /not/ also a
+\\='face property applied by the major mode's fontification."
+  :tag "Racket Xp Mode Binding Font Lock Face Modes"
+  :type '(repeat symbol)
+  :safe #'listp
+  :group 'racket-xp)
+
+;;; Hash Lang
+
+(defgroup racket-hash-lang nil
+  "`racket-hash-lang-mode' options"
+  :tag "Hash Lang"
+  :group 'racket)
+
+(defcustom racket-hash-lang-token-face-alist
+  `((constant           . font-lock-constant-face)
+    (error              . error)
+    (other              . font-lock-doc-face)
+    (keyword            . font-lock-keyword-face)
+    (hash-colon-keyword . racket-keyword-argument-face)
+    (at                 . font-lock-doc-face))
+  "An association list from color-lexer token symbols to face symbols.
+
+Note: In many Racket languages, the lexer classifies tokens for
+identifiers as \\='symbol. In many programs, a majority of the
+source consists of identifiers at binding definition and use
+sites. Therefore the appearance of \"symbol\" tokens is
+significant, and a matter of personal preference.
+
+  - If you prefer a \"plainer\" appearance, similar to Dr Racket:
+    Add \\='symbol with the value \\='default. This gives an
+    explicit \\='face property that prevails over any
+    \\='font-lock-face property that a minor mode might apply to
+    enhance the basic fontification.
+
+  - If you prefer a more \"colorful\" appearance, similar to
+    \"classic\" `racket-mode': Do /not/ map \\='symbol tokens in
+    this list. Instead enable `racket-xp-mode' and let it do
+    \"semantic\" highlighting of bindings; see the customization
+    variable `racket-xp-binding-font-lock-face-modes'.
+
+Note: Some tokens are hardwired and not customizable by this
+list: Comment tokens use the face `font-lock-comment-face',
+sometimes blended with other faces. Parenthesis tokens use the
+face `parenthesis' if defined, as by the paren-face package.
+String tokens use `font-lock-string-face'. Text tokens, e.g.
+Scribble text, use the face `default'"
+  :tag "Hash Lang Token Face Association List"
+  :type '(alist :key-type symbol :value-type face)
+  :safe #'listp
+  :group 'racket-hash-lang)
+
 ;;; REPL
 
 (defgroup racket-repl nil
@@ -327,13 +393,17 @@ will use this to decide whether to submit your input, yet."
   :safe #'booleanp
   :group 'racket-repl)
 
+
 (defcustom racket-before-run-hook nil
   "Normal hook done before various Racket Mode run commands.
 
+Here \"before\" means that the `racket-repl-mode' buffer might not
+exist yet.
+
 When hook functions are called, `current-buffer' is that of the
-`racket-mode' buffer when the run command was issued. If a hook
-function instead needs the `racket-repl-mode' buffer, it should
-get that from the variable `racket-repl-buffer-name'."
+edit buffer when the run command was issued. If a hook function
+instead needs the `racket-repl-mode' buffer, it should get that
+from the variable `racket-repl-buffer-name'."
   :tag "Before Run Hook"
   :type 'hook
   :risky t
@@ -346,9 +416,9 @@ Here \"after\" means that the run has completed and the REPL is
 waiting at another prompt.
 
 When hook functions are called, `current-buffer' is that of the
-`racket-mode' buffer when the run command was issued. If a hook
-function instead needs the `racket-repl-mode' buffer, it should
-get that from the variable `racket-repl-buffer-name'."
+buffer when the run command was issued. If a hook function
+instead needs the `racket-repl-mode' buffer, it should get that
+from the variable `racket-repl-buffer-name'."
   :tag "After Run Hook"
   :type 'hook
   :risky t
@@ -515,13 +585,55 @@ ignore POS. Examples: `racket-show-echo-area' and
 
 (defface-racket racket-xp-def-face
   '((t (:inherit match :underline (:style line))))
-  "Face `racket-xp-mode' uses to highlight definitions."
+  "Face `racket-xp-mode' uses when point is on a definition."
   "Definition Face")
 
 (defface-racket racket-xp-use-face
   '((t (:inherit match)))
-  "Face `racket-xp-mode' uses to highlight uses."
+  "Face `racket-xp-mode' uses when point is on a use."
   "Use Face")
+
+(defface-racket racket-xp-binding-lang-face
+  '((t (:inherit font-lock-doc-face)))
+  "Face `racket-xp-mode' gives to the module language name.
+
+See the variable `racket-xp-binding-font-lock-face-modes'."
+  "Binding Lang Face")
+
+(defface-racket racket-xp-binding-lang-use-face
+  '((t (:inherit font-lock-keyword-face)))
+  "Face `racket-xp-mode' gives uses of bindings imported from the module language.
+
+See the variable `racket-xp-binding-font-lock-face-modes'."
+  "Binding Lang Use Face")
+
+(defface-racket racket-xp-binding-import-face
+  '((t (:inherit default)))
+  "Face `racket-xp-mode' gives to imported module names.
+
+See the variable `racket-xp-binding-font-lock-face-modes'."
+  "Binding Import Face")
+
+(defface-racket racket-xp-binding-import-use-face
+  '((t (:inherit font-lock-keyword-face)))
+  "Face `racket-xp-mode' gives uses of imported bindings.
+
+See the variable `racket-xp-binding-font-lock-face-modes'."
+  "Binding Import Use Face")
+
+(defface-racket racket-xp-binding-local-face
+  '((t (:inherit font-lock-variable-name-face)))
+  "Face `racket-xp-mode' gives to local definitions.
+
+See the variable `racket-xp-binding-font-lock-face-modes'."
+  "Binding Local Face")
+
+(defface-racket racket-xp-binding-local-use-face
+  '((t (:inherit default)))
+  "Face `racket-xp-mode' gives to uses of local definitions.
+
+See the variable `racket-xp-binding-font-lock-face-modes'."
+  "Binding Local Use Face")
 
 (defface-racket racket-xp-error-face
   '((t (:underline (:color "red" :style wave))))
@@ -667,6 +779,46 @@ See the variable `racket-browse-url-function'."
   '((t (:inherit holiday)))
   "Face `racket-describe-mode' uses for Scribble @litchar."
   "Racket Doc Litchar Face")
+
+(defface-racket racket-repl-message
+  '((t (:inherit font-lock-comment-face :slant italic)))
+  "Face `racket-repl-mode' uses for messages from the back end."
+  "Racket REPL Message")
+
+(defface-racket racket-repl-prompt
+  '((t (:inherit bold)))
+  "Face `racket-repl-mode' uses for prompts."
+  "Racket REPL Prompt")
+
+(defface-racket racket-repl-value
+  '((t (:inherit font-lock-constant-face)))
+  "Face `racket-repl-mode' uses for values output by current-print."
+  "Racket REPL Value")
+
+(defface-racket racket-repl-error-message
+  '((t (:inherit error)))
+  "Face `racket-repl-mode' uses for error messages."
+  "Racket REPL Error Message")
+
+(defface-racket racket-repl-error-location
+  '((t (:inherit underline)))
+  "Face `racket-repl-mode' uses for error locations."
+  "Racket REPL Error Location")
+
+(defface-racket racket-repl-error-label
+  '((t (:inherit font-lock-variable-name-face)))
+  "Face `racket-repl-mode' uses for error labels."
+  "Racket REPL Error Label")
+
+(defface-racket racket-repl-stdout
+  '((t (:inherit default)))
+  "Face `racket-repl-mode' uses for output to current-output-port."
+  "Racket REPL Stdout")
+
+(defface-racket racket-repl-stderr
+  '((t (:inherit error)))
+  "Face `racket-repl-mode' uses for output to current-error-port."
+  "Racket REPL Stderr")
 
 (provide 'racket-custom)
 

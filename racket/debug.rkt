@@ -13,7 +13,8 @@
          syntax/modread
          "debug-annotator.rkt"
          "elisp.rkt"
-         "interactions.rkt"
+         "interaction.rkt"
+         "repl-output.rkt"
          "repl-session.rkt"
          "util.rkt")
 
@@ -47,7 +48,7 @@
 
 (define/contract (annotate stx #:source [source (syntax-source stx)])
   (->* (syntax?) (#:source path?) syntax?)
-  (display-commented (format "Debug annotate ~v" source))
+  (repl-output-message (format "Debug annotate ~v" source))
   (define-values (annotated breakables)
     (annotate-for-single-stepping stx break? break-before break-after))
   (hash-update! breakable-positions
@@ -126,7 +127,7 @@
        (if (or (equal? condition #t) ;short-cut
                (with-handlers ([values
                                 (λ (e)
-                                  (display-commented
+                                  (repl-output-message
                                    (format "~a\nin debugger condition expression:\n  ~v"
                                            (exn-message e)
                                            condition))
@@ -144,12 +145,12 @@
 
   (when (memq 'print actions)
     (unless (null? (mark-bindings top-mark))
-      (display-commented "Debugger watchpoint; locals:")
+      (repl-output-message "Debugger watchpoint; locals:")
       (for* ([binding  (in-list (reverse (mark-bindings top-mark)))]
              [stx      (in-value (first binding))]
              [get/set! (in-value (second binding))]
              #:when (and (syntax-original? stx) (syntax-source stx)))
-        (display-commented (format " ~a = ~a" stx (~v (get/set!)))))))
+        (repl-output-message (format " ~a = ~a" stx (~v (get/set!)))))))
 
   (when (memq 'log actions)
     (log-racket-mode-debugger-info
@@ -230,8 +231,7 @@
                  (match new-vals-pair
                    [(cons #t  new-vals-str) (read-str/default new-vals-str vals)]
                    [(cons '() _)            vals]) ])
-            (kill-thread repl-thread)
-            (newline))]
+            (kill-thread repl-thread))]
          [_ (wait)]))]
     ;; Otherwise, if we didn't break, we simply need to (a) calculate
     ;; next-break and (b) tell the annotator to use the original
@@ -303,11 +303,14 @@
   (parameterize ([current-prompt-read (make-prompt-read src pos top-mark)])
     (read-eval-print-loop)))
 
-(define ((make-prompt-read src pos top-mark))
-  (define-values (_base name _dir) (split-path src))
-  (define stx (get-interaction (format "[~a:~a]" name pos)))
-  (call-with-session-context (current-session-id)
-                             with-locals stx (mark-bindings top-mark)))
+(define (make-prompt-read src pos top-mark)
+  (define (racket-mode-debug-prompt-read)
+    (define-values (_base name _dir) (split-path src))
+    (define prompt (format "[~a:~a]" name pos))
+    (define stx (get-interaction prompt))
+    (call-with-session-context (current-session-id)
+                               with-locals stx (mark-bindings top-mark)))
+  racket-mode-debug-prompt-read)
 
 (define (with-locals stx bindings)
   ;; Before or during module->namespace -- i.e. during a racket-run --
@@ -421,7 +424,7 @@
                [else (orig-eval top-stx)])]))
 
 (define (load-module/annotate file m)
-  (display-commented (format "~v" `(load-module/annotate ,file ,m)))
+  (repl-output-message (format "~v" `(load-module/annotate ,file ,m)))
   (call-with-input-file* file
     (λ (in)
       (port-count-lines! in)

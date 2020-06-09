@@ -32,8 +32,7 @@ results.
 Caveat: Only source files are instrumented. You may need to
 delete compiled/*.zo files."
   (interactive)
-  (unless (eq major-mode 'racket-mode)
-    (user-error "Works only in a racket-mode buffer"))
+  (racket--assert-edit-mode)
   (message "Running with profiling instrumentation...")
   (let ((buf-name (format "*Racket Profile <%s>*"
                           (racket-back-end-name)))

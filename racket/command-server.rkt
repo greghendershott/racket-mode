@@ -10,8 +10,10 @@
          "debug.rkt"
          "elisp.rkt"
          (only-in "instrument.rkt" get-uncovered get-profile)
+         "hash-lang-bridge.rkt"
          "logger.rkt"
          "repl.rkt"
+         "repl-output.rkt"
          "repl-session.rkt"
          (only-in "scribble.rkt"
                   doc-index-names
@@ -79,17 +81,19 @@
            `(ok ,(call-with-session-context sid command sexp)))))))
     (procedure-rename thk (string->symbol label)))
 
-  (define (write-responses-forever)
+  (define (write-responses-and-notifications)
     (parameterize ([current-output-port out])
       (let loop ()
         (elisp-writeln (sync response-channel
+                             repl-output-channel
                              logger-notify-channel
-                             debug-notify-channel))
+                             debug-notify-channel
+                             hash-lang-notify-channel))
         (flush-output)
         (loop))))
 
   ;; With all the pieces defined, let's go:
-  (thread write-responses-forever)
+  (thread write-responses-and-notifications)
   (parameterize ([current-output-port out])
     (elisp-writeln `(ready)))
   (let read-a-command ()
@@ -131,7 +135,6 @@
     ;; Commands that do NOT need a REPL session
     [`(no-op)                          #t]
     [`(logger ,v)                      (channel-put logger-command-channel v)]
-    [`(repl-tcp-port-number)           repl-tcp-port-number]
     [`(check-syntax ,path-str ,code)   (check-syntax path-str code)]
     [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
     [`(macro-stepper/next ,what)       (macro-stepper/next what)]
@@ -142,6 +145,7 @@
     [`(requires/find ,str)             (libs-exporting-documented str)]
     [`(doc-index-names)                (doc-index-names)]
     [`(doc-index-lookup ,str)          (doc-index-lookup str)]
+    [`(hash-lang . ,more)              (apply hash-lang more)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
     ;; namespace), if their first "how" argument is 'namespace.
@@ -150,6 +154,7 @@
     [`(describe ,how ,str)             (describe how str)]
     [`(doc ,how ,str)                  (doc how str)]
     [`(type ,how ,v)                   (type how v)]
+    [`(repl-start, sid)                (repl-start sid)]
 
     ;; Commands that DEFINITELY DO need a REPL session for context,
     ;; e.g. its namespace. Should they pass a session-id explicitly,
@@ -162,19 +167,14 @@
     [`(get-profile)                    (get-profile)]
     [`(get-uncovered)                  (get-uncovered file)]
     [`(eval ,v)                        (eval-command v)]
-    [`(repl-submit? ,str ,eos?)        (repl-submit? str eos?)]
     [`(debug-resume ,v)                (debug-resume v)]
     [`(debug-disable)                  (debug-disable)]
-    [`(break ,kind)                    (repl-break kind)]
-    [`(repl-zero-column)               (repl-zero-column)]))
+    [`(repl-input ,str)                (repl-input str)]
+    [`(repl-submit ,str)               (repl-submit str)]
+    [`(repl-break)                     (repl-break)]
+    [`(repl-exit)                      (repl-exit)]))
 
-;;; A few commands defined here
-
-(define/contract (repl-submit? text eos)
-  (-> string? elisp-bool/c (or/c 'default #t #f))
-  (if (current-session-submit-pred)
-      ((current-session-submit-pred) (open-input-string text) (as-racket-bool eos))
-      'default))
+;;; Some trivial commands defined here
 
 (define (syms)
   (sort (map symbol->string (namespace-mapped-symbols))

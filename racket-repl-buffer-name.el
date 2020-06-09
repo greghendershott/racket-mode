@@ -62,7 +62,7 @@ Offer to kill a `racket-repl-mode' buffer when killing the last
 so, a user might want to do some \"cleanup\" -- especially if
 they're using a `racket-repl-buffer-name-function' such as
 `racket-repl-buffer-name-unique'."
-  (when (eq major-mode 'racket-mode)
+  (when (racket--edit-mode-p)
     (pcase (get-buffer racket-repl-buffer-name)
       ((and (pred bufferp) repl-buffer)
        (let ((n (1-
@@ -86,7 +86,7 @@ they're using a `racket-repl-buffer-name-function' such as
 (defun racket--buffers-using-repl (repl-buffer-name)
   (seq-filter (lambda (buffer)
                 (with-current-buffer buffer
-                  (and (eq major-mode 'racket-mode)
+                  (and (racket--edit-mode-p)
                        (equal racket-repl-buffer-name repl-buffer-name))))
               (buffer-list)))
 

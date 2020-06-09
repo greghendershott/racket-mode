@@ -74,8 +74,7 @@ At most one required module is listed per line.
 
 See also: `racket-trim-requires' and `racket-base-requires'."
   (interactive)
-  (unless (eq major-mode 'racket-mode)
-    (user-error "Current buffer is not a racket-mode buffer"))
+  (racket--assert-racket-mode)
   (racket--tidy-requires '() #'ignore))
 
 (defun racket--tidy-requires (add callback)
@@ -115,8 +114,7 @@ actually needed by such submodules.
 
 See also: `racket-base-requires'."
   (interactive)
-  (unless (eq major-mode 'racket-mode)
-    (user-error "Current buffer is not a racket-mode buffer"))
+  (racket--assert-edit-mode)
   (when (racket--submodule-y-or-n-p)
    (racket--save-if-changed)
    (pcase (racket--module-requires 'find t)
@@ -160,8 +158,7 @@ Note: Currently this only helps change \"#lang racket\" to
 conversions, such as changing \"#lang typed/racket\" to \"#lang
 typed/racket/base\"."
   (interactive)
-  (unless (eq major-mode 'racket-mode)
-    (user-error "Current buffer is not a racket-mode buffer"))
+  (racket--assert-racket-mode)
   (when (racket--buffer-start-re "^#lang.*? racket/base$")
     (user-error "Already using #lang racket/base. Nothing to change."))
   (unless (racket--buffer-start-re "^#lang.*? racket$")
@@ -272,8 +269,7 @@ The mechanism is similar to that used for Racket's \"Search
 Manuals\" feature. Today there exists no system-wide database of
 identifiers that are exported but not documented."
   (interactive)
-  (unless (eq major-mode 'racket-mode)
-    (user-error "Current buffer is not a racket-mode buffer"))
+  (racket--assert-racket-mode)
   (let ((sym-at-point (thing-at-point 'symbol t)))
     (unless sym-at-point
       (user-error "There does not seem to be an identifier at point"))

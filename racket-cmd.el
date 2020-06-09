@@ -24,6 +24,12 @@
 (declare-function  racket--logger-on-notify "racket-logger" (back-end-name str))
 (autoload         'racket--logger-on-notify "racket-logger")
 
+(declare-function  racket--hash-lang-on-notify "racket-hash-lang" (id v))
+(autoload         'racket--hash-lang-on-notify "racket-hash-lang")
+
+(declare-function  racket--repl-on-output "racket-repl" (session-id kind value))
+(autoload         'racket--repl-on-output "racket-repl")
+
 ;;;###autoload
 (defvar racket-start-back-end-hook nil
   "Hook run after `racket-start-back-end' finishes successfully.")
@@ -62,15 +68,10 @@ Before doing anything runs the hook `racket-stop-back-end-hook'."
  "This is no longer supported."
  "2021-08-16")
 
-(defvar racket--back-end-auth-token (format "token-%x" (random))
-  "A value used to start a REPL in a back end process.
-We share this among back ends, which is fine. Keep in mind this
-does get freshly initialized each time this .el file is loaded --
-even from compiled bytecode.")
-
 (defun racket--cmd-open ()
   ;; Avoid excess processes/buffers like "racket-process<1>".
-  (racket--cmd-close)
+  (when (racket--cmd-open-p)
+    (racket--cmd-close))
   ;; Give the process buffer the current values of some vars; see
   ;; <https://github.com/purcell/envrc/issues/22>.
   (cl-letf* (((default-value 'process-environment) process-environment)
@@ -101,14 +102,7 @@ even from compiled bytecode.")
                                        (image-type-available-p 'imagemagick))))
                          "--use-svg"
                        "--do-not-use-svg"))
-           (args    (list main-dot-rkt
-                          "--auth"        racket--back-end-auth-token
-                          "--accept-host" (plist-get back-end
-                                                     :repl-tcp-accept-host)
-                          "--port"        (format "%s"
-                                                  (plist-get back-end
-                                                             :repl-tcp-port))
-                          svg-flag))
+           (args    (list main-dot-rkt svg-flag))
            (command (racket--back-end-args->command back-end args))
            (process
             (make-process
@@ -203,15 +197,6 @@ sentinel is `ignore'."
             (setq racket--cmd-read-from (point-min))
             t)))))
 
-;; (with-temp-buffer
-;;   (dolist (str '("(1 2 3)\n"
-;;                  "(1 2)\n(1 2)\n(1 2 "
-;;                  "3 4"
-;;                  " 5 6)\n"))
-;;     (goto-char (point-max))
-;;     (insert str)
-;;     (racket--cmd-read #'prin1)))
-
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
   "A hash from command nonce to callback function.")
 (defvar racket--cmd-nonce 0
@@ -219,13 +204,18 @@ sentinel is `ignore'."
 
 (defun racket--cmd-dispatch (back-end response)
   "Do something with a sexpr sent to us from the command server.
-Although mostly these are 1:1 responses to command requests,
-\"logger\" and \"debug-break\" are notifications."
+Although mostly these are 1:1 responses to command requests, some
+like \"logger\", \"debug-break\", and \"hash-lang\" are
+notifications."
   (pcase response
     (`(logger ,str)
      (run-at-time 0.001 nil #'racket--logger-on-notify back-end str))
     (`(debug-break . ,response)
      (run-at-time 0.001 nil #'racket--debug-on-break response))
+    (`(hash-lang ,id . ,vs)
+     (run-at-time 0.001 nil #'racket--hash-lang-on-notify id vs))
+    (`(repl-output ,session-id ,kind ,v)
+     (run-at-time 0.001 nil #'racket--repl-on-output session-id kind v))
     (`(,nonce . ,response)
      (when-let (callback (gethash nonce racket--cmd-nonce->callback))
        (remhash nonce racket--cmd-nonce->callback)
@@ -299,11 +289,15 @@ mistake."
            (pcase response
              (`(ok ,v)    (when (buffer-live-p buf)
                             (with-current-buffer buf (funcall callback v))))
-             (`(error ,m) (message "%s command exception:\n%s" name m))
+             (`(error ,m) (let ((print-length nil) ;for %S
+                                (print-level nil))
+                            (message "Exception for command %S with repl-id %S from %S to %S:\n%s"
+                                     command-sexpr repl-session-id buf name m)))
              (`(break)    nil)
              (v           (let ((print-length nil) ;for %S
                                 (print-level nil))
-                            (message "%s unknown command response:\n%S" name v)))))
+                            (message "Unknown response to command %S with repl-id %S from %S to %S:\n%S"
+                                     command-sexpr repl-session-id buf name v)))))
        #'ignore))))
 
 (defun racket--cmd/await (repl-session-id command-sexpr)
@@ -312,20 +306,29 @@ mistake."
 REPL-SESSION-ID may be nil for commands that do not need to run
 in a specific namespace."
   (let* ((awaiting 'RACKET-REPL-AWAITING)
-         (response awaiting))
+         (response awaiting)
+         (buf (current-buffer))
+         (name (racket--back-end-process-name)))
     (racket--cmd/async-raw repl-session-id
                            command-sexpr
                            (lambda (v) (setq response v)))
     (with-timeout (racket-command-timeout
-                   (error "racket-command process timeout"))
+                   (let ((print-length nil) ;for %S
+                         (print-level nil))
+                     (error "Command %S from %S to %S timed out after %s seconds"
+                            command-sexpr buf name racket-command-timeout)))
       (while (eq response awaiting)
         (accept-process-output nil 0.001))
       (pcase response
         (`(ok ,v)    v)
-        (`(error ,m) (error "%s" m))
+        (`(error ,m) (let ((print-length nil) ;for %S
+                           (print-level nil))
+                       (error "Exception for command %S from %S to %S:\n%s"
+                              command-sexpr buf name m)))
         (v           (let ((print-length nil) ;for %S
                            (print-level nil))
-                       (error "Unknown command response: %S" v)))))))
+                       (error "Unknown response to command %S from %S to %S:\n%S"
+                              command-sexpr buf name v)))))))
 
 (provide 'racket-cmd)
 

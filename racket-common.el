@@ -1,6 +1,6 @@
 ;;; racket-common.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2023 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -199,58 +199,6 @@ property whose value is STRING. The close | syntax is set by
                                'syntax-table
                                (string-to-syntax "|"))))))))
 
-;;;
-
-(defun racket--common-variables ()
-  "Set variables common to `racket-mode' and `racket-repl-mode'."
-  ;;; Syntax
-  (set-syntax-table racket-mode-syntax-table)
-  (setq-local multibyte-syntax-as-symbol t)
-  (setq-local parse-sexp-ignore-comments t)
-  (setq-local syntax-propertize-function #'racket-syntax-propertize-function)
-  (syntax-propertize (point-max)) ;for e.g. paredit: see issue #222
-  ;; -----------------------------------------------------------------
-  ;; Font-lock
-  (setq-local font-lock-defaults
-              (list racket-font-lock-keywords ;keywords
-                    nil                       ;keywords-only?
-                    nil                       ;case-fold?
-                    nil                       ;syntax-alist
-                    nil                       ;syntax-begin
-                    ;; Additional variables:
-                    (cons 'font-lock-mark-block-function #'mark-defun)
-                    (cons 'parse-sexp-lookup-properties t)
-                    (cons 'font-lock-multiline t)
-                    (cons 'font-lock-syntactic-face-function
-                          #'racket-font-lock-syntactic-face-function)
-                    (list 'font-lock-extend-region-functions
-                          #'font-lock-extend-region-wholelines
-                          #'font-lock-extend-region-multiline)))
-  ;; -----------------------------------------------------------------
-  ;; Comments. Mostly borrowed from lisp-mode and/or scheme-mode
-  (setq-local comment-start ";")
-  (setq-local comment-add 1)        ;default to `;;' in comment-region
-  (setq-local comment-start-skip ";+ *")
-  (setq-local comment-column 40)
-  (setq-local comment-multi-line t) ;for auto-fill-mode and #||# comments
-  ;; Font lock mode uses this only when it knows a comment is starting:
-  (setq-local font-lock-comment-start-skip ";+ *")
-  ;; -----------------------------------------------------------------
-  ;; Indent
-  (setq-local indent-line-function #'racket-indent-line)
-  (setq-local indent-tabs-mode nil)
-  ;; -----------------------------------------------------------------
-  ;;; Misc
-  (setq-local local-abbrev-table racket-mode-abbrev-table)
-  (setq-local paragraph-start (concat "$\\|" page-delimiter))
-  (setq-local paragraph-separate paragraph-start)
-  (setq-local paragraph-ignore-fill-prefix t)
-  (setq-local fill-paragraph-function #'lisp-fill-paragraph)
-  (setq-local adaptive-fill-mode nil)
-  (setq-local outline-regexp ";;; \\|(....")
-  (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function))
-
-
 ;;; Insert lambda char (like DrRacket)
 
 (defconst racket-lambda-char (make-char 'greek-iso8859-7 107)
@@ -337,11 +285,17 @@ new buffer has a file on-disk."
           (cl-every #'symbolp subs)))
     (_ nil)))
 
+(defvar-local racket-submodules-at-point-function nil)
+
 (defun racket--what-to-run ()
   (cons (racket--buffer-file-name)
-        (racket--submod-path)))
+        (and racket-submodules-at-point-function
+             (funcall racket-submodules-at-point-function))))
 
-(defun racket--submod-path ()
+(defun racket-submodules-at-point-text-sexp ()
+  "A value for variable `racket--submodules-at-point-function',
+which is suitable for `racket-mode' and possibly for
+`racket-hash-lang-mode' when the hash-lang is like lang racket."
   (let ((mods (racket--modules-at-point)))
     (if (racket--lang-p)
         mods
@@ -364,18 +318,19 @@ new buffer has a file on-disk."
   "List of module names that point is within, from outer to inner.
 Ignores module forms nested (at any depth) in any sort of plain
 or syntax quoting, because those won't be valid Racket syntax."
-  (let ((xs nil))
-    (condition-case ()
-        (save-excursion
-          (racket--escape-string-or-comment)
-          (while t
-            (when-let (mod-name-sym (racket--looking-at-module-form))
-              (push mod-name-sym xs))
-            (when (racket--looking-at-quoted-form-p)
-              (push nil xs))
-            (backward-up-list)))
-      (scan-error xs))
-    (racket--take-while xs #'identity)))
+  (save-excursion
+    (let ((xs nil))
+      (condition-case ()
+          (progn
+            (racket--escape-string-or-comment)
+            (while t
+              (when-let (mod-name-sym (racket--looking-at-module-form))
+                (push mod-name-sym xs))
+              (when (racket--looking-at-quoted-form-p)
+                (push nil xs))
+              (backward-up-list)))
+        ((scan-error user-error) xs))
+      (racket--take-while xs #'identity))))
 
 (defun racket--looking-at-module-form ()
   "When looking at a module form, return the mod name as a symbol."
@@ -415,6 +370,22 @@ repeatedly."
   (interactive)
   (racket--escape-string-or-comment)
   (backward-up-list 1))
+
+(defconst racket--plain-syntax-table
+  (let ((table (make-syntax-table)))
+    ;; Modify entries for characters for parens, strings, and
+    ;; comments, setting them to word syntax instead. (For the these
+    ;; raw syntax descriptor numbers, see Emacs Lisp Info: "Syntax
+    ;; Table Internals".)
+    (map-char-table (lambda (key value)
+                      (when (memq (car value) '(4 5 7 10 11 12))
+                        (aset table key '(2))))
+                    table)
+    table)
+  "A syntax-table that makes no assumptions that characters are
+delimiters for parens, quotes, comments, etc. Just whitespace and
+word syntax, so the user has /some/ basic navigation as opposed
+to it being one opaque blob.")
 
 (provide 'racket-common)
 

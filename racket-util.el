@@ -17,9 +17,12 @@
 SPEC is
   (list (list KEY-OR-KEYS DEF) ...)
 
-KEY-OR-KEYS is either a string given to `kbd', or, for the case
-where multiple keys bind to the same command, a list of such
-strings.
+KEY-OR-KEYs is either a single key, or, as a convenience when
+multiple keys bind to the same command, a list of keys.
+
+Each key is either a string, which transformed by `kbd' before
+being given to `define-key', or another value given directly to
+`define-key'. An example of the latter is [remap command-name].
 
 DEF is the same as DEF for `define-key'."
   (let ((m (make-sparse-keymap)))
@@ -29,7 +32,11 @@ DEF is the same as DEF for `define-key'."
                           (list (car x))))
                   (def  (cadr x)))
               (mapc (lambda (key)
-                      (define-key m (kbd key) def))
+                      (define-key m
+                        (if (stringp key)
+                            (kbd key)
+                          key)
+                        def))
                     keys)))
           spec)
     m))
@@ -51,8 +58,7 @@ this to use the names with shell programs or a Racket back end."
       v)))
 
 (defun racket--save-if-changed ()
-  (unless (eq major-mode 'racket-mode)
-    (user-error "Current buffer is not a racket-mode buffer"))
+  (racket--assert-edit-mode)
   (when (or (buffer-modified-p)
             (and (buffer-file-name)
                  (not (file-exists-p (buffer-file-name)))))
@@ -146,6 +152,20 @@ The \"project\" is determined by trying, in order:
         (and (fboundp 'project-current)
              (cdr (project-current nil dir)))
         dir)))
+
+(defun racket--edit-mode-p ()
+  (and (seq-some #'derived-mode-p '(racket-mode racket-hash-lang-mode)) t))
+
+(defun racket--assert-edit-mode (&optional fail-thunk)
+  (unless (racket--edit-mode-p)
+    (when fail-thunk (funcall fail-thunk))
+    (user-error "%S works only in racket-mode or racket-hash-lang-mode edit buffers"
+                this-command)))
+
+(defun racket--assert-racket-mode ()
+  (unless (derived-mode-p 'racket-mode)
+    (user-error "%S works only in racket-mode edit buffers"
+                this-command)))
 
 (provide 'racket-util)
 

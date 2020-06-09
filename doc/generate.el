@@ -19,6 +19,7 @@
 (require 'racket-unicode-input-method)
 (require 'racket-smart-open)
 (require 'racket-repl-buffer-name)
+(require 'racket-hash-lang)
 (require 'seq)
 
 (defun racket-generate-reference.org ()
@@ -51,6 +52,13 @@
     racket-align
     racket-unalign
     racket-complete-at-point
+    "Hash Langs"
+    racket-hash-lang-mode
+    (racket-hash-lang-backward ,racket-hash-lang-mode-map)
+    (racket-hash-lang-forward ,racket-hash-lang-mode-map)
+    (racket-hash-lang-up ,racket-hash-lang-mode-map)
+    (racket-hash-lang-down ,racket-hash-lang-mode-map)
+    (racket-hash-lang-C-M-q-dwim ,racket-hash-lang-mode-map)
     "Explore"
     racket-xp-mode
     (racket-xp-describe ,racket-xp-mode-map)
@@ -180,7 +188,11 @@
     racket-browse-url-function
     racket-xp-after-change-refresh-delay
     racket-xp-highlight-unused-regexp
+    racket-xp-binding-font-lock-face-modes
     racket-documentation-search-location
+    "Hash lang variables"
+    racket-hash-lang-token-face-alist
+    racket-hash-lang-module-language-hook
     "REPL variables"
     racket-repl-buffer-name-function
     racket-submodules-to-run
@@ -241,6 +253,12 @@
     racket-xp-unused-face
     racket-xp-tail-target-face
     racket-xp-tail-position-face
+    racket-xp-binding-lang-face
+    racket-xp-binding-lang-use-face
+    racket-xp-binding-import-face
+    racket-xp-binding-import-use-face
+    racket-xp-binding-local-face
+    racket-xp-binding-local-use-face
     racket-logger-config-face
     racket-logger-topic-face
     racket-logger-fatal-face
@@ -251,7 +269,14 @@
     racket-doc-link-face
     racket-ext-link-face
     racket-doc-output-face
-    racket-doc-litchar-face)
+    racket-doc-litchar-face
+    racket-repl-message
+    racket-repl-prompt
+    racket-repl-value
+    racket-repl-error-message
+    racket-repl-error-location
+    racket-repl-stdout
+    racket-repl-stderr)
   "Faces to include in the Reference.")
 
 (defun racket-generate--faces ()

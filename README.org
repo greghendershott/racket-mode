@@ -9,7 +9,7 @@ A variety of Emacs major and minor modes for [[https://www.racket-lang.org/][Rac
 check-syntax, debug, profile, logging, and more. The edit/run
 experience is similar to [[https://docs.racket-lang.org/drracket/][DrRacket]].
 
-Compatible with *Emacs 25.1+* and *Racket 6.9+*.
+Compatible with *Emacs 25.1+* and *Racket 6.12+*.
 
 ** Documentation
 

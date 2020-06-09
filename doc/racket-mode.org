@@ -1,7 +1,7 @@
 #+OPTIONS: ':t toc:t author:t email:t H:4
 
 #+MACRO: kbd @@texinfo:@kbd{$1}@@ @@html:<kbd>$1</kbd>@@
-#+MACRO: img @@texinfo:@image{$1,,,$2. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}@@
+#+MACRO: img @@texinfo:@image{$1,,,$2. Command I/O via pipe (local) or ssh (remote). Each back end provides zero or more REPLs.,.svg}@@
 #+MACRO: ref @@texinfo:@ref{$1}@@
 #+MACRO: see @@texinfo:@xref{$1}@@
 
@@ -32,11 +32,13 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 The [[https://www.racket-mode.com/][Racket Mode]] package consists of a variety of Emacs major and minor modes, including:
 
-- ~racket-mode~: A major mode for editing ~.rkt~ files.
+- ~racket-mode~: A major mode to edit ~.rkt~ files. Generally assumes ~#lang racket~.
 
-- {{{ref(racket-xp-mode)}}}: An optional minor mode that enhances ~racket-mode~ to explain and explore code.
+- {{{ref(racket-hash-lang-mode)}}}: An alternative to ~racket-mode~ using behavior specified by a ~#lang~ for colors, indent, expression navigation, etc. /Experimental/.
 
-- ~racket-repl-mode~: A major mode for running programs providing a REPL.
+- {{{ref(racket-xp-mode)}}}: A minor mode to enhance either edit mode. Explain and explore code, similar to background check-syntax in Dr Racket.
+
+- ~racket-repl-mode~: A major mode to run programs and use a REPL.
 
 - Various other modes to support specific features:
   - {{{ref(racket-logger-mode)}}}
@@ -45,7 +47,7 @@ The [[https://www.racket-mode.com/][Racket Mode]] package consists of a variety 
 
 For code, issues, and pull requests, see the [[https://github.com/greghendershott/racket-mode][Git repo]].
 
-To fund this work, see [[https://github.com/users/greghendershott/sponsorship][GitHub Sponsors]] or [[https://www.paypal.me/greghendershott][PayPal]].
+To sponsor this work, see [[https://github.com/users/greghendershott/sponsorship][GitHub Sponsors]] or [[https://www.paypal.me/greghendershott][PayPal]].
 
 * Install, Update, and Uninstall
 
@@ -163,6 +165,29 @@ On macOS, downloading Racket doesn't add its ~bin~ directory to your ~PATH~. Eve
 
 You can ~setq~ this directly in your Emacs init file (=~/.emacs= or =~/.emacs.d/init.el=), or, use {{{kbd(M-x)}}} ~customize~, as you prefer.
 
+** Which major mode to use
+
+Racket is a programming language.
+
+Racket is also a "language-oriented programming language". Most Racket source files contain a `#lang` line. The lang may be an s-expression lang like ~racket~, or an at-expression lang like ~scribble/manual~, or something completely different like ~datalog~ or ~rhombus~.
+
+The Racket Mode package offers a choice of two major modes to use in buffers for viewing and editing source code. Each has pros and cons.
+
+Whereas ~racket-mode~ is in the tradition of Emacs ~lisp-mode~ and ~scheme-mode~ and assumes s-expression langs, ~racket-hash-lang-mode~ takes the approach of DrRacket to work for all langs.
+
+- ~racket-mode~ is the original, "classic" mode for ~#lang racket~ and related s-expression languages. It is implemented entirely in Emacs and does /not/ need Racket Mode's back end racket process running. Font-lock (coloring) uses rules for a fixed set of identifiers from ~racket~ lang and popular modules like ~racket/match~. Indentation uses rules for a fixed set of forms, and may be customized (see below).
+
+- ~racket-hash-lang-mode~ uses font-lock (colors) and indentation determined by the lang; to get this information it /does/ need the Racket Mode's back end racket process running. Although basic editing should feel fast, you might notice some delay when indenting. You might see colors appear after a small delay (but it will not block editing). Speaking of colors, they will be "plainer" than ~racket-mode~ -- mostly just for different kinds of tokens like numbers, comments, strings, and keywords. This looks similar to DrRacket. However if you /also/ enable the minor mode ~racket-xp-mode~, it will eventually add more colors at definition and use sites, and vary the colors depending on whether the identifier is local, imported, or from the module language. So you may see the "syntax" highlighting appear fairly quickly from ~racket-hash-lang-mode~, and later see more "semantic" highlighting contributed by ~racket-xp-mode~. The end result will be about as rich, although not exactly the same, as ~racket-mode~.
+
+You can use different major modes for different kinds of files:
+
+- For editing ~.rkt~ files and s-expression langs, which mode to use is personal preference.
+
+- For ~.scrbl~ and at-expression langs like ~scribble/manual~, ~racket-hash-lang-mode~ is probably better than ~racket-mode~. (Note there is also an unrelated ~scribble-mode~ package.)
+
+- For non-s-expression langs like ~datalog~ or ~rhombus~ (~.rhm~), ~racket-hash-lang-mode~ is definitely better than ~racket-mode~. (Note there is also an unrelated ~rhombus-mode~ package.)
+
+You can use ~auto-mode-alist~ to tell Emacs which major mode to use initially for certain file extensions. Also, in a buffer you can use ~M-x racket-mode~ and ~M-x racket-hash-lang-mode~ to switch between them.
 ** Key bindings
 
 To customize things like key bindings, you can use ~racket-mode-hook~ in your Emacs init file to modify ~racket-mode-map~. For example, although {{{kbd(C-c C-c)}}} is bound by default to the ~racket-run~ command, let's say you wanted {{{kbd(F5)}}} to be an additional binding:
@@ -171,12 +196,15 @@ To customize things like key bindings, you can use ~racket-mode-hook~ in your Em
 (add-hook 'racket-mode-hook
           (lambda ()
             (define-key racket-mode-map (kbd "<f5>") 'racket-run)))
-
 #+END_SRC
 
 Likewise for ~racket-repl-mode-hook~ and ~racket-repl-mode-map~.
 
 ** Font-lock (syntax highlighting)
+
+#+BEGIN_QUOTE
+Note: The alternative major mode {{{ref(racket-hash-lang-mode)}}} disables all of the following behavior and uses colors determined by the #lang.
+#+END_QUOTE
 
 Font-lock (as Emacs calls syntax highlighting) can be controlled using the variable ~font-lock-maximum-decoration~, which defaults to ~t~ (maximum). You can set it to a number, where ~0~ is the lowest level. You can even supply an association list to specify different values for different major modes.
 
@@ -249,11 +277,19 @@ In any case, using the Emacs xref API allows for consistent command names, short
 
 ** Indent
 
+#+BEGIN_QUOTE
+Note: The alternative major mode {{{ref(racket-hash-lang-mode)}}} disables all of the following behavior and uses indentation determined by the #lang.
+#+END_QUOTE
+
 Indentation can be customized in a way similar to lisp-mode and scheme-mode: {{{ref(racket-indent-line)}}}.
 
 (Indentation preserves your line breaks. If you want to use an auto-reformatter --- an expressive pretty printer that chooses line breaks while computing an optimal layout --- the Racket package [[https://docs.racket-lang.org/fmt/][fmt]] is supported by the Emacs package [[https://github.com/lassik/emacs-format-all-the-code][emacs-format-all-the-code]].)
 
 ** paredit
+
+#+BEGIN_QUOTE
+Note: If you use {{{ref(racket-hash-lang-mode)}}}, you can use ~racket-hash-lang-mode-hook~ to enable/disable paredit based on the specific #lang.
+#+END_QUOTE
 
 If you use [[https://melpa.org/#/paredit][paredit]], you might want to add keybindings to ~paredit-mode-map~:
 

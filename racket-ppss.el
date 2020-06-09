@@ -1,4 +1,4 @@
-;;; racket-ppss.el --- Major mode for Racket language.
+;;; racket-ppss.el -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2013-2020 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
