@@ -30,9 +30,9 @@
 (define-minor-mode racket-lexer-mode
   "Use #lang color-lexer."
   :lighter " Lexer"
-  (unless (eq major-mode 'racket-mode)
-    (setq racket-lexer-mode nil)
-    (user-error "racket-lexer-mode only works with racket-mode buffers"))
+  ;; (unless (eq major-mode 'racket-mode)
+  ;;   (setq racket-lexer-mode nil)
+  ;;   (user-error "racket-lexer-mode only works with racket-mode buffers"))
   (if racket-lexer-mode
       (racket--cmd/async
        nil
