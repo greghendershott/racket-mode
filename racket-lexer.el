@@ -109,58 +109,73 @@
 (defun racket--lexer-propertize (lexemes)
   ;;(message "%S" lexemes)
   (with-silent-modifications
-    (cl-labels ((put-face (beg end face) (add-text-properties beg end `(face ,face))))
-      (dolist (lexeme lexemes)
-        (pcase-let ((`(,beg ,end ,kind ,opposite) lexeme))
-          (remove-text-properties beg end
-                                  '(face nil fontified nil syntax-table nil))
-          (cl-case kind
-            (open
-             (put-text-property beg end 'syntax-table (cons 4 (aref opposite 0))))
-            (close
-             (put-text-property beg end 'syntax-table (cons 5 (aref opposite 0))))
-            (comment
-             (put-text-property beg (1+ beg) 'syntax-table '(14)) ;generic comment
-             (put-text-property (1- end) end 'syntax-table '(14))
-             (let ((beg (+ beg 1)) ;comment _contents_ if any
-                   (end (- end 2)))
-               (when (< beg end)
-                 (put-text-property beg end 'syntax-table (standard-syntax-table))))
-             (put-face beg end 'font-lock-comment-face))
-            (sexp-comment
-             ;; This is just the #; not the following sexp
-             (put-text-property beg end 'syntax-table '(14)) ;generic comment
-             (put-face beg end 'font-lock-comment-face))
-            (string
-             (put-text-property beg (1+ beg) 'syntax-table '(7)) ;string quote
-             (put-text-property (1- end) end 'syntax-table '(7))
-             (let ((beg (+ beg 1)) ;string _contents_ if any
-                   (end (- end 2)))
-               (when (< beg end)
-                 (put-text-property beg end 'syntax-table (standard-syntax-table))))
-             (put-face beg end 'font-lock-string-face))
-            (text
-             (put-text-property beg end 'syntax-table (standard-syntax-table)))
-            (constant
-             (put-text-property beg end 'syntax-table '(2)) ;word
-             (put-face beg end 'font-lock-constant-face))
-            (error
-             (put-face beg end 'error))
-            (symbol
-             (put-text-property beg end 'syntax-table '(3)) ;symbol
-             (put-face beg end 'font-lock-variable-name-face))
-            (keyword
-             (put-text-property beg end 'syntax-table '(2)) ;word
-             (put-face beg end 'font-lock-keyword-face))
-            (hash-colon-keyword
-             (put-text-property beg end 'syntax-table '(2)) ;word
-             (put-face beg end 'racket-keyword-argument-face))
-            (white-space
-             (put-text-property beg end 'syntax-table '(0)))
-            (other
-             (put-text-property beg end 'syntax-table (standard-syntax-table)))
-            (otherwise
-             (put-face beg end 'error))))))))
+    (cl-labels ((put-face (beg end face) (put-text-property beg end 'face face))
+                (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
+      (let ((sexp-prefix-ends nil))
+        (dolist (lexeme lexemes)
+          (pcase-let ((`(,beg ,end ,kind ,opposite) lexeme))
+            (remove-text-properties beg end
+                                    '(face nil syntax-table nil))
+            (cl-case kind
+              (open
+               (put-stx beg end (cons 4 (aref opposite 0))))
+              (close
+               (put-stx beg end (cons 5 (aref opposite 0))))
+              (comment
+               (put-stx beg (1+ beg) '(14)) ;generic comment
+               (put-stx (1- end) end '(14))
+               (let ((beg (+ beg 1))    ;comment _contents_ if any
+                     (end (- end 2)))
+                 (when (< beg end)
+                   (put-stx beg end (standard-syntax-table))))
+               (put-face beg end 'font-lock-comment-face))
+              (sexp-comment
+               ;; This is just the "#;" prefix not the following sexp.
+               (put-stx beg end '(14)) ;generic comment
+               (put-face beg end 'font-lock-comment-face)
+               ;; Defer until we've applied following lexemes and as a
+               ;; result can use e.g. `forward-sexp'.
+               (push end sexp-prefix-ends))
+              (string
+               (put-stx beg (1+ beg) '(7)) ;string quote
+               (put-stx (1- end) end '(7))
+               (let ((beg (+ beg 1))    ;string _contents_ if any
+                     (end (- end 2)))
+                 (when (< beg end)
+                   (put-stx beg end (standard-syntax-table))))
+               (put-face beg end 'font-lock-string-face))
+              (text
+               (put-stx beg end (standard-syntax-table)))
+              (constant
+               (put-stx beg end '(2)) ;word
+               (put-face beg end 'font-lock-constant-face))
+              (error
+               (put-face beg end 'error))
+              (symbol
+               (put-stx beg end '(3)) ;symbol
+               ;; TODO: Consider using default font here, because e.g.
+               ;; racket-lexer almost everything is "symbol" because
+               ;; it is an identifier. Meanwhile, using a non-default
+               ;; face here is helping me spot bugs.
+               (put-face beg end 'font-lock-variable-name-face))
+              (keyword
+               (put-stx beg end '(2)) ;word
+               (put-face beg end 'font-lock-keyword-face))
+              (hash-colon-keyword
+               (put-stx beg end '(2)) ;word
+               (put-face beg end 'racket-keyword-argument-face))
+              (white-space
+               (put-stx beg end '(0)))
+              (other
+               (put-stx beg end (standard-syntax-table)))
+              (otherwise
+               (put-face beg end 'error)))))
+        (dolist (sexp-prefix-end sexp-prefix-ends)
+          (save-excursion
+            (goto-char sexp-prefix-end)
+            (let ((end (progn (forward-sexp  1) (point)))
+                  (beg (progn (forward-sexp -1) (point))))
+              (put-face beg end 'font-lock-comment-face))))))))
 
 (provide 'racket-lexer)
 
