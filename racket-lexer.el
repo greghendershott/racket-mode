@@ -41,8 +41,9 @@
                              (buffer-substring-no-properties (point-min) (point-max))))
        (lambda (result)
          (font-lock-mode -1)
-         (remove-text-properties (point-min) (point-max)
-                                 '(face nil fontified nil syntax-table nil))
+         (with-silent-modifications
+           (remove-text-properties (point-min) (point-max)
+                                   '(face nil fontified nil syntax-table nil)))
          (setq racket--lexindent-id (car result))
          (racket--lexer-propertize (cdr result))
          (setq-local racket--lexer-orig-font-lock-defaults
@@ -73,8 +74,9 @@
                  #'racket--lexer-delete
                  t)
     (racket--lexer-delete)
-    (remove-text-properties (point-min) (point-max)
-                            '(face nil fontified nil syntax-table nil))
+    (with-silent-modifications
+      (remove-text-properties (point-min) (point-max)
+                              '(face nil fontified nil syntax-table nil)))
     (font-lock-mode 1)
     (syntax-ppss-flush-cache (point-min))
     (syntax-propertize (point-max))))
