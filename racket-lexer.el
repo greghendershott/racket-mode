@@ -113,6 +113,18 @@
                   (buffer-substring-no-properties beg end)))
    #'racket--lexer-propertize))
 
+(defconst racket--string-content-syntax-table
+  (let ((st (copy-syntax-table (standard-syntax-table))))
+    (modify-syntax-entry ?\" "w" st)
+    ;; FIXME? Should we iterate the entire table looking for string
+    ;; _values_ and set them _all to "w" instead?
+    st)
+  "syntax-table property value for _inside_ the string
+Specifically, do _not_ treat quotes as string syntax. That way,
+things like #rx\"blah\" in Racket, which are lexed as one single
+string token, will not give string syntax to the open quote after
+x.")
+
 (defun racket--lexer-propertize (lexemes)
   ;;(message "%S" lexemes)
   (with-silent-modifications
@@ -144,12 +156,12 @@
                ;; result can use e.g. `forward-sexp'.
                (push end sexp-prefix-ends))
               (string
-               (put-stx beg (1+ beg) '(7)) ;string quote
-               (put-stx (1- end) end '(7))
+               (put-stx beg (1+ beg) '(15)) ;generic string
+               (put-stx (1- end) end '(15))
                (let ((beg (+ beg 1))    ;string _contents_ if any
                      (end (- end 2)))
                  (when (< beg end)
-                   (put-stx beg end (standard-syntax-table))))
+                   (put-stx beg end racket--string-content-syntax-table)))
                (put-face beg end 'font-lock-string-face))
               (text
                (put-stx beg end (standard-syntax-table)))
