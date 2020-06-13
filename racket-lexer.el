@@ -24,6 +24,7 @@
 (defvar-local racket--lexer-orig-font-lock-defaults nil)
 (defvar-local racket--lexer-orig-syntax-propertize-function nil)
 (defvar-local racket--lexer-orig-syntax-table nil)
+(defvar-local racket--lexer-orig-indent-line-function nil)
 
 (defvar-local racket--lexindent-id nil)
 
@@ -55,6 +56,10 @@
                      nil)
          (setq-local racket--lexer-orig-syntax-table
                      (syntax-table))
+         (setq-local racket--lexer-orig-indent-line-function
+                     indent-line-function)
+         (setq-local indent-line-function
+                     #'racket-lexer-indent-line-function)
          (set-syntax-table (make-char-table 'syntax-table '(0)))
          (add-hook 'after-change-functions
                    #'racket--lexer-after-change-hook
@@ -67,6 +72,8 @@
     (setq-local syntax-propertize-function
                 racket--lexer-orig-syntax-propertize-function)
     (set-syntax-table racket--lexer-orig-syntax-table)
+    (setq-local indent-line-function
+                racket--lexer-orig-indent-line-function)
     (remove-hook 'after-change-functions
                  #'racket--lexer-after-change-hook
                  t)
@@ -176,6 +183,10 @@
             (let ((end (progn (forward-sexp  1) (point)))
                   (beg (progn (forward-sexp -1) (point))))
               (put-face beg end 'font-lock-comment-face))))))))
+
+(defun racket-lexer-indent-line-function ()
+  ;; TODO: Call our alternative to drracket:indentation.
+  'noindent)
 
 (provide 'racket-lexer)
 
