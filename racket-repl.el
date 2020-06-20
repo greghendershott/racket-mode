@@ -17,6 +17,7 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'racket-browse-url)
 (require 'racket-complete)
 (require 'racket-describe)
 (require 'racket-eldoc)
@@ -837,7 +838,7 @@ and `racket-repl-documentation'."
       (lambda ()
         (racket--cmd/async (racket--repl-session-id)
                            `(doc namespace ,str)
-                           #'browse-url))))))
+                           #'racket-browse-url))))))
 
 ;;; Visit
 
@@ -895,7 +896,7 @@ instead of looking at point."
                                             racket--repl-namespace-symbols)
     ((and (pred stringp) str) (racket--cmd/async (racket--repl-session-id)
                                                  `(doc namespace ,str)
-                                                 #'browse-url))))
+                                                 #'racket-browse-url))))
 
 ;;; racket-repl-mode
 

@@ -70,6 +70,7 @@ Commands
 * Other::
 * Showing information::
 * Associating edit buffers with REPL buffers::
+* Browsing file URLs with anchors::
 
 Edit
 
@@ -154,6 +155,10 @@ Associating edit buffers with REPL buffers
 * racket-repl-buffer-name-shared::
 * racket-repl-buffer-name-unique::
 * racket-repl-buffer-name-project::
+
+Browsing file URLs with anchors
+
+* racket-browse-url-using-temporary-file::
 Variables
 
 * General variables::
@@ -171,6 +176,7 @@ General variables
 * racket-user-command-line-arguments::
 * racket-path-from-emacs-to-racket-function::
 * racket-path-from-racket-to-emacs-function::
+* racket-browse-url-function::
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
 
@@ -536,6 +542,7 @@ You can also view these by using the normal Emacs help mechanism:
 * Other::
 * Showing information::
 * Associating edit buffers with REPL buffers::
+* Browsing file URLs with anchors::
 @end menu
 
 @node Edit
@@ -1184,9 +1191,9 @@ and @ref{racket-xp-documentation}.
 
 Show documentation for the identifier at point.
 
-This gives a ``file:'' URL to @code{browse-url}, which typically opens
-an external web browser, but see that and the variable
-@code{browse-url-browser-function}.
+This gives a ``file:'' URL to @code{racket-browse-url}, which
+typically opens an external web browser, but see that and the
+variable @ref{racket-browse-url-function}.
 
 With a prefix, prompts you, but in this case beware it assumes
 definitions in or imported by the file module -- not locals or
@@ -1970,6 +1977,43 @@ The ``project'' is determined by trying, in order:
 @code{file-name-directory}
 @end itemize
 
+@node Browsing file URLs with anchors
+@section Browsing file URLs with anchors
+
+@menu
+* racket-browse-url-using-temporary-file::
+@end menu
+
+@node racket-browse-url-using-temporary-file
+@subsection racket-browse-url-using-temporary-file
+
+Browse a URL via a temporary HTML file using a meta redirect.
+
+A suitable value for the variable @ref{racket-browse-url-function}.
+
+On some operating systems, the default handling for file URLs
+will ignore anchors -- the portion of the URL after the #
+character. But Racket documentation URLs depend on these to jump
+to a location within a page. This function attempts to work
+around that problem by using a temporary HTML file with a meta
+redirect as a ``trampoline''.
+
+You might think that Emacs' @code{browse-url} would handle this
+portably, but as of Emacs 26 it does not. Although a user may
+customize the variable @code{browse-url-browser-function} to a
+specific technique that works, the default doesn't necessarily
+work for anchors on for instance macOS or Windows.
+
+For Racket Mode, we do want Racket documentation to ``just work''
+-- and because it does not do so on 2/3 operating systems, we
+reluctantly handle this. Note that a user can customize the
+variable @ref{racket-browse-url-function} to @code{browse-url} -- which
+indeed is our default on *nix -- or to
+@code{browse-url-browser-function} in case they have customized that,
+or indeed to whatever they want. So this is an attempt to work
+better by default, while still supporting users who want to
+customize.
+
 @node Variables
 @chapter Variables
 
@@ -1992,6 +2036,7 @@ The ``project'' is determined by trying, in order:
 * racket-user-command-line-arguments::
 * racket-path-from-emacs-to-racket-function::
 * racket-path-from-racket-to-emacs-function::
+* racket-browse-url-function::
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
 @end menu
@@ -2108,6 +2153,14 @@ racket, you can set this to @code{racket-windows-to-wsl}. In that case
 you probably also want to customize the ``reverse'':
 @ref{racket-path-from-emacs-to-racket-function}.
 
+@node racket-browse-url-function
+@subsection racket-browse-url-function
+
+Function to call to browse a URL.
+
+On Linux this defaults to @code{browse-url}, otherwise it defaults to
+@ref{racket-browse-url-using-temporary-file}.
+
 @node racket-xp-after-change-refresh-delay
 @subsection racket-xp-after-change-refresh-delay
 
@@ -2172,13 +2225,15 @@ Whether to display inline images in the REPL.
 @node racket-imagemagick-props
 @subsection racket-imagemagick-props
 
-ImageMagick property list given to @code{create-image}.
+Use ImageMagick with these properties for REPL images.
+
+When this property list is not empty -- and the variable
+@ref{racket-images-inline} is true, and Emacs is built with with
+ImageMagick support -- then @code{create-image} is called with
+``imagemagick'' as the type and with this property list.
 
 For example, to scale images whose width is larger than 500
 pixels, supply (:max-width 500).
-
-This is ignored unless @ref{racket-images-inline} is t and Emacs is
-built with with ImageMagick support.
 
 @node racket-images-keep-last
 @subsection racket-images-keep-last

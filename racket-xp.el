@@ -17,6 +17,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'racket-custom)
+(require 'racket-browse-url)
 (require 'racket-repl)
 (require 'racket-describe)
 (require 'racket-eldoc)
@@ -298,13 +299,13 @@ and `racket-xp-documentation'."
             (pcase (get-text-property (point) 'racket-xp-doc)
               (`(,path ,anchor)
                (lambda ()
-                 (browse-url (concat "file://" path "#" anchor))))
+                 (racket-browse-url (concat "file://" path "#" anchor))))
               (_
                (let ((bfn (racket--buffer-file-name)))
                  (lambda ()
                    (racket--cmd/async nil
                                       `(doc ,bfn ,str)
-                                      #'browse-url)))))))
+                                      #'racket-browse-url)))))))
        (racket--do-describe how nil str t visit-thunk doc-thunk)))))
 
 (defun racket-xp-eldoc-function ()
@@ -460,9 +461,9 @@ definitions in submodules."
 (defun racket-xp-documentation (&optional prefix)
   "Show documentation for the identifier at point.
 
-This gives a \"file:\" URL to `browse-url', which typically opens
-an external web browser, but see that and the variable
-`browse-url-browser-function'.
+This gives a \"file:\" URL to `racket-browse-url', which
+typically opens an external web browser, but see that and the
+variable `racket-browse-url-function'.
 
 With a prefix, prompts you, but in this case beware it assumes
 definitions in or imported by the file module -- not locals or
@@ -470,14 +471,14 @@ definitions in submodules."
   (interactive "P")
   (pcase (get-text-property (point) 'racket-xp-doc)
     ((and `(,path ,anchor) (guard (not prefix)))
-     (browse-url (concat "file://" path "#" anchor)))
+     (racket-browse-url (concat "file://" path "#" anchor)))
     (_
      (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: "
                                                racket--xp-binding-completions)
        ((and (pred stringp) str)
         (racket--cmd/async nil
                            `(doc ,(buffer-file-name) ,str)
-                           #'browse-url))))))
+                           #'racket-browse-url))))))
 
 (defun racket-xp--forward-use (amt)
   "When point is on a use, go AMT uses forward. AMT may be negative.

@@ -104,7 +104,9 @@
     "Associating edit buffers with REPL buffers"
     racket-repl-buffer-name-shared
     racket-repl-buffer-name-unique
-    racket-repl-buffer-name-project)
+    racket-repl-buffer-name-project
+    "Browsing file URLs with anchors"
+    racket-browse-url-using-temporary-file)
   "Commands to include in the Reference.")
 
 (defun racket-generate--commands ()
@@ -162,6 +164,7 @@
     racket-user-command-line-arguments
     racket-path-from-emacs-to-racket-function
     racket-path-from-racket-to-emacs-function
+    racket-browse-url-function
     racket-xp-after-change-refresh-delay
     racket-xp-highlight-unused-regexp
     "REPL variables"

@@ -111,6 +111,19 @@ you probably also want to customize the \"reverse\":
   :safe #'functionp
   :group 'racket)
 
+(defcustom racket-browse-url-function
+  (if (string-match "gnu" (symbol-name system-type))
+      #'browse-url
+    'racket-browse-url-using-temporary-file)
+  "Function to call to browse a URL.
+
+On Linux this defaults to `browse-url', otherwise it defaults to
+`racket-browse-url-using-temporary-file'."
+  :tag "Browse URL Function"
+  :type 'function
+  :safe #'functionp
+  :group 'racket)
+
 ;;; Xp Mode
 
 (defgroup racket-xp nil
