@@ -381,3 +381,6 @@ BAR
 #\Uffffff
 #\a #\z
 #\λ
+
+;; Issue 478
+(#|blah blah blah|# begin)

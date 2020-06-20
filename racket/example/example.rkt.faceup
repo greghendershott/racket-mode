@@ -381,3 +381,6 @@ BAR
 «:racket-selfeval-face:#\Uffffff»
 «:racket-selfeval-face:#\a» «:racket-selfeval-face:#\z»
 «:racket-selfeval-face:#\λ»
+
+«m:;; »«x:Issue 478
+»(«x:#|blah blah blah|#» «k:begin»)

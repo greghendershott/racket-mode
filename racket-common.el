@@ -136,9 +136,10 @@
     ;; user defined reader extensions -- can all be covered with the
     ;; following general rx. Also it seems sufficient to look for just
     ;; the opening delimiter -- the ( [ { or " -- here.
-    ((rx (group ?#
+    ((rx (not (any ?|))
+         (group ?#
                 (??
-                 (not (any ?| ?:))    ;not comment #362 or kw arg #448
+                 (not (any ?| ?: ?\\)) ;not comment #362 or kw arg #448
                  (*? (or (syntax symbol) (syntax word)))))
          (any ?\" ?\( ?\[ ?\{))
      (1 "'"))
