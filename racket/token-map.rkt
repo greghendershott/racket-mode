@@ -6,8 +6,7 @@
                   interval-map-ref
                   interval-map-remove!)
          racket/match
-         syntax-color/module-lexer
-         "../util.rkt")
+         syntax-color/module-lexer)
 
 (provide token-map?
          create

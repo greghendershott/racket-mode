@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require racket/match
-         (rename-in "token-map.rkt"
+         (rename-in "../token-map.rkt"
                     [create tm:create]
                     [update tm:update]
                     [tokens tm:tokens]
