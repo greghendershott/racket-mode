@@ -112,10 +112,18 @@
                                    lang
                                    #:except [exceptions (set)]
                                    #:prefix [prefix #'""])
-    ;; NOTE: Important to run this with the correct parameterization of
-    ;; current-namespace and current-load-relative-directory.
-    (define (add-exports mp)
-      (define-values (vars stxs) (module->exports mp))
+    ;; NOTE: Important to run module->exports with the correct
+    ;; parameterization of current-namespace and
+    ;; current-load-relative-directory.
+    ;;
+    ;; Ignore module paths module->exports can't handle, including
+    ;; paths like 'foo or (submod "." _) or (submod ".." _). We get
+    ;; completion candidates from drracket/check-syntax for
+    ;; non-imported bindings. Our contribution is imported
+    ;; definitions.
+    (with-handlers ([exn:fail? (λ _ sos)])
+      (define-values (vars stxs)
+        (module->exports (syntax->datum raw-module-path)))
       (define orig
         (for*/mutable-set ([vars+stxs (in-list (list vars stxs))]
                            [phases    (in-list vars+stxs)]
@@ -128,16 +136,7 @@
           (set-union! sos orig)
           (set-subtract! sos orig exceptions))
       (for ([v (in-set orig)])
-        (set-add! sos (~a (->str prefix) v))))
-
-    ;; Ignore non-external module paths: module->exports can't handle
-    ;; them, and anyway, drracket/check-syntax will contribute
-    ;; completion candidates for local definitions, we don't need to
-    ;; find them here.
-    (syntax-case* raw-module-path (quote submod) symbolic-compare?
-      [(quote _)        sos]
-      [(submod "." . _) sos]
-      [_                (add-exports (syntax->datum raw-module-path))]))
+        (set-add! sos (~a (->str prefix) v)))))
 
   (handle-module stx)
   sos)
@@ -240,7 +239,15 @@
     (when (version<=? "7.0" (version))
       (check-equal? (set-subtract nsms cs)
                     (set "tmp.1" "nsms" "nsa" "provided-by-submodule")
-                    "namespace-mapped-symbols returns only a few more, non-imported definitions"))))
+                    "namespace-mapped-symbols returns only a few more, non-imported definitions")))
+  ;; Issue 481
+  (check-not-exn (λ () (imports
+                        (expand
+                         #`(module mod racket/base
+                             (module sub1 racket/base)
+                             (module sub2 racket/base
+                               (require (submod ".." sub1))))))))
+  )
 
 (module+ slow-test
   ;; Exercise our parsing of the #%require grammar: Try doing
