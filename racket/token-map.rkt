@@ -18,6 +18,7 @@
          (struct-out token:expr:open)
          (struct-out token:expr:close)
          (struct-out token:misc)
+         beginning-of-line
          backward-up
          forward-whitespace/comment
          backward-whitespace/comment
@@ -137,10 +138,15 @@
 ;; 2. Also, some languages (at least lisps) might want to have a token
 ;;    type of "expression prefix" -- such as for reader shorthands
 ;;    like ' and #'. Currently racket-lexer classifies these as
-;;    "symbol", which makes sense as they are shortand for symolbs
-;;    like "quote" and "syntax". At the same time, sexpr navigation
-;;    sometimes wants to treat those as the start of the sexpr, along
-;;    with the open paren.
+;;    "symbol", which makes sense as they are shortand for symbols
+;;    like "quote" and "syntax". At the same time, end user sexpr
+;;    navigation wants to treat the first character of those prefixes
+;;    as the start of the sexpr, not the open paren. Likewise, indent
+;;    usually wants to align with that first character, not the open
+;;    paren. [Alternatively, I suppose a lexer could return "'(" or
+;;    "#hasheq(" as as single open token. That means e.g. Emacs could
+;;    not use char-syntax, but, we could provide our own
+;;    forward-sexp-function that understands these, I think.]
 ;;
 ;; MEANWHILE: The following function attempts to "normalize" the
 ;; status quo "legacy" lexer protocol.
@@ -214,6 +220,16 @@
 ;;; as well as an end user text editor. Note that these work in terms
 ;;; of open and close tokens -- not necessarily traditional lisp
 ;;; s-expressions.
+
+(define (beginning-of-line tm pos)
+  (define str (token-map-str tm))
+  (add1
+   (let loop ([ix (sub1 pos)])
+     (cond [(or (zero? ix)
+                (eq? #\newline (string-ref str ix)))
+            ix]
+           [else
+            (loop (sub1 ix))]))))
 
 (define (backward-up tm pos count)
   (define im (token-map-im tm))
@@ -322,6 +338,11 @@
   ;;                    1          2
   (define tm (create str))
   (pretty-print tm)
+  (check-equal? (beginning-of-line tm 1) 1)
+  (check-equal? (beginning-of-line tm 2) 1)
+  (check-equal? (beginning-of-line tm 3) 1)
+  (check-equal? (beginning-of-line tm 13) 13)
+  (check-equal? (beginning-of-line tm 14) 13)
   (check-equal? (backward-up tm 22 1) 20)
   (check-equal? (backward-up tm 22 3) 14)
   (check-false  (backward-up tm 22 4))
