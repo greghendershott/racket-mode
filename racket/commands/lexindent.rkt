@@ -2,7 +2,7 @@
 
 (require racket/match
          (rename-in "../sexp-indent.rkt"
-                    [indent-line se:indent-line])
+                    [indent-amount se:indent-amount])
          (rename-in "../token-map.rkt"
                     [create tm:create]
                     [update tm:update]
@@ -22,7 +22,7 @@
     [`(delete ,id) (delete id)]
     [`(update ,id ,(app sub1 pos) ,old-len ,after) (update id pos old-len after)]
     [`(classify ,id ,pos) (classify id pos)]
-    [`(indent-line ,id ,pos) (indent-line id pos)]))
+    [`(indent-amount ,id ,pos) (indent-amount id pos)]))
 
 (define (create s)
   (set! next-id (add1 next-id))
@@ -42,9 +42,9 @@
   (define tm (hash-ref ht id))
   (token->elisp (tm:classify tm pos)))
 
-(define (indent-line id pos)
+(define (indent-amount id pos)
   (define tm (hash-ref ht id))
-  (se:indent-line tm pos))
+  (se:indent-amount tm pos))
 
 (define (tokens-as-elisp tm pos)
   (tm:tokens tm pos token->elisp))

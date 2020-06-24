@@ -19,6 +19,7 @@
          (struct-out token:expr:close)
          (struct-out token:misc)
          beginning-of-line
+         end-of-line
          backward-up
          forward-whitespace/comment
          backward-whitespace/comment
@@ -75,12 +76,48 @@
     (module-lexer in offset mode))
   (cond [(eof-object? lexeme)
          im]
+        [(eq? kind 'white-space)
+         (handle-white-space-token im lexeme beg end backup)
+         (tokenize-port im in end new-mode)]
         [(eq? kind 'parenthesis)
-         (handle-parenthesis-token im mode lexeme kind delimit beg end backup)
+         (handle-parenthesis-token im lexeme mode delimit beg end backup)
          (tokenize-port im in end new-mode)]
         [else
          (interval-map-set! im beg end (token:misc beg end backup kind))
          (tokenize-port im in end new-mode)]))
+
+;; It is useful for the token map to handle end-of-line white-space
+;; distinctly. This helps for things like indenters.
+(define (handle-white-space-token im lexeme beg end backup)
+  (let loop ([lexeme lexeme]
+             [beg beg]
+             [end end]
+             [backup backup])
+    (match lexeme
+      [(pregexp "^\r\n")
+       (interval-map-set! im
+                          beg (+ 2 beg)
+                          (token:misc beg (+ 2 beg) backup 'end-of-line))
+       (loop (substring lexeme 2)
+             (+ 2 beg)
+             end
+             (+ backup 2))]
+      [(pregexp "^[\r\n]")
+       (interval-map-set! im beg (add1 beg)
+                          (token:misc beg (add1 beg) backup 'end-of-line))
+       (loop (substring lexeme 1)
+             (add1 beg)
+             end
+             (add1 backup))]
+      [(pregexp "^([^\r\n]+)" (list _ s))
+       (define len (string-length s))
+       (interval-map-set! im beg (+ beg len)
+                          (token:misc beg (+ beg len) backup 'white-space))
+       (loop (substring lexeme len)
+             (+ beg len)
+             end
+             (+ backup len))]
+      [_ (void)])))
 
 ;; Handling "parentheses" well helps in various ways:
 ;;
@@ -150,7 +187,7 @@
 ;;
 ;; MEANWHILE: The following function attempts to "normalize" the
 ;; status quo "legacy" lexer protocol.
-(define (handle-parenthesis-token im mode lexeme _kind delimit beg end backup)
+(define (handle-parenthesis-token im lexeme mode delimit beg end backup)
   (define lexer-name (object-name (mode->lexer mode)))
   (define tok
     (match delimit
@@ -222,16 +259,28 @@
 ;;; s-expressions.
 
 (define (beginning-of-line tm pos)
-  (define str (token-map-str tm))
-  (add1
-   (let loop ([ix (sub1 pos)])
-     (cond [(or (zero? ix)
-                (eq? #\newline (string-ref str ix)))
-            ix]
-           [else
-            (loop (sub1 ix))]))))
+  (define im  (token-map-im tm))
+  (let loop ([pos pos])
+    (match (interval-map-ref im pos #f)
+      [(? token:misc? t)
+       #:when (eq? (token:misc-kind t) 'end-of-line)
+       (token-end t)]
+      [(? token? t)
+       (loop (sub1 (token-beg t)))]
+      [#f 1])))
 
-(define (backward-up tm pos count)
+(define (end-of-line tm pos)
+  (define im (token-map-im tm))
+  (let loop ([pos pos])
+    (match (interval-map-ref im pos #f)
+      [(? token:misc? t)
+       #:when (eq? (token:misc-kind t) 'end-of-line)
+       (token-end t)]
+      [(? token? t)
+       (loop (token-end t))]
+      [#f (add1 (string-length (token-map-str tm)))])))
+
+(define (backward-up tm pos [count 1])
   (define im (token-map-im tm))
   (let loop ([pos (match (interval-map-ref im pos #f)
                     ;; When already exactly on an open, back up
@@ -255,7 +304,10 @@
   (define im (token-map-im tm))
   (match (interval-map-ref im pos #f)
     [#f #f]
-    [(token:misc _beg end _backup (or 'white-space 'comment 'sexp-comment))
+    [(token:misc _beg end _backup (or 'end-of-line
+                                      'white-space
+                                      'comment
+                                      'sexp-comment))
      (forward-whitespace/comment tm end)]
     [_ pos]))
 
@@ -263,7 +315,10 @@
   (define im (token-map-im tm))
   (match (interval-map-ref im pos #f)
     [#f #f]
-    [(token:misc beg _end _backup (or 'white-space 'comment 'sexp-comment))
+    [(token:misc beg _end _backup (or 'end-of-line
+                                      'white-space
+                                      'comment
+                                      'sexp-comment))
      (forward-whitespace/comment tm (sub1 beg))]
     [_ pos]))
 
@@ -289,15 +344,16 @@
              #:when (equal? (token:expr-open open-t)
                             (token:expr-open t))
              (if (= depth 1)
-                 (sub1 (token-end t))
+                 (token-end t)
                  (loop (token-end t)
                        (sub1 depth)))]
             [(? token? t)
              (loop (token-end t)
                    depth)]))]
-       ;; Some other token. Simply use last char pos.
+       ;; Some other non-white-space/comment token. Simply use last
+       ;; char pos.
        [(? token? t)
-        (sub1 (token-end t))])]))
+        (token-end t)])]))
 
 (define (backward-sexp tm pos)
   (match (backward-whitespace/comment tm pos)
@@ -349,8 +405,8 @@
   (check-equal? (backward-up tm 20 1) 17)
   (check-equal? (forward-whitespace/comment tm 23) 24)
   (check-equal? (backward-whitespace/comment tm 22) 21)
-  (check-equal? (forward-sexp tm 24) 26)
-  (check-equal? (forward-sexp tm 14) 29)
+  (check-equal? (forward-sexp tm 24) 27)
+  (check-equal? (forward-sexp tm 14) 30)
   (check-equal? (backward-sexp tm 26) 24)
   (check-equal? (backward-sexp tm 29) 14))
 
