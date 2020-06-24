@@ -280,25 +280,25 @@
        (loop (token-end t))]
       [#f (add1 (string-length (token-map-str tm)))])))
 
-(define (backward-up tm pos [count 1])
+(define (backward-up tm pos)
   (define im (token-map-im tm))
-  (let loop ([pos (match (interval-map-ref im pos #f)
-                    ;; When already exactly on an open, back up
-                    [(? token:expr:open? t)
-                     #:when (= pos (token-beg t))
-                     (sub1 pos)]
-                    [_ pos])]
-             [count count])
+  (let loop ([pos pos]
+             [ht (hash)])
     (match (interval-map-ref im pos #f)
       [#f #f]
+      [(? token:expr:close? t)
+       (loop (sub1 (token-beg t))
+             (hash-update ht (token:expr-open t) add1 0))]
       [(? token:expr:open? t)
-       (if (= count 1)
+       (if (zero? (hash-ref ht (token:expr-open t) 0))
            (token-beg t)
            (loop (sub1 (token-beg t))
-                 (sub1 count)))]
+                 (hash-update ht (token:expr-open t)
+                              sub1
+                              0)))]
       [(? token? t)
        (loop (sub1 (token-beg t))
-             count)])))
+             ht)])))
 
 (define (forward-whitespace/comment tm pos)
   (define im (token-map-im tm))
@@ -389,20 +389,30 @@
 (module+ test
   (require rackunit)
   (require racket/pretty)
-  (define str "#lang racket\n(a (b (c  foo)))")
-  ;;           1234567890123 4567890123456789
-  ;;                    1          2
+  (define str "#lang racket\n(a (b (c  foo))) (bar ((x)) y)")
+  ;;           1234567890123 456789012345678901234567890123
+  ;;                    1          2         3         4
   (define tm (create str))
   (pretty-print tm)
   (check-equal? (beginning-of-line tm 1) 1)
   (check-equal? (beginning-of-line tm 2) 1)
   (check-equal? (beginning-of-line tm 3) 1)
-  (check-equal? (beginning-of-line tm 13) 13)
-  (check-equal? (beginning-of-line tm 14) 13)
-  (check-equal? (backward-up tm 22 1) 20)
-  (check-equal? (backward-up tm 22 3) 14)
-  (check-false  (backward-up tm 22 4))
-  (check-equal? (backward-up tm 20 1) 17)
+  (check-equal? (beginning-of-line tm 14) 14)
+  (check-equal? (beginning-of-line tm 15) 14)
+  (check-equal? (backward-up tm 14) 14)
+  (check-equal? (backward-up tm 16) 14)
+  (check-equal? (backward-up tm 17) 17)
+  (check-equal? (backward-up tm 18) 17)
+  (check-equal? (backward-up tm 20) 20)
+  (check-equal? (backward-up tm 22) 20)
+  (check-equal? (backward-up tm 31) 31)
+  (check-equal? (backward-up tm 34) 31)
+  (check-equal? (backward-up tm 42) 31)
+  (check-false  (backward-up tm  1))
+  (check-false  (backward-up tm 12))
+  (check-false  (backward-up tm 13))
+  (check-false  (backward-up tm 30))
+  (check-false  (backward-up tm 43))
   (check-equal? (forward-whitespace/comment tm 23) 24)
   (check-equal? (backward-whitespace/comment tm 22) 21)
   (check-equal? (forward-sexp tm 24) 27)
