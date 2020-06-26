@@ -6,19 +6,21 @@
                   interval-map-ref
                   interval-map-remove!)
          racket/match
-         syntax-color/module-lexer)
+         syntax-color/module-lexer
+         "util.rkt")
 
 (provide token-map?
          create
          update
          tokens
          classify
+         token-text
          (struct-out token)
          (struct-out token:expr)
          (struct-out token:expr:open)
          (struct-out token:expr:close)
          (struct-out token:misc)
-         beginning-of-line
+         beg-of-line
          end-of-line
          backward-up
          forward-whitespace/comment
@@ -59,6 +61,26 @@
 
 (define (classify tm pos)
   (interval-map-ref (token-map-im tm) pos))
+
+(define (token-text tm pos)
+  (log-racket-mode-debug "~v\n~a\n~v"
+                         `(token-text ,pos)
+                         (token-map-str tm)
+                         (token-map-im tm))
+  (match (interval-map-ref (token-map-im tm) pos #f)
+    [(token (app sub1 beg) (app sub1 end) _)
+     ;; FIXME: The token map string and interval-map might be out of
+     ;; sync with each other, or more simply, both outdated from the
+     ;; client's point of view. e.g. `update` was called on one
+     ;; thread, but concurrently an indent request has called
+     ;; `token-text`. Although I need to think about this more
+     ;; carefully (!), for now while experimenting simply "paper over"
+     ;; bad substring args.
+     (define len (string-length (token-map-str tm)))
+     (substring (token-map-str tm)
+                (max 0 (min beg len))
+                (max 0 (min end len)))]
+    [#f #f]))
 
 (define (tokens tm pos [proc values])
   (match (interval-map-ref (token-map-im tm) pos #f)
@@ -258,7 +280,7 @@
 ;;; of open and close tokens -- not necessarily traditional lisp
 ;;; s-expressions.
 
-(define (beginning-of-line tm pos)
+(define (beg-of-line tm pos)
   (define im  (token-map-im tm))
   (let loop ([pos pos])
     (match (interval-map-ref im pos #f)
@@ -394,11 +416,11 @@
   ;;                    1          2         3         4
   (define tm (create str))
   (pretty-print tm)
-  (check-equal? (beginning-of-line tm 1) 1)
-  (check-equal? (beginning-of-line tm 2) 1)
-  (check-equal? (beginning-of-line tm 3) 1)
-  (check-equal? (beginning-of-line tm 14) 14)
-  (check-equal? (beginning-of-line tm 15) 14)
+  (check-equal? (beg-of-line tm 1) 1)
+  (check-equal? (beg-of-line tm 2) 1)
+  (check-equal? (beg-of-line tm 3) 1)
+  (check-equal? (beg-of-line tm 14) 14)
+  (check-equal? (beg-of-line tm 15) 14)
   (check-equal? (backward-up tm 14) 14)
   (check-equal? (backward-up tm 16) 14)
   (check-equal? (backward-up tm 17) 17)

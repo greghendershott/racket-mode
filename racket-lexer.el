@@ -197,8 +197,23 @@ x.")
               (put-face beg end 'font-lock-comment-face))))))))
 
 (defun racket-lexer-indent-line-function ()
-  ;; TODO: Call our alternative to drracket:indentation.
-  'noindent)
+  (pcase (racket--cmd/await ; await = :(
+          nil
+          `(lexindent indent-amount
+                      ,racket--lexindent-id
+                      ,(point)))
+    ;; When point is within the leading whitespace, move it past the
+    ;; new indentation whitespace. Otherwise preserve its position
+    ;; relative to the original text.
+    ((and (pred numberp) amount)
+     (let ((pos (- (point-max) (point)))
+           (beg (progn (beginning-of-line) (point))))
+       (skip-chars-forward " \t") ;; FIXME: instead use lexer or at least char-syntax set by lexer??
+       (unless (= amount (current-column))
+         (delete-region beg (point))
+         (indent-to amount))
+       (when (< (point) (- (point-max) pos))
+         (goto-char (- (point-max) pos)))))))
 
 (provide 'racket-lexer)
 
