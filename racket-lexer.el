@@ -99,19 +99,26 @@
 (defun racket--lexer-after-change-hook (beg end len)
   ;; This might be called as frequently as once per single changed
   ;; character.
-  (racket--lexer-update beg end len))
+  (racket--lexer-propertize
+   (racket--cmd/await ; await = :(
+    nil
+    `(lexindent update
+                ,racket--lexindent-id
+                ,beg
+                ,len
+                ,(buffer-substring-no-properties beg end)))))
 
-(defun racket--lexer-update (beg end len)
-  (racket--cmd/async
-   nil
-   `(lexindent update
-               ,racket--lexindent-id
-               ,beg
-               ,len
-               ,(save-restriction
-                  (widen)
-                  (buffer-substring-no-properties beg end)))
-   #'racket--lexer-propertize))
+(defun racket-lexer-indent-line-function ()
+  (let ((diff (racket--cmd/await        ; await = :(
+               nil
+               `(lexindent indent-amount
+                           ,racket--lexindent-id
+                           ,(point)))))
+    (cond ((< 0 diff)
+           (beginning-of-line)
+           (insert (make-string diff 32)))
+          ((< diff 0)
+           (delete-region (point) (+ (point) (- diff)))))))
 
 (defconst racket--string-content-syntax-table
   (let ((st (copy-syntax-table (standard-syntax-table))))
@@ -119,20 +126,20 @@
     ;; FIXME? Should we iterate the entire table looking for string
     ;; _values_ and set them _all to "w" instead?
     st)
-  "syntax-table property value for _inside_ the string
+  "A syntax-table property value for _inside_ strings.
 Specifically, do _not_ treat quotes as string syntax. That way,
 things like #rx\"blah\" in Racket, which are lexed as one single
 string token, will not give string syntax to the open quote after
 x.")
 
-(defun racket--lexer-propertize (lexemes)
-  ;;(message "%S" lexemes)
+(defun racket--lexer-propertize (tokens)
+  ;;(message "%S" tokens)
   (with-silent-modifications
     (cl-labels ((put-face (beg end face) (put-text-property beg end 'face face))
                 (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
       (let ((sexp-prefix-ends nil))
-        (dolist (lexeme lexemes)
-          (pcase-let ((`(,beg ,end ,kind ,opposite) lexeme))
+        (dolist (token tokens)
+          (pcase-let ((`(,beg ,end ,kind ,opposite) token))
             (remove-text-properties beg end
                                     '(face nil syntax-table nil))
             (cl-case kind
@@ -152,7 +159,7 @@ x.")
                ;; This is just the "#;" prefix not the following sexp.
                (put-stx beg end '(14)) ;generic comment
                (put-face beg end 'font-lock-comment-face)
-               ;; Defer until we've applied following lexemes and as a
+               ;; Defer until we've applied following tokens and as a
                ;; result can use e.g. `forward-sexp'.
                (push end sexp-prefix-ends))
               (string
@@ -195,25 +202,6 @@ x.")
             (let ((end (progn (forward-sexp  1) (point)))
                   (beg (progn (forward-sexp -1) (point))))
               (put-face beg end 'font-lock-comment-face))))))))
-
-(defun racket-lexer-indent-line-function ()
-  (pcase (racket--cmd/await ; await = :(
-          nil
-          `(lexindent indent-amount
-                      ,racket--lexindent-id
-                      ,(point)))
-    ;; When point is within the leading whitespace, move it past the
-    ;; new indentation whitespace. Otherwise preserve its position
-    ;; relative to the original text.
-    ((and (pred numberp) amount)
-     (let ((pos (- (point-max) (point)))
-           (beg (progn (beginning-of-line) (point))))
-       (skip-chars-forward " \t") ;; FIXME: instead use lexer or at least char-syntax set by lexer??
-       (unless (= amount (current-column))
-         (delete-region beg (point))
-         (indent-to amount))
-       (when (< (point) (- (point-max) pos))
-         (goto-char (- (point-max) pos)))))))
 
 (provide 'racket-lexer)
 

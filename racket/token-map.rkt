@@ -3,8 +3,12 @@
 (require (only-in data/interval-map
                   make-interval-map
                   interval-map-set!
-                  interval-map-ref
-                  interval-map-remove!)
+                  interval-map-ref/bounds
+                  interval-map-remove!
+                  interval-map-expand!
+                  interval-map-contract!)
+         racket/contract
+         racket/dict
          racket/match
          syntax-color/module-lexer
          "util.rkt")
@@ -15,6 +19,7 @@
          tokens
          classify
          token-text
+         (struct-out bounds+token)
          (struct-out token)
          (struct-out token:expr)
          (struct-out token:expr:open)
@@ -23,6 +28,7 @@
          beg-of-line
          end-of-line
          backward-up
+         forward-whitespace
          forward-whitespace/comment
          backward-whitespace/comment
          forward-sexp
@@ -30,83 +36,148 @@
 
 (struct token-map ([str #:mutable] im) #:transparent)
 
-;; Because interval-map-ref/bounds is not available in older Racket,
-;; we redundantly store the interval in the value as the beg end
-;; members.
-(struct token (beg end backup) #:transparent)
+(struct bounds+token (beg end token) #:transparent)
+(struct token (lexeme backup) #:transparent)
 (struct token:expr token (open close) #:transparent)
 (struct token:expr:open token:expr () #:transparent)
 (struct token:expr:close token:expr () #:transparent)
 (struct token:misc token (kind) #:transparent)
 
+(define (token-map-ref tm pos)
+  (define-values (beg end token)
+    (interval-map-ref/bounds (token-map-im tm) pos #f))
+  (and beg end token
+       (bounds+token beg end token)))
+
 (define (create s)
   (define im (make-interval-map))
-  (tokenize-string im s 0 #f)
+  (tokenize-string im s 0)
   (token-map s im))
 
-(define (update tm pos old-len after)
-  (match-define (token-map old-str im) tm)
-  (define str (string-append (substring old-str 0 pos)
-                             after
-                             (substring old-str
-                                        (+ pos old-len)
-                                        (string-length old-str))))
-  (set-token-map-str! tm str)
-  (define start (match (interval-map-ref im pos #f)
-                  [(token beg _end backup) (- beg backup)]
-                  [_                       pos]))
-  (interval-map-remove! im start +inf.0)
-  (tokenize-string im str start #f)
-  start)
+(define/contract (update tm pos old-len str)
+  (-> token-map? exact-positive-integer? exact-nonnegative-integer? string? any)
+  (unless (<= (sub1 pos) (string-length (token-map-str tm)))
+    (raise-argument-error 'update "valid position" 1 tm pos old-len str))
+  (cond [(and (zero? old-len) (equal? str ""))
+         (list)] ;no-op
+        [else
+         (set-token-map-str! tm
+                             (string-append (substring (token-map-str tm) 0 (sub1 pos))
+                                            str
+                                            (substring (token-map-str tm)
+                                                       (+ (sub1 pos) old-len))))
+         (log-racket-mode-debug "~v" (token-map-str tm))
+         (define beg (match (token-map-ref tm pos)
+                       [(bounds+token beg _end (token _ backup)) (- beg backup)]
+                       [_                                        pos]))
+         (define diff (- (string-length str) old-len))
+         (define im (token-map-im tm))
+         (parameterize ([current-pre-update-interval-map (make-interval-map
+                                                          (for/list ([(k v) (in-dict im)])
+                                                            (cons k v)))]
+                        [current-update-start  beg]
+                        [current-update-diff diff]
+                        [current-updated-intervals '()])
+           (cond [(< 0 diff) (interval-map-expand!   im pos (+ pos diff))]
+                 [(< diff 0) (interval-map-contract! im pos (- pos diff))])
+           ;;(printf "diff = ~v\n" diff)
+           (tokenize-string im (token-map-str tm) beg)
+           (reverse (current-updated-intervals)))]))
 
 (define (classify tm pos)
-  (interval-map-ref (token-map-im tm) pos))
+  (token-map-ref tm pos))
 
 (define (token-text tm pos)
-  (log-racket-mode-debug "~v\n~a\n~v"
-                         `(token-text ,pos)
-                         (token-map-str tm)
-                         (token-map-im tm))
-  (match (interval-map-ref (token-map-im tm) pos #f)
-    [(token (app sub1 beg) (app sub1 end) _)
-     ;; FIXME: The token map string and interval-map might be out of
-     ;; sync with each other, or more simply, both outdated from the
-     ;; client's point of view. e.g. `update` was called on one
-     ;; thread, but concurrently an indent request has called
-     ;; `token-text`. Although I need to think about this more
-     ;; carefully (!), for now while experimenting simply "paper over"
-     ;; bad substring args.
-     (define len (string-length (token-map-str tm)))
-     (substring (token-map-str tm)
-                (max 0 (min beg len))
-                (max 0 (min end len)))]
+  (match (token-map-ref tm pos)
+    [(bounds+token (app sub1 beg) (app sub1 end) (token lexeme _)) lexeme]
     [#f #f]))
 
-(define (tokens tm pos [proc values])
-  (match (interval-map-ref (token-map-im tm) pos #f)
-    [(? token? t) (cons (proc t)
-                        (tokens tm (token-end t) proc))]
-    [#f '()]))
+(define (tokens tm beg end [proc values])
+  (match (token-map-ref tm beg)
+    [(? bounds+token? b+t)
+     #:when (< (bounds+token-beg b+t) end)
+     (cons (proc b+t)
+           (tokens tm (bounds+token-end b+t) end proc))]
+    [_ '()]))
 
-(define (tokenize-string im str offset [mode #f])
+(define (tokenize-string im str offset)
   (define in (open-input-string str))
   (port-count-lines! in) ;important for Unicode e.g. λ
-  (tokenize-port im in offset mode))
+  (tokenize-port im in offset #f))
 
 (define (tokenize-port im in offset mode)
   (define-values (lexeme kind delimit beg end backup new-mode)
     (module-lexer in offset mode))
-  (cond [(eof-object? lexeme)
-         im]
-        [(eq? kind 'white-space)
-         (handle-white-space-token im lexeme beg end backup)
-         (tokenize-port im in end new-mode)]
-        [(eq? kind 'parenthesis)
-         (handle-parenthesis-token im lexeme mode delimit beg end backup)
-         (tokenize-port im in end new-mode)]
+  ;;(println (list lexeme kind delimit beg end backup new-mode))
+  (unless (eof-object? lexeme)
+    (case kind
+      [(white-space) (handle-white-space-token im lexeme beg end backup)]
+      [(parenthesis) (handle-parenthesis-token im lexeme mode delimit beg end backup)]
+      [else          (set-interval im beg end (token:misc lexeme backup kind))])
+    (tokenize-port im in end new-mode)))
+
+;; A copy of the interval map. Unfortunately necessary in the case
+;; where the diff is positive.
+(define current-pre-update-interval-map (make-parameter #f))
+;; From where are we re-tokenizing.
+(define current-update-start (make-parameter 0))
+;; What is the difference in lengths of the changed region.
+(define current-update-diff (make-parameter 0))
+;; A list accumulated as a result of calling `set-interval`, which
+;; produces a minimal set of tokens that changed other than simply
+;; being shifted by the diff.
+(define current-updated-intervals (make-parameter '()))
+
+;; TODO: If we store the `new-mode` value returned by the lexer in the
+;; map, could we use that to re-lex from the middle not all the way
+;; from the start?
+;;
+;; TODO: As soon as we find one or more matching (albeit exactly
+;; offset) tokens, could we abort rather than re-lex all the way to
+;; the end?
+
+(define (set-interval im beg end token)
+  ;; Add to the list `current-changed-intervals` any tokens ending
+  ;; after `current-changed-interval-beg` that differ from the old
+  ;; `current-pre-update-interval-map` -- but ignore differences where
+  ;; it is exactly the same token and only the position interval is
+  ;; shifted exactly by `current-changed-interval-diff`.
+  ;;
+  ;; This is how we produce a minimal list of actions required to
+  ;; re-propertize the buffer in Emacs: When you insert/delete text it
+  ;; shifts property positions for the following text. Only the
+  ;; interval for the changed region might need be re-propertizied.
+  (cond [(<= end (current-update-start))
+         (void)
+         #;
+         (log-racket-mode-debug
+          "set-interval: Ignoring token ends earlier than ~v ~v"
+          (current-update-start)
+          (list beg end token))]
         [else
-         (interval-map-set! im beg end (token:misc beg end backup kind))
-         (tokenize-port im in end new-mode)]))
+         (define diff (current-update-diff))
+         (define-values (old-beg old-end old-token)
+           (if (current-pre-update-interval-map)
+               (interval-map-ref/bounds (current-pre-update-interval-map)
+                                        (- beg diff)
+                                        #f)
+               (values #f #f #f)))
+         (cond [(and old-beg old-end old-token
+                     (= old-beg (- beg diff))
+                     (= old-end (- end diff))
+                     (equal? old-token token))
+                (void)
+                #;
+                (log-racket-mode-debug
+                 "Ignoring diff ~v ~v using old interval-map ~v"
+                 diff
+                 (list (list old-beg old-end old-token)
+                       (list beg end token))
+                 (current-pre-update-interval-map))]
+               [else
+                (current-updated-intervals (cons (bounds+token beg end token)
+                                                 (current-updated-intervals)))])])
+  (interval-map-set! im beg end token))
 
 ;; It is useful for the token map to handle end-of-line white-space
 ;; distinctly. This helps for things like indenters.
@@ -117,24 +188,24 @@
              [backup backup])
     (match lexeme
       [(pregexp "^\r\n")
-       (interval-map-set! im
-                          beg (+ 2 beg)
-                          (token:misc beg (+ 2 beg) backup 'end-of-line))
+       (set-interval im
+                     beg (+ 2 beg)
+                     (token:misc lexeme backup 'end-of-line))
        (loop (substring lexeme 2)
              (+ 2 beg)
              end
              (+ backup 2))]
       [(pregexp "^[\r\n]")
-       (interval-map-set! im beg (add1 beg)
-                          (token:misc beg (add1 beg) backup 'end-of-line))
+       (set-interval im beg (add1 beg)
+                     (token:misc lexeme backup 'end-of-line))
        (loop (substring lexeme 1)
              (add1 beg)
              end
              (add1 backup))]
       [(pregexp "^([^\r\n]+)" (list _ s))
        (define len (string-length s))
-       (interval-map-set! im beg (+ beg len)
-                          (token:misc beg (+ beg len) backup 'white-space))
+       (set-interval im beg (+ beg len)
+                     (token:misc lexeme backup 'white-space))
        (loop (substring lexeme len)
              (+ beg len)
              end
@@ -213,28 +284,29 @@
   (define lexer-name (object-name (mode->lexer mode)))
   (define tok
     (match delimit
-      ['|(| (token:expr:open beg end backup "(" ")")]
-      ['|[| (token:expr:open beg end backup "[" "]")]
-      ['|{| (token:expr:open beg end backup "{" "}")]
-      ['|)| (token:expr:close beg end backup "(" ")")]
-      ['|]| (token:expr:close beg end backup "[" "]")]
-      ['|}| (token:expr:close beg end backup "{" "}")]
+      ['|(| (token:expr:open lexeme backup "(" ")")]
+      ['|[| (token:expr:open lexeme backup "[" "]")]
+      ['|{| (token:expr:open lexeme backup "{" "}")]
+      ['|)| (token:expr:close lexeme backup "(" ")")]
+      ['|]| (token:expr:close lexeme backup "[" "]")]
+      ['|}| (token:expr:close lexeme backup "{" "}")]
       [_
-       (eprintf "unexpected 'parenthesis token with delimit = ~v and lexeme = ~v\n"
-                delimit lexeme)
+       (log-racket-mode-warning
+        "unexpected 'parenthesis token with delimit = ~v and lexeme = ~v\n"
+        delimit lexeme)
        (match lexeme
          ;; Defensive:
-         ["(" (token:expr:open beg end backup "(" ")")]
-         [")" (token:expr:close beg end backup "(" ")")]
+         ["(" (token:expr:open lexeme backup "(" ")")]
+         [")" (token:expr:close lexeme backup "(" ")")]
          ;; I have seen this with at-exp and scribble/text. No
          ;; idea why. I guess treat it as 'symbol, like how "'"
          ;; is lexed??
          ["@"
           #:when (memq lexer-name '(scribble-lexer
                                     scribble-inside-lexer))
-          (token:misc beg end backup 'symbol)]
+          (token:misc lexeme backup 'symbol)]
          ;; Super-defensive WTF:
-         [_  (token:misc beg end backup 'other)])]))
+         [_  (token:misc lexeme backup 'other)])]))
   ;; In Emacs, the standard char-syntax stuff is just that --
   ;; single chars. As a result it's helpful here to return
   ;; tokens for parens that are indeed single chars. Any
@@ -259,20 +331,20 @@
                                  scribble-lexer))
               (token:expr:open? tok)
               (< 1 (- end beg)))
-         (interval-map-set! im beg (sub1 end)
-                            (token:misc beg (sub1 end) backup 'constant))
-         (interval-map-set! im (sub1 end) end
-                            (token:expr:open (sub1 end) end backup
-                                             (token:expr-open tok)
-                                             (token:expr-close tok)))]
+         (set-interval im beg (sub1 end)
+                       (token:misc lexeme backup 'constant))
+         (set-interval im (sub1 end) end
+                       (token:expr:open lexeme backup
+                                        (token:expr-open tok)
+                                        (token:expr-close tok)))]
         [else
-         (interval-map-set! im beg end tok)])  )
+         (set-interval im beg end tok)])  )
 
 (define (mode->lexer mode)
   (match mode
     [(? procedure? p)          p]
     [(cons (? procedure? p) _) p]
-    [#f                       #f]))
+    [v                         v]))
 
 ;;; "Navigation": Useful for a lang indenter -- these roughly
 ;;; correspond to methods from text<%> that an indenter might need --
@@ -281,66 +353,68 @@
 ;;; s-expressions.
 
 (define (beg-of-line tm pos)
-  (define im  (token-map-im tm))
   (let loop ([pos pos])
-    (match (interval-map-ref im pos #f)
-      [(? token:misc? t)
+    (match (token-map-ref tm pos)
+      [(bounds+token _beg end (? token:misc? t))
        #:when (eq? (token:misc-kind t) 'end-of-line)
-       (token-end t)]
-      [(? token? t)
-       (loop (sub1 (token-beg t)))]
+       end]
+      [(bounds+token beg _end (? token? t))
+       (loop (sub1 beg))]
       [#f 1])))
 
 (define (end-of-line tm pos)
-  (define im (token-map-im tm))
   (let loop ([pos pos])
-    (match (interval-map-ref im pos #f)
-      [(? token:misc? t)
+    (match (token-map-ref tm pos)
+      [(bounds+token _beg end (? token:misc? t))
        #:when (eq? (token:misc-kind t) 'end-of-line)
-       (token-end t)]
-      [(? token? t)
-       (loop (token-end t))]
+       end]
+      [(bounds+token _beg end (? token? t))
+       (loop end)]
       [#f (add1 (string-length (token-map-str tm)))])))
 
 (define (backward-up tm pos)
-  (define im (token-map-im tm))
   (let loop ([pos pos]
              [ht (hash)])
-    (match (interval-map-ref im pos #f)
+    (match (token-map-ref tm pos)
       [#f #f]
-      [(? token:expr:close? t)
-       (loop (sub1 (token-beg t))
+      [(bounds+token beg end (? token:expr:close? t))
+       (loop (sub1 beg)
              (hash-update ht (token:expr-open t) add1 0))]
-      [(? token:expr:open? t)
+      [(bounds+token beg end (? token:expr:open? t))
        (if (zero? (hash-ref ht (token:expr-open t) 0))
-           (token-beg t)
-           (loop (sub1 (token-beg t))
+           beg
+           (loop (sub1 beg)
                  (hash-update ht (token:expr-open t)
                               sub1
                               0)))]
-      [(? token? t)
-       (loop (sub1 (token-beg t))
+      [(bounds+token beg end (? token? t))
+       (loop (sub1 beg)
              ht)])))
 
-(define (forward-whitespace/comment tm pos)
-  (define im (token-map-im tm))
-  (match (interval-map-ref im pos #f)
+(define (forward-whitespace tm pos)
+  (match (token-map-ref tm pos)
     [#f #f]
-    [(token:misc _beg end _backup (or 'end-of-line
-                                      'white-space
-                                      'comment
-                                      'sexp-comment))
+    [(bounds+token beg end (token:misc _lexeme _backup 'white-space))
+     (forward-whitespace tm end)]
+    [_ pos]))
+
+(define (forward-whitespace/comment tm pos)
+  (match (token-map-ref tm pos)
+    [#f #f]
+    [(bounds+token beg end (token:misc _lexeme _backup (or 'end-of-line
+                                                            'white-space
+                                                            'comment
+                                                            'sexp-comment)))
      (forward-whitespace/comment tm end)]
     [_ pos]))
 
 (define (backward-whitespace/comment tm pos)
-  (define im (token-map-im tm))
-  (match (interval-map-ref im pos #f)
+  (match (token-map-ref tm pos)
     [#f #f]
-    [(token:misc beg _end _backup (or 'end-of-line
-                                      'white-space
-                                      'comment
-                                      'sexp-comment))
+    [(bounds+token beg end (token:misc _lexme _backup (or 'end-of-line
+                                                          'white-space
+                                                          'comment
+                                                          'sexp-comment)))
      (forward-whitespace/comment tm (sub1 beg))]
     [_ pos]))
 
@@ -348,65 +422,63 @@
   (match (forward-whitespace/comment tm pos)
     [#f #f]
     [pos
-     (define im (token-map-im tm))
-     (match (interval-map-ref im pos #f)
+     (match (token-map-ref tm pos)
        [#f #f]
        ;; Open token: Scan for matching close token.
-       [(? token:expr:open? open-t)
+       [(bounds+token beg end (? token:expr:open? open-t))
         (let loop ([pos pos]
                    [depth 0])
           ;;(println (list pos depth (interval-map-ref im pos)))
-          (match (interval-map-ref im pos)
-            [(? token:expr:open? t)
+          (match (token-map-ref tm pos)
+            [(bounds+token beg end (? token:expr:open? t))
              #:when (equal? (token:expr-open open-t)
                             (token:expr-open t))
-             (loop (token-end t)
+             (loop end
                    (add1 depth))]
-            [(? token:expr:close? t)
+            [(bounds+token beg end (? token:expr:close? t))
              #:when (equal? (token:expr-open open-t)
                             (token:expr-open t))
              (if (= depth 1)
-                 (token-end t)
-                 (loop (token-end t)
+                 end
+                 (loop end
                        (sub1 depth)))]
-            [(? token? t)
-             (loop (token-end t)
+            [(bounds+token beg end (? token? t))
+             (loop end
                    depth)]))]
        ;; Some other non-white-space/comment token. Simply use last
        ;; char pos.
-       [(? token? t)
-        (token-end t)])]))
+       [(bounds+token beg end (? token? t))
+        end])]))
 
 (define (backward-sexp tm pos)
   (match (backward-whitespace/comment tm pos)
     [#f #f]
     {pos
-     (define im (token-map-im tm))
-     (match (interval-map-ref im pos)
+     (match (token-map-ref tm pos)
       ;; Close token: Scan for matching open token.
-      [(? token:expr:close? close-t)
+      [(bounds+token beg end (? token:expr:close? close-t))
        (let loop ([pos pos]
                   [depth 0])
          ;;(println (list pos depth (interval-map-ref im pos)))
-         (match (interval-map-ref im pos)
-           [(? token:expr:open? t)
+         (match (token-map-ref tm pos)
+           [(bounds+token beg end (? token:expr:open? t))
             #:when (equal? (token:expr-open close-t)
                            (token:expr-open t))
             (if (= depth 1)
-                (token-beg t)
-                (loop (sub1 (token-beg t))
+                beg
+                (loop (sub1 beg)
                       (sub1 depth)))]
-           [(? token:expr:close? t)
+           [(bounds+token beg end (? token:expr:close? t))
             #:when (equal? (token:expr-open close-t)
                            (token:expr-open t))
-            (loop (sub1 (token-beg t))
+            (loop (sub1 beg)
                   (add1 depth))]
-           [(? token? t)
-            (loop (sub1 (token-beg t))
+           [(bounds+token beg end (? token? t))
+            (loop (sub1 beg)
                   depth)]))]
       ;; Some other token. Simply use first char pos.
-      [(? token? t)
-       (token-beg t)])}))
+      [(bounds+token beg end (? token? t))
+       beg])}))
 
 (module+ test
   (require rackunit)
@@ -416,6 +488,10 @@
   ;;                    1          2         3         4
   (define tm (create str))
   (pretty-print tm)
+  (check-equal? (classify tm 1)
+                (bounds+token 1 13 (token:misc "#lang racket" 0 'other)))
+  (check-equal? (classify tm 13)
+                (bounds+token 13 14 (token:misc "\n" 0 'end-of-line)))
   (check-equal? (beg-of-line tm 1) 1)
   (check-equal? (beg-of-line tm 2) 1)
   (check-equal? (beg-of-line tm 3) 1)
@@ -443,56 +519,55 @@
   (check-equal? (backward-sexp tm 29) 14))
 
 (module+ example-0
-  (require racket/pretty)
-  (define str "#lang racket
-               42
-               (print \"hello\")
-               @print{Hello}
-               'foo #:bar")
+  (define str "#lang racket\n42 (print \"hello\") @print{Hello} 'foo #:bar")
+  ;;           1234567890123 45678901234 567890 12345678901234567890123456
+  ;;                    1          2          3          4         5
   (define tm (create str))
-  (pretty-print tm)
-  (pretty-print (update tm 25 1 "J"))
-  (pretty-print tm)
-  (pretty-print (classify tm (sub1 (string-length str)))))
+  tm
+  (update tm 52 5 "'bar")
+  (update tm 47 4 "'bar")
+  (update tm 24 7 "'hell")
+  (update tm 14 2 "99999")
+  tm)
 
 (module+ example-1
-  (require racket/pretty)
-  (define str "#lang at-exp racket
-               42
-               (print \"hello\")
-               @print{Hello (there)}
-               'foo #:bar")
+  (define str "#lang at-exp racket\n42 (print \"hello\") @print{Hello (there)} 'foo #:bar")
   (define tm (create str))
-  (pretty-print tm)
-  (pretty-print (classify tm (sub1 (string-length str)))))
+  tm
+  (classify tm (sub1 (string-length str))))
 
 (module+ example-2
-  (require racket/pretty)
-  (define str "#lang scribble/text
-               Hello
-               @(print \"hello\")
-               @print{Hello (there)}
-               #:not-a-keyword")
+  (define str "#lang scribble/text\nHello @(print \"hello\") @print{Hello (there)} #:not-a-keyword")
   (define tm (create str))
-  (pretty-print tm)
-  (pretty-print (classify tm (sub1 (string-length str)))))
+  tm
+  (classify tm (sub1 (string-length str))))
 
 (module+ example-3
-  (require racket/pretty)
   (define str "#lang racket\n(λ () #t)")
   (define tm (create str))
-  (pretty-print tm)
-  (pretty-print (classify tm 14))
-  (pretty-print (classify tm (sub1 (string-length str)))))
+  tm
+  (classify tm 14)
+  (classify tm (sub1 (string-length str))))
 
 (module+ example-4
-  (require racket/pretty)
   (define str "#lang racket\n#rx\"1234\"\n#(1 2 3)\n#'(1 2 3)")
-  (define tm (create str))
-  (pretty-print tm))
+  (create str))
 
 (module+ example-heredoc
-  (require racket/pretty)
   (define str "#lang racket\n#<<HERE\nblah blah\nblah blah\nHERE\n")
+  (create str))
+
+(module+ example-99
+  (define str "#lang racket\n")
+  ;;           1234567890123 45678901234 567890 12345678901234567890123456
+  ;;                    1          2          3          4         5
   (define tm (create str))
-  (pretty-print tm))
+  tm
+  (update tm 14 0 "()")
+  (update tm 15 0 "d")
+  tm
+  (update tm 16 0 "o")
+  (update tm 15 0 "1")
+  (update tm 16 0 "2")
+  (update tm 17 0 " ")
+  tm)

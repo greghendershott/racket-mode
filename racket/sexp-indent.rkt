@@ -9,13 +9,27 @@
 
 (provide indent-amount)
 
+;; This assumes that the token-map has been updated through at least
+;; the `indent-pos` -- but need not be further -- to reflect user
+;; edits at the time they want to indent.
+#;
+(define (indent tm indent-pos)
+  (define new-amount (indent-amount tm indent-pos))
+  (define bol (beg-of-line tm indent-pos))
+  (define cur (or (forward-whitespace tm bol) bol))
+  ;;(log-racket-mode-debug "~v" (list new-amount bol cur))
+  (define old-amount (- cur bol))
+  (define diff (- new-amount old-amount))
+  (unless (zero? diff)
+    (update tm bol old-amount (make-string new-amount #\space)))
+  diff)
+
 ;; token-map? positive-integer? -> nonnegative-integer?
 (define (indent-amount tm indent-pos)
-  (log-racket-mode-debug "~v" `(indent-amount ,tm ,indent-pos))
   ;; Keep in mind that token-maps use 1-based positions not 0-based
   (match (backward-up tm (sub1 (beg-of-line tm indent-pos)))
     [(? number? open-pos)
-     (define id-pos (forward-whitespace/comment tm (add1 open-pos)))
+     (define id-pos (forward-whitespace tm (add1 open-pos)))
      (define id-name (token-text tm id-pos))
      (log-racket-mode-debug "indent-amount id-name is ~v at ~v" id-name id-pos)
      (match (hash-ref ht-methods
@@ -47,7 +61,7 @@
   (define args
     (let loop ([arg-end (forward-sexp tm (forward-sexp tm id-pos))]
                [count 0])
-      ;;(println (list (token-text tm (sub1 arg-end)) arg-end pos))
+      (log-racket-mode-debug "special-form ~v" (list (token-text tm (sub1 arg-end)) arg-end id-pos))
       (if (<= arg-end indent-pos)
           (match (forward-sexp tm arg-end)
             [(? integer? n) (loop n (add1 count))]
@@ -85,6 +99,13 @@
   (backward-sexp tm
                  (forward-sexp tm
                                (forward-sexp tm pos))))
+
+#;(require racket/trace)
+#;
+(trace indent-amount
+       special-form
+       default-amount
+       beg-of-next-sexp)
 
 (module+ test
   (require rackunit)

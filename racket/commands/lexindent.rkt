@@ -7,7 +7,8 @@
                     [create tm:create]
                     [update tm:update]
                     [tokens tm:tokens]
-                    [classify tm:classify]))
+                    [classify tm:classify])
+         "../util.rkt")
 
 ;; Just a shim to use token-maps from Emacs Lisp.
 
@@ -17,98 +18,87 @@
 (define ht (make-hash)) ;id => token-map?
 
 (define (lexindent . args)
-  (match args
-    [`(create ,s) (create s)]
-    [`(delete ,id) (delete id)]
-    [`(update ,id ,(app sub1 pos) ,old-len ,after) (update id pos old-len after)]
-    [`(classify ,id ,pos) (classify id pos)]
-    [`(indent-amount ,id ,pos) (indent-amount id pos)]))
+  (begin0
+      (match args
+        [`(create ,s) (create s)]
+        [`(delete ,id) (delete id)]
+        [`(update ,id ,pos ,old-len ,str) (update id pos old-len str)]
+        [`(indent-amount ,id ,pos) (indent-amount id pos)]
+        [`(classify ,id ,pos) (classify id pos)])
+    (match args
+      [(list* (or 'create 'delete) _) (void)]
+      [(list* _ id _) (log-racket-mode-debug "~v" (hash-ref ht id))])))
 
 (define (create s)
   (set! next-id (add1 next-id))
   (define tm (tm:create s))
   (hash-set! ht next-id tm)
-  (cons next-id (tokens-as-elisp tm 1)))
+  (cons next-id (tokens-as-elisp tm 1 +inf.0)))
 
 (define (delete id)
   (hash-remove! ht id))
 
-(define (update id pos old-len after)
+(define (update id pos old-len str)
   (define tm (hash-ref ht id))
-  (define start (tm:update tm pos old-len after))
-  (tokens-as-elisp tm start))
-
-(define (classify id pos)
-  (define tm (hash-ref ht id))
-  (token->elisp (tm:classify tm pos)))
+  (begin ;with-time/log "tm:update"
+    (map token->elisp (tm:update tm pos old-len str))))
 
 (define (indent-amount id pos)
   (define tm (hash-ref ht id))
   (se:indent-amount tm pos))
 
-(define (tokens-as-elisp tm pos)
-  (tm:tokens tm pos token->elisp))
+(define (classify id pos)
+  (define tm (hash-ref ht id))
+  (token->elisp (tm:classify tm pos)))
 
-(define (token->elisp t)
+(define (tokens-as-elisp tm beg end)
+  (tm:tokens tm beg end token->elisp))
+
+(define (token->elisp b+t)
+  (match-define (bounds+token beg end t) b+t)
   (match t
-    [(token:expr:open beg end _backup _open close)  (list beg end 'open close)]
-    [(token:expr:close beg end _backup open _close) (list beg end 'close open)]
-    [(token:misc beg end _backup kind)              (list beg end kind #f)]))
+    [(? token:expr:open? t)  (list beg end 'open               (token:expr-close t))]
+    [(? token:expr:close? t) (list beg end 'close              (token:expr-open t))]
+    [(? token:misc? t)       (list beg end (token:misc-kind t) #f)]))
 
 (module+ example-0
-  (require racket/pretty)
-  (define str "#lang racket
-               42
-               (print \"hello\")
-               @print{Hello}
-               'foo #:bar")
+  (define str "#lang racket\n42 (print \"hello\") @print{Hello} 'foo #:bar")
   (match-define (cons id vs) (lexindent 'create str))
-  (pretty-print vs)
-  (pretty-print (lexindent 'update id 25 1 "J"))
-  (pretty-print (lexindent 'classify id (sub1 (string-length str))))
-  ;(lexindent 'delete id)
-  )
+  vs
+  (lexindent 'update id 14 2 "9999")
+  (lexindent 'classify id 14)
+  (lexindent 'update id 14 4 "")
+  (lexindent 'classify id 14)
+  (lexindent 'classify id 15))
 
 (module+ example-1
-  (require racket/pretty)
-  (define str "#lang at-exp racket
-               42
-               (print \"hello\")
-               @print{Hello (there)}
-               'foo #:bar")
+  (define str "#lang at-exp racket\n42 (print \"hello\") @print{Hello (there)} 'foo #:bar")
   (match-define (cons id vs) (lexindent 'create str))
-  (pretty-print vs)
-  (pretty-print (lexindent 'classify id (sub1 (string-length str))))
-  ;(lexindent 'delete id)
-  )
+  vs
+  (lexindent 'classify id (sub1 (string-length str))))
 
 (module+ example-2
-  (require racket/pretty)
-  (define str "#lang scribble/text
-               Hello
-               @(print \"hello\")
-               @print{Hello (there)}
-               #:not-a-keyword")
+  (define str "#lang scribble/text\nHello @(print \"hello\") @print{Hello (there)} #:not-a-keyword")
   (match-define (cons id vs) (lexindent 'create str))
-  (pretty-print vs)
-  (pretty-print (lexindent 'classify id (sub1 (string-length str))))
-  ;(lexindent 'delete id)
-  )
+  vs
+  (lexindent 'classify id (sub1 (string-length str))))
 
 (module+ example-3
-  (require racket/pretty)
   (define str "#lang racket\n(λ () #t)")
   (match-define (cons id vs) (lexindent 'create str))
-  (pretty-print vs)
-  (pretty-print (lexindent 'classify id 14))
-  (pretty-print (lexindent 'classify id (sub1 (string-length str))))
-  ;(lexindent 'delete id)
-  )
+  vs
+  (lexindent 'classify id 14)
+  (lexindent 'classify id (sub1 (string-length str))))
 
 (module+ example-4
-  (require racket/pretty)
   (define str "#lang racket\n#rx\"1234\"\n#(1 2 3)\n#'(1 2 3)")
   (match-define (cons id vs) (lexindent 'create str))
-  (pretty-print vs)
-  ;(lexindent 'delete id)
-  )
+  vs)
+
+(module+ example-5
+  (define str "#lang racket\n(foo 1\n2)\n")
+  ;;           1234567890123 45678901234
+  ;;                    1          2
+  (match-define (cons id _vs) (lexindent 'create str))
+  (hash-ref ht id)
+  (indent-amount id 21))
