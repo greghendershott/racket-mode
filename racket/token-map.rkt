@@ -53,6 +53,10 @@
   (and beg end token
        (bounds+token beg end token)))
 
+(define current-set-interval (make-parameter interval-map-set!))
+(define (set-interval tokens beg end token)
+  ((current-set-interval) tokens beg end token))
+
 (define (create s)
   (define tokens (make-interval-map))
   (define modes  (make-interval-map))
@@ -71,28 +75,46 @@
                                             str
                                             (substring (token-map-str tm)
                                                        (+ (sub1 pos) old-len))))
-         (log-racket-mode-debug "~v" (token-map-str tm))
+         ;;(log-racket-mode-debug "~v" (token-map-str tm))
          (define beg (match (token-map-ref tm pos)
                        [(bounds+token beg _end (token _ backup)) (- beg backup)]
                        [_                                        pos]))
          (define diff (- (string-length str) old-len))
          (define tokens (token-map-tokens tm))
          (define modes  (token-map-modes tm))
-         (parameterize ([current-pre-update-tokens (make-interval-map
-                                                    (for/list ([(k v) (in-dict tokens)])
-                                                      (cons k v)))]
-                        [current-update-start  beg]
-                        [current-update-diff diff]
-                        [current-updated-intervals '()])
-           (cond [(< 0 diff) (interval-map-expand!   tokens pos (+ pos diff))
-                             (define orig-mode (interval-map-ref modes pos #f))
-                             (interval-map-expand!   modes  beg (+ pos diff))
-                             (interval-map-set!      modes  beg (+ pos diff) orig-mode)]
-                 [(< diff 0) (interval-map-contract! tokens pos (- pos diff))
-                             (interval-map-contract! modes  beg (- pos diff))])
-           ;;(printf "diff = ~v\n" diff)
-           (tokenize-string tokens modes (token-map-str tm) beg)
-           (reverse (current-updated-intervals)))]))
+         (cond [(< 0 diff) (interval-map-expand!   tokens pos (+ pos diff))
+                           (define orig-mode (interval-map-ref modes pos #f))
+                           (interval-map-expand!   modes  beg (+ pos diff))
+                           (interval-map-set!      modes  beg (+ pos diff) orig-mode)]
+               [(< diff 0) (interval-map-contract! tokens pos (- pos diff))
+                           (interval-map-contract! modes  beg (- pos diff))])
+         (define old-tokens (make-interval-map
+                             (for/list ([(k v) (in-dict tokens)])
+                               (cons k v))))
+         (define updated-intervals '())
+         (define (set-interval/update tokens beg end token)
+           (define-values (old-beg old-end old-token)
+             (interval-map-ref/bounds old-tokens
+                                      (- beg diff)
+                                      #f))
+           (cond [(and old-beg old-end old-token
+                       (= old-beg (- beg diff))
+                       (= old-end (- end diff))
+                       (equal? old-token token))
+                  (log-racket-mode-debug
+                   "Stopping because no change except shift; diff=~v old=~v new=~v"
+                   diff
+                   (list old-beg old-end old-token)
+                   (list beg end token))
+                  #f] ;stop
+                 [else
+                  (set! updated-intervals (cons (bounds+token beg end token)
+                                                updated-intervals))
+                  (interval-map-set! tokens beg end token)
+                  #t])) ;continue
+         (parameterize ([current-set-interval set-interval/update])
+           (tokenize-string tokens modes (token-map-str tm) beg))
+         (reverse updated-intervals)]))
 
 (define (classify tm pos)
   (token-map-ref tm pos))
@@ -123,7 +145,7 @@
 (define (tokenize-port tokens modes in offset mode)
   (define-values (lexeme kind delimit beg end backup new-mode)
     (module-lexer in offset mode))
-  (println (list offset mode lexeme kind delimit beg end backup new-mode))
+  ;;(println (list offset mode lexeme kind delimit beg end backup new-mode))
   (unless (eof-object? lexeme)
     (interval-map-set! modes beg end mode)
     (when (case kind
@@ -131,60 +153,6 @@
             [(parenthesis) (handle-parenthesis-token tokens lexeme mode delimit beg end backup)]
             [else          (set-interval tokens beg end (token:misc lexeme backup kind))])
       (tokenize-port tokens modes in end new-mode))))
-
-;; A copy of the interval map. Unfortunately necessary in the case
-;; where the diff is positive.
-(define current-pre-update-tokens (make-parameter #f))
-;; From where are we re-tokenizing.
-(define current-update-start (make-parameter 0))
-;; What is the difference in lengths of the changed region.
-(define current-update-diff (make-parameter 0))
-;; A list accumulated as a result of calling `set-interval`, which
-;; produces a minimal set of tokens that changed other than simply
-;; being shifted by the diff.
-(define current-updated-intervals (make-parameter '()))
-
-(define (set-interval tokens beg end token)
-  ;; Add to the list `current-changed-intervals` any tokens ending
-  ;; after `current-changed-interval-beg` that differ from the old
-  ;; `current-pre-update-interval-map` -- but ignore differences where
-  ;; it is exactly the same token and only the position interval is
-  ;; shifted exactly by `current-changed-interval-diff`.
-  ;;
-  ;; This is how we produce a minimal list of actions required to
-  ;; re-propertize the buffer in Emacs: When you insert/delete text it
-  ;; shifts property positions for the following text. Only the
-  ;; interval for the changed region might need be re-propertizied.
-  (cond [(<= end (current-update-start))
-         #;
-         (log-racket-mode-debug
-          "set-interval: Ignoring token ends earlier than ~v ~v"
-          (current-update-start)
-          (list beg end token))
-         #t] ;keep going
-        [else
-         (define diff (current-update-diff))
-         (define-values (old-beg old-end old-token)
-           (if (current-pre-update-tokens)
-               (interval-map-ref/bounds (current-pre-update-tokens)
-                                        (- beg diff)
-                                        #f)
-               (values #f #f #f)))
-         (cond [(and old-beg old-end old-token
-                     (= old-beg (- beg diff))
-                     (= old-end (- end diff))
-                     (equal? old-token token))
-                (log-racket-mode-debug
-                 "Stopping because diff=~v old=~v new=~v"
-                 diff
-                 (list old-beg old-end old-token)
-                 (list beg end token))
-                #f] ;stop
-               [else
-                (current-updated-intervals (cons (bounds+token beg end token)
-                                                 (current-updated-intervals)))
-                (interval-map-set! tokens beg end token)
-                #t])])) ;continue
 
 ;; It is useful for the token map to handle end-of-line white-space
 ;; distinctly. This helps for things like indenters.
