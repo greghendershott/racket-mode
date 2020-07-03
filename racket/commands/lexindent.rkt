@@ -25,6 +25,7 @@
         [`(update ,id ,pos ,old-len ,str) (update id pos old-len str)]
         [`(indent-amount ,id ,pos) (indent-amount id pos)]
         [`(classify ,id ,pos) (classify id pos)])
+    #;
     (match args
       [(list* (or 'create 'delete) _) (void)]
       [(list* _ id _) (log-racket-mode-debug "~v" (hash-ref ht id))])))

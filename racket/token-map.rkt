@@ -3,6 +3,7 @@
 (require (only-in data/interval-map
                   make-interval-map
                   interval-map-set!
+                  interval-map-ref
                   interval-map-ref/bounds
                   interval-map-remove!
                   interval-map-expand!
@@ -34,7 +35,10 @@
          forward-sexp
          backward-sexp)
 
-(struct token-map ([str #:mutable] im) #:transparent)
+(struct token-map ([str #:mutable]
+                   tokens ;interval-map
+                   modes) ;interval-map
+  #:transparent)
 
 (struct bounds+token (beg end token) #:transparent)
 (struct token (lexeme backup) #:transparent)
@@ -45,14 +49,15 @@
 
 (define (token-map-ref tm pos)
   (define-values (beg end token)
-    (interval-map-ref/bounds (token-map-im tm) pos #f))
+    (interval-map-ref/bounds (token-map-tokens tm) pos #f))
   (and beg end token
        (bounds+token beg end token)))
 
 (define (create s)
-  (define im (make-interval-map))
-  (tokenize-string im s 0)
-  (token-map s im))
+  (define tokens (make-interval-map))
+  (define modes  (make-interval-map))
+  (tokenize-string tokens modes s 1)
+  (token-map s tokens modes))
 
 (define/contract (update tm pos old-len str)
   (-> token-map? exact-positive-integer? exact-nonnegative-integer? string? any)
@@ -71,17 +76,22 @@
                        [(bounds+token beg _end (token _ backup)) (- beg backup)]
                        [_                                        pos]))
          (define diff (- (string-length str) old-len))
-         (define im (token-map-im tm))
-         (parameterize ([current-pre-update-interval-map (make-interval-map
-                                                          (for/list ([(k v) (in-dict im)])
-                                                            (cons k v)))]
+         (define tokens (token-map-tokens tm))
+         (define modes  (token-map-modes tm))
+         (parameterize ([current-pre-update-tokens (make-interval-map
+                                                    (for/list ([(k v) (in-dict tokens)])
+                                                      (cons k v)))]
                         [current-update-start  beg]
                         [current-update-diff diff]
                         [current-updated-intervals '()])
-           (cond [(< 0 diff) (interval-map-expand!   im pos (+ pos diff))]
-                 [(< diff 0) (interval-map-contract! im pos (- pos diff))])
+           (cond [(< 0 diff) (interval-map-expand!   tokens pos (+ pos diff))
+                             (define orig-mode (interval-map-ref modes pos #f))
+                             (interval-map-expand!   modes  beg (+ pos diff))
+                             (interval-map-set!      modes  beg (+ pos diff) orig-mode)]
+                 [(< diff 0) (interval-map-contract! tokens pos (- pos diff))
+                             (interval-map-contract! modes  beg (- pos diff))])
            ;;(printf "diff = ~v\n" diff)
-           (tokenize-string im (token-map-str tm) beg)
+           (tokenize-string tokens modes (token-map-str tm) beg)
            (reverse (current-updated-intervals)))]))
 
 (define (classify tm pos)
@@ -89,7 +99,7 @@
 
 (define (token-text tm pos)
   (match (token-map-ref tm pos)
-    [(bounds+token (app sub1 beg) (app sub1 end) (token lexeme _)) lexeme]
+    [(bounds+token _beg _end (token lexeme _)) lexeme]
     [#f #f]))
 
 (define (tokens tm beg end [proc values])
@@ -100,25 +110,31 @@
            (tokens tm (bounds+token-end b+t) end proc))]
     [_ '()]))
 
-(define (tokenize-string im str offset)
+(define (tokenize-string tokens modes str beg)
   (define in (open-input-string str))
   (port-count-lines! in) ;important for Unicode e.g. λ
-  (tokenize-port im in offset #f))
+  (let loop ()
+    (define-values (_line _col offset) (port-next-location in))
+    (unless (= offset beg)
+      (read-byte-or-special in)
+      (loop)))
+  (tokenize-port tokens modes in beg (interval-map-ref modes beg #f)))
 
-(define (tokenize-port im in offset mode)
+(define (tokenize-port tokens modes in offset mode)
   (define-values (lexeme kind delimit beg end backup new-mode)
     (module-lexer in offset mode))
-  ;;(println (list lexeme kind delimit beg end backup new-mode))
+  (println (list offset mode lexeme kind delimit beg end backup new-mode))
   (unless (eof-object? lexeme)
-    (case kind
-      [(white-space) (handle-white-space-token im lexeme beg end backup)]
-      [(parenthesis) (handle-parenthesis-token im lexeme mode delimit beg end backup)]
-      [else          (set-interval im beg end (token:misc lexeme backup kind))])
-    (tokenize-port im in end new-mode)))
+    (interval-map-set! modes beg end mode)
+    (when (case kind
+            [(white-space) (handle-white-space-token tokens lexeme beg end backup)]
+            [(parenthesis) (handle-parenthesis-token tokens lexeme mode delimit beg end backup)]
+            [else          (set-interval tokens beg end (token:misc lexeme backup kind))])
+      (tokenize-port tokens modes in end new-mode))))
 
 ;; A copy of the interval map. Unfortunately necessary in the case
 ;; where the diff is positive.
-(define current-pre-update-interval-map (make-parameter #f))
+(define current-pre-update-tokens (make-parameter #f))
 ;; From where are we re-tokenizing.
 (define current-update-start (make-parameter 0))
 ;; What is the difference in lengths of the changed region.
@@ -128,15 +144,7 @@
 ;; being shifted by the diff.
 (define current-updated-intervals (make-parameter '()))
 
-;; TODO: If we store the `new-mode` value returned by the lexer in the
-;; map, could we use that to re-lex from the middle not all the way
-;; from the start?
-;;
-;; TODO: As soon as we find one or more matching (albeit exactly
-;; offset) tokens, could we abort rather than re-lex all the way to
-;; the end?
-
-(define (set-interval im beg end token)
+(define (set-interval tokens beg end token)
   ;; Add to the list `current-changed-intervals` any tokens ending
   ;; after `current-changed-interval-beg` that differ from the old
   ;; `current-pre-update-interval-map` -- but ignore differences where
@@ -148,17 +156,17 @@
   ;; shifts property positions for the following text. Only the
   ;; interval for the changed region might need be re-propertizied.
   (cond [(<= end (current-update-start))
-         (void)
          #;
          (log-racket-mode-debug
           "set-interval: Ignoring token ends earlier than ~v ~v"
           (current-update-start)
-          (list beg end token))]
+          (list beg end token))
+         #t] ;keep going
         [else
          (define diff (current-update-diff))
          (define-values (old-beg old-end old-token)
-           (if (current-pre-update-interval-map)
-               (interval-map-ref/bounds (current-pre-update-interval-map)
+           (if (current-pre-update-tokens)
+               (interval-map-ref/bounds (current-pre-update-tokens)
                                         (- beg diff)
                                         #f)
                (values #f #f #f)))
@@ -166,18 +174,17 @@
                      (= old-beg (- beg diff))
                      (= old-end (- end diff))
                      (equal? old-token token))
-                (void)
-                #;
                 (log-racket-mode-debug
-                 "Ignoring diff ~v ~v using old interval-map ~v"
+                 "Stopping because diff=~v old=~v new=~v"
                  diff
-                 (list (list old-beg old-end old-token)
-                       (list beg end token))
-                 (current-pre-update-interval-map))]
+                 (list old-beg old-end old-token)
+                 (list beg end token))
+                #f] ;stop
                [else
                 (current-updated-intervals (cons (bounds+token beg end token)
-                                                 (current-updated-intervals)))])])
-  (interval-map-set! im beg end token))
+                                                 (current-updated-intervals)))
+                (interval-map-set! tokens beg end token)
+                #t])])) ;continue
 
 ;; It is useful for the token map to handle end-of-line white-space
 ;; distinctly. This helps for things like indenters.
@@ -210,7 +217,7 @@
              (+ beg len)
              end
              (+ backup len))]
-      [_ (void)])))
+      [_ #t])))
 
 ;; Handling "parentheses" well helps in various ways:
 ;;
