@@ -35,6 +35,8 @@
          forward-sexp
          backward-sexp)
 
+(module+ test (require rackunit))
+
 (struct token-map ([str #:mutable]
                    tokens ;interval-map
                    modes) ;interval-map
@@ -63,6 +65,9 @@
   (tokenize-string tokens modes s 1)
   (token-map s tokens modes))
 
+;; Given an update to the string, re-tokenize and return the smallest
+;; possible list of changes. Also, when creating that minimal list, do
+;; as little work as we can.
 (define/contract (update tm pos old-len str)
   (-> token-map? exact-positive-integer? exact-nonnegative-integer? string? any)
   (unless (<= (sub1 pos) (string-length (token-map-str tm)))
@@ -75,22 +80,26 @@
                                             str
                                             (substring (token-map-str tm)
                                                        (+ (sub1 pos) old-len))))
-         ;;(log-racket-mode-debug "~v" (token-map-str tm))
+         (define diff (- (string-length str) old-len))
+         ;; From where do we need to re-tokenize? This will be <= the
+         ;; pos of the change.
          (define beg (match (token-map-ref tm pos)
                        [(bounds+token beg _end (token _ backup)) (- beg backup)]
-                       [_                                        pos]))
-         (define diff (- (string-length str) old-len))
+                       [#f ;maybe pos is at end of string, back up 1
+                        (match (token-map-ref tm (sub1 pos))
+                          [(bounds+token beg _end (token _ backup)) (- beg backup)]
+                          [#f pos])]))
          (define tokens (token-map-tokens tm))
-         (define modes  (token-map-modes tm))
-         (cond [(< 0 diff) (interval-map-expand!   tokens pos (+ pos diff))
-                           (define orig-mode (interval-map-ref modes pos #f))
-                           (interval-map-expand!   modes  beg (+ pos diff))
-                           (interval-map-set!      modes  beg (+ pos diff) orig-mode)]
-               [(< diff 0) (interval-map-contract! tokens pos (- pos diff))
-                           (interval-map-contract! modes  beg (- pos diff))])
          (define old-tokens (make-interval-map
                              (for/list ([(k v) (in-dict tokens)])
                                (cons k v))))
+         (define modes  (token-map-modes tm))
+         (cond [(< 0 diff) (interval-map-expand!   tokens pos (+ pos diff))
+                           (define orig-mode (interval-map-ref modes beg #f))
+                           (interval-map-expand!   modes  beg (+ beg diff))
+                           (interval-map-set!      modes  beg (+ beg diff) orig-mode)]
+               [(< diff 0) (interval-map-contract! tokens pos (- pos diff))
+                           (interval-map-contract! modes  beg (- beg diff))])
          (define updated-intervals '())
          (define (set-interval/update tokens beg end token)
            (define-values (old-beg old-end old-token)
@@ -110,6 +119,7 @@
                  [else
                   (set! updated-intervals (cons (bounds+token beg end token)
                                                 updated-intervals))
+                  (log-racket-mode-debug "Set [~v ~v) to ~v" beg end token)
                   (interval-map-set! tokens beg end token)
                   #t])) ;continue
          (parameterize ([current-set-interval set-interval/update])
@@ -456,66 +466,202 @@
        beg])}))
 
 (module+ test
-  (require rackunit)
-  (require racket/pretty)
-  (define str "#lang racket\n(a (b (c  foo))) (bar ((x)) y)")
-  ;;           1234567890123 456789012345678901234567890123
-  ;;                    1          2         3         4
-  (define tm (create str))
-  (pretty-print tm)
-  (check-equal? (classify tm 1)
-                (bounds+token 1 13 (token:misc "#lang racket" 0 'other)))
-  (check-equal? (classify tm 13)
-                (bounds+token 13 14 (token:misc "\n" 0 'end-of-line)))
-  (check-equal? (beg-of-line tm 1) 1)
-  (check-equal? (beg-of-line tm 2) 1)
-  (check-equal? (beg-of-line tm 3) 1)
-  (check-equal? (beg-of-line tm 14) 14)
-  (check-equal? (beg-of-line tm 15) 14)
-  (check-equal? (backward-up tm 14) 14)
-  (check-equal? (backward-up tm 16) 14)
-  (check-equal? (backward-up tm 17) 17)
-  (check-equal? (backward-up tm 18) 17)
-  (check-equal? (backward-up tm 20) 20)
-  (check-equal? (backward-up tm 22) 20)
-  (check-equal? (backward-up tm 31) 31)
-  (check-equal? (backward-up tm 34) 31)
-  (check-equal? (backward-up tm 42) 31)
-  (check-false  (backward-up tm  1))
-  (check-false  (backward-up tm 12))
-  (check-false  (backward-up tm 13))
-  (check-false  (backward-up tm 30))
-  (check-false  (backward-up tm 43))
-  (check-equal? (forward-whitespace/comment tm 23) 24)
-  (check-equal? (backward-whitespace/comment tm 22) 21)
-  (check-equal? (forward-sexp tm 24) 27)
-  (check-equal? (forward-sexp tm 14) 30)
-  (check-equal? (backward-sexp tm 26) 24)
-  (check-equal? (backward-sexp tm 29) 14))
+  (let* ([str "#lang racket\n(a (b (c  foo))) (bar ((x)) y)"]
+         ;;    1234567890123 456789012345678901234567890123
+         ;;             1          2         3         4
+         [tm (create str)])
+    (check-equal? (classify tm 1)
+                  (bounds+token 1 13 (token:misc "#lang racket" 0 'other)))
+    (check-equal? (classify tm 13)
+                  (bounds+token 13 14 (token:misc "\n" 0 'end-of-line)))
+    (check-equal? (beg-of-line tm 1) 1)
+    (check-equal? (beg-of-line tm 2) 1)
+    (check-equal? (beg-of-line tm 3) 1)
+    (check-equal? (beg-of-line tm 14) 14)
+    (check-equal? (beg-of-line tm 15) 14)
+    (check-equal? (backward-up tm 14) 14)
+    (check-equal? (backward-up tm 16) 14)
+    (check-equal? (backward-up tm 17) 17)
+    (check-equal? (backward-up tm 18) 17)
+    (check-equal? (backward-up tm 20) 20)
+    (check-equal? (backward-up tm 22) 20)
+    (check-equal? (backward-up tm 31) 31)
+    (check-equal? (backward-up tm 34) 31)
+    (check-equal? (backward-up tm 42) 31)
+    (check-false  (backward-up tm  1))
+    (check-false  (backward-up tm 12))
+    (check-false  (backward-up tm 13))
+    (check-false  (backward-up tm 30))
+    (check-false  (backward-up tm 43))
+    (check-equal? (forward-whitespace/comment tm 23) 24)
+    (check-equal? (backward-whitespace/comment tm 22) 21)
+    (check-equal? (forward-sexp tm 24) 27)
+    (check-equal? (forward-sexp tm 14) 30)
+    (check-equal? (backward-sexp tm 26) 24)
+    (check-equal? (backward-sexp tm 29) 14)))
 
-(module+ example-0
-  (define str "#lang racket\n42 (print \"hello\") @print{Hello} 'foo #:bar")
-  ;;           1234567890123 45678901234 567890 12345678901234567890123456
-  ;;                    1          2          3          4         5
-  (define tm (create str))
-  tm
-  (update tm 52 5 "'bar")
-  (update tm 47 4 "'bar")
-  (update tm 24 7 "'hell")
-  (update tm 14 2 "99999")
-  tm)
+(module+ test
+  (let* ([str "#lang racket\n42 (print \"hello\") @print{Hello} 'foo #:bar"]
+         ;;    1234567890123 45678901234 567890 12345678901234567890123456
+         ;;             1          2          3          4         5
+         [tm (create str)])
+    (check-equal? (token-map-str tm)
+                  "#lang racket\n42 (print \"hello\") @print{Hello} 'foo #:bar")
+    (check-equal? (dict->list (token-map-tokens tm))
+                  (list
+                   (cons '(1 . 13) (token:misc "#lang racket" 0 'other))
+                   (cons '(13 . 14) (token:misc "\n" 0 'end-of-line))
+                   (cons '(14 . 16) (token:misc "42" 0 'constant))
+                   (cons '(16 . 17) (token:misc " " 0 'white-space))
+                   (cons '(17 . 18) (token:expr:open "(" 0 "(" ")"))
+                   (cons '(18 . 23) (token:misc "print" 0 'symbol))
+                   (cons '(23 . 24) (token:misc " " 0 'white-space))
+                   (cons '(24 . 31) (token:misc "\"hello\"" 0 'string))
+                   (cons '(31 . 32) (token:expr:close ")" 0 "(" ")"))
+                   (cons '(32 . 33) (token:misc " " 0 'white-space))
+                   (cons '(33 . 39) (token:misc "@print" 0 'symbol))
+                   (cons '(39 . 40) (token:expr:open "{" 0 "{" "}"))
+                   (cons '(40 . 45) (token:misc "Hello" 0 'symbol))
+                   (cons '(45 . 46) (token:expr:close "}" 0 "{" "}"))
+                   (cons '(46 . 47) (token:misc " " 0 'white-space))
+                   (cons '(47 . 48) (token:misc "'" 0 'constant))
+                   (cons '(48 . 51) (token:misc "foo" 0 'symbol))
+                   (cons '(51 . 52) (token:misc " " 0 'white-space))
+                   (cons '(52 . 57) (token:misc "#:bar" 0 'hash-colon-keyword))))
+    (check-equal? (dict->list (token-map-modes tm))
+                  `(((1 . 13) . #f)
+                    ((13 . 14) . ,racket-lexer)
+                    ((14 . 16) . ,racket-lexer)
+                    ((16 . 17) . ,racket-lexer)
+                    ((17 . 18) . ,racket-lexer)
+                    ((18 . 23) . ,racket-lexer)
+                    ((23 . 24) . ,racket-lexer)
+                    ((24 . 31) . ,racket-lexer)
+                    ((31 . 32) . ,racket-lexer)
+                    ((32 . 33) . ,racket-lexer)
+                    ((33 . 39) . ,racket-lexer)
+                    ((39 . 40) . ,racket-lexer)
+                    ((40 . 45) . ,racket-lexer)
+                    ((45 . 46) . ,racket-lexer)
+                    ((46 . 47) . ,racket-lexer)
+                    ((47 . 48) . ,racket-lexer)
+                    ((48 . 51) . ,racket-lexer)
+                    ((51 . 52) . ,racket-lexer)
+                    ((52 . 57) . ,racket-lexer)))
+    (check-equal? (update tm 52 5 "'bar")
+                  (list
+                   (bounds+token 52 53 (token:misc "'" 0 'constant))
+                   (bounds+token 53 56 (token:misc "bar" 0 'symbol))))
+    (check-equal? (update tm 47 4 "'bar")
+                  '()
+                  "although lexeme changes from \"'foo\" to \"'bar\" bounds and classification are the same, therefore no update")
+    (check-equal? (update tm 24 7 "'hell")
+                  (list
+                   (bounds+token 24 25 (token:misc "'" 0 'constant))
+                   (bounds+token 25 29 (token:misc "hell" 0 'symbol))))
+    (check-equal? (update tm 14 2 "99999")
+                  (list (bounds+token 14 19 (token:misc "99999" 0 'constant))))
+    (check-equal? (token-map-str tm)
+                  "#lang racket\n99999 (print 'hell) @print{Hello} 'bar 'bar")
+    (check-equal? (dict->list (token-map-tokens tm))
+                  (list
+                   (cons '(1 . 13) (token:misc "#lang racket" 0 'other))
+                   (cons '(13 . 14) (token:misc "\n" 0 'end-of-line))
+                   (cons '(14 . 19) (token:misc "99999" 0 'constant))
+                   (cons '(19 . 20) (token:misc " " 0 'white-space))
+                   (cons '(20 . 21) (token:expr:open "(" 0 "(" ")"))
+                   (cons '(21 . 26) (token:misc "print" 0 'symbol))
+                   (cons '(26 . 27) (token:misc " " 0 'white-space))
+                   (cons '(27 . 28) (token:misc "'" 0 'constant))
+                   (cons '(28 . 32) (token:misc "hell" 0 'symbol))
+                   (cons '(32 . 33) (token:expr:close ")" 0 "(" ")"))
+                   (cons '(33 . 34) (token:misc " " 0 'white-space))
+                   (cons '(34 . 40) (token:misc "@print" 0 'symbol))
+                   (cons '(40 . 41) (token:expr:open "{" 0 "{" "}"))
+                   (cons '(41 . 46) (token:misc "Hello" 0 'symbol))
+                   (cons '(46 . 47) (token:expr:close "}" 0 "{" "}"))
+                   (cons '(47 . 48) (token:misc " " 0 'white-space))
+                   (cons '(48 . 49) (token:misc "'" 0 'constant))
+                   (cons '(49 . 52) (token:misc "foo" 0 'symbol))
+                   (cons '(52 . 53) (token:misc " " 0 'white-space))
+                   (cons '(53 . 54) (token:misc "'" 0 'constant))
+                   (cons '(54 . 57) (token:misc "bar" 0 'symbol))))
+    (check-equal? (dict->list (token-map-modes tm))
+                  `(((1 . 13) . #f)
+                    ((13 . 14) . ,racket-lexer)
+                    ((14 . 19) . ,racket-lexer)
+                    ((19 . 20) . ,racket-lexer)
+                    ((20 . 21) . ,racket-lexer)
+                    ((21 . 26) . ,racket-lexer)
+                    ((26 . 27) . ,racket-lexer)
+                    ((27 . 28) . ,racket-lexer)
+                    ((28 . 32) . ,racket-lexer)
+                    ((32 . 33) . ,racket-lexer)
+                    ((33 . 34) . ,racket-lexer)
+                    ((34 . 40) . ,racket-lexer)
+                    ((40 . 41) . ,racket-lexer)
+                    ((41 . 46) . ,racket-lexer)
+                    ((46 . 47) . ,racket-lexer)
+                    ((47 . 48) . ,racket-lexer)
+                    ((48 . 49) . ,racket-lexer)
+                    ((49 . 52) . ,racket-lexer)
+                    ((52 . 53) . ,racket-lexer)
+                    ((53 . 54) . ,racket-lexer)
+                    ((54 . 57) . ,racket-lexer)))))
 
-(module+ example-1
-  (define str "#lang at-exp racket\n42 (print \"hello\") @print{Hello (there)} 'foo #:bar")
-  (define tm (create str))
-  tm
-  (classify tm (sub1 (string-length str))))
+(module+ test
+  (let* ([str "#lang at-exp racket\n42 (print \"hello\") @print{Hello (there)} 'foo #:bar"]
+         [tm (create str)])
+    (check-equal? (token-map-str tm)
+                  str)
+    (check-equal? (dict->list (token-map-tokens tm))
+                  (list
+                   (cons '(1 . 20) (token:misc "#lang at-exp racket" 0 'other))
+                   (cons '(20 . 21) (token:misc "\n" 0 'end-of-line))
+                   (cons '(21 . 23) (token:misc "42" 0 'constant))
+                   (cons '(23 . 24) (token:misc " " 0 'white-space))
+                   (cons '(24 . 25) (token:expr:open "(" 0 "(" ")"))
+                   (cons '(25 . 30) (token:misc "print" 0 'symbol))
+                   (cons '(30 . 31) (token:misc " " 0 'white-space))
+                   (cons '(31 . 38) (token:misc "\"hello\"" 0 'string))
+                   (cons '(38 . 39) (token:expr:close ")" 0 "(" ")"))
+                   (cons '(39 . 40) (token:misc " " 0 'white-space))
+                   (cons '(40 . 41) (token:misc "@" 0 'symbol))
+                   (cons '(41 . 46) (token:misc "print" 0 'symbol))
+                   (cons '(46 . 47) (token:expr:open "{" 0 "{" "}"))
+                   (cons '(47 . 60) (token:misc 'text 0 'text))
+                   (cons '(60 . 61) (token:expr:close "}" 0 "{" "}"))
+                   (cons '(61 . 62) (token:misc " " 0 'white-space))
+                   (cons '(62 . 63) (token:misc "'" 0 'constant))
+                   (cons '(63 . 66) (token:misc "foo" 0 'symbol))
+                   (cons '(66 . 67) (token:misc " " 0 'white-space))
+                   (cons '(67 . 72) (token:misc "#:bar" 0 'hash-colon-keyword))))
+    (check-equal? (classify tm (sub1 (string-length str)))
+                  (bounds+token 67 72 (token:misc "#:bar" 0 'hash-colon-keyword)))))
 
-(module+ example-2
-  (define str "#lang scribble/text\nHello @(print \"hello\") @print{Hello (there)} #:not-a-keyword")
-  (define tm (create str))
-  tm
-  (classify tm (sub1 (string-length str))))
+(module+ test
+  (let* ([str "#lang scribble/text\nHello @(print \"hello\") @print{Hello (there)} #:not-a-keyword"]
+         [tm (create str)])
+    (check-equal? (token-map-str tm)
+                  str)
+    (check-equal? (dict->list (token-map-tokens tm))
+                  (list
+                   (cons '(1 . 20) (token:misc "#lang scribble/text" 0 'other))
+                   (cons '(20 . 21) (token:misc " " 0 'white-space))
+                   (cons '(21 . 27) (token:misc 'text 0 'text))
+                   (cons '(27 . 28) (token:misc "@" 0 'symbol))
+                   (cons '(28 . 29) (token:expr:open "(" 0 "(" ")"))
+                   (cons '(29 . 34) (token:misc "print" 0 'symbol))
+                   (cons '(34 . 35) (token:misc " " 0 'white-space))
+                   (cons '(35 . 42) (token:misc "\"hello\"" 0 'string))
+                   (cons '(42 . 43) (token:expr:close ")" 0 "(" ")"))
+                   (cons '(43 . 44) (token:misc 'text 0 'text))
+                   (cons '(44 . 45) (token:misc "@" 0 'symbol))
+                   (cons '(45 . 50) (token:misc "print" 0 'symbol))
+                   (cons '(50 . 51) (token:expr:open "{" 0 "{" "}"))
+                   (cons '(51 . 64) (token:misc 'text 0 'text))
+                   (cons '(64 . 65) (token:expr:close "}" 0 "{" "}"))
+                   (cons '(65 . 81) (token:misc 'text 0 'text))))))
 
 (module+ example-3
   (define str "#lang racket\n(λ () #t)")
@@ -546,3 +692,59 @@
   (update tm 16 0 "2")
   (update tm 17 0 " ")
   tm)
+
+(module+ test
+  (require syntax-color/racket-lexer)
+  (let* ([str "#lang racket\n"]
+         ;;    1234567890123 4
+         ;;             1
+         [tm (create str)])
+    (update tm 14 0 "d")
+    (update tm 15 0 "o")
+    (check-equal? (token-map-str tm) "#lang racket\ndo")
+    (check-equal? (dict->list (token-map-tokens tm))
+                  (list
+                   (cons '(1 . 13) (token:misc "#lang racket" 0 'other))
+                   (cons '(13 . 14) (token:misc "\n" 0 'end-of-line))
+                   (cons '(14 . 16) (token:misc "do" 0 'symbol))))
+    (check-equal? (dict->list (token-map-modes tm))
+                  (list
+                   (cons '(1 . 13) #f)
+                   (cons '(13 . 14) racket-lexer)
+                   (cons '(14 . 16) racket-lexer))))
+  (let* ([str "#lang racket\n"]
+         ;;    1234567890123 4
+         ;;             1
+         [tm (create str)])
+    (update tm 14 0 "1") ;initially lexed as 'constant
+    (update tm 15 0 "x") ;should re-lex "1x" as 'symbol
+    (check-equal? (token-map-str tm) "#lang racket\n1x")
+    (check-equal? (dict->list (token-map-tokens tm))
+                  (list
+                   (cons '(1 . 13) (token:misc "#lang racket" 0 'other))
+                   (cons '(13 . 14) (token:misc "\n" 0 'end-of-line))
+                   (cons '(14 . 16) (token:misc "1x" 0 'symbol))))
+    (check-equal? (dict->list (token-map-modes tm))
+                  (list
+                   (cons '(1 . 13) #f)
+                   (cons '(13 . 14) racket-lexer)
+                   (cons '(14 . 16) racket-lexer))))
+  (let* ([str "#lang racket\n"]
+         ;;    1234567890123 4
+         ;;             1
+         [tm (create str)])
+    (update tm 14 0 "1") ;initially lexed as 'constant
+    (update tm 15 0 "x") ;should re-lex "1x" as 'symbol
+    (update tm 16 0 "1") ;still symbol
+    (update tm 15 1 "")  ;deleting the "x" should re-lex the "11" as constant
+    (check-equal? (token-map-str tm) "#lang racket\n11")
+    (check-equal? (dict->list (token-map-tokens tm))
+                  (list
+                   (cons '(1 . 13) (token:misc "#lang racket" 0 'other))
+                   (cons '(13 . 14) (token:misc "\n" 0 'end-of-line))
+                   (cons '(14 . 16) (token:misc "11" 0 'constant))))
+    (check-equal? (dict->list (token-map-modes tm))
+                  (list
+                   (cons '(1 . 13) #f)
+                   (cons '(13 . 14) racket-lexer)
+                   (cons '(14 . 16) racket-lexer)))))
