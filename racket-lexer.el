@@ -109,16 +109,28 @@
                 ,(buffer-substring-no-properties beg end)))))
 
 (defun racket-lexer-indent-line-function ()
-  (let ((diff (racket--cmd/await        ; await = :(
-               nil
-               `(lexindent indent-amount
-                           ,racket--lexindent-id
-                           ,(point)))))
-    (cond ((< 0 diff)
-           (beginning-of-line)
-           (insert (make-string diff 32)))
-          ((< diff 0)
-           (delete-region (point) (+ (point) (- diff)))))))
+  (let ((amount (racket--cmd/await      ; await = :(
+                 nil
+                 `(lexindent indent-amount
+                             ,racket--lexindent-id
+                             ,(point))))
+        ;; When point is within the leading whitespace, move it past the
+        ;; new indentation whitespace. Otherwise preserve its position
+        ;; relative to the original text.
+        (pos (- (point-max) (point)))
+        (beg (progn (beginning-of-line) (point))))
+    (skip-chars-forward " \t")
+    (unless (= amount (current-column))
+      (delete-region beg (point))
+      (indent-to amount))
+    (when (< (point) (- (point-max) pos))
+      (goto-char (- (point-max) pos)))))
+
+(defun racket-lexer-debug ()
+  (interactive)
+  (racket--cmd/async nil
+                     `(lexindent show
+                                 ,racket--lexindent-id)))
 
 (defconst racket--string-content-syntax-table
   (let ((st (copy-syntax-table (standard-syntax-table))))

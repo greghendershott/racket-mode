@@ -62,7 +62,7 @@
 (define (call-with-session-context sid proc . args)
   (match (get-session sid)
     [(? session? s)
-     (log-racket-mode-debug @~a{(call-with-session-context @~v[sid] @~v[proc] @~v[args]) => @~v[s]})
+     #;(log-racket-mode-debug @~a{(call-with-session-context @~v[sid] @~v[proc] @~v[args]) => @~v[s]})
      (parameterize ([current-session-id          sid]
                     [current-repl-msg-chan       (session-repl-msg-chan s)]
                     [current-session-maybe-mod   (session-maybe-mod s)]
@@ -70,6 +70,7 @@
                     [current-session-submit-pred (session-submit-pred s)])
        (apply proc args))]
     [_
+     #;
      (if (equal? sid '())
          (log-racket-mode-debug @~a{(call-with-session-context @~v[sid] @~v[proc] @~v[args]): no specific session})
          (log-racket-mode-warning @~a{(call-with-session-context @~v[sid] @~v[proc] @~v[args]): @~v[sid] not found in @~v[sessions]}))

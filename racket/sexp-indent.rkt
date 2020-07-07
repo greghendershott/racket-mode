@@ -26,8 +26,7 @@
 
 ;; token-map? positive-integer? -> nonnegative-integer?
 (define (indent-amount tm indent-pos)
-  ;; Keep in mind that token-maps use 1-based positions not 0-based
-  (match (backward-up tm (sub1 (beg-of-line tm indent-pos)))
+  (match (backward-up tm (beg-of-line tm indent-pos))
     [(? number? open-pos)
      (define id-pos (forward-whitespace tm (add1 open-pos)))
      (define id-name (token-text tm id-pos))
@@ -108,36 +107,59 @@
        beg-of-next-sexp)
 
 (module+ test
-  (require rackunit)
-  (define str
-    "#lang racket\n(foo\n  bar\nbaz)\n(foo bar baz\nbap)\n(define (f x)\nx)\n(begin0\n42\n1\n2)")
-  ;; 1234567890123 45678 901234 56789 012345678 901234567 89012345678901 234 56789012 345 67 89
-  ;;          1           2           3          4          5         6           7
+  (require rackunit
+           racket/pretty)
+  (define str "#lang racket\n(foo\n  bar\nbaz)\n(foo bar baz\nbap)\n(define (f x)\nx)\n(begin0\n42\n1\n2)")
+  ;;           1234567890123 45678 901234 56789 012345678 901234567 89012345678901 234 56789012 345 67 89
+  ;;                    1           2           3          4          5         6           7
   (define tm (create str))
-  (check-equal? (indent-amount tm  1) 0
-                "not within any sexpr, should indent 0")
-  (check-equal? (indent-amount tm 14) 0
-                "not within any sexpr, should indent 0")
-  (check-equal? (indent-amount tm 15) 0
-                "not within any sexpr, should indent 0")
-  (check-equal? (indent-amount tm 22) 1
-                "bar should indent with foo")
-  (check-equal? (indent-amount tm 25) 1
-                "baz should indent with bar (assumes bar not yet re-indented)")
-  (check-equal? (indent-amount tm 30) 0
-                "not within any sexpr, should indent 0")
-  (check-equal? (indent-amount tm 31) 0
-                "not within any sexpr, should indent 0")
-  (check-equal? (indent-amount tm 43) 5
-                "bap should indent with the 2nd sexp on the same line i.e. bar")
-  (check-equal? (indent-amount tm 62) 2
-                "define body should indent 2")
-  (check-equal? (indent-amount tm 73) 4
-                "begin0 result should indent 4")
-  (check-equal? (indent-amount tm 76) 2
-                "begin0 other should indent 2")
-  (check-equal? (indent-amount tm 78) 2
-                "begin0 other should indent 2"))
+  (let* ()
+    (check-equal? (indent-amount tm  1) 0
+                  "not within any sexpr, should indent 0")
+    (check-equal? (indent-amount tm 14) 0
+                  "not within any sexpr, should indent 0")
+    (check-equal? (indent-amount tm 15) 0
+                  "not within any sexpr, should indent 0")
+    (check-equal? (indent-amount tm 22) 1
+                  "bar should indent with foo")
+    (check-equal? (indent-amount tm 25) 1
+                  "baz should indent with bar (assumes bar not yet re-indented)")
+    (check-equal? (indent-amount tm 29) 1
+                  "close paren after baz is on same line as it, same result")
+    (check-equal? (indent-amount tm 30) 0
+                  "not within any sexpr, should indent 0")
+    (check-equal? (indent-amount tm 31) 0
+                  "not within any sexpr, should indent 0")
+    (check-equal? (indent-amount tm 43) 5
+                  "bap should indent with the 2nd sexp on the same line i.e. bar")
+    (check-equal? (indent-amount tm 62) 2
+                  "define body should indent 2")
+    (check-equal? (indent-amount tm 73) 4
+                  "begin0 result should indent 4")
+    (check-equal? (indent-amount tm 76) 2
+                  "begin0 other should indent 2")
+    (check-equal? (indent-amount tm 78) 2
+                  "begin0 other should indent 2"))
+  (let* ([str "#lang racket\n(print 12"]
+         ;;    1234567890123 4567890123
+         ;;             1           2
+         [tm (create str)])
+    (update tm 23 0 "\n")
+    (check-equal? (indent-amount tm  1) 0
+                  "not within any sexpr, should indent 0")
+    (check-equal? (indent-amount tm 22) 0
+                  "not within any sexpr, should indent 0")))
+
+(module+ example-5
+  (define str "#lang racket\n123\n(print 123)\n")
+  ;;           1234567890123 4567 890123456789 0
+  ;;                    1           2          3
+  (define tm (create str))
+  tm
+  (indent-amount tm 18)
+  (update tm 28 0 "\n")
+  tm
+  (indent-amount tm 29))
 
 ;;; Hardwired macro indents
 

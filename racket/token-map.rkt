@@ -81,14 +81,17 @@
                                             (substring (token-map-str tm)
                                                        (+ (sub1 pos) old-len))))
          (define diff (- (string-length str) old-len))
-         ;; From where do we need to re-tokenize? This will be <= the
-         ;; pos of the change.
-         (define beg (match (token-map-ref tm pos)
-                       [(bounds+token beg _end (token _ backup)) (- beg backup)]
-                       [#f ;maybe pos is at end of string, back up 1
-                        (match (token-map-ref tm (sub1 pos))
-                          [(bounds+token beg _end (token _ backup)) (- beg backup)]
-                          [#f pos])]))
+         ;; From where do we need to re-tokenize? This will be < the
+         ;; pos of the change. Back up to the start of the previous
+         ;; token (plus any `backup` amount the lexer may have
+         ;; supplied) to ensure re-lexing enough that e.g. appending a
+         ;; character does not create a separate token when instead it
+         ;; should be combined with an existing token for the
+         ;; preceding character(s).
+         (define beg
+           (match (token-map-ref tm (sub1 pos))
+             [(bounds+token beg _end (token _ backup)) (- beg backup)]
+             [#f pos]))
          (define tokens (token-map-tokens tm))
          (define old-tokens (make-interval-map
                              (for/list ([(k v) (in-dict tokens)])
@@ -337,14 +340,16 @@
 ;;; of open and close tokens -- not necessarily traditional lisp
 ;;; s-expressions.
 
-(define (beg-of-line tm pos)
-  (let loop ([pos pos])
+(define (beg-of-line tm start-pos)
+  (let loop ([pos start-pos])
     (match (token-map-ref tm pos)
-      [(bounds+token _beg end (? token:misc? t))
-       #:when (eq? (token:misc-kind t) 'end-of-line)
+      [(bounds+token beg end (? token:misc? t))
+       #:when (and (eq? (token:misc-kind t) 'end-of-line)
+                   ( < beg start-pos))
        end]
-      [(bounds+token beg _end (? token? t))
+      [(bounds+token beg _end (? token?))
        (loop (sub1 beg))]
+      [#f #:when (< 1 pos) (loop (sub1 pos))]
       [#f 1])))
 
 (define (end-of-line tm pos)
@@ -353,12 +358,17 @@
       [(bounds+token _beg end (? token:misc? t))
        #:when (eq? (token:misc-kind t) 'end-of-line)
        end]
-      [(bounds+token _beg end (? token? t))
+      [(bounds+token _beg end (? token?))
        (loop end)]
       [#f (add1 (string-length (token-map-str tm)))])))
 
 (define (backward-up tm pos)
-  (let loop ([pos pos]
+  (let loop ([pos (match (token-map-ref tm pos)
+                    ;; When pos is already exactly the start of an
+                    ;; open token, start one position earlier.
+                    [(bounds+token beg _end (? token:expr:open?))
+                     (sub1 beg)]
+                    [_ pos])]
              [ht (hash)])
     (match (token-map-ref tm pos)
       [#f #f]
@@ -466,8 +476,8 @@
        beg])}))
 
 (module+ test
-  (let* ([str "#lang racket\n(a (b (c  foo))) (bar ((x)) y)"]
-         ;;    1234567890123 456789012345678901234567890123
+  (let* ([str "#lang racket\n(a (b (c  foo))) (bar ((x)) y)\n"]
+         ;;    1234567890123 4567890123456789012345678901234
          ;;             1          2         3         4
          [tm (create str)])
     (check-equal? (classify tm 1)
@@ -477,21 +487,23 @@
     (check-equal? (beg-of-line tm 1) 1)
     (check-equal? (beg-of-line tm 2) 1)
     (check-equal? (beg-of-line tm 3) 1)
+    (check-equal? (beg-of-line tm 13) 1)
     (check-equal? (beg-of-line tm 14) 14)
     (check-equal? (beg-of-line tm 15) 14)
-    (check-equal? (backward-up tm 14) 14)
+    (check-equal? (beg-of-line tm 44) 14)
     (check-equal? (backward-up tm 16) 14)
-    (check-equal? (backward-up tm 17) 17)
+    (check-equal? (backward-up tm 17) 14)
     (check-equal? (backward-up tm 18) 17)
-    (check-equal? (backward-up tm 20) 20)
+    (check-equal? (backward-up tm 20) 17)
     (check-equal? (backward-up tm 22) 20)
-    (check-equal? (backward-up tm 31) 31)
     (check-equal? (backward-up tm 34) 31)
     (check-equal? (backward-up tm 42) 31)
     (check-false  (backward-up tm  1))
     (check-false  (backward-up tm 12))
     (check-false  (backward-up tm 13))
+    (check-false  (backward-up tm 14))
     (check-false  (backward-up tm 30))
+    (check-false  (backward-up tm 31))
     (check-false  (backward-up tm 43))
     (check-equal? (forward-whitespace/comment tm 23) 24)
     (check-equal? (backward-whitespace/comment tm 22) 21)
@@ -550,6 +562,7 @@
                     ((52 . 57) . ,racket-lexer)))
     (check-equal? (update tm 52 5 "'bar")
                   (list
+                   (bounds+token 51 52 (token:misc " " 0 'white-space))
                    (bounds+token 52 53 (token:misc "'" 0 'constant))
                    (bounds+token 53 56 (token:misc "bar" 0 'symbol))))
     (check-equal? (update tm 47 4 "'bar")
@@ -557,10 +570,13 @@
                   "although lexeme changes from \"'foo\" to \"'bar\" bounds and classification are the same, therefore no update")
     (check-equal? (update tm 24 7 "'hell")
                   (list
+                   (bounds+token 23 24 (token:misc " " 0 'white-space))
                    (bounds+token 24 25 (token:misc "'" 0 'constant))
                    (bounds+token 25 29 (token:misc "hell" 0 'symbol))))
     (check-equal? (update tm 14 2 "99999")
-                  (list (bounds+token 14 19 (token:misc "99999" 0 'constant))))
+                  (list
+                   (bounds+token 13 14 (token:misc "\n" 0 'end-of-line))
+                   (bounds+token 14 19 (token:misc "99999" 0 'constant))))
     (check-equal? (token-map-str tm)
                   "#lang racket\n99999 (print 'hell) @print{Hello} 'bar 'bar")
     (check-equal? (dict->list (token-map-tokens tm))
@@ -747,4 +763,28 @@
                   (list
                    (cons '(1 . 13) #f)
                    (cons '(13 . 14) racket-lexer)
-                   (cons '(14 . 16) racket-lexer)))))
+                   (cons '(14 . 16) racket-lexer))))
+  (let* ([str "#lang racket\n"]
+         ;;    1234567890123 4
+         ;;             1
+         [tm (create str)])
+    ;; as if paredit etc. were enabled
+    (update tm 14 0 "(")
+    (update tm 15 0 ")")
+    (update tm 15 0 "h")
+    (update tm 16 0 "i")
+    (check-equal? (token-map-str tm) "#lang racket\n(hi)")
+    (check-equal? (dict->list (token-map-tokens tm))
+                  (list
+                   (cons '(1 . 13) (token:misc "#lang racket" 0 'other))
+                   (cons '(13 . 14) (token:misc "\n" 0 'end-of-line))
+                   (cons '(14 . 15) (token:expr:open "(" 0 "(" ")"))
+                   (cons '(15 . 17) (token:misc "hi" 0 'symbol))
+                   (cons '(17 . 18) (token:expr:close ")" 0 "(" ")"))))
+    (check-equal? (dict->list (token-map-modes tm))
+                  (list
+                   (cons '(1 . 13) #f)
+                   (cons '(13 . 14) racket-lexer)
+                   (cons '(14 . 15) racket-lexer)
+                   (cons '(15 . 17) racket-lexer)
+                   (cons '(17 . 18) racket-lexer)))))

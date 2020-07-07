@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require racket/match
+         racket/pretty
          (rename-in "../sexp-indent.rkt"
                     [indent-amount se:indent-amount])
          (rename-in "../token-map.rkt"
@@ -24,7 +25,9 @@
         [`(delete ,id) (delete id)]
         [`(update ,id ,pos ,old-len ,str) (update id pos old-len str)]
         [`(indent-amount ,id ,pos) (indent-amount id pos)]
-        [`(classify ,id ,pos) (classify id pos)])
+        [`(classify ,id ,pos) (classify id pos)]
+        ;; really just for logging/debugging `update`s
+        [`(show ,id) (show id)])
     #;
     (match args
       [(list* (or 'create 'delete) _) (void)]
@@ -51,6 +54,12 @@
 (define (classify id pos)
   (define tm (hash-ref ht id))
   (token->elisp (tm:classify tm pos)))
+
+;; provided really just for logging/debugging `update`s
+(define (show id)
+  (define tm (hash-ref ht id))
+  (log-racket-mode-debug "~a" (pretty-format tm))
+  #f)
 
 (define (tokens-as-elisp tm beg end)
   (tm:tokens tm beg end token->elisp))
@@ -97,9 +106,12 @@
   vs)
 
 (module+ example-5
-  (define str "#lang racket\n(foo 1\n2)\n")
-  ;;           1234567890123 45678901234
-  ;;                    1          2
+  (define str "#lang racket\n123\n(print 123)\n")
+  ;;           1234567890123 4567 890123456789 0
+  ;;                    1           2          3
   (match-define (cons id _vs) (lexindent 'create str))
   (hash-ref ht id)
-  (indent-amount id 21))
+  (indent-amount id 18)
+  (update id 28 0 "\n")
+  (hash-ref ht id)
+  (indent-amount id 29))
