@@ -9,6 +9,8 @@
 
 (provide indent-amount)
 
+(module+ test (require rackunit))
+
 ;; This assumes that the token-map has been updated through at least
 ;; the `indent-pos` -- but need not be further -- to reflect user
 ;; edits at the time they want to indent.
@@ -35,9 +37,10 @@
                       id-name
                       (λ ()
                         (match id-name
-                          [(regexp "^def|with-") 'define]
-                          [(regexp "^begin")     'begin]
-                          [_                     #f])))
+                          [(regexp "^def|with-")  'define]
+                          [(regexp "^begin")      'begin]
+                          [(regexp "^for/|for*/") indent-for]
+                          [_                      #f])))
        [(? exact-nonnegative-integer? n)
         (special-form tm open-pos id-pos indent-pos n)]
        ['begin
@@ -59,6 +62,14 @@
        (backward-sexp tm beg)]
       [_ (backward-up tm (beg-of-line tm pos))]))
 
+(define (default-amount tm id-pos [def #f])
+  (define bol (beg-of-line tm id-pos))
+  (define eol (end-of-line tm id-pos))
+  (define 1st-arg-pos (beg-of-next-sexp tm id-pos))
+  (if (and 1st-arg-pos (< 1st-arg-pos eol)) ;on same line?
+      (- 1st-arg-pos bol)
+      (or def (- id-pos bol))))
+
 ;; "The first NUMBER arguments of the function are distinguished
 ;; arguments; the rest are considered the body of the expression. A
 ;; line in the expression is indented according to whether the first
@@ -72,32 +83,68 @@
 (define (special-form tm open-pos id-pos indent-pos special-args)
   ;; Up to special-args get extra indent, the remainder get normal
   ;; indent.
-  (define indent-pos-bol (beg-of-line tm indent-pos))
-  (define (first-arg-on-indent-line? pos)
-    (= (beg-of-line tm pos) indent-pos-bol))
-  (define args
-    (let loop ([arg-end (forward-sexp tm (forward-sexp tm id-pos))]
-               [count 0])
-      (if (and arg-end
-               (<= arg-end indent-pos))
-          (match (forward-sexp tm arg-end)
-            [(? integer? n) #:when (first-arg-on-indent-line? n) (add1 count)]
-            [(? integer? n) (loop n (add1 count))]
-            [#f (add1 count)])
-          count)))
-  (define (open-column)
-    (- open-pos (beg-of-line tm open-pos)))
-  (cond [(= args special-args)          ;first non-special
-         (+ (open-column) 2)]
-        [(< special-args args)          ;subsequent non-special
-         (max (+ (open-column) 2)
-              (default-amount tm id-pos))]
-        [else                           ;special
-         (+ (open-column) 4)]))
+  (define open-column (- open-pos (beg-of-line tm open-pos)))
+  (cond
+    [(zero? special-args)
+     (default-amount tm id-pos (+ open-column 2))]
+    [else
+     (define indent-pos-bol (beg-of-line tm indent-pos))
+     (define (first-arg-on-indent-line? pos)
+       (= (beg-of-line tm pos) indent-pos-bol))
+     (define args
+       (let loop ([arg-end (forward-sexp tm (forward-sexp tm id-pos))]
+                  [count 0])
+         (if (and arg-end
+                  (<= arg-end indent-pos))
+             (match (forward-sexp tm arg-end)
+               [(? integer? n) #:when (first-arg-on-indent-line? n) (add1 count)]
+               [(? integer? n) (loop n (add1 count))]
+               [#f (add1 count)])
+             count)))
+     (+ open-column (if (< args special-args) 4 2))]))
+
+(define (indent-maybe-named-let tm open-pos id-pos indent-pos)
+  (special-form tm open-pos id-pos indent-pos
+                (match (classify tm (beg-of-next-sexp tm id-pos))
+                  [(bounds+token _beg _end (? token:misc? t))
+                   #:when (eq? (token:misc-kind t) 'symbol)
+                   2]
+                  [_ 1])))
+
+(module+ test
+  (let ([tm (create "#lang racket\n(let ()\n  a\n  b)")])
+    (check-equal? (indent-amount tm 24) 2)
+    (check-equal? (indent-amount tm 28) 2))
+  (let ([tm (create "#lang racket\n(let loop ()\n  a\n  b)")])
+    (check-equal? (indent-amount tm 29) 2)
+    (check-equal? (indent-amount tm 33) 2)))
 
 (define (indent-for tm open-pos id-pos indent-pos)
-  ;; TODO
-  0)
+  ;; Default indent function for "for/" and "for*/" forms not
+  ;; otherwise specified ( such as for/fold and for*/fold).
+  ;;
+  ;; Checks for either of:
+  ;;   - maybe-type-ann e.g. (for/list : T ([x xs]) x)
+  ;;   - for/vector optional length, (for/vector #:length ([x xs]) x)
+  (special-form tm open-pos id-pos indent-pos
+                (match (beg-of-next-sexp tm id-pos)
+                  [(bounds+token _beg _end (? token:misc? t))
+                   #:when (or (eq? (token:misc-kind t) 'hash-colon-keyword)
+                              (and (eq? (token:misc-kind t) 'symbol)
+                                   (equal? (token-lexeme t) ":")))
+                   3]
+                  [_ 1])))
+
+(module+ test
+  (let ([tm (create "#lang racket\n(for/list ()\n  a\n b)")])
+    (check-equal? (indent-amount tm 29) 2)
+    (check-equal? (indent-amount tm 32) 2))
+  (let ([tm (create "#lang racket\n(for/list : T ()\n  a\n b)")])
+    (check-equal? (indent-amount tm 33) 2)
+    (check-equal? (indent-amount tm 37) 2))
+  (let ([tm (create "#lang racket\n(for/vector #:length 2 ()\n  a\n b)")])
+    (check-equal? (indent-amount tm 42) 2)
+    (check-equal? (indent-amount tm 45) 2)))
 
 (define (indent-for/fold tm open-pos id-pos indent-pos)
   ;; TODO
@@ -106,18 +153,6 @@
 (define (indent-for/fold-untyped tm open-pos id-pos indent-pos)
   ;; TODO
   0)
-
-(define (indent-maybe-named-let tm open-pos id-pos indent-pos)
-  ;; TODO
-  0)
-
-(define (default-amount tm id-pos)
-  (define bol (beg-of-line tm id-pos))
-  (define eol (end-of-line tm id-pos))
-  (define 1st-arg-pos (beg-of-next-sexp tm id-pos))
-  (if (and 1st-arg-pos (< 1st-arg-pos eol)) ;on same line?
-      (- 1st-arg-pos bol)
-      (- id-pos bol)))
 
 (define (beg-of-next-sexp tm pos)
   (backward-sexp tm
@@ -131,7 +166,6 @@
        beg-of-next-sexp)
 
 (module+ test
-  (require rackunit)
   (let ()
     (define str "#lang racket\n(foo\n  bar\nbaz)\n(foo bar baz\nbap)\n(define (f x)\nx)\n")
     ;;           1234567890123 45678 901234 56789 012345678 901234567 89012345678901 234 56789012 345 67 89
