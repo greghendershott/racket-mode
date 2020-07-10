@@ -58,6 +58,8 @@
 ;; provided really just for logging/debugging `update`s
 (define (show id)
   (define tm (hash-ref ht id))
+  (local-require (submod "../token-map.rkt" test))
+  (check-valid? tm)
   (log-racket-mode-debug "~a" (pretty-format tm))
   #f)
 

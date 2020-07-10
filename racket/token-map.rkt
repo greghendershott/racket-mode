@@ -104,6 +104,7 @@
                [(< diff 0) (interval-map-contract! tokens pos (- pos diff))
                            (interval-map-contract! modes  beg (- beg diff))])
          (define updated-intervals '())
+         (define same-tail-count 0)
          (define (set-interval/update tokens beg end token)
            (define-values (old-beg old-end old-token)
              (interval-map-ref/bounds old-tokens
@@ -114,11 +115,16 @@
                        (= old-end (- end diff))
                        (equal? old-token token))
                   (log-racket-mode-debug
-                   "Stopping because no change except shift; diff=~v old=~v new=~v"
+                   "no change except shift; diff=~v old=~v new=~v"
                    diff
                    (list old-beg old-end old-token)
                    (list beg end token))
-                  #f] ;stop
+                  ;; Because we back up one extra, to be safe, we
+                  ;; should accumulate multiple identical tail tokens
+                  ;; to be sure before stopping.
+                  (set! same-tail-count (add1 same-tail-count))
+                  (define continue? (< same-tail-count 2))
+                  continue?]
                  [else
                   (set! updated-intervals (cons (bounds+token beg end token)
                                                 updated-intervals))
@@ -178,14 +184,14 @@
       [(pregexp "^\r\n")
        (set-interval im
                      beg (+ 2 beg)
-                     (token:misc lexeme backup 'end-of-line))
+                     (token:misc (substring lexeme 0 2) backup 'end-of-line))
        (loop (substring lexeme 2)
              (+ 2 beg)
              end
              (+ backup 2))]
       [(pregexp "^[\r\n]")
        (set-interval im beg (add1 beg)
-                     (token:misc lexeme backup 'end-of-line))
+                     (token:misc (substring lexeme 0 1) backup 'end-of-line))
        (loop (substring lexeme 1)
              (add1 beg)
              end
@@ -193,7 +199,7 @@
       [(pregexp "^([^\r\n]+)" (list _ s))
        (define len (string-length s))
        (set-interval im beg (+ beg len)
-                     (token:misc lexeme backup 'white-space))
+                     (token:misc (substring lexeme 0 len) backup 'white-space))
        (loop (substring lexeme len)
              (+ beg len)
              end
@@ -425,6 +431,7 @@
                    [depth 0])
           ;;(println (list pos depth (interval-map-ref im pos)))
           (match (token-map-ref tm pos)
+            [#f #f]
             [(bounds+token beg end (? token:expr:open? t))
              #:when (equal? (token:expr-open open-t)
                             (token:expr-open t))
@@ -456,6 +463,7 @@
                   [depth 0])
          ;;(println (list pos depth (interval-map-ref im pos)))
          (match (token-map-ref tm pos)
+           [#f #f]
            [(bounds+token beg end (? token:expr:open? t))
             #:when (equal? (token:expr-open close-t)
                            (token:expr-open t))
@@ -788,3 +796,30 @@
                    (cons '(14 . 15) racket-lexer)
                    (cons '(15 . 17) racket-lexer)
                    (cons '(17 . 18) racket-lexer)))))
+
+(module+ test
+  (require racket/format)
+  (provide check-valid?)
+  (define (check-valid? tm)
+    (define-values (str min-token-beg max-token-end)
+      (for/fold ([str ""]
+                 [min-token-beg 99999]
+                 [max-token-end 0])
+                ([(k v) (in-dict (token-map-tokens tm))])
+        (values (string-append str (token-lexeme v))
+                (min (car k) min-token-beg)
+                (max (cdr k) max-token-end))))
+    (check-equal? str (token-map-str tm)
+                  (format "append of lexemes equals string, in: ~v" tm))
+    (check-equal? min-token-beg
+                  1)
+    (check-equal? max-token-end
+                  (add1 (string-length (token-map-str tm))))
+    (define-values (min-modes-beg max-modes-end)
+      (for/fold ([min-modes-beg 99999]
+                 [max-modes-end 0])
+                ([(k v) (in-dict (token-map-modes tm))])
+        (values (min (car k) min-modes-beg)
+                (max (cdr k) max-modes-end))))
+    (check-equal? min-token-beg min-modes-beg)
+    (check-equal? max-token-end max-modes-end)))

@@ -28,6 +28,7 @@
 
 (defvar-local racket--lexindent-id nil)
 
+;;;###autoload
 (define-minor-mode racket-lexer-mode
   "Use #lang color-lexer."
   :lighter " Lexer"

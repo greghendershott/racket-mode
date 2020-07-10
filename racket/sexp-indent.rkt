@@ -9,22 +9,8 @@
 
 (provide indent-amount)
 
-(module+ test (require rackunit))
-
-;; This assumes that the token-map has been updated through at least
-;; the `indent-pos` -- but need not be further -- to reflect user
-;; edits at the time they want to indent.
-#;
-(define (indent tm indent-pos)
-  (define new-amount (indent-amount tm indent-pos))
-  (define bol (beg-of-line tm indent-pos))
-  (define cur (or (forward-whitespace tm bol) bol))
-  ;;(log-racket-mode-debug "~v" (list new-amount bol cur))
-  (define old-amount (- cur bol))
-  (define diff (- new-amount old-amount))
-  (unless (zero? diff)
-    (update tm bol old-amount (make-string new-amount #\space)))
-  diff)
+(module+ test
+  (require rackunit))
 
 ;; token-map? positive-integer? -> nonnegative-integer?
 (define (indent-amount tm indent-pos)
@@ -70,19 +56,9 @@
       (- 1st-arg-pos bol)
       (or def (- id-pos bol))))
 
-;; "The first NUMBER arguments of the function are distinguished
-;; arguments; the rest are considered the body of the expression. A
-;; line in the expression is indented according to whether the first
-;; argument on it is distinguished or not. If the argument is part of
-;; the body, the line is indented lisp-body-indent more columns than
-;; the open-parenthesis starting the containing expression. If the
-;; argument is distinguished and is either the first or second
-;; argument, it is indented twice that many extra columns. If the
-;; argument is distinguished and not the first or second argument, the
-;; line uses the standard pattern."
 (define (special-form tm open-pos id-pos indent-pos special-args)
-  ;; Up to special-args get extra indent, the remainder get normal
-  ;; indent.
+  ;; Up to special-args get extra indent (+4), the remainder get body
+  ;; indent (+2).
   (define open-column (- open-pos (beg-of-line tm open-pos)))
   (cond
     [(zero? special-args)
@@ -144,7 +120,18 @@
     (check-equal? (indent-amount tm 37) 2))
   (let ([tm (create "#lang racket\n(for/vector #:length 2 ()\n  a\n b)")])
     (check-equal? (indent-amount tm 42) 2)
-    (check-equal? (indent-amount tm 45) 2)))
+    (check-equal? (indent-amount tm 45) 2))
+  (let ([tm (create "#lang racket\n(if a\n    (for/list ([x xs])\n      (cond 1\n            2))\n    b)")])
+    (check-equal? (indent-amount tm 24) 4)
+    (check-equal? (indent-amount tm 77) 4))
+  (let ([tm (create "#lang racket\n\n(if a\n    (for/list ([x xs])\n      (cond 1\n            2)))")])
+    (check-equal? (indent-amount tm 73) 4)
+    (check-equal? (indent-amount tm 74) 12)
+    (check-equal? (update tm 74 0 "\n")
+                  (list (bounds+token 74 75 (token:misc "\n" 0 'end-of-line))))
+    (local-require (submod "token-map.rkt" test))
+    (check-valid? tm)
+    (check-equal? (indent-amount tm 75) 0)))
 
 (define (indent-for/fold tm open-pos id-pos indent-pos)
   ;; TODO
