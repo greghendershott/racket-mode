@@ -818,7 +818,7 @@
     (define-values (min-modes-beg max-modes-end)
       (for/fold ([min-modes-beg 99999]
                  [max-modes-end 0])
-                ([(k v) (in-dict (token-map-modes tm))])
+                ([k (in-dict-keys (token-map-modes tm))])
         (values (min (car k) min-modes-beg)
                 (max (cdr k) max-modes-end))))
     (check-equal? min-token-beg min-modes-beg)

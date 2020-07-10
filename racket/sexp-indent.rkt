@@ -56,7 +56,7 @@
       (- 1st-arg-pos bol)
       (or def (- id-pos bol))))
 
-(define (special-form tm open-pos id-pos indent-pos special-args)
+(define (special-form tm open-pos id-pos indent-pos special-args [special-indent 4])
   ;; Up to special-args get extra indent (+4), the remainder get body
   ;; indent (+2).
   (define open-column (- open-pos (beg-of-line tm open-pos)))
@@ -77,7 +77,7 @@
                [(? integer? n) (loop n (add1 count))]
                [#f (add1 count)])
              count)))
-     (+ open-column (if (< args special-args) 4 2))]))
+     (+ open-column (if (< args special-args) special-indent 2))]))
 
 (define (indent-maybe-named-let tm open-pos id-pos indent-pos)
   (special-form tm open-pos id-pos indent-pos
@@ -134,12 +134,40 @@
     (check-equal? (indent-amount tm 75) 0)))
 
 (define (indent-for/fold tm open-pos id-pos indent-pos)
-  ;; TODO
-  0)
+  ;; check for maybe-type-ann e.g. (for/fold : T ([n 0]) ([x xs]) x)
+  (match (beg-of-next-sexp tm id-pos)
+    [(bounds+token _beg _end (? token:misc? t))
+     #:when (or (eq? (token:misc-kind t) 'hash-colon-keyword)
+                (and (eq? (token:misc-kind t) 'symbol)
+                     (equal? (token-lexeme t) ":")))
+     (special-form tm open-pos id-pos indent-pos 4)]
+    [_ (indent-for/fold-untyped tm open-pos id-pos indent-pos)]))
 
 (define (indent-for/fold-untyped tm open-pos id-pos indent-pos)
-  ;; TODO
-  0)
+  ;; If the first, accumulator form is NOT on the same line as id-pos,
+  ;; then this is simply special-form with 2 distinguished forms.
+  ;; Otherwise, we want to indent the second form with the first (like
+  ;; a normal procedure argument) and of course all other forms get
+  ;; body indent.
+  (define bol (beg-of-line tm id-pos))
+  (define eol (end-of-line tm id-pos))
+  (define 1st-arg-pos (beg-of-next-sexp tm id-pos))
+  (if (and 1st-arg-pos (< 1st-arg-pos eol)) ;on same line?
+      (special-form tm open-pos id-pos indent-pos 2 (- 1st-arg-pos bol))
+      (special-form tm open-pos id-pos indent-pos 2)))
+
+(module+ test
+  (let ([tm (create "#lang racket\n(for/fold ()\n         ()\n  a)")])
+    ;;               1234567890123 4567890123456 789012345678 9012
+    ;;                        1          2          3          4
+    (check-equal? (indent-amount tm 36) 10)
+    (check-equal? (indent-amount tm 41) 2))
+  (let ([tm (create "#lang racket\n(for/fold\n    ()\n    ()\n  a)")])
+    ;;               1234567890123 4567890123 4567890 12345678 9012
+    ;;                        1          2          3          4
+    (check-equal? (indent-amount tm 28) 4)
+    (check-equal? (indent-amount tm 35) 4)
+    (check-equal? (indent-amount tm 40) 2)))
 
 (define (beg-of-next-sexp tm pos)
   (backward-sexp tm
