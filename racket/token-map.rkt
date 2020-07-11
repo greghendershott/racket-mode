@@ -224,9 +224,9 @@
 ;; right: `delimit` is one of the chars "()[]{}", and, it simply
 ;; "recapitulates" information from the lexeme. I'm guessing the
 ;; justification for this was that e.g. racket-lexer handles "#(" as a
-;; single 2-char token, parenthesis "(". [However it handles "#'(" as
+;; single 2-char token, parenthesis "(". HOWEVER. It handles "#'(" as
 ;; 2 tokens -- a 2-char "#'" constant followed by a 1-char parenthesis
-;; "(". So...???]
+;; "(". So...???
 ;;
 ;; color-text<%> start-colorer accepts a "pairs" list e.g. '((|(| |)|)
 ;; (|[| |]|) (begin end)). BUT. Where does this value come from?? It
@@ -239,7 +239,7 @@
 ;; <https://github.com/racket/old-plt/blob/a580d75deae2a0d2f3d8a93bc3c4f8f1f619b5b7/collects/profj/tool.ss#L762>.
 ;; So the paradigm here seems to be "A 'language' is drscheme:tool
 ;; code loaded by DrRacket's Choose Language command" -- as opposed to
-;; "a module language entirely determined by #lang and get-info", I
+;; "a module language entirely determined by #lang and get-info". I
 ;; think? If so, this makes it unsuitable for use outside DrRacket.
 ;;
 ;; INSTEAD
@@ -247,8 +247,8 @@
 ;; 1. I suggest instead of "parenthesis" tokens, a lexer should return
 ;;    "open" and "close" tokens. Instead of a 'delimit' field as in
 ;;    the status quo (which mostly just recapitulates information in
-;;    the 'lexeme' field) there is a field stating the opposite
-;;    matching token. An open token says what it's matching close
+;;    the 'lexeme' field) there is a field stating the opposite,
+;;    matching token. An open token says what its matching close
 ;;    token is, and vice versa. That way a lang could specify
 ;;    expression/block delimiters like "begin" and "end", its lexer
 ;;    could emit tokens like (open lexeme:"begin" opposite:"end") and
@@ -259,21 +259,24 @@
 ;;    "end" -- right?) (For off-side rule lexers, presumably indent =
 ;;    open and dedent = close, and the "opposite" value is N/A?)
 ;;
-;; 2. Also, some languages (at least lisps) might want to have a token
-;;    type of "expression prefix" -- such as for reader shorthands
-;;    like ' and #'. Currently racket-lexer classifies these as
-;;    "symbol", which makes sense as they are shortand for symbols
-;;    like "quote" and "syntax". At the same time, end user sexpr
-;;    navigation wants to treat the first character of those prefixes
-;;    as the start of the sexpr, not the open paren. Likewise, indent
-;;    usually wants to align with that first character, not the open
-;;    paren. [Alternatively, I suppose a lexer could return "'(" or
+;; 2. Also, some languages (at least sexp langs) might want to have a
+;;    token type similar to what Emacs calls "expression prefix" --
+;;    such as for reader shorthands like ' and #' and #hasheq.
+;;    Currently racket-lexer classifies these as "symbol", which makes
+;;    sense as they are shortand for symbols like "quote" and
+;;    "syntax". However, end user sexp navigation wants to treat the
+;;    first character of those prefixes as the start of the entire
+;;    sexp -- not the open paren. Likewise, indent usually wants to
+;;    align with that first character, not the open paren.
+;;    [Alternatively, I suppose a lexer could return "'(" or
 ;;    "#hasheq(" as as single open token. That means e.g. Emacs could
 ;;    not use char-syntax, but, we could provide our own
 ;;    forward-sexp-function that understands these, I think.]
 ;;
 ;; MEANWHILE: The following function attempts to "normalize" the
-;; status quo "legacy" lexer protocol.
+;; status quo "legacy" lexer protocol along these lines. Maybe something
+;; like this would be necessary for backward compatibilty, even if a new
+;; 'color-lexer-2 were implemented.
 (define (handle-parenthesis-token im lexeme mode delimit beg end backup)
   (define lexer-name (object-name (mode->lexer mode)))
   (define tok

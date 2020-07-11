@@ -2,6 +2,19 @@
 
 ;; WIP example of an indenter for sexp langs, implemented on a
 ;; token-map.
+;;
+;; This prototype uses the Emacs idea of indent specifications for
+;; macros, where the spec is a number of distinguished forms, 'defun,
+;; or an arbitrary Emacs Lisp function. Here so far we support the
+;; number, 'defun renamed 'define, add 'begin, and an arbitary Racket
+;; function. However this is currently hardcoded here. We do NOT yet
+;; try to support the idea of a #lang -- or even a simple provided
+;; syntax transformer -- supplying such a specification. However the
+;; idea here is that an indenter like this would be supplied by a
+;; #lang's get-info. So this code is more "for example", or /maybe/
+;; could be part of a convenience library package. But it is not
+;; intended to live inside Racket Mode per se. It simply exists here,
+;; for now, to research the feasibility of doing this with Emacs.
 
 (require racket/match
          "token-map.rkt"
