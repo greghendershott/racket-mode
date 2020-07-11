@@ -31,37 +31,39 @@
       [(list* (or 'create 'delete) _) (void)]
       [(list* _ id _) (log-racket-mode-debug "~v" (hash-ref ht id))])))
 
-(define ht (make-hash)) ;id => token-map?
+(struct lexindenter (tm indent) #:transparent)
+(define ht (make-hash)) ;id => lexindenter?
 
 (define (create id s)
   (define tm (tm:create s))
-  (hash-set! ht id tm)
+
+  (define get-info (or (read-language (open-input-string s)
+                                      (λ () #f))
+                       (λ (_key default) default)))
+  (define indent (get-info 'indent-amount se:indent-amount))
+
+  (hash-set! ht id (lexindenter tm indent))
   (tokens-as-elisp tm 1 +inf.0))
 
 (define (delete id)
   (hash-remove! ht id))
 
 (define (update id pos old-len str)
-  (define tm (hash-ref ht id))
+  (match-define (lexindenter tm _) (hash-ref ht id))
   (begin ;with-time/log "tm:update"
     (map token->elisp (tm:update tm pos old-len str))))
 
 (define (indent-amount id pos)
-  (define tm (hash-ref ht id))
-  (se:indent-amount tm pos)
-  ;; (define get-info (or (read-language (open-input-string (token-map-str tm)))
-  ;;                      (λ (_key default) default)))
-  ;; (define i-a (get-info 'indent-amount se:indent-amount))
-  ;; (i-a tm pos)
-  )
+  (match-define (lexindenter tm proc) (hash-ref ht id))
+  (proc tm pos))
 
 (define (classify id pos)
-  (define tm (hash-ref ht id))
+  (match-define (lexindenter tm _) (hash-ref ht id))
   (token->elisp (tm:classify tm pos)))
 
 ;; provided really just for logging/debugging `update`s
 (define (show id)
-  (define tm (hash-ref ht id))
+  (match-define (lexindenter tm _) (hash-ref ht id))
   (local-require (submod "../token-map.rkt" test))
   (check-valid? tm)
   (log-racket-mode-debug "~a" (pretty-format tm))
@@ -78,9 +80,9 @@
     [(? token:misc? t)       (list beg end (token:misc-kind t) #f)]))
 
 (module+ example-0
+  (define id 0)
   (define str "#lang racket\n42 (print \"hello\") @print{Hello} 'foo #:bar")
-  (match-define (cons id vs) (lexindent 'create str))
-  vs
+  (lexindent 'create id str)
   (lexindent 'update id 14 2 "9999")
   (lexindent 'classify id 14)
   (lexindent 'update id 14 4 "")
@@ -88,34 +90,35 @@
   (lexindent 'classify id 15))
 
 (module+ example-1
+  (define id 0)
   (define str "#lang at-exp racket\n42 (print \"hello\") @print{Hello (there)} 'foo #:bar")
-  (match-define (cons id vs) (lexindent 'create str))
-  vs
+  (lexindent 'create id str)
   (lexindent 'classify id (sub1 (string-length str))))
 
 (module+ example-2
+  (define id 0)
   (define str "#lang scribble/text\nHello @(print \"hello\") @print{Hello (there)} #:not-a-keyword")
-  (match-define (cons id vs) (lexindent 'create str))
-  vs
+  (lexindent 'create id str)
   (lexindent 'classify id (sub1 (string-length str))))
 
 (module+ example-3
+  (define id 0)
   (define str "#lang racket\n(λ () #t)")
-  (match-define (cons id vs) (lexindent 'create str))
-  vs
+  (lexindent 'create id str)
   (lexindent 'classify id 14)
   (lexindent 'classify id (sub1 (string-length str))))
 
 (module+ example-4
+  (define id 0)
   (define str "#lang racket\n#rx\"1234\"\n#(1 2 3)\n#'(1 2 3)")
-  (match-define (cons id vs) (lexindent 'create str))
-  vs)
+  (lexindent 'create id str))
 
 (module+ example-5
+  (define id 0)
   (define str "#lang racket\n123\n(print 123)\n")
   ;;           1234567890123 4567 890123456789 0
   ;;                    1           2          3
-  (match-define (cons id _vs) (lexindent 'create str))
+  (lexindent 'create id str)
   (hash-ref ht id)
   (indent-amount id 18)
   (update id 28 0 "\n")
