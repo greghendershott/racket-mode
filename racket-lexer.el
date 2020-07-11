@@ -26,8 +26,6 @@
 (defvar-local racket--lexer-orig-syntax-table nil)
 (defvar-local racket--lexer-orig-indent-line-function nil)
 
-(defvar-local racket--lexindent-id nil)
-
 ;;;###autoload
 (define-minor-mode racket-lexer-mode
   "Use #lang color-lexer."
@@ -38,16 +36,17 @@
   (if racket-lexer-mode
       (racket--cmd/async
        nil
-       `(lexindent create ,(save-restriction
-                             (widen)
-                             (buffer-substring-no-properties (point-min) (point-max))))
-       (lambda (result)
+       `(lexindent create
+                   ,(racket--buffer-file-name)
+                   ,(save-restriction
+                      (widen)
+                      (buffer-substring-no-properties (point-min) (point-max))))
+       (lambda (tokens)
          (font-lock-mode -1)
          (with-silent-modifications
            (remove-text-properties (point-min) (point-max)
                                    '(face nil fontified nil syntax-table nil)))
-         (setq racket--lexindent-id (car result))
-         (racket--lexer-propertize (cdr result))
+         (racket--lexer-propertize tokens)
          (setq-local racket--lexer-orig-font-lock-defaults
                      font-lock-defaults)
          (setq-local font-lock-defaults nil)
@@ -90,12 +89,10 @@
     (syntax-propertize (point-max))))
 
 (defun racket--lexer-delete ()
-  (when racket--lexindent-id
-    (racket--cmd/async
-     nil
-     `(lexindent delete ,racket--lexindent-id)
-     #'ignore)
-    (setq racket--lexindent-id nil)))
+  (racket--cmd/async
+   nil
+   `(lexindent delete ,(racket--buffer-file-name))
+   #'ignore))
 
 (defun racket--lexer-after-change-hook (beg end len)
   ;; This might be called as frequently as once per single changed
@@ -104,7 +101,7 @@
    (racket--cmd/await ; await = :(
     nil
     `(lexindent update
-                ,racket--lexindent-id
+                ,(racket--buffer-file-name)
                 ,beg
                 ,len
                 ,(buffer-substring-no-properties beg end)))))
@@ -113,7 +110,7 @@
   (let ((amount (racket--cmd/await      ; await = :(
                  nil
                  `(lexindent indent-amount
-                             ,racket--lexindent-id
+                             ,(racket--buffer-file-name)
                              ,(point))))
         ;; When point is within the leading whitespace, move it past the
         ;; new indentation whitespace. Otherwise preserve its position
@@ -131,7 +128,7 @@
   (interactive)
   (racket--cmd/async nil
                      `(lexindent show
-                                 ,racket--lexindent-id)))
+                                 ,(racket--buffer-file-name))))
 
 (defconst racket--string-content-syntax-table
   (let ((st (copy-syntax-table (standard-syntax-table))))

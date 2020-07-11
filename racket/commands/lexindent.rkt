@@ -11,17 +11,15 @@
                     [classify tm:classify])
          "../util.rkt")
 
-;; Just a shim to use token-maps from Emacs Lisp.
+;; Just a shim to use lexers, token-maps, and indenters, from Emacs
+;; Lisp.
 
 (provide lexindent)
-
-(define next-id 0)
-(define ht (make-hash)) ;id => token-map?
 
 (define (lexindent . args)
   (begin0
       (match args
-        [`(create ,s) (create s)]
+        [`(create ,id ,s) (create id s)]
         [`(delete ,id) (delete id)]
         [`(update ,id ,pos ,old-len ,str) (update id pos old-len str)]
         [`(indent-amount ,id ,pos) (indent-amount id pos)]
@@ -33,11 +31,12 @@
       [(list* (or 'create 'delete) _) (void)]
       [(list* _ id _) (log-racket-mode-debug "~v" (hash-ref ht id))])))
 
-(define (create s)
-  (set! next-id (add1 next-id))
+(define ht (make-hash)) ;id => token-map?
+
+(define (create id s)
   (define tm (tm:create s))
-  (hash-set! ht next-id tm)
-  (cons next-id (tokens-as-elisp tm 1 +inf.0)))
+  (hash-set! ht id tm)
+  (tokens-as-elisp tm 1 +inf.0))
 
 (define (delete id)
   (hash-remove! ht id))
@@ -49,7 +48,12 @@
 
 (define (indent-amount id pos)
   (define tm (hash-ref ht id))
-  (se:indent-amount tm pos))
+  (se:indent-amount tm pos)
+  ;; (define get-info (or (read-language (open-input-string (token-map-str tm)))
+  ;;                      (λ (_key default) default)))
+  ;; (define i-a (get-info 'indent-amount se:indent-amount))
+  ;; (i-a tm pos)
+  )
 
 (define (classify id pos)
   (define tm (hash-ref ht id))
