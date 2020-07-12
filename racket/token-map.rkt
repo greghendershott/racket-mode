@@ -152,13 +152,9 @@
     [_ '()]))
 
 (define (tokenize-string tokens modes str beg)
-  (define in (open-input-string str))
+  (define in (open-input-string (substring str (sub1 beg))))
   (port-count-lines! in) ;important for Unicode e.g. λ
-  (let loop ()
-    (define-values (_line _col offset) (port-next-location in))
-    (unless (= offset beg)
-      (read-byte-or-special in)
-      (loop)))
+  (set-port-next-location! in 1 0 beg) ;we don't use line/col, just pos
   (tokenize-port tokens modes in beg (interval-map-ref modes beg #f)))
 
 (define (tokenize-port tokens modes in offset mode)
@@ -690,12 +686,16 @@
                    (cons '(64 . 65) (token:expr:close "}" 0 "{" "}"))
                    (cons '(65 . 81) (token:misc 'text 0 'text))))))
 
-(module+ example-3
-  (define str "#lang racket\n(λ () #t)")
-  (define tm (create str))
-  tm
-  (classify tm 14)
-  (classify tm (sub1 (string-length str))))
+(module+ test
+  (let ([tm  (create "#lang racket\n(λ () #t)")])
+    (check-equal? (classify tm 15)
+                  (bounds+token 15 16 (token:misc "λ" 0 'symbol)))
+    (check-equal? (update tm 18 0 "a")
+                  (list
+                   (bounds+token 17 18 (token:expr:open "(" 0 "(" ")"))
+                   (bounds+token 18 19 (token:misc "a" 0 'symbol))))
+    (check-equal? (classify tm 18)
+                  (bounds+token 18 19 (token:misc "a" 0 'symbol)))))
 
 (module+ example-4
   (define str "#lang racket\n#rx\"1234\"\n#(1 2 3)\n#'(1 2 3)")
