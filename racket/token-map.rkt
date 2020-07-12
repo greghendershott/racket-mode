@@ -65,75 +65,76 @@
   (tokenize-string tokens modes s 1)
   (token-map s tokens modes))
 
-;; Given an update to the string, re-tokenize and return the smallest
-;; possible list of changes. Also, when creating that minimal list, do
-;; as little work as we can.
+;; Given an update to the string, re-tokenize and return a minimal
+;; list of changes, doing mimimal work.
 (define/contract (update tm pos old-len str)
   (-> token-map? exact-positive-integer? exact-nonnegative-integer? string? any)
   (unless (<= (sub1 pos) (string-length (token-map-str tm)))
     (raise-argument-error 'update "valid position" 1 tm pos old-len str))
-  (cond [(and (zero? old-len) (equal? str ""))
-         (list)] ;no-op
-        [else
-         (set-token-map-str! tm
-                             (string-append (substring (token-map-str tm) 0 (sub1 pos))
-                                            str
-                                            (substring (token-map-str tm)
-                                                       (+ (sub1 pos) old-len))))
-         (define diff (- (string-length str) old-len))
-         ;; From where do we need to re-tokenize? This will be < the
-         ;; pos of the change. Back up to the start of the previous
-         ;; token (plus any `backup` amount the lexer may have
-         ;; supplied) to ensure re-lexing enough that e.g. appending a
-         ;; character does not create a separate token when instead it
-         ;; should be combined with an existing token for the
-         ;; preceding character(s).
-         (define beg
-           (match (token-map-ref tm (sub1 pos))
-             [(bounds+token beg _end (token _ backup)) (- beg backup)]
-             [#f pos]))
-         (define tokens (token-map-tokens tm))
-         (define old-tokens (make-interval-map
-                             (for/list ([(k v) (in-dict tokens)])
-                               (cons k v))))
-         (define modes  (token-map-modes tm))
-         (cond [(< 0 diff) (interval-map-expand!   tokens pos (+ pos diff))
-                           (define orig-mode (interval-map-ref modes beg #f))
-                           (interval-map-expand!   modes  beg (+ beg diff))
-                           (interval-map-set!      modes  beg (+ beg diff) orig-mode)]
-               [(< diff 0) (interval-map-contract! tokens pos (- pos diff))
-                           (interval-map-contract! modes  beg (- beg diff))])
-         (define updated-intervals '())
-         (define same-tail-count 0)
-         (define (set-interval/update tokens beg end token)
-           (define-values (old-beg old-end old-token)
-             (interval-map-ref/bounds old-tokens
-                                      (- beg diff)
-                                      #f))
-           (cond [(and old-beg old-end old-token
-                       (= old-beg (- beg diff))
-                       (= old-end (- end diff))
-                       (equal? old-token token))
-                  (log-racket-mode-debug
-                   "no change except shift; diff=~v old=~v new=~v"
-                   diff
-                   (list old-beg old-end old-token)
-                   (list beg end token))
-                  ;; Because we back up one extra, to be safe, we
-                  ;; should accumulate multiple identical tail tokens
-                  ;; to be sure before stopping.
-                  (set! same-tail-count (add1 same-tail-count))
-                  (define continue? (< same-tail-count 2))
-                  continue?]
-                 [else
-                  (set! updated-intervals (cons (bounds+token beg end token)
-                                                updated-intervals))
-                  (log-racket-mode-debug "Set [~v ~v) to ~v" beg end token)
-                  (interval-map-set! tokens beg end token)
-                  #t])) ;continue
-         (parameterize ([current-set-interval set-interval/update])
-           (tokenize-string tokens modes (token-map-str tm) beg))
-         (reverse updated-intervals)]))
+  [if (and (zero? old-len) (equal? str ""))
+      (list) ;no-op fast path
+      (update* tm pos old-len str)])
+
+(define (update* tm pos old-len str)
+  (set-token-map-str! tm
+                      (string-append (substring (token-map-str tm) 0 (sub1 pos))
+                                     str
+                                     (substring (token-map-str tm)
+                                                (+ (sub1 pos) old-len))))
+  (define diff (- (string-length str) old-len))
+   ;; From where do we need to re-tokenize? This will be < the pos of
+   ;; the change. Back up to the start of the previous token (plus any
+   ;; `backup` amount the lexer may have supplied) to ensure re-lexing
+   ;; enough that e.g. appending a character does not create a
+   ;; separate token when instead it should be combined with an
+   ;; existing token for preceding character(s).
+  (define beg
+    (match (token-map-ref tm (sub1 pos))
+      [(bounds+token beg _end (token _ backup)) (- beg backup)]
+      [#f pos]))
+  (define tokens (token-map-tokens tm))
+  ;; We want to detect tokens that did not change other than their
+  ;; position being shifted by `diff`. To do so for the insert/expand
+  ;; case, unfortunately we need a copy of the token interval-map:
+  (define old-tokens (make-interval-map
+                      (for/list ([(k v) (in-dict tokens)])
+                        (cons k v))))
+  (define modes  (token-map-modes tm))
+  (cond [(< 0 diff) (interval-map-expand!   tokens pos (+ pos diff))
+                    (define orig-mode (interval-map-ref modes beg #f))
+                    (interval-map-expand!   modes  beg (+ beg diff))
+                    (interval-map-set!      modes  beg (+ beg diff) orig-mode)]
+        [(< diff 0) (interval-map-contract! tokens pos (- pos diff))
+                    (interval-map-contract! modes  beg (- beg diff))])
+  (define updated-intervals '())
+  (define just-shifted-count 0)
+  (define (set-interval/update tokens beg end token)
+    (define-values (old-beg old-end old-token)
+      (interval-map-ref/bounds old-tokens (- beg diff) #f))
+    (cond [(and old-beg old-end old-token
+                (= old-beg (- beg diff))
+                (= old-end (- end diff))
+                (equal? old-token token))
+           (log-racket-mode-debug
+            "no change except shift; diff=~v old=~v new=~v"
+            diff
+            (list old-beg old-end old-token)
+            (list beg end token))
+           ;; Because we back up one extra, to be safe, we should
+           ;; accumulate multiple just-shifted tokens to be sure
+           ;; before stopping.
+           (set! just-shifted-count (add1 just-shifted-count))
+           (define continue? (< just-shifted-count 2))
+           continue?]
+          [else
+           (set! updated-intervals (cons (bounds+token beg end token)
+                                         updated-intervals))
+           (log-racket-mode-debug "Set [~v ~v) to ~v" beg end token)
+           (interval-map-set! tokens beg end token)
+           #t])) ;continue
+  (parameterize ([current-set-interval set-interval/update])
+    (tokenize-string tokens modes (token-map-str tm) beg))
+  (reverse updated-intervals))
 
 (define (classify tm pos)
   (token-map-ref tm pos))
@@ -169,8 +170,9 @@
             [else          (set-interval tokens beg end (token:misc lexeme backup kind))])
       (tokenize-port tokens modes in end new-mode))))
 
-;; It is useful for the token map to handle end-of-line white-space
-;; distinctly. This helps for things like indenters.
+;; It is convenient to some users of the token map (e.g. indenters)
+;; for it to supply end-of-line tokens distinct from generic
+;; white-space tokens.
 (define (handle-white-space-token im lexeme beg end backup)
   (let loop ([lexeme lexeme]
              [beg beg]
