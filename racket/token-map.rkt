@@ -156,19 +156,28 @@
   (define in (open-input-string (substring str (sub1 beg))))
   (port-count-lines! in) ;important for Unicode e.g. λ
   (set-port-next-location! in 1 0 beg) ;we don't use line/col, just pos
-  (tokenize-port tokens modes in beg (interval-map-ref modes beg #f)))
+  (tokenize-port str tokens modes in beg (interval-map-ref modes beg #f)))
 
-(define (tokenize-port tokens modes in offset mode)
+(define (tokenize-port str tokens modes in offset mode)
   (define-values (lexeme kind delimit beg end backup new-mode)
     (module-lexer in offset mode))
   ;;(println (list offset mode lexeme kind delimit beg end backup new-mode))
   (unless (eof-object? lexeme)
     (interval-map-set! modes beg end mode)
-    (when (case kind
-            [(white-space) (handle-white-space-token tokens lexeme beg end backup)]
-            [(parenthesis) (handle-parenthesis-token tokens lexeme mode delimit beg end backup)]
-            [else          (set-interval tokens beg end (token:misc lexeme backup kind))])
-      (tokenize-port tokens modes in end new-mode))))
+    ;; The scribble-inside-lexer sometimes returns a value for
+    ;; `lexeme` that is not the original lexed text. One example is
+    ;; returning " " instead of "\n" for whitespace -- but we need
+    ;; that in handle-white-space-token to create end-of-line tokens.
+    ;; Also it sometimes returns 'text instead of the string for 'text
+    ;; tokens, which would be harmless, except we want our `validate`
+    ;; to be able to say that all token lexemes equal the original
+    ;; string.
+    (let ([lexeme (substring str (sub1 beg) (sub1 end))])
+     (when (case kind
+             [(white-space) (handle-white-space-token tokens lexeme beg end backup)]
+             [(parenthesis) (handle-parenthesis-token tokens lexeme mode delimit beg end backup)]
+             [else          (set-interval tokens beg end (token:misc lexeme backup kind))])
+       (tokenize-port str tokens modes in end new-mode)))))
 
 ;; It is convenient to some users of the token map (e.g. indenters)
 ;; for it to supply end-of-line tokens distinct from generic
@@ -287,7 +296,7 @@
       ['|}| (token:expr:close lexeme backup "{" "}")]
       [_
        (log-racket-mode-warning
-        "unexpected 'parenthesis token with delimit = ~v and lexeme = ~v\n"
+        "unexpected 'parenthesis token with delimit = ~v and lexeme = ~v"
         delimit lexeme)
        (match lexeme
          ;; Defensive:
@@ -654,7 +663,7 @@
                    (cons '(40 . 41) (token:misc "@" 0 'symbol))
                    (cons '(41 . 46) (token:misc "print" 0 'symbol))
                    (cons '(46 . 47) (token:expr:open "{" 0 "{" "}"))
-                   (cons '(47 . 60) (token:misc 'text 0 'text))
+                   (cons '(47 . 60) (token:misc "Hello (there)" 0 'text))
                    (cons '(60 . 61) (token:expr:close "}" 0 "{" "}"))
                    (cons '(61 . 62) (token:misc " " 0 'white-space))
                    (cons '(62 . 63) (token:misc "'" 0 'constant))
@@ -672,21 +681,21 @@
     (check-equal? (dict->list (token-map-tokens tm))
                   (list
                    (cons '(1 . 20) (token:misc "#lang scribble/text" 0 'other))
-                   (cons '(20 . 21) (token:misc " " 0 'white-space))
-                   (cons '(21 . 27) (token:misc 'text 0 'text))
+                   (cons '(20 . 21) (token:misc "\n" 0 'end-of-line))
+                   (cons '(21 . 27) (token:misc "Hello" 0 'text))
                    (cons '(27 . 28) (token:misc "@" 0 'symbol))
                    (cons '(28 . 29) (token:expr:open "(" 0 "(" ")"))
                    (cons '(29 . 34) (token:misc "print" 0 'symbol))
                    (cons '(34 . 35) (token:misc " " 0 'white-space))
                    (cons '(35 . 42) (token:misc "\"hello\"" 0 'string))
                    (cons '(42 . 43) (token:expr:close ")" 0 "(" ")"))
-                   (cons '(43 . 44) (token:misc 'text 0 'text))
+                   (cons '(43 . 44) (token:misc " " 0 'text))
                    (cons '(44 . 45) (token:misc "@" 0 'symbol))
                    (cons '(45 . 50) (token:misc "print" 0 'symbol))
                    (cons '(50 . 51) (token:expr:open "{" 0 "{" "}"))
-                   (cons '(51 . 64) (token:misc 'text 0 'text))
+                   (cons '(51 . 64) (token:misc "Hello (there)" 0 'text))
                    (cons '(64 . 65) (token:expr:close "}" 0 "{" "}"))
-                   (cons '(65 . 81) (token:misc 'text 0 'text))))))
+                   (cons '(65 . 81) (token:misc " #:not-a-keyword" 0 'text))))))
 
 (module+ test
   (let ([tm  (create "#lang racket\n(λ () #t)")])
