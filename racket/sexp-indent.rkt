@@ -27,7 +27,11 @@
 
 ;; token-map? positive-integer? -> nonnegative-integer?
 (define (indent-amount tm indent-pos)
-  (match (open-pos tm indent-pos)
+  (match (backward-up tm indent-pos)
+    [(and (? number? open-pos)
+          (app (end-of-hash-literal/keyword tm)
+               (? number? end)))
+     (- end (beg-of-line tm open-pos))]
     [(? number? open-pos)
      (define id-pos (forward-whitespace tm (add1 open-pos)))
      (define id-name (token-text tm id-pos))
@@ -55,11 +59,13 @@
      (log-racket-mode-debug "indent-amount no containing sexp found")
      0]))
 
-(define (open-pos tm pos)
-    (match (classify tm pos)
-      [(bounds+token beg _end (? token:expr:close?))
-       (backward-sexp tm beg)]
-      [_ (backward-up tm (beg-of-line tm pos))]))
+(define ((end-of-hash-literal/keyword tm) pos)
+  (match (classify tm pos)
+    [(bounds+token _beg end
+                   (or (token:misc _ _ 'hash-keyword)
+                       (token:expr:open (regexp "^#(.*?)\\(") _ _ _)))
+     end]
+    [_ #f]))
 
 (define (default-amount tm id-pos [def #f])
   (define bol (beg-of-line tm id-pos))
@@ -139,7 +145,7 @@
     (check-equal? (indent-amount tm 77) 4))
   (let ([tm (create "#lang racket\n\n(if a\n    (for/list ([x xs])\n      (cond 1\n            2)))")])
     (check-equal? (indent-amount tm 73) 4)
-    (check-equal? (indent-amount tm 74) 12)
+    (check-equal? (indent-amount tm 74) 0)
     (check-equal? (update tm 74 0 "\n")
                   (list (bounds+token 74 75 (token:misc "\n" 0 'end-of-line))))
     (local-require (submod "token-map.rkt" test))
@@ -203,17 +209,15 @@
                   "not within any sexpr, should indent 0")
     (check-equal? (indent-amount tm 14) 0
                   "not within any sexpr, should indent 0")
-    (check-equal? (indent-amount tm 15) 0
-                  "not within any sexpr, should indent 0")
+    (check-equal? (indent-amount tm 15) 1
+                  "should indent with foo")
     (check-equal? (indent-amount tm 22) 1
                   "bar should indent with foo")
     (check-equal? (indent-amount tm 25) 1
                   "baz should indent with bar (assumes bar not yet re-indented)")
-    (check-equal? (indent-amount tm 29) 1
+    (check-equal? (indent-amount tm 28) 1
                   "close paren after baz is on same line as it, same result")
     (check-equal? (indent-amount tm 30) 0
-                  "not within any sexpr, should indent 0")
-    (check-equal? (indent-amount tm 31) 0
                   "not within any sexpr, should indent 0")
     (check-equal? (indent-amount tm 43) 5
                   "bap should indent with the 2nd sexp on the same line i.e. bar")
@@ -237,17 +241,15 @@
     ;;                    1           2
     (define tm (create str))
     (update tm 23 0 "\n")
-    (check-equal? (indent-amount tm  1) 0
-                  "not within any sexpr, should indent 0")
-    (check-equal? (indent-amount tm 22) 0
-                  "not within any sexpr, should indent 0"))
+    (check-equal? (indent-amount tm 22) 7)
+    (check-equal? (indent-amount tm 23) 7))
   (let ()
-    (define str "#lang racket\n(if 123)\n(do)")
-    ;;           1234567890123 456789012 3456
+    (define str "#lang racket\n(if 123\n)\n(do)")
+    ;;           1234567890123 45678901 23 456
     ;;                    1          2
     (define tm (create str))
     (update tm 21 0 "\n")
-    (check-equal? (indent-amount tm  22) 4
+    (check-equal? (indent-amount tm 22) 4
                   "position is exactly on close token"))
   (let ()
     (define str "#lang racket\n(cond [#t #t]\n[#f #f])")
@@ -266,7 +268,15 @@
                   "first cond clause indented properly")
     (check-equal? (indent-amount tm 32)
                   2
-                  "second cond clause indented properly")))
+                  "second cond clause indented properly"))
+  (let ()
+    (define str "#lang racket\n#hasheq((1 . 2)\n(3. 4))\n")
+    ;;           1234567890123 4567890123456789 012345
+    ;;                    1          2          3
+    (define tm (create str))
+    (check-equal? (indent-amount tm 30)
+                  8
+                  "#hasheq indented properly")))
 
 (module+ example-5
   (define str "#lang racket\n123\n(print 123)\n")

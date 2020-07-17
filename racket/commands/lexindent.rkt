@@ -2,13 +2,17 @@
 
 (require racket/match
          racket/pretty
+         (rename-in "../aexp-indent.rkt"
+                    [indent-amount at-exp:indent-amount])
          (rename-in "../sexp-indent.rkt"
-                    [indent-amount se:indent-amount])
+                    [indent-amount sexp:indent-amount])
          (rename-in "../token-map.rkt"
                     [create tm:create]
                     [update tm:update]
                     [tokens tm:tokens]
-                    [classify tm:classify])
+                    [classify tm:classify]
+                    [forward-sexp tm:forward-sexp]
+                    [backward-sexp tm:backward-sexp])
          "../util.rkt")
 
 ;; Just a shim to use lexers, token-maps, and indenters, from Emacs
@@ -24,6 +28,7 @@
         [`(update ,id ,pos ,old-len ,str) (update id pos old-len str)]
         [`(indent-amount ,id ,pos) (indent-amount id pos)]
         [`(classify ,id ,pos) (classify id pos)]
+        [`(forward-sexp ,id ,pos ,arg) (forward-sexp id pos arg)]
         ;; really just for logging/debugging `update`s
         [`(show ,id) (show id)])
     #;
@@ -36,21 +41,44 @@
 
 (define (create id s)
   (define tm (tm:create s))
-
-  (define get-info (or (read-language (open-input-string s)
-                                      (λ () #f))
-                       (λ (_key default) default)))
-  (define indent (get-info 'indent-amount se:indent-amount))
-
-  (hash-set! ht id (lexindenter tm indent))
+  (hash-set! ht id (lexindenter tm (choose-indenter s)))
   (tokens-as-elisp tm 1 +inf.0))
+
+(define (choose-indenter s)
+  (define get-info (or (with-handlers ([values (λ _ #f)])
+                         (read-language (open-input-string s)
+                                        (λ _ #f)))
+                       (λ (_key default) default)))
+  (or
+   ;; Prefer our proposed indent protocol: 'indent-amount is
+   ;; (-> token-map? indent-position indent-amount).
+   (get-info 'indent-amount #f)
+   ;; If the legacy Scribble indenter, prefer our alternative
+   ;; implemented using token-map instead of text%.
+   (match (get-info 'drracket:indentation #f)
+     ;; This isn't quite right. Not only is it ad hoc. Worse, this
+     ;; matches when the at-exp meta lang is used -- but then we want
+     ;; the normal sexp indent-amount. I think? Unless at-exp indent
+     ;; is supposed to be a "superset" of plain sexp indent?? Ah
+     ;; right. It is. The drracket:indentation idea is to return #f to
+     ;; use the default sexp indent, and indeed `determine-spaces`
+     ;; does just that. So, our at-exp indent should do similar: If
+     ;; not some at-exp special case for indent, fallback to the sexp
+     ;; indent-amount.
+     [(? procedure? p)
+      #:when (eq? (object-name p) 'determine-spaces)
+      (log-racket-mode-info "replacing drracket:indentation determine-spaces with our own at-exp indenter")
+      at-exp:indent-amount]
+     [_ #f])
+   ;; Default to our sexp indenter.
+   sexp:indent-amount))
 
 (define (delete id)
   (hash-remove! ht id))
 
 (define (update id pos old-len str)
   (match-define (lexindenter tm _) (hash-ref ht id))
-  (begin ;with-time/log "tm:update"
+  (with-time/log "tm:update"
     (map token->elisp (tm:update tm pos old-len str))))
 
 (define (indent-amount id pos)
@@ -60,6 +88,21 @@
 (define (classify id pos)
   (match-define (lexindenter tm _) (hash-ref ht id))
   (token->elisp (tm:classify tm pos)))
+
+(define (forward-sexp id pos arg)
+  (match-define (lexindenter tm _) (hash-ref ht id))
+  (define (fail pos) (list pos pos)) ;for signal scan-error
+  (let loop ([pos pos]
+             [arg arg])
+    (cond [(zero? arg) pos]
+          [(positive? arg)
+           (match (tm:forward-sexp tm pos fail)
+             [(? number? v) (loop v (sub1 arg))]
+             [v v])]
+          [(negative? arg)
+           (match (tm:backward-sexp tm pos fail)
+             [(? number? v) (loop v (add1 arg))]
+             [v v])])))
 
 ;; provided really just for logging/debugging `update`s
 (define (show id)
@@ -94,6 +137,11 @@
   (define str "#lang at-exp racket\n42 (print \"hello\") @print{Hello (there)} 'foo #:bar")
   (lexindent 'create id str)
   (lexindent 'classify id (sub1 (string-length str))))
+
+(module+ example-1.5
+  (define id 0)
+  (define str "#lang scribble/manual\n(print \"hello\")\n@print[#:kw 12]{Hello (there) #:not-a-keyword}\n")
+  (lexindent 'create id str))
 
 (module+ example-2
   (define id 0)

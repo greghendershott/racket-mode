@@ -44,16 +44,19 @@
 
 (struct bounds+token (beg end token) #:transparent)
 (struct token (lexeme backup) #:transparent)
+;; TODO: Change the open/close tokens to store only the opposite
+;; (close/open) since the lexeme already expresses the open/close.
 (struct token:expr token (open close) #:transparent)
 (struct token:expr:open token:expr () #:transparent)
 (struct token:expr:close token:expr () #:transparent)
 (struct token:misc token (kind) #:transparent)
 
 (define (token-map-ref tm pos)
-  (define-values (beg end token)
-    (interval-map-ref/bounds (token-map-tokens tm) pos #f))
-  (and beg end token
-       (bounds+token beg end token)))
+  (and pos
+       (let-values ([(beg end token)
+                     (interval-map-ref/bounds (token-map-tokens tm) pos #f)])
+         (and beg end token
+              (bounds+token beg end token)))))
 
 (define current-set-interval (make-parameter interval-map-set!))
 (define (set-interval tokens beg end token)
@@ -82,59 +85,69 @@
                                      (substring (token-map-str tm)
                                                 (+ (sub1 pos) old-len))))
   (define diff (- (string-length str) old-len))
-   ;; From where do we need to re-tokenize? This will be < the pos of
-   ;; the change. Back up to the start of the previous token (plus any
-   ;; `backup` amount the lexer may have supplied) to ensure re-lexing
-   ;; enough that e.g. appending a character does not create a
-   ;; separate token when instead it should be combined with an
-   ;; existing token for preceding character(s).
+  ;; From where do we need to re-tokenize? This will be < the pos of
+  ;; the change. Back up to the start of the previous token (plus any
+  ;; `backup` amount the lexer may have supplied) to ensure re-lexing
+  ;; enough that e.g. appending a character does not create a separate
+  ;; token when instead it should be combined with an existing token
+  ;; for preceding character(s).
   (define beg
     (match (token-map-ref tm (sub1 pos))
       [(bounds+token beg _end (token _ backup)) (- beg backup)]
       [#f pos]))
-  (define tokens (token-map-tokens tm))
-  ;; We want to detect tokens that did not change other than their
-  ;; position being shifted by `diff`. To do so for the insert/expand
-  ;; case, unfortunately we need a copy of the token interval-map:
-  (define old-tokens (make-interval-map
-                      (for/list ([(k v) (in-dict tokens)])
-                        (cons k v))))
-  (define modes  (token-map-modes tm))
+  ;; Expand/contract the tokens and modes interval-maps.
+  (match-define (token-map _str tokens modes) tm)
   (cond [(< 0 diff) (interval-map-expand!   tokens pos (+ pos diff))
                     (define orig-mode (interval-map-ref modes beg #f))
                     (interval-map-expand!   modes  beg (+ beg diff))
                     (interval-map-set!      modes  beg (+ beg diff) orig-mode)]
         [(< diff 0) (interval-map-contract! tokens pos (- pos diff))
                     (interval-map-contract! modes  beg (- beg diff))])
-  (define updated-intervals '())
+  ;; We want to detect tokens that did not change other than their
+  ;; position being shifted by `diff`. When we've encountered enough
+  ;; of those, we can conclude the re-lex has converged back to the
+  ;; original lex and we need not continue further -- saving
+  ;; potentially a huge amount of time/work.
+  ;;
+  ;; Because we are modifying the interval-map, we can't rely on it to
+  ;; obtain the "old" picture -- maybe we overwrote some of the old. A
+  ;; naive idea is to copy the entire original interval-map to an
+  ;; `old-tokens` map, but this can be extremely slow for large maps.
+  ;;
+  ;; Instead use a "copy on write" approach. Populate `old-tokens`
+  ;; as/when we modify the current map. Then to diff-only change
+  ;; compares, consult old-tokens first, else use the main map.
+  (define old-tokens (make-interval-map))
   (define just-shifted-count 0)
+  (define just-shifted-goal 3) ;2 b/c beg from prev token +1 to be safe
+  (define actual-changes '())
   (define (set-interval/update tokens beg end token)
     (define-values (old-beg old-end old-token)
-      (interval-map-ref/bounds old-tokens (- beg diff) #f))
+      (let-values ([(old-beg old-end old-tok) (interval-map-ref/bounds old-tokens beg #f)])
+        (if (and old-beg old-end old-tok)
+            (values old-beg old-end old-tok)
+            (interval-map-ref/bounds tokens beg #f))))
     (cond [(and old-beg old-end old-token
-                (= old-beg (- beg diff))
-                (= old-end (- end diff))
+                (= old-beg beg)
+                (= old-end end)
                 (equal? old-token token))
-           (log-racket-mode-debug
-            "no change except shift; diff=~v old=~v new=~v"
-            diff
-            (list old-beg old-end old-token)
-            (list beg end token))
-           ;; Because we back up one extra, to be safe, we should
-           ;; accumulate multiple just-shifted tokens to be sure
-           ;; before stopping.
            (set! just-shifted-count (add1 just-shifted-count))
-           (define continue? (< just-shifted-count 2))
+           (define continue? (< just-shifted-count just-shifted-goal))
            continue?]
           [else
-           (set! updated-intervals (cons (bounds+token beg end token)
-                                         updated-intervals))
-           (log-racket-mode-debug "Set [~v ~v) to ~v" beg end token)
+           (let loop ([n beg])
+             (define-values (old-beg old-end old-token) (interval-map-ref/bounds tokens n #f))
+             (when (and old-beg old-end old-token)
+               (interval-map-set! old-tokens (+ old-beg diff) (+ old-end diff) old-token)
+               (when (< old-end end)
+                 (loop old-end))))
+           (set! actual-changes (cons (bounds+token beg end token)
+                                      actual-changes))
            (interval-map-set! tokens beg end token)
            #t])) ;continue
   (parameterize ([current-set-interval set-interval/update])
     (tokenize-string tokens modes (token-map-str tm) beg))
-  (reverse updated-intervals))
+  (reverse actual-changes))
 
 (define (classify tm pos)
   (token-map-ref tm pos))
@@ -169,9 +182,9 @@
     ;; returning " " instead of "\n" for whitespace -- but we need
     ;; that in handle-white-space-token to create end-of-line tokens.
     ;; Also it sometimes returns 'text instead of the string for 'text
-    ;; tokens, which would be harmless, except we want our `validate`
-    ;; to be able to say that all token lexemes equal the original
-    ;; string.
+    ;; tokens, which would be harmless, except we want `check-valid?`
+    ;; to be able to say that appending all token lexemes equals the
+    ;; input string.
     (let ([lexeme (substring str (sub1 beg) (sub1 end))])
      (when (case kind
              [(white-space) (handle-white-space-token tokens lexeme beg end backup)]
@@ -311,38 +324,16 @@
           (token:misc lexeme backup 'symbol)]
          ;; Super-defensive WTF:
          [_  (token:misc lexeme backup 'other)])]))
-  ;; In Emacs, the standard char-syntax stuff is just that --
-  ;; single chars. As a result it's helpful here to return
-  ;; tokens for parens that are indeed single chars. Any
-  ;; "excess" chars should be constant or perhaps Emacs 'prefix
-  ;; syntax-class. The latter would be ideal for Racket Mode
-  ;; and sexpr langs, but I'm not sure how clever to get here
-  ;; b/c it could bake in some assumption that is /not/ good
-  ;; for non-sepxr langs. So for now just accept "constant" for
-  ;; "'", "#", or "#'". (In Emacs we also have the option of
-  ;; not using char-syntax for these, at all, and instead
-  ;; supplying forward-sexp-function that calls the back end.)
+  ;; racket-lexer et al can return multi-character open parenthesis
+  ;; tokens. For example "#hash(" is a single, open paren token.
+  ;; Furthermore we want to support non-sexpr langs with multi-char
+  ;; open/close tokens like "begin" and "end".
   ;;
-  ;; Weirdly, racket-lexer treats "#(" as a 2-char open paren
-  ;; token -- but "#'(" as a 2-char constant followed by a
-  ;; 1-char open paren. Handle the former like the latter, here
-  ;; (so that Emacs front end can rely on the
-  ;; syntax-propertization).
-  (cond [(and (memq lexer-name '(racket-lexer
-                                 racket-lexer/status
-                                 racket-nobar-lexer/status
-                                 scribble-inside-lexer
-                                 scribble-lexer))
-              (token:expr:open? tok)
-              (< 1 (- end beg)))
-         (set-interval im beg (sub1 end)
-                       (token:misc lexeme backup 'constant))
-         (set-interval im (sub1 end) end
-                       (token:expr:open lexeme backup
-                                        (token:expr-open tok)
-                                        (token:expr-close tok)))]
-        [else
-         (set-interval im beg end tok)])  )
+  ;; In Emacs, the standard char-syntax stuff is just that -- single
+  ;; chars. As a result, we can't use char-syntax for these. Instead
+  ;; we'll need to supply a forward-sexp-function that calls the back
+  ;; end.
+  (set-interval im beg end tok))
 
 (define (mode->lexer mode)
   (match mode
@@ -379,6 +370,12 @@
       [#f (add1 (string-length (token-map-str tm)))])))
 
 (define (backward-up tm pos)
+  (let loop ([pos pos])
+    (match (backward-sexp tm pos list)
+      [(list 1) #f]
+      [(list pos) pos]
+      [(? number? pos) (loop pos)]))
+  #;
   (let loop ([pos (match (token-map-ref tm pos)
                     ;; When pos is already exactly the start of an
                     ;; open token, start one position earlier.
@@ -426,71 +423,76 @@
                                                           'white-space
                                                           'comment
                                                           'sexp-comment)))
-     (forward-whitespace/comment tm (sub1 beg))]
+     (backward-whitespace/comment tm (sub1 beg))]
     [_ pos]))
 
-(define (forward-sexp tm pos)
+(define (forward-sexp tm pos [fail (λ (_pos) #f)])
   (match (forward-whitespace/comment tm pos)
-    [#f #f]
+    [#f (fail pos)]
     [pos
      (match (token-map-ref tm pos)
-       [#f #f]
+       ;; Close token: Fail with position of failure.
+       [(bounds+token _beg end (? token:expr:close?))
+        (fail end)]
        ;; Open token: Scan for matching close token.
        [(bounds+token beg end (? token:expr:open? open-t))
         (let loop ([pos pos]
                    [depth 0])
           ;;(println (list pos depth (interval-map-ref im pos)))
           (match (token-map-ref tm pos)
-            [#f #f]
-            [(bounds+token beg end (? token:expr:open? t))
+            [#f (fail pos)]
+            [(bounds+token _beg end (? token:expr:open? t))
              #:when (equal? (token:expr-open open-t)
                             (token:expr-open t))
              (loop end
                    (add1 depth))]
-            [(bounds+token beg end (? token:expr:close? t))
+            [(bounds+token _beg end (? token:expr:close? t))
              #:when (equal? (token:expr-open open-t)
                             (token:expr-open t))
              (if (= depth 1)
                  end
                  (loop end
                        (sub1 depth)))]
-            [(bounds+token beg end (? token? t))
+            [(bounds+token _beg end (? token?))
              (loop end
                    depth)]))]
        ;; Some other non-white-space/comment token. Simply use last
        ;; char pos.
-       [(bounds+token beg end (? token? t))
+       [(bounds+token _beg end (? token?))
         end])]))
 
-(define (backward-sexp tm pos)
-  (match (backward-whitespace/comment tm pos)
-    [#f #f]
+(define (backward-sexp tm pos [fail (λ (_pos) #f)])
+  (match (backward-whitespace/comment tm (and pos (sub1 pos)))
+    [#f (fail 1)]
     {pos
      (match (token-map-ref tm pos)
+      ;; Open token: Fail with position of failure.
+      [(bounds+token beg _end (? token:expr:open?))
+       (fail beg)]
       ;; Close token: Scan for matching open token.
-      [(bounds+token beg end (? token:expr:close? close-t))
+      [(bounds+token _beg _end (? token:expr:close? close-t))
        (let loop ([pos pos]
                   [depth 0])
          ;;(println (list pos depth (interval-map-ref im pos)))
          (match (token-map-ref tm pos)
-           [#f #f]
-           [(bounds+token beg end (? token:expr:open? t))
+           [#f (fail 1)]
+           [(bounds+token beg _end (? token:expr:open? t))
             #:when (equal? (token:expr-open close-t)
                            (token:expr-open t))
             (if (= depth 1)
                 beg
                 (loop (sub1 beg)
                       (sub1 depth)))]
-           [(bounds+token beg end (? token:expr:close? t))
+           [(bounds+token beg _end (? token:expr:close? t))
             #:when (equal? (token:expr-open close-t)
                            (token:expr-open t))
             (loop (sub1 beg)
                   (add1 depth))]
-           [(bounds+token beg end (? token? t))
+           [(bounds+token beg _end (? token?))
             (loop (sub1 beg)
                   depth)]))]
       ;; Some other token. Simply use first char pos.
-      [(bounds+token beg end (? token? t))
+      [(bounds+token beg _end (? token?))
        beg])}))
 
 (module+ test
@@ -516,19 +518,25 @@
     (check-equal? (backward-up tm 22) 20)
     (check-equal? (backward-up tm 34) 31)
     (check-equal? (backward-up tm 42) 31)
+    (check-equal? (backward-up tm 43) 31)
     (check-false  (backward-up tm  1))
     (check-false  (backward-up tm 12))
     (check-false  (backward-up tm 13))
     (check-false  (backward-up tm 14))
     (check-false  (backward-up tm 30))
     (check-false  (backward-up tm 31))
-    (check-false  (backward-up tm 43))
     (check-equal? (forward-whitespace/comment tm 23) 24)
     (check-equal? (backward-whitespace/comment tm 22) 21)
-    (check-equal? (forward-sexp tm 24) 27)
     (check-equal? (forward-sexp tm 14) 30)
+    (check-equal? (forward-sexp tm 24) 27)
+    (check-equal? (backward-sexp tm  1) #f)
+    (check-equal? (backward-sexp tm  1 values) 1)
+    (check-equal? (backward-sexp tm 14)  1)
+    (check-equal? (backward-sexp tm 17) 15)
     (check-equal? (backward-sexp tm 26) 24)
-    (check-equal? (backward-sexp tm 29) 14)))
+    (check-equal? (backward-sexp tm 28) 20)
+    (check-equal? (backward-sexp tm 29) 17)
+    (check-equal? (backward-sexp tm 30) 14)))
 
 (module+ test
   (let* ([str "#lang racket\n42 (print \"hello\") @print{Hello} 'foo #:bar"]
@@ -580,20 +588,16 @@
                     ((52 . 57) . ,racket-lexer)))
     (check-equal? (update tm 52 5 "'bar")
                   (list
-                   (bounds+token 51 52 (token:misc " " 0 'white-space))
                    (bounds+token 52 53 (token:misc "'" 0 'constant))
                    (bounds+token 53 56 (token:misc "bar" 0 'symbol))))
     (check-equal? (update tm 47 4 "'bar")
-                  '()
-                  "although lexeme changes from \"'foo\" to \"'bar\" bounds and classification are the same, therefore no update")
+                  (list (bounds+token 48 51 (token:misc "bar" 0 'symbol))))
     (check-equal? (update tm 24 7 "'hell")
                   (list
-                   (bounds+token 23 24 (token:misc " " 0 'white-space))
                    (bounds+token 24 25 (token:misc "'" 0 'constant))
                    (bounds+token 25 29 (token:misc "hell" 0 'symbol))))
     (check-equal? (update tm 14 2 "99999")
                   (list
-                   (bounds+token 13 14 (token:misc "\n" 0 'end-of-line))
                    (bounds+token 14 19 (token:misc "99999" 0 'constant))))
     (check-equal? (token-map-str tm)
                   "#lang racket\n99999 (print 'hell) @print{Hello} 'bar 'bar")
@@ -616,7 +620,7 @@
                    (cons '(46 . 47) (token:expr:close "}" 0 "{" "}"))
                    (cons '(47 . 48) (token:misc " " 0 'white-space))
                    (cons '(48 . 49) (token:misc "'" 0 'constant))
-                   (cons '(49 . 52) (token:misc "foo" 0 'symbol))
+                   (cons '(49 . 52) (token:misc "bar" 0 'symbol))
                    (cons '(52 . 53) (token:misc " " 0 'white-space))
                    (cons '(53 . 54) (token:misc "'" 0 'constant))
                    (cons '(54 . 57) (token:misc "bar" 0 'symbol))))
@@ -682,7 +686,7 @@
                   (list
                    (cons '(1 . 20) (token:misc "#lang scribble/text" 0 'other))
                    (cons '(20 . 21) (token:misc "\n" 0 'end-of-line))
-                   (cons '(21 . 27) (token:misc "Hello" 0 'text))
+                   (cons '(21 . 27) (token:misc "Hello " 0 'text))
                    (cons '(27 . 28) (token:misc "@" 0 'symbol))
                    (cons '(28 . 29) (token:expr:open "(" 0 "(" ")"))
                    (cons '(29 . 34) (token:misc "print" 0 'symbol))
@@ -703,7 +707,6 @@
                   (bounds+token 15 16 (token:misc "λ" 0 'symbol)))
     (check-equal? (update tm 18 0 "a")
                   (list
-                   (bounds+token 17 18 (token:expr:open "(" 0 "(" ")"))
                    (bounds+token 18 19 (token:misc "a" 0 'symbol))))
     (check-equal? (classify tm 18)
                   (bounds+token 18 19 (token:misc "a" 0 'symbol)))))
@@ -809,10 +812,20 @@
                    (cons '(13 . 14) racket-lexer)
                    (cons '(14 . 15) racket-lexer)
                    (cons '(15 . 17) racket-lexer)
-                   (cons '(17 . 18) racket-lexer)))))
+                   (cons '(17 . 18) racket-lexer))))
+  (let* ([str "#lang racket\n#hash\n"]
+         ;;    1234567890123 456789
+         ;;             1
+         [tm (create str)])
+    (check-equal? (token-map-ref tm 14)
+                  (bounds+token 14 19 (token:misc "#hash" 0 'error)))
+    (check-equal? (update tm 19 0 "(")
+                  (list (bounds+token 14 20 (token:expr:open "#hash(" 0 "(" ")")))
+                  "Adding parens after #hash re-lexes from an error to an open")
+    (check-equal? (token-map-ref tm 14)
+                  (bounds+token 14 20 (token:expr:open "#hash(" 0 "(" ")")))))
 
 (module+ test
-  (require racket/format)
   (provide check-valid?)
   (define (check-valid? tm)
     (define-values (str min-token-beg max-token-end)
@@ -837,3 +850,4 @@
                 (max (cdr k) max-modes-end))))
     (check-equal? min-token-beg min-modes-beg)
     (check-equal? max-token-end max-modes-end)))
+

@@ -25,6 +25,7 @@
 (defvar-local racket--lexer-orig-syntax-propertize-function nil)
 (defvar-local racket--lexer-orig-syntax-table nil)
 (defvar-local racket--lexer-orig-indent-line-function nil)
+(defvar-local racket--lexer-orig-forward-sexp-function nil)
 
 ;;;###autoload
 (define-minor-mode racket-lexer-mode
@@ -58,8 +59,12 @@
                      (syntax-table))
          (setq-local racket--lexer-orig-indent-line-function
                      indent-line-function)
+         (setq-local racket--lexer-orig-forward-sexp-function
+                     forward-sexp-function)
          (setq-local indent-line-function
                      #'racket-lexer-indent-line-function)
+         (setq-local forward-sexp-function
+                     #'racket-lexer-forward-sexp-function)
          (set-syntax-table (make-char-table 'syntax-table '(0)))
          (add-hook 'after-change-functions
                    #'racket--lexer-after-change-hook
@@ -74,6 +79,8 @@
     (set-syntax-table racket--lexer-orig-syntax-table)
     (setq-local indent-line-function
                 racket--lexer-orig-indent-line-function)
+    (setq-local forward-sexp-function
+                racket--lexer-orig-forward-sexp-function)
     (remove-hook 'after-change-functions
                  #'racket--lexer-after-change-hook
                  t)
@@ -106,30 +113,6 @@
                 ,len
                 ,(buffer-substring-no-properties beg end)))))
 
-(defun racket-lexer-indent-line-function ()
-  (let ((amount (racket--cmd/await      ; await = :(
-                 nil
-                 `(lexindent indent-amount
-                             ,(racket--buffer-file-name)
-                             ,(point))))
-        ;; When point is within the leading whitespace, move it past the
-        ;; new indentation whitespace. Otherwise preserve its position
-        ;; relative to the original text.
-        (pos (- (point-max) (point)))
-        (beg (progn (beginning-of-line) (point))))
-    (skip-chars-forward " \t")
-    (unless (= amount (current-column))
-      (delete-region beg (point))
-      (indent-to amount))
-    (when (< (point) (- (point-max) pos))
-      (goto-char (- (point-max) pos)))))
-
-(defun racket-lexer-debug ()
-  (interactive)
-  (racket--cmd/async nil
-                     `(lexindent show
-                                 ,(racket--buffer-file-name))))
-
 (defconst racket--string-content-syntax-table
   (let ((st (copy-syntax-table (standard-syntax-table))))
     (modify-syntax-entry ?\" "w" st)
@@ -153,10 +136,10 @@ x.")
             (remove-text-properties beg end
                                     '(face nil syntax-table nil))
             (cl-case kind
-              (open
-               (put-stx beg end (cons 4 (aref opposite 0))))
-              (close
-               (put-stx beg end (cons 5 (aref opposite 0))))
+              ;; (open
+              ;;  (put-stx beg end (cons 4 (aref opposite 0))))
+              ;; (close
+              ;;  (put-stx beg end (cons 5 (aref opposite 0))))
               (comment
                (put-stx beg (1+ beg) '(14)) ;generic comment
                (put-stx (1- end) end '(14))
@@ -212,6 +195,44 @@ x.")
             (let ((end (progn (forward-sexp  1) (point)))
                   (beg (progn (forward-sexp -1) (point))))
               (put-face beg end 'font-lock-comment-face))))))))
+
+
+(defun racket-lexer-indent-line-function ()
+  (let ((amount (racket--cmd/await      ; await = :(
+                 nil
+                 `(lexindent indent-amount
+                             ,(racket--buffer-file-name)
+                             ,(point))))
+        ;; When point is within the leading whitespace, move it past the
+        ;; new indentation whitespace. Otherwise preserve its position
+        ;; relative to the original text.
+        (pos (- (point-max) (point)))
+        (beg (progn (beginning-of-line) (point))))
+    (skip-chars-forward " \t")
+    (unless (= amount (current-column))
+      (delete-region beg (point))
+      (indent-to amount))
+    (when (< (point) (- (point-max) pos))
+      (goto-char (- (point-max) pos)))))
+
+(defun racket-lexer-forward-sexp-function (&optional arg)
+  (pcase (racket--cmd/await             ; await = :(
+          nil
+          `(lexindent forward-sexp
+                      ,(racket--buffer-file-name)
+                      ,(point)
+                      ,(or arg 1)))
+    ((and (pred numberp) pos)
+     (goto-char pos))
+    ;; This is important for use of forward-sexp-function by `up-list':
+    ((and xs `(,(pred numberp) ,(pred numberp)))
+     (signal 'scan-error (cons "no more sexps at this depth" xs)))))
+
+(defun racket-lexer-debug ()
+  (interactive)
+  (racket--cmd/async nil
+                     `(lexindent show
+                                 ,(racket--buffer-file-name))))
 
 (provide 'racket-lexer)
 
