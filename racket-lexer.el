@@ -24,13 +24,22 @@
 (defvar-local racket--lexer-orig-font-lock-defaults nil)
 (defvar-local racket--lexer-orig-syntax-propertize-function nil)
 (defvar-local racket--lexer-orig-syntax-table nil)
+(defvar-local racket--lexer-orig-electric-indent-inhibit nil)
 (defvar-local racket--lexer-orig-indent-line-function nil)
 (defvar-local racket--lexer-orig-forward-sexp-function nil)
 
+(defvar racket-lexer-mode-map
+  (racket--easy-keymap-define
+   `(("RET" ,#'racket-lexer-newline-and-indent))))
+
 ;;;###autoload
 (define-minor-mode racket-lexer-mode
-  "Use #lang color-lexer."
+  "Use #lang color-lexer.
+
+\\{racket-lexer-mode-map}
+"
   :lighter " Lexer"
+  :keymap racket-lexer-mode-map
   ;; (unless (eq major-mode 'racket-mode)
   ;;   (setq racket-lexer-mode nil)
   ;;   (user-error "racket-lexer-mode only works with racket-mode buffers"))
@@ -48,24 +57,34 @@
            (remove-text-properties (point-min) (point-max)
                                    '(face nil fontified nil syntax-table nil)))
          (racket--lexer-propertize tokens)
+
          (setq-local racket--lexer-orig-font-lock-defaults
                      font-lock-defaults)
          (setq-local font-lock-defaults nil)
+
          (setq-local racket--lexer-orig-syntax-propertize-function
                      syntax-propertize-function)
          (setq-local syntax-propertize-function
                      nil)
+
          (setq-local racket--lexer-orig-syntax-table
                      (syntax-table))
+         (set-syntax-table (make-char-table 'syntax-table '(0)))
+
+         (setq-local racket--lexer-orig-electric-indent-inhibit
+                     electric-indent-inhibit)
+         (setq-local electric-indent-inhibit t)
+
          (setq-local racket--lexer-orig-indent-line-function
                      indent-line-function)
-         (setq-local racket--lexer-orig-forward-sexp-function
-                     forward-sexp-function)
          (setq-local indent-line-function
                      #'racket-lexer-indent-line-function)
+
+         (setq-local racket--lexer-orig-forward-sexp-function
+                     forward-sexp-function)
          (setq-local forward-sexp-function
                      #'racket-lexer-forward-sexp-function)
-         (set-syntax-table (make-char-table 'syntax-table '(0)))
+
          (add-hook 'after-change-functions
                    #'racket--lexer-after-change-hook
                    t t)
@@ -77,6 +96,8 @@
     (setq-local syntax-propertize-function
                 racket--lexer-orig-syntax-propertize-function)
     (set-syntax-table racket--lexer-orig-syntax-table)
+    (setq-local electric-indent-inhibit
+                racket--lexer-orig-electric-indent-inhibit)
     (setq-local indent-line-function
                 racket--lexer-orig-indent-line-function)
     (setq-local forward-sexp-function
@@ -196,6 +217,19 @@ x.")
                   (beg (progn (forward-sexp -1) (point))))
               (put-face beg end 'font-lock-comment-face))))))))
 
+
+;; NOTE: With `electric-indent-mode', when you press RET then
+;; `racket-lexer-indent-line-function' will be called twice: Once for
+;; the original line where RET was pressed, and again for the
+;; following, new line. The former has no benefit for us and has the
+;; cost of unnecessary I/O with the back end. So we set the local
+;; variable `electric-indent-inhibit', and instead bind to RET our own
+;; simple `racket-lexer-newline-and-indent' command.
+
+(defun racket-lexer-newline-and-indent ()
+  (interactive)
+  (newline)
+  (indent-according-to-mode))
 
 (defun racket-lexer-indent-line-function ()
   (let ((amount (racket--cmd/await      ; await = :(
