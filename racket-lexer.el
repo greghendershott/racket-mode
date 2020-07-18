@@ -147,13 +147,12 @@ string token, will not give string syntax to the open quote after
 x.")
 
 (defun racket--lexer-propertize (tokens)
-  ;;(message "%S" tokens)
   (with-silent-modifications
     (cl-labels ((put-face (beg end face) (put-text-property beg end 'face face))
                 (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
       (let ((sexp-prefix-ends nil))
         (dolist (token tokens)
-          (pcase-let ((`(,beg ,end ,kind ,opposite) token))
+          (pcase-let ((`(,beg ,end ,kind ,_opposite) token))
             (remove-text-properties beg end
                                     '(face nil syntax-table nil))
             (cl-case kind
