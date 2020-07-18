@@ -1,4 +1,4 @@
-;;; racket-lexer.el -*- lexical-binding: t; -*-
+;;; racket-hash-lang.el -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2020 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
@@ -21,29 +21,49 @@
 
 ;; These are simply to save the original values, to be able to restore
 ;; when the minor mode is disabled:
-(defvar-local racket--lexer-orig-font-lock-defaults nil)
-(defvar-local racket--lexer-orig-syntax-propertize-function nil)
-(defvar-local racket--lexer-orig-syntax-table nil)
-(defvar-local racket--lexer-orig-electric-indent-inhibit nil)
-(defvar-local racket--lexer-orig-indent-line-function nil)
-(defvar-local racket--lexer-orig-forward-sexp-function nil)
+(defvar-local racket--hash-lang-orig-font-lock-defaults nil)
+(defvar-local racket--hash-lang-orig-syntax-propertize-function nil)
+(defvar-local racket--hash-lang-orig-syntax-table nil)
+(defvar-local racket--hash-lang-orig-electric-indent-inhibit nil)
+(defvar-local racket--hash-lang-orig-indent-line-function nil)
+(defvar-local racket--hash-lang-orig-forward-sexp-function nil)
 
-(defvar racket-lexer-mode-map
+(defvar racket-hash-lang-mode-map
   (racket--easy-keymap-define
-   `(("RET" ,#'racket-lexer-newline-and-indent))))
+   `(("RET" ,#'racket-hash-lang-newline-and-indent))))
 
 ;;;###autoload
-(define-minor-mode racket-lexer-mode
-  "Use #lang color-lexer.
+(define-minor-mode racket-hash-lang-mode
+  "Use color-lexer and indent supplied by the #lang.
 
-\\{racket-lexer-mode-map}
+This allows a #lang to support multi-character open and close
+tokens, by providing `forward-sexp-function'. However this means
+various Emacs features and packages that do not use
+`forward-sexp' -- and instead use `scan-list` or even directly
+look for parentheses -- will not work as well or at all. See also
+`racket-sexp-hash-lang-mode'.
+
+\\{racket-hash-lang-mode-map}
 "
-  :lighter " Lexer"
-  :keymap racket-lexer-mode-map
-  ;; (unless (eq major-mode 'racket-mode)
-  ;;   (setq racket-lexer-mode nil)
-  ;;   (user-error "racket-lexer-mode only works with racket-mode buffers"))
-  (if racket-lexer-mode
+  :lighter " #lang"
+  :keymap racket-hash-lang-mode-map
+  (racket--hash-lang-mode racket-hash-lang-mode t))
+
+;;;###autoload
+(define-minor-mode racket-sexp-hash-lang-mode
+  "Use color-lexer and indent supplied by the #lang.
+
+When a #lang has a sexp surface syntax, this allows more Emacs
+features to work, in contrast to `racket-hash-lang-mode'.
+
+\\{racket-hash-lang-mode-map}
+"
+  :lighter " #lang()"
+  :keymap racket-hash-lang-mode-map
+  (racket--hash-lang-mode racket-sexp-hash-lang-mode nil))
+
+(defun racket--hash-lang-mode (mode-var forward-sexp-function-p)
+  (if mode-var
       (racket--cmd/async
        nil
        `(lexindent create
@@ -56,59 +76,59 @@
          (with-silent-modifications
            (remove-text-properties (point-min) (point-max)
                                    '(face nil fontified nil syntax-table nil)))
-         (racket--lexer-propertize tokens)
+         (racket--hash-lang-propertize tokens)
 
-         (setq-local racket--lexer-orig-font-lock-defaults
+         (setq-local racket--hash-lang-orig-font-lock-defaults
                      font-lock-defaults)
          (setq-local font-lock-defaults nil)
 
-         (setq-local racket--lexer-orig-syntax-propertize-function
+         (setq-local racket--hash-lang-orig-syntax-propertize-function
                      syntax-propertize-function)
-         (setq-local syntax-propertize-function
-                     nil)
+         (setq-local syntax-propertize-function nil)
 
-         (setq-local racket--lexer-orig-syntax-table
+         (setq-local racket--hash-lang-orig-syntax-table
                      (syntax-table))
          (set-syntax-table (make-char-table 'syntax-table '(0)))
 
-         (setq-local racket--lexer-orig-electric-indent-inhibit
+         (setq-local racket--hash-lang-orig-electric-indent-inhibit
                      electric-indent-inhibit)
          (setq-local electric-indent-inhibit t)
 
-         (setq-local racket--lexer-orig-indent-line-function
+         (setq-local racket--hash-lang-orig-indent-line-function
                      indent-line-function)
          (setq-local indent-line-function
-                     #'racket-lexer-indent-line-function)
+                     #'racket-hash-lang-indent-line-function)
 
-         (setq-local racket--lexer-orig-forward-sexp-function
+         (setq-local racket--hash-lang-orig-forward-sexp-function
                      forward-sexp-function)
-         ;; (setq-local forward-sexp-function
-         ;;             #'racket-lexer-forward-sexp-function)
+         (setq-local forward-sexp-function
+                     (and forward-sexp-function-p
+                          #'racket-hash-lang-forward-sexp-function))
 
          (add-hook 'after-change-functions
-                   #'racket--lexer-after-change-hook
+                   #'racket--hash-lang-after-change-hook
                    t t)
          (add-hook 'kill-buffer-hook
-                   #'racket--lexer-delete
+                   #'racket--hash-lang-delete
                    t t)))
     (setq-local font-lock-defaults
-                racket--lexer-orig-font-lock-defaults)
+                racket--hash-lang-orig-font-lock-defaults)
     (setq-local syntax-propertize-function
-                racket--lexer-orig-syntax-propertize-function)
-    (set-syntax-table racket--lexer-orig-syntax-table)
+                racket--hash-lang-orig-syntax-propertize-function)
+    (set-syntax-table racket--hash-lang-orig-syntax-table)
     (setq-local electric-indent-inhibit
-                racket--lexer-orig-electric-indent-inhibit)
+                racket--hash-lang-orig-electric-indent-inhibit)
     (setq-local indent-line-function
-                racket--lexer-orig-indent-line-function)
+                racket--hash-lang-orig-indent-line-function)
     (setq-local forward-sexp-function
-                racket--lexer-orig-forward-sexp-function)
+                racket--hash-lang-orig-forward-sexp-function)
     (remove-hook 'after-change-functions
-                 #'racket--lexer-after-change-hook
+                 #'racket--hash-lang-after-change-hook
                  t)
     (remove-hook 'kill-buffer-hook
-                 #'racket--lexer-delete
+                 #'racket--hash-lang-delete
                  t)
-    (racket--lexer-delete)
+    (racket--hash-lang-delete)
     (with-silent-modifications
       (remove-text-properties (point-min) (point-max)
                               '(face nil fontified nil syntax-table nil)))
@@ -116,16 +136,16 @@
     (syntax-ppss-flush-cache (point-min))
     (syntax-propertize (point-max))))
 
-(defun racket--lexer-delete ()
+(defun racket--hash-lang-delete ()
   (racket--cmd/async
    nil
    `(lexindent delete ,(racket--buffer-file-name))
    #'ignore))
 
-(defun racket--lexer-after-change-hook (beg end len)
+(defun racket--hash-lang-after-change-hook (beg end len)
   ;; This might be called as frequently as once per single changed
   ;; character.
-  (racket--lexer-propertize
+  (racket--hash-lang-propertize
    (racket--cmd/await ; await = :(
     nil
     `(lexindent update
@@ -146,7 +166,7 @@ things like #rx\"blah\" in Racket, which are lexed as one single
 string token, will not give string syntax to the open quote after
 x.")
 
-(defun racket--lexer-propertize (tokens)
+(defun racket--hash-lang-propertize (tokens)
   (with-silent-modifications
     (cl-labels ((put-face (beg end face) (put-text-property beg end 'face face))
                 (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
@@ -160,8 +180,8 @@ x.")
               ;; and close tokens. This supports hash-langs with
               ;; multi-char open and close tokens, both. Emacs paren
               ;; syntax is /char/ syntax; This won't work. Instead
-              ;; rely on forward-sexp-function to the extent that
-              ;; various things support it by using forward-sexp.
+              ;; rely on `forward-sexp-function' to the extent that
+              ;; various things support it by using `forward-sexp'.
               ;;
               ;; Otherwise, assume the tokens are for an sexpr lang,
               ;; and only open tokens might be multi-char. Handle
@@ -172,24 +192,15 @@ x.")
               ;; do not always use forward-sexp, and instead do things
               ;; like use `scan-lists' or look for paren syntax
               ;; directy. :(
-              ;;
-              ;; TODO: Better user experience if these were two
-              ;; distinct minor modes -- e.g. "racket-hash-lang-mode"
-              ;; and "racket-sexp-hash-lang-mode" -- that are
-              ;; identical except only the former sets
-              ;; forward-sexp-function. For one thing, if you setq
-              ;; forward-sexp-function in a mode hook you need to
-              ;; trigger a full re-propertize, which is both awkward
-              ;; and wasteful.
               (open
                (unless (equal forward-sexp-function
-                              #'racket-lexer-forward-sexp-function)
+                              #'racket-hash-lang-forward-sexp-function)
                  (when (< 1 (- end beg))
                    (put-stx beg (- end 1) '(6))) ;expression prefix
                  (put-stx (- end 1) end (cons 4 (aref opposite 0)))))
               (close
                (unless (equal forward-sexp-function
-                              #'racket-lexer-forward-sexp-function)
+                              #'racket-hash-lang-forward-sexp-function)
                  (put-stx beg end (cons 5 (aref opposite 0)))))
               (comment
                (put-stx beg (1+ beg) '(14)) ;generic comment
@@ -249,19 +260,19 @@ x.")
 
 
 ;; NOTE: With `electric-indent-mode', when you press RET then
-;; `racket-lexer-indent-line-function' will be called twice: Once for
+;; `racket-hash-lang-indent-line-function' will be called twice: Once for
 ;; the original line where RET was pressed, and again for the
 ;; following, new line. The former has no benefit for us and has the
 ;; cost of unnecessary I/O with the back end. So we set the local
 ;; variable `electric-indent-inhibit', and instead bind to RET our own
-;; simple `racket-lexer-newline-and-indent' command.
+;; simple `racket-hash-lang-newline-and-indent' command.
 
-(defun racket-lexer-newline-and-indent ()
+(defun racket-hash-lang-newline-and-indent ()
   (interactive)
   (newline)
   (indent-according-to-mode))
 
-(defun racket-lexer-indent-line-function ()
+(defun racket-hash-lang-indent-line-function ()
   (let ((amount (racket--cmd/await      ; await = :(
                  nil
                  `(lexindent indent-amount
@@ -279,7 +290,7 @@ x.")
     (when (< (point) (- (point-max) pos))
       (goto-char (- (point-max) pos)))))
 
-(defun racket-lexer-forward-sexp-function (&optional arg)
+(defun racket-hash-lang-forward-sexp-function (&optional arg)
   (pcase (racket--cmd/await             ; await = :(
           nil
           `(lexindent forward-sexp
@@ -292,12 +303,12 @@ x.")
     ((and xs `(,(pred numberp) ,(pred numberp)))
      (signal 'scan-error (cons "no more sexps at this depth" xs)))))
 
-(defun racket-lexer-debug ()
+(defun racket-hash-lang-debug ()
   (interactive)
   (racket--cmd/async nil
                      `(lexindent show
                                  ,(racket--buffer-file-name))))
 
-(provide 'racket-lexer)
+(provide 'racket-hash-lang)
 
-;; racket-lexer.el ends here
+;; racket-hash-lang.el ends here
