@@ -82,8 +82,8 @@
 
          (setq-local racket--lexer-orig-forward-sexp-function
                      forward-sexp-function)
-         (setq-local forward-sexp-function
-                     #'racket-lexer-forward-sexp-function)
+         ;; (setq-local forward-sexp-function
+         ;;             #'racket-lexer-forward-sexp-function)
 
          (add-hook 'after-change-functions
                    #'racket--lexer-after-change-hook
@@ -152,14 +152,45 @@ x.")
                 (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
       (let ((sexp-prefix-ends nil))
         (dolist (token tokens)
-          (pcase-let ((`(,beg ,end ,kind ,_opposite) token))
+          (pcase-let ((`(,beg ,end ,kind ,opposite) token))
             (remove-text-properties beg end
                                     '(face nil syntax-table nil))
             (cl-case kind
-              ;; (open
-              ;;  (put-stx beg end (cons 4 (aref opposite 0))))
-              ;; (close
-              ;;  (put-stx beg end (cons 5 (aref opposite 0))))
+              ;; When our forward-sexp-function is in use, ignore open
+              ;; and close tokens. This supports hash-langs with
+              ;; multi-char open and close tokens, both. Emacs paren
+              ;; syntax is /char/ syntax; This won't work. Instead
+              ;; rely on forward-sexp-function to the extent that
+              ;; various things support it by using forward-sexp.
+              ;;
+              ;; Otherwise, assume the tokens are for an sexpr lang,
+              ;; and only open tokens might be multi-char. Handle
+              ;; those as expression-prefix syntax followed by a
+              ;; single open char with open-paren syntax. Although
+              ;; this is less general, it lets more Emacs functions
+              ;; and packages (e.g. paredit) work well even when they
+              ;; do not always use forward-sexp, and instead do things
+              ;; like use `scan-lists' or look for paren syntax
+              ;; directy. :(
+              ;;
+              ;; TODO: Better user experience if these were two
+              ;; distinct minor modes -- e.g. "racket-hash-lang-mode"
+              ;; and "racket-sexp-hash-lang-mode" -- that are
+              ;; identical except only the former sets
+              ;; forward-sexp-function. For one thing, if you setq
+              ;; forward-sexp-function in a mode hook you need to
+              ;; trigger a full re-propertize, which is both awkward
+              ;; and wasteful.
+              (open
+               (unless (equal forward-sexp-function
+                              #'racket-lexer-forward-sexp-function)
+                 (when (< 1 (- end beg))
+                   (put-stx beg (- end 1) '(6))) ;expression prefix
+                 (put-stx (- end 1) end (cons 4 (aref opposite 0)))))
+              (close
+               (unless (equal forward-sexp-function
+                              #'racket-lexer-forward-sexp-function)
+                 (put-stx beg end (cons 5 (aref opposite 0)))))
               (comment
                (put-stx beg (1+ beg) '(14)) ;generic comment
                (put-stx (1- end) end '(14))
@@ -183,8 +214,8 @@ x.")
                  (when (< beg end)
                    (put-stx beg end racket--string-content-syntax-table)))
                (put-face beg end 'font-lock-string-face))
-              (text
-               (put-stx beg end (standard-syntax-table)))
+              (text)
+              (put-stx beg end (standard-syntax-table))
               (constant
                (put-stx beg end '(2)) ;word
                (put-face beg end 'font-lock-constant-face))
