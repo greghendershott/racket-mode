@@ -212,8 +212,8 @@ x.")
                  (when (< beg end)
                    (put-stx beg end racket--string-content-syntax-table)))
                (put-face beg end 'font-lock-string-face))
-              (text)
-              (put-stx beg end (standard-syntax-table))
+              (text
+               (put-stx beg end (standard-syntax-table)))
               (constant
                (put-stx beg end '(2)) ;word
                (put-face beg end 'font-lock-constant-face))
