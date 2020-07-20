@@ -14,8 +14,6 @@
   (or (determine-spaces tm indent-pos)
       (sexp:indent-amount tm indent-pos)))
 
-;; FIXME: Pressing RET twice will result in indented blank lines. But
-;; this doesn't happen with sexp-indent. Why?
 (define (determine-spaces tm indent-pos)
   (log-racket-mode-debug "determine-spaces")
   (match (backward-up tm indent-pos)

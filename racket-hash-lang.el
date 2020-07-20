@@ -24,42 +24,35 @@
 (defvar-local racket--hash-lang-orig-font-lock-defaults nil)
 (defvar-local racket--hash-lang-orig-syntax-propertize-function nil)
 (defvar-local racket--hash-lang-orig-syntax-table nil)
-(defvar-local racket--hash-lang-orig-electric-indent-inhibit nil)
 (defvar-local racket--hash-lang-orig-indent-line-function nil)
 (defvar-local racket--hash-lang-orig-forward-sexp-function nil)
 
-(defvar racket-hash-lang-mode-map
-  (racket--easy-keymap-define
-   `(("RET" ,#'racket-hash-lang-newline-and-indent))))
-
 ;;;###autoload
 (define-minor-mode racket-hash-lang-mode
-  "Use color-lexer and indent supplied by the #lang.
+  "Use color-lexer and indenter supplied by the #lang.
 
-This allows a #lang to support multi-character open and close
-tokens, by providing `forward-sexp-function'. However this means
-various Emacs features and packages that do not use
-`forward-sexp' -- and instead use `scan-list` or even directly
-look for parentheses -- will not work as well or at all. See also
+This mode allows a #lang to support multi-character open and
+close tokens, by setting the variable `forward-sexp-function'.
+However this means various Emacs features and packages that do
+not use `forward-sexp' -- and instead use `scan-list' or look
+specifically for parentheses -- will not work well. See also
 `racket-sexp-hash-lang-mode'.
 
 \\{racket-hash-lang-mode-map}
 "
   :lighter " #lang"
-  :keymap racket-hash-lang-mode-map
   (racket--hash-lang-mode racket-hash-lang-mode t))
 
 ;;;###autoload
 (define-minor-mode racket-sexp-hash-lang-mode
-  "Use color-lexer and indent supplied by the #lang.
+  "Use color-lexer and indenter supplied by the #lang.
 
-When a #lang has a sexp surface syntax, this allows more Emacs
-features to work, in contrast to `racket-hash-lang-mode'.
+When a #lang has a sexp surface syntax, this mode allows more
+Emacs features to work, in contrast to `racket-hash-lang-mode'.
 
 \\{racket-hash-lang-mode-map}
 "
   :lighter " #lang()"
-  :keymap racket-hash-lang-mode-map
   (racket--hash-lang-mode racket-sexp-hash-lang-mode nil))
 
 (defun racket--hash-lang-mode (mode-var forward-sexp-function-p)
@@ -90,10 +83,6 @@ features to work, in contrast to `racket-hash-lang-mode'.
                      (syntax-table))
          (set-syntax-table (make-char-table 'syntax-table '(0)))
 
-         (setq-local racket--hash-lang-orig-electric-indent-inhibit
-                     electric-indent-inhibit)
-         (setq-local electric-indent-inhibit t)
-
          (setq-local racket--hash-lang-orig-indent-line-function
                      indent-line-function)
          (setq-local indent-line-function
@@ -116,8 +105,6 @@ features to work, in contrast to `racket-hash-lang-mode'.
     (setq-local syntax-propertize-function
                 racket--hash-lang-orig-syntax-propertize-function)
     (set-syntax-table racket--hash-lang-orig-syntax-table)
-    (setq-local electric-indent-inhibit
-                racket--hash-lang-orig-electric-indent-inhibit)
     (setq-local indent-line-function
                 racket--hash-lang-orig-indent-line-function)
     (setq-local forward-sexp-function
@@ -258,34 +245,21 @@ x.")
                   (beg (progn (forward-sexp -1) (point))))
               (put-face beg end 'font-lock-comment-face))))))))
 
-
-;; NOTE: With `electric-indent-mode', when you press RET then
-;; `racket-hash-lang-indent-line-function' will be called twice: Once for
-;; the original line where RET was pressed, and again for the
-;; following, new line. The former has no benefit for us and has the
-;; cost of unnecessary I/O with the back end. So we set the local
-;; variable `electric-indent-inhibit', and instead bind to RET our own
-;; simple `racket-hash-lang-newline-and-indent' command.
-
-(defun racket-hash-lang-newline-and-indent ()
-  (interactive)
-  (newline)
-  (indent-according-to-mode))
-
 (defun racket-hash-lang-indent-line-function ()
-  (let ((amount (racket--cmd/await      ; await = :(
-                 nil
-                 `(lexindent indent-amount
-                             ,(racket--buffer-file-name)
-                             ,(point))))
-        ;; When point is within the leading whitespace, move it past the
-        ;; new indentation whitespace. Otherwise preserve its position
-        ;; relative to the original text.
-        (pos (- (point-max) (point)))
-        (beg (progn (beginning-of-line) (point))))
+  (let* ((bol    (save-excursion (beginning-of-line) (point)))
+         (amount (racket--cmd/await     ; await = :(
+                  nil
+                  `(lexindent indent-amount
+                              ,(racket--buffer-file-name)
+                              ,bol)))
+         ;; When point is within the leading whitespace, move it past the
+         ;; new indentation whitespace. Otherwise preserve its position
+         ;; relative to the original text.
+         (pos    (- (point-max) (point))))
+    (goto-char bol)
     (skip-chars-forward " \t")
     (unless (= amount (current-column))
-      (delete-region beg (point))
+      (delete-region bol (point))
       (indent-to amount))
     (when (< (point) (- (point-max) pos))
       (goto-char (- (point-max) pos)))))
