@@ -17,33 +17,48 @@
 (define (determine-spaces tm indent-pos)
   (log-racket-mode-debug "determine-spaces")
   (match (backward-up tm indent-pos)
-    [(? number? pos)
-     (match (beg-of-@sym tm pos)
+    [(? number? open-beg)
+     (match (beg-of-at+sym tm open-beg)
        [(? number? at-pos)
-        (match (classify tm pos)
+        (match (classify tm open-beg)
           [(bounds+token _beg open-end
                          (token:expr:open (or "{" "[") _backup _open _close))
-           (define bol (beg-of-line tm open-end))
            (match (forward-sexp tm open-end)
-             ;; When any sexp on same line as open { or [, indent
-             ;; others with +1 the { or [, too.
+             ;; When a sexp on same line as open { or [, indent
+             ;; following sexps +1 the { or [
              [(? number? pos)
-              #:when (= bol (beg-of-line tm pos))
+              #:when (= (beg-of-line tm open-end) (beg-of-line tm pos))
               (- open-end (beg-of-line tm pos))]
-             ;; Else indent +2 from the @ if any.
-             [_ (- (+ at-pos 2) (beg-of-line tm at-pos))])])]
+             ;; If the line of indent-pos is only whitespace followed
+             ;; by the close token matching open-pos, indent with the
+             ;; @sym.
+             [_
+              #:when
+              (match (classify tm
+                               (forward-whitespace tm
+                                                   (beg-of-line tm indent-pos)))
+                [(bounds+token _beg end (? token:expr:close?))
+                 #:when
+                 (equal? (beg-of-at+sym tm (backward-sexp tm end))
+                         at-pos)
+                 #t]
+                [_ #f])
+              (- at-pos (beg-of-line tm at-pos))]
+             ;; Else indent +2 from the @sym.
+             [_
+              (- (+ at-pos 2) (beg-of-line tm at-pos))])])]
        [_ #f])]
     [#f 0]))
 
 ;; Given position of { or [ token, find the associated @ if any
-(define (beg-of-@sym tm pos)
+(define (beg-of-at+sym tm pos)
   (match (classify tm (backward-sexp tm pos))
     ;; Treat @( as normal sexp
     [(bounds+token _beg _end (token:misc "@" _backup 'symbol))
      #f]
     ;; Is it optional []
     [(bounds+token beg _end (token:expr:open "[" _ _ _))
-     (beg-of-@sym tm beg)]
+     (beg-of-at+sym tm beg)]
     ;; Is it @sym(
     [(bounds+token beg end (token:misc _lexeme _backup 'symbol))
      (match (classify tm (backward-sexp tm beg))
@@ -53,12 +68,14 @@
     [_ #f]))
 
 (module+ test
-  (let ([tm (create "#lang scribble/base\n@foo{\nbar\nbaz")])
+  (let ([tm (create "#lang scribble/base\n@foo{\nbar\nbaz\n}")])
     (check-equal? (indent-amount tm 27) 2)
-    (check-equal? (indent-amount tm 31) 2))
-  (let ([tm (create "#lang scribble/base\n@foo{bar\nbaz\nblah")])
+    (check-equal? (indent-amount tm 31) 2)
+    (check-equal? (indent-amount tm 35) 0))
+  (let ([tm (create "#lang scribble/base\n@foo{bar\nbaz\nblah\n}")])
     (check-equal? (indent-amount tm 30) 5)
-    (check-equal? (indent-amount tm 34) 5))
+    (check-equal? (indent-amount tm 34) 5)
+    (check-equal? (indent-amount tm 39) 5))
 
   (let ([tm (create "#lang scribble/base\n@foo[]{\nbar\nbaz")])
     (check-equal? (indent-amount tm 29) 2)
