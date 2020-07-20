@@ -56,16 +56,10 @@
    ;; If the legacy Scribble indenter, prefer our alternative
    ;; implemented using token-map instead of text%.
    (match (get-info 'drracket:indentation #f)
-     ;; This isn't quite right. Not only is it ad hoc. Worse, this
-     ;; matches when the at-exp meta lang is used -- but then we want
-     ;; the normal sexp indent-amount. I think? Unless at-exp indent
-     ;; is supposed to be a "superset" of plain sexp indent?? Ah
-     ;; right. It is. The drracket:indentation idea is to return #f to
-     ;; use the default sexp indent, and indeed `determine-spaces`
-     ;; does just that. So, our at-exp indent should do similar: If
-     ;; not some at-exp special case for indent, fallback to the sexp
-     ;; indent-amount.
      [(? procedure? p)
+      ;; FIXME: This isn't precise. Will match any lang that suplies
+      ;; something with this name. Also check interval-map-modes for
+      ;; e.g. (cons scribble-inside-lexer _)?
       #:when (eq? (object-name p) 'determine-spaces)
       (log-racket-mode-info "replacing drracket:indentation determine-spaces with our own at-exp indenter")
       at-exp:indent-amount]
@@ -106,10 +100,11 @@
 
 ;; provided really just for logging/debugging `update`s
 (define (show id)
-  (match-define (lexindenter tm _) (hash-ref ht id))
+  (define li (hash-ref ht id))
+  (match-define (lexindenter tm _) li)
   (local-require (submod "../token-map.rkt" test))
   (check-valid? tm)
-  (log-racket-mode-debug "~a" (pretty-format tm))
+  (log-racket-mode-debug "~a" (pretty-format li))
   #f)
 
 (define (tokens-as-elisp tm beg end)
