@@ -115,11 +115,11 @@
   ;; `old-tokens` map, but this can be extremely slow for large maps.
   ;;
   ;; Instead use a "copy on write" approach. Populate `old-tokens`
-  ;; as/when we modify the current map. Then to diff-only change
+  ;; as/when we modify the current map. Then to do `diff`-shift-only
   ;; compares, consult old-tokens first, else use the main map.
   (define old-tokens (make-interval-map))
   (define just-shifted-count 0)
-  (define just-shifted-goal 3) ;2 b/c beg from prev token +1 to be safe
+  (define just-shifted-goal 3) ;2 b/c beg from prev token; +1 to be safe
   (define actual-changes '())
   (define (set-interval/update tokens beg end token)
     (define-values (old-beg old-end old-token)
