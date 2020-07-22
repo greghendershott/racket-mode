@@ -1,10 +1,15 @@
 #lang racket/base
 
+;; Note: The idea is that this would be, not a part of Racket Mode,
+;; but instead a package used by both tools and hash-lang indenters.
+;; It is similar in spirit to a subset of racket:text<%> but without
+;; requiring racket/gui.
+
 (require (only-in data/interval-map
                   make-interval-map
                   interval-map-set!
                   interval-map-ref
-                  interval-map-ref/bounds
+                  interval-map-ref/bounds ;added data-lib 1.1 / Racket 6.12
                   interval-map-remove!
                   interval-map-expand!
                   interval-map-contract!)
@@ -62,7 +67,8 @@
 (define (set-interval tokens beg end token)
   ((current-set-interval) tokens beg end token))
 
-(define (create s)
+(define/contract (create s)
+  (-> string? token-map?)
   (define tokens (make-interval-map))
   (define modes  (make-interval-map))
   (tokenize-string tokens modes s 1)
@@ -149,10 +155,12 @@
     (tokenize-string tokens modes (token-map-str tm) beg))
   (reverse actual-changes))
 
-(define (classify tm pos)
+(define/contract (classify tm pos)
+  (-> token-map? exact-positive-integer? (or/c #f bounds+token?))
   (token-map-ref tm pos))
 
-(define (token-text tm pos)
+(define/contract (token-text tm pos)
+  (-> token-map? exact-positive-integer? (or/c #f string?))
   (match (token-map-ref tm pos)
     [(bounds+token _beg _end (token lexeme _)) lexeme]
     [#f #f]))
@@ -341,13 +349,18 @@
     [(cons (? procedure? p) _) p]
     [v                         v]))
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
 ;;; "Navigation": Useful for a lang indenter -- these roughly
 ;;; correspond to methods from text<%> that an indenter might need --
 ;;; as well as an end user text editor. Note that these work in terms
 ;;; of open and close tokens -- not necessarily traditional lisp
 ;;; s-expressions.
 
-(define (beg-of-line tm start-pos)
+(define navigator/c (-> token-map? exact-positive-integer?
+                        (or/c #f exact-positive-integer?)))
+
+(define/contract (beg-of-line tm start-pos) navigator/c
   (let loop ([pos start-pos])
     (match (token-map-ref tm pos)
       [(bounds+token beg end (? token:misc? t))
@@ -359,7 +372,7 @@
       [#f #:when (< 1 pos) (loop (sub1 pos))]
       [#f 1])))
 
-(define (end-of-line tm pos)
+(define/contract (end-of-line tm pos) navigator/c
   (let loop ([pos pos])
     (match (token-map-ref tm pos)
       [(bounds+token _beg end (? token:misc? t))
@@ -369,44 +382,21 @@
        (loop end)]
       [#f (add1 (string-length (token-map-str tm)))])))
 
-(define (backward-up tm pos)
+(define/contract (backward-up tm pos) navigator/c
   (let loop ([pos pos])
     (match (backward-sexp tm pos list)
       [(list 1) #f]
       [(list pos) pos]
-      [(? number? pos) (loop pos)]))
-  #;
-  (let loop ([pos (match (token-map-ref tm pos)
-                    ;; When pos is already exactly the start of an
-                    ;; open token, start one position earlier.
-                    [(bounds+token beg _end (? token:expr:open?))
-                     (sub1 beg)]
-                    [_ pos])]
-             [ht (hash)])
-    (match (token-map-ref tm pos)
-      [#f #f]
-      [(bounds+token beg end (? token:expr:close? t))
-       (loop (sub1 beg)
-             (hash-update ht (token:expr-open t) add1 0))]
-      [(bounds+token beg end (? token:expr:open? t))
-       (if (zero? (hash-ref ht (token:expr-open t) 0))
-           beg
-           (loop (sub1 beg)
-                 (hash-update ht (token:expr-open t)
-                              sub1
-                              0)))]
-      [(bounds+token beg end (? token? t))
-       (loop (sub1 beg)
-             ht)])))
+      [(? number? pos) (loop pos)])))
 
-(define (forward-whitespace tm pos)
+(define/contract (forward-whitespace tm pos) navigator/c
   (match (token-map-ref tm pos)
     [#f #f]
     [(bounds+token beg end (token:misc _lexeme _backup 'white-space))
      (forward-whitespace tm end)]
     [_ pos]))
 
-(define (forward-whitespace/comment tm pos)
+(define/contract (forward-whitespace/comment tm pos) navigator/c
   (match (token-map-ref tm pos)
     [#f #f]
     [(bounds+token beg end (token:misc _lexeme _backup (or 'end-of-line
@@ -416,7 +406,7 @@
      (forward-whitespace/comment tm end)]
     [_ pos]))
 
-(define (backward-whitespace/comment tm pos)
+(define/contract (backward-whitespace/comment tm pos) navigator/c
   (match (token-map-ref tm pos)
     [#f #f]
     [(bounds+token beg end (token:misc _lexme _backup (or 'end-of-line
@@ -426,7 +416,12 @@
      (backward-whitespace/comment tm (sub1 beg))]
     [_ pos]))
 
-(define (forward-sexp tm pos [fail (λ (_pos) #f)])
+(define navigator/fail/c
+  (->* (token-map? exact-positive-integer?) ((-> exact-positive-integer? any/c))
+       (or/c (or/c #f exact-positive-integer?)
+             any/c)))
+
+(define/contract (forward-sexp tm pos [fail (λ (_pos) #f)]) navigator/fail/c
   (match (forward-whitespace/comment tm pos)
     [#f (fail pos)]
     [pos
@@ -461,10 +456,11 @@
        [(bounds+token _beg end (? token?))
         end])]))
 
-(define (backward-sexp tm pos [fail (λ (_pos) #f)])
-  (match (backward-whitespace/comment tm (and pos (sub1 pos)))
+(define/contract (backward-sexp tm pos [fail (λ (_pos) #f)]) navigator/fail/c
+  (match (and (< 1 pos)
+              (backward-whitespace/comment tm (and pos (sub1 pos))))
     [#f (fail 1)]
-    {pos
+    [pos
      (match (token-map-ref tm pos)
       ;; Open token: Fail with position of failure.
       [(bounds+token beg _end (? token:expr:open?))
@@ -493,7 +489,7 @@
                   depth)]))]
       ;; Some other token. Simply use first char pos.
       [(bounds+token beg _end (? token?))
-       beg])}))
+       beg])]))
 
 (module+ test
   (let* ([str "#lang racket\n(a (b (c  foo))) (bar ((x)) y)\n"]
