@@ -44,30 +44,6 @@
   (hash-set! ht id (lexindenter tm (choose-indenter s tm)))
   (tokens-as-elisp tm 1 +inf.0))
 
-(define (choose-indenter string tm)
-  (define get-info (or (with-handlers ([values (λ _ #f)])
-                         (read-language (open-input-string string)
-                                        (λ _ #f)))
-                       (λ (_key default) default)))
-  (or
-   ;; Prefer our proposed indent protocol: 'indent-amount is
-   ;; (-> token-map? indent-position indent-amount).
-   (get-info 'indent-amount #f)
-   ;; If all lexers are Scribble, use our at-exp indenter implemented
-   ;; on token-map. We don't want and can't use the legacy Scribble
-   ;; drracket:indentation implemented on text<%>. Indeed even
-   ;; checking for that with (get-info 'drracket:indentation) would
-   ;; result in a "heavy" instantiation of racket/gui.
-   (match (lexer-names tm)
-     [(list 'scribble-inside-lexer)
-      (log-racket-mode-info "Using our own at-exp indenter, not e.g. drracket:indentation determine-spaces")
-      at-exp:indent-amount]
-     [(and (list* _a _b _more) vs)
-      (log-racket-mode-warning "Multiple lexers: ~v" vs)]
-     [_ #f])
-   ;; Default to our sexp indenter.
-   sexp:indent-amount))
-
 (define (delete id)
   (hash-remove! ht id))
 
@@ -117,6 +93,31 @@
     [(? token:open? t)  (list beg end 'open               (token:open-close t))]
     [(? token:close? t) (list beg end 'close              (token:close-open t))]
     [(? token:misc? t)  (list beg end (token:misc-kind t) #f)]))
+
+
+(define (choose-indenter string tm)
+  (define get-info (or (with-handlers ([values (λ _ #f)])
+                         (read-language (open-input-string string)
+                                        (λ _ #f)))
+                       (λ (_key default) default)))
+  (or
+   ;; Prefer our proposed indent protocol: 'indent-amount is
+   ;; (-> token-map? indent-position indent-amount).
+   (get-info 'indent-amount #f)
+   ;; If all lexers are Scribble, use our at-exp indenter implemented
+   ;; on token-map. We don't want and can't use the legacy Scribble
+   ;; drracket:indentation implemented on text<%>. Indeed even
+   ;; checking for that with (get-info 'drracket:indentation) would
+   ;; result in a "heavy" instantiation of racket/gui.
+   (match (lexer-names tm)
+     [(list 'scribble-inside-lexer)
+      (log-racket-mode-info "Using our own at-exp indenter, not e.g. drracket:indentation determine-spaces")
+      at-exp:indent-amount]
+     [(and (list* _a _b _more) vs)
+      (log-racket-mode-warning "Multiple lexers: ~v" vs)]
+     [_ #f])
+   ;; Default to our sexp indenter.
+   sexp:indent-amount))
 
 (module+ example-0
   (define id 0)
