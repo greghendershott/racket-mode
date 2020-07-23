@@ -1,5 +1,8 @@
 #lang racket/base
 
+;; Just a shim to use lexers, token-maps, and indenters, from Emacs
+;; Lisp.
+
 (require racket/match
          racket/pretty
          (rename-in "../aexp-indent.rkt"
@@ -14,9 +17,6 @@
                     [forward-sexp tm:forward-sexp]
                     [backward-sexp tm:backward-sexp])
          "../util.rkt")
-
-;; Just a shim to use lexers, token-maps, and indenters, from Emacs
-;; Lisp.
 
 (provide lexindent)
 
@@ -36,33 +36,34 @@
       [(list* (or 'create 'delete) _) (void)]
       [(list* _ id _) (log-racket-mode-debug "~v" (hash-ref ht id))])))
 
-(struct lexindenter (tm indent) #:transparent)
+(struct lexindenter (token-map indent) #:transparent)
 (define ht (make-hash)) ;id => lexindenter?
 
 (define (create id s)
   (define tm (tm:create s))
-  (hash-set! ht id (lexindenter tm (choose-indenter s)))
+  (hash-set! ht id (lexindenter tm (choose-indenter s tm)))
   (tokens-as-elisp tm 1 +inf.0))
 
-(define (choose-indenter s)
+(define (choose-indenter string tm)
   (define get-info (or (with-handlers ([values (λ _ #f)])
-                         (read-language (open-input-string s)
+                         (read-language (open-input-string string)
                                         (λ _ #f)))
                        (λ (_key default) default)))
   (or
    ;; Prefer our proposed indent protocol: 'indent-amount is
    ;; (-> token-map? indent-position indent-amount).
    (get-info 'indent-amount #f)
-   ;; If the legacy Scribble indenter, prefer our alternative
-   ;; implemented using token-map instead of text%.
-   (match (get-info 'drracket:indentation #f)
-     [(? procedure? p)
-      ;; FIXME: This isn't precise. Will match any lang that suplies
-      ;; something with this name. Also check interval-map-modes for
-      ;; e.g. (cons scribble-inside-lexer _)?
-      #:when (eq? (object-name p) 'determine-spaces)
-      (log-racket-mode-info "replacing drracket:indentation determine-spaces with our own at-exp indenter")
+   ;; If all lexers are Scribble, use our at-exp indenter implemented
+   ;; on token-map. We don't want and can't use the legacy Scribble
+   ;; drracket:indentation implemented on text<%>. Indeed even
+   ;; checking for that with (get-info 'drracket:indentation) would
+   ;; result in a "heavy" instantiation of racket/gui.
+   (match (lexer-names tm)
+     [(list 'scribble-inside-lexer)
+      (log-racket-mode-info "Using our own at-exp indenter, not e.g. drracket:indentation determine-spaces")
       at-exp:indent-amount]
+     [(and (list* _a _b _more) vs)
+      (log-racket-mode-warning "Multiple lexers: ~v" vs)]
      [_ #f])
    ;; Default to our sexp indenter.
    sexp:indent-amount))
@@ -113,9 +114,9 @@
 (define (token->elisp b+t)
   (match-define (bounds+token beg end t) b+t)
   (match t
-    [(? token:expr:open? t)  (list beg end 'open               (token:expr-close t))]
-    [(? token:expr:close? t) (list beg end 'close              (token:expr-open t))]
-    [(? token:misc? t)       (list beg end (token:misc-kind t) #f)]))
+    [(? token:open? t)  (list beg end 'open               (token:open-close t))]
+    [(? token:close? t) (list beg end 'close              (token:close-open t))]
+    [(? token:misc? t)  (list beg end (token:misc-kind t) #f)]))
 
 (module+ example-0
   (define id 0)

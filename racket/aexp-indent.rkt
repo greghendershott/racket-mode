@@ -22,8 +22,8 @@
        [(? number? at-pos)
         (match (classify tm open-beg)
           [(bounds+token _beg open-end
-                         (token:expr:open (and (or "{" "[") open-lexeme)
-                                          _backup _open _close))
+                         (token:open (and (or "{" "[") open-lexeme)
+                                     _backup _close))
            (match (forward-sexp tm open-end)
              ;; When a sexp on same line as open { or [, indent
              ;; following sexps 1 column after the { or [
@@ -39,7 +39,7 @@
                   ;; If the line of indent-pos is only whitespace
                   ;; followed by the close token matching open-pos,
                   ;; indent exactly with the @ column.
-                  [(bounds+token _beg end (? token:expr:close?))
+                  [(bounds+token _beg end (? token:close?))
                    #:when (equal? (beg-of-at+sym tm (backward-sexp tm end))
                                   at-pos)
                    0]
@@ -60,7 +60,7 @@
     [(bounds+token _beg _end (token:misc "@" _backup 'symbol))
      #f]
     ;; Did we back over {} to []? Keep going.
-    [(bounds+token beg _end (token:expr:open "[" _ _ _))
+    [(bounds+token beg _end (token:open "[" _ _))
      (beg-of-at+sym tm beg)]
     ;; Is it @sym lexed as one token? Sometimes this happens!
     [(bounds+token beg _end (token:misc (pregexp "^@") _backup 'symbol))

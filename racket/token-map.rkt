@@ -25,11 +25,11 @@
          tokens
          classify
          token-text
+         lexer-names
          (struct-out bounds+token)
          (struct-out token)
-         (struct-out token:expr)
-         (struct-out token:expr:open)
-         (struct-out token:expr:close)
+         (struct-out token:open)
+         (struct-out token:close)
          (struct-out token:misc)
          beg-of-line
          end-of-line
@@ -49,11 +49,8 @@
 
 (struct bounds+token (beg end token) #:transparent)
 (struct token (lexeme backup) #:transparent)
-;; TODO: Change the open/close tokens to store only the opposite
-;; (close/open) since the lexeme already expresses the open/close.
-(struct token:expr token (open close) #:transparent)
-(struct token:expr:open token:expr () #:transparent)
-(struct token:expr:close token:expr () #:transparent)
+(struct token:open token (close) #:transparent)
+(struct token:close token (open) #:transparent)
 (struct token:misc token (kind) #:transparent)
 
 (define (token-map-ref tm pos)
@@ -306,29 +303,29 @@
 ;; like this would be necessary for backward compatibilty, even if a new
 ;; 'color-lexer-2 were implemented.
 (define (handle-parenthesis-token im lexeme mode delimit beg end backup)
-  (define lexer-name (object-name (mode->lexer mode)))
   (define tok
     (match delimit
-      ['|(| (token:expr:open lexeme backup "(" ")")]
-      ['|[| (token:expr:open lexeme backup "[" "]")]
-      ['|{| (token:expr:open lexeme backup "{" "}")]
-      ['|)| (token:expr:close lexeme backup "(" ")")]
-      ['|]| (token:expr:close lexeme backup "[" "]")]
-      ['|}| (token:expr:close lexeme backup "{" "}")]
+      ['|(| (token:open lexeme backup ")")]
+      ['|[| (token:open lexeme backup "]")]
+      ['|{| (token:open lexeme backup "}")]
+      ['|)| (token:close lexeme backup "(")]
+      ['|]| (token:close lexeme backup "[")]
+      ['|}| (token:close lexeme backup "{")]
       [_
        (log-racket-mode-warning
         "unexpected 'parenthesis token with delimit = ~v and lexeme = ~v"
         delimit lexeme)
        (match lexeme
          ;; Defensive:
-         ["(" (token:expr:open lexeme backup "(" ")")]
-         [")" (token:expr:close lexeme backup "(" ")")]
+         ["(" (token:open lexeme backup ")")]
+         [")" (token:close lexeme backup "(")]
          ;; I have seen this with at-exp and scribble/text. No
          ;; idea why. I guess treat it as 'symbol, like how "'"
          ;; is lexed??
          ["@"
-          #:when (memq lexer-name '(scribble-lexer
-                                    scribble-inside-lexer))
+          #:when (memq (mode->lexer-name mode)
+                       '(scribble-lexer
+                         scribble-inside-lexer))
           (token:misc lexeme backup 'symbol)]
          ;; Super-defensive WTF:
          [_  (token:misc lexeme backup 'other)])]))
@@ -343,11 +340,19 @@
   ;; end.
   (set-interval im beg end tok))
 
-(define (mode->lexer mode)
-  (match mode
-    [(? procedure? p)          p]
-    [(cons (? procedure? p) _) p]
-    [v                         v]))
+(define (mode->lexer-name mode)
+  (object-name (match mode
+                 [(? procedure? p)          p]
+                 [(cons (? procedure? p) _) p]
+                 [v                         v])))
+
+(define (lexer-names tm)
+  (for*/fold ([names '()])
+             ([mode (in-dict-values (token-map-modes tm))]
+              #:when mode
+              [name (in-value (mode->lexer-name mode))]
+              #:when (not (member name names)))
+    (cons name names)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 
@@ -427,23 +432,23 @@
     [pos
      (match (token-map-ref tm pos)
        ;; Close token: Fail with position of failure.
-       [(bounds+token _beg end (? token:expr:close?))
+       [(bounds+token _beg end (? token:close?))
         (fail end)]
        ;; Open token: Scan for matching close token.
-       [(bounds+token beg end (? token:expr:open? open-t))
+       [(bounds+token beg end (? token:open? open-t))
         (let loop ([pos pos]
                    [depth 0])
           ;;(println (list pos depth (interval-map-ref im pos)))
           (match (token-map-ref tm pos)
             [#f (fail pos)]
-            [(bounds+token _beg end (? token:expr:open? t))
-             #:when (equal? (token:expr-open open-t)
-                            (token:expr-open t))
+            [(bounds+token _beg end (? token:open? t))
+             #:when (equal? (token-lexeme open-t)
+                            (token-lexeme t))
              (loop end
                    (add1 depth))]
-            [(bounds+token _beg end (? token:expr:close? t))
-             #:when (equal? (token:expr-open open-t)
-                            (token:expr-open t))
+            [(bounds+token _beg end (? token:close? t))
+             #:when (equal? (token-lexeme open-t)
+                            (token:close-open t))
              (if (= depth 1)
                  end
                  (loop end
@@ -463,25 +468,25 @@
     [pos
      (match (token-map-ref tm pos)
       ;; Open token: Fail with position of failure.
-      [(bounds+token beg _end (? token:expr:open?))
+      [(bounds+token beg _end (? token:open?))
        (fail beg)]
       ;; Close token: Scan for matching open token.
-      [(bounds+token _beg _end (? token:expr:close? close-t))
+      [(bounds+token _beg _end (? token:close? close-t))
        (let loop ([pos pos]
                   [depth 0])
          ;;(println (list pos depth (interval-map-ref im pos)))
          (match (token-map-ref tm pos)
            [#f (fail 1)]
-           [(bounds+token beg _end (? token:expr:open? t))
-            #:when (equal? (token:expr-open close-t)
-                           (token:expr-open t))
+           [(bounds+token beg _end (? token:open? t))
+            #:when (equal? (token:close-open close-t)
+                           (token-lexeme t))
             (if (= depth 1)
                 beg
                 (loop (sub1 beg)
                       (sub1 depth)))]
-           [(bounds+token beg _end (? token:expr:close? t))
-            #:when (equal? (token:expr-open close-t)
-                           (token:expr-open t))
+           [(bounds+token beg _end (? token:close? t))
+            #:when (equal? (token-lexeme close-t)
+                           (token-lexeme t))
             (loop (sub1 beg)
                   (add1 depth))]
            [(bounds+token beg _end (? token?))
@@ -547,16 +552,16 @@
                    (cons '(13 . 14) (token:misc "\n" 0 'end-of-line))
                    (cons '(14 . 16) (token:misc "42" 0 'constant))
                    (cons '(16 . 17) (token:misc " " 0 'white-space))
-                   (cons '(17 . 18) (token:expr:open "(" 0 "(" ")"))
+                   (cons '(17 . 18) (token:open "(" 0 ")"))
                    (cons '(18 . 23) (token:misc "print" 0 'symbol))
                    (cons '(23 . 24) (token:misc " " 0 'white-space))
                    (cons '(24 . 31) (token:misc "\"hello\"" 0 'string))
-                   (cons '(31 . 32) (token:expr:close ")" 0 "(" ")"))
+                   (cons '(31 . 32) (token:close ")" 0 "("))
                    (cons '(32 . 33) (token:misc " " 0 'white-space))
                    (cons '(33 . 39) (token:misc "@print" 0 'symbol))
-                   (cons '(39 . 40) (token:expr:open "{" 0 "{" "}"))
+                   (cons '(39 . 40) (token:open "{" 0 "}"))
                    (cons '(40 . 45) (token:misc "Hello" 0 'symbol))
-                   (cons '(45 . 46) (token:expr:close "}" 0 "{" "}"))
+                   (cons '(45 . 46) (token:close "}" 0 "{"))
                    (cons '(46 . 47) (token:misc " " 0 'white-space))
                    (cons '(47 . 48) (token:misc "'" 0 'constant))
                    (cons '(48 . 51) (token:misc "foo" 0 'symbol))
@@ -603,17 +608,17 @@
                    (cons '(13 . 14) (token:misc "\n" 0 'end-of-line))
                    (cons '(14 . 19) (token:misc "99999" 0 'constant))
                    (cons '(19 . 20) (token:misc " " 0 'white-space))
-                   (cons '(20 . 21) (token:expr:open "(" 0 "(" ")"))
+                   (cons '(20 . 21) (token:open "(" 0  ")"))
                    (cons '(21 . 26) (token:misc "print" 0 'symbol))
                    (cons '(26 . 27) (token:misc " " 0 'white-space))
                    (cons '(27 . 28) (token:misc "'" 0 'constant))
                    (cons '(28 . 32) (token:misc "hell" 0 'symbol))
-                   (cons '(32 . 33) (token:expr:close ")" 0 "(" ")"))
+                   (cons '(32 . 33) (token:close ")" 0 "("))
                    (cons '(33 . 34) (token:misc " " 0 'white-space))
                    (cons '(34 . 40) (token:misc "@print" 0 'symbol))
-                   (cons '(40 . 41) (token:expr:open "{" 0 "{" "}"))
+                   (cons '(40 . 41) (token:open "{" 0 "}"))
                    (cons '(41 . 46) (token:misc "Hello" 0 'symbol))
-                   (cons '(46 . 47) (token:expr:close "}" 0 "{" "}"))
+                   (cons '(46 . 47) (token:close "}" 0 "{"))
                    (cons '(47 . 48) (token:misc " " 0 'white-space))
                    (cons '(48 . 49) (token:misc "'" 0 'constant))
                    (cons '(49 . 52) (token:misc "bar" 0 'symbol))
@@ -654,17 +659,17 @@
                    (cons '(20 . 21) (token:misc "\n" 0 'end-of-line))
                    (cons '(21 . 23) (token:misc "42" 0 'constant))
                    (cons '(23 . 24) (token:misc " " 0 'white-space))
-                   (cons '(24 . 25) (token:expr:open "(" 0 "(" ")"))
+                   (cons '(24 . 25) (token:open "(" 0 ")"))
                    (cons '(25 . 30) (token:misc "print" 0 'symbol))
                    (cons '(30 . 31) (token:misc " " 0 'white-space))
                    (cons '(31 . 38) (token:misc "\"hello\"" 0 'string))
-                   (cons '(38 . 39) (token:expr:close ")" 0 "(" ")"))
+                   (cons '(38 . 39) (token:close ")" 0 "("))
                    (cons '(39 . 40) (token:misc " " 0 'white-space))
                    (cons '(40 . 41) (token:misc "@" 0 'symbol))
                    (cons '(41 . 46) (token:misc "print" 0 'symbol))
-                   (cons '(46 . 47) (token:expr:open "{" 0 "{" "}"))
+                   (cons '(46 . 47) (token:open "{" 0 "}"))
                    (cons '(47 . 60) (token:misc "Hello (there)" 0 'text))
-                   (cons '(60 . 61) (token:expr:close "}" 0 "{" "}"))
+                   (cons '(60 . 61) (token:close "}" 0 "{"))
                    (cons '(61 . 62) (token:misc " " 0 'white-space))
                    (cons '(62 . 63) (token:misc "'" 0 'constant))
                    (cons '(63 . 66) (token:misc "foo" 0 'symbol))
@@ -684,17 +689,17 @@
                    (cons '(20 . 21) (token:misc "\n" 0 'end-of-line))
                    (cons '(21 . 27) (token:misc "Hello " 0 'text))
                    (cons '(27 . 28) (token:misc "@" 0 'symbol))
-                   (cons '(28 . 29) (token:expr:open "(" 0 "(" ")"))
+                   (cons '(28 . 29) (token:open "(" 0 ")"))
                    (cons '(29 . 34) (token:misc "print" 0 'symbol))
                    (cons '(34 . 35) (token:misc " " 0 'white-space))
                    (cons '(35 . 42) (token:misc "\"hello\"" 0 'string))
-                   (cons '(42 . 43) (token:expr:close ")" 0 "(" ")"))
+                   (cons '(42 . 43) (token:close ")" 0 "("))
                    (cons '(43 . 44) (token:misc " " 0 'text))
                    (cons '(44 . 45) (token:misc "@" 0 'symbol))
                    (cons '(45 . 50) (token:misc "print" 0 'symbol))
-                   (cons '(50 . 51) (token:expr:open "{" 0 "{" "}"))
+                   (cons '(50 . 51) (token:open "{" 0 "}"))
                    (cons '(51 . 64) (token:misc "Hello (there)" 0 'text))
-                   (cons '(64 . 65) (token:expr:close "}" 0 "{" "}"))
+                   (cons '(64 . 65) (token:close "}" 0 "{"))
                    (cons '(65 . 81) (token:misc " #:not-a-keyword" 0 'text))))))
 
 (module+ test
@@ -799,9 +804,9 @@
                   (list
                    (cons '(1 . 13) (token:misc "#lang racket" 0 'other))
                    (cons '(13 . 14) (token:misc "\n" 0 'end-of-line))
-                   (cons '(14 . 15) (token:expr:open "(" 0 "(" ")"))
+                   (cons '(14 . 15) (token:open "(" 0 ")"))
                    (cons '(15 . 17) (token:misc "hi" 0 'symbol))
-                   (cons '(17 . 18) (token:expr:close ")" 0 "(" ")"))))
+                   (cons '(17 . 18) (token:close ")" 0 "("))))
     (check-equal? (dict->list (token-map-modes tm))
                   (list
                    (cons '(1 . 13) #f)
@@ -816,10 +821,10 @@
     (check-equal? (token-map-ref tm 14)
                   (bounds+token 14 19 (token:misc "#hash" 0 'error)))
     (check-equal? (update tm 19 0 "(")
-                  (list (bounds+token 14 20 (token:expr:open "#hash(" 0 "(" ")")))
+                  (list (bounds+token 14 20 (token:open "#hash(" 0 ")")))
                   "Adding parens after #hash re-lexes from an error to an open")
     (check-equal? (token-map-ref tm 14)
-                  (bounds+token 14 20 (token:expr:open "#hash(" 0 "(" ")")))))
+                  (bounds+token 14 20 (token:open "#hash(" 0 ")")))))
 
 (module+ test
   (provide check-valid?)

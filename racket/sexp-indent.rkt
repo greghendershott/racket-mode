@@ -63,7 +63,7 @@
   (match (classify tm pos)
     [(bounds+token _beg end
                    (or (token:misc _ _ 'hash-keyword)
-                       (token:expr:open (regexp "^#(.*?)\\(") _ _ _)))
+                       (token:open (regexp "^#(.*?)\\(") _ _)))
      end]
     [_ #f]))
 
