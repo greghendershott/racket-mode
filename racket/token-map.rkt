@@ -71,8 +71,14 @@
   (tokenize-string tokens modes s 1)
   (token-map s tokens modes))
 
-;; Given an update to the string, re-tokenize and return a minimal
-;; list of changes, doing mimimal work.
+;; Given an update to the string, re-tokenize -- doing minimal work
+;; and returning a minimal list of changes. Potentially this could be
+;; called for every single character change that a user makes while
+;; typing in their editor.
+;;
+;; The function signature here is similar to that of Emacs'
+;; after-change functions: Something changed starting at POS. The text
+;; there used to be OLD-LEN chars long. It is now STR.
 (define/contract (update tm pos old-len str)
   (-> token-map? exact-positive-integer? exact-nonnegative-integer? string? any)
   (unless (<= (sub1 pos) (string-length (token-map-str tm)))
@@ -179,23 +185,24 @@
 (define (tokenize-port str tokens modes in offset mode)
   (define-values (lexeme kind delimit beg end backup new-mode)
     (module-lexer in offset mode))
-  ;;(println (list offset mode lexeme kind delimit beg end backup new-mode))
   (unless (eof-object? lexeme)
     (interval-map-set! modes beg end mode)
-    ;; The scribble-inside-lexer sometimes returns a value for
-    ;; `lexeme` that is not the original lexed text. One example is
-    ;; returning " " instead of "\n" for whitespace -- but we need
-    ;; that in handle-white-space-token to create end-of-line tokens.
-    ;; Also it sometimes returns 'text instead of the string for 'text
-    ;; tokens, which would be harmless, except we want `check-valid?`
-    ;; to be able to say that appending all token lexemes equals the
-    ;; input string.
+    ;; Don't trust `lexeme`; instead grab [beg end) from the input
+    ;; string.^1
     (let ([lexeme (substring str (sub1 beg) (sub1 end))])
-     (when (case kind
-             [(white-space) (handle-white-space-token tokens lexeme beg end backup)]
-             [(parenthesis) (handle-parenthesis-token tokens lexeme mode delimit beg end backup)]
-             [else          (set-interval tokens beg end (token:misc lexeme backup kind))])
-       (tokenize-port str tokens modes in end new-mode)))))
+      (when
+          (case kind
+            [(white-space) (handle-white-space-token tokens lexeme beg end backup)]
+            [(parenthesis) (handle-parenthesis-token tokens lexeme mode delimit beg end backup)]
+            [else          (set-interval tokens beg end (token:misc lexeme backup kind))])
+        (tokenize-port str tokens modes in end new-mode)))))
+;; ^1: The scribble-inside-lexer sometimes returns a value for
+;; `lexeme` that is not the original lexed text. One example is
+;; returning " " instead of "\n" for whitespace -- but we need that in
+;; handle-white-space-token to create end-of-line tokens. Also it
+;; sometimes returns 'text instead of the string for 'text tokens,
+;; which would be harmless, except we want `check-valid?` to be able
+;; to say that appending all token lexemes equals the input string.
 
 ;; It is convenient to some users of the token map (e.g. indenters)
 ;; for it to supply end-of-line tokens distinct from generic
@@ -269,59 +276,48 @@
 ;;
 ;; INSTEAD
 ;;
-;; 1. I suggest instead of "parenthesis" tokens, a lexer should return
-;;    "open" and "close" tokens. Instead of a 'delimit' field as in
-;;    the status quo (which mostly just recapitulates information in
-;;    the 'lexeme' field) there is a field stating the opposite,
-;;    matching token. An open token says what its matching close
-;;    token is, and vice versa. That way a lang could specify
-;;    expression/block delimiters like "begin" and "end", its lexer
-;;    could emit tokens like (open lexeme:"begin" opposite:"end") and
-;;    (close lexeme:"end" opposite:"begin"), and a consuming indenter
-;;    or editor can use these effectively. (I think this will work
-;;    even if multiple open tokens share the same end token -- like
-;;    when "then" and "else" both use "end", as opposed to "elif" and
-;;    "end" -- right?) (For off-side rule lexers, presumably indent =
-;;    open and dedent = close, and the "opposite" value is N/A?)
-;;
-;; 2. Also, some languages (at least sexp langs) might want to have a
-;;    token type similar to what Emacs calls "expression prefix" --
-;;    such as for reader shorthands like ' and #' and #hasheq.
-;;    Currently racket-lexer classifies these as "symbol", which makes
-;;    sense as they are shortand for symbols like "quote" and
-;;    "syntax". However, end user sexp navigation wants to treat the
-;;    first character of those prefixes as the start of the entire
-;;    sexp -- not the open paren. Likewise, indent usually wants to
-;;    align with that first character, not the open paren.
-;;    [Alternatively, I suppose a lexer could return "'(" or
-;;    "#hasheq(" as as single open token. That means e.g. Emacs could
-;;    not use char-syntax, but, we could provide our own
-;;    forward-sexp-function that understands these, I think.]
+;; I suggest instead of "parenthesis" tokens, a lexer should return
+;; "open" and "close" tokens. Instead of a 'delimit' field as in the
+;; status quo (which mostly just recapitulates information in the
+;; 'lexeme' field) there is a field stating the opposite, matching
+;; token. An open token says what its matching close token is, and
+;; vice versa. That way a lang could specify expression/block
+;; delimiters like "begin" and "end", its lexer could emit tokens like
+;; (open lexeme:"begin" opposite:"end") and (close lexeme:"end"
+;; opposite:"begin"), and a consuming indenter or editor can use these
+;; effectively. (I think this will work even if multiple open tokens
+;; share the same end token -- like when "then" and "else" both use
+;; "end", as opposed to "elif" and "fi" -- right?) (For off-side rule
+;; lexers, presumably indent = open and dedent = close, and the
+;; "opposite" value is N/A?)
 ;;
 ;; MEANWHILE: The following function attempts to "normalize" the
-;; status quo "legacy" lexer protocol along these lines. Maybe something
-;; like this would be necessary for backward compatibilty, even if a new
-;; 'color-lexer-2 were implemented.
+;; status quo "legacy" lexer protocol along these lines. Maybe
+;; something like this would be necessary for backward compatibilty,
+;; even if a new 'color-lexer-2 were implemented.
 (define (handle-parenthesis-token im lexeme mode delimit beg end backup)
+  (define (open close) (token:open lexeme backup close))
+  (define (close open) (token:close lexeme backup open))
   (define tok
     (match delimit
-      ['|(| (token:open lexeme backup ")")]
-      ['|[| (token:open lexeme backup "]")]
-      ['|{| (token:open lexeme backup "}")]
-      ['|)| (token:close lexeme backup "(")]
-      ['|]| (token:close lexeme backup "[")]
-      ['|}| (token:close lexeme backup "{")]
+      ['|(| (open ")")]
+      ['|[| (open "]")]
+      ['|{| (open "}")]
+      ['|)| (close "(")]
+      ['|]| (close "[")]
+      ['|}| (close "{")]
       [_
        (log-racket-mode-warning
         "unexpected 'parenthesis token with delimit = ~v and lexeme = ~v"
         delimit lexeme)
        (match lexeme
          ;; Defensive:
-         ["(" (token:open lexeme backup ")")]
-         [")" (token:close lexeme backup "(")]
-         ;; I have seen this with at-exp and scribble/text. No
-         ;; idea why. I guess treat it as 'symbol, like how "'"
-         ;; is lexed??
+         ["(" (open ")")]
+         [")" (close "(")]
+         ;; I have seen this with at-exp and scribble/text. No idea
+         ;; why. Definitely don't want to treat it as an open -- there
+         ;; will be no matching close, later. Instead I guess treat it
+         ;; as 'symbol, like how "'" is lexed??
          ["@"
           #:when (memq (mode->lexer-name mode)
                        '(scribble-lexer
@@ -329,15 +325,6 @@
           (token:misc lexeme backup 'symbol)]
          ;; Super-defensive WTF:
          [_  (token:misc lexeme backup 'other)])]))
-  ;; racket-lexer et al can return multi-character open parenthesis
-  ;; tokens. For example "#hash(" is a single, open paren token.
-  ;; Furthermore we want to support non-sexpr langs with multi-char
-  ;; open/close tokens like "begin" and "end".
-  ;;
-  ;; In Emacs, the standard char-syntax stuff is just that -- single
-  ;; chars. As a result, we can't use char-syntax for these. Instead
-  ;; we'll need to supply a forward-sexp-function that calls the back
-  ;; end.
   (set-interval im beg end tok))
 
 (define (mode->lexer-name mode)
