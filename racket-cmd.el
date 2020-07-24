@@ -76,11 +76,13 @@ See issue #327.")
    :name            racket--cmd-process-name
    :connection-type 'pipe
    :noquery         t
+   :coding          'utf-8
    :buffer          (get-buffer-create (concat " *" racket--cmd-process-name "*"))
    :stderr          (make-pipe-process
                      :name     (concat racket--cmd-process-name "-stderr")
                      :buffer   (concat "*" racket--cmd-process-name "-stderr*")
                      :noquery  t
+                     :coding   'utf-8
                      :filter   #'racket--cmd-process-stderr-filter
                      :sentinel #'ignore)
    :command         (list racket-program
