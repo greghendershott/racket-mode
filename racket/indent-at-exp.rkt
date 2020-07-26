@@ -1,10 +1,9 @@
 #lang racket/base
 
 (require racket/match
-         (only-in "sexp-indent.rkt"
+         (only-in "indent-sexp.rkt"
                   [indent-amount sexp:indent-amount])
-         "token-map.rkt"
-         "util.rkt")
+         "token-map.rkt")
 
 (provide indent-amount)
 
@@ -15,7 +14,6 @@
       (sexp:indent-amount tm indent-pos)))
 
 (define (determine-spaces tm indent-pos)
-  (log-racket-mode-debug "determine-spaces")
   (match (backward-up tm indent-pos)
     [(? number? open-beg)
      (match (beg-of-at+sym tm open-beg)

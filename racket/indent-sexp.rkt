@@ -17,8 +17,7 @@
 ;; for now, to research the feasibility of doing this with Emacs.
 
 (require racket/match
-         "token-map.rkt"
-         "util.rkt")
+         "token-map.rkt")
 
 (provide indent-amount)
 
@@ -35,7 +34,7 @@
     [(? number? open-pos)
      (define id-pos (forward-whitespace tm (add1 open-pos)))
      (define id-name (token-text tm id-pos))
-     (log-racket-mode-debug "indent-amount id-name is ~v at ~v" id-name id-pos)
+     ;; (log-debug "indent-amount id-name is ~v at ~v" id-name id-pos)
      (match (hash-ref ht-methods
                       id-name
                       (λ ()
@@ -56,7 +55,7 @@
        [_
         (default-amount tm id-pos)])]
     [#f
-     (log-racket-mode-debug "indent-amount no containing sexp found")
+     ;; (log-debug "indent-amount no containing sexp found")
      0]))
 
 (define ((end-of-hash-literal/keyword tm) pos)

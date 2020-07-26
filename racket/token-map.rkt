@@ -16,8 +16,7 @@
          racket/contract
          racket/dict
          racket/match
-         syntax-color/module-lexer
-         "util.rkt")
+         syntax-color/module-lexer)
 
 (provide token-map?
          create
@@ -307,7 +306,8 @@
       ['|]| (close "[")]
       ['|}| (close "{")]
       [_
-       (log-racket-mode-warning
+       #;
+       (log--warning
         "unexpected 'parenthesis token with delimit = ~v and lexeme = ~v"
         delimit lexeme)
        (match lexeme

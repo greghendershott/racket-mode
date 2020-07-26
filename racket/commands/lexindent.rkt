@@ -1,13 +1,12 @@
 #lang racket/base
 
-;; Just a shim to use lexers, token-maps, and indenters, from Emacs
-;; Lisp.
+;; Bridge to Emacs Lisp to use lexers, token-maps, and indenters.
 
 (require racket/match
          racket/pretty
-         (rename-in "../aexp-indent.rkt"
+         (rename-in "../indent-at-exp.rkt"
                     [indent-amount at-exp:indent-amount])
-         (rename-in "../sexp-indent.rkt"
+         (rename-in "../indent-sexp.rkt"
                     [indent-amount sexp:indent-amount])
          (rename-in "../token-map.rkt"
                     [create tm:create]
