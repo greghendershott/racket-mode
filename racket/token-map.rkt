@@ -278,12 +278,14 @@
 ;; STATUS QUO
 ;;
 ;; I find the status quo lexer/c handling of this to be not quite
-;; right: `delimit` is one of the chars "()[]{}", and, it simply
+;; right: `delimit` is one of the chars "()[]{}", and, often it just
 ;; "recapitulates" information from the lexeme. I'm guessing the
-;; justification for this was that e.g. racket-lexer handles "#(" as a
-;; single 2-char token, parenthesis "(". HOWEVER. It handles "#'(" as
-;; 2 tokens -- a 2-char "#'" constant followed by a 1-char parenthesis
-;; "(". So...???
+;; justification for this was that e.g. racket-lexer handles "#hasheq"
+;; as a single multi-char paren token with delimit="(", and similarly
+;; #(" as a single 2-char paren token with delimit="(". That seems
+;; reasonable. HOWEVER, racket-lexer handles "#'(" as 2 tokens -- a
+;; 2-char "#'" constant followed by a 1-char paren token "(". I don't
+;; understand that.
 ;;
 ;; color-text<%> start-colorer accepts a "pairs" list e.g. '((|(| |)|)
 ;; (|[| |]|) (begin end)). BUT. Where does this value come from?? It
@@ -304,7 +306,7 @@
 ;; I suggest instead of "parenthesis" tokens, a lexer should return
 ;; "open" and "close" tokens. Instead of a 'delimit' field as in the
 ;; status quo (which mostly just recapitulates information in the
-;; 'lexeme' field) there is a field stating the opposite, matching
+;; 'lexeme' field) there is a field stating the /opposite/, matching
 ;; token. An open token says what its matching close token is, and
 ;; vice versa. That way a lang could specify expression/block
 ;; delimiters like "begin" and "end", its lexer could emit tokens like
@@ -314,12 +316,12 @@
 ;; share the same end token -- like when "then" and "else" both use
 ;; "end", as opposed to "elif" and "fi" -- right?) (For off-side rule
 ;; lexers, presumably indent = open and dedent = close, and the
-;; "opposite" value is N/A?)
+;; "opposite" value is N/A? TBD!)
 ;;
 ;; MEANWHILE: The following function attempts to "normalize" the
 ;; status quo "legacy" lexer protocol along these lines. Maybe
-;; something like this would be necessary for backward compatibilty,
-;; even if a new 'color-lexer-2 were implemented.
+;; something like this would be good for backward compatibilty, even
+;; if a new 'color-lexer-2 protocol were adopted.
 (define (handle-parenthesis set-interval lexeme mode delimit beg end backup)
   (define (open close) (token:open lexeme backup close))
   (define (close open) (token:close lexeme backup open))
