@@ -65,10 +65,9 @@
 
 (define/contract (create s)
   (-> string? token-map?)
-  (define tokens (make-interval-map))
-  (define modes  (make-interval-map))
-  (tokenize-string tokens modes s 1)
-  (token-map s tokens modes))
+  (define tm (token-map s (make-interval-map) (make-interval-map)))
+  (tokenize-string tm 1)
+  tm)
 
 ;; Given an update to the string, re-tokenize -- doing minimal work
 ;; and returning a minimal list of changes. Potentially this could be
@@ -88,7 +87,9 @@
 
 (define (update* tm pos old-len str)
   (set-token-map-str! tm
-                      (string-append (substring (token-map-str tm) 0 (sub1 pos))
+                      (string-append (substring (token-map-str tm)
+                                                0
+                                                (sub1 pos))
                                      str
                                      (substring (token-map-str tm)
                                                 (+ (sub1 pos) old-len))))
@@ -154,7 +155,7 @@
            (interval-map-set! tokens beg end token)
            #t])) ;continue
   (parameterize ([current-set-interval set-interval/update])
-    (tokenize-string tokens modes (token-map-str tm) beg))
+    (tokenize-string tm beg))
   (reverse actual-changes))
 
 (define/contract (classify tm pos)
@@ -175,13 +176,15 @@
            (tokens tm (bounds+token-end b+t) end proc))]
     [_ '()]))
 
-(define (tokenize-string tokens modes str beg)
-  (define in (open-input-string (substring str (sub1 beg))))
+(define (tokenize-string tm beg)
+  (define in (open-input-string (substring (token-map-str tm) (sub1 beg))))
   (port-count-lines! in) ;important for Unicode e.g. λ
   (set-port-next-location! in 1 0 beg) ;we don't use line/col, just pos
-  (tokenize-port str tokens modes in beg (interval-map-ref modes beg #f)))
+  (define mode (interval-map-ref (token-map-modes tm) beg #f))
+  (tokenize-port tm in beg mode))
 
-(define (tokenize-port str tokens modes in offset mode)
+(define (tokenize-port tm in offset mode)
+  (match-define (token-map str tokens modes) tm)
   (define-values (lexeme kind delimit beg end backup new-mode)
     (module-lexer in offset mode))
   (unless (eof-object? lexeme)
@@ -194,7 +197,7 @@
             [(white-space) (handle-white-space-token tokens lexeme beg end backup)]
             [(parenthesis) (handle-parenthesis-token tokens lexeme mode delimit beg end backup)]
             [else          (set-interval tokens beg end (token:misc lexeme backup kind))])
-        (tokenize-port str tokens modes in end new-mode)))))
+        (tokenize-port tm in end new-mode)))))
 ;; ^1: The scribble-inside-lexer sometimes returns a value for
 ;; `lexeme` that is not the original lexed text. One example is
 ;; returning " " instead of "\n" for whitespace -- but we need that in
@@ -206,14 +209,14 @@
 ;; It is convenient to some users of the token map (e.g. indenters)
 ;; for it to supply end-of-line tokens distinct from generic
 ;; white-space tokens.
-(define (handle-white-space-token im lexeme beg end backup)
+(define (handle-white-space-token tokens lexeme beg end backup)
   (let loop ([lexeme lexeme]
              [beg beg]
              [end end]
              [backup backup])
     (match lexeme
       [(pregexp "^\r\n")
-       (set-interval im
+       (set-interval tokens
                      beg (+ 2 beg)
                      (token:misc (substring lexeme 0 2) backup 'end-of-line))
        (loop (substring lexeme 2)
@@ -221,7 +224,7 @@
              end
              (+ backup 2))]
       [(pregexp "^[\r\n]")
-       (set-interval im beg (add1 beg)
+       (set-interval tokens beg (add1 beg)
                      (token:misc (substring lexeme 0 1) backup 'end-of-line))
        (loop (substring lexeme 1)
              (add1 beg)
@@ -229,7 +232,7 @@
              (add1 backup))]
       [(pregexp "^([^\r\n]+)" (list _ s))
        (define len (string-length s))
-       (set-interval im beg (+ beg len)
+       (set-interval tokens beg (+ beg len)
                      (token:misc (substring lexeme 0 len) backup 'white-space))
        (loop (substring lexeme len)
              (+ beg len)
@@ -294,7 +297,7 @@
 ;; status quo "legacy" lexer protocol along these lines. Maybe
 ;; something like this would be necessary for backward compatibilty,
 ;; even if a new 'color-lexer-2 were implemented.
-(define (handle-parenthesis-token im lexeme mode delimit beg end backup)
+(define (handle-parenthesis-token tokens lexeme mode delimit beg end backup)
   (define (open close) (token:open lexeme backup close))
   (define (close open) (token:close lexeme backup open))
   (define tok
@@ -325,7 +328,7 @@
           (token:misc lexeme backup 'symbol)]
          ;; Super-defensive WTF:
          [_  (token:misc lexeme backup 'other)])]))
-  (set-interval im beg end tok))
+  (set-interval tokens beg end tok))
 
 (define (mode->lexer-name mode)
   (object-name (match mode
