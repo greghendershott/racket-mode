@@ -145,7 +145,7 @@
   (let ([tm (create "#lang racket\n\n(if a\n    (for/list ([x xs])\n      (cond 1\n            2)))")])
     (check-equal? (indent-amount tm 73) 4)
     (check-equal? (indent-amount tm 74) 0)
-    (check-equal? (update tm 74 0 "\n")
+    (check-equal? (update! tm 74 0 "\n")
                   (list (bounds+token 74 75 (token:misc "\n" 0 'end-of-line))))
     (local-require (submod "token-map.rkt" test))
     (check-valid? tm)
@@ -231,7 +231,7 @@
                   "begin0 result should indent 4")
     (check-equal? (indent-amount tm 25) 2
                   "begin0 first other expr should indent 2")
-    (update tm 25 0 "  ") ;actually indent that, for next check...
+    (update! tm 25 0 "  ") ;actually indent that, for next check...
     (check-equal? (indent-amount tm 27) 2
                   "begin0 second other expr should indent same as first other"))
   (let ()
@@ -239,7 +239,7 @@
     ;;           1234567890123 4567890123
     ;;                    1           2
     (define tm (create str))
-    (update tm 23 0 "\n")
+    (update! tm 23 0 "\n")
     (check-equal? (indent-amount tm 22) 7)
     (check-equal? (indent-amount tm 23) 7))
   (let ()
@@ -247,7 +247,7 @@
     ;;           1234567890123 45678901 23 456
     ;;                    1          2
     (define tm (create str))
-    (update tm 21 0 "\n")
+    (update! tm 21 0 "\n")
     (check-equal? (indent-amount tm 22) 4
                   "position is exactly on close token"))
   (let ()
@@ -284,7 +284,7 @@
   (define tm (create str))
   tm
   (indent-amount tm 18)
-  (update tm 28 0 "\n")
+  (update! tm 28 0 "\n")
   tm
   (indent-amount tm 29))
 

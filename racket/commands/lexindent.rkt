@@ -10,7 +10,7 @@
                     [indent-amount sexp:indent-amount])
          (rename-in "../token-map.rkt"
                     [create tm:create]
-                    [update tm:update]
+                    [update! tm:update!]
                     [tokens tm:tokens]
                     [classify tm:classify]
                     [forward-sexp tm:forward-sexp]
@@ -22,14 +22,13 @@
 (define (lexindent . args)
   (begin0
       (match args
-        [`(create ,id ,s) (create id s)]
-        [`(delete ,id) (delete id)]
+        [`(create ,id ,s)                 (create id s)]
+        [`(delete ,id)                    (delete id)]
         [`(update ,id ,pos ,old-len ,str) (update id pos old-len str)]
-        [`(indent-amount ,id ,pos) (indent-amount id pos)]
-        [`(classify ,id ,pos) (classify id pos)]
-        [`(forward-sexp ,id ,pos ,arg) (forward-sexp id pos arg)]
-        ;; really just for logging/debugging `update`s
-        [`(show ,id) (show id)])
+        [`(indent-amount ,id ,pos)        (indent-amount id pos)]
+        [`(classify ,id ,pos)             (classify id pos)]
+        [`(forward-sexp ,id ,pos ,arg)    (forward-sexp id pos arg)]
+        [`(show ,id)                      (show id)])
     #;
     (match args
       [(list* (or 'create 'delete) _) (void)]
@@ -49,7 +48,7 @@
 (define (update id pos old-len str)
   (match-define (lexindenter tm _) (hash-ref ht id))
   (with-time/log "tm:update"
-    (map token->elisp (tm:update tm pos old-len str))))
+    (map token->elisp (tm:update! tm pos old-len str))))
 
 (define (indent-amount id pos)
   (match-define (lexindenter tm proc) (hash-ref ht id))
