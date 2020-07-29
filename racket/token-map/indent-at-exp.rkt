@@ -3,7 +3,7 @@
 (require racket/match
          (only-in "indent-sexp.rkt"
                   [indent-amount sexp:indent-amount])
-         "token-map.rkt")
+         "main.rkt")
 
 (provide indent-amount)
 

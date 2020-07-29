@@ -17,7 +17,7 @@
 ;; for now, to research the feasibility of doing this with Emacs.
 
 (require racket/match
-         "token-map.rkt")
+         "main.rkt")
 
 (provide indent-amount)
 
@@ -147,7 +147,7 @@
     (check-equal? (indent-amount tm 74) 0)
     (check-equal? (update! tm 74 0 "\n")
                   (list (bounds+token 74 75 (token:misc "\n" 0 'end-of-line))))
-    (local-require (submod "token-map.rkt" test))
+    (local-require (submod "private/core.rkt" test))
     (check-valid? tm)
     (check-equal? (indent-amount tm 75) 0)))
 
@@ -191,12 +191,6 @@
   (backward-sexp tm
                  (forward-sexp tm
                                (forward-sexp tm pos))))
-
-#;(require racket/trace)
-#;(trace indent-amount
-       special-form
-       default-amount
-       beg-of-next-sexp)
 
 (module+ test
   (let ()

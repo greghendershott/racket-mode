@@ -4,11 +4,11 @@
 
 (require racket/match
          racket/pretty
-         (rename-in "../indent-at-exp.rkt"
+         (rename-in "../token-map/indent-at-exp.rkt"
                     [indent-amount at-exp:indent-amount])
-         (rename-in "../indent-sexp.rkt"
+         (rename-in "../token-map/indent-sexp.rkt"
                     [indent-amount sexp:indent-amount])
-         (rename-in "../token-map.rkt"
+         (rename-in "../token-map/main.rkt"
                     [create tm:create]
                     [update! tm:update!]
                     [tokens tm:tokens]
@@ -27,8 +27,7 @@
         [`(update ,id ,pos ,old-len ,str) (update id pos old-len str)]
         [`(indent-amount ,id ,pos)        (indent-amount id pos)]
         [`(classify ,id ,pos)             (classify id pos)]
-        [`(forward-sexp ,id ,pos ,arg)    (forward-sexp id pos arg)]
-        [`(show ,id)                      (show id)])
+        [`(forward-sexp ,id ,pos ,arg)    (forward-sexp id pos arg)])
     #;
     (match args
       [(list* (or 'create 'delete) _) (void)]
@@ -72,15 +71,6 @@
            (match (tm:backward-sexp tm pos fail)
              [(? number? v) (loop v (add1 arg))]
              [v v])])))
-
-;; provided really just for logging/debugging `update`s
-(define (show id)
-  (define li (hash-ref ht id))
-  (match-define (lexindenter tm _) li)
-  (local-require (submod "../token-map.rkt" test))
-  (check-valid? tm)
-  (log-racket-mode-debug "~a" (pretty-format li))
-  #f)
 
 (define (tokens-as-elisp tm beg end)
   (tm:tokens tm beg end token->elisp))
