@@ -24,3 +24,7 @@
          backward-whitespace/comment
          forward-sexp
          backward-sexp)
+
+(require "private/seq.rkt")
+(provide in-tokens-forward
+         in-tokens-backward)
