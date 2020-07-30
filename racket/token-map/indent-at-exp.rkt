@@ -22,7 +22,7 @@
           [(bounds+token _beg open-end
                          (token:open (and (or "{" "[") open-lexeme)
                                      _backup _close))
-           (match (forward-sexp tm open-end)
+           (match (backward-sexp tm (forward-sexp tm open-end))
              ;; When a sexp on same line as open { or [, indent
              ;; following sexps 1 column after the { or [
              [(? number? pos)
@@ -99,7 +99,11 @@
 
   (let ([tm (create "#lang scribble/base\n@defstruct[traverse-block ([traverse block-traverse-procedure/c])]{\nfoo\n}")])
     (check-equal? (indent-amount tm 92) 0)
-    (check-equal? (indent-amount tm 93) 0)))
+    (check-equal? (indent-amount tm 93) 0))
+  (let ([tm (create "#lang scribble/base\n@defproc[(foo a b]{\nfoo\n}")])
+    (check-equal? (indent-amount tm 37) 14))
+  (let ([tm (create "#lang scribble/base\n@defproc[(foo a\nb]{\nfoo\n}")])
+    (check-equal? (indent-amount tm 37) 14)))
 
 ;; The following tests adapted from scribble/private/indentation.rkt.
 ;; These tests mostly don't agree with my implementation, but either
