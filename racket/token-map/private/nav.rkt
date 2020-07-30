@@ -22,7 +22,7 @@
 
 (module+ test (require rackunit))
 
-(define navigator/c (-> token-map? position/c
+(define navigator/c (-> token-map? (or/c #f position/c)
                         (or/c #f position/c)))
 
 (define/contract (beg-of-line tm start-pos) navigator/c
@@ -82,7 +82,7 @@
     [_ pos]))
 
 (define navigator/fail/c
-  (->* (token-map? position/c) ((-> position/c any/c))
+  (->* (token-map? (or/c #f position/c)) ((-> position/c any/c))
        (or/c (or/c #f position/c)
              any/c)))
 
@@ -122,7 +122,8 @@
         end])]))
 
 (define/contract (backward-sexp tm pos [fail (λ (_pos) #f)]) navigator/fail/c
-  (match (and (< 1 pos)
+  (match (and pos
+              (< 1 pos)
               (backward-whitespace/comment tm (and pos (sub1 pos))))
     [#f (fail 1)]
     [pos

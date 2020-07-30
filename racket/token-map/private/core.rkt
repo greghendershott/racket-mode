@@ -32,7 +32,7 @@
          (struct-out token:misc)
          position/c)
 
-;; Provided only for nav.rkt
+;; Provided only for use by nav.rkt
 (module+ private
   (provide token-map-ref
            token-map-str))
@@ -185,7 +185,7 @@
   (reverse actual-changes))
 
 (define/contract (classify tm pos)
-  (-> token-map? position/c (or/c #f bounds+token?))
+  (-> token-map? (or/c #f position/c) (or/c #f bounds+token?))
   (token-map-ref tm pos))
 
 (define/contract (token-text tm pos)
