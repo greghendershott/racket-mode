@@ -51,6 +51,15 @@
 (struct token-map ([str #:mutable]
                    tokens ;interval-map: position/c -> token?
                    modes) ;interval-map: position/c -> lexer mode
+  ;; Printing the string and modes is overhwelming; just print tokens.
+  #:methods gen:custom-write
+  [(define (write-proc tm port mode)
+     (parameterize ([current-output-port port])
+       (display "#<token-map")
+       (for/list ([(k v) (in-dict (token-map-tokens tm))])
+         (display "\n  ")
+         (print (bounds+token (car k) (cdr k) v)))
+       (display ">")))]
   #:transparent)
 
 ;; Mainly we follow the lexer protocol where various token kinds are
