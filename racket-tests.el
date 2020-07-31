@@ -117,8 +117,12 @@ supplied to it."
     (racket-tests/eventually (get-buffer racket-repl-buffer-name))
     (racket-tests/eventually (racket--repl-live-p))
     (with-racket-repl-buffer
-      (should (racket-tests/see-back-rx
-               "Welcome to Racket v?[0-9.]+\\(?: \\[cs\\].\\)?[\n]\\(?:;.*[\n]\\)*> "))
+      (should
+       (racket-tests/see-back-rx
+        (rx "; \n"
+            "; Welcome to Racket v" (+ (any digit ".")) (? " [" (or "bc" "cs") "]") ".\n"
+            "; \n"
+            "> ")))
 
       ;; Completion
       (racket-tests/should-eventually (member "current-output-port"
