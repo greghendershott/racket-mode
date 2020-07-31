@@ -171,6 +171,12 @@
                   (regexp-match? #px"^\\d+ bound occurrences?$" status))
           (set-add! locals (substring code-str beg end)))))
 
+    ;; This can supply more completion candidates, e.g. `foo?` and
+    ;; `foo-bar` from a local `(struct foo (bar))`, that wouldn't
+    ;; otherwise be available.
+    (define/override (syncheck:add-definition-target _source _beg _end symbol _mods)
+      (set-add! locals (~a symbol)))
+
     (define/override (syncheck:add-jump-to-definition text beg end id-sym path submods)
       ;; - drracket/check-syntax only reports the file, not the
       ;;   position within. We can find that using our
