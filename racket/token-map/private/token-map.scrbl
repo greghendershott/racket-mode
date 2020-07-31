@@ -62,10 +62,11 @@ Also I have used this to try editing large files like the 5000-line
 @defthing[position/c contract?]{
 
 Checks that a value could be a valid position in a token-map, i.e. an
-@racket[exact-positive-integer?]. The minimum position is 1, not 0,
-because lexers report location spans that way. (Although some editors,
-like Emacs, also use 1-based positions, that is not the main
-justifiation.)}
+@racket[exact-positive-integer?].
+
+The minimum position is 1, not 0, because lexers report location spans
+that way. (Although some editors, like Emacs, also use 1-based
+positions, that is not the main justifiation.)}
 
 @defproc[(token-map? [v any/c]) boolean?]{
 
@@ -123,12 +124,18 @@ work as fast as possible.) In any case, this might also be called for
 large changes such as a cut or paste.
 
 The function signature here is similar to that of Emacs' after-change
-functions: Something changed starting at @racket[position]. The old
-text there used to occupy @racket[old-length] characters. The new text
-there is now @racket[new-text].
+functions:
 
-TODO: Give examples of how to call this for various edit scenarios.
-}
+@itemlist[
+ @item{Something changed starting at @racket[position].}
+ @item{The old text there used occupied @racket[old-length] characters.}
+ @item{The new text there is now @racket[new-text].}]
+
+Insert a new character at position 42: @racket[(update tm 42 0 "A")].
+
+Replace the character at position 42: @racket[(update tm 42 1 "B")].
+
+Delete the character at position 42: @racket[(udpate tm 42 1 "")].}
 
 @defproc[(tokens [token-map token-map?])
          (listof bounds+token?)]{
@@ -139,7 +146,8 @@ Return all the bounds+token values in the map.}
                    [position position/c])
          (or/c #f bounds+token?)]{
 
-Return the @racket[bounds+token?] value corresponding to @racket[position], or @racket[#f].}
+Return the @racket[bounds+token?] value corresponding to
+@racket[position], or @racket[#f].}
 
 @defproc[(classify [token-map token-map?]
                    [position position/c])
