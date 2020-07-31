@@ -98,7 +98,7 @@
     (with-time/log 'get-annotations
       (send (current-annotations) get-annotations)))
 
-  (define completions-set (send (current-annotations) get-locals))
+  (define completions-set (send (current-annotations) get-local-completion-candidates))
   (with-time/log 'imports
     (imports stx completions-set))
   (define completions (sort (set->list completions-set)
@@ -116,7 +116,7 @@
     (define im-docs (make-interval-map))
     (define im-unused-requires (make-interval-map))
     (define ht-defs/uses (make-hash))
-    (define locals (mutable-set))
+    (define local-completion-candidates (mutable-set))
 
     ;; I've seen drracket/check-syntax return bogus positions for e.g.
     ;; add-mouse-over-status so here's some validation.
@@ -157,25 +157,26 @@
         (interval-map-update*! im-mouse-overs beg end
                                (λ (s) (set-add s cleansed))
                                (set cleansed))
-
-        ;; Local completions candidates. When a definition isn't yet
-        ;; used, there will be no syncheck:add-arrow annotation
-        ;; because drracket doesn't need to draw an arrow from
-        ;; something to nothing. There _will_ however be a "no bound
-        ;; occurrences" mouseover. Although it's hacky to match on a
-        ;; string like that, it's the best way to get _all_ local
+        ;; Find local completion candidates by looking at "bound
+        ;; occurrences" mouseovers. Why not look at the definitions in
+        ;; syncheck:add-arrow annotations? Because there won't be any
+        ;; annotation when a definition isn't yet _used_ (drracket
+        ;; doesn't need to draw an arrow from nothing to something).
+        ;; There _will_ however be a "no bound occurrences" mouseover.
+        ;; Therefore, although it's hacky to match on "occurrences"
+        ;; strings here, it's the least worst way to get _all_ local
         ;; completion candidates. It's the same reason why we go to
         ;; the work in imported-completions to find _everything_
         ;; imported that _could_ be used.
-        (when (or (equal? status "no bound occurrences")
-                  (regexp-match? #px"^\\d+ bound occurrences?$" status))
-          (set-add! locals (substring code-str beg end)))))
+        (when (or (regexp-match? #px"^\\d+ bound occurrences?$" status)
+                  (equal? status "no bound occurrences"))
+          (set-add! local-completion-candidates (substring code-str beg end)))))
 
-    ;; This can supply more completion candidates, e.g. `foo?` and
-    ;; `foo-bar` from a local `(struct foo (bar))`, that wouldn't
-    ;; otherwise be available.
+    ;; This can supply more completion candidates -- e.g. `foo?` and
+    ;; `foo-bar` from a local `(struct foo (bar))`, which wouldn't
+    ;; necessarily otherwise be annotated.
     (define/override (syncheck:add-definition-target _source _beg _end symbol _mods)
-      (set-add! locals (~a symbol)))
+      (set-add! local-completion-candidates (~a symbol)))
 
     (define/override (syncheck:add-jump-to-definition text beg end id-sym path submods)
       ;; - drracket/check-syntax only reports the file, not the
@@ -255,8 +256,8 @@
              (im->list im-unused-requires 'unused-require))
             < #:key cadr))
 
-    (define/public (get-locals)
-      locals)
+    (define/public (get-local-completion-candidates)
+      local-completion-candidates)
 
     (super-new)))
 
@@ -383,7 +384,7 @@
   (define (check-this-file path)
     (check-not-exn
      (λ ()
-       (time (void (do-check-syntax path (file->string path)))))))
-  (check-this-file (path->string (syntax-source #'here)))
-  ;; Again to exercise and test cache
-  (check-this-file (path->string (syntax-source #'here))))
+       (time (do-check-syntax path (file->string path))))))
+  ;; Twice to exercise and test cache
+  (check-equal? (check-this-file (path->string (syntax-source #'here)))
+                (check-this-file (path->string (syntax-source #'here)))))
