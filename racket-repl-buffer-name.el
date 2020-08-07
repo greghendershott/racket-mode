@@ -47,6 +47,7 @@ The \"project\" is determined by trying, in order:
 
 - `projectile-project-root'
 - `vc-root-dir'
+- `project-current'
 - `file-name-directory'"
   (interactive)
   (let* ((dir  (file-name-directory (racket--buffer-file-name)))
@@ -54,6 +55,8 @@ The \"project\" is determined by trying, in order:
                         (projectile-project-root dir))
                    (and (fboundp 'vc-root-dir)
                         (vc-root-dir))
+                   (and (fboundp 'project-current)
+                        (cdr (project-current nil dir)))
                    dir))
          (name (format "*Racket REPL <%s>*" root)))
     (setq-local racket-repl-buffer-name name)))
