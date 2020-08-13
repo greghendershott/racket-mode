@@ -81,7 +81,15 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
 
          (setq-local racket--hash-lang-orig-syntax-table
                      (syntax-table))
-         (set-syntax-table (make-char-table 'syntax-table '(0)))
+         ;; Mostly we use 'syntax-table text properties. However some
+         ;; things (e.g. paredit) might do e.g. (char-syntax
+         ;; (char-before)) which will ignore that. So we need some
+         ;; syntax-table with some reasonable default(s). Whitespace
+         ;; seems like a good choice, except that breaks
+         ;; `paredit-delete-leading-whitespace'. Instead let's use
+         ;; symbol. That might cause its own problem, but it's my
+         ;; least-worst idea, for the time being.
+         (set-syntax-table (make-char-table 'syntax-table '(3)))
 
          (setq-local racket--hash-lang-orig-indent-line-function
                      indent-line-function)
