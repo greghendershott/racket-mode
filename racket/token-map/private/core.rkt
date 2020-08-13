@@ -14,6 +14,7 @@
                   interval-map-expand!
                   interval-map-contract!)
          racket/contract
+         racket/contract/option
          racket/dict
          racket/match
          syntax-color/module-lexer)
@@ -211,6 +212,8 @@
            (tokens tm (bounds+token-end b+t) end proc))]
     [_ '()]))
 
+(define module-lexer/waived (waive-option module-lexer))
+
 (define/contract (tokenize-string! tm from set-interval)
   (-> token-map? position/c (-> position/c position/c token? any) any)
   (match-define (token-map str _tokens modes) tm)
@@ -220,7 +223,7 @@
   (let tokenize-port! ([offset from]
                        [mode   (interval-map-ref modes from #f)])
     (define-values (lexeme kind delimit beg end backup new-mode)
-      (module-lexer in offset mode))
+      (module-lexer/waived in offset mode))
     (unless (eof-object? lexeme)
       (interval-map-set! modes beg end mode)
       ;; Don't trust `lexeme`; instead get from the input string.^1
