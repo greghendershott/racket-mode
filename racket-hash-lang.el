@@ -192,8 +192,8 @@ x.")
               (comment
                (put-stx beg (1+ beg) '(14)) ;generic comment
                (put-stx (1- end) end '(14))
-               (let ((beg (+ beg 1))    ;comment _contents_ if any
-                     (end (- end 2)))
+               (let ((beg (1+ beg))    ;comment _contents_ if any
+                     (end (1- end)))
                  (when (< beg end)
                    (put-stx beg end (standard-syntax-table))))
                (put-face beg end 'font-lock-comment-face))
