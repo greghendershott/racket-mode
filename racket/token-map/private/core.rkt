@@ -52,7 +52,7 @@
 (struct token-map ([str #:mutable]
                    tokens ;interval-map: position/c -> token?
                    modes) ;interval-map: position/c -> lexer mode
-  ;; Printing the string and modes is overhwelming; just print tokens.
+  ;; Printing the string and modes is overwhelming; just print tokens.
   #:methods gen:custom-write
   [(define (write-proc tm port mode)
      (parameterize ([current-output-port port])
