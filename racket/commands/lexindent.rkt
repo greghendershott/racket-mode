@@ -51,7 +51,7 @@
 
 (define (indent-amount id pos)
   (match-define (lexindenter tm proc) (hash-ref ht id))
-  (proc tm pos))
+  (with-time/log "tm:indent-amount" (proc tm pos)))
 
 (define (classify id pos)
   (match-define (lexindenter tm _) (hash-ref ht id))

@@ -17,7 +17,8 @@
 ;; for now, to research the feasibility of doing this with Emacs.
 
 (require racket/match
-         "main.rkt")
+         "main.rkt"
+         "../util.rkt")
 
 (provide indent-amount)
 
@@ -26,9 +27,9 @@
 
 ;; token-map? positive-integer? -> nonnegative-integer?
 (define (indent-amount tm indent-pos)
-  (match (backward-up tm indent-pos)
+  (match (with-time/log "backward-up" (backward-up tm indent-pos))
     [(and (? number? open-pos)
-          (app (end-of-hash-literal/keyword tm)
+          (app (with-time/log "end-of-hash-literal" (end-of-hash-literal/keyword tm))
                (? number? end)))
      (- end (beg-of-line tm open-pos))]
     [(? number? open-pos)
@@ -53,7 +54,7 @@
        [(? procedure? proc)
         (proc tm open-pos id-pos indent-pos)]
        [_
-        (default-amount tm id-pos)])]
+        (with-time/log "default-amount" (default-amount tm id-pos))])]
     [#f
      ;; (log-debug "indent-amount no containing sexp found")
      0]))
