@@ -11,21 +11,27 @@
          "core.rkt"
          (submod "core.rkt" private))
 
-(provide beg-of-line
-         end-of-line
-         backward-up
-         forward-whitespace
-         forward-whitespace/comment
-         backward-whitespace/comment
-         forward-sexp
-         backward-sexp)
+(provide
+ (contract-out [beg-of-line navigator/c]
+               [end-of-line navigator/c]
+               [backward-up navigator/c]
+               [forward-whitespace navigator/c]
+               [forward-whitespace/comment navigator/c]
+               [backward-whitespace/comment navigator/c]
+               [forward-sexp navigator/fail/c]
+               [backward-sexp navigator/fail/c]))
 
 (module+ test (require rackunit))
 
 (define navigator/c (-> token-map? (or/c #f position/c)
                         (or/c #f position/c)))
 
-(define/contract (beg-of-line tm start-pos) navigator/c
+(define navigator/fail/c (->* (token-map? (or/c #f position/c))
+                              ((-> position/c any/c))
+                              (or/c (or/c #f position/c)
+                                    any/c)))
+
+(define (beg-of-line tm start-pos)
   (let loop ([pos start-pos])
     (match (token-map-ref tm pos)
       [(bounds+token beg end (? token:misc? t))
@@ -37,7 +43,7 @@
       [#f #:when (< 1 pos) (loop (sub1 pos))]
       [#f 1])))
 
-(define/contract (end-of-line tm pos) navigator/c
+(define (end-of-line tm pos)
   (let loop ([pos pos])
     (match (token-map-ref tm pos)
       [(bounds+token _beg end (? token:misc? t))
@@ -47,21 +53,21 @@
        (loop end)]
       [#f (add1 (string-length (token-map-str tm)))])))
 
-(define/contract (backward-up tm pos) navigator/c
+(define (backward-up tm pos)
   (let loop ([pos pos])
     (match (backward-sexp tm pos list)
       [(list 1) #f]
       [(list pos) pos]
       [(? number? pos) (loop pos)])))
 
-(define/contract (forward-whitespace tm pos) navigator/c
+(define (forward-whitespace tm pos)
   (match (token-map-ref tm pos)
     [#f #f]
     [(bounds+token beg end (token:misc _lexeme _backup 'white-space))
      (forward-whitespace tm end)]
     [_ pos]))
 
-(define/contract (forward-whitespace/comment tm pos) navigator/c
+(define (forward-whitespace/comment tm pos)
   (match (token-map-ref tm pos)
     [#f #f]
     [(bounds+token beg end (token:misc _lexeme _backup (or 'end-of-line
@@ -71,7 +77,7 @@
      (forward-whitespace/comment tm end)]
     [_ pos]))
 
-(define/contract (backward-whitespace/comment tm pos) navigator/c
+(define (backward-whitespace/comment tm pos)
   (match (token-map-ref tm pos)
     [#f #f]
     [(bounds+token beg end (token:misc _lexme _backup (or 'end-of-line
@@ -81,12 +87,7 @@
      (backward-whitespace/comment tm (sub1 beg))]
     [_ pos]))
 
-(define navigator/fail/c
-  (->* (token-map? (or/c #f position/c)) ((-> position/c any/c))
-       (or/c (or/c #f position/c)
-             any/c)))
-
-(define/contract (forward-sexp tm pos [fail (λ (_pos) #f)]) navigator/fail/c
+(define (forward-sexp tm pos [fail (λ (_pos) #f)])
   (match (forward-whitespace/comment tm pos)
     [#f (fail pos)]
     [pos
@@ -121,7 +122,7 @@
        [(bounds+token _beg end (? token?))
         end])]))
 
-(define/contract (backward-sexp tm pos [fail (λ (_pos) #f)]) navigator/fail/c
+(define (backward-sexp tm pos [fail (λ (_pos) #f)])
   (match (and pos
               (< 1 pos)
               (backward-whitespace/comment tm (and pos (sub1 pos))))
