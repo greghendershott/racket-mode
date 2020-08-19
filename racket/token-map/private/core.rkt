@@ -66,7 +66,7 @@
 ;; Mainly we follow the lexer protocol where various token kinds are
 ;; simply encoded with a symbol like 'white-space or 'constant.
 ;; However it is helpful to use distinct struct types for open and
-;; close tokens: They store the matching, opposite lexee.
+;; close tokens: They store the matching, opposite lexeme.
 (struct token (lexeme backup) #:transparent)
 (struct token:open  token (close) #:transparent)
 (struct token:close token (open) #:transparent)
