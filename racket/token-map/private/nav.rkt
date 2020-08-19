@@ -133,9 +133,9 @@
       [(bounds+token beg _end (? token:open?))
        (fail beg)]
       ;; Close token: Scan for matching open token.
-      [(bounds+token _beg _end (? token:close? close-t))
-       (let loop ([pos pos]
-                  [depth 0])
+      [(bounds+token beg _end (? token:close? close-t))
+       (let loop ([pos (sub1 beg)]
+                  [depth 1])
          ;;(println (list pos depth (interval-map-ref im pos)))
          (match (token-map-ref tm pos)
            [#f (fail 1)]
