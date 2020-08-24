@@ -288,8 +288,7 @@ pixels, supply (:max-width 500)."
 (defcustom racket-images-system-viewer (if (eq system-type 'darwin)
                                            "open"
                                          "display")
-  "Which system image viewer program to invoke upon M-x
- `racket-view-last-image'."
+  "The image viewer program to use for `racket-view-image'."
   :tag "Images System Viewer"
   :type 'string
   :risky t

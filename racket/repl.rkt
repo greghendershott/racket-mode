@@ -57,6 +57,8 @@
   ([maybe-mod       (or/c #f mod?)]
    [memory-limit    exact-nonnegative-integer?] ;0 = no limit
    [pretty-print?   boolean?]
+   [columns         exact-positive-integer?]
+   [pixels/char     exact-positive-integer?]
    [context-level   context-level?]
    [cmd-line-args   (vectorof string?)]
    [debug-files     (set/c path?)]
@@ -66,6 +68,8 @@
   (run-config #f    ;maybe-mod
               0     ;memory-limit
               #f    ;pretty-print?
+              79    ;columns
+              12    ;pixels/char
               'low  ;context-level
               #()   ;cmd-line-args
               (set) ;debug-files
@@ -81,8 +85,8 @@
     [_ (log-racket-mode-error "break-repl-thread: ~v not in `sessions`" sid)]))
 
 ;; Command. Called from a command-server thread
-(define/contract (run what mem pp ctx args dbgs)
-  (-> list? number? elisp-bool/c context-level? list? (listof path-string?)
+(define/contract (run what mem pp cols pix/char ctx args dbgs)
+  (-> list? number? elisp-bool/c number? number? context-level? list? (listof path-string?)
       list?)
   (unless (current-repl-msg-chan)
     (error 'run "current-repl-msg-chan was #f; current-session-id=~v"
@@ -92,6 +96,8 @@
                (run-config (->mod/existing what)
                            mem
                            (as-racket-bool pp)
+                           cols
+                           pix/char
                            ctx
                            (list->vector args)
                            (list->set (map string->path dbgs))
@@ -174,6 +180,8 @@
   (match-define (run-config maybe-mod
                             mem-limit
                             pretty-print?
+                            columns
+                            pixels/char
                             context-level
                             cmd-line-args
                             debug-files
@@ -231,7 +239,7 @@
         ;; 0. Command line arguments
         (current-command-line-arguments cmd-line-args)
         ;; 1. Set print hooks and output handlers
-        (set-print-parameters pretty-print?)
+        (set-print-parameters pretty-print? columns pixels/char)
         (set-output-handlers)
         ;; 2. Record as much info about our session as we can, before
         ;; possibly entering module->namespace.

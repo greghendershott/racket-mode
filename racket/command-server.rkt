@@ -149,8 +149,8 @@
     ;; Commands that DEFINITELY DO need a REPL session for context,
     ;; e.g. its namespace. Should they pass a session-id explicitly,
     ;; now?
-    [`(run ,what ,mem ,pp? ,ctx ,args ,dbg)
-     (run what mem pp? ctx args dbg)]
+    [`(run ,what ,mem ,pp? ,cols ,pix/char ,ctx ,args ,dbg)
+     (run what mem pp? cols pix/char ctx args dbg)]
     [`(path)                           (or path 'top)]
     [`(syms)                           (syms)]
     [`(mod ,sym)                       (find-module sym (current-session-maybe-mod))]

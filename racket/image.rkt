@@ -4,30 +4,21 @@
 
 (require file/convertible
          racket/file
+         racket/format
          racket/match)
 
-(provide convert-image?
-         convert-image)
-
-;; Write bytes to a temporary file and return "#<Image: filename>".
-(define (save-temporary-image bytes+ext)
-  (match-define (cons bstr ext) bytes+ext)
-  (define filename (make-temporary-file (string-append "racket-image-~a." ext)))
-  (with-output-to-file filename #:exists 'truncate
-    (λ () (display bstr)))
-  (format "#<Image: ~a>" filename))
-
-(define (convert-image? v)
-  (convertible? v))
+(provide convert-image)
 
 (define (convert-image v)
-  (cond [(and (convertible? v)
-              (or (maybe-convert v 'svg-bytes "svg")
-                  (maybe-convert v 'png-bytes "png")))
-         => save-temporary-image]
-        [else v]))
+  (and (convertible? v)
+       (or (convert-and-save v 'svg-bytes+bounds "svg")
+           (convert-and-save v 'png-bytes+bounds "png"))))
 
-(define (maybe-convert v fmt ext)
+(define (convert-and-save v fmt ext)
   (match (convert v fmt)
-    [(? bytes? bstr) (cons bstr ext)]
+    [(list* (? bytes? bstr) width _)
+     (define filename (make-temporary-file (~a "racket-image-~a." ext)))
+     (with-output-to-file filename #:exists 'truncate (λ () (display bstr)))
+     (cons (format "#<Image: ~a>" filename) width)]
     [_ #f]))
+

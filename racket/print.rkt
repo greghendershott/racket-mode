@@ -1,41 +1,62 @@
 #lang racket/base
 
-(require racket/pretty
-         racket/runtime-path
+(require racket/match
+         racket/pretty
          "image.rkt")
 
 (provide set-print-parameters)
 
-(define (set-print-parameters pretty-print?)
-  (cond [pretty-print?
+(define (set-print-parameters pretty? columns pixels/char)
+  (cond [pretty?
          (current-print pretty-print-handler)
-         (pretty-print-print-hook (make-pretty-print-print-hook))
-         (pretty-print-size-hook (make-pretty-print-size-hook))]
+         (pretty-print-columns columns)
+         (pretty-print-size-hook (make-pretty-print-size-hook pixels/char))
+         (pretty-print-print-hook (make-pretty-print-print-hook))]
         [else
          (current-print plain-print-handler)])
   (print-syntax-width +inf.0))
 
 (define (plain-print-handler v)
-  (void (unless (void? v)
-          (print (convert-image v))
-          (newline))))
+  (unless (void? v)
+    (match (convert-image v)
+      [(cons path-name _pixel-width) (print path-name)]
+      [#f (print v)])
+    (newline)))
 
-;; We have nothing valuable to say about (a) pretty-print-columns as
-;; it relates to Emacs window width or (b) the width in "characters"
-;; of any particular image. Even so, we must say something. We must
-;; supply a pretty-print-size-hook that returns _some_ integer width
-;; -- else our pretty-print-hook won't be called. So simply return
-;; pretty-print-columns. This means that e.g. a list of images will be
-;; printed on multiple lines even if they could fit on one line.
-;; That's less-worse than trying to be "clever"; see issue #402.
-(define (make-pretty-print-size-hook)
-  (let ([orig (pretty-print-size-hook)])
-    (λ (value display? port)
-      (cond [(convert-image? value) (pretty-print-columns)]
-            [else                   (orig value display? port)]))))
+;; pretty-print uses separate size and print hooks -- and the size
+;; hook can even be called more than once per object. Avoid calling
+;; convert-image two (or more!) times per object. That could be slow
+;; for large images; furthermore each call creates a temp file.
+;;
+;; Instead: Call convert-image once in the size hook, storing the
+;; result in a hash-table for use across later calls to the size
+;; and/or print hook. Remove in the print hook.
+;;
+;; (Note: Although I had tried using the pre-print and post-print
+;; hooks, they seemed to be called inconsistently.)
+
+(define ht (make-hasheq))
+
+(define (make-pretty-print-size-hook pixels/char)
+  (define (racket-mode-size-hook value _display? _port)
+    (define (not-found)
+      (match (convert-image value)
+        [(cons path-name pixel-width)
+         (define char-width (ceiling (/ pixel-width pixels/char)))
+         (define path+width (cons path-name char-width))
+         path+width]
+        [#f #f]))
+    (match (hash-ref! ht value not-found)
+      [(cons _path-name char-width) char-width]
+      [#f #f]))
+  racket-mode-size-hook)
 
 (define (make-pretty-print-print-hook)
-  (let ([orig (pretty-print-print-hook)])
-    (λ (value display? port)
-      (cond [(convert-image? value) (print (convert-image value) port)]
-            [else                   (orig value display? port)]))))
+  (define orig (pretty-print-print-hook))
+  (define (racket-mode-print-hook value display? port)
+    (match (hash-ref ht value #f)
+      [(cons path-name _char-width)
+       (hash-remove! ht value)
+       ((if display? display print) path-name port)]
+      [#f (orig value display? port)]))
+  racket-mode-print-hook)

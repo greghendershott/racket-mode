@@ -463,10 +463,19 @@ WHAT-TO-RUN may be nil, meaning just a `racket/base` namespace."
           what-to-run
           racket-memory-limit
           racket-pretty-print
+          (window-width)
+          (racket--char-pixel-width)
           context-level
           racket-user-command-line-arguments
           (when (and what-to-run (eq context-level 'debug))
             (racket--debuggable-files (car what-to-run))))))
+
+(defun racket--char-pixel-width ()
+  (with-temp-buffer
+    (insert "M")
+    (save-window-excursion
+      (set-window-buffer nil (current-buffer))
+      (car (window-text-pixel-size nil (line-beginning-position) (point))))))
 
 (defun racket--repl-start (callback)
   "Create a `comint-mode' / `racket-repl-mode' buffer connected to a REPL session.
@@ -667,6 +676,13 @@ Although they remain clickable they will be ignored by
 
 (defvar racket-image-cache-dir nil)
 
+(defvar racket-image-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mouse-2] #'racket-view-image)
+    (define-key map "\C-m" #'racket-view-image)
+    map)
+  "Keymap for images.")
+
 (defun racket-repl--list-image-cache ()
   "List all the images in the image cache."
   (and racket-image-cache-dir
@@ -691,27 +707,47 @@ images in 'racket-image-cache-dir'."
 A value for the variable `comint-output-filter-functions'."
   (with-silent-modifications
     (save-excursion
-      (goto-char (point-min))
-      (while (re-search-forward "\"#<Image: \\(.+racket-image-.+\\)>\"" nil t)
-        (let* ((beg (match-beginning 0))
-               (end (match-end 0))
-               (file (match-string 1)))
-          (delete-region beg end)
-          (goto-char beg)
-          (if (and racket-images-inline (display-images-p))
-              (insert-image (apply #'create-image
-                                   file
-                                   (and (image-type-available-p 'imagemagick)
-                                        racket-imagemagick-props
-                                        'imagemagick)
-                                   nil  ;file not data
-                                   (and (image-type-available-p 'imagemagick)
-                                        racket-imagemagick-props))
-                            "[image]")
-            (goto-char beg)
-            (insert "[image] ; use M-x racket-view-last-image to view"))
-          (setq racket-image-cache-dir (file-name-directory file))
-          (racket-repl--clean-image-cache))))))
+      (goto-char (if (and (markerp comint-last-output-start)
+                          (eq (marker-buffer comint-last-output-start)
+                              (current-buffer))
+                          (marker-position comint-last-output-start))
+                     comint-last-output-start
+                   (point-min-marker)))
+      (let ((pmark (process-mark (get-buffer-process (current-buffer)))))
+        (while (re-search-forward "\"#<Image: \\(.+?racket-image-.+?\\)>\""
+                                  pmark
+                                  t)
+          (let* ((beg (match-beginning 0))
+                 (file (match-string-no-properties 1)))
+            (cond ((and racket-images-inline (display-images-p))
+                   (replace-match "")
+                   (insert-image (apply #'create-image
+                                        file
+                                        (and (image-type-available-p 'imagemagick)
+                                             racket-imagemagick-props
+                                             'imagemagick)
+                                        nil  ;file not data
+                                        (and (image-type-available-p 'imagemagick)
+                                             racket-imagemagick-props))))
+                  (t
+                   (replace-match (format "[file://%s]" file))))
+            (set-marker pmark (max pmark (point)))
+            (add-text-properties beg (point)
+                                 `(keymap ,racket-image-map
+                                   racket-image ,file
+                                   help-echo "RET or Mouse-2 to view image"))
+            (setq racket-image-cache-dir (file-name-directory file))
+            (racket-repl--clean-image-cache)))))))
+
+(defun racket-view-image ()
+  "View the image at point using `racket-images-system-viewer'."
+  (interactive)
+  (pcase (get-text-property (point) 'racket-image)
+    ((and (pred stringp) file)
+     (start-process "Racket image view"
+                     nil
+                     racket-images-system-viewer
+                     file))))
 
 (defun racket-view-last-image (n)
   "Open the last displayed image using `racket-images-system-viewer'.
