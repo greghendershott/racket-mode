@@ -5,7 +5,8 @@
          syntax/parse/define
          racket/format
          (only-in racket/path
-                  filename-extension))
+                  filename-extension
+                  some-system-path->string))
 
 (provide display-commented
          string->namespace-syntax
@@ -25,7 +26,8 @@
          with-time/log
          define-polyfill
          path-has-extension?
-         path-replace-extension)
+         path-replace-extension
+         some-system-path->string)
 
 (define (display-commented str)
   (eprintf "; ~a\n"
