@@ -20,11 +20,12 @@
 (require 'racket-describe)
 
 (defvar racket--xp-binding-completions nil
-  "Used by `racket-xp-complete-at-point'.")
+  "Completion candidates that are bindings.
+Set by `racket-xp-mode'. Used by `racket-xp-complete-at-point'.")
 
 (defvar racket--xp-module-completions nil
-  "Used by `racket-xp-complete-at-point' and initialized by
-  `racket-xp-mode'.")
+  "Completion candidates that are available collection module paths.
+Set by `racket-xp-mode'. Used by `racket-xp-complete-at-point'.")
 
 (defun racket-xp-complete-at-point ()
   "A value for the variable `completion-at-point-functions'.
