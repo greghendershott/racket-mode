@@ -18,10 +18,9 @@
 
 (define (plain-print-handler v)
   (unless (void? v)
-    (match (convert-image v)
-      [(cons path-name _pixel-width) (print path-name)]
-      [#f (print v)])
-    (newline)))
+    (println (match (convert-image v)
+               [(cons path-name _pixel-width) path-name]
+               [_ v]))))
 
 ;; pretty-print uses separate size and print hooks -- and the size
 ;; hook can even be called more than once per object. Avoid calling
