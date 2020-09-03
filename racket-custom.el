@@ -161,6 +161,23 @@ an underline, which is a common convention."
   :safe #'stringp
   :group 'racket-xp)
 
+(defcustom racket-documentation-search
+  "https://docs.racket-lang.org/search/index.html?q=%s"
+  "Where `racket-xp-helpdesk' and `racket-repl-helpdesk' should
+look for the search page.  If the value of this variable is
+'local, open the search page from the local documentation.
+Otherwise, use the URL given by this variable.
+
+This variable should contain a string recognizable by `format',
+with %s at the point at which to insert the identifier to look up
+in the help desk.  Apart from %s, the string should be a properly
+encoded URL."
+  :tag "Where to look for the help desk"
+  :type '(choice (string :tag "URL")
+                 (const :tag "Local" 'local))
+  :safe (lambda (val) (or (stringp val) (eq val 'local)))
+  :group 'racket-xp)
+
 ;;; REPL
 
 (defgroup racket-repl nil

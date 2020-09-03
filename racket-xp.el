@@ -58,7 +58,8 @@ everything. If you find that too \"noisy\", set this to nil.")
    `(("C-c #"     ,racket-xp-control-c-hash-keymap)
      ("M-."       ,#'racket-xp-visit-definition)
      ("C-c C-."   ,#'racket-xp-describe)
-     ("C-c C-d"   ,#'racket-xp-documentation))))
+     ("C-c C-d"   ,#'racket-xp-documentation)
+     ("C-c C-s"   ,#'racket-xp-helpdesk))))
 
 (easy-menu-define racket-xp-mode-menu racket-xp-mode-map
   "Menu for `racket-xp-mode'."
@@ -479,6 +480,26 @@ definitions in submodules."
         (racket--cmd/async nil
                            `(doc ,(buffer-file-name) ,str)
                            #'racket-browse-url))))))
+
+(defun racket-xp-helpdesk (&optional prefix)
+  "Show the Search Manuals page with the identifier at point.
+
+If `racket-documentation-search' is set to 'local, opens the
+Search Manuals page from the local documentation.  Otherwise,
+opens the page given by the URL in `racket-documentation-search'.
+
+Like `racket-xp-documentation', given a prefix, prompts for the
+identifier, in which case it assumes definitions in or imported
+by the file module -- not locals or definitions in submodules."
+  (interactive "P")
+  (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: "
+					    racket--xp-binding-completions)
+    ((and (pred stringp) symb)
+     (pcase racket-documentation-search
+       ((and (pred stringp) url)
+        (browse-url (format url symb)))
+       ('local
+        (call-process racket-program nil 0 nil "-l" "raco" "doc" symb))))))
 
 (defun racket-xp--forward-use (amt)
   "When point is on a use, go AMT uses forward. AMT may be negative.
