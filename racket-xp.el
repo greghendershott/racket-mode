@@ -58,7 +58,8 @@ everything. If you find that too \"noisy\", set this to nil.")
    `(("C-c #"     ,racket-xp-control-c-hash-keymap)
      ("M-."       ,#'racket-xp-visit-definition)
      ("C-c C-."   ,#'racket-xp-describe)
-     ("C-c C-d"   ,#'racket-xp-documentation))))
+     ("C-c C-d"   ,#'racket-xp-documentation)
+     ("C-c C-s"   ,#'racket-xp-helpdesk))))
 
 (easy-menu-define racket-xp-mode-menu racket-xp-mode-map
   "Menu for `racket-xp-mode'."

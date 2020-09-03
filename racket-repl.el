@@ -936,6 +936,7 @@ by the file module -- not locals or definitions in submodules."
      ("C-c C-e r"       racket-expand-region)
      ("M-C-y"           racket-insert-lambda)
      ("C-c C-d"         racket-repl-documentation)
+     ("C-c C-s"         racket-repl-helpdesk)
      ("C-c C-."         racket-repl-describe)
      ("M-."             racket-repl-visit-definition)
      ("C-M-."           racket-visit-module)
