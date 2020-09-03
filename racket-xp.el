@@ -480,6 +480,26 @@ definitions in submodules."
                            `(doc ,(buffer-file-name) ,str)
                            #'racket-browse-url))))))
 
+(defun racket-xp-helpdesk (&optional prefix)
+  "Show the Search Manuals page with the identifier at point.
+
+If `racket-documentation-search' is set to 'local, opens the
+Search Manuals page from the local documentation.  Otherwise,
+opens the page given by the URL in `racket-documentation-search'.
+
+Like `racket-xp-documentation', given a prefix, prompts for the
+identifier, in which case it assumes definitions in or imported
+by the file module -- not locals or definitions in submodules."
+  (interactive "P")
+  (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: "
+					    racket--xp-binding-completions)
+    ((and (pred stringp) symb)
+     (pcase racket-documentation-search
+       ((and (pred stringp) url)
+        (browse-url (format url symb)))
+       ('local
+        (call-process racket-program nil 0 nil "-l" "raco" "doc" symb))))))
+
 (defun racket-xp--forward-use (amt)
   "When point is on a use, go AMT uses forward. AMT may be negative.
 
