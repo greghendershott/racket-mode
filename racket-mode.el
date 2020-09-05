@@ -29,6 +29,7 @@
 
 ;;; Code:
 
+(require 'racket-doc)
 (require 'racket-edit)
 (require 'racket-xp)
 (require 'racket-custom)
@@ -67,6 +68,7 @@
      ("M-C-u"       racket-backward-up-list)
      ("C-c C-p"     racket-cycle-paren-shapes)
      ("M-C-y"       racket-insert-lambda)
+     ("C-c C-d"     racket-documentation-search)
      ("M-C-."       racket-visit-module)
      ("M-,"         racket-unvisit)
      ("C-c C-f"     racket-fold-all-tests)
@@ -188,10 +190,33 @@ If you run this command, ever, you should run it again after:
     (when (y-or-n-p prompt)
       (async-shell-command command))))
 
+
+(defun racket-documentation-search ()
+  "Search documentation.
+
+This command is useful in several situations:
+
+- You are not using `racket-xp-mode' for a `racket-mode' edit
+  buffer, so `racket-xp-documentation' is not available.
+
+- There is no `racket-repl-mode' buffer with a live namespace, so
+  `racket-repl-documentation' is not available or helpful.
+
+- You want to search for definitions provided by all modules --
+  for example, the \"define\" syntax provided by racket/base, by
+  typed/racket/base, and by other modules, as well definitions or
+  topics that merely include \"define\".
+
+This command does not try to go directly to the help topic for a
+definition provided by any specific module. Instead it goes to
+the Racket \"Search Manuals\" page."
+  (interactive)
+  (racket--doc '(16) nil nil))
+
 ;;; Commands that predate `racket-xp-mode'
 
 (defun racket-doc ()
-  "Instead please use `racket-xp-documentation' or `racket-repl-documentation'.
+  "Instead please use `racket-documentation-search', `racket-xp-documentation' or `racket-repl-documentation'.
 See: <https://github.com/greghendershott/racket-mode/issues/439>"
   (interactive)
   (describe-function 'racket-doc))

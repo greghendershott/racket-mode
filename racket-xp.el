@@ -18,6 +18,7 @@
 
 (require 'racket-custom)
 (require 'racket-browse-url)
+(require 'racket-doc)
 (require 'racket-repl)
 (require 'racket-describe)
 (require 'racket-eldoc)
@@ -58,8 +59,7 @@ everything. If you find that too \"noisy\", set this to nil.")
    `(("C-c #"     ,racket-xp-control-c-hash-keymap)
      ("M-."       ,#'racket-xp-visit-definition)
      ("C-c C-."   ,#'racket-xp-describe)
-     ("C-c C-d"   ,#'racket-xp-documentation)
-     ("C-c C-s"   ,#'racket-xp-helpdesk))))
+     ("C-c C-d"   ,#'racket-xp-documentation))))
 
 (easy-menu-define racket-xp-mode-menu racket-xp-mode-map
   "Menu for `racket-xp-mode'."
@@ -460,46 +460,29 @@ definitions in submodules."
           (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str))))))))
 
 (defun racket-xp-documentation (&optional prefix)
-  "Show documentation for the identifier at point.
+  "View documentation in an external web browser.
 
-This gives a \"file:\" URL to `racket-browse-url', which
-typically opens an external web browser, but see that and the
-variable `racket-browse-url-function'.
+- With no prefix, uses the symbol at point.
 
-With a prefix, prompts you, but in this case beware it assumes
-definitions in or imported by the file module -- not locals or
-definitions in submodules."
+- With a single C-u prefix, prompts you to enter a symbol.
+
+Tries to find documentation for an identifer defined in the
+current namespace.
+
+If no such identifer exists, opens the Racket documentation
+search page with the symbol. In this case, uses the variable
+`racket-documentation-search-location' to determine whether the
+search is done locally as with `raco doc`, or is done at a URL.
+
+- With a double C-u prefix, proceeds directly to the search page.
+Use this if you would like to see documentation for all
+identifiers named \"define\", for example."
   (interactive "P")
   (pcase (get-text-property (point) 'racket-xp-doc)
     ((and `(,path ,anchor) (guard (not prefix)))
      (racket-browse-url (concat "file://" path "#" anchor)))
     (_
-     (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: "
-                                               racket--xp-binding-completions)
-       ((and (pred stringp) str)
-        (racket--cmd/async nil
-                           `(doc ,(buffer-file-name) ,str)
-                           #'racket-browse-url))))))
-
-(defun racket-xp-helpdesk (&optional prefix)
-  "Show the Search Manuals page with the identifier at point.
-
-If `racket-documentation-search' is set to 'local, opens the
-Search Manuals page from the local documentation.  Otherwise,
-opens the page given by the URL in `racket-documentation-search'.
-
-Like `racket-xp-documentation', given a prefix, prompts for the
-identifier, in which case it assumes definitions in or imported
-by the file module -- not locals or definitions in submodules."
-  (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: "
-					    racket--xp-binding-completions)
-    ((and (pred stringp) symb)
-     (pcase racket-documentation-search
-       ((and (pred stringp) url)
-        (browse-url (format url symb)))
-       ('local
-        (call-process racket-program nil 0 nil "-l" "raco" "doc" symb))))))
+     (racket--doc prefix (buffer-file-name) racket--xp-binding-completions))))
 
 (defun racket-xp--forward-use (amt)
   "When point is on a use, go AMT uses forward. AMT may be negative.

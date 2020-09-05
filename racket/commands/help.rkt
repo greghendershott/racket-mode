@@ -2,9 +2,7 @@
 
 (require (only-in scribble/core tag?)
          scribble/xref
-         setup/dirs
          setup/xref
-         net/uri-codec
          racket/contract
          racket/format
          racket/match
@@ -26,26 +24,12 @@
 (define xref (load-collections-xref))
 
 (define/contract (doc how str)
-  (-> how/c string? string?)
-  (or (->identifier how str stx->uri-string)
-      (search str)))
+  (-> how/c string? (or/c #f string?))
+  (->identifier how str stx->uri-string))
 
 (define (stx->uri-string stx)
-  (~a "file://"
-      (match (and xref (xref-binding->definition-tag xref stx 0))
-        [(? tag? tag)
-         (define-values (path anchor) (xref-tag->path+anchor xref tag))
-         (~a path "#" anchor)]
-        [_ (search (~a (syntax->datum stx)))])))
-
-(define (search str)
-  (~a (for/or ([f (in-list (list find-user-doc-dir find-doc-dir))])
-        (search-dir f))
-      "?q="
-      (uri-encode str)))
-
-(define (search-dir f)
-  (match (f)
-    [(? path? dir) (define path (build-path dir "search/index.html"))
-                   (and (file-exists? path) (path->string path))]
+  (match (and xref (xref-binding->definition-tag xref stx 0))
+    [(? tag? tag)
+     (define-values (path anchor) (xref-tag->path+anchor xref tag))
+     (~a "file://" path "#" anchor)]
     [_ #f]))

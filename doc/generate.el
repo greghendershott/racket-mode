@@ -62,7 +62,7 @@
     racket-xp-visit-definition
     racket-xp-describe
     racket-xp-documentation
-    racket-xp-helpdesk
+    racket-documentation-search
     "Run"
     racket-run
     racket-run-and-switch-to-repl
@@ -70,7 +70,6 @@
     racket-repl
     racket-repl-describe
     racket-repl-documentation
-    racket-repl-helpdesk
     racket-repl-visit-definition
     racket-racket
     racket-profile
@@ -169,7 +168,7 @@
     racket-browse-url-function
     racket-xp-after-change-refresh-delay
     racket-xp-highlight-unused-regexp
-    racket-documentation-search
+    racket-documentation-search-location
     "REPL variables"
     racket-repl-buffer-name-function
     racket-history-filter-regexp

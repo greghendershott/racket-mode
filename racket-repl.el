@@ -20,6 +20,7 @@
 (require 'racket-browse-url)
 (require 'racket-complete)
 (require 'racket-describe)
+(require 'racket-doc)
 (require 'racket-eldoc)
 (require 'racket-custom)
 (require 'racket-common)
@@ -913,46 +914,25 @@ symbol definition lookup."
 ;;; Doc
 
 (defun racket-repl-documentation (&optional prefix)
-  "View documentation of the identifier or string at point.
+  "View documentation in an external web browser.
 
-Uses the default external web browser.
+- With no prefix, uses the symbol at point.
 
-If point is an identifier required in the current namespace that
-has help, opens the web browser directly at that help
-topic. (i.e. Uses the identifier variant of racket/help.)
+- With a single C-u prefix, prompts you to enter a symbol.
 
-Otherwise, opens the 'search for a term' page, where you can
-choose among multiple possibilities. (i.e. Uses the string
-variant of racket/help.)
+Tries to find documentation for an identifer defined in the
+current namespace.
 
-With a C-u prefix, prompts for the identifier or quoted string,
-instead of looking at point."
+If no such identifer exists, opens the Racket documentation
+search page with the symbol. In this case, uses the variable
+`racket-documentation-search-location' to determine whether the
+search is done locally as with `raco doc`, or is done at a URL.
+
+- With a double C-u prefix, proceeds directly to the search page.
+Use this if you would like to see documentation for all
+identifiers named \"define\", for example."
   (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: "
-                                            racket--repl-namespace-symbols)
-    ((and (pred stringp) str) (racket--cmd/async (racket--repl-session-id)
-                                                 `(doc namespace ,str)
-                                                 #'racket-browse-url))))
-
-(defun racket-repl-helpdesk (&optional prefix)
-  "Show the Search Manuals page with the identifier at point.
-
-If `racket-documentation-search' is set to 'local, opens the
-Search Manuals page from the local documentation.  Otherwise,
-opens the page given by the URL in `racket-documentation-search'.
-
-Like `racket-repl-documentation', given a prefix, prompts for the
-identifier, in which case it assumes definitions in or imported
-by the file module -- not locals or definitions in submodules."
-  (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Documentation for: "
-					    racket--repl-namespace-symbols)
-    ((and (pred stringp) symb)
-     (pcase racket-documentation-search
-       ((and (pred stringp) url)
-        (browse-url (format url symb)))
-       ('local
-        (call-process racket-program nil 0 nil "-l" "raco" "doc" symb))))))
+  (racket--doc prefix 'namespace racket--repl-namespace-symbols))
 
 ;;; racket-repl-mode
 
@@ -972,7 +952,6 @@ by the file module -- not locals or definitions in submodules."
      ("C-c C-e r"       racket-expand-region)
      ("M-C-y"           racket-insert-lambda)
      ("C-c C-d"         racket-repl-documentation)
-     ("C-c C-s"         racket-repl-helpdesk)
      ("C-c C-."         racket-repl-describe)
      ("M-."             racket-repl-visit-definition)
      ("C-M-."           racket-visit-module)

@@ -161,12 +161,14 @@ an underline, which is a common convention."
   :safe #'stringp
   :group 'racket-xp)
 
-(defcustom racket-documentation-search
+(defcustom racket-documentation-search-location
   "https://docs.racket-lang.org/search/index.html?q=%s"
-  "Where `racket-xp-helpdesk' and `racket-repl-helpdesk' should
-look for the search page.  If the value of this variable is
-'local, open the search page from the local documentation.
-Otherwise, use the URL given by this variable.
+  "The location of the Racket \"Search Manuals\" web page.
+Where `racket-search-documentation', `racket-xp-helpdesk' and
+`racket-repl-helpdesk' should look for the search page. If the
+value of this variable is 'local, open the search page from the
+local documentation. Otherwise, use the URL given by this
+variable.
 
 This variable should contain a string recognizable by `format',
 with %s at the point at which to insert the identifier to look up

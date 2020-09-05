@@ -96,6 +96,7 @@ Explore
 * racket-xp-visit-definition::
 * racket-xp-describe::
 * racket-xp-documentation::
+* racket-documentation-search::
 
 Run
 
@@ -179,6 +180,7 @@ General variables
 * racket-browse-url-function::
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
+* racket-documentation-search-location::
 
 REPL variables
 
@@ -993,6 +995,7 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 * racket-xp-visit-definition::
 * racket-xp-describe::
 * racket-xp-documentation::
+* racket-documentation-search::
 @end menu
 
 @node racket-xp-mode
@@ -1189,15 +1192,59 @@ and @ref{racket-xp-documentation}.
 
 @kbd{M-x}  @code{racket-xp-documentation} @kbd{RET} 
 
-Show documentation for the identifier at point.
+View documentation in an external web browser.
 
-This gives a ``file:'' URL to @code{racket-browse-url}, which
-typically opens an external web browser, but see that and the
-variable @ref{racket-browse-url-function}.
+@itemize
+@item
+With no prefix, uses the symbol at point.
 
-With a prefix, prompts you, but in this case beware it assumes
-definitions in or imported by the file module -- not locals or
-definitions in submodules.
+@item
+With a single C-u prefix, prompts you to enter a symbol.
+@end itemize
+
+Tries to find documentation for an identifer defined in the
+current namespace.
+
+If no such identifer exists, opens the Racket documentation
+search page with the symbol. In this case, uses the variable
+@ref{racket-documentation-search-location} to determine whether the
+search is done locally as with @code{raco doc}, or is done at a URL.
+
+@itemize
+@item
+With a double C-u prefix, proceeds directly to the search page.
+@end itemize
+Use this if you would like to see documentation for all
+identifiers named ``define'', for example.
+
+@node racket-documentation-search
+@subsection racket-documentation-search
+
+@kbd{C-c C-d} 
+
+Search documentation.
+
+This command is useful in several situations:
+
+@itemize
+@item
+You are not using @ref{racket-xp-mode} for a @code{racket-mode} edit
+buffer, so @ref{racket-xp-documentation} is not available.
+
+@item
+There is no @code{racket-repl-mode} buffer with a live namespace, so
+@ref{racket-repl-documentation} is not available or helpful.
+
+@item
+You want to search for definitions provided by all modules --
+for example, the ``define'' syntax provided by racket/base, by
+typed/racket/base, and by other modules, as well definitions or
+topics that merely include ``define''.
+@end itemize
+
+This command does not try to go directly to the help topic for a
+definition provided by any specific module. Instead it goes to
+the Racket ``Search Manuals'' page.
 
 @node Run
 @section Run
@@ -1342,20 +1389,30 @@ and @ref{racket-repl-documentation}.
 
 @kbd{M-x}  @code{racket-repl-documentation} @kbd{RET} 
 
-View documentation of the identifier or string at point.
+View documentation in an external web browser.
 
-Uses the default external web browser.
+@itemize
+@item
+With no prefix, uses the symbol at point.
 
-If point is an identifier required in the current namespace that
-has help, opens the web browser directly at that help
-topic. (i.e. Uses the identifier variant of racket/help.)
+@item
+With a single C-u prefix, prompts you to enter a symbol.
+@end itemize
 
-Otherwise, opens the `search for a term' page, where you can
-choose among multiple possibilities. (i.e. Uses the string
-variant of racket/help.)
+Tries to find documentation for an identifer defined in the
+current namespace.
 
-With a C-u prefix, prompts for the identifier or quoted string,
-instead of looking at point.
+If no such identifer exists, opens the Racket documentation
+search page with the symbol. In this case, uses the variable
+@ref{racket-documentation-search-location} to determine whether the
+search is done locally as with @code{raco doc}, or is done at a URL.
+
+@itemize
+@item
+With a double C-u prefix, proceeds directly to the search page.
+@end itemize
+Use this if you would like to see documentation for all
+identifiers named ``define'', for example.
 
 @node racket-repl-visit-definition
 @subsection racket-repl-visit-definition
@@ -1974,6 +2031,8 @@ The ``project'' is determined by trying, in order:
 @item
 @code{vc-root-dir}
 @item
+@code{project-current}
+@item
 @code{file-name-directory}
 @end itemize
 
@@ -2039,6 +2098,7 @@ customize.
 * racket-browse-url-function::
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
+* racket-documentation-search-location::
 @end menu
 
 @node racket-program
@@ -2176,6 +2236,21 @@ Only give @ref{racket-xp-unused-face} to unused bindings that match this regexp.
 The default is to highlight identifiers that do not start with
 an underline, which is a common convention.
 
+@node racket-documentation-search-location
+@subsection racket-documentation-search-location
+
+The location of the Racket ``Search Manuals'' web page.
+Where @code{racket-search-documentation}, @code{racket-xp-helpdesk} and
+@code{racket-repl-helpdesk} should look for the search page. If the
+value of this variable is `local, open the search page from the
+local documentation. Otherwise, use the URL given by this
+variable.
+
+This variable should contain a string recognizable by @code{format},
+with %s at the point at which to insert the identifier to look up
+in the help desk.  Apart from %s, the string should be a properly
+encoded URL.
+
 @node REPL variables
 @section REPL variables
 
@@ -2243,8 +2318,7 @@ How many images to keep in the image cache.
 @node racket-images-system-viewer
 @subsection racket-images-system-viewer
 
-Which system image viewer program to invoke upon M-x
- @code{racket-view-last-image}.
+The image viewer program to use for @code{racket-view-image}.
 
 @node racket-pretty-print
 @subsection racket-pretty-print

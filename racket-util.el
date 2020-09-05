@@ -155,28 +155,37 @@ When installed as a package, this can be found from the variable
   (and (stringp v)
        (not (string-match-p "\\`[ \t\n\r]*\\'" v)))) ;`string-blank-p'
 
-;;; at-point
+(defun racket--symbol-at-point-or-prompt (force-prompt-p
+                                          prompt
+                                          &optional
+                                          completions
+                                          allow-blank-p)
+  "If symbol at point return it, else prompt user.
 
-(defun racket--symbol-at-point-or-prompt (force-prompt-p prompt &optional completions)
-  "Helper for functions that want symbol-at-point, or, to prompt
-when there is no symbol-at-point or FORCE-PROMPT-P is true. The
-prompt uses `read-from-minibuffer' when COMPLETIONS is nil, else
-`ido-completing-read'. Returns `stringp' not `symbolp' to
-simplify using the result in a sexpr that can be passed to Racket
-backend. Likewise text properties are stripped."
+When FORCE-PROMPT-P always prompt. The prompt uses
+`read-from-minibuffer' when COMPLETIONS is nil, else
+`ido-completing-read'.
+
+Returns `stringp' not `symbolp' to simplify using the result in a
+sexpr that can be passed to Racket backend. Likewise the string
+is trimmed and text properties are stripped.
+
+Unless ALLOW-BLANK-P, a blank string after trimming returns nil
+as if the user had C-g to quit."
   (let ((sap (thing-at-point 'symbol t)))
-    (if (or force-prompt-p (not sap))
-        (let ((s (if completions
-                     (ido-completing-read prompt completions nil nil sap)
-                   (read-from-minibuffer prompt sap))))
+    (if (or force-prompt-p
+            (not sap))
+        (let* ((s (if completions
+                      (ido-completing-read prompt completions nil nil sap)
+                    (read-from-minibuffer prompt sap)))
+               (s (if s
+                      (racket--trim (substring-no-properties s))
+                    s)))
           (if (or (not s)
-                  (equal ""
-                         (racket--trim
-                          (substring-no-properties s))))
+                  (and (not allow-blank-p) (equal "" s)))
               nil
             s))
       sap)))
-
 
 (defconst racket--config-dir (file-name-as-directory
                               (locate-user-emacs-file "racket-mode")))
