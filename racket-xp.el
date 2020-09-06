@@ -551,9 +551,10 @@ If point is instead on a definition, then go to its first use."
       (dolist (marker-pair marker-pairs)
         (let ((beg (marker-position (nth 0 marker-pair)))
               (end (marker-position (nth 1 marker-pair))))
-          (delete-region beg end)
-          (goto-char beg)
-          (insert new-id))))
+          (when (string= (buffer-substring-no-properties beg end) old-id)
+            (delete-region beg end)
+            (goto-char beg)
+            (insert new-id)))))
     (goto-char (marker-position point-marker))
     (racket-xp-annotate)))
 
