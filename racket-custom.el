@@ -124,6 +124,25 @@ On Linux this defaults to `browse-url', otherwise it defaults to
   :safe #'functionp
   :group 'racket)
 
+(defcustom racket-documentation-search-location
+  "https://docs.racket-lang.org/search/index.html?q=%s"
+  "The location of the Racket \"Search Manuals\" web page.
+Where `racket-documentation-search', `racket-xp-documentation'
+and `racket-repl-documentation' should look for the search page.
+
+- If the value of this variable is 'local, open the search page
+  from the local documentation, as with \"raco doc\".
+
+- Otherwise, the value is a string recognizable by `format', with
+  \"%s\" at the point at which to insert the user's search text.
+  the help desk. Apart from \"%s\", the string should be a
+  properly encoded URL."
+  :tag "Where to search documentation"
+  :type '(choice (string :tag "URL")
+                 (const :tag "Local" 'local))
+  :safe (lambda (val) (or (stringp val) (eq val 'local)))
+  :group 'racket)
+
 ;;; Xp Mode
 
 (defgroup racket-xp nil
@@ -159,25 +178,6 @@ an underline, which is a common convention."
   :tag "Racket Xp Mode Do Not Highlight Unused Regexp"
   :type 'regexp
   :safe #'stringp
-  :group 'racket-xp)
-
-(defcustom racket-documentation-search-location
-  "https://docs.racket-lang.org/search/index.html?q=%s"
-  "The location of the Racket \"Search Manuals\" web page.
-Where `racket-search-documentation', `racket-xp-helpdesk' and
-`racket-repl-helpdesk' should look for the search page. If the
-value of this variable is 'local, open the search page from the
-local documentation. Otherwise, use the URL given by this
-variable.
-
-This variable should contain a string recognizable by `format',
-with %s at the point at which to insert the identifier to look up
-in the help desk.  Apart from %s, the string should be a properly
-encoded URL."
-  :tag "Where to look for the help desk"
-  :type '(choice (string :tag "URL")
-                 (const :tag "Local" 'local))
-  :safe (lambda (val) (or (stringp val) (eq val 'local)))
   :group 'racket-xp)
 
 ;;; REPL
