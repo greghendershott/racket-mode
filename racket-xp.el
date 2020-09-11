@@ -240,9 +240,9 @@ commands directly to whatever keys you prefer.
 (defun racket-xp-describe (&optional prefix)
 "Describe the identifier at point in a `*Racket Describe*` buffer.
 
-With a prefix, prompts you, but in this case beware it assumes
-definitions in or imported by the file module -- not locals or
-definitions in submodules.
+With \\[universal-argument] prompts you, but in this case beware
+it assumes definitions in or imported by the file module -- not
+locals or definitions in submodules.
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
@@ -412,9 +412,9 @@ or `racket-repl-describe'."
 (defun racket-xp-visit-definition (&optional prefix)
   "When point is on a use, go to its definition.
 
-With a prefix, prompts you, but in this case beware it assumes
-definitions in or imported by the file module -- not locals or
-definitions in submodules."
+With \\[universal-argument] prompts you, but in this case beware
+it assumes definitions in or imported by the file module -- not
+locals or definitions in submodules."
   (interactive "P")
   (if prefix
       (pcase (racket--symbol-at-point-or-prompt t "Visit definition of: "
@@ -462,21 +462,33 @@ definitions in submodules."
 (defun racket-xp-documentation (&optional prefix)
   "View documentation in an external web browser.
 
-- With no prefix, uses the symbol at point.
+The command varies based on how many \\[universal-argument] command prefixes you supply.
 
-- With a single C-u prefix, prompts you to enter a symbol.
+1. None.
 
-Tries to find documentation for an identifer defined in the
-current namespace.
+   Uses the symbol at point. Tries to find documentation for an
+   identifer defined in the expansion of the current buffer.
 
-If no such identifer exists, opens the Racket documentation
-search page with the symbol. In this case, uses the variable
-`racket-documentation-search-location' to determine whether the
-search is done locally as with `raco doc`, or is done at a URL.
+   If no such identifer exists, opens the Search Manuals page. In
+   this case, the variable `racket-documentation-search-location'
+   determines whether the search is done locally as with `raco
+   doc`, or visits a URL.
 
-- With a double C-u prefix, proceeds directly to the search page.
-Use this if you would like to see documentation for all
-identifiers named \"define\", for example."
+2. \\[universal-argument]
+
+   Prompts you to enter a symbol, defaulting to the symbol at
+   point if any.
+
+   Otherwise behaves like 1.
+
+3. \\[universal-argument] \\[universal-argument]
+
+   Prompts you to enter anything, defaulting to the symbol at
+   point if any.
+
+   Proceeds directly to the Search Manuals page. Use this if you
+   would like to see documentation for all identifiers named
+   \"define\", for example."
   (interactive "P")
   (pcase (get-text-property (point) 'racket-xp-doc)
     ((and `(,path ,anchor) (guard (not prefix)))

@@ -59,7 +59,7 @@ which case the selection is to be wrapped in parens."
 (defun racket-insert-closing (&optional prefix)
   "Insert a matching closing delimiter.
 
-With a prefix, insert the typed character as-is.
+With \\[universal-argument] insert the typed character as-is.
 
 This is handy if you're not yet using something like
 `paredit-mode', `smartparens-mode', `parinfer-mode', or simply

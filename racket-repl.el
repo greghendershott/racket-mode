@@ -131,9 +131,10 @@ If the REPL is running a Racket lang whose language-info has a
 'drracket:submit-predicate, that is first called to see if the
 input is valid to be submitted.
 
-With a prefix: After sending your input and a newline, also calls
-`process-send-eof' -- because some langs require EOF to mark the
-end of an interactive expression/statement."
+With \\[universal-argument] after sending your input and a
+newline, also calls `process-send-eof' -- because some langs
+require EOF to mark the end of an interactive
+expression/statement."
   (interactive "P")
   (let* ((proc (get-buffer-process (current-buffer)))
          (_    (unless proc (user-error "Current buffer has no process")))
@@ -189,8 +190,8 @@ Effectively the same as entering `(exit)` at the prompt, but
 works even when the module language doesn't provide any binding
 for `exit`.
 
-With a prefix, closes the entire back end process --- the command
-server and all REPL sessions."
+With \\[universal-argument] closes the entire back end process
+--- the command server and all REPL sessions."
   (interactive "P")
   (cond (killp
          (message "Killing entire Racket Mode back end process")
@@ -247,11 +248,12 @@ buffer to run command-line Racket."
 Runs the \"main\" submodule, if any, otherwise the file's module.
 See also `racket-run-module-at-point'.
 
-With one C-u prefix, uses errortrace for improved stack traces.
+With \\[universal-argument] uses errortrace for improved stack traces.
 Otherwise follows the `racket-error-context' setting.
 
-With two C-u prefixes, instruments code for step debugging. See
-`racket-debug-mode' and the variable `racket-debuggable-files'.
+With \\[universal-argument] \\[universal-argument] instruments
+code for step debugging. See `racket-debug-mode' and the variable
+`racket-debuggable-files'.
 
 Each run occurs within a Racket custodian. Any prior run's
 custodian is shut down, releasing resources like threads and
@@ -301,15 +303,19 @@ module."
 
 (defun racket-run-with-errortrace ()
   "Run with `racket-error-context' temporarily set to \"high\".
-This is just `racket-run' with a C-u prefix. Defined as a function so
-it can be a menu target."
+
+This is equivalent to \\[universal-argument] \\[racket-run].
+
+Defined as a function so it can be a menu target."
   (interactive)
   (racket-run '(4)))
 
 (defun racket-run-with-debugging ()
   "Run with `racket-error-context' temporarily set to 'debug.
-This is just `racket-run' with a double C-u prefix. Defined as a
-function so it can be a menu target."
+
+This is equivalent to \\[universal-argument] \\[universal-argument] \\[racket-run].
+
+Defined as a function so it can be a menu target."
   (interactive)
   (racket-run '(16)))
 
@@ -328,8 +334,8 @@ function so it can be a menu target."
 (defun racket-test (&optional coverage)
   "Run the \"test\" submodule.
 
-With prefix, runs with coverage instrumentation and highlights
-uncovered code.
+With \\[universal-argument] runs with coverage instrumentation
+and highlights uncovered code.
 
 Put your tests in a \"test\" submodule. For example:
 
@@ -753,7 +759,8 @@ A value for the variable `comint-output-filter-functions'."
 (defun racket-view-last-image (n)
   "Open the last displayed image using `racket-images-system-viewer'.
 
-With prefix arg, open the N-th last shown image."
+With a numeric command prefix argument, open the N-th last shown
+image."
   (interactive "p")
   (let ((images (reverse (racket-repl--list-image-cache))))
     (if (>= (length images) n)
@@ -884,7 +891,7 @@ and `racket-repl-documentation'."
 
 If there is no identifier at point, prompt for it.
 
-With a prefix, always prompt for the identifier.
+With \\[universal-argument] always prompt for the identifier.
 
 Use `racket-unvisit' to return.
 
@@ -916,21 +923,33 @@ symbol definition lookup."
 (defun racket-repl-documentation (&optional prefix)
   "View documentation in an external web browser.
 
-- With no prefix, uses the symbol at point.
+The command varies based on how many \\[universal-argument] command prefixes you supply.
 
-- With a single C-u prefix, prompts you to enter a symbol.
+1. None.
 
-Tries to find documentation for an identifer defined in the
-current namespace.
+   Uses the symbol at point. Tries to find documentation for an
+   identifer defined in the current namespace.
 
-If no such identifer exists, opens the Racket documentation
-search page with the symbol. In this case, uses the variable
-`racket-documentation-search-location' to determine whether the
-search is done locally as with `raco doc`, or is done at a URL.
+   If no such identifer exists, opens the Search Manuals page. In
+   this case, the variable `racket-documentation-search-location'
+   determines whether the search is done locally as with `raco
+   doc`, or visits a URL.
 
-- With a double C-u prefix, proceeds directly to the search page.
-Use this if you would like to see documentation for all
-identifiers named \"define\", for example."
+2. \\[universal-argument]
+
+   Prompts you to enter a symbol, defaulting to the symbol at
+   point if any.
+
+   Otherwise behaves like 1.
+
+3. \\[universal-argument] \\[universal-argument]
+
+   Prompts you to enter anything, defaulting to the symbol at
+   point if any.
+
+   Proceeds directly to the Search Manuals page. Use this if you
+   would like to see documentation for all identifiers named
+   \"define\", for example."
   (interactive "P")
   (racket--doc prefix 'namespace racket--repl-namespace-symbols))
 

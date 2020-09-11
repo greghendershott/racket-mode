@@ -28,7 +28,9 @@
 (defun racket-find-collection (&optional prefix)
   "Given a collection name, try to find its directory and files.
 
-Takes a collection name from point (or, with a prefix, prompts you).
+Takes a collection name from point.
+
+With \\[universal-argument] prompts you.
 
 If only one directory is found, `ido-find-file-in-dir' lets you
 pick a file there.

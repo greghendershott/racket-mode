@@ -594,7 +594,7 @@ Unfold (show) all test submodules.
 @node racket-tidy-requires
 @subsection racket-tidy-requires
 
-@kbd{M-x}  @code{racket-tidy-requires} @kbd{RET} 
+@kbd{M-x}  @code{racket-tidy-requires}
 
 Make a single top-level ``require'' form, modules sorted, one per line.
 
@@ -635,7 +635,7 @@ See also: @ref{racket-trim-requires} and @ref{racket-base-requires}.
 @node racket-trim-requires
 @subsection racket-trim-requires
 
-@kbd{M-x}  @code{racket-trim-requires} @kbd{RET} 
+@kbd{M-x}  @code{racket-trim-requires}
 
 Like @ref{racket-tidy-requires} but also deletes unnecessary requires.
 
@@ -653,7 +653,7 @@ See also: @ref{racket-base-requires}.
 @node racket-base-requires
 @subsection racket-base-requires
 
-@kbd{M-x}  @code{racket-base-requires} @kbd{RET} 
+@kbd{M-x}  @code{racket-base-requires}
 
 Change from ``#lang racket'' to ``#lang racket/base''.
 
@@ -684,7 +684,7 @@ typed/racket/base''.
 @node racket-indent-line
 @subsection racket-indent-line
 
-@kbd{M-x}  @code{racket-indent-line} @kbd{RET} 
+@kbd{M-x}  @code{racket-indent-line}
 
 Indent current line as Racket code.
 
@@ -754,7 +754,7 @@ Otherwise prefer putting properties on @code{racket-indent-function}.
 @node racket-smart-open-bracket-mode
 @subsection racket-smart-open-bracket-mode
 
-@kbd{M-x}  @code{racket-smart-open-bracket-mode} @kbd{RET} 
+@kbd{M-x}  @code{racket-smart-open-bracket-mode}
 
 Minor mode to let you always type @code{[}' to insert @code{(} or @code{[} automatically.
 
@@ -803,7 +803,7 @@ the variable @code{minor-mode-map-alist}.
 
 Insert a matching closing delimiter.
 
-With a prefix, insert the typed character as-is.
+With @kbd{C-u}  insert the typed character as-is.
 
 This is handy if you're not yet using something like
 @code{paredit-mode}, @code{smartparens-mode}, @code{parinfer-mode}, or simply
@@ -832,7 +832,7 @@ repeatedly.
 @node racket-unicode-input-method-enable
 @subsection racket-unicode-input-method-enable
 
-@kbd{M-x}  @code{racket-unicode-input-method-enable} @kbd{RET} 
+@kbd{M-x}  @code{racket-unicode-input-method-enable}
 
 Set input method to racket-unicode.
 
@@ -897,7 +897,7 @@ can turn it off by setting @code{input-method-highlight-flag} to nil.
 @node racket-align
 @subsection racket-align
 
-@kbd{M-x}  @code{racket-align} @kbd{RET} 
+@kbd{M-x}  @code{racket-align}
 
 Align values in the same column.
 
@@ -971,7 +971,7 @@ See also: @ref{racket-unalign}.
 @node racket-unalign
 @subsection racket-unalign
 
-@kbd{M-x}  @code{racket-unalign} @kbd{RET} 
+@kbd{M-x}  @code{racket-unalign}
 
 The opposite of @ref{racket-align}.
 
@@ -1001,7 +1001,7 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 @node racket-xp-mode
 @subsection racket-xp-mode
 
-@kbd{M-x}  @code{racket-xp-mode} @kbd{RET} 
+@kbd{M-x}  @code{racket-xp-mode}
 
 A minor mode that analyzes expanded code to explain and explore.
 
@@ -1145,24 +1145,24 @@ commands directly to whatever keys you prefer.
 @node racket-xp-visit-definition
 @subsection racket-xp-visit-definition
 
-@kbd{M-x}  @code{racket-xp-visit-definition} @kbd{RET} 
+@kbd{M-.}  or @kbd{C-c # .} 
 
 When point is on a use, go to its definition.
 
-With a prefix, prompts you, but in this case beware it assumes
-definitions in or imported by the file module -- not locals or
-definitions in submodules.
+With @kbd{C-u}  prompts you, but in this case beware
+it assumes definitions in or imported by the file module -- not
+locals or definitions in submodules.
 
 @node racket-xp-describe
 @subsection racket-xp-describe
 
-@kbd{M-x}  @code{racket-xp-describe} @kbd{RET} 
+@kbd{C-c C-.} 
 
 Describe the identifier at point in a @code{*Racket Describe*} buffer.
 
-With a prefix, prompts you, but in this case beware it assumes
-definitions in or imported by the file module -- not locals or
-definitions in submodules.
+With @kbd{C-u}  prompts you, but in this case beware
+it assumes definitions in or imported by the file module -- not
+locals or definitions in submodules.
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
@@ -1190,32 +1190,42 @@ and @ref{racket-xp-documentation}.
 @node racket-xp-documentation
 @subsection racket-xp-documentation
 
-@kbd{M-x}  @code{racket-xp-documentation} @kbd{RET} 
+@kbd{C-c C-d} 
 
 View documentation in an external web browser.
 
-@itemize
+The command varies based on how many @kbd{C-u}  command prefixes you supply.
+
+@enumerate
 @item
-With no prefix, uses the symbol at point.
+None.
+
+Uses the symbol at point. Tries to find documentation for an
+identifer defined in the expansion of the current buffer.
+
+If no such identifer exists, opens the Search Manuals page. In
+this case, the variable @ref{racket-documentation-search-location}
+determines whether the search is done locally as with `raco
+doc`, or visits a URL.
 
 @item
-With a single C-u prefix, prompts you to enter a symbol.
-@end itemize
+@kbd{C-u} 
 
-Tries to find documentation for an identifer defined in the
-current namespace.
+Prompts you to enter a symbol, defaulting to the symbol at
+point if any.
 
-If no such identifer exists, opens the Racket documentation
-search page with the symbol. In this case, uses the variable
-@ref{racket-documentation-search-location} to determine whether the
-search is done locally as with @code{raco doc}, or is done at a URL.
+Otherwise behaves like 1.
 
-@itemize
 @item
-With a double C-u prefix, proceeds directly to the search page.
-@end itemize
-Use this if you would like to see documentation for all
-identifiers named ``define'', for example.
+@kbd{C-u}  @kbd{C-u} 
+
+Prompts you to enter anything, defaulting to the symbol at
+point if any.
+
+Proceeds directly to the Search Manuals page. Use this if you
+would like to see documentation for all identifiers named
+``define'', for example.
+@end enumerate
 
 @node racket-documentation-search
 @subsection racket-documentation-search
@@ -1268,18 +1278,19 @@ the Racket ``Search Manuals'' page.
 @node racket-run
 @subsection racket-run
 
-@kbd{M-x}  @code{racket-run} @kbd{RET} 
+@kbd{M-x}  @code{racket-run}
 
 Save the buffer in REPL and run your program.
 
 Runs the ``main'' submodule, if any, otherwise the file's module.
 See also @ref{racket-run-module-at-point}.
 
-With one C-u prefix, uses errortrace for improved stack traces.
+With @kbd{C-u}  uses errortrace for improved stack traces.
 Otherwise follows the @ref{racket-error-context} setting.
 
-With two C-u prefixes, instruments code for step debugging. See
-@ref{racket-debug-mode} and the variable @ref{racket-debuggable-files}.
+With @kbd{C-u}  @kbd{C-u}  instruments
+code for step debugging. See @ref{racket-debug-mode} and the variable
+@ref{racket-debuggable-files}.
 
 Each run occurs within a Racket custodian. Any prior run's
 custodian is shut down, releasing resources like threads and
@@ -1356,7 +1367,7 @@ buffer to run command-line Racket.
 @node racket-repl-describe
 @subsection racket-repl-describe
 
-@kbd{M-x}  @code{racket-repl-describe} @kbd{RET} 
+@kbd{C-c C-.} 
 
 Describe the identifier at point in a @code{*Racket Describe*} buffer.
 
@@ -1387,43 +1398,53 @@ and @ref{racket-repl-documentation}.
 @node racket-repl-documentation
 @subsection racket-repl-documentation
 
-@kbd{M-x}  @code{racket-repl-documentation} @kbd{RET} 
+@kbd{C-c C-d} 
 
 View documentation in an external web browser.
 
-@itemize
+The command varies based on how many @kbd{C-u}  command prefixes you supply.
+
+@enumerate
 @item
-With no prefix, uses the symbol at point.
+None.
+
+Uses the symbol at point. Tries to find documentation for an
+identifer defined in the current namespace.
+
+If no such identifer exists, opens the Search Manuals page. In
+this case, the variable @ref{racket-documentation-search-location}
+determines whether the search is done locally as with `raco
+doc`, or visits a URL.
 
 @item
-With a single C-u prefix, prompts you to enter a symbol.
-@end itemize
+@kbd{C-u} 
 
-Tries to find documentation for an identifer defined in the
-current namespace.
+Prompts you to enter a symbol, defaulting to the symbol at
+point if any.
 
-If no such identifer exists, opens the Racket documentation
-search page with the symbol. In this case, uses the variable
-@ref{racket-documentation-search-location} to determine whether the
-search is done locally as with @code{raco doc}, or is done at a URL.
+Otherwise behaves like 1.
 
-@itemize
 @item
-With a double C-u prefix, proceeds directly to the search page.
-@end itemize
-Use this if you would like to see documentation for all
-identifiers named ``define'', for example.
+@kbd{C-u}  @kbd{C-u} 
+
+Prompts you to enter anything, defaulting to the symbol at
+point if any.
+
+Proceeds directly to the Search Manuals page. Use this if you
+would like to see documentation for all identifiers named
+``define'', for example.
+@end enumerate
 
 @node racket-repl-visit-definition
 @subsection racket-repl-visit-definition
 
-@kbd{M-x}  @code{racket-repl-visit-definition} @kbd{RET} 
+@kbd{M-.} 
 
 Visit definition of identifier at point.
 
 If there is no identifier at point, prompt for it.
 
-With a prefix, always prompt for the identifier.
+With @kbd{C-u}  always prompt for the identifier.
 
 Use @ref{racket-unvisit} to return.
 
@@ -1468,7 +1489,7 @@ delete compiled/*.zo files.
 @node racket-profile-mode
 @subsection racket-profile-mode
 
-@kbd{M-x}  @code{racket-profile-mode} @kbd{RET} 
+@kbd{M-x}  @code{racket-profile-mode}
 
 Major mode for results of @ref{racket-profile}.
 
@@ -1508,7 +1529,7 @@ Create the @ref{racket-logger-mode} buffer.
 @node racket-logger-mode
 @subsection racket-logger-mode
 
-@kbd{M-x}  @code{racket-logger-mode} @kbd{RET} 
+@kbd{M-x}  @code{racket-logger-mode}
 
 Major mode for Racket logger output.
 
@@ -1545,7 +1566,7 @@ during initialization.
 @node racket-debug-mode
 @subsection racket-debug-mode
 
-@kbd{M-x}  @code{racket-debug-mode} @kbd{RET} 
+@kbd{M-x}  @code{racket-debug-mode}
 
 Minor mode for debug breaks.
 
@@ -1564,10 +1585,12 @@ entire files, and also individual functions.
 
 a. Entire Files
 
-Choose @ref{racket-run} with two prefixes -- C-u C-u C-c C-c. The
-file will be instrumented for step debugging before it is run.
-Also instrumented are files determined by the variable
-@ref{racket-debuggable-files}.
+Use two @kbd{C-u}  command prefixes for either
+@ref{racket-run} or @ref{racket-run-module-at-point}.
+
+The file will be instrumented for step debugging before it
+is run. Also instrumented are files determined by the
+variable @ref{racket-debuggable-files}.
 
 The run will break at the first breakable position.
 
@@ -1578,7 +1601,8 @@ break so you can step debug again.
 
 b. Function Definitions
 
-Put point in a function @code{define} form and C-u C-M-x to
+Move point inside a function definition form and use
+@kbd{C-u}  @kbd{C-M-x}  to
 ``instrument'' the function for step debugging. Then in the
 REPL, enter an expression that causes the instrumented
 function to be run, directly or indirectly.
@@ -1591,21 +1615,21 @@ you can ``step into'' it:
 
 @itemize
 @item
-M-. a.k.a. @code{racket-visit-definition}.
+@kbd{M-.}  or @kbd{C-c # .}  to visit the definition.
 @item
-C-u C-M-x to instrument the definition.
+@kbd{C-u}  @kbd{C-M-x}  to instrument the definition.
 @item
-M-, a.k.a. @ref{racket-unvisit}.
+@kbd{M-,}  to return.
 @item
 Continue stepping.
 @end itemize
-Limitation: Instrumenting a function ~require~d from
-another module won't redefine that function. Instead, it
-attempts to define an instrumented function of the same
-name, in the module the REPL is inside. The define will
-fail if it needs definitions visible only in that other
-module. In that case you'll probably need to use
-entire-file instrumentation as described above.
+Limitation: Instrumenting a function required from another
+module won't redefine that function. Instead, it attempts
+to define an instrumented function of the same name, in the
+module the REPL is inside. The define will fail if it needs
+definitions visible only in that other module. In that case
+you'll probably need to use entire-file instrumentation as
+described above.
 
 @item
 When a break occurs, the @code{racket-repl-mode} prompt changes. In
@@ -1655,8 +1679,8 @@ provides shortcut keys:
 
 Run the ``test'' submodule.
 
-With prefix, runs with coverage instrumentation and highlights
-uncovered code.
+With @kbd{C-u}  runs with coverage instrumentation
+and highlights uncovered code.
 
 Put your tests in a ``test'' submodule. For example:
 
@@ -1680,7 +1704,7 @@ See also:
 @node racket-raco-test
 @subsection racket-raco-test
 
-@kbd{M-x}  @code{racket-raco-test} @kbd{RET} 
+@kbd{M-x}  @code{racket-raco-test}
 
 Do ``raco test -x <file>'' in a shell buffer to run the ``test'' submodule.
 
@@ -1735,7 +1759,7 @@ Visit definition of module at point, e.g. net/url or ``file.rkt''.
 
 If there is no module at point, prompt for it.
 
-With a prefix, always prompt for the module.
+With @kbd{C-u}  always prompt for the module.
 
 Use @ref{racket-unvisit} to return.
 
@@ -1768,11 +1792,13 @@ C-g aborts.
 @node racket-find-collection
 @subsection racket-find-collection
 
-@kbd{M-x}  @code{racket-find-collection} @kbd{RET} 
+@kbd{M-x}  @code{racket-find-collection}
 
 Given a collection name, try to find its directory and files.
 
-Takes a collection name from point (or, with a prefix, prompts you).
+Takes a collection name from point.
+
+With @kbd{C-u}  prompts you.
 
 If only one directory is found, @code{ido-find-file-in-dir} lets you
 pick a file there.
@@ -1805,7 +1831,7 @@ See also: @ref{racket-visit-module} and @ref{racket-open-require-path}.
 @node racket-stepper-mode
 @subsection racket-stepper-mode
 
-@kbd{M-x}  @code{racket-stepper-mode} @kbd{RET} 
+@kbd{M-x}  @code{racket-stepper-mode}
 
 Major mode for Racket stepper output.
 
@@ -1852,8 +1878,8 @@ If the file is non-trivial and/or is not compiled to a .zo
 bytecode file, then it might take many seconds before the
 original form is displayed and you can start stepping.
 
-With a prefix, also expands syntax from racket/base -- which can
-result in very many expansion steps.
+With @kbd{C-u}  also expands syntax from racket/base
+-- which can result in very many expansion steps.
 
 @node racket-expand-region
 @subsection racket-expand-region
@@ -1903,7 +1929,7 @@ Return from previous @code{racket-visit-definition} or @ref{racket-visit-module}
 @node racket-mode-start-faster
 @subsection racket-mode-start-faster
 
-@kbd{M-x}  @code{racket-mode-start-faster} @kbd{RET} 
+@kbd{M-x}  @code{racket-mode-start-faster}
 
 Compile Racket Mode's .rkt files for faster startup.
 
@@ -1999,7 +2025,7 @@ A value for the variable @ref{racket-show-functions}.
 @node racket-repl-buffer-name-shared
 @subsection racket-repl-buffer-name-shared
 
-@kbd{M-x}  @code{racket-repl-buffer-name-shared} @kbd{RET} 
+@kbd{M-x}  @code{racket-repl-buffer-name-shared}
 
 All @code{racket-mode} edit buffers share one @code{racket-repl-mode} buffer.
 
@@ -2008,7 +2034,7 @@ A value for the variable @ref{racket-repl-buffer-name-function}.
 @node racket-repl-buffer-name-unique
 @subsection racket-repl-buffer-name-unique
 
-@kbd{M-x}  @code{racket-repl-buffer-name-unique} @kbd{RET} 
+@kbd{M-x}  @code{racket-repl-buffer-name-unique}
 
 Each @code{racket-mode} edit buffer gets its own @code{racket-repl-mode} buffer.
 
@@ -2017,7 +2043,7 @@ A value for the variable @ref{racket-repl-buffer-name-function}.
 @node racket-repl-buffer-name-project
 @subsection racket-repl-buffer-name-project
 
-@kbd{M-x}  @code{racket-repl-buffer-name-project} @kbd{RET} 
+@kbd{M-x}  @code{racket-repl-buffer-name-project}
 
 All @code{racket-mode} buffers in a project share a @code{racket-repl-mode} buffer.
 

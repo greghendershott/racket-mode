@@ -27,7 +27,7 @@
 
 If there is no module at point, prompt for it.
 
-With a prefix, always prompt for the module.
+With \\[universal-argument] always prompt for the module.
 
 Use `racket-unvisit' to return.
 

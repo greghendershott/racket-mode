@@ -77,8 +77,8 @@ If the file is non-trivial and/or is not compiled to a .zo
 bytecode file, then it might take many seconds before the
 original form is displayed and you can start stepping.
 
-With a prefix, also expands syntax from racket/base -- which can
-result in very many expansion steps."
+With \\[universal-argument] also expands syntax from racket/base
+-- which can result in very many expansion steps."
   (interactive "P")
   (unless (eq major-mode 'racket-mode)
     (user-error "Only works in racket-mode buffer"))
@@ -136,7 +136,7 @@ May be nil for 'file stepping, but must be valid for 'expr stepping.")
   "Ensure buffer and issue initial command.
 WHICH should be 'expr or 'file.
 STR should be the expression or pathname.
-INTO-BASE is treated as a raw prefix arg and converted to boolp."
+INTO-BASE is treated as a raw command prefix arg and converted to boolp."
   (unless (eq major-mode 'racket-mode)
     (error "Only works from racket-mode buffers"))
   (setq racket--stepper-repl-session-id (racket--repl-session-id))
@@ -189,8 +189,9 @@ INTO-BASE is treated as a raw prefix arg and converted to boolp."
 
 An \"item\" is a line starting with a log level in brackets.
 
-Interactively, N is the numeric prefix argument.
-If N is omitted or nil, move point 1 item forward."
+Interactively, N is the numeric \\[universal-argument] command
+prefix argument. If N is omitted or nil, move point 1 item
+forward."
   (interactive "P")
   (forward-char 1)
   (if (re-search-forward racket-stepper--item-rx nil t count)
@@ -202,8 +203,9 @@ If N is omitted or nil, move point 1 item forward."
 
 An \"item\" is a line starting with a log level in brackets.
 
-Interactively, N is the numeric prefix argument.
-If N is omitted or nil, move point 1 item backward."
+Interactively, N is the numeric \\[universal-argument] command
+prefix argument. If N is omitted or nil, move point 1 item
+backward."
   (interactive "P")
   (re-search-backward racket-stepper--item-rx nil t count))
 
