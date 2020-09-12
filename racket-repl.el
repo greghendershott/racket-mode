@@ -245,8 +245,12 @@ buffer to run command-line Racket."
 (defun racket-run (&optional prefix)
   "Save the buffer in REPL and run your program.
 
-Runs the \"main\" submodule, if any, otherwise the file's module.
-See also `racket-run-module-at-point'.
+As well as evaluating the outermost, file module, automatically
+runs the submodules specified by the customization variable
+`racket-submodules-to-run'.
+
+See also `racket-run-module-at-point', which returns just the
+specific module at point.
 
 With \\[universal-argument] uses errortrace for improved stack traces.
 Otherwise follows the `racket-error-context' setting.
@@ -281,7 +285,8 @@ To visit these locations, move point there and press RET or mouse
 click. Or, use the standard `next-error' and `previous-error'
 commands."
   (interactive "P")
-  (racket--repl-run (list (racket--buffer-file-name) 'main)
+  (racket--repl-run (list (racket--buffer-file-name))
+                    racket-submodules-to-run
                     (pcase prefix
                       (`(4)  'high)
                       (`(16) 'debug)
@@ -289,13 +294,18 @@ commands."
 
 ;;;###autoload
 (defun racket-run-module-at-point (&optional prefix)
-  "Save the buffer and run the moudule at point.
+  "Save the buffer and run the module at point.
 
 Like `racket-run' but runs the innermost module around point.
-This may be a submodule nested at any depth, or the file's
-module."
+This may be a submodule nested at any depth, or the \"outermost\"
+file module.
+
+Unlike `racket-run`, this does NOT automatically run other
+submodules specified by the customization variable
+`racket-submodules-to-run' for example \"test\" or \"main\"."
   (interactive "P")
   (racket--repl-run (racket--what-to-run)
+                    '()
                     (pcase prefix
                       (`(4)  'high)
                       (`(16) 'debug)
@@ -322,7 +332,8 @@ Defined as a function so it can be a menu target."
 (defun racket-run-and-switch-to-repl (&optional prefix)
   "This is `racket-run' followed by selecting the REPL buffer window."
   (interactive "P")
-  (racket--repl-run (list (racket--buffer-file-name) 'main)
+  (racket--repl-run (list (racket--buffer-file-name))
+                    racket-submodules-to-run
                     (pcase prefix
                       (`(4)  'high)
                       (`(16) 'debug)
@@ -360,6 +371,7 @@ See also:
       (message "Running test submodule with coverage instrumentation...")
       (racket--repl-run
        mod-path
+       '()
        'coverage
        (lambda ()
          (message "Getting coverage results...")
@@ -423,11 +435,16 @@ The following values will /not/ work:
 Here \"after\" means that the run has completed and e.g. the REPL
 is waiting at another prompt.")
 
-(defun racket--repl-run (&optional what-to-run context-level callback)
+(defun racket--repl-run (&optional what-to-run extra-submods context-level callback)
   "Do an initial or subsequent run.
 
 WHAT-TO-RUN should be a cons of a file name to a list of
 submodule symbols. Or if nil, defaults to `racket--what-to-run'.
+
+EXTRA-SUBMODS should be a list of symbols, names of extra
+submodules to run, e.g. '(test main). This is intended for use by
+`racket-run', which more closely emulates DrRacket, as opposed to
+`racket-run-module-at-point'.
 
 CONTEXT-LEVEL should be a valid value for the variable
 `racket-error-context', 'coverage, or 'profile. Or if nil,
@@ -444,6 +461,7 @@ be nil which is equivalent to #'ignore.
     (user-error "Only works from a `racket-mode' buffer"))
   (run-hook-with-args 'racket--repl-before-run-hook)
   (let* ((cmd (racket--repl-make-run-command (or what-to-run (racket--what-to-run))
+                                             extra-submods
                                              (or context-level racket-error-context)))
          (after (lambda (_ignore)
                   (run-hook-with-args 'racket--repl-after-run-hook)
@@ -462,12 +480,13 @@ be nil which is equivalent to #'ignore.
               (racket--cmd/async (racket--repl-session-id) cmd after)
               (display-buffer racket-repl-buffer-name)))))))
 
-(defun racket--repl-make-run-command (what-to-run &optional context-level)
+(defun racket--repl-make-run-command (what-to-run extra-submods context-level)
   "Form a `run` command sexpr for the backend.
 WHAT-TO-RUN may be nil, meaning just a `racket/base` namespace."
   (let ((context-level (or context-level racket-error-context)))
     (list 'run
           what-to-run
+          extra-submods
           racket-memory-limit
           racket-pretty-print
           (window-width)

@@ -158,6 +158,7 @@
     racket-documentation-search-location
     "REPL variables"
     racket-repl-buffer-name-function
+    racket-submodules-to-run
     racket-history-filter-regexp
     racket-images-inline
     racket-imagemagick-props
@@ -189,12 +190,15 @@
     (concat (format "*** %s\n" s)
             (racket-generate--quotes-to-tildes
              (racket-generate--linkify
-              (or (documentation-property s 'variable-documentation t)
-                  ;; Do check for function documentation here, to
-                  ;; support documenting values for `-functions'
-                  ;; variables.
-                  (documentation s t)
-                  "No documentation.\n\n")))
+              (racket-generate--bracket-command
+               racket-mode-map
+               (racket-generate--angle-mapvar
+                (or (documentation-property s 'variable-documentation t)
+                    ;; Do check for function documentation here, to
+                    ;; support documenting values for `-functions'
+                    ;; variables.
+                    (documentation s t)
+                    "No documentation.\n\n")))))
             "\n\n")))
 
 ;;; Faces

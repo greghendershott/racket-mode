@@ -45,6 +45,7 @@ delete compiled/*.zo files."
   (message "Running with profiling instrumentation...")
   (racket--repl-run
    nil
+   '()
    'profile
    (lambda ()
      (message "Getting profile results...")

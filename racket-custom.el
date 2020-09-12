@@ -213,6 +213,29 @@ necessary."
                  (function :tag "Other function"))
   :group 'racket-repl)
 
+(defcustom racket-submodules-to-run '((test) (main))
+  "Extra submodules to run.
+
+This is a list of submodules. Each submodule is described as a
+list, to support submodules nested to any depth.
+
+This is used by commands that emulate the DrRacket Run command:
+
+\\<racket-mode-map>
+
+ - `racket-run'
+ - `racket-run-and-switch-to-repl' \\[racket-run-and-switch-to-repl]
+
+It is NOT used by commands that run one specific module, such as:
+
+ - `racket-run-module-at-point' \\[racket-run-module-at-point]
+ - `racket-test' \\[racket-test]
+ - `racket-profile'"
+  :tag "Extra Submodules to Run"
+  :type '(repeat (repeat symbol))
+  :safe #'listp
+  :group 'racket-repl)
+
 (defcustom racket-memory-limit 2048
   "Terminate the Racket process if memory use exceeds this value in MB.
 

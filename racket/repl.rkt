@@ -55,6 +55,7 @@
 
 (define-struct/contract (run-config repl-manager-thread-message)
   ([maybe-mod       (or/c #f mod?)]
+   [extra-submods   (listof (listof symbol?))]
    [memory-limit    exact-nonnegative-integer?] ;0 = no limit
    [pretty-print?   boolean?]
    [columns         exact-positive-integer?]
@@ -66,6 +67,7 @@
 
 (define (initial-run-config ready-thunk)
   (run-config #f    ;maybe-mod
+              '()   ;extra-submods
               0     ;memory-limit
               #f    ;pretty-print?
               79    ;columns
@@ -85,8 +87,8 @@
     [_ (log-racket-mode-error "break-repl-thread: ~v not in `sessions`" sid)]))
 
 ;; Command. Called from a command-server thread
-(define/contract (run what mem pp cols pix/char ctx args dbgs)
-  (-> list? number? elisp-bool/c number? number? context-level? list? (listof path-string?)
+(define/contract (run what subs mem pp cols pix/char ctx args dbgs)
+  (-> list? (listof (listof symbol?)) number? elisp-bool/c number? number? context-level? list? (listof path-string?)
       list?)
   (unless (current-repl-msg-chan)
     (error 'run "current-repl-msg-chan was #f; current-session-id=~v"
@@ -94,6 +96,7 @@
   (define ready-channel (make-channel))
   (channel-put (current-repl-msg-chan)
                (run-config (->mod/existing what)
+                           subs
                            mem
                            (as-racket-bool pp)
                            cols
@@ -178,6 +181,7 @@
 
 (define (do-run cfg) ;run-config? -> void?
   (match-define (run-config maybe-mod
+                            extra-submods-to-run
                             mem-limit
                             pretty-print?
                             columns
@@ -249,22 +253,17 @@
             (parameterize ([current-module-name-resolver module-name-resolver-for-run])
               ;; When exn:fail during module load, re-run.
               (define (load-exn-handler exn)
-                (define new-mod
-                  (match mod-path
-                    [`(submod ,(== file) main)
-                     (log-racket-mode-debug "~v not found, retry as ~v"
-                                            mod-path (build-path dir file))
-                     (->mod/existing (build-path dir file))]
-                    ;; Else display exn and retry as "empty" REPL.
-                    [_
-                     (display-exn exn)
-                     #f]))
+                (display-exn exn)
                 (channel-put (current-repl-msg-chan)
-                             (struct-copy run-config cfg [maybe-mod new-mod]))
+                             (struct-copy run-config cfg [maybe-mod #f]))
                 (sync never-evt)) ;manager thread will shutdown custodian
               (with-handlers ([exn? load-exn-handler])
                 (maybe-configure-runtime mod-path) ;FIRST: see #281
-                (dynamic-require mod-path #f)
+                (namespace-require mod-path)
+                (for ([submod (in-list extra-submods-to-run)])
+                  (define submod-spec `(submod ,(build-path dir file) ,@submod))
+                  (when (module-declared? submod-spec)
+                    (dynamic-require submod-spec #f)))
                 ;; User's program may have changed current-directory;
                 ;; use parameterize to set for module->namespace but
                 ;; restore user's value for REPL.
