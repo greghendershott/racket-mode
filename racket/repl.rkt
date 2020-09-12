@@ -187,10 +187,9 @@
                             debug-files
                             ready-thunk)   cfg)
   (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
-  ;; Always set current-directory and current-load-relative-directory
-  ;; to match the source file.
+  ;; Set current-directory -- but not current-load-relative-directory,
+  ;; see #492 -- to the source file's directory.
   (current-directory dir)
-  (current-load-relative-directory dir)
   ;; Make src-loc->string provide full pathnames
   (show-full-path-in-errors)
   ;; Custodian for the REPL.
@@ -265,10 +264,12 @@
                 (sync never-evt)) ;manager thread will shutdown custodian
               (with-handlers ([exn? load-exn-handler])
                 (maybe-configure-runtime mod-path) ;FIRST: see #281
+                (dynamic-require mod-path #f)
+                ;; User's program may have changed current-directory;
+                ;; use parameterize to set for module->namespace but
+                ;; restore user's value for REPL.
                 (current-namespace
-                 (parameterize ([current-load-relative-directory dir]
-                                [current-directory               dir])
-                   (dynamic-require mod-path #f)
+                 (parameterize ([current-directory dir])
                    (module->namespace mod-path)))
                 (maybe-warn-about-submodules mod-path context-level)
                 (check-#%top-interaction)))))
