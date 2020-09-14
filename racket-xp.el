@@ -304,9 +304,7 @@ and `racket-xp-documentation'."
               (_
                (let ((bfn (racket--buffer-file-name)))
                  (lambda ()
-                   (racket--cmd/async nil
-                                      `(doc ,bfn ,str)
-                                      #'racket-browse-url)))))))
+                   (racket--doc-command nil bfn str)))))))
        (racket--do-describe how nil str t visit-thunk doc-thunk)))))
 
 (defun racket-xp-eldoc-function ()

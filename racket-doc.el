@@ -32,13 +32,21 @@
       ((and (pred stringp) str)
        (if search-p
            (racket--search-doc str)
-         (racket--cmd/async (when (eq how 'namespace)
-                              (racket--repl-session-id))
-                            `(doc ,how ,str)
-                            (lambda (maybe-url)
-                              (if maybe-url
-                                  (racket-browse-url maybe-url)
-                                (racket--search-doc str)))))))))
+         (racket--doc-command (when (eq how 'namespace)
+                                (racket--repl-session-id))
+                              how
+                              str))))))
+
+(defun racket--doc-command (repl-session-id how str)
+  "A helper for `racket--doc', `racket-xp-describe', and `racket-repl-describe'.
+
+Centralizes how to issue doc command and handle response correctly."
+  (racket--cmd/async repl-session-id
+                     `(doc ,how ,str)
+                     (lambda (maybe-url)
+                       (if maybe-url
+                           (racket-browse-url maybe-url)
+                         (racket--search-doc str)))))
 
 (defun racket--search-doc (str)
   "Search docs where the variable `racket-documentation-search-location' says."

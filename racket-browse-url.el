@@ -19,7 +19,8 @@
 (require 'racket-custom)
 
 (defun racket-browse-url (url &rest args)
-  (apply racket-browse-url-function url args))
+  (when url
+    (apply racket-browse-url-function url args)))
 
 (defun racket-browse-url-using-temporary-file (url &rest _args)
   "Browse a URL via a temporary HTML file using a meta redirect.

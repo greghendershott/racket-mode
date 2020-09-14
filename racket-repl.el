@@ -899,9 +899,7 @@ and `racket-repl-documentation'."
         (racket--do-visit-def-or-mod (racket--repl-session-id)
                                      `(def namespace ,str)))
       (lambda ()
-        (racket--cmd/async (racket--repl-session-id)
-                           `(doc namespace ,str)
-                           #'racket-browse-url))))))
+        (racket--doc-command (racket--repl-session-id) 'namespace str))))))
 
 ;;; Visit
 
