@@ -129,7 +129,7 @@ and/or slow, in your `racket-xp-mode-hook' you may disable them:
             (lambda ()
               (remove-hook 'pre-redisplay-functions
                            #'racket-xp-pre-redisplay
-                           t))
+                           t)))
 #+END_SRC
 
 The remaining features discussed below will still work.

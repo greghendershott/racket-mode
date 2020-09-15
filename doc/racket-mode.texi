@@ -1053,7 +1053,7 @@ and/or slow, in your @code{racket-xp-mode-hook} you may disable them:
 	  (lambda ()
 	    (remove-hook 'pre-redisplay-functions
 			 #'racket-xp-pre-redisplay
-			 t))
+			 t)))
 @end lisp
 
 The remaining features discussed below will still work.
