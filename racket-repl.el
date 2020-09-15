@@ -249,7 +249,7 @@ As well as evaluating the outermost, file module, automatically
 runs the submodules specified by the customization variable
 `racket-submodules-to-run'.
 
-See also `racket-run-module-at-point', which returns just the
+See also `racket-run-module-at-point', which runs just the
 specific module at point.
 
 With \\[universal-argument] uses errortrace for improved stack traces.
@@ -296,13 +296,10 @@ commands."
 (defun racket-run-module-at-point (&optional prefix)
   "Save the buffer and run the module at point.
 
-Like `racket-run' but runs the innermost module around point.
-This may be a submodule nested at any depth, or the \"outermost\"
-file module.
-
-Unlike `racket-run`, this does NOT automatically run other
-submodules specified by the customization variable
-`racket-submodules-to-run' for example \"test\" or \"main\"."
+Like `racket-run' but runs the innermost module around point,
+which is determined textually by looking for \"module\",
+\"module*\", or \"module+\" forms nested to any depth, else
+simply the outermost, file module."
   (interactive "P")
   (racket--repl-run (racket--what-to-run)
                     '()
