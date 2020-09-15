@@ -231,8 +231,8 @@ It is NOT used by commands that run one specific module, such as:
  - `racket-run-module-at-point' \\[racket-run-module-at-point]
  - `racket-test' \\[racket-test]
  - `racket-profile'"
-  :tag "Extra Submodules to Run"
-  :type '(repeat (repeat symbol))
+  :tag "Submodules to Run"
+  :type '(repeat (repeat :tag "Module path" symbol))
   :safe #'listp
   :group 'racket-repl)
 
