@@ -103,8 +103,12 @@
     (imports stx completions-set))
   (define completions (sort (set->list completions-set)
                             string<=?))
+
+  (define imenu (send (current-annotations) get-imenu-index))
+
   (list 'check-syntax-ok
         (cons 'completions completions)
+        (cons 'imenu       imenu)
         (cons 'annotations annotations)))
 
 (define annotations-collector%
@@ -112,10 +116,11 @@
     (init-field src code-str)
 
     (define im-mouse-overs (make-interval-map))
-    (define im-external-defs (make-interval-map))
+    (define im-jumps (make-interval-map))
     (define im-docs (make-interval-map))
     (define im-unused-requires (make-interval-map))
     (define ht-defs/uses (make-hash))
+    (define ht-imenu (make-hash))
     (define local-completion-candidates (mutable-set))
 
     ;; I've seen drracket/check-syntax return bogus positions for e.g.
@@ -172,10 +177,24 @@
                   (equal? status "no bound occurrences"))
           (set-add! local-completion-candidates (substring code-str beg end)))))
 
-    ;; This can supply more completion candidates -- e.g. `foo?` and
-    ;; `foo-bar` from a local `(struct foo (bar))`, which wouldn't
-    ;; necessarily otherwise be annotated.
-    (define/override (syncheck:add-definition-target _source _beg _end symbol _mods)
+    ;; These are module-level definitions (not lexical bindings). So
+    ;; they are useful for things like imenu. Also these are a good
+    ;; source of extra completion candidates, because they can include
+    ;; macro-generated bindings -- like `foo?` and `foo-bar` from
+    ;; `(struct foo (bar))` -- which wouldn't necessarily otherwise be
+    ;; annotated by syncheck:add-arrow or syncheck:add-mouse-over. But
+    ;; for that same reason, they're not useful for ht-def/uses
+    ;; because many of them may overlap for the same source span,
+    ;; which won't work well for front-end features.
+    (define/override (syncheck:add-definition-target _source beg _end symbol rev-mods)
+      (let trie-set! ([ht   ht-imenu]
+                      [keys (reverse
+                             (cons (~a symbol)
+                                   (for/list ([s (in-list rev-mods)])
+                                     (~a "Module: " s))))])
+        (match keys
+          [(list key)      (hash-set! ht key (add1 beg))]
+          [(cons key more) (trie-set! (hash-ref! ht key (make-hash)) more)]))
       (set-add! local-completion-candidates (~a symbol)))
 
     (define/override (syncheck:add-jump-to-definition text beg end id-sym path submods)
@@ -202,7 +221,7 @@
       ;; should give to the "def/drr" command if/as/when needed.
       (when (file-exists? path)
         (define drracket-id-str (symbol->string id-sym))
-        (interval-map-set! im-external-defs beg end
+        (interval-map-set! im-jumps beg end
                            (list (path->string path)
                                  submods
                                  (if (equal? drracket-id-str text)
@@ -251,13 +270,24 @@
       (sort (append
              defs/uses
              (im->list im-mouse-overs     'info mouse-over-set->result)
-             (im->list im-external-defs   'external-def)
+             (im->list im-jumps           'jump)
              (im->list im-docs            'doc)
              (im->list im-unused-requires 'unused-require))
             < #:key cadr))
 
     (define/public (get-local-completion-candidates)
       local-completion-candidates)
+
+    (define/public (get-imenu-index)
+      (println ht-imenu)
+      (let ht->alist ([ht ht-imenu])
+        (sort (for/list ([(k v) (in-hash ht)])
+                (cons k (match v
+                          [(? hash? ht) (ht->alist ht)]
+                          [(? number? n) n])))
+              <
+              #:key (match-lambda [(cons _ (? number? n)) n]
+                                  [_ 0]))))
 
     (super-new)))
 

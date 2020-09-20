@@ -128,17 +128,13 @@
     ["Start Faster" racket-mode-optimize-startup]
     ["Customize..." customize-mode]))
 
-(defun racket--variables-imenu ()
-  (setq-local imenu-case-fold-search t)
-  (setq-local imenu-create-index-function #'racket--imenu-create-index-function))
-
 ;;;###autoload
 (define-derived-mode racket-mode prog-mode
   "Racket"
   "Major mode for editing Racket.
 \\{racket-mode-map}"
   (racket--common-variables)
-  (racket--variables-imenu)
+  (setq-local imenu-create-index-function #'racket-imenu-create-index-function)
   (hs-minor-mode t)
   (setq-local completion-at-point-functions (list #'racket-complete-at-point))
   (setq-local eldoc-documentation-function nil)

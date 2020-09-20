@@ -22,13 +22,14 @@
 (require 'racket-repl)
 (require 'racket-describe)
 (require 'racket-eldoc)
+(require 'racket-imenu)
 (require 'racket-visit)
 (require 'racket-util)
 (require 'racket-show)
 (require 'racket-xp-complete)
 (require 'rx)
-(require 'pos-tip)
 (require 'easymenu)
+(require 'imenu)
 
 (declare-function racket-complete-at-point "racket-mode.el")
 
@@ -218,6 +219,7 @@ commands directly to whatever keys you prefer.
                             `(module-names)
                             (lambda (result)
                               (setq racket--xp-module-completions result)))
+         (setq-local imenu-create-index-function #'racket-xp-imenu-create-index-function)
          (add-hook 'pre-redisplay-functions
                    #'racket-xp-pre-redisplay
                    nil t))
@@ -233,6 +235,7 @@ commands directly to whatever keys you prefer.
          (add-hook 'completion-at-point-functions
                    #'racket-complete-at-point
                    t t)
+         (setq-local imenu-create-index-function #'racket-imenu-create-index-function)
          (remove-hook 'pre-redisplay-functions
                       #'racket-xp-pre-redisplay
                       t))))
@@ -687,6 +690,8 @@ This is ad hoc and forensic."
 
 ;;; Annotation
 
+(defvar racket--xp-imenu-index nil)
+
 (defun racket-xp-annotate ()
   "Request the buffer to be analyzed and annotated.
 
@@ -710,9 +715,11 @@ manually."
       (pcase response
         (`(check-syntax-ok
            (completions . ,completions)
+           (imenu       . ,imenu)
            (annotations . ,annotations))
          (racket--xp-clear)
          (setq-local racket--xp-binding-completions completions)
+         (setq-local racket--xp-imenu-index imenu)
          (racket--xp-insert annotations)
          (racket--xp-set-status 'ok)
          (when (and annotations after-thunk)
@@ -781,7 +788,7 @@ manually."
                 (marker-position use-end)
                 (append
                  (list 'racket-xp-use (list def-beg def-end))))))))
-        (`(external-def ,beg ,end ,path ,subs ,ids)
+        (`(jump ,beg ,end ,path ,subs ,ids)
          (add-text-properties
           beg end
           (list 'racket-xp-visit (list path subs ids))))
@@ -799,6 +806,7 @@ manually."
                             (list 'help-echo nil))
     (unless only-errors-p
       (setq-local racket--xp-binding-completions nil)
+      (setq-local racket--xp-imenu-index nil)
       (racket--remove-overlays-in-buffer racket-xp-def-face
                                          racket-xp-use-face
                                          racket-xp-unused-face)
@@ -836,6 +844,14 @@ manually."
       `(" " (:propertize ,(concat prefix suffix)
                          ,@face
                          help-echo ,help-echo)))))
+
+(defun racket-xp-imenu-create-index-function ()
+  "A function for the variable `imenu-create-index-function'.
+
+Builds the index from syncheck:add-definition-target annotations,
+which seem to correspond to module bindings -- but not lexical
+bindings, which seems about right for imenu."
+  racket--xp-imenu-index)
 
 (provide 'racket-xp)
 

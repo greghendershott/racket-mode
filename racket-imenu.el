@@ -19,60 +19,50 @@
 (require 'cl-lib)
 (require 'imenu)
 
-(defun racket--variables-imenu ()
-  (set (make-local-variable 'imenu-case-fold-search) t)
-  (set (make-local-variable 'imenu-create-index-function)
-       #'racket--imenu-create-index-function))
-
-(defun racket--imenu-create-index-function ()
-  "A function for the variable `imenu-create-index-function'.
-
-Knows about Racket module forms, and prefixes identiers with
-their parent module name(s)."
+(defun racket-imenu-create-index-function ()
+  "A function for the variable `imenu-create-index-function'."
   (save-excursion
     (goto-char (point-min))
-    (racket--next-sexp)
-    (racket--walk-sexps "")))
+    (racket--imenu-goto-start-of-current-sexp)
+    (racket--imenu-walk)))
 
-(defun racket--walk-sexps (prefix)
+(defun racket--imenu-walk ()
   "With point at the start of a sexp, walk all the sepxs.
 
-`racket--menu-sexp' will walk into Racket module forms and call
-us recursively."
-  (cl-loop append (racket--menu-sexp prefix) into xs
-           while (racket--next-next-sexp)
+Note that `racket--imenu-item' will walk into Racket module forms
+and call us recursively."
+  (cl-loop append (racket--imenu-item) into xs
+           while (racket--imenu-goto-start-of-following-sexp)
            finally return xs))
 
-(defun racket--menu-sexp (prefix)
+(defun racket--imenu-item ()
   "Return the identifier for the sexp at point if any, else nil.
 
-If sexp at point is a Racket module form, descend and walk that."
+If sexp at point is a Racket module form create a submenu."
   (cond ((looking-at (rx "(define" (* (or (syntax word) (syntax symbol)))
                          (+ (syntax whitespace))
-                         (? ?\()
+                         (* ?\()
                          (group (+ (or (syntax word) (syntax symbol))))))
-         (let* ((beg (match-beginning 1))
-                (beg (if imenu-use-markers
-                         (save-excursion (goto-char beg) (point-marker))
-                       beg)))
-           (list (cons (concat prefix (match-string-no-properties 1))
-                       beg))))
+         (list (cons (match-string-no-properties 1)
+                     (if imenu-use-markers
+                         (copy-marker (match-beginning 1))
+                       (match-beginning 1)))))
         ((looking-at (rx "(module" (? (any ?+ ?*))
                          (+ (syntax whitespace))
                          (group (+ (or (syntax word) (syntax symbol))))))
          (save-excursion
            (goto-char (match-end 1))
-           (racket--next-sexp)
-           (racket--walk-sexps (concat prefix (match-string-no-properties 1) ":"))))
+           (racket--imenu-goto-start-of-current-sexp)
+           (list (cons (concat "Module: " (match-string-no-properties 1))
+                       (racket--imenu-walk )))))
         (t nil)))
 
-(defun racket--next-sexp ()
-  "Move point to start of next sexp in buffer."
-  (forward-sexp 1)
-  (forward-sexp -1))
+(defun racket--imenu-goto-start-of-current-sexp ()
+  (ignore-errors
+    (forward-sexp 1)
+    (forward-sexp -1)))
 
-(defun racket--next-next-sexp ()
-  "If another sexp, move point to its start and return t, else return nil."
+(defun racket--imenu-goto-start-of-following-sexp ()
   (condition-case nil
       (progn
         (forward-sexp 1)
