@@ -30,9 +30,10 @@
   "Show things in the echo area.
 
 A value for the variable `racket-show-functions'."
-  (if v
-      (message "%s" v)
-    (message "")))
+  (let ((message-log-max nil))
+    (if v
+        (message "%s" v)
+      (message ""))))
 
 (defun racket-show-header-line (v &optional _pos)
   "Show things using a buffer header line.
