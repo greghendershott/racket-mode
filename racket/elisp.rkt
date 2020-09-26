@@ -6,27 +6,14 @@
          racket/set)
 
 (provide elisp-read
-         elisp-writeln
          elisp-bool/c
-         as-racket-bool)
+         as-racket-bool
+         elisp-writeln)
 
-;;; read/write Emacs Lisp values
+;;; Read a subset of Emacs Lisp values as Racket values
 
 (define (elisp-read in)
   (elisp->racket (read in)))
-
-(define (elisp-writeln v out)
-  (elisp-write v out)
-  (newline out))
-
-(define (elisp-write v out)
-  (write (racket->elisp v) out))
-
-(define elisp-bool/c (or/c #t '()))
-(define (as-racket-bool v)
-  ;; elisp->racket "de-puns" 'nil as '() -- not #f. Use this helper to
-  ;; treat as a boolean.
-  (and v (not (null? v))))
 
 (define (elisp->racket v)
   (match v
@@ -36,6 +23,21 @@
     [(cons x y)       (cons (elisp->racket x) (elisp->racket y))]
     [(vector s _ ...) s] ;Emacs strings can be #("string" . properties)
     [v                v]))
+
+(define elisp-bool/c (or/c #t '()))
+(define (as-racket-bool v)
+  ;; elisp->racket "de-puns" 'nil as '() -- not #f. Use this helper when
+  ;; instead you want to treat it as a boolean and get #f.
+  (and v (not (null? v))))
+
+;;; Write a subset of Racket values as Emacs Lisp values
+
+(define (elisp-writeln v out)
+  (elisp-write v out)
+  (newline out))
+
+(define (elisp-write v out)
+  (write (racket->elisp v) out))
 
 (define (racket->elisp v)
   (match v
