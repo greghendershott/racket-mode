@@ -279,7 +279,6 @@
       local-completion-candidates)
 
     (define/public (get-imenu-index)
-      (println ht-imenu)
       (let ht->alist ([ht ht-imenu])
         (sort (for/list ([(k v) (in-hash ht)])
                 (cons k (match v
