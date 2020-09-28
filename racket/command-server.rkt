@@ -6,7 +6,7 @@
          racket/match
          "debug.rkt"
          "elisp.rkt"
-         (only-in "instrument.rkt" get-uncovered)
+         (only-in "instrument.rkt" get-uncovered get-profile)
          "logger.rkt"
          "mod.rkt"
          "repl.rkt"
@@ -19,7 +19,6 @@
  ["commands/find-module.rkt"  (find-module)]
  ["commands/help.rkt"         (doc)]
  ["commands/macro.rkt"        (macro-stepper macro-stepper/next)]
- ["commands/profile.rkt"      (get-profile)]
  ["commands/requires.rkt"     (requires/tidy requires/trim requires/base)]
  ["commands/module-names.rkt" (module-names)]
  ["find.rkt"                  (find-definition find-definition/drracket-jump)])

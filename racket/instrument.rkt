@@ -28,7 +28,7 @@
          get-uncovered
          profiling-enabled
          clear-profile-info!
-         get-profile-info)
+         get-profile)
 
 ;;; Core instrumenting
 
@@ -169,7 +169,6 @@
 
 (define profile-info (make-hasheq)) ;(hash/c any/c prof?)
 
-
 (define (clear-profile-info!)
   (hash-clear! profile-info))
 
@@ -202,10 +201,18 @@
      (set-prof-time! p (+ (- (current-process-milliseconds) start)
                           (prof-time p))))))
 
-(define (get-profile-info)
+(define (get-profile)
   (for/list ([x (in-list (hash-values profile-info))])
-    (match-define (prof nest? count msec name stx) x)
-    (list count msec name stx)))
+    (match-define (prof _nest? count msec name stx) x)
+    (define src (syntax-source stx))
+    (define beg (syntax-position stx))
+    (define end (and beg (+ beg (syntax-span stx))))
+    (list count
+          msec
+          (and name (symbol->string name))
+          (and src (path? src) (path->string src))
+          beg
+          end)))
 
 
 ;;; Finally, invoke the unit
