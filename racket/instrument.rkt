@@ -1,6 +1,7 @@
 #lang at-exp racket/base
 
-(require (only-in errortrace/errortrace-key
+(require data/interval-map
+         (only-in errortrace/errortrace-key
                   errortrace-key)
          (only-in errortrace/errortrace-lib
                   print-error-trace
@@ -11,6 +12,7 @@
                   stacktrace-imports^
                   original-stx
                   expanded-stx)
+         racket/dict
          racket/format
          racket/match
          racket/unit
@@ -23,7 +25,7 @@
          instrumenting-enabled
          test-coverage-enabled
          clear-test-coverage-info!
-         get-test-coverage-info
+         get-uncovered
          profiling-enabled
          clear-profile-info!
          get-profile-info)
@@ -137,23 +139,27 @@
   (and v (with-syntax ([v v])
            #'(#%plain-app set-mcar! v #t))))
 
-(define (get-test-coverage-info)
+(define (get-uncovered source)
   ;; Due to macro expansion (e.g. to an `if` form), there may be
   ;; multiple data points for the exact same source location. We want
   ;; to logically OR them: If any are true, the source location is
   ;; covered.
-  (define ht (make-hash)) ;; (list src pos span) => cover?
-  (for* ([(stx v) (in-hash  test-coverage-info)]
-         [cover?  (in-value (mcar v))]
-         [loc     (in-value (list (syntax-source stx)
-                                  (syntax-position stx)
-                                  (syntax-span stx)))])
-    (match (hash-ref ht loc 'none)
-      ['none (hash-set! ht loc cover?)]
-      [#f    (when cover? (hash-set! ht loc #t))]
-      [#t    (void)]))
-  (for/list ([(loc cover?) (in-hash ht)])
-    (cons cover? loc)))
+  (define im (make-interval-map))
+  (for ([(stx v) (in-hash test-coverage-info)])
+    (define covered? (mcar v))
+    (unless covered?
+      (when (equal? source (syntax-source stx))
+        (define beg (syntax-position stx))
+        (define end (+ beg (syntax-span stx)))
+        (interval-map-set! im beg end #t))))
+  ;; interval-map-set! doesn't merge adjacent identical intervals so:
+  (let loop ([xs (dict-keys im)])
+    (match xs
+      [(list) (list)]
+      [(list* (cons beg same) (cons same end) more)
+       (loop (list* (cons beg end) more))]
+      [(cons this more)
+       (cons this (loop more))])))
 
 ;;; Profiling
 

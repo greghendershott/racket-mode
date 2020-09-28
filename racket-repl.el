@@ -342,9 +342,6 @@ Defined as a function so it can be a menu target."
 (defun racket-test (&optional coverage)
   "Run the \"test\" submodule.
 
-With \\[universal-argument] runs with coverage instrumentation
-and highlights uncovered code.
-
 Put your tests in a \"test\" submodule. For example:
 
 #+BEGIN_SRC racket
@@ -355,6 +352,10 @@ Put your tests in a \"test\" submodule. For example:
 
 Any rackunit test failure messages show the location. You may use
 `next-error' to jump to the location of each failing test.
+
+With \\[universal-argument] also runs the tests with coverage
+instrumentation and highlights uncovered code using
+`font-lock-warning-face'.
 
 See also:
 - `racket-fold-all-tests'
@@ -381,12 +382,14 @@ See also:
               ((and xs `((,beg0 . ,_) . ,_))
                (message "Missing coverage in %s place(s)." (length xs))
                (with-current-buffer buf
-                 (dolist (x xs)
-                   (let ((o (make-overlay (car x) (cdr x) buf)))
-                     (overlay-put o 'name 'racket-uncovered-overlay)
-                     (overlay-put o 'priority 100)
-                     (overlay-put o 'face font-lock-warning-face)))
-                 (goto-char beg0)))))))))))
+                 (with-silent-modifications
+                   (overlay-recenter (point-max))
+                   (dolist (x xs)
+                     (let ((o (make-overlay (car x) (cdr x) buf)))
+                       (overlay-put o 'name 'racket-uncovered-overlay)
+                       (overlay-put o 'priority 100)
+                       (overlay-put o 'face font-lock-warning-face)))
+                   (goto-char beg0))))))))))))
 
 (add-hook 'racket--repl-before-run-hook #'racket--remove-coverage-overlays)
 
