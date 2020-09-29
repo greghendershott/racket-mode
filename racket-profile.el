@@ -96,6 +96,8 @@ delete compiled/*.zo files."
                     (lambda (a b) (> (nth racket--profile-sort-col a)
                                      (nth racket--profile-sort-col b))))
               "\n"))
+  (unless racket--profile-show-zero
+    (insert "\nFiltering samples with 0 calls and 0 msec. Press z to toggle."))
   (read-only-mode 1)
   (goto-char (point-min)))
 
