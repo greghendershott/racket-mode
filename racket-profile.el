@@ -29,16 +29,16 @@
 (defvar racket--profile-overlay-that nil)
 
 (defun racket-profile ()
-  "Runs with profiling instrumentation and shows results.
+  "Like `racket-run-module-at-point' but with profiling.
 
 Results are presented in a `racket-profile-mode' buffer, which
 also lets you quickly view the source code.
 
 You may evaluate expressions in the REPL. They are also profiled.
-Use `racket--profile-refresh' to see the updated results. (In
+Use `racket-profile-refresh' to see the updated results. In
 other words a possible workflow is: `racket-profile' a .rkt file,
 call one its functions in the REPL, and refresh the profile
-results.)
+results.
 
 Caveat: Only source files are instrumented. You may need to
 delete compiled/*.zo files."
@@ -79,7 +79,7 @@ delete compiled/*.zo files."
   ;; TODO: Would be nice to set the Calls and Msec column widths based
   ;; on max values.
   (setq header-line-format
-        (format " %8s %6s %-20.20s %s"
+        (format " %8s %6s %-30.30s %s"
                 (if (= 0 racket--profile-sort-col) "CALLS" "Calls")
                 (if (= 1 racket--profile-sort-col) "MSEC" "Msec")
                 "Name (inferred)"
@@ -88,31 +88,36 @@ delete compiled/*.zo files."
     (erase-buffer)
     (let* ((copied   (cl-copy-list racket--profile-results))
            (filtered (cl-remove-if-not
-                      (lambda (sample)
-                        (cl-destructuring-bind (calls msec _name file _beg _end) sample
+                      (lambda (x)
+                        (cl-destructuring-bind (calls msec _name file _beg _end) x
                           (and (or racket--profile-show-zero
                                    (not (and (zerop calls) (zerop msec))))
                                (or racket--profile-show-non-project
                                    (equal (racket-project-root file)
                                           racket--profile-project-root)))))
                       copied))
-           (samples  (sort filtered
+           (xs  (sort filtered
                            (lambda (a b) (> (nth racket--profile-sort-col a)
                                             (nth racket--profile-sort-col b))))))
-      (dolist (sample samples)
-        (cl-destructuring-bind (calls msec name file beg end) sample
-          (insert
-           (propertize (format "%8d %6d %-20.20s %s\n"
-                               calls msec (or name "") (or file ""))
-                       'racket-profile-location
-                       (and file beg end
-                            (list file beg end)))))))
+      (dolist (x xs)
+        (cl-destructuring-bind (calls msec name file beg end) x
+          (let ((simplified-file
+                 (if (equal (racket-project-root file)
+                            racket--profile-project-root)
+                     (file-relative-name file racket--profile-project-root)
+                   file)))
+            (insert
+             (propertize (format "%8d %6d %-30.30s %s\n"
+                                 calls msec (or name "") simplified-file)
+                         'racket-profile-location
+                         (and file beg end
+                              (list file beg end))))))))
     (newline)
-    (insert (concat (if racket--profile-show-zero "Showing" "Hiding")
-                    " samples with 0 calls and 0 msec. Press z to toggle."))
+    (insert (concat (if racket--profile-show-zero "Not h" "H")
+                    "iding 0 calls and 0 msec. Press z to toggle."))
     (newline)
-    (insert (concat (if racket--profile-show-non-project "Showing" "Hiding")
-                    " samples for non-project files. Press f to toggle.")))
+    (insert (concat (if racket--profile-show-non-project "Not h" "H")
+                    "iding non-project files. Press f to toggle.")))
   (goto-char (point-min)))
 
 (defun racket-profile-sort ()

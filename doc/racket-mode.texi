@@ -1479,16 +1479,16 @@ Do ``racket <file>'' in a shell buffer.
 
 @kbd{C-c C-o} 
 
-Runs with profiling instrumentation and shows results.
+Like @ref{racket-run-module-at-point} but with profiling.
 
 Results are presented in a @ref{racket-profile-mode} buffer, which
 also lets you quickly view the source code.
 
 You may evaluate expressions in the REPL. They are also profiled.
-Use @code{racket--profile-refresh} to see the updated results. (In
+Use @code{racket-profile-refresh} to see the updated results. In
 other words a possible workflow is: @ref{racket-profile} a .rkt file,
 call one its functions in the REPL, and refresh the profile
-results.)
+results.
 
 Caveat: Only source files are instrumented. You may need to
 delete compiled/*.zo files.
