@@ -43,23 +43,11 @@ A value for the variable `racket-repl-buffer-name-function'."
 
 A value for the variable `racket-repl-buffer-name-function'.
 
-The \"project\" is determined by trying, in order:
-
-- `projectile-project-root'
-- `vc-root-dir'
-- `project-current'
-- `file-name-directory'"
+The \"project\" is determined by `racket-project-root'."
   (interactive)
-  (let* ((dir  (file-name-directory (racket--buffer-file-name)))
-         (root (or (and (fboundp 'projectile-project-root)
-                        (projectile-project-root dir))
-                   (and (fboundp 'vc-root-dir)
-                        (vc-root-dir))
-                   (and (fboundp 'project-current)
-                        (cdr (project-current nil dir)))
-                   dir))
-         (name (format "*Racket REPL <%s>*" root)))
-    (setq-local racket-repl-buffer-name name)))
+  (setq-local racket-repl-buffer-name
+              (format "*Racket REPL <%s>*"
+                      (racket-project-root (racket--buffer-file-name)))))
 
 (defun racket-mode-maybe-offer-to-kill-repl-buffer ()
   "Maybe offer to kill a `racket-repl-mode' buffer.

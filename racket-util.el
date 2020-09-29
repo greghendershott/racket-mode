@@ -190,6 +190,24 @@ as if the user had C-g to quit."
 (defconst racket--config-dir (file-name-as-directory
                               (locate-user-emacs-file "racket-mode")))
 
+(defun racket-project-root (file)
+  "Given an absolute pathname for FILE, return its project root directory.
+
+The \"project\" is determined by trying, in order:
+
+- `projectile-project-root'
+- `vc-root-dir'
+- `project-current'
+- `file-name-directory'"
+  (let ((dir (file-name-directory file)))
+    (or (and (fboundp 'projectile-project-root)
+             (projectile-project-root dir))
+        (and (fboundp 'vc-root-dir)
+             (vc-root-dir))
+        (and (fboundp 'project-current)
+             (cdr (project-current nil dir)))
+        dir)))
+
 (provide 'racket-util)
 
 ;; racket-util.el ends here

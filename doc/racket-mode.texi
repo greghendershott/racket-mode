@@ -156,6 +156,7 @@ Associating edit buffers with REPL buffers
 * racket-repl-buffer-name-shared::
 * racket-repl-buffer-name-unique::
 * racket-repl-buffer-name-project::
+* racket-project-root::
 
 Browsing file URLs with anchors
 
@@ -1499,23 +1500,23 @@ delete compiled/*.zo files.
 
 Major mode for results of @ref{racket-profile}.
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
 @item @kbd{,} 
-@tab @code{racket--profile-sort}
-@item @kbd{RET} 
-@tab @code{racket--profile-visit}
+@tab @code{racket-profile-sort}
+@item @kbd{f} 
+@tab @code{racket-profile-show-non-project}
 @item @kbd{z} 
-@tab @code{racket--profile-show-zero}
+@tab @code{racket-profile-show-zero}
 @item @kbd{p} 
-@tab @code{racket--profile-prev}
+@tab @code{racket-profile-prev}
 @item @kbd{n} 
-@tab @code{racket--profile-next}
+@tab @code{racket-profile-next}
 @item @kbd{g} 
-@tab @code{racket--profile-refresh}
+@tab @code{racket-profile-refresh}
 @item @kbd{q} 
-@tab @code{racket--profile-quit}
+@tab @code{quit-window}
 @end multitable
 
 
@@ -2027,6 +2028,7 @@ A value for the variable @ref{racket-show-functions}.
 * racket-repl-buffer-name-shared::
 * racket-repl-buffer-name-unique::
 * racket-repl-buffer-name-project::
+* racket-project-root::
 @end menu
 
 @node racket-repl-buffer-name-shared
@@ -2055,6 +2057,13 @@ A value for the variable @ref{racket-repl-buffer-name-function}.
 All @code{racket-mode} buffers in a project share a @code{racket-repl-mode} buffer.
 
 A value for the variable @ref{racket-repl-buffer-name-function}.
+
+The ``project'' is determined by @ref{racket-project-root}.
+
+@node racket-project-root
+@subsection racket-project-root
+
+Given an absolute pathname for FILE, return its project root directory.
 
 The ``project'' is determined by trying, in order:
 

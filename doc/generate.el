@@ -106,6 +106,7 @@
     racket-repl-buffer-name-shared
     racket-repl-buffer-name-unique
     racket-repl-buffer-name-project
+    racket-project-root
     "Browsing file URLs with anchors"
     racket-browse-url-using-temporary-file)
   "Commands to include in the Reference.")
