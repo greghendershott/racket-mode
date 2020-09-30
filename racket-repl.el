@@ -551,7 +551,13 @@ This does not display the buffer or change the selected window."
                                   (format "%S\n" racket--cmd-auth))
              (set-process-coding-system (get-buffer-process (current-buffer))
                                         'utf-8 'utf-8) ;for e.g. λ
-             (racket-repl-mode))
+             ;; Buffer might already be in `racket-repl-mode' -- e.g.
+             ;; `racket-repl-exit' was used and now we're
+             ;; "restarting". In that case avoid re-initialization
+             ;; that is at best unnecessary or at worst undesirable
+             ;; (e.g. `comint-input-ring' would lose input history).
+             (unless (eq major-mode 'racket-repl-mode)
+               (racket-repl-mode)))
          (file-error
           (let ((kill-buffer-query-functions nil)
                 (kill-buffer-hook nil))
