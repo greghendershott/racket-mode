@@ -15,8 +15,10 @@
          racket/dict
          racket/format
          racket/match
+         racket/set
          racket/unit
          syntax/parse
+         "repl-session.rkt"
          "util.rkt")
 
 (provide make-instrumented-eval-handler
@@ -77,13 +79,17 @@
               (warn-about-time-apply expanded-e)
               (orig-eval annotated))])))]))
 
+(define warned-sessions (mutable-set))
 (define (warn-about-time-apply stx)
   (syntax-parse stx
     #:datum-literals (#%app time-apply)
     [(#%app time-apply . _)
-     (display-commented
-      @~a{Warning: time or time-apply used in errortrace annotated code.
-                   For meaningful timings, use command-line racket instead!})
+     (unless (set-member? warned-sessions (current-session-id))
+       (set-add! warned-sessions (current-session-id))
+       (display-commented
+        @~a{Warning: time or time-apply used in errortrace annotated code.
+            Instead use command-line racket for more-accurate measurements.
+            (Will not warn again for this REPL session.)}))
        #t]
     [(ss ...) (for/or ([stx (in-list (syntax->list #'(ss ...)))])
                   (warn-about-time-apply stx))]
