@@ -283,9 +283,9 @@ a more-helpful error message."
  "The motivation for this is now N/A with `racket-xp-mode'."
  "2020-02-26")
 
-(defcustom racket-history-filter-regexp "\\`\\s *\\S ?\\S ?\\s *\\'"
-  "Input matching this regexp are not saved on the history list.
-Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters."
+(defcustom racket-history-filter-regexp "\\`\\s *\\'"
+  "Input matching this regexp are NOT saved on the history list.
+Default value is a regexp to ignore input that is all whitespace."
   :tag "History Filter Regexp"
   :type 'regexp
   :safe #'stringp
