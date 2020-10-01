@@ -14,6 +14,7 @@
          "mod.rkt"
          "print.rkt"
          "repl-session.rkt"
+         "stack-checkpoint.rkt"
          (only-in "syntax.rkt" with-expanded-syntax-caching-evaluator)
          "util.rkt")
 
@@ -223,7 +224,7 @@
          [current-eval
           (cond [(debug-level? context-level) (make-debug-eval-handler debug-files)]
                 [(instrument-level? context-level)(make-instrumented-eval-handler)]
-                [else (current-eval)])]
+                [else (let ([oe (current-eval)]) (λ (e) (with-stack-checkpoint (oe e))))])]
          [instrumenting-enabled (instrument-level? context-level)]
          [profiling-enabled (eq? context-level 'profile)]
          [test-coverage-enabled (eq? context-level 'coverage)]
@@ -258,20 +259,21 @@
                              (struct-copy run-config cfg [maybe-mod #f]))
                 (sync never-evt)) ;manager thread will shutdown custodian
               (with-handlers ([exn? load-exn-handler])
-                (maybe-configure-runtime mod-path) ;FIRST: see #281
-                (namespace-require mod-path)
-                (for ([submod (in-list extra-submods-to-run)])
-                  (define submod-spec `(submod ,(build-path dir file) ,@submod))
-                  (when (module-declared? submod-spec)
-                    (dynamic-require submod-spec #f)))
-                ;; User's program may have changed current-directory;
-                ;; use parameterize to set for module->namespace but
-                ;; restore user's value for REPL.
-                (current-namespace
-                 (parameterize ([current-directory dir])
-                   (module->namespace mod-path)))
-                (maybe-warn-about-submodules mod-path context-level)
-                (check-#%top-interaction)))))
+                (with-stack-checkpoint
+                  (maybe-configure-runtime mod-path) ;FIRST: see #281
+                  (namespace-require mod-path)
+                  (for ([submod (in-list extra-submods-to-run)])
+                    (define submod-spec `(submod ,(build-path dir file) ,@submod))
+                    (when (module-declared? submod-spec)
+                      (dynamic-require submod-spec #f)))
+                  ;; User's program may have changed current-directory;
+                  ;; use parameterize to set for module->namespace but
+                  ;; restore user's value for REPL.
+                  (current-namespace
+                   (parameterize ([current-directory dir])
+                     (module->namespace mod-path)))
+                  (maybe-warn-about-submodules mod-path context-level)
+                  (check-#%top-interaction))))))
         ;; 4. Update information about our session -- now that
         ;; current-namespace is possibly updated, and, it is OK to
         ;; call get-repl-submit-predicate.

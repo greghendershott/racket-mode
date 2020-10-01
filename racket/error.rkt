@@ -4,13 +4,10 @@
          (only-in pkg/lib pkg-catalog-suggestions-for-module)
          racket/format
          racket/match
-         (only-in racket/path path-only)
-         racket/runtime-path
          racket/string
-         setup/collects
-         setup/dirs
          "fresh-line.rkt"
          "instrument.rkt"
+         "stack-checkpoint.rkt"
          "util.rkt")
 
 (provide display-exn
@@ -36,6 +33,8 @@
          (fresh-line)
          (display-commented str)]))
 
+;;; srclocs
+
 (define (display-srclocs exn)
   (when (exn:srclocs? exn)
     (define srclocs
@@ -54,56 +53,6 @@
         [xs xs]))
     (for ([s (in-list srclocs)])
       (display-commented (source-location->string s)))))
-
-(define (display-context exn)
-  (cond [(instrumenting-enabled)
-         (define p (open-output-string))
-         (print-error-trace p exn)
-         (match (get-output-string p)
-           ["" (void)]
-           [s  (display-commented (string-append "Context (errortrace):"
-                                                 ;; et prepends a \n
-                                                 s))])]
-        [else
-         (match (context->string
-                 (continuation-mark-set->context (exn-continuation-marks exn)))
-           ["" (void)]
-           [s (display-commented (string-append "Context:\n"
-                                                s))])]))
-
-(define (context->string xs)
-  ;; Limit the context in two ways:
-  ;; 1. Don't go beyond error-print-context-length
-  ;; 2. Don't go into "system" context that's just noisy.
-  (string-join (for/list ([x xs]
-                          [_ (error-print-context-length)]
-                          #:unless (system-context? x))
-                 (context-item->string x))
-               "\n"))
-
-(define-runtime-path here "error.rkt")
-(define (system-context? ci)
-  (match-define (cons id src) ci)
-  (or (not src)
-      (let ([src (srcloc-source src)])
-        (and (path? src)
-             (or (equal? (path-only src) (path-only here))
-                 (under-system-path? src))))))
-
-(define (under-system-path? path)
-  (match (path->collects-relative path)
-    [`(collects #"mred" . ,_) #t]
-    [`(collects #"racket" #"contract" . ,_) #t]
-    [`(collects #"racket" #"private" . ,_) #t]
-    [`(collects #"typed-racket" . ,_) #t]
-    [_ #f]))
-
-(define (context-item->string ci)
-  (match-define (cons id src) ci)
-  (string-append (if (or src id) " " "")
-                 (if src (source-location->string src) "")
-                 (if (and src id) " " "")
-                 (if id (format "~a" id) "")))
 
 ;; Don't use source-location->string from syntax/srcloc. Don't want
 ;; the setup/path-to-relative behavior that replaces full pathnames
@@ -125,10 +74,43 @@
   (define col  (or (srcloc-column x) "1"))
   (format "~a:~a:~a" src line col))
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;
-;; Fully qualified pathnames in error messages, so that Emacs
-;; compilation-mode can do its stuff.
+;;; context
+
+(define (display-context exn)
+  (cond [(instrumenting-enabled)
+         (define p (open-output-string))
+         (print-error-trace p exn)
+         (match (get-output-string p)
+           ["" (void)]
+           [s  (display-commented (~a "Context (errortrace):" s))])]
+        [else
+         (match (context->string
+                 (continuation-mark-set->trimmed-context
+                  (exn-continuation-marks exn)))
+           ["" (void)]
+           [s (display-commented
+               (~a "Context (plain; to see better errortrace context, re-run with C-u prefix):\n"
+                   s))])]))
+
+(define (context->string xs)
+  ;; Limit the context in two ways:
+  ;; 1. Don't go beyond error-print-context-length
+  ;; 2. Don't go into "system" context that's just noisy.
+  (string-join (for/list ([x xs]
+                          [_ (error-print-context-length)]
+                          ;;#:unless (ignore-context-item? x)
+                          )
+                 (context-item->string x))
+               "\n"))
+
+(define (context-item->string ci)
+  (match-define (cons id srcloc) ci)
+  (~a (if (or srcloc id) "  " "")
+      (if srcloc (source-location->string srcloc) "")
+      (if (and srcloc id) " " "")
+      (if id (format "~a" id) "")))
+
+;;; Fully-qualified pathnames for Emacs compilation-mode
 
 ;; srcloc->string uses current-directory-for-user to shorten error
 ;; messages. But we always want full pathnames. Setting it to
@@ -148,12 +130,12 @@
     [(pregexp "^([^:]+):(\\d+)[:.](\\d+)(.*)$"
               (list _ path line col more))
      #:when (not (absolute-path? path))
-     (string-append
-      (string-join (list (path->string (build-path (current-directory) path))
-                         line
-                         col)
-                   ":")
-      more)]
+     (~a (string-join (list (path->string
+                             (build-path (current-directory) path))
+                            line
+                            col)
+                      ":")
+         more)]
     [s s]))
 
 (module+ test
@@ -182,6 +164,8 @@
                                            '())))
     (check-equal? (get-output-string o) "")))
 
+;;; packages
+
 (define (maybe-suggest-packages exn)
   (when (exn:missing-module? exn)
     (match (get-catalogs)
@@ -206,4 +190,3 @@
           (display-commented
            @~a{Try "raco pkg install" one of @(string-join ps ", ") ?})]
          [_ void])])))
-

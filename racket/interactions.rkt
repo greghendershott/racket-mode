@@ -20,7 +20,7 @@
            (define in ((current-get-interaction-input-port)))
            (unless (already-more-to-read? in) ;#311
              (display-prompt prompt))
-           ((current-read-interaction) prompt #;(object-name in) in))
+           ((current-read-interaction) prompt in))
     [(? eof-object?)
      (log-racket-mode-info "get-interaction: eof")
      (exit 'get-interaction-eof)]
