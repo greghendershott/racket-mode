@@ -70,8 +70,8 @@
     (match (srcloc-source x)
       [(pregexp "^\"(.+)\"$" (list _ unquoted)) unquoted]
       [v v]))
-  (define line (or (srcloc-line x) "1"))
-  (define col  (or (srcloc-column x) "1"))
+  (define line (or (srcloc-line x)   1))
+  (define col  (or (srcloc-column x) 0))
   (format "~a:~a:~a" src line col))
 
 ;;; context
