@@ -252,29 +252,31 @@ the limit (maybe by a significant amount)."
   :group 'racket-repl)
 
 (defcustom racket-error-context 'medium
-  "The level of context used for `racket-run' error stack traces.
+  "The amount of context for error messages.
 
-Each level improves stack trace information, but causes your
-program to run more slowly.
+Each increasing level supplies better context (\"stack trace\")
+for error messages, but causing your program to run more slowly.
 
-  - 'low corresponds to `compile-context-preservation-enabled`
-    `#f`.
+  - low corresponds to compile-enforce-module-constants #t and
+    compile-context-preservation-enabled #f.
 
-  - 'medium corresponds to `compile-context-preservation-enabled`
-    `#t`, which disables some optimizations like inlining.
+  - medium corresponds to compile-enforce-module-constants #f and
+    compile-context-preservation-enabled #t, which disables some
+    optimizations like inlining.
 
-  - 'high corresponds to `compile-context-preservation-enabled`
-    `#t` and to use of `errortrace`, which heavily instruments
-    your code and therefore may be significantly slower.
+  - high corresponds to medium plus the use of errortrace, which
+    extensively instruments your code and therefore might cause
+    it to run significantly slower.
 
-Tip: Regardless of this setting, you can enable 'high errortrace
-for a specific `racket-run' using a C-u prefix. This lets you
-normally run with a faster setting, and temporarily re-run to get
-a more-helpful error message."
+Tip: Regardless of this setting, you can enable high errortrace
+for a specific `racket-run' or `racket-run-module-at-point' by
+using \\[universal-argument]. This lets you normally run with a
+lower, faster setting, and re-run when desired to get a
+more-helpful error message."
   :tag "Error Context"
   :type '(radio (const :tag "Low" low)
-                (const :tag "Medium (slower)" medium)
-                (const :tag "High (much slower)" high))
+                (const :tag "Medium (better context but slower)" medium)
+                (const :tag "High (best context but slowest)" high))
   :risky t
   :group 'racket-repl)
 

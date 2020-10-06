@@ -2174,30 +2174,32 @@ the limit (maybe by a significant amount).
 @node racket-error-context
 @subsection racket-error-context
 
-The level of context used for @ref{racket-run} error stack traces.
+The amount of context for error messages.
 
-Each level improves stack trace information, but causes your
-program to run more slowly.
+Each increasing level supplies better context (``stack trace'')
+for error messages, but causing your program to run more slowly.
 
 @itemize
 @item
-`low corresponds to @code{compile-context-preservation-enabled}
-    @code{#f}.
+low corresponds to compile-enforce-module-constants #t and
+compile-context-preservation-enabled #f.
 
 @item
-`medium corresponds to @code{compile-context-preservation-enabled}
-    @code{#t}, which disables some optimizations like inlining.
+medium corresponds to compile-enforce-module-constants #f and
+compile-context-preservation-enabled #t, which disables some
+optimizations like inlining.
 
 @item
-`high corresponds to @code{compile-context-preservation-enabled}
-@code{#t} and to use of @code{errortrace}, which heavily instruments
-your code and therefore may be significantly slower.
+high corresponds to medium plus the use of errortrace, which
+extensively instruments your code and therefore might cause
+it to run significantly slower.
 @end itemize
 
-Tip: Regardless of this setting, you can enable `high errortrace
-for a specific @ref{racket-run} using a C-u prefix. This lets you
-normally run with a faster setting, and temporarily re-run to get
-a more-helpful error message.
+Tip: Regardless of this setting, you can enable high errortrace
+for a specific @ref{racket-run} or @ref{racket-run-module-at-point} by
+using @kbd{C-u} . This lets you normally run with a
+lower, faster setting, and re-run when desired to get a
+more-helpful error message.
 
 @node racket-user-command-line-arguments
 @subsection racket-user-command-line-arguments
@@ -2366,8 +2368,8 @@ It is NOT used by commands that run one specific module, such as:
 @node racket-history-filter-regexp
 @subsection racket-history-filter-regexp
 
-Input matching this regexp are not saved on the history list.
-Defaults to a regexp ignoring all inputs of 0, 1, or 2 letters.
+Input matching this regexp are NOT saved on the history list.
+Default value is a regexp to ignore input that is all whitespace.
 
 @node racket-images-inline
 @subsection racket-images-inline

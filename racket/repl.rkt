@@ -219,7 +219,7 @@
                                 ((txt/gui make-base-namespace
                                           make-gui-namespace)))]
          ;; OTHERS:
-         [compile-enforce-module-constants #f]
+         [compile-enforce-module-constants (eq? context-level 'low)]
          [compile-context-preservation-enabled (not (eq? context-level 'low))]
          [current-eval
           (cond [(debug-level? context-level) (make-debug-eval-handler debug-files)]
