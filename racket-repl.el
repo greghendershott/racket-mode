@@ -1045,9 +1045,9 @@ The command varies based on how many \\[universal-argument] command prefixes you
   (setq-local
    compilation-error-regexp-alist
    (list
-    ;; Any apparent file:line:col
+    ;; Any apparent file:line[:.]col
     (list (rx (group-n 1 (+? (not (syntax whitespace))))
-              (any ?\: ?\.)
+              ?\:
               (group-n 2 (+ digit))
               (any ?\: ?\.)
               (group-n 3 (+ digit)))
