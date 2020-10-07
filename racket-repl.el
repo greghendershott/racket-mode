@@ -976,7 +976,43 @@ The command varies based on how many \\[universal-argument] command prefixes you
   (interactive "P")
   (racket--doc prefix 'namespace racket--repl-namespace-symbols))
 
-;;; racket-repl-mode
+;;; compilation-mode
+
+(defconst racket--compilation-error-regexp-alist
+  (list
+   ;; Any apparent file:line[:.]col
+   (list (rx (group-n 1 (+? (not (syntax whitespace))))
+             ?\:
+             (group-n 2 (+ digit))
+             (any ?\: ?\.)
+             (group-n 3 (+ digit)))
+         #'racket--adjust-group-1 2 3)
+   ;; Any path struct
+   (list (rx "#<path:" (group-n 1 (+? (not (any ?\>)))) ?\>)
+         #'racket--adjust-group-1 nil nil 0)
+   ;; Any (srcloc path line column ...) struct
+   (list (rx "(" "srcloc" (+ space)
+             ;; path
+             "\"" (group-n 1 (+? any)) "\""
+             ;; line
+             (+ space) (group-n 2 (+ digit))
+             ;; column
+             (+ space) (group-n 3 (+ digit)))
+         #'racket--adjust-group-1 2 3 0 1)
+   ;; Any htdp check-expect failure message
+   (list (rx "In "
+             (group-n 1 (+? (not (syntax whitespace))))
+             " at line "
+             (group-n 2 (+ digit))
+             " column "
+             (group-n 3 (+ digit)))
+         #'racket--adjust-group-1 2 3))
+  "Our value for the variable `compilation-error-regexp-alist'.")
+
+(defun racket--adjust-group-1 ()
+  (list (funcall racket-path-from-racket-to-emacs-function (match-string 1))))
+
+;;; racket-repl-mode definition per se
 
 (defvar racket-repl-mode-map
   (racket--easy-keymap-define
@@ -1042,28 +1078,7 @@ The command varies based on how many \\[universal-argument] command prefixes you
   (define-key racket-repl-mode-map [menu-bar signals] 'undefined)
   (add-hook 'comint-output-filter-functions #'racket-repl-display-images nil t)
   (compilation-setup t)
-  (setq-local
-   compilation-error-regexp-alist
-   (list
-    ;; Any apparent file:line[:.]col
-    (list (rx (group-n 1 (+? (not (syntax whitespace))))
-              ?\:
-              (group-n 2 (+ digit))
-              (any ?\: ?\.)
-              (group-n 3 (+ digit)))
-          #'racket--adjust-group-1 2 3)
-    ;; Any path struct
-    (list (rx "#<path:" (group-n 1 (+? (not (any ?\>)))) ?\>)
-          #'racket--adjust-group-1 nil nil 0)
-    ;; Any (srcloc path line column ...) struct
-    (list (rx "(" "srcloc" (+ space)
-              ;; path
-              "\"" (group-n 1 (+? any)) "\""
-              ;; line
-              (+ space) (group-n 2 (+ digit))
-              ;; column
-              (+ space) (group-n 3 (+ digit)))
-          #'racket--adjust-group-1 2 3 0 1)))
+  (setq-local compilation-error-regexp-alist racket--compilation-error-regexp-alist)
   ;; Persistent history
   (setq-local comint-input-autoexpand nil) ;#450
   (setq-local comint-input-filter #'racket-repl--input-filter)
@@ -1098,9 +1113,6 @@ A suitable value for the hook `kill-emacs-hook'."
      (rx (+ (not (any alnum))))
      "-"
      (buffer-name)))))
-
-(defun racket--adjust-group-1 ()
-  (list (funcall racket-path-from-racket-to-emacs-function (match-string 1))))
 
 (provide 'racket-repl)
 
