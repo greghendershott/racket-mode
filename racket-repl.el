@@ -186,12 +186,14 @@ expression/statement."
 (defun racket-repl-exit (&optional killp)
   "Send a terminate break to the REPL program's main thread.
 
-Effectively the same as entering `(exit)` at the prompt, but
-works even when the module language doesn't provide any binding
-for `exit`.
+If your program is running, equivalent to `racket-repl-break'.
 
-With \\[universal-argument] closes the entire back end process
---- the command server and all REPL sessions."
+If already at the REPL prompt, effectively the same as entering
+\"(exit)\" at the prompt, but works even when the module language
+doesn't provide any binding for \"exit\".
+
+With \\[universal-argument] terminates the entire Racket Mode
+back end process --- the command server and all REPL sessions."
   (interactive "P")
   (cond (killp
          (message "Killing entire Racket Mode back end process")
