@@ -40,8 +40,10 @@
       ;; To drop the common tail, reverse both and use drop-common-prefix.
       (define-values (trimmed _) (drop-common-prefix (reverse stack)
                                                      (reverse checkpoint)))
-      ;; The mark for call-with-stack-checkpoint is the head. Remove it.
-      (define fully-trimmed (cdr trimmed))
-      ;; Reverse back to stack order
-      (reverse fully-trimmed)]
+      (match trimmed
+        ;; The mark for call-with-stack-checkpoint is the head; ignore
+        ;; it. Reverse the remainder back to stack order.
+        [(cons _ xs) (reverse xs)]
+        ;; Can happen with Racket < 7.0 and debugger REPL.
+        [_           '()])]
      [#f stack])))

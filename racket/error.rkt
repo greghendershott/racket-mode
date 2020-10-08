@@ -97,9 +97,7 @@
   ;; 1. Don't go beyond error-print-context-length
   ;; 2. Don't go into "system" context that's just noisy.
   (string-join (for/list ([x xs]
-                          [_ (error-print-context-length)]
-                          ;;#:unless (ignore-context-item? x)
-                          )
+                          [_ (error-print-context-length)])
                  (context-item->string x))
                "\n"))
 
