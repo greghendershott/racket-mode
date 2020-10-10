@@ -233,17 +233,27 @@ location of the first one."
     (goto-char (point-min))
     (let ((first-beg nil)
           (requires nil))
-      (while (re-search-forward "^(require " nil t)
-        (let* ((beg (progn (up-list -1)   (point)))
-               (end (progn (forward-sexp) (point)))
-               (str (buffer-substring-no-properties beg end))
-               (sexpr (read str)))
-          (unless first-beg (setq first-beg beg))
-          (setq requires (cons sexpr requires))
-          (when (eq 'kill what)
-            (kill-sexp -1)
-            (delete-blank-lines))))
+      (while
+          (let ((end (progn (forward-sexp  1) (point)))
+                (beg (progn (forward-sexp -1) (point))))
+            (unless (equal end (point-max))
+              (when (prog1 (racket--looking-at-require-form)
+                      (goto-char end))
+                (unless first-beg (setq first-beg beg))
+                (push (read (buffer-substring-no-properties beg end)) requires)
+                (when (eq 'kill what)
+                  (delete-region beg end)
+                  (delete-blank-lines)))
+              t)))
       (if (eq 'kill what) first-beg requires))))
+
+(defun racket--looking-at-require-form ()
+  ;; Assumes you navigated to point using a method that ignores
+  ;; strings and comments, preferably `forward-sexp'.
+  (and (eq ?\( (char-syntax (char-after)))
+       (save-excursion
+         (down-list 1)
+         (looking-at "require"))))
 
 (defun racket-add-require-for-identifier ()
   "Add a require for the identifier at point.
