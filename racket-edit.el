@@ -245,6 +245,53 @@ location of the first one."
             (delete-blank-lines))))
       (if (eq 'kill what) first-beg requires))))
 
+(defun racket-add-require-for-identifier ()
+  "Add a require for the identifier at point.
+
+When more than one module supplies an identifer with the same
+name, they are listed for you to choose. The listed is sorted
+alphabetically, except modules starting with \"racket/\" and
+\"typed/racket/\" are sorted before others.
+
+Caveats:
+
+1. This works in terms of identifers that are documented. The
+mechanism is similar to that used for Racket's \"Search Manuals\"
+feature. There exists no system-wide database of identifiers that
+are exported but not documented.
+
+2. This only works well for requires at the level of the file's
+module: The \"(require x)\" is added at that level, followed by
+doing a `racket-tidy-requires'."
+  (interactive)
+  (let ((sym-at-point (thing-at-point 'symbol t)))
+    (when sym-at-point
+      (racket--cmd/async
+       nil
+       `(requires/find ,sym-at-point)
+       (lambda (result)
+         (let ((lib
+                (pcase result
+                  (`()
+                   (message "\"%s\" is not a documented export of any installed library"
+                            sym-at-point)
+                   nil)
+                  (`(,lib)
+                   lib)
+                  (libs
+                   (ido-completing-read (format "\"%s\" provided by multiple libraries: "
+                                                sym-at-point)
+                                        libs)))))
+           (when lib
+             (save-excursion
+               (let ((req (format "(require %s)" lib)))
+                 (save-excursion
+                   (goto-char (point-min))
+                   (forward-line 1)
+                   (insert (concat "\n" req "\n"))
+                   (racket-tidy-requires))
+                 (message "Added %s and did racket-tidy-requires" req))))))))))
+
 ;;; align
 
 (defun racket-align ()

@@ -12,8 +12,9 @@
          racket/string
          (only-in scribble/core
                   tag?)
-         scribble/xref
          scribble/blueboxes
+         scribble/manual-struct
+         scribble/xref
          setup/xref
          (only-in xml
                   xml->xexpr
@@ -22,16 +23,17 @@
 
 (provide binding->path+anchor
          path+anchor->html
-         identifier->bluebox)
+         identifier->bluebox
+         libs-exporting-documented)
 
 (module+ test
   (require rackunit))
 
-(define xref (delay/thread (load-collections-xref)))
+(define xref-promise (delay/thread (load-collections-xref)))
 
 (define/contract (binding->path+anchor stx)
   (-> identifier? (or/c #f (cons/c path-string? (or/c #f string?))))
-  (let* ([xref (force xref)]
+  (let* ([xref (force xref-promise)]
          [tag  (xref-binding->definition-tag xref stx 0)]
          [p+a  (and tag (tag->path+anchor xref tag))])
     p+a))
@@ -218,7 +220,7 @@
 
 (define/contract (identifier->bluebox stx)
   (-> identifier? (or/c #f string?))
-  (match (xref-binding->definition-tag (force xref) stx 0)
+  (match (xref-binding->definition-tag (force xref-promise) stx 0)
     [(? tag? tag)
      (match (fetch-blueboxes-strs tag #:blueboxes-cache (force bluebox-cache))
        [(list* _kind strs)
@@ -239,3 +241,33 @@
     (check-equal? (identifier->bluebox #'list)
                   "(list v ...) -> list?\n  v : any/c"))
   (check-false (identifier->bluebox (datum->syntax #f (gensym)))))
+
+;;; Documented exports of a symbol by zero or more libraries
+
+(define (libs-exporting-documented sym-as-str)
+  ;; (-> string? (listof (list/c sym:string? tag:string?)))
+  (define sym (string->symbol sym-as-str))
+  (define xref (force xref-promise))
+  (define idx (xref-index xref))
+  (define libs
+    (for*/list ([entry (in-list idx)]
+                [desc  (in-value (entry-desc entry))]
+                #:when (and (exported-index-desc? desc)
+                            (eq? sym (exported-index-desc-name desc)))
+                [lib   (in-value (car (exported-index-desc-from-libs desc)))]) ;*
+      (symbol->string lib)))
+  (sort libs
+        string<?
+        #:cache-keys? #t
+        #:key (match-lambda
+                [(and (pregexp "^racket/") v)       (string-append "0_" v)]
+                [(and (pregexp "^typed/racket/") v) (string-append "1_" v)]
+                [v v])))
+
+;; *: (exported-index-desc-from-libs desc) is a list. Empirically -- I
+;; haven't yet found the docs or spec -- the list is usually a single
+;; lib. Sometimes it is multiple, e.g. '(racket/base racket) or
+;; '(typed/racket/base typed/racket). Generalizing from those two
+;; examples (!), the most-specific one is first. The most-specific one
+;; is what we'd prefer in a feature that automatically adds a require.
+;; TL;DR: Always just use the car of this list.
