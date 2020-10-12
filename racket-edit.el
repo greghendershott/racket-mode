@@ -85,10 +85,12 @@
 ;;; requires
 
 (defun racket-tidy-requires ()
-  "Make a single top-level \"require\" form, modules sorted, one per line.
+  "Make a single \"require\" form, modules sorted, one per line.
 
-All top-level require forms are combined into a single form.
-Within that form:
+The scope of this command is the innermost module around point,
+including the outermost module for a file using a \"#lang\" line.
+All require forms within that module are combined into a single
+form. Within that form:
 
 - A single subform is used for each phase level, sorted in this
   order: for-syntax, for-template, for-label, for-meta, and
@@ -102,26 +104,35 @@ Within that form:
 
     - Quoted relative requires -- sorted alphabetically.
 
-At most one module is listed per line.
-
-Note: This only works for requires at the top level of a source
-file using #lang. It does NOT work for require forms inside
-module forms.
+At most one required module is listed per line.
 
 See also: `racket-trim-requires' and `racket-base-requires'."
   (interactive)
   (unless (eq major-mode 'racket-mode)
     (user-error "Current buffer is not a racket-mode buffer"))
-  (pcase (racket--top-level-requires 'find)
-    (`nil (user-error "The file module has no requires; nothing to do"))
+  (racket--tidy-requires '()))
+
+(defun racket--tidy-requires (add)
+  (pcase (append (racket--module-requires 'find) add)
+    (`() (user-error "The module has no requires; nothing to do"))
     (reqs (racket--cmd/async
            nil
            `(requires/tidy ,reqs)
            (lambda (result)
              (pcase result
                ("" nil)
-               (new (goto-char (racket--top-level-requires 'kill))
-                    (insert (concat new "\n")))))))))
+               (new
+                (pcase (racket--module-requires 'kill)
+                  (`()
+                   (goto-char (racket--inside-innermost-module))
+                   (forward-line 1))
+                  (pos (goto-char pos)))
+                (let ((pt (point)))
+                  (insert new)
+                  (when (eq (char-before pt) ?\n)
+                    (newline))
+                  (indent-region pt (1+ (point)))
+                  (goto-char pt)))))))))
 
 (defun racket-trim-requires ()
   "Like `racket-tidy-requires' but also deletes unnecessary requires.
@@ -139,9 +150,9 @@ See also: `racket-base-requires'."
   (interactive)
   (unless (eq major-mode 'racket-mode)
     (user-error "Current buffer is not a racket-mode buffer"))
-  (when (racket--ok-with-module+*)
+  (when (racket--submodule-y-or-n-p)
    (racket--save-if-changed)
-   (pcase (racket--top-level-requires 'find)
+   (pcase (racket--module-requires 'find t)
      (`nil (user-error "The file module has no requires; nothing to do"))
      (reqs (racket--cmd/async
             nil
@@ -151,8 +162,8 @@ See also: `racket-base-requires'."
             (lambda (result)
               (pcase result
                 (`nil (user-error "Syntax error in source file"))
-                (""   (goto-char (racket--top-level-requires 'kill)))
-                (new  (goto-char (racket--top-level-requires 'kill))
+                (""   (goto-char (racket--module-requires 'kill t)))
+                (new  (goto-char (racket--module-requires 'kill t))
                       (insert (concat new "\n"))))))))))
 
 (defun racket-base-requires ()
@@ -188,9 +199,9 @@ typed/racket/base\"."
     (user-error "Already using #lang racket/base. Nothing to change."))
   (unless (racket--buffer-start-re "^#lang.*? racket$")
     (user-error "File does not use use #lang racket. Cannot change."))
-  (when (racket--ok-with-module+*)
+  (when (racket--submodule-y-or-n-p)
     (racket--save-if-changed)
-    (let ((reqs (racket--top-level-requires 'find)))
+    (let ((reqs (racket--module-requires 'find t)))
       (racket--cmd/async
        nil
        `(requires/base
@@ -202,12 +213,12 @@ typed/racket/base\"."
            (new (goto-char (point-min))
                 (re-search-forward "^#lang.*? racket$")
                 (insert "/base")
-                (goto-char (or (racket--top-level-requires 'kill)
+                (goto-char (or (racket--module-requires 'kill t)
                                (progn (insert "\n\n") (point))))
                 (unless (string= "" new)
                   (insert (concat new "\n"))))))))))
 
-(defun racket--ok-with-module+* ()
+(defun racket--submodule-y-or-n-p ()
   (save-excursion
     (goto-char (point-min))
     (or (not (re-search-forward (rx ?\( "module" (or "+" "*")) nil t))
@@ -222,30 +233,53 @@ typed/racket/base\"."
       (re-search-forward re)
       t)))
 
-(defun racket--top-level-requires (what)
-  "Identify all top-level requires and do WHAT.
+(defun racket--module-requires (what &optional outermost-p)
+  "Identify all require forms and do WHAT.
 
-When WHAT is 'find, returns the top-level require forms.
+When WHAT is 'find, return the require forms.
 
-When WHAT is 'kill, kill the top-level requires, returning the
-location of the first one."
+When WHAT is 'kill, kill the require forms and return the
+position where the first one had started.
+
+OUTERMOST-P says which module's requires: true means the
+outermost file module, nil means the innermost module around
+point."
   (save-excursion
-    (goto-char (point-min))
+    (goto-char (if outermost-p
+                   (point-min)
+                 (racket--inside-innermost-module)))
     (let ((first-beg nil)
           (requires nil))
       (while
-          (let ((end (progn (forward-sexp  1) (point)))
-                (beg (progn (forward-sexp -1) (point))))
-            (unless (equal end (point-max))
-              (when (prog1 (racket--looking-at-require-form)
-                      (goto-char end))
-                (unless first-beg (setq first-beg beg))
-                (push (read (buffer-substring-no-properties beg end)) requires)
-                (when (eq 'kill what)
-                  (delete-region beg end)
-                  (delete-blank-lines)))
-              t)))
+          (condition-case nil
+              (let ((end (progn (forward-sexp  1) (point)))
+                    (beg (progn (forward-sexp -1) (point))))
+                (unless (equal end (point-max))
+                  (when (prog1 (racket--looking-at-require-form)
+                          (goto-char end))
+                    (unless first-beg (setq first-beg beg))
+                    (push (read (buffer-substring-no-properties beg end))
+                          requires)
+                    (when (eq 'kill what)
+                      (delete-region beg end)
+                      (delete-blank-lines)))
+                  t))
+            (scan-error nil)))
       (if (eq 'kill what) first-beg requires))))
+
+(defun racket--inside-innermost-module ()
+  "Position of the start of the inside of the innermost module
+around point. This could be \"(point-min)\" if point is within no
+module form, meaning the outermost, file module."
+  (save-excursion
+    (racket--escape-string-or-comment)
+    (condition-case ()
+        (progn
+          (while (not (racket--looking-at-module-form))
+            (backward-up-list))
+          (down-list)
+          (point))
+      (scan-error (point-min)))))
 
 (defun racket--looking-at-require-form ()
   ;; Assumes you navigated to point using a method that ignores
@@ -274,6 +308,8 @@ are exported but not documented.
 module: The \"(require x)\" is added at that level, followed by
 doing a `racket-tidy-requires'."
   (interactive)
+  (unless (eq major-mode 'racket-mode)
+    (user-error "Current buffer is not a racket-mode buffer"))
   (let ((sym-at-point (thing-at-point 'symbol t)))
     (when sym-at-point
       (racket--cmd/async
@@ -294,12 +330,8 @@ doing a `racket-tidy-requires'."
                                         libs)))))
            (when lib
              (save-excursion
-               (let ((req (format "(require %s)" lib)))
-                 (save-excursion
-                   (goto-char (point-min))
-                   (forward-line 1)
-                   (insert (concat "\n" req "\n"))
-                   (racket-tidy-requires))
+               (let ((req `(require ,(intern lib))))
+                 (racket--tidy-requires (list req))
                  (message "Added %s and did racket-tidy-requires" req))))))))))
 
 ;;; align
