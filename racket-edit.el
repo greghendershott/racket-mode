@@ -297,16 +297,13 @@ name, they are listed for you to choose. The listed is sorted
 alphabetically, except modules starting with \"racket/\" and
 \"typed/racket/\" are sorted before others.
 
-Caveats:
+A \"require\" is added for the module, followed by doing a
+`racket-tidy-requires'.
 
-1. This works in terms of identifers that are documented. The
-mechanism is similar to that used for Racket's \"Search Manuals\"
-feature. There exists no system-wide database of identifiers that
-are exported but not documented.
-
-2. This only works well for requires at the level of the file's
-module: The \"(require x)\" is added at that level, followed by
-doing a `racket-tidy-requires'."
+Caveat: This works in terms of identifers that are documented.
+The mechanism is similar to that used for Racket's \"Search
+Manuals\" feature. Today there exists no system-wide database of
+identifiers that are exported but not documented."
   (interactive)
   (unless (eq major-mode 'racket-mode)
     (user-error "Current buffer is not a racket-mode buffer"))
