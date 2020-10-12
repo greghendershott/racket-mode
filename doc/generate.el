@@ -48,6 +48,7 @@
     racket-tidy-requires
     racket-trim-requires
     racket-base-requires
+    racket-add-require-for-identifier
     racket-indent-line
     racket-smart-open-bracket-mode
     racket-insert-closing

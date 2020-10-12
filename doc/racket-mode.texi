@@ -80,6 +80,7 @@ Edit
 * racket-tidy-requires::
 * racket-trim-requires::
 * racket-base-requires::
+* racket-add-require-for-identifier::
 * racket-indent-line::
 * racket-smart-open-bracket-mode::
 * racket-insert-closing::
@@ -559,6 +560,7 @@ You can also view these by using the normal Emacs help mechanism:
 * racket-tidy-requires::
 * racket-trim-requires::
 * racket-base-requires::
+* racket-add-require-for-identifier::
 * racket-indent-line::
 * racket-smart-open-bracket-mode::
 * racket-insert-closing::
@@ -598,10 +600,12 @@ Unfold (show) all test submodules.
 
 @kbd{M-x}  @code{racket-tidy-requires}
 
-Make a single top-level ``require'' form, modules sorted, one per line.
+Make a single ``require'' form, modules sorted, one per line.
 
-All top-level require forms are combined into a single form.
-Within that form:
+The scope of this command is the innermost module around point,
+including the outermost module for a file using a ``#lang'' line.
+All require forms within that module are combined into a single
+form. Within that form:
 
 @itemize
 @item
@@ -626,11 +630,7 @@ Quoted relative requires -- sorted alphabetically.
 @end itemize
 @end itemize
 
-At most one module is listed per line.
-
-Note: This only works for requires at the top level of a source
-file using #lang. It does NOT work for require forms inside
-module forms.
+At most one required module is listed per line.
 
 See also: @ref{racket-trim-requires} and @ref{racket-base-requires}.
 
@@ -682,6 +682,35 @@ Note: Currently this only helps change ``#lang racket'' to
 ``#lang racket/base''. It does not help with other similar
 conversions, such as changing ``#lang typed/racket'' to ``#lang
 typed/racket/base''.
+
+@node racket-add-require-for-identifier
+@subsection racket-add-require-for-identifier
+
+@kbd{M-x}  @code{racket-add-require-for-identifier}
+
+Add a require for the identifier at point.
+
+When more than one module supplies an identifer with the same
+name, they are listed for you to choose. The listed is sorted
+alphabetically, except modules starting with ``racket/'' and
+``typed/racket/'' are sorted before others.
+
+Caveats:
+
+@enumerate
+@item
+This works in terms of identifers that are documented. The
+@end enumerate
+mechanism is similar to that used for Racket's ``Search Manuals''
+feature. There exists no system-wide database of identifiers that
+are exported but not documented.
+
+@enumerate
+@item
+This only works well for requires at the level of the file's
+@end enumerate
+module: The "(require x)" is added at that level, followed by
+doing a @ref{racket-tidy-requires}.
 
 @node racket-indent-line
 @subsection racket-indent-line
