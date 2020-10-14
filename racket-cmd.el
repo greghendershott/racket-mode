@@ -146,6 +146,8 @@ part of investigating issue #468.
 This assumes the process sentinel is set to `ignore' so we're not
 displaying the buffer for noise like \"process finished\"
 messages."
+  (when noninteractive ;emacs --batch
+    (princ (format "{racket-stderr}: %s\n" string)))
   (when (buffer-live-p (process-buffer proc))
     (with-current-buffer (process-buffer proc)
       (setq header-line-format

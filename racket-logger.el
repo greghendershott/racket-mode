@@ -93,6 +93,8 @@ For more information see:
   (get-buffer racket--logger-buffer-name))
 
 (defun racket--logger-on-notify (str)
+ (when noninteractive ;emacs --batch
+    (princ (format "{racket logger}: %s" str)))
   (with-current-buffer (racket--logger-get-buffer-create)
     (let* ((inhibit-read-only  t)
            (original-point     (point))

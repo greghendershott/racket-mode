@@ -514,6 +514,7 @@ This does not display the buffer or change the selected window."
   ;; Issue the command to learn the ephemeral TCP port chosen by the
   ;; back end for REPL I/O. As a bonus, this will start the back end
   ;; if necessary.
+  (when noninteractive (princ "{racket--repl-start}: entered\n"))
   (racket--cmd/async
    nil
    `(repl-tcp-port-number)
@@ -525,6 +526,8 @@ This does not display the buffer or change the selected window."
        (let ((hook      nil)
              (read-buf  (generate-new-buffer " *racket-repl-session-id-reader*")))
          (setq hook (lambda (txt)
+                      (when noninteractive
+                        (princ "{racket--repl-start}: early pre-output-hook called\n"))
                       (with-current-buffer read-buf
                         (goto-char (point-max))
                         (insert txt)
@@ -551,6 +554,8 @@ This does not display the buffer or change the selected window."
                                     (cons "127.0.0.1" repl-tcp-port-number))
              (process-send-string (get-buffer-process (current-buffer))
                                   (format "%S\n" racket--cmd-auth))
+             (when noninteractive
+               (princ "{racket-repl-start}: did process-send-string of auth\n"))
              (set-process-coding-system (get-buffer-process (current-buffer))
                                         'utf-8 'utf-8) ;for e.g. λ
              ;; Buffer might already be in `racket-repl-mode' -- e.g.
@@ -559,6 +564,7 @@ This does not display the buffer or change the selected window."
              ;; that is at best unnecessary or at worst undesirable
              ;; (e.g. `comint-input-ring' would lose input history).
              (unless (eq major-mode 'racket-repl-mode)
+               (when noninteractive (princ "{racket--repl-start}: (racket-repl-mode)\n"))
                (racket-repl-mode)))
          (file-error
           (let ((kill-buffer-query-functions nil)
