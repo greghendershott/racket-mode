@@ -216,11 +216,14 @@
 
 ;;; Blueboxes
 
-(define bluebox-cache (delay/thread (make-blueboxes-cache #t)))
+(define racket-version-6.10? (equal? (version) "6.10"))
+
+(define bluebox-cache (delay (make-blueboxes-cache #t)))
 
 (define/contract (identifier->bluebox stx)
   (-> identifier? (or/c #f string?))
-  (match (xref-binding->definition-tag (force xref-promise) stx 0)
+  (match (and (not racket-version-6.10?)
+              (xref-binding->definition-tag (force xref-promise) stx 0))
     [(? tag? tag)
      (match (fetch-blueboxes-strs tag #:blueboxes-cache (force bluebox-cache))
        [(list* _kind strs)
@@ -237,7 +240,7 @@
   ;; younger, I am choosing to ignore this, for now.
   ;;
   ;; Probably https://github.com/racket/drracket/issues/118
-  (unless (equal? (version) "6.10")
+  (unless racket-version-6.10?
     (check-equal? (identifier->bluebox #'list)
                   "(list v ...) -> list?\n  v : any/c"))
   (check-false (identifier->bluebox (datum->syntax #f (gensym)))))
