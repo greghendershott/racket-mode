@@ -70,6 +70,8 @@
   (cond [(and (syntax? e)
               (syntax-source e)
               (path-string? (syntax-source e))
+              (complete-path? (syntax-source e))
+              (file-exists? (syntax-source e))
               (not (compiled-expression? (syntax-e e))))
          (define expanded-stx (expand e))
          (cache-set! (syntax-source e)
@@ -87,7 +89,7 @@
 (define last-mod #f)
 
 (define/contract (cache-set! path stx exp-stx digest namespace load-rel-dir)
-  (-> path? syntax? syntax? string? namespace? path-string? any)
+  (-> path? syntax? syntax? string? namespace? (or/c #f (and/c path-string? complete-path?)) any)
   (hash-set! cache path
              (cache-entry stx
                           exp-stx
