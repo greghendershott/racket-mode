@@ -49,6 +49,7 @@
     [(? hash? v)        (for/list ([(k v) (in-hash v)])
                           (cons (racket->elisp k) (racket->elisp v)))]
     [(? generic-set? v) (map racket->elisp (set->list v))]
+    [(? void?)          'void] ;avoid Elisp-unreadable "#<void>"
     [v                  v]))
 
 (module+ test
