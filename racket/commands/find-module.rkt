@@ -32,14 +32,14 @@
          [requires.rkt     (path->string (build-path here "requires.rkt"))]
          [pe-racket/string (pregexp "collects/racket/string.rkt$")])
     ;; Examples of having no current module (i.e. plain racket/base
-    ;; REPL) and having one ("coverage.rkt").
+    ;; REPL) and having one ("describe.rkt").
     (let ([mod #f])
      (parameterize ([current-directory here])
        (check-match (find-module "requires.rkt" mod)
                     (list (== requires.rkt) 1 0))
        (check-match (find-module "racket/string" mod)
                     (list pe-racket/string 1 0))))
-    (let ([mod (->mod/existing (build-path here "coverage.rkt"))])
+    (let ([mod (->mod/existing (build-path here "describe.rkt"))])
       (check-match (find-module "requires.rkt" mod)
                    (list (== requires.rkt) 1 0))
       (check-match (find-module "racket/string" mod)
