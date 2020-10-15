@@ -109,16 +109,14 @@ See issue #327.")
         (goto-char (point-max))
         (insert string)
         (goto-char (point-min))
-        (while
-            (condition-case ()
-                (progn
-                  (forward-sexp 1)
-                  (let ((sexp (buffer-substring (point-min) (point))))
-                    (delete-region (point-min) (point))
-                    (ignore-errors
-                      (racket--cmd-dispatch-response (read sexp))
-                      t)))
-              (scan-error nil)))))))
+        (while (pcase (ignore-errors (read buffer))
+                 (`nil `nil)
+                 (sexp (delete-region (point-min)
+                                      (if (eq (char-after) ?\n)
+                                          (1+ (point))
+                                        (point)))
+                       (racket--cmd-dispatch-response sexp)
+                       t)))))))
 
 (defvar racket--display-stderr-p t)
 
