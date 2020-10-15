@@ -17,13 +17,14 @@
 
 ;;; REPL session "housekeeping"
 
-;; Session IDs are strings based on a number
-(define next-session-number 0)
-
-(define (next-session-id!)
-  (format "repl-session-~a"
-          (begin0 next-session-number
-            (inc! next-session-number))))
+;; Session IDs are strings based on time + monotonic number
+(define next-session-id!
+  (let ([n 0])
+    (λ ()
+      (format "repl-session-~a-~a"
+              (current-inexact-milliseconds)
+              (begin0 n
+                (inc! n))))))
 
 ;; Each REPL session has an entry in this hash-table.
 (define sessions (make-hash)) ;string? => session?
@@ -35,6 +36,21 @@
    namespace        ;namespace?
    submit-pred)     ;(or/c #f drracket:submit-predicate/c)
   #:transparent)
+
+(define (get-session sid)
+  (hash-ref sessions sid #f))
+
+(define (set-session! sid maybe-mod repl-submit-predicate)
+  (hash-set! sessions sid (session (current-thread)
+                                   (current-repl-msg-chan)
+                                   maybe-mod
+                                   (current-namespace)
+                                   repl-submit-predicate))
+  (log-racket-mode-debug @~a{(set-session! @~v[sid] @~v[maybe-mod] @~v[repl-submit-predicate]) => sessions: @~v[sessions]}))
+
+(define (remove-session! sid)
+  (hash-remove! sessions sid)
+  (log-racket-mode-debug @~a{(remove-session! @~v[sid]) => sessions: @~v[sessions]}))
 
 (define current-session-id (make-parameter #f))
 (define current-repl-msg-chan (make-parameter #f))
@@ -58,20 +74,3 @@
          (log-racket-mode-debug @~a{(call-with-session-context @~v[sid] @~v[proc] @~v[args]): no specific session})
          (log-racket-mode-warning @~a{(call-with-session-context @~v[sid] @~v[proc] @~v[args]): @~v[sid] not found in @~v[sessions]}))
      (apply proc args)]))
-
-(define (get-session sid)
-  (hash-ref sessions sid #f))
-
-(define (set-session! sid maybe-mod repl-submit-predicate)
-  (hash-set! sessions
-             sid
-             (session (current-thread)
-                      (current-repl-msg-chan)
-                      maybe-mod
-                      (current-namespace)
-                      repl-submit-predicate))
-  (log-racket-mode-debug @~a{(set-session! @~v[sid] @~v[maybe-mod] @~v[repl-submit-predicate]) => sessions: @~v[sessions]}))
-
-(define (remove-session! sid)
-  (hash-remove! sessions sid)
-  (log-racket-mode-debug @~a{(remove-session! @~v[sid]) => sessions: @~v[sessions]}))
