@@ -465,10 +465,12 @@ be nil which is equivalent to #'ignore.
   (let* ((cmd (racket--repl-make-run-command (or what-to-run (racket--what-to-run))
                                              extra-submods
                                              (or context-level racket-error-context)))
+         (buf (current-buffer))
          (after (lambda (_ignore)
-                  (run-hook-with-args 'racket--repl-after-run-hook)
-                  (when callback
-                    (funcall callback)))))
+                  (with-current-buffer buf
+                    (run-hook-with-args 'racket--repl-after-run-hook)
+                    (when callback
+                      (funcall callback))))))
     (cond ((racket--repl-live-p)
            (unless (racket--repl-session-id)
              (error "No REPL session"))
@@ -477,10 +479,13 @@ be nil which is equivalent to #'ignore.
           (t
            (racket--repl-start
             (lambda ()
-              (unless (racket--repl-session-id)
-                (error "No REPL session"))
-              (racket--cmd/async (racket--repl-session-id) cmd after)
-              (display-buffer racket-repl-buffer-name)))))))
+              (when noninteractive
+                (princ "{racket--repl-run}: callback from racket--repl-start called\n"))
+              (with-current-buffer buf
+                (unless (racket--repl-session-id)
+                  (error "No REPL session"))
+                (racket--cmd/async (racket--repl-session-id) cmd after)
+                (display-buffer racket-repl-buffer-name))))))))
 
 (defun racket--repl-make-run-command (what-to-run extra-submods context-level)
   "Form a `run` command sexpr for the backend.
@@ -519,21 +524,27 @@ This does not display the buffer or change the selected window."
    nil
    `(repl-tcp-port-number)
    (lambda (repl-tcp-port-number)
+     (when noninteractive
+       (princ (format "{racket--repl-start}: (repl-tcp-port-number) replied %s\n" repl-tcp-port-number)))
      (with-current-buffer (get-buffer-create racket-repl-buffer-name)
        ;; Add a pre-output hook that -- possibly over multiple calls
        ;; to accumulate text -- reads `(ok ,id) to set
        ;; `racket--repl-session-id' then removes itself.
        (let ((hook      nil)
              (read-buf  (generate-new-buffer " *racket-repl-session-id-reader*")))
+         (when noninteractive
+           (princ (format "{racket--repl-start}: buffer is '%s'\n" read-buf)))
          (setq hook (lambda (txt)
                       (when noninteractive
-                        (princ "{racket--repl-start}: early pre-output-hook called\n"))
+                        (princ (format "{racket--repl-start}: early pre-output-hook called '%s'\n" txt)))
                       (with-current-buffer read-buf
                         (goto-char (point-max))
                         (insert txt)
                         (goto-char (point-min)))
                       (pcase (ignore-errors (read read-buf))
                         (`(ok ,id)
+                         (when noninteractive
+                           (princ (format "{racket--repl-start}: %s\n" id)))
                          (setq racket--repl-session-id id)
                          (run-with-timer 0.001 nil callback)
                          (remove-hook 'comint-preoutput-filter-functions hook t)
@@ -555,7 +566,7 @@ This does not display the buffer or change the selected window."
              (process-send-string (get-buffer-process (current-buffer))
                                   (format "%S\n" racket--cmd-auth))
              (when noninteractive
-               (princ "{racket-repl-start}: did process-send-string of auth\n"))
+               (princ "{racket--repl-start}: did process-send-string of auth\n"))
              (set-process-coding-system (get-buffer-process (current-buffer))
                                         'utf-8 'utf-8) ;for e.g. λ
              ;; Buffer might already be in `racket-repl-mode' -- e.g.
@@ -564,7 +575,8 @@ This does not display the buffer or change the selected window."
              ;; that is at best unnecessary or at worst undesirable
              ;; (e.g. `comint-input-ring' would lose input history).
              (unless (eq major-mode 'racket-repl-mode)
-               (when noninteractive (princ "{racket--repl-start}: (racket-repl-mode)\n"))
+               (when noninteractive
+                 (princ "{racket--repl-start}: (racket-repl-mode)\n"))
                (racket-repl-mode)))
          (file-error
           (let ((kill-buffer-query-functions nil)
@@ -599,15 +611,14 @@ If the REPL is running no file -- if the prompt is `>` -- use the
 most recent `racket-mode' buffer, if any."
   (interactive)
   (pcase (racket-repl-file-name)
-    (`() (let ((buffer (racket--most-recent-racket-mode-buffer)))
-           (unless buffer
-             (user-error "There are no racket-mode buffers"))
-           (pop-to-buffer buffer t)))
-    (path (let ((buffer (find-buffer-visiting path)))
-            (if buffer
-                (pop-to-buffer buffer t)
-              (other-window 1)
-              (find-file path))))))
+    ((and (pred stringp) path)
+     (pcase (find-buffer-visiting path)
+       ((and (pred bufferp) buffer) (pop-to-buffer buffer t))
+       (_ (other-window 1)
+          (find-file path))))
+    (_ (pcase (racket--most-recent-racket-mode-buffer)
+         ((and (pred bufferp) buffer) (pop-to-buffer buffer t))
+         (_ (user-error "There are no racket-mode buffers"))))))
 
 (defun racket--most-recent-racket-mode-buffer ()
   (cl-some (lambda (b)
