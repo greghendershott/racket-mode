@@ -21,6 +21,7 @@
 (require 'cl-lib)
 (require 'cl-macs)
 (require 'comint)
+(require 'ido)
 (require 'racket-custom)
 (require 'racket-cmd)
 (require 'racket-common)
@@ -110,9 +111,9 @@ See also: `racket-trim-requires' and `racket-base-requires'."
   (interactive)
   (unless (eq major-mode 'racket-mode)
     (user-error "Current buffer is not a racket-mode buffer"))
-  (racket--tidy-requires '()))
+  (racket--tidy-requires '() #'ignore))
 
-(defun racket--tidy-requires (add)
+(defun racket--tidy-requires (add callback)
   (pcase (append (racket--module-requires 'find) add)
     (`() (user-error "The module has no requires; nothing to do"))
     (reqs (racket--cmd/async
@@ -132,7 +133,8 @@ See also: `racket-trim-requires' and `racket-base-requires'."
                   (when (eq (char-before pt) ?\n)
                     (newline))
                   (indent-region pt (1+ (point)))
-                  (goto-char pt)))))))))
+                  (goto-char pt))))
+             (funcall callback result))))))
 
 (defun racket-trim-requires ()
   "Like `racket-tidy-requires' but also deletes unnecessary requires.
@@ -293,12 +295,15 @@ module form, meaning the outermost, file module."
   "Add a require for the identifier at point.
 
 When more than one module supplies an identifer with the same
-name, they are listed for you to choose. The listed is sorted
+name, they are listed for you to choose one. The list is sorted
 alphabetically, except modules starting with \"racket/\" and
-\"typed/racket/\" are sorted before others.
+\"typed/racket/\" are sorted before others. While at the prompt,
+as a convenience you can press C-h to see the \"Search Manuals\"
+page for locally installed packages -- effectively like
+doing \"raco doc\" at the command line.
 
-A \"require\" is added for the module, followed by doing a
-`racket-tidy-requires'.
+A \"require\" form is inserted into the buffer, followed by doing
+a `racket-tidy-requires'.
 
 Caveat: This works in terms of identifers that are documented.
 The mechanism is similar to that used for Racket's \"Search
@@ -308,28 +313,41 @@ identifiers that are exported but not documented."
   (unless (eq major-mode 'racket-mode)
     (user-error "Current buffer is not a racket-mode buffer"))
   (let ((sym-at-point (thing-at-point 'symbol t)))
-    (when sym-at-point
-      (racket--cmd/async
-       nil
-       `(requires/find ,sym-at-point)
-       (lambda (result)
-         (let ((lib
-                (pcase result
-                  (`()
-                   (message "\"%s\" is not a documented export of any installed library"
+    (unless sym-at-point
+      (user-error "There does not seem to be an identifier at point"))
+    (racket--cmd/async
+     nil
+     `(requires/find ,sym-at-point)
+     (lambda (result)
+       (let ((lib
+              (pcase result
+                (`()
+                 (message "\"%s\" is not a documented export of any installed library"
+                          sym-at-point)
+                 nil)
+                (`(,lib)
+                 lib)
+                (libs
+                 (let* ((map (prog1 (make-sparse-keymap)))
+                        (_   (set-keymap-parent map ido-completion-map))
+                        (_   (define-key map "\C-h"
+                               (lambda ()
+                                 (interactive)
+                                 (racket--search-doc-locally sym-at-point))))
+                        (overriding-local-map map))
+                   (ido-completing-read
+                    (format "\"%s\" is provided by multiple libraries, choose one (C-h to search manuals): "
                             sym-at-point)
-                   nil)
-                  (`(,lib)
-                   lib)
-                  (libs
-                   (ido-completing-read (format "\"%s\" provided by multiple libraries: "
-                                                sym-at-point)
-                                        libs)))))
-           (when lib
-             (save-excursion
-               (let ((req `(require ,(intern lib))))
-                 (racket--tidy-requires (list req))
-                 (message "Added %s and did racket-tidy-requires" req))))))))))
+                    libs))))))
+         (when lib
+           (let ((pt  (copy-marker (point)))
+                 (req `(require ,(intern lib))))
+             (racket--tidy-requires
+              (list req)
+              (lambda (result)
+                (goto-char pt)
+                (when result
+                  (message "Added \"%s\" and did racket-tidy-requires" req)))))))))))
 
 ;;; align
 

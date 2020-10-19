@@ -51,10 +51,11 @@ Centralizes how to issue doc command and handle response correctly."
 (defun racket--search-doc (str)
   "Search docs where the variable `racket-documentation-search-location' says."
   (pcase racket-documentation-search-location
-    ((and (pred stringp) url)
-     (racket-browse-url (format url str)))
-    ('local
-     (call-process racket-program nil 0 nil "-l" "raco" "doc" str))))
+    ((and (pred stringp) url) (racket-browse-url (format url str)))
+    ('local                   (racket--search-doc-locally str))))
+
+(defun racket--search-doc-locally (str)
+  (call-process racket-program nil 0 nil "-l" "raco" "doc" str))
 
 (provide 'racket-doc)
 

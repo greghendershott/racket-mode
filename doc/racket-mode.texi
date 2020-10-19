@@ -691,12 +691,15 @@ typed/racket/base''.
 Add a require for the identifier at point.
 
 When more than one module supplies an identifer with the same
-name, they are listed for you to choose. The listed is sorted
+name, they are listed for you to choose one. The list is sorted
 alphabetically, except modules starting with ``racket/'' and
-``typed/racket/'' are sorted before others.
+``typed/racket/'' are sorted before others. While at the prompt,
+as a convenience you can press C-h to see the ``Search Manuals''
+page for locally installed packages -- effectively like
+doing ``raco doc'' at the command line.
 
-A ``require'' is added for the module, followed by doing a
-@ref{racket-tidy-requires}.
+A ``require'' form is inserted into the buffer, followed by doing
+a @ref{racket-tidy-requires}.
 
 Caveat: This works in terms of identifers that are documented.
 The mechanism is similar to that used for Racket's ``Search
