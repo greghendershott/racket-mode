@@ -60,18 +60,18 @@
             (list/c path-string?))
       string?
       string?)
-  (match how
-    [(list (? path-string? path))
-     (or (path+anchor->html (cons path #f))
-         "Documentation not found")]
-    [(cons (? path-string? path) (? string? anchor))
-     (or (path+anchor->html (cons path anchor))
-         "Documentation not found")]
-    [(and (or 'namespace (? path-string?)) how)
-     (->identifier how str
-                   (λ (stx)
-                     (or (path+anchor->html (binding->path+anchor stx))
-                         (sig-and/or-type how stx))))]))
+  (or (match how
+        [(list (? path-string? path))
+         (path+anchor->html (cons path #f))]
+        [(cons (? path-string? path) (? string? anchor))
+         (path+anchor->html (cons path anchor))]
+        [(and (or 'namespace (? path-string?)) how)
+         (->identifier how str
+                       (λ (stx)
+                         (or (path+anchor->html (binding->path+anchor stx))
+                             (sig-and/or-type how stx))))])
+      (format "Found no documentation for ~v in ~a."
+              str how)))
 
 (define/contract (sig-and/or-type how stx)
   (-> how/c identifier? string?)
@@ -88,7 +88,7 @@
              `(p ()
                (em ()  ,(if (eq? how 'namespace)
                             "(Found no documentation, signature, type, or contract.)"
-                            "(Found no documentation or signature.")))]
+                            "(Found no documentation or signature.)")))]
             [t `(pre () ,t)]
             [else ""])
      (br ()))))
