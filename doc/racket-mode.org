@@ -43,7 +43,7 @@ To fund this work, see [[https://github.com/users/greghendershott/sponsorship][G
 
 * Install
 
-The recommended way to use Racket Mode is to install the package from [[https://melpa.org/][MELPA]].
+The recommended way to use Racket Mode is to install the package from [[https://melpa.org/#/racket-mode][MELPA]].
 
 ** Configure Emacs to use MELPA
 To use MELPA:
@@ -186,9 +186,9 @@ If instead of paredit you prefer [[https://melpa.org/#/smartparens][smartparens]
 #+END_SRC
 
 ** Edit buffers and REPL buffers
-By default, all `racket-mode' edit buffers share one `racket-repl-mode' buffer. For example, if you `racket-run' "foo.rkt", the REPL prompt changes to "foo.rkt>", and the REPL is inside the file  module namespace. If you then `racket-run' "bar.rkt", the REPL prompt changes to "bar.rkt>", and you are in that namespace.
+By default, all ~racket-mode~ edit buffers share one ~racket-repl-mode~ buffer. For example, if you run foo.rkt, the REPL prompt changes to ~foo.rkt>~, and the REPL is inside the file module namespace. If you then run bar.rkt, the REPL prompt changes to ~bar.rkt>~, and you are in that namespace.
 
-If you prefer, you can use more than one REPL buffer, by customizing the variable {{{ref(racket-repl-buffer-name-function)}}}: Another option is to have one REPL buffer for each edit buffer, similar to Dr Racket. Yet another option is to have files belong to the same project all share the same REPL buffer. You can also define your own, custom function.
+If you prefer, you can use more than one REPL buffer, by customizing the variable {{{ref(racket-repl-buffer-name-function)}}}: Another option is to have one REPL buffer for each edit buffer, similar to Dr Racket. Yet another option is to share the same REPL buffer for files belonging to the same project. You can also define your own, custom function.
 
 ** eldoc
 
@@ -222,7 +222,7 @@ To automatically enable the ~racket-unicode~ input method in ~racket-mode~ and ~
 {{{see(racket-insert-lambda)}}}.
 
 * Reference
-The following sections are generated from the doc strings for each command, variable, or face. (As a result, some of the formatting might not be quite as nice or correct as the previous sections.)
+The following sections are generated from the doc strings for each command, variable, or face. (As a result, some of the formatting might not be quite as nice or correct as in the previous sections.)
 
 You can also view these by using the normal Emacs help mechanism:
 
