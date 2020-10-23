@@ -670,13 +670,12 @@ evaluation errors that won't be found merely from expansion -- or
 
 (defun racket--xp-on-idle-timer (buffer)
   "Handle after-change-hook => idle-timer expiration.
-If no longer current-buffer, don't annotate at all. Otherwise, if
-we detect some completion process is underway, don't annotate
+If we detect some completion process is underway, don't annotate
 now, set timer to check again later. Why? Typically, if the user
 then makes some completion choice, that will edit the buffer,
 causing the after-change-hook to run again, and schedule another
 idle timer. But just in case they don't, we schedule a retry."
-  (when (equal buffer (current-buffer))
+  (with-current-buffer buffer
     (if (racket--xp-completing-p)
         (racket--xp-start-idle-timer buffer)
       (racket--xp-annotate))))
