@@ -80,7 +80,7 @@ See issue #327.")
    :buffer          (get-buffer-create (concat " *" racket--cmd-process-name "*"))
    :stderr          (make-pipe-process
                      :name     (concat racket--cmd-process-name "-stderr")
-                     :buffer   (concat "*" racket--cmd-process-name "-stderr*")
+                     :buffer   nil
                      :noquery  t
                      :coding   'utf-8
                      :filter   #'racket--cmd-process-stderr-filter
@@ -100,6 +100,12 @@ See issue #327.")
     (racket--cmd-open))
   (funcall func (get-process racket--cmd-process-name)))
 
+(defun racket--cmd-process-stderr-filter (proc string)
+  "Show back end process stderr via `message'.
+Won't show noise like \"process finished\" if process sentinel is
+`ignore'."
+  (message "{%s} %s\n" proc string))
+
 (defun racket--cmd-process-filter (proc string)
   "Parse complete sexprs from the process output and give them to
 `racket--cmd-dispatch-response'."
@@ -117,45 +123,6 @@ See issue #327.")
                                         (point)))
                        (racket--cmd-dispatch-response sexp)
                        t)))))))
-
-(defvar racket--display-stderr-p t)
-
-;;;###autoload
-(defun racket-toggle-display-back-end-stderr ()
-  "Toggle whether the Racket Mode back end stderr buffer displays automatically.
-
-If you toggle this off, the buffer will still accumulate error
-messages -- it just won't `display-buffer' every time it is
-updated. You might prefer this if you are hacking on Racket or
-Racket Mode, temporarily have things in a state where the back
-end cannot start, and don't need to be notified repeatedly."
-  (interactive)
-  (setq racket--display-stderr-p (not racket--display-stderr-p))
-  (message "Racket Mode back end stderr buffer %s display automatically"
-           (if racket--display-stderr-p "WILL" "will NOT")))
-
-(defun racket--cmd-process-stderr-filter (proc string)
-  "A default process filter but also automatically display the buffer.
-
-Intended to surface error messages that wouldn't be shown by the
-command server or even appear in the racket-mode logger. Added as
-part of investigating issue #468.
-
-This assumes the process sentinel is set to `ignore' so we're not
-displaying the buffer for noise like \"process finished\"
-messages."
-  (when noninteractive ;emacs --batch
-    (princ (format "{racket-stderr}: %s\n" string)))
-  (when (buffer-live-p (process-buffer proc))
-    (with-current-buffer (process-buffer proc)
-      (setq header-line-format
-            "M-x racket-toggle-display-back-end-stderr to change automatically displaying this buffer")
-      (goto-char (process-mark proc))
-      (save-excursion
-        (insert string)
-        (set-marker (process-mark proc) (point))))
-    (when racket--display-stderr-p
-      (display-buffer (process-buffer proc)))))
 
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
   "A hash from nonce to callback function.")
