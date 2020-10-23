@@ -94,12 +94,6 @@ See issue #327.")
   (pcase (get-process racket--cmd-process-name)
     ((and (pred (processp)) proc) (delete-process proc))))
 
-(defun racket--call-when-connected-to-command-server (func)
-  "Call FUNC, starting the back end process if necessary."
-  (unless (racket--cmd-open-p)
-    (racket--cmd-open))
-  (funcall func (get-process racket--cmd-process-name)))
-
 (defun racket--cmd-process-stderr-filter (proc string)
   "Show back end process stderr via `message'.
 Won't show noise like \"process finished\" if process sentinel is
@@ -166,17 +160,15 @@ CALLBACK is called, as it was when the command was sent. If you
 need to do something to do that original buffer, save the
 `current-buffer' in a `let' and use it in a `with-current-buffer'
 form. See `racket--restoring-current-buffer'."
-  (racket--call-when-connected-to-command-server
-   (lambda (process)
-     (cl-incf racket--cmd-nonce)
-     (when (and callback
-                (not (equal callback #'ignore)))
-       (puthash racket--cmd-nonce callback racket--cmd-nonce->callback))
-     (process-send-string
-      process
-      (format "%S\n" (cons racket--cmd-nonce
-                           (cons repl-session-id
-                                 command-sexpr)))))))
+  (unless (racket--cmd-open-p)
+    (racket--cmd-open))
+  (cl-incf racket--cmd-nonce)
+  (when (and callback
+             (not (equal callback #'ignore)))
+    (puthash racket--cmd-nonce callback racket--cmd-nonce->callback))
+  (process-send-string
+   (get-process racket--cmd-process-name)
+   (format "%S\n" `(,racket--cmd-nonce ,repl-session-id . ,command-sexpr))))
 
 (defun racket--cmd/async (repl-session-id command-sexpr &optional callback)
   "You probably want to use this instead of `racket--cmd/async-raw'.
