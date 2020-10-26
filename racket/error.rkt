@@ -1,10 +1,14 @@
 #lang at-exp racket/base
 
-(require (only-in pkg/db get-catalogs)
-         (only-in pkg/lib pkg-catalog-suggestions-for-module)
+(require (only-in pkg/db
+                  get-catalogs)
+         (only-in pkg/lib
+                  pkg-catalog-suggestions-for-module
+                  pkg-directory)
          racket/format
          racket/match
          racket/string
+         setup/dirs
          "fresh-line.rkt"
          "instrument.rkt"
          "stack-checkpoint.rkt"
@@ -12,7 +16,7 @@
 
 (provide display-exn
          our-error-display-handler
-         show-full-path-in-errors)
+         prevent-path-elision-by-srcloc->string)
 
 (module+ test
   (require rackunit))
@@ -24,7 +28,8 @@
   (cond [(exn? v)
          (unless (equal? "Check failure" (exn-message v)) ;rackunit check fails
            (fresh-line)
-           (display-commented (fully-qualify-error-path str))
+           (display-commented (complete-paths
+                               (undo-path->relative-string/library str)))
            (display-srclocs v)
            (unless (exn:fail:user? v)
              (display-context v))
@@ -54,19 +59,24 @@
     (for ([s (in-list srclocs)])
       (display-commented (source-location->string s)))))
 
-;; Don't use source-location->string from syntax/srcloc. Don't want
-;; the setup/path-to-relative behavior that replaces full pathnames
-;; with <collects>, <pkgs> etc. Instead want full pathnames for Emacs'
-;; compilation-mode. HOWEVER note that <collects> or <pkgs> might be
-;; baked into exn-message string already; we handle that in
-;; `fully-qualify-error-path`. Here we handle only strings we create
-;; ourselves, such as for the Context "stack trace".
+(module+ test
+  (let ([o (open-output-string)])
+    (parameterize ([current-error-port o])
+      (display-srclocs (make-exn:fail:read "..."
+                                           (current-continuation-marks)
+                                           '())))
+    (check-equal? (get-output-string o) "")))
+
+;; We don't use source-location->string from syntax/srcloc, because we
+;; don't want the setup/path-to-relative behavior that elides complete
+;; pathnames with prefixes like "<pkgs>/" etc. For strings we create
+;; ourselves, we use our own such function, defined here.
 (define (source-location->string x)
   (define src
     ;; Although I want to find/fix this properly upstream -- is
     ;; something a path-string? when it should be a path? -- for now
     ;; just catch here the case where the source is a string like
-    ;; "\"/path/to/file.rkt\"" i.e. in quotes.
+    ;; "\"/path/to/file.rkt\"" i.e. the string value has quotes.
     (match (srcloc-source x)
       [(pregexp "^\"(.+)\"$" (list _ unquoted)) unquoted]
       [v v]))
@@ -93,9 +103,6 @@
                    s))])]))
 
 (define (context->string xs)
-  ;; Limit the context in two ways:
-  ;; 1. Don't go beyond error-print-context-length
-  ;; 2. Don't go into "system" context that's just noisy.
   (string-join (for/list ([x xs]
                           [_ (error-print-context-length)])
                  (context-item->string x))
@@ -108,59 +115,121 @@
       (if (and srcloc id) " " "")
       (if id (format "~a" id) "")))
 
-;;; Fully-qualified pathnames for Emacs compilation-mode
+;;; Complete pathnames for Emacs
 
-;; srcloc->string uses current-directory-for-user to shorten error
-;; messages. But we always want full pathnames. Setting it to
-;; 'pref-dir -- very unlikely user .rkt file will be there -- is
-;; least-worst way AFAIK.
-(define (show-full-path-in-errors)
+;; The background here is that want source locations in error messages
+;; to use complete pathnames ("complete" as in complete-path? a.k.a.
+;; "absolute" plus drive letter on Windows). That way, Emacs features
+;; like compilation-mode's next-error command will work nicely.
+;;
+;; - When we create strings from srclocs, ourselves: We create them
+;;   that way. See source-location->string defined/used in this file.
+;;
+;; - When other things create strings from scrlocs: We try to prevent
+;;   them from eliding in the first place. And since we can't always
+;;   prevent, we try to undo any elision baked into the error message
+;;   by the time we get it. As a sanity check, we don't transform
+;;   things into complete pathnames unless the result actually exists.
+
+;; srcloc->string from racket/base uses current-directory-for-user to
+;; elide paths. Setting that to 'pref-dir -- where it is very unlikely
+;; a user's source file will be -- should prevent it from eliding
+;; anything.
+(define (prevent-path-elision-by-srcloc->string)
   (current-directory-for-user (find-system-path 'pref-dir)))
 
-;; If this looks like a Racket error message, but the filename is
-;; not fully-qualified, prepend curdir to the filename.
-;;
-;; This covers Racket 5.3.6 and earlier. In fact, this might be
-;; sufficient for _all_ versions of Racket and we don't need the
-;; `show-full-path-in-errors` thing above, at all. Not yet sure.
-(define (fully-qualify-error-path s)
-  (match s
-    [(pregexp "^([^:]+):(\\d+)[:.](\\d+)(.*)$"
-              (list _ path line col more))
-     #:when (not (absolute-path? path))
-     (~a (string-join (list (path->string
-                             (build-path (current-directory) path))
-                            line
-                            col)
-                      ":")
-         more)]
-    [s s]))
+;; The source-location->string function provided by syntax/srcloc uses
+;; path->relative-string/library to elide paths with prefixes like
+;; <pkgs>/ or <collects>/. We avoid using that function in this
+;; module, for example in display-srclocs and in context-item->string
+;; above. However things like racket/contract use syntax/srcloc and
+;; those prefixes might be baked into exn-message. Here we try to undo
+;; this for things that look like such source locations.
+(define (undo-path->relative-string/library s)
+  (regexp-replace*
+   #px"(<(.+?)>/(.+?)):(\\d+[:.]\\d+)"
+   s
+   (λ (_ prefix+rel-path prefix rel-path line+col)
+     (define (f dir [rel rel-path])
+       (existing (simplify-path (build-path dir rel))))
+     (~a (or (and (path-string? rel-path)
+                  (match prefix
+                    ["collects" (f (find-collects-dir))]
+                    ["user"     (f (find-user-collects-dir))]
+                    ["doc"      (f (find-doc-dir))]
+                    ["user-doc" (f (find-user-doc-dir))]
+                    ["pkgs"     (match rel-path
+                                  [(pregexp "^(.+?)/(.+?)$" (list _ pkg-name more))
+                                   (f (pkg-directory pkg-name) more)]
+                                  [_ #f])]
+                    [_          #f]))
+             prefix+rel-path) ;keep as-is
+         ":" line+col))))
 
 (module+ test
-  (require rackunit)
-  (case (system-type 'os)
-    [(windows)
-     (check-equal?
-      (parameterize ([current-directory "c:\\tmp"])
-        (fully-qualify-error-path "foo.rkt:3:0: f: unbound identifier\n   in: f"))
-      "c:\\tmp\\foo.rkt:3:0: f: unbound identifier\n   in: f")
-     (check-equal?
-      (fully-qualify-error-path "c:\\tmp\\foo.rkt:3:0: f: unbound identifier\n   in: f")
-      "c:\\tmp\\foo.rkt:3:0: f: unbound identifier\n   in: f")]
-    [(macosx unix)
-     (check-equal?
-      (parameterize ([current-directory "/tmp/"])
-        (fully-qualify-error-path "foo.rkt:3:0: f: unbound identifier\n   in: f"))
-      "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
-     (check-equal?
-      (fully-qualify-error-path "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")
-      "/tmp/foo.rkt:3:0: f: unbound identifier\n   in: f")])
-  (let ([o (open-output-string)])
-    (parameterize ([current-error-port o])
-      (display-srclocs (make-exn:fail:read "..."
-                                           (current-continuation-marks)
-                                           '())))
-    (check-equal? (get-output-string o) "")))
+  (check-equal? (undo-path->relative-string/library "<collects>/racket/file.rkt:1:0:")
+                (~a (build-path (find-collects-dir) "racket/file.rkt") ":1:0:"))
+  (check-equal? (undo-path->relative-string/library "<doc>/2d/index.html:1:0:")
+                (~a (build-path (find-doc-dir) "2d/index.html") ":1:0:"))
+  ;; Note: No test for <user-doc> because unlikely to work on Travis CI
+  (let ([non-existing "<collects>/racket/does-not-exist.rkt:1:0 blah blah blah"])
+   (check-equal? (undo-path->relative-string/library non-existing)
+                 non-existing
+                 "does not change to non-existing pathname")))
+
+(module+ test
+  (let ()
+    (local-require racket/path
+                   setup/path-to-relative
+                   drracket/find-module-path-completions)
+    (define-values (_links _paths pkg-dirs)
+      (alternate-racket-clcl/clcp (find-system-path 'exec-file) (box #f)))
+    (printf "Checking .rkt files in ~v packages...\n" (length pkg-dirs))
+    (define c (make-hash))
+    (for ([item (in-list pkg-dirs)])
+      (match item
+        [(list (? string?) (? path? dir))
+         (for ([p (in-directory dir)]
+               #:when (equal? #".rkt" (path-get-extension p)))
+           (define complete (~a p                                           ":1.0"))
+           (define relative (~a (path->relative-string/library p #:cache c) ":1.0"))
+           (define undone (undo-path->relative-string/library relative))
+           (check-equal? undone complete))]
+        [_ (void)]))))
+
+;; If this looks like a source location where the pathname is not
+;; complete, prepend current-directory if that results in an actually
+;; existing file.
+(define (complete-paths s)
+  (regexp-replace*
+   #px"([^:]+):(\\d+[:.]\\d+)"
+   s
+   (λ (_ orig-path line+col)
+     (~a (or (and (not (complete-path? orig-path))
+                  (existing (build-path (current-directory) orig-path)))
+             orig-path)
+         ":" line+col))))
+
+(define (existing p)
+  (and (path? p) (file-exists? p) p))
+
+(module+ test
+  (let ()
+    (local-require racket/file
+                   racket/path)
+    (define temp-dir (find-system-path 'temp-dir))
+    (define example (make-temporary-file "racket-mode-test-~a" #f temp-dir))
+    (define name (file-name-from-path example))
+    (parameterize ([current-directory temp-dir])
+      (let ([suffix ":3:0: f: unbound identifier\n   in: f"])
+        (check-equal? (complete-paths (~a name suffix))
+                      (~a (build-path temp-dir name) suffix)
+                      "relative path: curdir prepended when that is an existing file"))
+      (let ([msg (~a example ":3:0: f: unbound identifier\n   in: f")])
+        (check-equal? (complete-paths msg)
+                      msg
+                      "already complete path: no change")))
+    (delete-file example)))
 
 ;;; packages
 

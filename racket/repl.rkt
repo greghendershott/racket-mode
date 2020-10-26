@@ -196,7 +196,7 @@
   ;; see #492 -- to the source file's directory.
   (current-directory dir)
   ;; Make src-loc->string provide full pathnames
-  (show-full-path-in-errors)
+  (prevent-path-elision-by-srcloc->string)
   ;; Custodian for the REPL.
   (define repl-cust (make-custodian))
   (when (< 0 mem-limit)
