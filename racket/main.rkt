@@ -4,6 +4,7 @@
          racket/port
          version/utils
          "command-server.rkt"
+         (only-in "image.rkt" emacs-can-use-svg!)
          "repl.rkt")
 
 (module+ main
@@ -16,7 +17,8 @@
 
   (define launch-token
     (match (current-command-line-arguments)
-      [(vector token)
+      [(vector token svg-flag-str)
+       (emacs-can-use-svg! svg-flag-str)
        token]
       [v
        (eprintf "Bad command-line arguments: ~v\n" v)

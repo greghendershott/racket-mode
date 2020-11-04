@@ -7,15 +7,33 @@
          racket/format
          racket/match)
 
-(provide convert-image)
+(provide emacs-can-use-svg!
+         convert-image)
+
+;; Emacs front end tells us whether SVG is an image file type Emacs
+;; can render.
+(define use-svg? #t)
+(define (emacs-can-use-svg! command-line-flag-str)
+  (set! use-svg? (equal? command-line-flag-str "--use-svg")))
 
 (define (convert-image v)
   (and (convertible? v)
-       (for/or ([fmt/ext (in-list '((svg-bytes+bounds "svg")
-                                    (png-bytes+bounds "png")
-                                    (svg              "svg")
-                                    (png-bytes        "png")))])
-         (apply convert-and-save v fmt/ext))))
+       ;; Rationale for the order here:
+       ;;
+       ;; - Try bounded before unbounded flavors. Because we want
+       ;;   accurate image width, if available, for pretty-printing.
+       ;;
+       ;; - Within each flavor: Try svg (if this Emacs can use it)
+       ;;   before png. Because space.
+       (let ([fmts/exts (if use-svg?
+                            '((svg-bytes+bounds "svg")
+                              (png-bytes+bounds "png")
+                              (svg-bytes        "svg")
+                              (png-bytes        "png"))
+                            '((png-bytes+bounds "png")
+                              (png-bytes        "png")))])
+         (for/or ([fmt/ext (in-list fmts/exts)])
+           (apply convert-and-save v fmt/ext)))))
 
 (define (convert-and-save v fmt ext)
   (define (default-width _) 4096)

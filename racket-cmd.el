@@ -87,7 +87,15 @@ See issue #327.")
                      :sentinel #'ignore)
    :command         (list racket-program
                           (funcall racket-adjust-run-rkt racket--run.rkt)
-                          (setq racket--cmd-auth (format "%S" `(auth ,(random)))))
+                          (setq racket--cmd-auth (format "%S" `(auth ,(random))))
+                          (if (and (boundp 'image-types)
+                                   (fboundp 'image-type-available-p)
+                                   (or (and (memq 'svg image-types)
+                                            (image-type-available-p 'svg))
+                                       (and (memq 'imagemagick image-types)
+                                            (image-type-available-p 'imagemagick))))
+                              "--use-svg"
+                            "--do-not-use-svg"))
    :filter          #'racket--cmd-process-filter))
 
 (defun racket--cmd-close ()
