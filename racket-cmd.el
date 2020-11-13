@@ -28,6 +28,9 @@
 (declare-function  racket--logger-on-notify "racket-logger" (str))
 (autoload         'racket--logger-on-notify "racket-logger")
 
+(declare-function  racket--trace-on-notify "racket-trace" (str))
+(autoload         'racket--trace-on-notify "racket-trace")
+
 ;;;###autoload
 (defun racket-start-back-end ()
   "Start the back end process used by Racket Mode.
@@ -141,6 +144,8 @@ direct response to one command request."
   (pcase response
     (`(logger ,str)
      (run-at-time 0.001 nil #'racket--logger-on-notify str))
+    (`(trace . ,data)
+     (run-at-time 0.001 nil #'racket--trace-on-notify data))
     (`(debug-break . ,response)
      (run-at-time 0.001 nil #'racket--debug-on-break response))
     (`(,nonce . ,response)

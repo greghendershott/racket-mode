@@ -12,6 +12,7 @@
          "repl.rkt"
          "repl-session.rkt"
          (only-in "scribble.rkt" libs-exporting-documented)
+         "trace.rkt"
          "util.rkt")
 
 (lazy-require
@@ -77,6 +78,7 @@
   (define (write-responses-forever)
     (elisp-writeln (sync response-channel
                          logger-notify-channel
+                         trace-notify-channel
                          debug-notify-channel)
                    out)
     (flush-output out)
