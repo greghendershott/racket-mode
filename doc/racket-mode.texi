@@ -430,26 +430,50 @@ This changes the behavior of Emacs' standard @code{indent-for-tab-command}, to w
 @node Xref (definitions and references)
 @section Xref (definitions and references)
 
-Racket Mode supports the Emacs commands @code{xref-find-definitions} @kbd{M-.} , @code{xref-find-references} @kbd{M-?} , and @code{xref-pop-marker-stack} @kbd{M-,}  by supplying an ``xref back end'' for each of several modes:
+Several modes support the Emacs commands
 
 @itemize
 @item
-@ref{racket-mode}
+@kbd{M-.}  @code{xref-find-definitions}
 @item
-@ref{racket-xp-mode}
+@kbd{M-?}  @code{xref-find-references}
 @item
-@ref{racket-repl-mode}
+@kbd{M-,}  @code{xref-pop-marker-stack}
 @end itemize
 
-Racket doesn't have the concept of a global or project-wide database of definitions and references. Furthermore, various modules can export identifiers with the same symbolic value, for example a different @code{define} is provided by @code{racket/base}, @code{typed/racket/base}, and other modules. In addition, a module can import, rename, contract, and re-export things.
+To do so, each mode adds a local hook for @code{xref-backend-functions}:
 
-As a result, to find a definition, it is necessary to know exactly @emph{which} identifier --- either by expanding the module (as is done by @code{racket-xp-mode}) or by actually running it (@code{racket-repl-mode}). Once known, we can usually find the definition site, even through a chain of renaming and/or contract-wrapping exports. In addition, when point is in an absolute or relative  @code{require} form, we can usually find the source file. (In plain @code{racket-mode} edit buffers not enhanced by @code{racket-xp-mode}, the only thing that @code{xref-find-definitions} does is visit relative requires, e.g. @code{foo.rkt} in @code{(require "foo.rkt")}.)
+@itemize
+@item
+@ref{racket-mode}: @code{#'racket-mode-xref-backend-function}
+@item
+@ref{racket-xp-mode}: @code{#'racket-xp-xref-backend-function}
+@item
+@ref{racket-repl-mode}: @code{#'racket-repl-xref-backend-function}
+@end itemize
 
-As for finding references, the default xref implementation is used, which greps for strings among a project's files. Although @code{racket-xp-mode} can sometimes do better, using @code{drracket/check-syntax} for @emph{intra} file definitions and references, beyond those it also falls back to the default implementation.
+If you prefer, you can remove the local hook --- e.g. for @code{racket-mode}: @code{(remove-hook 'xref-backend-functions #'racket-mode-xref-function t)}.
+
+You can @code{M-x customize-group} and enter @code{xref} to adjust some other settings. For example, the customization variable @code{xref-prompt-for-identifier} controls which commands prompt you and when. You might prefer to set it to @code{nil}.
+
+If you use @code{paredit}, by default it binds @kbd{M-?}  to @code{paredit-convolute-sexp}. You can change that binding in @code{paredit-mode-map} allowing the global binding for @kbd{M-?}  to be used, or, pick some other key for @code{xref-find-references} in the global map.
+
+Finally, what to expect:
+
+@itemize
+@item
+Racket does not have a global or project-wide database of definitions and references.
+@item
+Various modules can export identifiers with the same symbolic value -- for example a different ``define'' is provided by @code{racket/base}, @code{typed/racket/base}, and other modules.
+@item
+A module can import something, then rename, contract, and re-export it.
+@end itemize
+
+As a result, to find a definition, it is necessary to know exactly @emph{which} identifier is meant --- either by expanding the module (as is done by @code{racket-xp-mode}) or by actually running it (@code{racket-repl-mode}). Once known, we can usually find the definition site, even through a chain of renaming and/or contract-wrapping exports. In addition, when point is on a module within  @code{require} form, we can usually find the source file. (In plain @code{racket-mode} edit buffers not enhanced by @code{racket-xp-mode}, the only thing that @code{xref-find-definitions} does is visit relative requires, e.g. @code{foo.rkt} in @code{(require "foo.rkt")}.)
+
+As for finding references, the default xref implementation is used, which greps for strings among a project's files. Although @code{racket-xp-mode} can sometimes do better, using @code{drracket/check-syntax} for definitions and references @emph{within} the current buffer, beyond those it also falls back to the default implementation.
 
 In any case, using the Emacs xref API allows for consistent command names, shortcut keys, and even a special buffer to navigate among references and visit each source location.
-
-Tip: If you use @code{paredit}, by default it steals @kbd{M-?}  for @code{paredit-convolute-sexp}. You can either change that binding in @code{paredit-mode-map} or pick some other key for @code{xref-find-references}.
 
 @node Indent
 @section Indent
