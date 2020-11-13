@@ -29,6 +29,7 @@
 (require 'racket-repl)
 (require 'racket-util)
 (require 'hideshow)
+(require 'xref)
 
 (defun racket-racket ()
   "Do \"racket <file>\" in a shell buffer."
@@ -503,6 +504,13 @@ completion candidates, enable the minor mode `racket-xp-mode'."
            :predicate #'identity
            :exclusive 'no))))
 
+;;; lispy
+
+;; <https://github.com/abo-abo/lispy/blob/master/le-racket.el> expects
+;; this in 'racket-edit
+(define-obsolete-function-alias 'racket-lispy-visit-symbol-definition
+  #'xref-find-definitions "2020-11"
+  "Function called by lispy.el's `lispy-goto-symbol' for Racket.")
 
 (provide 'racket-edit)
 

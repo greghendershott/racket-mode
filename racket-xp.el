@@ -23,13 +23,14 @@
 (require 'racket-describe)
 (require 'racket-eldoc)
 (require 'racket-imenu)
-(require 'racket-visit)
 (require 'racket-util)
+(require 'racket-visit)
 (require 'racket-show)
 (require 'racket-xp-complete)
 (require 'rx)
 (require 'easymenu)
 (require 'imenu)
+(require 'xref)
 
 (declare-function racket-complete-at-point "racket-mode.el")
 
@@ -49,7 +50,8 @@ everything. If you find that too \"noisy\", set this to nil.")
      ("k" ,#'racket-xp-previous-definition)
      ("n" ,#'racket-xp-next-use)
      ("p" ,#'racket-xp-previous-use)
-     ("." ,#'racket-xp-visit-definition)
+     ("." ,#'xref-find-definitions)
+     ("?" ,#'xref-find-references)
      ("r" ,#'racket-xp-rename)
      ("g" ,#'racket-xp-annotate)
      ("N" ,#'racket-xp-next-error)
@@ -58,13 +60,13 @@ everything. If you find that too \"noisy\", set this to nil.")
 (defvar racket-xp-mode-map
   (racket--easy-keymap-define
    `(("C-c #"     ,racket-xp-control-c-hash-keymap)
-     ("M-."       ,#'racket-xp-visit-definition)
+     ("M-."       ,#'xref-find-definitions)
      ("C-c C-."   ,#'racket-xp-describe)
      ("C-c C-d"   ,#'racket-xp-documentation))))
 
 (easy-menu-define racket-xp-mode-menu racket-xp-mode-map
   "Menu for `racket-xp-mode'."
-  '("RacketXP"
+  '("Racket-XP"
     ["Next Error" racket-xp-next-error]
     ["Previous Error" racket-xp-previous-error]
     "---"
@@ -76,8 +78,9 @@ everything. If you find that too \"noisy\", set this to nil.")
     "---"
     ["Rename" racket-xp-rename]
     "---"
-    ["Visit Definition" racket-xp-visit-definition]
-    ["Return from Visit" racket-unvisit]
+    ["Visit Definition" xref-find-definitions]
+    ["Return from Visit" xref-pop-marker-stack]
+    ["Find References" xref-find-references]
     "---"
     ["Racket Documentation" racket-xp-documentation]
     ["Describe" racket-xp-describe]
@@ -183,6 +186,15 @@ If you have one or more syntax errors, `racket-xp-next-error' and
 languages will stop after the first syntax error, some like Typed
 Racket will try to collect and report multiple errors.
 
+You may use `xref-find-definitions' \\[xref-find-definitions],
+`xref-pop-marker-stack' \\[xref-pop-marker-stack], and
+`xref-find-references': `racket-xp-mode' adds a backend to the
+variable `xref-backend-functions'. This backend uses information
+from the drracket/check-syntax static analysis. Its ability to
+find references is limited to the current file; when it finds
+none it will try the default xref backend implementation which is
+grep-based.
+
 Tip: This mode follows the convention that a minor mode may only
 use a prefix key consisting of \"C-c\" followed by a punctuation
 key. As a result, `racket-xp-control-c-hash-keymap' is bound to
@@ -219,6 +231,9 @@ commands directly to whatever keys you prefer.
                             `(module-names)
                             (lambda (result)
                               (setq racket--xp-module-completions result)))
+         (add-hook 'xref-backend-functions
+                   #'racket-xp-xref-backend-function
+                   nil t)
          (setq-local imenu-create-index-function #'racket-xp-imenu-create-index-function)
          (add-hook 'pre-redisplay-functions
                    #'racket-xp-pre-redisplay
@@ -236,6 +251,9 @@ commands directly to whatever keys you prefer.
                    #'racket-complete-at-point
                    t t)
          (setq-local imenu-create-index-function #'racket-imenu-create-index-function)
+         (remove-hook 'xref-backend-functions
+                      #'racket-xp-xref-backend-function
+                      t)
          (remove-hook 'pre-redisplay-functions
                       #'racket-xp-pre-redisplay
                       t))))
@@ -243,9 +261,10 @@ commands directly to whatever keys you prefer.
 (defun racket-xp-describe (&optional prefix)
 "Describe the identifier at point in a `*Racket Describe*` buffer.
 
-With \\[universal-argument] prompts you, but in this case beware
-it assumes definitions in or imported by the file module -- not
-locals or definitions in submodules.
+With \\[universal-argument] you are prompted enter the
+identifier, but in this case it only considers definitions or
+imports at the file's module level -- not local bindings nor
+definitions in submodules.
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
@@ -263,7 +282,7 @@ press F1 or C-h in its pop up completion list.
 
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for `racket-xp-visit-definition'
+TAB, and activate using RET -- for `xref-find-definitions'
 and `racket-xp-documentation'."
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
@@ -278,27 +297,16 @@ and `racket-xp-documentation'."
                   (`(,path ,anchor) `(,path . ,anchor))
                   (_                (racket--buffer-file-name))))
            ;; These two thunks are effectively lazy
-           ;; `racket-xp-visit-definition' and
-           ;; `racket-xp-documentation'. The thunks might be called
-           ;; later, if/when the user "clicks" a "button" in the
-           ;; `racket-describe-mode' buffer. By the time that happens,
-           ;; this `racket-mode' buffer might no longer exist. Even if
-           ;; it exists, point may have changed. That's why it is
-           ;; important to capture values from the `racket-mode'
-           ;; buffer, now.
+           ;; `xref-find-definitions' and `racket-xp-documentation'.
+           ;; The thunks might be called later, if/when the user
+           ;; "clicks" a "button" in the `racket-describe-mode'
+           ;; buffer. By the time that happens, this `racket-mode'
+           ;; buffer might no longer exist. Even if it exists, point
+           ;; may have changed. That's why it is important to capture
+           ;; values from the `racket-mode' buffer, now.
            (visit-thunk
-            (pcase (get-text-property (point) 'racket-xp-visit)
-              (`(,path ,subs ,ids)
-               (let ((bfn (racket--buffer-file-name)))
-                 (lambda ()
-                   (racket--do-visit-def-or-mod
-                    nil
-                    `(def/drr ,bfn ,path ,subs ,ids)))))
-              (_
-               (pcase (get-text-property (point) 'racket-xp-def)
-                 (`(import ,id . ,_)
-                  (lambda ()
-                    (racket--do-visit-def-or-mod nil `(mod ,id))))))))
+            (pcase (xref-backend-definitions 'racket-xp-xref str)
+              (`(,xref) (lambda () (racket--pop-to-xref-location xref)))))
            (doc-thunk
             (pcase (get-text-property (point) 'racket-xp-doc)
               (`(,path ,anchor)
@@ -410,56 +418,6 @@ or `racket-repl-describe'."
     (set-window-parameter window param nil))
   (racket-xp-pre-redisplay window))
 
-(defun racket-xp-visit-definition (&optional prefix)
-  "When point is on a use, go to its definition.
-
-With \\[universal-argument] prompts you, but in this case beware
-it assumes definitions in or imported by the file module -- not
-locals or definitions in submodules."
-  (interactive "P")
-  (if prefix
-      (pcase (racket--symbol-at-point-or-prompt t "Visit definition of: "
-                                                racket--xp-binding-completions)
-        ((and (pred stringp) str)
-         (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str))))
-    (or
-     ;; Use of binding defined in this file
-     (pcase (get-text-property (point) 'racket-xp-use)
-       (`(,beg ,_end)
-        (pcase (get-text-property beg 'racket-xp-def)
-          (`(local ,_id ,_uses)
-           (racket--push-loc)
-           (goto-char beg)
-           t))))
-     ;; Something annotated for jump-to-def by drracket/check-syntax
-     (pcase (get-text-property (point) 'racket-xp-visit)
-       (`(,path ,subs ,ids)
-        (racket--do-visit-def-or-mod
-         nil
-         `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids))
-        t))
-     ;; Annotated by dr/cs as imported module; visit the module
-     (pcase (get-text-property (point) 'racket-xp-def)
-       (`(import ,_id . ,_)
-        (racket-visit-module prefix)
-        t))
-     ;; Something that, for whatever reason, drracket/check-syntax did
-     ;; not annotate.
-     (if (racket--in-require-form-p)
-         ;; If point within a textually apparent require form, assume
-         ;; it is more likely that dr/cs didn't annotate a module name
-         ;; (as opposed to some piece of require transformer syntax)
-         ;; and therefore defer to `racket-visit-module'.
-         (racket-visit-module)
-       ;; Try using the 'def command. This might result in opening the
-       ;; defining file at 1:0, or in a "defined in #%kernel" or "not
-       ;; found" message. Ut that's better UX than nothing at all
-       ;; happening.
-       (pcase (racket--symbol-at-point-or-prompt nil "Visit definition of: "
-                                                 racket--xp-binding-completions)
-         ((and (pred stringp) str)
-          (racket--do-visit-def-or-mod nil `(def ,(buffer-file-name) ,str))))))))
-
 (defun racket-xp-documentation (&optional prefix)
   "View documentation in an external web browser.
 
@@ -474,7 +432,6 @@ The command varies based on how many \\[universal-argument] command prefixes you
    this case, the variable `racket-documentation-search-location'
    determines whether the search is done locally as with `raco
    doc`, or visits a URL.
-
 2. \\[universal-argument]
 
    Prompts you to enter a symbol, defaulting to the symbol at
@@ -649,6 +606,87 @@ evaluation errors that won't be found merely from expansion -- or
 (defun racket-xp-previous-error ()
   (interactive)
   (racket--xp-next-error -1 nil))
+
+;;; xref
+
+(defun racket-xp-xref-backend-function ()
+  'racket-xp-xref)
+
+(cl-defmethod xref-backend-identifier-at-point ((_backend (eql racket-xp-xref)))
+  (or (racket--module-path-name-at-point)
+      (thing-at-point 'symbol)))
+
+(cl-defmethod xref-backend-identifier-completion-table ((_backend (eql racket-xp-xref)))
+  (completion-table-dynamic
+   (lambda (prefix)
+     (all-completions prefix racket--xp-binding-completions))))
+
+(cl-defmethod xref-backend-definitions ((_backend (eql racket-xp-xref)) str)
+  (or
+   (pcase (get-text-property 0 'racket-module-path str)
+     (`absolute
+      (pcase (racket--cmd/await nil `(mod ,(substring-no-properties str)))
+        (`(,path ,line ,col)
+         (list (xref-make str (xref-make-file-location path line col))))))
+     (`relative
+      (let ((path (expand-file-name (substring-no-properties str 1 -1))))
+        (list (xref-make str (xref-make-file-location path 1 0))))))
+   ;; Something annotated for jump-to-definition by drracket/check-syntax
+   (pcase (get-text-property 0 'racket-xp-visit str)
+     (`(,path ,subs ,ids)
+      (pcase (racket--cmd/await nil `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids))
+        (`(,path ,line ,col)
+         (list (xref-make str
+                          (xref-make-file-location path line col)))))))
+   (pcase (get-text-property 0 'racket-xp-use str)
+     (`(,beg ,end)
+      (list
+       (xref-make (buffer-substring beg end)
+                  (xref-make-buffer-location (current-buffer)
+                                             (marker-position beg))))))
+   ;; Annotated by dr/cs as imported module; visit the module
+   (pcase (get-text-property 0 'racket-xp-def str)
+     (`(import ,id . ,_)
+      (xref-backend-definitions 'racket-xref-module id)))
+   ;; Something that, for whatever reason, drracket/check-syntax did
+   ;; not annotate.
+   (pcase (racket--cmd/await nil `(def ,(racket--buffer-file-name)
+                                       ,(substring-no-properties str)))
+     (`(,path ,line ,col)
+      (list (xref-make str
+                       (xref-make-file-location path line col))))
+     (`kernel
+      (list (xref-make str
+                       (xref-make-bogus-location
+                        "Defined in #%%kernel -- source not available")))))))
+
+(cl-defmethod xref-backend-references ((backend (eql racket-xp-xref)) str)
+  ;; Note: Our ability to find references is limited to those
+  ;; annotated by drracket/check-syntax. Currently this includes only:
+  ;;
+  ;; 1. References within this file to bindings defined within this
+  ;;    file. (The good news is, this does include lexical bindings.)
+  ;;
+  ;; 2. References within this file to bindings from an imported
+  ;;    module (required, or, the #lang).
+  ;;
+  ;; Otherwise, we're out of luck because there exists no datbase of
+  ;; references project-wide.
+  (or (pcase (get-text-property 0 'racket-xp-def str)
+        (`(,_any-kind ,_def ,uses)
+         (mapcar (lambda (use)
+                   (pcase-let ((`(,beg ,end) use))
+                     (xref-make
+                      (buffer-substring beg end)
+                      (xref-make-buffer-location
+                       (current-buffer) (marker-position beg)))))
+                 uses)))
+      ;; As a fallback use the xref-backend-references default
+      ;; implementation, which greps major-mode files within the
+      ;; project. Be careful to strip properties because it is given
+      ;; to grep. Also be careful with major-mode-alist regexps as
+      ;; they're given to grep.
+      (cl-call-next-method backend (substring-no-properties str))))
 
 ;;; Change hook and idle timer
 

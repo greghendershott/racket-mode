@@ -96,7 +96,7 @@ Although Racket Mode can be customized with many {{{ref(Variables)}}}, there is 
 
 On Windows or Linux, this default will probably work for you.
 
-On macOS, downloading Racket doesn't add its ~bin~ directory to your ~PATH~. Even after you add it, GUI Emacs doesn't automatically use your path (unless you use the handy [[https://melpa.org/#/exec-path-from-shell][exec-path-from-shell]] package). Therefore you might want to set ~racket-program~ to a full pathname like ~/usr/racket/bin/racket~.
+On macOS, downloading Racket doesn't add its ~bin~ directory to your ~PATH~. Even after you add it, GUI Emacs doesn't automatically use your path (unless you use the handy [[https://melpa.org/#/exec-path-from-shell][exec-path-from-shell]] package). Therefore you might want to set ~racket-program~ to a complete pathname.
 
 You can ~setq~ this directly in your Emacs init file (=~/.emacs= or =~/.emacs.d/init.el=), or, use {{{kbd(M-x)}}} ~customize~, as you prefer.
 
@@ -145,6 +145,24 @@ If you want {{{kbd(TAB)}}} to do completion as well as indent, add the following
 #+END_SRC
 
 This changes the behavior of Emacs' standard ~indent-for-tab-command~, to which {{{kbd(TAB)}}} is bound by default in ~racket-mode~ and ~racket-repl-mode~.
+
+** Xref (definitions and references)
+
+Racket Mode supports the Emacs commands ~xref-find-definitions~ {{{kbd(M-.)}}}, ~xref-find-references~ {{{kbd(M-?)}}}, and ~xref-pop-marker-stack~ {{{kbd(M-\,)}}} by supplying an "xref back end" for each of several modes:
+
+- {{{ref(racket-mode)}}}
+- {{{ref(racket-xp-mode)}}}
+- {{{ref(racket-repl-mode)}}}
+
+Racket doesn't have the concept of a global or project-wide database of definitions and references. Furthermore, various modules can export identifiers with the same symbolic value, for example a different ~define~ is provided by ~racket/base~, ~typed/racket/base~, and other modules. In addition, a module can import, rename, contract, and re-export things.
+
+As a result, to find a definition, it is necessary to know exactly /which/ identifier --- either by expanding the module (as is done by ~racket-xp-mode~) or by actually running it (~racket-repl-mode~). Once known, we can usually find the definition site, even through a chain of renaming and/or contract-wrapping exports. In addition, when point is in an absolute or relative  ~require~ form, we can usually find the source file. (In plain ~racket-mode~ edit buffers not enhanced by ~racket-xp-mode~, the only thing that ~xref-find-definitions~ does is visit relative requires, e.g. ~foo.rkt~ in ~(require "foo.rkt")~.)
+
+As for finding references, the default xref implementation is used, which greps for strings among a project's files. Although ~racket-xp-mode~ can sometimes do better, using ~drracket/check-syntax~ for /intra/ file definitions and references, beyond those it also falls back to the default implementation.
+
+In any case, using the Emacs xref API allows for consistent command names, shortcut keys, and even a special buffer to navigate among references and visit each source location.
+
+Tip: If you use ~paredit~, by default it steals {{{kbd(M-?)}}} for ~paredit-convolute-sexp~. You can either change that binding in ~paredit-mode-map~ or pick some other key for ~xref-find-references~.
 
 ** Indent
 

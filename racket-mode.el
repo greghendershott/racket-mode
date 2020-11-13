@@ -69,8 +69,6 @@
      ("C-c C-p"     racket-cycle-paren-shapes)
      ("M-C-y"       racket-insert-lambda)
      ("C-c C-d"     racket-documentation-search)
-     ("M-C-."       racket-visit-module)
-     ("M-,"         racket-unvisit)
      ("C-c C-f"     racket-fold-all-tests)
      ("C-c C-u"     racket-unfold-all-tests)
      ((")" "]" "}") racket-insert-closing)))
@@ -112,8 +110,8 @@
     ["Align" racket-align]
     ["Unalign" racket-unalign]
     "---"
-    ["Visit Module" racket-visit-module]
-    ["Return from Visit" racket-unvisit]
+    ["Visit Module" xref-find-definitions]
+    ["Return from Visit" xref-pop-marker-stack]
     "---"
     ["Open Require Path" racket-open-require-path]
     ["Find Collection" racket-find-collection]
@@ -131,7 +129,8 @@
 ;;;###autoload
 (define-derived-mode racket-mode prog-mode
   "Racket"
-  "Major mode for editing Racket.
+  "Major mode for editing Racket source files.
+
 \\{racket-mode-map}"
   (racket--common-variables)
   (setq-local imenu-create-index-function #'racket-imenu-create-index-function)
@@ -143,11 +142,19 @@
                #'racket-repl-buffer-name-shared))
   (add-hook 'kill-buffer-hook
             #'racket-mode-maybe-offer-to-kill-repl-buffer
+            nil t)
+  (add-hook 'xref-backend-functions
+            #'racket-mode-xref-backend-function
             nil t))
 
 ;;;###autoload
 (progn
-  (add-to-list 'auto-mode-alist '("\\.rkt[dl]?\\'" . racket-mode))
+  ;; Use simple regexps for auto-mode-alist as they may be given to
+  ;; grep (e.g. by default implementation of `xref-find-references').
+  (add-to-list 'auto-mode-alist '("\\.rkt\\'" . racket-mode))
+  (add-to-list 'auto-mode-alist '("\\.rktd\\'" . racket-mode))
+  (add-to-list 'auto-mode-alist '("\\.rktl\\'" . racket-mode))
+  ;; "Fancier" regexp OK here:
   (modify-coding-system-alist 'file "\\.rkt[dl]?\\'"  'utf-8)
   (add-to-list 'interpreter-mode-alist '("racket" . racket-mode)))
 
@@ -209,6 +216,42 @@ the Racket \"Search Manuals\" page."
   (interactive)
   (racket--doc '(16) nil nil))
 
+;;; xref
+
+;; Note that this backend will be ignored when `racket-xp-mode' minor
+;; mode is active. This backend is a weak effort to do /something/ in
+;; plain `racket-mode' edit buffers, without using the Racket Mode
+;; back end process.
+;;
+;; Currently, aside from being able to visit relative require files,
+;; it just suggests using `racket-xp-mode' to find definitions.
+;;
+;; As for finding references: We just use the default
+;; `xref-backend-references' which greps within a project.
+;; `racket-xp-mode' is better only for intra-file references found by
+;; check-syntax; otherwise it defers to the same default, too.
+
+(defun racket-mode-xref-backend-function ()
+  'racket-mode-xref)
+
+(cl-defmethod xref-backend-identifier-at-point ((_backend (eql racket-mode-xref)))
+  (or (racket--module-path-name-at-point)
+      (thing-at-point 'symbol)))
+
+(cl-defmethod xref-backend-identifier-completion-table ((_backend (eql racket-mode-xref)))
+  (completion-table-dynamic #'ignore))
+
+(cl-defmethod xref-backend-definitions ((_backend (eql racket-mode-xref)) str)
+  (or (pcase (get-text-property 0 'racket-module-path str)
+        (`relative
+         (let ((path (expand-file-name (substring-no-properties str 1 -1))))
+           (list (xref-make str (xref-make-file-location path 1 0))))))
+      (list (xref-make str
+                       (xref-make-bogus-location
+                        "Cannot find definitions in plain `racket-mode'; see `racket-xp-mode'")))))
+
+;; Use the default `xref-backend-references', which greps within a project.
+
 ;;; Commands that predate `racket-xp-mode'
 
 (defun racket-doc ()
@@ -223,11 +266,7 @@ See: <https://github.com/greghendershott/racket-mode/issues/439>"
   (interactive)
   (describe-function 'racket-describe))
 
-(defun racket-visit-definition ()
-  "Instead please use `racket-xp-visit-definition' or `racket-repl-visit-definition'.
-See: <https://github.com/greghendershott/racket-mode/issues/439>"
-  (interactive)
-  (describe-function 'racket-visit-definition))
+;; See also `racket-visit-definition' alias in racket-visit.el
 
 (provide 'racket-mode)
 

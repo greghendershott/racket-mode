@@ -47,7 +47,7 @@ installed. To install it, in `shell' enter:
 Tip: This works best with `ido-enable-flex-matching' set to t.
 Also handy is the `flx-ido' package from MELPA.
 
-See also: `racket-visit-module' and `racket-open-require-path'."
+See also: `racket-open-require-path'."
   (interactive "P")
   (pcase (racket--symbol-at-point-or-prompt prefix "Collection name: ")
     (`() nil)

@@ -42,6 +42,7 @@
 
 (defconst racket-generate--commands
   `("Edit"
+    racket-mode
     racket-insert-lambda
     racket-fold-all-tests
     racket-unfold-all-tests
@@ -60,18 +61,17 @@
     racket-complete-at-point
     "Explore"
     racket-xp-mode
-    (racket-xp-visit-definition ,racket-xp-mode-map)
     (racket-xp-describe ,racket-xp-mode-map)
     (racket-xp-documentation ,racket-xp-mode-map)
     racket-documentation-search
     "Run"
+    racket-repl-mode
     racket-run
     racket-run-and-switch-to-repl
     racket-run-module-at-point
     racket-repl
     (racket-repl-describe ,racket-repl-mode-map)
     (racket-repl-documentation ,racket-repl-mode-map)
-    (racket-repl-visit-definition ,racket-repl-mode-map)
     racket-racket
     racket-profile
     racket-profile-mode
@@ -86,7 +86,6 @@
     racket-send-definition
     racket-send-last-sexp
     "Collections"
-    racket-visit-module
     racket-open-require-path
     racket-find-collection
     "Macro expand"
@@ -96,7 +95,6 @@
     racket-expand-definition
     racket-expand-last-sexp
     "Other"
-    racket-unvisit
     racket-mode-start-faster
     "Showing information"
     racket-show-pseudo-tooltip
@@ -324,10 +322,10 @@
   (with-temp-buffer
     (insert (key-description xs))
     (goto-char (point-min))
-    (while (re-search-forward (rx (or ?\, ?\`)) nil t)
+    (while (re-search-forward (rx (or ?\, ?\` ?\})) nil t)
       (let ((str (match-string-no-properties 0)))
         (replace-match "")
-        (insert "\\")
+        (insert (if (equal str "}") "@" "\\"))
         (insert str)))
     (buffer-substring-no-properties (point-min) (point-max))))
 

@@ -50,6 +50,7 @@ Configure
 * Key bindings::
 * Font-lock (syntax highlighting)::
 * Completion::
+* Xref (definitions and references)::
 * Indent::
 * paredit::
 * smartparens::
@@ -74,6 +75,7 @@ Commands
 
 Edit
 
+* racket-mode::
 * racket-insert-lambda::
 * racket-fold-all-tests::
 * racket-unfold-all-tests::
@@ -94,20 +96,19 @@ Edit
 Explore
 
 * racket-xp-mode::
-* racket-xp-visit-definition::
 * racket-xp-describe::
 * racket-xp-documentation::
 * racket-documentation-search::
 
 Run
 
+* racket-repl-mode::
 * racket-run::
 * racket-run-and-switch-to-repl::
 * racket-run-module-at-point::
 * racket-repl::
 * racket-repl-describe::
 * racket-repl-documentation::
-* racket-repl-visit-definition::
 * racket-racket::
 * racket-profile::
 * racket-profile-mode::
@@ -128,7 +129,6 @@ Eval
 
 Collections
 
-* racket-visit-module::
 * racket-open-require-path::
 * racket-find-collection::
 
@@ -142,7 +142,6 @@ Macro expand
 
 Other
 
-* racket-unvisit::
 * racket-mode-start-faster::
 
 Showing information
@@ -352,13 +351,14 @@ Although Racket Mode can be customized with many @ref{Variables}, there is only 
 
 On Windows or Linux, this default will probably work for you.
 
-On macOS, downloading Racket doesn't add its @code{bin} directory to your @code{PATH}. Even after you add it, GUI Emacs doesn't automatically use your path (unless you use the handy @uref{https://melpa.org/#/exec-path-from-shell,exec-path-from-shell} package). Therefore you might want to set @code{racket-program} to a full pathname like @code{/usr/racket/bin/racket}.
+On macOS, downloading Racket doesn't add its @code{bin} directory to your @code{PATH}. Even after you add it, GUI Emacs doesn't automatically use your path (unless you use the handy @uref{https://melpa.org/#/exec-path-from-shell,exec-path-from-shell} package). Therefore you might want to set @code{racket-program} to a complete pathname.
 
 You can @code{setq} this directly in your Emacs init file (@verb{,~/.emacs,} or @verb{,~/.emacs.d/init.el,}), or, use @kbd{M-x}  @code{customize}, as you prefer.
 @menu
 * Key bindings::
 * Font-lock (syntax highlighting)::
 * Completion::
+* Xref (definitions and references)::
 * Indent::
 * paredit::
 * smartparens::
@@ -426,6 +426,30 @@ If you want @kbd{TAB}  to do completion as well as indent, add the following to 
 @end lisp
 
 This changes the behavior of Emacs' standard @code{indent-for-tab-command}, to which @kbd{TAB}  is bound by default in @code{racket-mode} and @code{racket-repl-mode}.
+
+@node Xref (definitions and references)
+@section Xref (definitions and references)
+
+Racket Mode supports the Emacs commands @code{xref-find-definitions} @kbd{M-.} , @code{xref-find-references} @kbd{M-?} , and @code{xref-pop-marker-stack} @kbd{M-,}  by supplying an ``xref back end'' for each of several modes:
+
+@itemize
+@item
+@ref{racket-mode}
+@item
+@ref{racket-xp-mode}
+@item
+@ref{racket-repl-mode}
+@end itemize
+
+Racket doesn't have the concept of a global or project-wide database of definitions and references. Furthermore, various modules can export identifiers with the same symbolic value, for example a different @code{define} is provided by @code{racket/base}, @code{typed/racket/base}, and other modules. In addition, a module can import, rename, contract, and re-export things.
+
+As a result, to find a definition, it is necessary to know exactly @emph{which} identifier --- either by expanding the module (as is done by @code{racket-xp-mode}) or by actually running it (@code{racket-repl-mode}). Once known, we can usually find the definition site, even through a chain of renaming and/or contract-wrapping exports. In addition, when point is in an absolute or relative  @code{require} form, we can usually find the source file. (In plain @code{racket-mode} edit buffers not enhanced by @code{racket-xp-mode}, the only thing that @code{xref-find-definitions} does is visit relative requires, e.g. @code{foo.rkt} in @code{(require "foo.rkt")}.)
+
+As for finding references, the default xref implementation is used, which greps for strings among a project's files. Although @code{racket-xp-mode} can sometimes do better, using @code{drracket/check-syntax} for @emph{intra} file definitions and references, beyond those it also falls back to the default implementation.
+
+In any case, using the Emacs xref API allows for consistent command names, shortcut keys, and even a special buffer to navigate among references and visit each source location.
+
+Tip: If you use @code{paredit}, by default it steals @kbd{M-?}  for @code{paredit-convolute-sexp}. You can either change that binding in @code{paredit-mode-map} or pick some other key for @code{xref-find-references}.
 
 @node Indent
 @section Indent
@@ -554,6 +578,7 @@ You can also view these by using the normal Emacs help mechanism:
 @section Edit
 
 @menu
+* racket-mode::
 * racket-insert-lambda::
 * racket-fold-all-tests::
 * racket-unfold-all-tests::
@@ -571,6 +596,72 @@ You can also view these by using the normal Emacs help mechanism:
 * racket-unalign::
 * racket-complete-at-point::
 @end menu
+
+@node racket-mode
+@subsection racket-mode
+
+@kbd{M-x}  @code{racket-mode}
+
+Major mode for editing Racket source files.
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@item Key
+@tab Binding
+@item @kbd{@}} 
+@tab @ref{racket-insert-closing}
+@item @kbd{]} 
+@tab @ref{racket-insert-closing}
+@item @kbd{)} 
+@tab @ref{racket-insert-closing}
+@item @kbd{TAB} 
+@tab @code{indent-for-tab-command}
+@item @kbd{C-x C-e} 
+@tab @ref{racket-send-last-sexp}
+@item @kbd{C-M-y} 
+@tab @ref{racket-insert-lambda}
+@item @kbd{C-M-u} 
+@tab @ref{racket-backward-up-list}
+@item @kbd{C-M-x} 
+@tab @ref{racket-send-definition}
+@item @kbd{C-c C-u} 
+@tab @ref{racket-unfold-all-tests}
+@item @kbd{C-c C-f} 
+@tab @ref{racket-fold-all-tests}
+@item @kbd{C-c C-d} 
+@tab @ref{racket-documentation-search}
+@item @kbd{C-c C-p} 
+@tab @ref{racket-cycle-paren-shapes}
+@item @kbd{C-c C-x C-f} 
+@tab @ref{racket-open-require-path}
+@item @kbd{C-c C-e r} 
+@tab @ref{racket-expand-region}
+@item @kbd{C-c C-e e} 
+@tab @ref{racket-expand-last-sexp}
+@item @kbd{C-c C-e x} 
+@tab @ref{racket-expand-definition}
+@item @kbd{C-c C-e f} 
+@tab @ref{racket-expand-file}
+@item @kbd{C-c C-r} 
+@tab @ref{racket-send-region}
+@item @kbd{C-c C-o} 
+@tab @ref{racket-profile}
+@item @kbd{C-c C-l} 
+@tab @ref{racket-logger}
+@item @kbd{C-c C-t} 
+@tab @ref{racket-test}
+@item @kbd{C-c C-z} 
+@tab @ref{racket-repl}
+@item @kbd{C-c C-k} 
+@tab @ref{racket-run-module-at-point}
+@item @kbd{C-c C-c} 
+@tab @ref{racket-run-module-at-point}
+@end multitable
+
+
+
+In addition to any hooks its parent mode @code{prog-mode} might have run,
+this mode runs the hook @code{racket-mode-hook}, as the final step
+during initialization.
 
 @node racket-insert-lambda
 @subsection racket-insert-lambda
@@ -1017,7 +1108,6 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 
 @menu
 * racket-xp-mode::
-* racket-xp-visit-definition::
 * racket-xp-describe::
 * racket-xp-documentation::
 * racket-documentation-search::
@@ -1030,7 +1120,7 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 
 A minor mode that analyzes expanded code to explain and explore.
 
-This minor mode is an optional enhancement to @code{racket-mode} edit
+This minor mode is an optional enhancement to @ref{racket-mode} edit
 buffers. Like any minor mode, you can turn it on or off for a
 specific buffer. If you always want to use it, put the following
 code in your Emacs init file:
@@ -1130,6 +1220,15 @@ If you have one or more syntax errors, @code{racket-xp-next-error} and
 languages will stop after the first syntax error, some like Typed
 Racket will try to collect and report multiple errors.
 
+You may use @code{xref-find-definitions} @kbd{M-.} ,
+@code{xref-pop-marker-stack} @kbd{M-,} , and
+@code{xref-find-references}: @ref{racket-xp-mode} adds a backend to the
+variable @code{xref-backend-functions}. This backend uses information
+from the drracket/check-syntax static analysis. Its ability to
+find references is limited to the current file; when it finds
+none it will try the default xref backend implementation which is
+grep-based.
+
 Tip: This mode follows the convention that a minor mode may only
 use a prefix key consisting of ``C-c'' followed by a punctuation
 key. As a result, @code{racket-xp-control-c-hash-keymap} is bound to
@@ -1138,11 +1237,11 @@ type, remember that as an Emacs user, you are free to bind this
 map to a more convenient prefix, and/or bind any individual
 commands directly to whatever keys you prefer.
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
 @item @kbd{M-.} 
-@tab @ref{racket-xp-visit-definition}
+@tab @code{xref-find-definitions}
 @item @kbd{C-c C-d} 
 @tab @ref{racket-xp-documentation}
 @item @kbd{C-c C-.} 
@@ -1155,8 +1254,10 @@ commands directly to whatever keys you prefer.
 @tab @code{racket-xp-annotate}
 @item @kbd{C-c # r} 
 @tab @code{racket-xp-rename}
+@item @kbd{C-c # ?} 
+@tab @code{xref-find-references}
 @item @kbd{C-c # .} 
-@tab @ref{racket-xp-visit-definition}
+@tab @code{xref-find-definitions}
 @item @kbd{C-c # p} 
 @tab @code{racket-xp-previous-use}
 @item @kbd{C-c # n} 
@@ -1167,17 +1268,6 @@ commands directly to whatever keys you prefer.
 @tab @code{racket-xp-next-definition}
 @end multitable
 
-@node racket-xp-visit-definition
-@subsection racket-xp-visit-definition
-
-@kbd{M-.}  or @kbd{C-c # .} 
-
-When point is on a use, go to its definition.
-
-With @kbd{C-u}  prompts you, but in this case beware
-it assumes definitions in or imported by the file module -- not
-locals or definitions in submodules.
-
 @node racket-xp-describe
 @subsection racket-xp-describe
 
@@ -1185,9 +1275,10 @@ locals or definitions in submodules.
 
 Describe the identifier at point in a @code{*Racket Describe*} buffer.
 
-With @kbd{C-u}  prompts you, but in this case beware
-it assumes definitions in or imported by the file module -- not
-locals or definitions in submodules.
+With @kbd{C-u}  you are prompted enter the
+identifier, but in this case it only considers definitions or
+imports at the file's module level -- not local bindings nor
+definitions in submodules.
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
@@ -1209,7 +1300,7 @@ is displayed, for example "(name arg-1-name arg-2-name)".
 
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for @ref{racket-xp-visit-definition}
+TAB, and activate using RET -- for @code{xref-find-definitions}
 and @ref{racket-xp-documentation}.
 
 @node racket-xp-documentation
@@ -1232,7 +1323,6 @@ If no such identifer exists, opens the Search Manuals page. In
 this case, the variable @ref{racket-documentation-search-location}
 determines whether the search is done locally as with `raco
 doc`, or visits a URL.
-
 @item
 @kbd{C-u} 
 
@@ -1263,11 +1353,11 @@ This command is useful in several situations:
 
 @itemize
 @item
-You are not using @ref{racket-xp-mode} for a @code{racket-mode} edit
+You are not using @ref{racket-xp-mode} for a @ref{racket-mode} edit
 buffer, so @ref{racket-xp-documentation} is not available.
 
 @item
-There is no @code{racket-repl-mode} buffer with a live namespace, so
+There is no @ref{racket-repl-mode} buffer with a live namespace, so
 @ref{racket-repl-documentation} is not available or helpful.
 
 @item
@@ -1285,13 +1375,13 @@ the Racket ``Search Manuals'' page.
 @section Run
 
 @menu
+* racket-repl-mode::
 * racket-run::
 * racket-run-and-switch-to-repl::
 * racket-run-module-at-point::
 * racket-repl::
 * racket-repl-describe::
 * racket-repl-documentation::
-* racket-repl-visit-definition::
 * racket-racket::
 * racket-profile::
 * racket-profile-mode::
@@ -1299,6 +1389,72 @@ the Racket ``Search Manuals'' page.
 * racket-logger-mode::
 * racket-debug-mode::
 @end menu
+
+@node racket-repl-mode
+@subsection racket-repl-mode
+
+@kbd{M-x}  @code{racket-repl-mode}
+
+Major mode for Racket REPL.
+
+You may use @code{xref-find-definitions} @kbd{M-.}  and
+@code{xref-pop-marker-stack} @kbd{M-,} :
+@ref{racket-repl-mode} adds a backend to the variable
+@code{xref-backend-functions}. This backend uses information about
+identifier bindings and modules from the REPL's namespace.
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@item Key
+@tab Binding
+@item @kbd{@}} 
+@tab @ref{racket-insert-closing}
+@item @kbd{]} 
+@tab @ref{racket-insert-closing}
+@item @kbd{)} 
+@tab @ref{racket-insert-closing}
+@item @kbd{C-c C-\} 
+@tab @code{racket-repl-exit}
+@item @kbd{C-c C-c} 
+@tab @code{racket-repl-break}
+@item @kbd{C-c C-l} 
+@tab @ref{racket-logger}
+@item @kbd{C-c C-z} 
+@tab @code{racket-repl-switch-to-edit}
+@item @kbd{C-c C-.} 
+@tab @ref{racket-repl-describe}
+@item @kbd{C-c C-d} 
+@tab @ref{racket-repl-documentation}
+@item @kbd{C-c C-e r} 
+@tab @ref{racket-expand-region}
+@item @kbd{C-c C-e e} 
+@tab @ref{racket-expand-last-sexp}
+@item @kbd{C-c C-e x} 
+@tab @ref{racket-expand-definition}
+@item @kbd{C-c C-e f} 
+@tab @ref{racket-expand-file}
+@item @kbd{C-w} 
+@tab @code{comint-kill-region}
+@item @kbd{C-a} 
+@tab @code{comint-bol}
+@item @kbd{C-M-y} 
+@tab @ref{racket-insert-lambda}
+@item @kbd{C-M-q} 
+@tab @code{prog-indent-sexp}
+@item @kbd{C-M-u} 
+@tab @ref{racket-backward-up-list}
+@item @kbd{TAB} 
+@tab @code{indent-for-tab-command}
+@item @kbd{C-j} 
+@tab @code{newline-and-indent}
+@item @kbd{RET} 
+@tab @code{racket-repl-submit}
+@end multitable
+
+
+
+In addition to any hooks its parent mode @code{comint-mode} might have run,
+this mode runs the hook @code{racket-repl-mode-hook}, as the final step
+during initialization.
 
 @node racket-run
 @subsection racket-run
@@ -1335,7 +1491,7 @@ See also @ref{racket-run-and-switch-to-repl}, which is even more like
 Dr Racket's Run command because it selects the REPL window after
 running.
 
-In the @code{racket-repl-mode} buffer, output that describes a file
+In the @ref{racket-repl-mode} buffer, output that describes a file
 and position is automatically ``linkified''. Examples of such
 text include:
 
@@ -1422,7 +1578,7 @@ has a contract or a Typed Racket type, that is also displayed.
 
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for @ref{racket-repl-visit-definition}
+TAB, and activate using RET -- for @code{racket-repl-visit-definition}
 and @ref{racket-repl-documentation}.
 
 @node racket-repl-documentation
@@ -1464,31 +1620,6 @@ Proceeds directly to the Search Manuals page. Use this if you
 would like to see documentation for all identifiers named
 ``define'', for example.
 @end enumerate
-
-@node racket-repl-visit-definition
-@subsection racket-repl-visit-definition
-
-@kbd{M-.} 
-
-Visit definition of identifier at point.
-
-If there is no identifier at point, prompt for it.
-
-With @kbd{C-u}  always prompt for the identifier.
-
-Use @ref{racket-unvisit} to return.
-
-Please keep in mind the following limitations:
-
-@itemize
-@item
-Finds symbols defined in the REPL's namespace, which only
-includes imported and module binding -- but not local bindings.
-
-@item
-If the definition is found in Racket's ``#%kernel'' module, it
-will tell you so but won't visit the definition site.
-@end itemize
 
 @node racket-racket
 @subsection racket-racket
@@ -1645,11 +1776,11 @@ you can ``step into'' it:
 
 @itemize
 @item
-@kbd{M-.}  or @kbd{C-c # .}  to visit the definition.
+@kbd{M-x}  @code{racket-xp-visit-definition} to visit the definition.
 @item
 @kbd{C-u}  @kbd{C-M-x}  to instrument the definition.
 @item
-@kbd{M-,}  to return.
+@kbd{M-x}  @code{racket-unvisit} to return.
 @item
 Continue stepping.
 @end itemize
@@ -1662,11 +1793,11 @@ you'll probably need to use entire-file instrumentation as
 described above.
 
 @item
-When a break occurs, the @code{racket-repl-mode} prompt changes. In
+When a break occurs, the @ref{racket-repl-mode} prompt changes. In
 this debug REPL, local variables are available for you to use
 and even to @code{set!}.
 
-Also, in the @code{racket-mode} buffer where the break is located,
+Also, in the @ref{racket-mode} buffer where the break is located,
 @ref{racket-debug-mode} is enabled. This minor mode makes the
 buffer read-only, provides visual feedback -- about the break
 position, local variable values, and result values -- and
@@ -1776,25 +1907,9 @@ without the #; prefix.
 @section Collections
 
 @menu
-* racket-visit-module::
 * racket-open-require-path::
 * racket-find-collection::
 @end menu
-
-@node racket-visit-module
-@subsection racket-visit-module
-
-@kbd{C-M-.} 
-
-Visit definition of module at point, e.g. net/url or ``file.rkt''.
-
-If there is no module at point, prompt for it.
-
-With @kbd{C-u}  always prompt for the module.
-
-Use @ref{racket-unvisit} to return.
-
-See also: @ref{racket-find-collection}.
 
 @node racket-open-require-path
 @subsection racket-open-require-path
@@ -1846,7 +1961,7 @@ raco pkg install raco-find-collection
 Tip: This works best with @code{ido-enable-flex-matching} set to t.
 Also handy is the @code{flx-ido} package from MELPA.
 
-See also: @ref{racket-visit-module} and @ref{racket-open-require-path}.
+See also: @ref{racket-open-require-path}.
 
 @node Macro expand
 @section Macro expand
@@ -1898,7 +2013,7 @@ during initialization.
 
 @kbd{C-c C-e f} 
 
-Expand the @code{racket-mode} buffer's file in @ref{racket-stepper-mode}.
+Expand the @ref{racket-mode} buffer's file in @ref{racket-stepper-mode}.
 
 Uses the @code{macro-debugger} package to do the expansion.
 
@@ -1946,16 +2061,8 @@ Uses Racket's @code{expand-once} in the namespace from the most recent
 @section Other
 
 @menu
-* racket-unvisit::
 * racket-mode-start-faster::
 @end menu
-
-@node racket-unvisit
-@subsection racket-unvisit
-
-@kbd{M-,} 
-
-Return from previous @code{racket-visit-definition} or @ref{racket-visit-module}.
 
 @node racket-mode-start-faster
 @subsection racket-mode-start-faster
@@ -2059,7 +2166,7 @@ A value for the variable @ref{racket-show-functions}.
 
 @kbd{M-x}  @code{racket-repl-buffer-name-shared}
 
-All @code{racket-mode} edit buffers share one @code{racket-repl-mode} buffer.
+All @ref{racket-mode} edit buffers share one @ref{racket-repl-mode} buffer.
 
 A value for the variable @ref{racket-repl-buffer-name-function}.
 
@@ -2068,7 +2175,7 @@ A value for the variable @ref{racket-repl-buffer-name-function}.
 
 @kbd{M-x}  @code{racket-repl-buffer-name-unique}
 
-Each @code{racket-mode} edit buffer gets its own @code{racket-repl-mode} buffer.
+Each @ref{racket-mode} edit buffer gets its own @ref{racket-repl-mode} buffer.
 
 A value for the variable @ref{racket-repl-buffer-name-function}.
 
@@ -2077,7 +2184,7 @@ A value for the variable @ref{racket-repl-buffer-name-function}.
 
 @kbd{M-x}  @code{racket-repl-buffer-name-project}
 
-All @code{racket-mode} buffers in a project share a @code{racket-repl-mode} buffer.
+All @ref{racket-mode} buffers in a project share a @ref{racket-repl-mode} buffer.
 
 A value for the variable @ref{racket-repl-buffer-name-function}.
 
@@ -2339,7 +2446,7 @@ properly encoded URL.
 @node racket-repl-buffer-name-function
 @subsection racket-repl-buffer-name-function
 
-How to associate @code{racket-mode} edit buffers with @code{racket-repl-mode} buffers.
+How to associate @ref{racket-mode} edit buffers with @ref{racket-repl-mode} buffers.
 
 The default is nil, which is equivalent to supplying
 @ref{racket-repl-buffer-name-shared}: One REPL buffer is shared.
@@ -2347,14 +2454,14 @@ The default is nil, which is equivalent to supplying
 Other predefined choices include @ref{racket-repl-buffer-name-unique}
 and @ref{racket-repl-buffer-name-project}.
 
-This is used when a @code{racket-mode} buffer is created. Changing
-this to a new value only affects @code{racket-mode} buffers created
+This is used when a @ref{racket-mode} buffer is created. Changing
+this to a new value only affects @ref{racket-mode} buffers created
 later.
 
 Any such function takes no arguments, should look at
 @code{buffer-file-name} if necessary, and either @code{setq-default} or
 @code{setq-local} the variable @code{racket-repl-buffer-name} to a desired
-@code{racket-repl-mode} buffer name. As a result, @ref{racket-run}
+@ref{racket-repl-mode} buffer name. As a result, @ref{racket-run}
 commands will use a buffer of that name, creating it if
 necessary.
 
