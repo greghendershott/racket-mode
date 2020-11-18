@@ -15,10 +15,21 @@
   (match (sync receiver)
     [(vector (== level)
              _message
-             (hash-table ['kind kind] ['show show] ['name name] ['level level] ['srcloc srcloc])
+             (hash-table ['kind      kind]
+                         ['show      show]
+                         ['name      name]
+                         ['level     level]
+                         ['def-site  def-site]
+                         ['call-site call-site])
              (== topic))
      (channel-put notify-channel
-                  `(trace ,kind ,show ,name ,level ,srcloc))]
+                  `(trace
+                    ,kind
+                    ,show
+                    ,name
+                    ,level
+                    ,def-site
+                    ,call-site))]
     [data
      (log-racket-mode-debug "unexpected data for ~v: ~v" topic data)])
   (trace-thread))
