@@ -15,23 +15,25 @@
   (match (sync receiver)
     [(vector (== level)
              _message
-             (hash-table ['kind      kind]
-                         ['show      show]
-                         ['name      name]
-                         ['level     level]
-                         ['def-site  def-site]
-                         ['call-site call-site])
+             (hash-table ['call       call]
+                         ['show       show]
+                         ['name       name]
+                         ['level      level]
+                         ['definition definition]
+                         ['caller     caller]
+                         ['context    context])
              (== topic))
      (channel-put notify-channel
                   `(trace
-                    ,kind
+                    ,call
                     ,show
                     ,name
                     ,level
-                    ,def-site
-                    ,call-site))]
+                    ,definition
+                    ,caller
+                    ,context))]
     [data
-     (log-racket-mode-debug "unexpected data for ~v: ~v" topic data)])
+     (log-racket-mode-error "unexpected data for ~v: ~v" topic data)])
   (trace-thread))
 
 ;; Go ahead and start this early.
