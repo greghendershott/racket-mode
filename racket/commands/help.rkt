@@ -8,7 +8,7 @@
          racket/match
         "../identifier.rkt")
 
-(provide doc)
+(provide doc xref)
 
 ;; Once upon a time, you could enter commands in the REPL like ",doc".
 ;; It made sense to open the browser here -- despite needing junk to
