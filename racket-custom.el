@@ -27,7 +27,7 @@
 
 (require 'rx)
 (require 'cl-lib)
-(require 'sh-script) ;for sh-heredoc-face
+(require 'sh-script) ;for sh-heredoc face
 
 (defgroup racket nil
   "Editing and REPL for the Racket language."
@@ -546,7 +546,7 @@ to hide the interesting span in the buffer."
   "Selfeval Face")
 
 (defface-racket racket-here-string-face
-  '((t (:inherit sh-heredoc-face)))
+  '((t (:inherit sh-heredoc)))
   "Face for here strings."
   "Here String Face")
 
