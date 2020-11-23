@@ -20,6 +20,7 @@
                          ['name       name]
                          ['level      level]
                          ['definition definition]
+                         ['signature  signature]
                          ['caller     caller]
                          ['context    context])
              (== topic))
@@ -30,6 +31,7 @@
                     ,name
                     ,level
                     ,definition
+                    ,signature
                     ,caller
                     ,context))]
     [data
