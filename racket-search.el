@@ -19,6 +19,7 @@
 (require 'racket-cmd)
 (require 'racket-describe)
 (require 'racket-browse-url)
+(require 'racket-repl)
 
 (defun racket--do-search (repl-session-id expr num-results)
   "Create a `racket-search-mode buffer'.
