@@ -72,20 +72,28 @@ source location information.
            (point-was-at-end-p (equal original-point (point-max))))
       (goto-char (point-max))
       (pcase data
-        (`(,callp ,show ,name ,level
-                  (,def-path ,def-line ,def-col ,_def-pos ,_def-span)
-                  (,sig-path ,_sig-line ,_sig-col ,sig-pos ,sig-span)
-                  (,call-path ,_call-line ,_call-col ,call-pos ,call-span)
-                  (,ctx-path ,_ctx-line ,_ctx-col ,ctx-pos ,ctx-span))
+        (`(,callp ,show ,name ,level ,def ,sig ,call ,ctx)
          (racket--trace-insert callp
                                (if callp show (concat " ⇒ " show))
                                level
-                               `(,name ,def-path ,def-line ,def-col)
-                               `(,show ,sig-path ,sig-pos ,(+ sig-pos sig-span))
-                               `(,show ,call-path ,call-pos ,(+ call-pos call-span))
-                               `(,show ,ctx-path ,ctx-pos ,(+ ctx-pos ctx-span)))))
+                               (cons name (racket--trace-srcloc-line+col def))
+                               (cons show (racket--trace-srcloc-beg+end sig))
+                               (cons show (racket--trace-srcloc-beg+end call))
+                               (cons show (racket--trace-srcloc-beg+end ctx)))))
       (unless point-was-at-end-p
         (goto-char original-point)))))
+
+(defun racket--trace-srcloc-line+col (v)
+  "Extract the line and col from a srcloc."
+  (pcase v
+    (`(,path ,line ,col ,_pos ,_span)
+     `(,path ,line ,col))))
+
+(defun racket--trace-srcloc-beg+end (v)
+  "Extract the pos and span from a srcloc and convert to beg and end."
+  (pcase v
+    (`(,path ,_line ,_col ,pos ,span)
+     `(,path ,pos ,(+ pos span)))))
 
 (defun racket--trace-insert (callp str level xref signature caller context)
   (cl-loop for n to (1- level)
