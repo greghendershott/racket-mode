@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        emacs_version:
+          - '25.1'
+          - '26.3'
+          - '27.1'
+          - 'snapshot'
+        racket_version:
+          - '6.9'
+          - '7.9'
+          - 'current'
+        include:
+          - emacs_version: 'snapshot'
+            allow_failure: true
+          - racket_version: 'current'
+            allow_failure: true
+    name: Test Emacs ${{ matrix.emacs_version }} and Racket ${{ matrix.racket_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: Install Emacs
+        uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs_version }}
+      - name: Install Racket
+        uses: Bogdanp/setup-racket@v0.8
+        with:
+          architecture: 'x64'
+          distribution: 'full'
+          version: ${{ matrix.racket_version }}
+      - name: Install Package
+        run: make deps
+      - name: Compile Elisp
+        run: make compile
+      - name: Run Tests
+        run: make test
