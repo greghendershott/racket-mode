@@ -142,6 +142,7 @@ source location information.
 
 ;;; Commands
 
+;;;###autoload
 (defun racket-trace ()
   "Create the `racket-trace-mode' buffer and select it in a window."
   (interactive)
