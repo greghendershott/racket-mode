@@ -96,30 +96,6 @@ When installed as a package, this can be found from the variable
   (expand-file-name "./racket/" racket--el-source-dir)
   "Path to dir of our Racket source files. ")
 
-;;; trace
-
-(defvar racket--trace-enable nil)
-
-(defun racket--trace (p &optional s retval)
-  (when racket--trace-enable
-    (let ((b (get-buffer-create "*Racket Trace*"))
-          (deactivate-mark deactivate-mark))
-      (save-excursion
-        (save-restriction
-          (with-current-buffer b
-            (insert p ": " (if (stringp s) s (format "%S" s)) "\n"))))))
-  retval)
-
-(defun racket--toggle-trace (arg)
-  (interactive "P")
-  (setq racket--trace-enable (or arg (not racket--trace-enable)))
-  (if racket--trace-enable
-      (message "Racket trace on")
-    (message "Racket trace off"))
-  (let ((b (get-buffer-create "*Racket Trace*")))
-    (pop-to-buffer b t t)
-    (setq truncate-lines t)))
-
 (defun racket--restoring-current-buffer (proc)
   "Return a procedure restoring `current-buffer' during the dynamic extent of PROC."
   (let ((buf (current-buffer)))
