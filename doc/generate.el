@@ -63,6 +63,7 @@
     racket-xp-mode
     (racket-xp-describe ,racket-xp-mode-map)
     (racket-xp-documentation ,racket-xp-mode-map)
+    (racket-xp-tail-target ,racket-xp-mode-map)
     racket-documentation-search
     "Run"
     racket-repl-mode
@@ -210,6 +211,8 @@
     racket-xp-def-face
     racket-xp-use-face
     racket-xp-unused-face
+    racket-xp-tail-target-face
+    racket-xp-tail-position-face
     racket-logger-config-face
     racket-logger-topic-face
     racket-logger-fatal-face

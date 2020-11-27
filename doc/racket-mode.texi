@@ -102,6 +102,7 @@ Explore
 * racket-xp-mode::
 * racket-xp-describe::
 * racket-xp-documentation::
+* racket-xp-tail-target::
 * racket-documentation-search::
 
 Run
@@ -225,6 +226,8 @@ All
 * racket-xp-def-face::
 * racket-xp-use-face::
 * racket-xp-unused-face::
+* racket-xp-tail-target-face::
+* racket-xp-tail-position-face::
 * racket-logger-config-face::
 * racket-logger-topic-face::
 * racket-logger-fatal-face::
@@ -1162,6 +1165,7 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 * racket-xp-mode::
 * racket-xp-describe::
 * racket-xp-documentation::
+* racket-xp-tail-target::
 * racket-documentation-search::
 @end menu
 
@@ -1195,6 +1199,11 @@ fully-expanded programs, without needing to evaluate a.k.a.
 @item
 Visually annotating bindings -- local or imported definitions
 and references to them.
+
+@item
+Visually annotating expressions in a tail position, as well as
+the enclosing expression with respect to which they are in a
+tail position.
 
 @item
 Completion candidates.
@@ -1241,6 +1250,17 @@ x
   (define x 2)
   x)
 @end example
+
+The opening parenthesis of an expression in tail position is
+highlighted using the face @ref{racket-xp-tail-position-face} and has
+a tooltip annotation, ``tail''. The opening parenthesis of an
+encloding expression with the same continuation as one or more
+expressions in tail position is highlighted using the face
+@ref{racket-xp-tail-target-face} and has a tooltip annotation,
+``head''. Furthermore, all the immediately related expressions
+are highlighted: The target and its tail(s) are all highlighted,
+when point is on any of them. Use @ref{racket-xp-tail-target} to
+jump from a tail expression to the enclosing target expression.
 
 The function @code{racket-xp-complete-at-point} is added to the
 variable @code{completion-at-point-functions}. Note that in this case,
@@ -1304,6 +1324,8 @@ commands directly to whatever keys you prefer.
 @tab @code{racket-xp-next-error}
 @item @kbd{C-c # g} 
 @tab @code{racket-xp-annotate}
+@item @kbd{C-c # ^} 
+@tab @ref{racket-xp-tail-target}
 @item @kbd{C-c # r} 
 @tab @code{racket-xp-rename}
 @item @kbd{C-c # ?} 
@@ -1393,6 +1415,17 @@ Proceeds directly to the Search Manuals page. Use this if you
 would like to see documentation for all identifiers named
 ``define'', for example.
 @end enumerate
+
+@node racket-xp-tail-target
+@subsection racket-xp-tail-target
+
+@kbd{C-c # ^} 
+
+Go to the enclosing ``target'' of an expression in tail position.
+
+When point is on the opening parenthesis of an expression in tail
+position, go its ``target'' -- that is, go to the enclosing
+expression with the same continuation as the tail expression.
 
 @node racket-documentation-search
 @subsection racket-documentation-search
@@ -2738,6 +2771,8 @@ to hide the interesting span in the buffer.
 * racket-xp-def-face::
 * racket-xp-use-face::
 * racket-xp-unused-face::
+* racket-xp-tail-target-face::
+* racket-xp-tail-position-face::
 * racket-logger-config-face::
 * racket-logger-topic-face::
 * racket-logger-fatal-face::
@@ -2776,6 +2811,16 @@ Face @ref{racket-xp-mode} uses to highlight uses.
 @subsection racket-xp-unused-face
 
 Face @ref{racket-xp-mode} uses to highlight unused requires or definitions.
+
+@node racket-xp-tail-target-face
+@subsection racket-xp-tail-target-face
+
+Face @ref{racket-xp-mode} uses to highlight targets of a tail position.
+
+@node racket-xp-tail-position-face
+@subsection racket-xp-tail-position-face
+
+Face @ref{racket-xp-mode} uses to highlight expressions in a tail position.
 
 @node racket-logger-config-face
 @subsection racket-logger-config-face

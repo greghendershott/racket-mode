@@ -122,6 +122,7 @@
     (define ht-defs/uses (make-hash))
     (define ht-imenu (make-hash))
     (define local-completion-candidates (mutable-set))
+    (define ht-tails (make-hash))
 
     ;; I've seen drracket/check-syntax return bogus positions for e.g.
     ;; add-mouse-over-status so here's some validation.
@@ -157,10 +158,37 @@
         (unless require-arrow?
           (send this syncheck:add-mouse-over-status "" use-beg use-end "defined locally"))))
 
+    (define/override (syncheck:add-tail-arrow from-src from-pos to-src to-pos)
+      ;; Note: "from" and "to" are in terms of DrRacket _arrow_
+      ;; direction, which it draws _opposite_ of the _jump_ direction.
+      ;; Therefore we reverse the positions below.
+      (define head from-pos)
+      (define tail to-pos)
+      ;; AFAICT the sources should always = the source being analyzed
+      ;; -- i.e. the head and tail should be in the same source file.
+      ;; If a macro has neglected to supply good srcloc, and so e.g.
+      ;; the srcloc of the tail target is inside the macro source, we
+      ;; have no good way to show that to the user, so ignore it.
+      (match* [from-src to-src src]
+        [[v v v]
+         ;; Consolidate to hash-table much like defs/uses
+         (hash-update! ht-tails
+                       (add1 head)
+                       (λ (v) (set-add v (add1 tail)))
+                       (set))
+         (send this syncheck:add-mouse-over-status "" head (add1 head) "head")
+         (send this syncheck:add-mouse-over-status "" tail (add1 tail) "tail")]
+        [[_ _ _]
+         (log-racket-mode-warning
+          "Ignoring syncheck:add-tail-arrow because sources differ"
+          (list from-src to-src src))]))
+
     (define/override (syncheck:add-mouse-over-status _text beg end status)
       (when (valid-beg/end? beg end)
         ;; Avoid silly "imported from “\"file.rkt\"”"
         (define cleansed (regexp-replace* #px"[“””]" status ""))
+        ;; Automatically append multiple mouse-over messages for the
+        ;; same interval.
         (interval-map-update*! im-mouse-overs beg end
                                (λ (s) (set-add s cleansed))
                                (set cleansed))
@@ -259,6 +287,9 @@
                   def-beg def-end
                   req sym
                   (sort (set->list uses) < #:key car)))))
+      (define targets/tails
+        (for/list ([(target tails) (in-hash ht-tails)])
+          (list 'target/tails target (sort (set->list tails) <))))
       ;; Convert the interval maps for other annotations into simple
       ;; lists of the form (list symbol beg end value ...). Also add1
       ;; positions for Emacs.
@@ -273,6 +304,7 @@
       ;; Append all and sort by `beg` position
       (sort (append
              defs/uses
+             targets/tails
              (im->list im-mouse-overs     'info mouse-over-set->result)
              (im->list im-jumps           'jump)
              (im->list im-docs            'doc)

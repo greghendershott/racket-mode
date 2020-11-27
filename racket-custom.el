@@ -527,6 +527,16 @@ to hide the interesting span in the buffer."
   "Face `racket-xp-mode' uses to highlight unused requires or definitions."
   "Unused Face")
 
+(defface-racket racket-xp-tail-target-face
+  '((t (:inherit match :underline (:style wave))))
+  "Face `racket-xp-mode' uses to highlight targets of a tail position."
+  "Tail Target Face")
+
+(defface-racket racket-xp-tail-position-face
+  '((t (:inherit match)))
+  "Face `racket-xp-mode' uses to highlight expressions in a tail position."
+  "Tail Position Face")
+
 (defface-racket racket-keyword-argument-face
   '((((background dark))
      (:foreground "IndianRed"))

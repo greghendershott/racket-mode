@@ -1,6 +1,6 @@
 ;;; racket-xp.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2021 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -53,6 +53,7 @@ everything. If you find that too \"noisy\", set this to nil.")
      ("." ,#'xref-find-definitions)
      ("?" ,#'xref-find-references)
      ("r" ,#'racket-xp-rename)
+     ("^" ,#'racket-xp-tail-target)
      ("g" ,#'racket-xp-annotate)
      ("N" ,#'racket-xp-next-error)
      ("P" ,#'racket-xp-previous-error))))
@@ -113,6 +114,10 @@ fully-expanded programs, without needing to evaluate a.k.a.
 - Visually annotating bindings -- local or imported definitions
   and references to them.
 
+- Visually annotating expressions in a tail position, as well as
+  the enclosing expression with respect to which they are in a
+  tail position.
+
 - Completion candidates.
 
 - Defintions' source and documentation.
@@ -155,6 +160,17 @@ understands the two different imports of \"define\":
     (define x 2)
     x)
 #+END_SRC
+
+The opening parenthesis of an expression in tail position is
+highlighted using the face `racket-xp-tail-position-face' and has
+a tooltip annotation, \"tail\". The opening parenthesis of an
+enclosing expression with the same continuation as one or more
+expressions in tail position is highlighted using the face
+`racket-xp-tail-target-face' and has a tooltip annotation,
+\"head\". Furthermore, all the immediately related expressions
+are highlighted: The target and its tail(s) are all highlighted,
+when point is on any of them. Use `racket-xp-tail-target' to
+jump from a tail expression to the enclosing target expression.
 
 The function `racket-xp-complete-at-point' is added to the
 variable `completion-at-point-functions'. Note that in this case,
@@ -214,6 +230,8 @@ commands directly to whatever keys you prefer.
               (append text-property-default-nonsticky
                       '((racket-xp-def . t)
                         (racket-xp-use . t)
+                        (racket-xp-tail-position . t)
+                        (racket-xp-tail-target . t)
                         (racket-xp-visit . t)
                         (racket-xp-doc . t))))
   (cond (racket-xp-mode
@@ -354,9 +372,9 @@ A more satisfying experience is to use `racket-xp-describe'
 or `racket-repl-describe'."
   (racket--do-eldoc (racket--buffer-file-name) nil))
 
-(defun racket--add-overlay (beg end face)
+(defun racket--add-overlay (beg end face &optional priority)
   (let ((o (make-overlay beg end)))
-    (overlay-put o 'priority 0) ;below other overlays e.g. isearch
+    (overlay-put o 'priority (or priority 0)) ;below other overlays e.g. isearch
     (overlay-put o 'face face)
     (overlay-put o 'modification-hooks (list #'racket--modifying-overlay-deletes-it))
     o))
@@ -411,10 +429,36 @@ or `racket-repl-describe'."
                   (dolist (use uses)
                     (pcase use
                       (`(,beg ,end)
-                       (racket--add-overlay beg end racket-xp-use-face))))))))))))))
+                       (racket--add-overlay beg end racket-xp-use-face)))))))))))
+      (let ((target  (get-text-property point 'racket-xp-tail-target))
+            (context (get-text-property point 'racket-xp-tail-position)))
+        (unless (and (equal target (window-parameter window 'racket-xp-tail-target))
+                     (equal context   (window-parameter window 'racket-xp-tail-position)))
+          (set-window-parameter window 'racket-xp-tail-target  target)
+          (set-window-parameter window 'racket-xp-tail-position context)
+          (racket--remove-overlays-in-buffer racket-xp-tail-target-face
+                                             racket-xp-tail-position-face)
+          ;; This is slightly simpler than def/uses because there are
+          ;; no beg..end ranges, just single positions.
+          (pcase target
+            ((and (pred listp) contexts `(,pos . ,_))
+             (pcase (get-text-property pos 'racket-xp-tail-position)
+               ((and (pred markerp) pos)
+                (racket--add-overlay pos (1+ pos) 'racket-xp-tail-target-face -1)
+                (dolist (context contexts)
+                  (racket--add-overlay context (1+ context) 'racket-xp-tail-position-face -2))))))
+          (pcase context
+            ((and (pred markerp) target-pos)
+             (pcase (get-text-property target-pos 'racket-xp-tail-target)
+               ((and (pred listp) contexts)
+                (racket--add-overlay target-pos (1+ target-pos) 'racket-xp-tail-target-face -1)
+                (dolist (context contexts)
+                  (racket--add-overlay context (1+ context) 'racket-xp-tail-position-face 2)))))))))))
 
 (defun racket-xp--force-redisplay (window)
-  (dolist (param '(racket-xp-point racket-xp-use racket-xp-def))
+  (dolist (param '(racket-xp-point
+                   racket-xp-use racket-xp-def
+                   racket-xp-tail-target racket-xp-tail-position))
     (set-window-parameter window param nil))
   (racket-xp-pre-redisplay window))
 
@@ -555,6 +599,17 @@ If moved, return the new position, else nil."
   "Move point to the previous definition."
   (interactive)
   (racket--xp-forward-prop 'racket-xp-def -1))
+
+(defun racket-xp-tail-target ()
+  "Go to the enclosing \"target\" of an expression in tail position.
+
+When point is on the opening parenthesis of an expression in tail
+position, go its \"target\" -- that is, go to the enclosing
+expression with the same continuation as the tail expression."
+  (interactive)
+  (pcase (get-text-property (point) 'racket-xp-tail-position)
+    ((and (pred markerp) pos)
+     (goto-char pos))))
 
 ;;; Errors
 
@@ -832,6 +887,20 @@ manually."
                 (marker-position use-end)
                 (append
                  (list 'racket-xp-use (list def-beg def-end))))))))
+
+        (`(target/tails ,target ,calls)
+         (let ((target (copy-marker target t))
+               (calls  (mapcar (lambda (tail) (copy-marker tail t))
+                               calls)))
+           (put-text-property (marker-position target)
+                              (1+ (marker-position target))
+                              'racket-xp-tail-target
+                              calls)
+           (dolist (call calls)
+             (put-text-property (marker-position call)
+                                (1+ (marker-position call))
+                                'racket-xp-tail-position
+                                target))))
         (`(jump ,beg ,end ,path ,subs ,ids)
          (add-text-properties
           beg end
@@ -853,12 +922,16 @@ manually."
       (setq-local racket--xp-imenu-index nil)
       (racket--remove-overlays-in-buffer racket-xp-def-face
                                          racket-xp-use-face
-                                         racket-xp-unused-face)
+                                         racket-xp-unused-face
+                                         racket-xp-tail-position-face
+                                         racket-xp-tail-target-face)
       (remove-text-properties (point-min) (point-max)
-                              (list 'racket-xp-def   nil
-                                    'racket-xp-use   nil
-                                    'racket-xp-visit nil
-                                    'racket-xp-doc   nil)))))
+                              (list 'racket-xp-def           nil
+                                    'racket-xp-use           nil
+                                    'racket-xp-tail-position nil
+                                    'racket-xp-tail-target   nil
+                                    'racket-xp-visit         nil
+                                    'racket-xp-doc           nil)))))
 
 ;;; Mode line status
 
