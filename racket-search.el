@@ -19,71 +19,77 @@
 (require 'racket-cmd)
 (require 'racket-describe)
 (require 'racket-browse-url)
-(require 'racket-repl)
 
-(defun racket--do-search (repl-session-id expr num-results)
-  "Create a `racket-search-mode buffer'.
+(defvar racket--index '())
+(defconst racket--index-script "racket/make-index.rkt")
 
-EXPR is used as the search term.
+(defun racket--index-format (words type-expr)
+  (when type-expr
+    (if (cdr type-expr)
+        (format "%s: %s"
+                (car words)
+                (string-join
+                 (cadr type-expr)
+                 ", "))
+      (car words))))
 
-NUM-RESULTS is the number of search results to return from the command server.
+(defun racket--build-index ()
+    (let
+        ((buf (get-buffer-create " *racket-index*")))
+      (with-current-buffer buf
+        (erase-buffer)
+        (setq racket--index '())
+        (make-process
+         :name "racket"
+         :buffer buf
+         :sentinel
+         (lambda (proc _)
+           (unless (process-live-p proc)
+             (kill-buffer buf)))
+         :connection-type 'pipe
+         :filter
+         (lambda (proc str)
+           (let
+               ((buf (process-buffer proc)))
+             (when (buffer-live-p buf)
+               (with-current-buffer buf
+                 ;; We use a newline as a delimiter for a new entry
+                 (if (string-match-p "\n" str)
+                     (let
+                         ;; Don’t read the last line — it may be incomplete
+                         ((line-pos
+                           (save-excursion
+                             (insert str)
+                             (cons
+                              (line-beginning-position)
+                              (point)))))
+                       (cl-loop
+                        while (< (point) (car line-pos))
+                        do (progn
+                             (goto-char
+                              (line-beginning-position))
+                             (pcase (read buf)
+                               (`(,words ,type-expr ,link)
+                                (let
+                                    ((e (racket--index-format
+                                         words
+                                         type-expr)))
+                                  (when e
+                                    (setq racket--index
+                                          (cons
+                                           (cons e link)
+                                           racket--index))))))
+                             (forward-line)))
+                       (goto-char (cdr line-pos)))
+                   (insert str))))))
+         :command (list racket-program
+                        racket--index-script)))))
 
-Returns the buffer in which the description was written."
-  (with-current-buffer (racket--get-buffer-recreate "*Racket Search*")
-    (let* ((search-results (racket--cmd/await repl-session-id
-					      `(search ,expr ,num-results))))
-      (racket-search-mode)
-      (read-only-mode -1)
-      (cl-loop
-       for result in search-results
-       do (pcase result
-            (`(,terms ,mods ,how)
-             (insert (string-join terms ", "))
-             (insert "\t")
-             (letrec
-                 ((mods/string
-                   (lambda (mods)
-                     (cond
-                      ((listp mods)
-                       (string-join
-                        (mapcar mods/string mods)
-                        ", "))
-                      ((symbolp mods)
-                       (symbol-name mods))))))
-               (insert (funcall mods/string mods)))
-             (insert "\t")
-             (insert-text-button "Describe"
-                                 'follow-link t
-                                 'action
-                                 (lambda (_btn)
-                                   (racket--do-describe
-                                    how nil "" t
-                                    nil
-                                    (lambda ()
-                                      (racket-browse-url
-                                       (concat "file://" (car how) "#" (cdr how))))))
-                                 'racket-xp-doc
-                                 how)
-             (newline))))
-      (read-only-mode))
-    (display-buffer (current-buffer) t)
-    (pop-to-buffer (current-buffer))
-    (current-buffer)))
+(defun racket-search (link)
+  (interactive
+   (list
+    (completing-read "Describe:" racket--index))))
 
-(define-derived-mode racket-search-mode special-mode
-  "RacketDescribe"
-  "Major mode for searching Racket functions.
-\\{racket-describe-mode-map}"
-  (setq show-trailing-whitespace nil))
 
-(defun racket-search (expr)
-  "Do a search using the provided EXPR in a `*Racket Search*` buffer.
-
-The buffer includes links which opens a buffer using `racket-xp-describe'. "
-  (interactive "M")
-  (racket--do-search
-   (racket--repl-session-id)
-   expr
-   10))
 
 (provide 'racket-search)

@@ -1,17 +1,19 @@
 #lang racket/base
 
 (require
- racket/function
  racket/format
+ racket/match
  racket/contract
  scribble/xref
  scribble/manual-struct
+ setup/xref
  (for-syntax
   racket/syntax
   racket/string
   racket/base
-  syntax/parse)
- "help.rkt")
+  syntax/parse))
+
+(define xref (load-collections-xref))
 
 (define entry/c
   (list/c
@@ -19,39 +21,48 @@
    (or/c
     (cons/c
      symbol?
-     (listof any/c))
+     any/c)
     #f)
    (cons/c path-string?
            (or/c string? #f))))
 
+(define (exported-index-desc-from-libs/list desc)
+  (define from-libs
+    (exported-index-desc-from-libs desc))
+  (match from-libs
+    [(? list?) (map ~a from-libs)]
+    [(? symbol?) (~a from-libs)]))
+
 (define-syntax index-desc
   (syntax-parser
     [(_ id:id)
-     (with-syntax
-       ([pred? (format-id #'id "~a?"
-                          (string-trim
+     (with-syntax*
+       ([name (format-id #'id "~a"
+                         (string-trim
                            (symbol->string
                             (syntax->datum #'id))
-                           "-index-desc?" #:left? #f))])
+                           "-index-desc" #:left? #f))]
+        [pred? (format-id #'id "~a?"
+                          #'id)])
        #'(cons pred?
-               (const (list (quote id)))))]))
+               (λ (%)
+                 (if (exported-index-desc? %)
+                     (list (quote name)
+                           (exported-index-desc-from-libs/list %))
+                     (list (quote name))))))]))
 
 (define index-desc->list
   (list
    (index-desc module-path-index-desc)
+   (index-desc language-index-desc)
+   (index-desc reader-index-desc)
    (index-desc thing-index-desc)
    (index-desc form-index-desc)
-   (index-desc reader-index-desc)
    (index-desc class-index-desc)
-   (index-desc language-index-desc)
    (index-desc interface-index-desc)
    (index-desc mixin-index-desc)
    (index-desc struct-index-desc)
-   (cons exported-index-desc?
-         (λ (%)
-           (list
-            'exported
-            (exported-index-desc-from-libs %))))))
+   (index-desc exported-index-desc)))
 
 (define (entry->list entry)
   (define desc (entry-desc entry))
@@ -69,8 +80,8 @@
        #f)
    (cons (~a path) anchor)))
 
-(define/contract index
-  (listof entry/c)
+(define/contract (index)
+  (-> (listof entry/c))
   (map
    entry->list
    (xref-index xref)))
@@ -79,4 +90,4 @@
 
 (module+ test
   (require rackunit)
-  (check-true (pair? index)))
+  (check-true (pair? (index))))

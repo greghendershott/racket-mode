@@ -20,6 +20,7 @@
 (require 'racket-browse-url)
 (require 'racket-complete)
 (require 'racket-describe)
+;;(require 'racket-search)
 (require 'racket-doc)
 (require 'racket-eldoc)
 (require 'racket-custom)

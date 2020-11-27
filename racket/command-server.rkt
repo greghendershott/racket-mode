@@ -16,7 +16,6 @@
 
 (lazy-require
  ["commands/check-syntax.rkt" (check-syntax)]
- ["commands/index.rkt"       (index)]
  ["commands/describe.rkt"     (describe type)]
  ["commands/find-module.rkt"  (find-module)]
  ["commands/help.rkt"         (doc)]
@@ -137,7 +136,6 @@
     [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
     [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]
     [`(requires/find ,str)             (libs-exporting-documented str)]
-    [`(index)                          (index)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
     ;; namespace), if their first "how" argument is 'namespace.
