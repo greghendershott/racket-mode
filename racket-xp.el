@@ -25,6 +25,7 @@
 (require 'racket-imenu)
 (require 'racket-util)
 (require 'racket-visit)
+(require 'racket-search)
 (require 'racket-show)
 (require 'racket-xp-complete)
 (require 'rx)

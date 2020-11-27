@@ -20,10 +20,14 @@
 (require 'racket-describe)
 (require 'racket-browse-url)
 
-(defvar racket--index '())
-(defconst racket--index-script "racket/make-index.rkt")
+(defvar racket--make-index.rkt
+  (expand-file-name "make-index.rkt" racket--rkt-source-dir)
+  "Pathname of script to make index.")
 
-(defun racket--index-format (words type-expr)
+(defvar racket--search-index '()
+  "Racket search index")
+
+(defun racket--search-format (words type-expr)
   (when type-expr
     (if (cdr type-expr)
         (format "%s: %s"
@@ -33,7 +37,42 @@
                  ", "))
       (car words))))
 
-(defun racket--build-index ()
+(defun racket--search-filter (proc str)
+  (let
+      ((buf (process-buffer proc)))
+    (when (buffer-live-p buf)
+      (with-current-buffer buf
+        ;; We use a newline as a delimiter for a new entry
+        (if (string-match-p "\n" str)
+            (let
+                ;; Don’t read the last line — it may be incomplete
+                ((line-pos
+                  (save-excursion
+                    (insert str)
+                    (cons
+                     (line-beginning-position)
+                     (point)))))
+              (cl-loop
+               while (< (point) (car line-pos))
+               do (progn
+                    (goto-char
+                     (line-beginning-position))
+                    (pcase (read buf)
+                      (`(,words ,type-expr ,link)
+                       (let
+                           ((e (racket--search-format
+                                words
+                                type-expr)))
+                         (when e
+                           (setq racket--search-index
+                                 (cons
+                                  (cons e link)
+                                  racket--search-index))))))
+                    (forward-line)))
+              (goto-char (cdr line-pos)))
+          (insert str))))))
+
+(defun racket--search-make-index ()
     (let
         ((buf (get-buffer-create " *racket-index*")))
       (with-current-buffer buf
@@ -45,51 +84,36 @@
          :sentinel
          (lambda (proc _)
            (unless (process-live-p proc)
+             (let
+                 ;; Finalize the index as a hash table
+                 ((hash (make-hash-table
+                         :size (length racket--search-index)
+                         :test #'equal)))
+               (cl-loop
+                for e in racket--search-index
+                do (puthash (car e) (cdr e) hash))
+               (setq racket--search-index hash))
              (kill-buffer buf)))
          :connection-type 'pipe
-         :filter
-         (lambda (proc str)
-           (let
-               ((buf (process-buffer proc)))
-             (when (buffer-live-p buf)
-               (with-current-buffer buf
-                 ;; We use a newline as a delimiter for a new entry
-                 (if (string-match-p "\n" str)
-                     (let
-                         ;; Don’t read the last line — it may be incomplete
-                         ((line-pos
-                           (save-excursion
-                             (insert str)
-                             (cons
-                              (line-beginning-position)
-                              (point)))))
-                       (cl-loop
-                        while (< (point) (car line-pos))
-                        do (progn
-                             (goto-char
-                              (line-beginning-position))
-                             (pcase (read buf)
-                               (`(,words ,type-expr ,link)
-                                (let
-                                    ((e (racket--index-format
-                                         words
-                                         type-expr)))
-                                  (when e
-                                    (setq racket--index
-                                          (cons
-                                           (cons e link)
-                                           racket--index))))))
-                             (forward-line)))
-                       (goto-char (cdr line-pos)))
-                   (insert str))))))
+         :filter #'racket--search-filter
          :command (list racket-program
-                        racket--index-script)))))
+                        racket--make-index.rkt)))))
 
-(defun racket-search (link)
+(defun racket-search (key)
   (interactive
    (list
-    (completing-read "Describe:" racket--index))))
-
-
+    (completing-read "Describe:" racket--search-index)))
+  (when (hash-table-p racket--search-index)
+    (let
+        ((link (gethash key racket--search-index)))
+      (racket--do-describe
+       link
+       (racket--repl-session-id)
+       "" ; This is a dummy string because we have an absolute link
+       t
+       (lambda ()
+         (racket-browse-url
+          (concat "file://" (car link) "#" (cdr link))))
+       nil))))
 
 (provide 'racket-search)
