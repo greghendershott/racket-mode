@@ -16,24 +16,30 @@
     [(vector (== level)
              _message
              (hash-table ['call       call]
+                         ['tail       tail]
                          ['show       show]
                          ['name       name]
                          ['level      level]
                          ['definition definition]
                          ['signature  signature]
                          ['caller     caller]
-                         ['context    context])
+                         ['context    context]
+                         ['thread     thread]
+                         ['msec       msec])
              (== topic))
      (channel-put notify-channel
                   `(trace
                     ,call
+                    ,tail
                     ,show
                     ,name
                     ,level
                     ,definition
                     ,signature
                     ,caller
-                    ,context))]
+                    ,context
+                    ,thread
+                    ,msec))]
     [data
      (log-racket-mode-error "unexpected data for ~v: ~v" topic data)])
   (trace-thread))

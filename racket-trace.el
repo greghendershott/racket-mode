@@ -20,13 +20,18 @@
 (require 'xref)
 (require 'pulse)
 (require 'racket-util)
+(require 'racket-show)
 
 (defvar racket-trace-mode-map
   (racket--easy-keymap-define
    '((("." "RET") xref-find-definitions)
      ("n"         racket-trace-next)
      ("p"         racket-trace-previous)
-     ("u"         racket-trace-up-level))))
+     ("u"         racket-trace-up-level)
+     ("/"         racket-trace-only-this-thread)
+     ("a"         racket-trace-all-threads))))
+
+(defvar racket--trace-known-threads nil)
 
 (define-derived-mode racket-trace-mode special-mode "Racket-Trace"
   "Major mode for trace output.
@@ -42,6 +47,7 @@ source location information.
   (add-hook 'before-change-functions #'racket-trace-before-change-function)
   (add-hook 'kill-buffer-hook #'racket-trace-delete-all-overlays nil t)
   (setq-local revert-buffer-function #'racket-trace-revert-buffer-function)
+  (setq buffer-invisibility-spec nil)
   ;; xref
   (add-hook 'xref-backend-functions
             #'racket-trace-xref-backend-function
@@ -54,7 +60,9 @@ source location information.
             (y-or-n-p "Clear buffer?"))
     (with-silent-modifications
       (erase-buffer))
-    (racket-trace-delete-all-overlays)))
+    (racket-trace-delete-all-overlays)
+    (setq buffer-invisibility-spec nil)
+    (setq racket--trace-known-threads nil)))
 
 (defconst racket--trace-buffer-name "*Racket Trace*")
 
@@ -72,14 +80,76 @@ source location information.
            (point-was-at-end-p (equal original-point (point-max))))
       (goto-char (point-max))
       (pcase data
-        (`(,callp ,show ,name ,level ,def ,sig ,call ,ctx)
-         (racket--trace-insert callp
-                               (if callp show (concat " ⇒ " show))
-                               level
-                               (cons name (racket--trace-srcloc-line+col def))
-                               (cons show (racket--trace-srcloc-beg+end sig))
-                               (cons show (racket--trace-srcloc-beg+end call))
-                               (cons show (racket--trace-srcloc-beg+end ctx)))))
+        (`(,callp ,tailp ,show ,name ,level ,def ,sig ,call ,ctx ,thread ,msec)
+         (let* ((xref (cons name (racket--trace-srcloc-line+col def)))
+                (sig (cons show (racket--trace-srcloc-beg+end sig)))
+                (call (cons show (racket--trace-srcloc-beg+end call)))
+                (ctx (cons show (racket--trace-srcloc-beg+end ctx)))
+                (thread (intern thread))
+                (prefix (if callp
+                            (if tailp "⤑ " "↘ ")
+                          "   ⇒ "))
+                (common-props (list 'racket-trace-callp     callp
+                                    'racket-trace-tailp     tailp
+                                    'racket-trace-level     level
+                                    'racket-trace-xref      xref
+                                    'racket-trace-signature sig
+                                    'racket-trace-caller    call
+                                    'racket-trace-context   ctx
+                                    'racket-trace-thread    thread
+                                    'racket-trace-msec      msec
+                                    'invisible              thread))
+                (new-thread-p (save-excursion
+                                (not (eq (and (zerop (forward-line -1))
+                                              (get-text-property (point)
+                                                                 'racket-trace-thread))
+                                         thread))))
+                ;; The base face for the entire line. The main feature
+                ;; here is to use :overline when this line's thread
+                ;; differs from the previous line.
+                (face `(:inherit
+                        default
+                        :overline
+                        ,(if new-thread-p "black" nil))))
+           (add-to-list 'racket--trace-known-threads thread)
+           ;; For an "inset boxes" effect, we start the line by
+           ;; drawing a space for each parent level, in its background
+           ;; color.
+           (cl-loop for n to (1- level)
+                    do
+                    (insert
+                     (apply #'propertize
+                            "  "
+                            'face
+                            (append face
+                                    `(:background
+                                      ,(racket--trace-level-color n)))
+                            common-props))
+                    ;; Finally draw the interesting information for
+                    ;; this line.
+                    finally
+                    (let ((face (append face `(:background
+                                               ,(racket--trace-level-color level)))))
+                      (insert
+                       (concat
+                        (apply #'propertize
+                               (concat prefix show)
+                               'face face
+                               common-props)
+                        (apply #'propertize
+                               (format "  %s" thread)
+                               'face (append face (if new-thread-p
+                                                      `(:height 0.8)
+                                                    `(:height 0.8 :foreground "gray")))
+                               common-props)
+                        (apply #'propertize
+                               (format "  %s" msec)
+                               'face (append face `(:height 0.8 :foreground "gray"))
+                               common-props)
+                        (apply #'propertize
+                               "\n"
+                               'face face
+                               common-props))))))))
       (unless point-was-at-end-p
         (goto-char original-point)))))
 
@@ -94,29 +164,6 @@ source location information.
   (pcase v
     (`(,path ,_line ,_col ,pos ,span)
      `(,path ,pos ,(+ pos span)))))
-
-(defun racket--trace-insert (callp str level xref signature caller context)
-  (cl-loop for n to (1- level)
-           do
-           (insert
-            (propertize "  "
-                        'face `(:inherit default :background ,(racket--trace-level-color n))
-                        'racket-trace-callp callp
-                        'racket-trace-level level
-                        'racket-trace-xref xref
-                        'racket-trace-signature signature
-                        'racket-trace-caller caller
-                        'racket-trace-context context))
-           finally
-           (insert
-            (propertize (concat str "\n")
-                        'face `(:inherit default :background ,(racket--trace-level-color level))
-                        'racket-trace-callp callp
-                        'racket-trace-level level
-                        'racket-trace-xref xref
-                        'racket-trace-signature signature
-                        'racket-trace-caller caller
-                        'racket-trace-context context))))
 
 (defun racket--trace-level-color (level)
   ;; TODO: Make an array of deffaces for customization
@@ -153,47 +200,80 @@ source location information.
                       display-buffer-use-some-window)
                      (inhibit-same-window . t)))))
 
-(defun racket-trace-next ()
-  "Move to next line and show caller and definition sites."
+(defun racket-trace-only-this-thread ()
+  "Filter to show only traces for the thread at point."
   (interactive)
-  (forward-line 1)
-  (racket--trace-back-to-sexp)
-  (racket--trace-show-sites))
+  (let ((thread (get-text-property (point) 'racket-trace-thread)))
+    (unless thread (user-error "No thread found"))
+    (dolist (thd racket--trace-known-threads)
+      (unless (eq thd thread)
+        (add-to-invisibility-spec thd)))
+    (message "Showing only thread %s" thread)))
+
+(defun racket-trace-all-threads ()
+  "Remove filtering and show traces for all threads."
+  (interactive)
+  (dolist (thd racket--trace-known-threads)
+      (remove-from-invisibility-spec thd))
+  (message "Showing all threads"))
+
+(defun racket-trace-next ()
+  "Move to next line and show caller and definition sites.
+Ignores i.e. skips invisible lines."
+  (interactive)
+  (when (racket--trace-forward-line 1)
+    (racket--trace-back-to-indentation)
+    (racket--trace-show-sites)))
 
 (defun racket-trace-previous ()
-  "Move to previous line and show caller and definition sites."
+  "Move to previous line and show caller and definition sites.
+Ignores i.e. skips invisible lines."
   (interactive)
-  (forward-line -1)
-  (racket--trace-back-to-sexp)
-  (racket--trace-show-sites))
+  (when (racket--trace-forward-line -1)
+    (racket--trace-back-to-indentation)
+    (racket--trace-show-sites)))
+
+(defun racket--trace-forward-line (amt)
+  "Like `forward-line' but ignores invisible lines and returns a boolean."
+  (let ((orig (point))
+        (result nil))
+    (while (not (or result
+                    (if (< amt 0) (bobp) (eobp))))
+      (when (and (zerop (forward-line amt))
+                 (not (invisible-p (point)))
+                 ;; At eob invisible-p can return nil so confirm:
+                 (not (if (< amt 0) (bobp) (eobp))))
+        (setq result t)))
+    (or result
+        (progn (goto-char orig) nil))))
 
 (defun racket-trace-up-level ()
   "Move up one level and show caller and definition sites."
   (interactive)
-  (when (racket--trace-up-level)
-    (racket--trace-back-to-sexp)
-    (racket--trace-show-sites)))
+  (unless (and (racket--trace-up-level)
+               (not (invisible-p (point))))
+    (user-error "Cannot find parent level"))
+  (racket--trace-back-to-indentation)
+  (racket--trace-show-sites))
 
 (defun racket--trace-up-level ()
-  "Try to move up one level, returning boolean whether moved."
-  (let ((orig (point)))
-    (pcase (get-text-property (point) 'racket-trace-level)
-      ((and (pred numberp) this-level)
-       (let ((desired-level (1- this-level)))
-         (cl-loop until (or (not (zerop (forward-line -1)))
-                            (equal (get-text-property (point) 'racket-trace-level)
-                                   desired-level)))
-         (if (equal (get-text-property (point) 'racket-trace-level)
-                    desired-level)
-             t
-           (goto-char orig)
-           nil))))))
+  "Try to move up one level for same thread, returning boolean whether moved."
+  (let ((orig (point))
+        (level (1- (get-text-property (point) 'racket-trace-level)))
+        (thread (get-text-property (point) 'racket-trace-thread))
+        (result nil))
+    (while (not (or result (bobp)))
+      (when (and (zerop (forward-line -1))
+                 (eq level (get-text-property (point) 'racket-trace-level))
+                 (eq thread (get-text-property (point) 'racket-trace-thread)))
+        (setq result t)))
+    (or result
+        (progn (goto-char orig) nil))))
 
-(defun racket--trace-back-to-sexp ()
-  "Move to the start of information for a line, based on its indent."
+(defun racket--trace-back-to-indentation ()
+  "Move to the start of information for a line, based on its indent, skipping any prefix."
   (back-to-indentation)
-  (forward-sexp)
-  (backward-sexp))
+  (forward-char 2))
 
 ;;; Showing call values in situ
 
