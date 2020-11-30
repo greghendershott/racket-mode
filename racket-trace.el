@@ -24,12 +24,14 @@
 
 (defvar racket-trace-mode-map
   (racket--easy-keymap-define
-   '((("." "RET") xref-find-definitions)
-     ("n"         racket-trace-next)
-     ("p"         racket-trace-previous)
-     ("u"         racket-trace-up-level)
-     ("/"         racket-trace-only-this-thread)
-     ("a"         racket-trace-all-threads))))
+   '(("RET" racket-trace-show-sites)
+     ("."   racket-trace-goto-signature-site)
+     (","   racket-trace-goto-caller-site)
+     ("n"   racket-trace-next)
+     ("p"   racket-trace-previous)
+     ("u"   racket-trace-up-level)
+     ("/"   racket-trace-only-this-thread)
+     ("a"   racket-trace-all-threads))))
 
 (defvar racket--trace-known-threads nil)
 
@@ -221,7 +223,7 @@ Ignores i.e. skips invisible lines."
   (interactive)
   (when (racket--trace-forward-line 1)
     (racket--trace-back-to-indentation)
-    (racket--trace-show-sites)))
+    (racket-trace-show-sites)))
 
 (defun racket-trace-previous ()
   "Move to previous line and show caller and definition sites.
@@ -229,7 +231,7 @@ Ignores i.e. skips invisible lines."
   (interactive)
   (when (racket--trace-forward-line -1)
     (racket--trace-back-to-indentation)
-    (racket--trace-show-sites)))
+    (racket-trace-show-sites)))
 
 (defun racket--trace-forward-line (amt)
   "Like `forward-line' but ignores invisible lines and returns a boolean."
@@ -252,7 +254,7 @@ Ignores i.e. skips invisible lines."
                (not (invisible-p (point))))
     (user-error "Cannot find parent level"))
   (racket--trace-back-to-indentation)
-  (racket--trace-show-sites))
+  (racket-trace-show-sites))
 
 (defun racket--trace-up-level ()
   "Try to move up one level for same thread, returning boolean whether moved."
@@ -273,7 +275,7 @@ Ignores i.e. skips invisible lines."
   (back-to-indentation)
   (forward-char 2))
 
-;;; Showing call values in situ
+;;; Showing caller and signature sites
 
 (defvar racket--trace-overlays nil
   "List of overlays we've added in various buffers.")
@@ -290,7 +292,8 @@ We don't actually delete them, just move them \"nowhere\"."
     (when (equal (overlay-buffer o) (current-buffer))
       (with-temp-buffer (move-overlay o 1 1)))))
 
-(defun racket--trace-show-sites ()
+(defun racket-trace-show-sites ()
+  (interactive)
   "Show caller and definition sites for all parent levels and current level."
   (racket-trace-delete-all-overlays)
   ;; Show sites for parent levels, in reverse order
@@ -305,68 +308,104 @@ We don't actually delete them, just move them \"nowhere\"."
     (goto-char here)
     (racket--trace-show-sites-at-point t)))
 
-(defun racket--trace-show-sites-at-point (display-buffer-for-caller-site-p)
-  (let ((level (get-text-property (point) 'racket-trace-level))
-        (callp (get-text-property (point) 'racket-trace-callp)))
-    ;; Caller: Always create buffer if necessary. Maybe display-buffer
-    ;; and move window point.
-    (pcase (get-text-property (point) 'racket-trace-caller)
-      (`(,show ,file ,beg ,end)
-       (with-current-buffer (or (get-file-buffer file)
-                                (let ((find-file-suppress-same-file-warnings t))
-                                  (find-file-noselect file)))
-         (when display-buffer-for-caller-site-p
-           (let ((win (display-buffer (current-buffer)
-                                      '((display-buffer-reuse-window
-                                         display-buffer-below-selected
-                                         display-buffer-use-some-window)
-                                        (inhibit-same-window . t)))))
-             (save-selected-window
-               (select-window win)
-               (goto-char beg))))
-         ;; For nested trace-expressions, we might need to make an
-         ;; overlay "on top of" an existing one, but that doesn't
-         ;; work, so hide any existing trace overlay(s) here. (We
-         ;; don't try to delete the overlay and remove it from
-         ;; `racket--trace-overlays' here; just move it "nowhere".)
-         (dolist (o (overlays-in beg end))
-           (when (eq (overlay-get o 'name) 'racket-trace-overlay)
-             (with-temp-buffer (move-overlay o 1 1))))
+(defun racket--trace-show-sites-at-point (displayp)
+  (pcase-let* ((level (get-text-property (point) 'racket-trace-level))
+               (callp (get-text-property (point) 'racket-trace-callp))
+               (`(,call-buffer ,call-beg ,call-end)
+                (racket--trace-highlight-caller-site level callp))
+               (`(,sig-buffer ,sig-beg ,sig-end)
+                (racket--trace-highlight-signature-site level callp)))
+    (when displayp
+      (cond ((and call-buffer call-beg call-end)
+             (racket--trace-goto call-buffer call-beg call-end))
+            ((and sig-buffer sig-beg sig-end)
+             (racket--trace-goto sig-buffer sig-beg sig-end)
+             (message "No call site information is available; instead showing signature site"))
+            (t
+             (user-error "No call or signature site information is available"))))))
+
+(defun racket--trace-highlight-caller-site (level callp)
+  (pcase (get-text-property (point) 'racket-trace-caller)
+    (`(,show ,file ,beg ,end)
+     (with-current-buffer (racket--trace-buffer-for-file file)
+       ;; For nested trace-expressions, we might need to make an
+       ;; overlay "on top of" an existing one, but that doesn't
+       ;; work, so hide any existing trace overlay(s) here. (We
+       ;; don't try to delete the overlay and remove it from
+       ;; `racket--trace-overlays' here; just move it "nowhere".)
+       (dolist (o (overlays-in beg end))
+         (when (eq (overlay-get o 'name) 'racket-trace-overlay)
+           (with-temp-buffer (move-overlay o 1 1))))
+       (let ((o (make-overlay beg end))
+             (face `(:inherit default :background ,(racket--trace-level-color level))))
+         (push o racket--trace-overlays)
+         (overlay-put o 'priority (+ 100 level))
+         (overlay-put o 'name 'racket-trace-overlay)
+         (overlay-put o 'display (if callp show t))
+         (unless callp
+           (overlay-put o 'after-string (propertize (concat " ⇒ " show)
+                                                    'face face)))
+         (overlay-put o 'face face))
+       (list (current-buffer) beg end)))))
+
+(defun racket--trace-highlight-signature-site (level callp)
+  ;; Signature at definition site. Only show overlay for calls (not
+  ;; results), i.e. only show while still "in" the function. If
+  ;; already overlay here with exact same beg/end, it's probably from
+  ;; `racket--trace-highlight-caller-site', and this is some syntactic
+  ;; form where the caller and signature are identical -- such as a
+  ;; traced expression or the initial call to a named-let) -- so don't
+  ;; create another overlay here (which would appear "next to" the
+  ;; original).
+  (pcase (get-text-property (point) 'racket-trace-signature)
+    (`(,show ,file ,beg ,end)
+     (with-current-buffer (racket--trace-buffer-for-file file)
+       (when (and callp
+                  (cl-notany (lambda (o)
+                               (and (eq (overlay-get o 'name) 'racket-trace-overlay)
+                                    (eq (overlay-start o) beg)
+                                    (eq (overlay-end o) end)))
+                             (overlays-in beg end)))
          (let ((o (make-overlay beg end))
                (face `(:inherit default :background ,(racket--trace-level-color level))))
            (push o racket--trace-overlays)
-           (overlay-put o 'priority (+ 100 level))
            (overlay-put o 'name 'racket-trace-overlay)
-           (overlay-put o 'display (if callp show t))
-           (unless callp
-             (overlay-put o 'after-string (propertize (concat " ⇒ " show)
-                                                      'face face)))
-           (overlay-put o 'face face)))))
-    ;; Signature at definition site. Only show overlay for calls (not
-    ;; results), i.e. "in" the function. If there is not already a
-    ;; buffer, don't create one. If the buffer is not already shown in
-    ;; a window, don't show it. If already overlay here with exact
-    ;; same beg/end, it's probably from "caller", above, for some
-    ;; syntactic form where the caller and signature are identical;
-    ;; don't create another overlay next to it.
-    (pcase (get-text-property (point) 'racket-trace-signature)
-      (`(,show ,file ,beg ,end)
-       (let ((buf (get-file-buffer file)))
-         (when (and callp
-                    buf
-                    (cl-notany (lambda (o)
-                                 (and (eq (overlay-get o 'name) 'racket-trace-overlay)
-                                      (eq (overlay-start o) beg)
-                                      (eq (overlay-end o) end)))
-                               (with-current-buffer buf (overlays-in beg end))))
-           (with-current-buffer buf
-             (let ((o (make-overlay beg end))
-                   (face `(:inherit default :background ,(racket--trace-level-color level))))
-               (push o racket--trace-overlays)
-               (overlay-put o 'name 'racket-trace-overlay)
-               (overlay-put o 'priority 100)
-               (overlay-put o 'display show)
-               (overlay-put o 'face face)))))))))
+           (overlay-put o 'priority 100)
+           (overlay-put o 'display show)
+           (overlay-put o 'face face))
+         (list (current-buffer) beg end))))))
+
+(defun racket-trace-goto-caller-site ()
+  (interactive)
+  (pcase (get-text-property (point) 'racket-trace-caller)
+    (`(,_show ,file ,beg ,end)
+     (racket--trace-goto file beg end))
+    (_ (user-error "No call site information is available"))))
+
+(defun racket-trace-goto-signature-site ()
+  (interactive)
+  (pcase (get-text-property (point) 'racket-trace-signature)
+    (`(,_show ,file ,beg ,end)
+     (racket--trace-goto file beg end))))
+
+(defun racket--trace-goto (file-or-buffer beg _end)
+  (let ((buffer (if (bufferp file-or-buffer)
+                    file-or-buffer
+                  (racket--trace-buffer-for-file file-or-buffer))))
+    (let ((win (display-buffer buffer
+                               '((display-buffer-reuse-window
+                                  display-buffer-below-selected
+                                  display-buffer-use-some-window)
+                                 (inhibit-same-window . t)))))
+      (save-selected-window
+        (select-window win)
+        (goto-char beg)))))
+
+(defun racket--trace-buffer-for-file (file)
+  (or (get-file-buffer file)
+      (let ((find-file-suppress-same-file-warnings t))
+        (find-file-noselect file))))
+
 
 (provide 'racket-trace)
 
