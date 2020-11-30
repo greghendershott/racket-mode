@@ -196,9 +196,7 @@ source location information.
   (select-window
    (display-buffer (racket--trace-get-buffer-create)
                    '((display-buffer-reuse-window
-                      display-buffer-below-selected
-                      display-buffer-use-some-window)
-                     (inhibit-same-window . t)))))
+                      display-buffer-use-some-window)))))
 
 (defun racket-trace-only-this-thread ()
   "Filter to show only traces for the thread at point."
