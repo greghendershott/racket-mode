@@ -240,9 +240,9 @@ Ignores i.e. skips invisible lines."
     (while (not (or result
                     (if (< amt 0) (bobp) (eobp))))
       (when (and (zerop (forward-line amt))
-                 (not (invisible-p (point)))
-                 ;; At eob invisible-p can return nil so confirm:
-                 (not (if (< amt 0) (bobp) (eobp))))
+                 (not (or (invisible-p (point))
+                          ;; At eob invisible-p can return nil so confirm:
+                          (and (< 0 amt) (eobp)))))
         (setq result t)))
     (or result
         (progn (goto-char orig) nil))))
