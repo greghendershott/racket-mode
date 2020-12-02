@@ -191,26 +191,6 @@ property at point, and apply the struct ACCESSOR."
   (let ((colors ["cornsilk1" "cornsilk2" "LightYellow1" "LightYellow2" "LemonChiffon1" "LemonChiffon2"]))
     (aref colors (mod level (length colors)))))
 
-;;; xref
-
-(defun racket-trace-xref-backend-function ()
-  'racket-trace-xref)
-
-(cl-defmethod xref-backend-identifier-at-point ((_backend (eql racket-trace-xref)))
-  (pcase (get-text-property (point) 'racket-trace)
-    ((and (pred racket-trace-p) v)
-     (propertize (racket-trace-name v) 'racket-trace v))))
-
-(cl-defmethod xref-backend-identifier-completion-table ((_backend (eql racket-trace-xref)))
-  nil)
-
-(cl-defmethod xref-backend-definitions ((_backend (eql racket-trace-xref)) str)
-  (pcase (get-text-property 0 'racket-trace str)
-    ((and (pred racket-trace-p) v)
-     (pcase (racket-trace-xref v)
-       (`(,path ,line ,col)
-        (list (xref-make str (xref-make-file-location path line col))))))))
-
 ;;; Commands
 
 ;;;###autoload
@@ -471,6 +451,25 @@ For speed we don't actually delete them, just move them \"nowhere\"."
         (when (numberp t0)
           (message "Duration: %s msec" t0)))))
 
+;;; xref
+
+(defun racket-trace-xref-backend-function ()
+  'racket-trace-xref)
+
+(cl-defmethod xref-backend-identifier-at-point ((_backend (eql racket-trace-xref)))
+  (pcase (get-text-property (point) 'racket-trace)
+    ((and (pred racket-trace-p) v)
+     (propertize (racket-trace-name v) 'racket-trace v))))
+
+(cl-defmethod xref-backend-identifier-completion-table ((_backend (eql racket-trace-xref)))
+  nil)
+
+(cl-defmethod xref-backend-definitions ((_backend (eql racket-trace-xref)) str)
+  (pcase (get-text-property 0 'racket-trace str)
+    ((and (pred racket-trace-p) v)
+     (pcase (racket-trace-xref v)
+       (`(,path ,line ,col)
+        (list (xref-make str (xref-make-file-location path line col))))))))
 
 (provide 'racket-trace)
 
