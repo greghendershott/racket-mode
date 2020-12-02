@@ -33,9 +33,30 @@
      ("u"   racket-trace-up-level)
      ("/"   racket-trace-only-this-thread)
      ("a"   racket-trace-all-threads)
-     ("t"   racket-trace-timing))))
+     ("t"   racket-trace-timing)
+     ("A"   racket-trace-toggle-thread-fields-visibility)
+     ("T"   racket-trace-toggle-timing-fields-visibility))))
 
 (defvar racket--trace-known-threads nil)
+
+;; There are two "dimensions" of visibility:
+;;
+;; 1. Each entire line gets an 'invisibile property value which is a
+;; symbol: the user program thread name. This allows filtering trace
+;; output by thread.
+;;
+;; 2. Some portions of the line ("fields") also get an 'invisible
+;; value, which allows toggling their display on/off. For this we use
+;; magic numbers (they can't collide with symbols), which are
+;; `defconst'ed just below.
+;;
+;; See `racket--trace-on-notify' for how we set the 'invisible
+;; property. See various commands for how they call
+;; `add-to-invisibility-spec' or `remove-from-invisibility-spec'.
+(defconst racket--trace-invisible-timing 0
+  "A value for the 'invisible text property and the `add-to-invisibility-spec'.")
+(defconst racket--trace-invisible-thread 1
+  "A value for the 'invisible text property and the `add-to-invisibility-spec'.")
 
 (define-derived-mode racket-trace-mode special-mode "Racket-Trace"
   "Major mode for trace output.
@@ -52,6 +73,8 @@ source location information.
   (add-hook 'kill-buffer-hook #'racket-trace-delete-all-overlays nil t)
   (setq-local revert-buffer-function #'racket-trace-revert-buffer-function)
   (setq buffer-invisibility-spec nil)
+  (add-to-invisibility-spec racket--trace-invisible-timing)
+  (add-to-invisibility-spec racket--trace-invisible-thread)
   (cl-pushnew 'racket--trace-signature-marker overlay-arrow-variable-list)
   (cl-pushnew 'racket--trace-caller-marker overlay-arrow-variable-list)
   (cl-pushnew 'racket--trace-context-marker overlay-arrow-variable-list)
@@ -68,7 +91,8 @@ source location information.
     (with-silent-modifications
       (erase-buffer))
     (racket-trace-delete-all-overlays)
-    (setq buffer-invisibility-spec nil)
+    (dolist (thd racket--trace-known-threads)
+      (remove-from-invisibility-spec thd))
     (setq racket--trace-known-threads nil)))
 
 (defconst racket--trace-buffer-name "*Racket Trace*")
@@ -116,8 +140,6 @@ property at point, and apply the struct ACCESSOR."
                                       :context   context
                                       :thread    thread
                                       :msec      msec))
-                (common-props (list 'racket-trace v
-                                    'invisible    thread))
                 (new-thread-p (save-excursion
                                 (not (eq (and (zerop (forward-line -1))
                                               (racket--trace-get #'racket-trace-thread))
@@ -139,13 +161,13 @@ property at point, and apply the struct ACCESSOR."
            (cl-loop for n to (1- level)
                     do
                     (insert
-                     (apply #'propertize
-                            "  "
-                            'face
-                            (append face
-                                    `(:background
-                                      ,(racket--trace-level-color n)))
-                            common-props))
+                     (propertize "  "
+                                 'face
+                                 (append face
+                                         `(:background
+                                           ,(racket--trace-level-color n)))
+                                 'racket-trace v
+                                 'invisible    thread))
                     ;; Finally draw the interesting information for
                     ;; this line.
                     finally
@@ -153,24 +175,30 @@ property at point, and apply the struct ACCESSOR."
                                                ,(racket--trace-level-color level)))))
                       (insert
                        (concat
-                        (apply #'propertize
-                               (concat prefix show)
-                               'face face
-                               common-props)
-                        (apply #'propertize
-                               (format "  %s" thread)
-                               'face (append face (if new-thread-p
-                                                      `(:height 0.8)
-                                                    `(:height 0.8 :foreground "gray")))
-                               common-props)
-                        (apply #'propertize
-                               (format "  %s" msec)
-                               'face (append face `(:height 0.8 :foreground "gray"))
-                               common-props)
-                        (apply #'propertize
-                               "\n"
-                               'face face
-                               common-props))))))))
+                        (propertize (concat prefix show)
+                                    'face         face
+                                    'racket-trace v
+                                    'invisible    thread)
+                        (propertize (format "  %s" thread)
+                                    'face
+                                    (append face (if new-thread-p
+                                                     `(:height 0.8)
+                                                   `(:height 0.8 :foreground "gray")))
+                                    'racket-trace v
+                                    'invisible    (if new-thread-p
+                                                      thread
+                                                    (list thread
+                                                          racket--trace-invisible-thread)))
+                        (propertize (format "  %s" msec)
+                                    'face
+                                    (append face `(:height 0.8 :foreground "gray"))
+                                    'racket-trace v
+                                    'invisible    (list thread
+                                                        racket--trace-invisible-timing))
+                        (propertize "\n"
+                                    'face         face
+                                    'racket-trace v
+                                    'invisible    thread))))))))
       (unless point-was-at-end-p
         (goto-char original-point)))))
 
@@ -201,26 +229,7 @@ property at point, and apply the struct ACCESSOR."
    (display-buffer-in-side-window (racket--trace-get-buffer-create)
                                   '((side . bottom)
                                     (slot . 1)
-                                    (window-height 0.3)))))
-
-(defun racket-trace-only-this-thread ()
-  "Filter to show only traces for the thread at point."
-  (interactive)
-  (let ((thread (racket--trace-get #'racket-trace-thread)))
-    (unless thread (user-error "No thread found"))
-    (dolist (thd racket--trace-known-threads)
-      (unless (eq thd thread)
-        (add-to-invisibility-spec thd)))
-    (save-selected-window (other-window 1)) ;HACK: cause redisplay
-    (message "Showing only thread %s" thread)))
-
-(defun racket-trace-all-threads ()
-  "Remove filtering and show traces for all threads."
-  (interactive)
-  (dolist (thd racket--trace-known-threads)
-    (remove-from-invisibility-spec thd))
-  (save-selected-window (other-window 1)) ;HACK: cause redisplay
-  (message "Showing all threads"))
+                                    (window-height 15)))))
 
 (defun racket-trace-next ()
   "Move to next line and show caller and definition sites.
@@ -439,7 +448,7 @@ For speed we don't actually delete them, just move them \"nowhere\"."
 
 (defun racket-trace-timing ()
   "Shows the time, or when a region is active, the duration."
-  (interactive "")
+  (interactive)
   (if (region-active-p)
       (let ((t0 (save-excursion (goto-char (region-beginning))
                                 (racket--trace-get #'racket-trace-msec)))
@@ -450,6 +459,41 @@ For speed we don't actually delete them, just move them \"nowhere\"."
     (let ((t0 (racket--trace-get #'racket-trace-msec)))
         (when (numberp t0)
           (message "Duration: %s msec" t0)))))
+
+;; Invisibility commands
+
+(defun racket-trace-only-this-thread ()
+  "Filter to show only traces for the thread at point."
+  (interactive)
+  (let ((thread (racket--trace-get #'racket-trace-thread)))
+    (unless thread (user-error "No thread found"))
+    (dolist (thd racket--trace-known-threads)
+      (unless (eq thd thread)
+        (add-to-invisibility-spec thd)))
+    (save-selected-window (other-window 1)) ;HACK: cause redisplay
+    (message "Showing only thread %s" thread)))
+
+(defun racket-trace-all-threads ()
+  "Remove filtering and show traces for all threads."
+  (interactive)
+  (dolist (thd racket--trace-known-threads)
+    (remove-from-invisibility-spec thd))
+  (save-selected-window (other-window 1)) ;HACK: cause redisplay
+  (message "Showing all threads"))
+
+(defun racket-trace-toggle-thread-fields-visibility ()
+  (interactive)
+  (if (memq racket--trace-invisible-thread buffer-invisibility-spec)
+      (remove-from-invisibility-spec racket--trace-invisible-thread)
+    (add-to-invisibility-spec racket--trace-invisible-thread))
+  (save-selected-window (other-window 1))) ;HACK: cause redisplay
+
+(defun racket-trace-toggle-timing-fields-visibility ()
+  (interactive)
+  (if (memq racket--trace-invisible-timing buffer-invisibility-spec)
+      (remove-from-invisibility-spec racket--trace-invisible-timing)
+    (add-to-invisibility-spec racket--trace-invisible-timing))
+  (save-selected-window (other-window 1))) ;HACK: cause redisplay
 
 ;;; xref
 
