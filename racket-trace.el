@@ -457,6 +457,20 @@ For speed we don't actually delete them, just move them \"nowhere\"."
       (let ((find-file-suppress-same-file-warnings t))
         (find-file-noselect file))))
 
+(defun racket-trace-timing ()
+  "Shows the time, or when a region is active, the duration."
+  (interactive "")
+  (if (region-active-p)
+      (let ((t0 (save-excursion (goto-char (region-beginning))
+                                (racket--trace-get #'racket-trace-msec)))
+            (t1 (save-excursion (goto-char (region-end))
+                                (racket--trace-get #'racket-trace-msec))))
+        (when (and (numberp t0) (numberp t1))
+          (message "Time: %s msec" (abs (- t1 t0)))))
+    (let ((t0 (racket--trace-get #'racket-trace-msec)))
+        (when (numberp t0)
+          (message "Duration: %s msec" t0)))))
+
 
 (provide 'racket-trace)
 
