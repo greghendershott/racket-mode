@@ -32,7 +32,8 @@
      ("p"   racket-trace-previous)
      ("u"   racket-trace-up-level)
      ("/"   racket-trace-only-this-thread)
-     ("a"   racket-trace-all-threads))))
+     ("a"   racket-trace-all-threads)
+     ("t"   racket-trace-timing))))
 
 (defvar racket--trace-known-threads nil)
 
@@ -79,6 +80,18 @@ source location information.
       (racket-trace-mode)))
   (get-buffer racket--trace-buffer-name))
 
+(cl-defstruct racket-trace
+  callp tailp name show level xref signature caller context thread msec)
+
+(defun racket--trace-get (&optional accessor)
+  "Get our `racket-trace' struct from a 'racket-trace text
+property at point, and apply the struct ACCESSOR."
+  (pcase (get-text-property (point) 'racket-trace)
+    ((and (pred racket-trace-p) v)
+     (if accessor
+         (funcall accessor v)
+       v))))
+
 (defun racket--trace-on-notify (data)
   (with-current-buffer (racket--trace-get-buffer-create)
     (let* ((inhibit-read-only  t)
@@ -87,36 +100,38 @@ source location information.
       (goto-char (point-max))
       (pcase data
         (`(,callp ,tailp ,show ,name ,level ,def ,sig ,call ,ctx ,thread ,msec)
-         (let* ((xref (cons name (racket--trace-srcloc-line+col def)))
-                (sig (cons show (racket--trace-srcloc-beg+end sig)))
-                (call (cons show (racket--trace-srcloc-beg+end call)))
-                (ctx (cons show (racket--trace-srcloc-beg+end ctx)))
-                (thread (intern thread))
-                (prefix (if callp
-                            (if tailp "⤑ " "↘ ")
-                          "   ⇒ "))
-                (common-props (list 'racket-trace-callp     callp
-                                    'racket-trace-tailp     tailp
-                                    'racket-trace-level     level
-                                    'racket-trace-xref      xref
-                                    'racket-trace-signature sig
-                                    'racket-trace-caller    call
-                                    'racket-trace-context   ctx
-                                    'racket-trace-thread    thread
-                                    'racket-trace-msec      msec
-                                    'invisible              thread))
+         (let* ((thread    (intern thread))
+                (xref      (racket--trace-srcloc-line+col def))
+                (signature (racket--trace-srcloc-beg+end sig))
+                (caller    (racket--trace-srcloc-beg+end call))
+                (context   (racket--trace-srcloc-beg+end ctx))
+                (v (make-racket-trace :callp     callp
+                                      :tailp     tailp
+                                      :name      name
+                                      :show      show
+                                      :level     level
+                                      :xref      xref
+                                      :signature signature
+                                      :caller    caller
+                                      :context   context
+                                      :thread    thread
+                                      :msec      msec))
+                (common-props (list 'racket-trace v
+                                    'invisible    thread))
                 (new-thread-p (save-excursion
                                 (not (eq (and (zerop (forward-line -1))
-                                              (get-text-property (point)
-                                                                 'racket-trace-thread))
+                                              (racket--trace-get #'racket-trace-thread))
                                          thread))))
-                ;; The base face for the entire line. The main feature
-                ;; here is to use :overline when this line's thread
-                ;; differs from the previous line.
                 (face `(:inherit
                         default
                         :overline
-                        ,(if new-thread-p "black" nil))))
+                        ,(if new-thread-p "black" nil)))
+                ;; The base face for the entire line. The main feature
+                ;; here is to use :overline when this line's thread
+                ;; differs from the previous line.
+                (prefix (if callp
+                            (if tailp "⤑ " "↘ ")
+                          "   ⇒ ")))
            (add-to-list 'racket--trace-known-threads thread)
            ;; For an "inset boxes" effect, we start the line by
            ;; drawing a space for each parent level, in its background
@@ -182,16 +197,19 @@ source location information.
   'racket-trace-xref)
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql racket-trace-xref)))
-  (pcase (get-text-property (point) 'racket-trace-xref)
-    ((and v `(,name . ,_)) (propertize name 'racket-trace-xref v))))
+  (pcase (get-text-property (point) 'racket-trace)
+    ((and (pred racket-trace-p) v)
+     (propertize (racket-trace-name v) 'racket-trace v))))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql racket-trace-xref)))
   nil)
 
 (cl-defmethod xref-backend-definitions ((_backend (eql racket-trace-xref)) str)
-  (pcase (get-text-property 0 'racket-trace-xref str)
-    (`(,_name ,path ,line ,col)
-     (list (xref-make str (xref-make-file-location path line col))))))
+  (pcase (get-text-property 0 'racket-trace str)
+    ((and (pred racket-trace-p) v)
+     (pcase (racket-trace-xref v)
+       (`(,path ,line ,col)
+        (list (xref-make str (xref-make-file-location path line col))))))))
 
 ;;; Commands
 
@@ -208,7 +226,7 @@ source location information.
 (defun racket-trace-only-this-thread ()
   "Filter to show only traces for the thread at point."
   (interactive)
-  (let ((thread (get-text-property (point) 'racket-trace-thread)))
+  (let ((thread (racket--trace-get #'racket-trace-thread)))
     (unless thread (user-error "No thread found"))
     (dolist (thd racket--trace-known-threads)
       (unless (eq thd thread)
@@ -265,14 +283,14 @@ Ignores i.e. skips invisible lines."
 
 (defun racket--trace-up-level ()
   "Try to move up one level for same thread, returning boolean whether moved."
-  (let ((orig (point))
-        (level (1- (get-text-property (point) 'racket-trace-level)))
-        (thread (get-text-property (point) 'racket-trace-thread))
-        (result nil))
+  (let* ((orig (point))
+         (level (1- (racket--trace-get #'racket-trace-level)))
+         (thread (racket--trace-get #'racket-trace-thread))
+         (result nil))
     (while (not (or result (bobp)))
       (when (and (zerop (forward-line -1))
-                 (eq level (get-text-property (point) 'racket-trace-level))
-                 (eq thread (get-text-property (point) 'racket-trace-thread)))
+                 (eq level (racket--trace-get #'racket-trace-level))
+                 (eq thread (racket--trace-get #'racket-trace-thread)))
         (setq result t)))
     (or result
         (progn (goto-char orig) nil))))
@@ -335,14 +353,14 @@ For speed we don't actually delete them, just move them \"nowhere\"."
     (racket-trace-goto-signature-site)))
 
 (defun racket--trace-highlight-sites-at-point ()
-  (let ((level (get-text-property (point) 'racket-trace-level))
-        (callp (get-text-property (point) 'racket-trace-callp)))
-    (racket--trace-highlight-signature-site level callp)
-    (racket--trace-highlight-caller-site level callp)))
+  (pcase (racket--trace-get)
+    ((and (pred racket-trace-p) v)
+     (racket--trace-highlight-signature-site v)
+     (racket--trace-highlight-caller-site v))))
 
-(defun racket--trace-highlight-caller-site (level callp)
-  (pcase (or (get-text-property (point) 'racket-trace-caller))
-    (`(,show ,file ,beg ,end)
+(defun racket--trace-highlight-caller-site (v)
+  (pcase (racket-trace-caller v)
+    (`(,file ,beg ,end)
      (with-current-buffer (racket--trace-buffer-for-file file)
        ;; For nested trace-expressions, we might need to make an
        ;; overlay "on top of" an existing one, but that doesn't
@@ -352,8 +370,11 @@ For speed we don't actually delete them, just move them \"nowhere\"."
        (dolist (o (overlays-in beg end))
          (when (eq (overlay-get o 'name) 'racket-trace-overlay)
            (with-temp-buffer (move-overlay o 1 1))))
-       (let ((o (make-overlay beg end))
-             (face `(:inherit default :background ,(racket--trace-level-color level))))
+       (let* ((level (racket-trace-level v))
+              (callp (racket-trace-callp v))
+              (show (racket-trace-show v))
+              (o (make-overlay beg end))
+              (face `(:inherit default :background ,(racket--trace-level-color level))))
          (push o racket--trace-overlays)
          (overlay-put o 'priority (+ 100 level))
          (overlay-put o 'name 'racket-trace-overlay)
@@ -364,7 +385,7 @@ For speed we don't actually delete them, just move them \"nowhere\"."
          (overlay-put o 'face face))
        (list (current-buffer) beg end)))))
 
-(defun racket--trace-highlight-signature-site (level callp)
+(defun racket--trace-highlight-signature-site (v)
   ;; Signature at definition site. Only show overlay for calls (not
   ;; results), i.e. only show while still "in" the function. If
   ;; already overlay here with exact same beg/end, it's probably from
@@ -373,17 +394,19 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   ;; traced expression or the initial call to a named-let) -- so don't
   ;; create another overlay here (which would appear "next to" the
   ;; original).
-  (pcase (get-text-property (point) 'racket-trace-signature)
-    (`(,show ,file ,beg ,end)
+  (pcase (racket-trace-signature v)
+    (`(,file ,beg ,end)
      (with-current-buffer (racket--trace-buffer-for-file file)
-       (when (and callp
+       (when (and (racket-trace-callp v)
                   (cl-notany (lambda (o)
                                (and (eq (overlay-get o 'name) 'racket-trace-overlay)
                                     (eq (overlay-start o) beg)
                                     (eq (overlay-end o) end)))
                              (overlays-in beg end)))
-         (let ((o (make-overlay beg end))
-               (face `(:inherit default :background ,(racket--trace-level-color level))))
+         (let* ((level (racket-trace-level v))
+                (show (racket-trace-show v))
+                (o (make-overlay beg end))
+                (face `(:inherit default :background ,(racket--trace-level-color level))))
            (push o racket--trace-overlays)
            (overlay-put o 'name 'racket-trace-overlay)
            (overlay-put o 'priority 100)
@@ -393,24 +416,24 @@ For speed we don't actually delete them, just move them \"nowhere\"."
 
 (defun racket-trace-goto-caller-site ()
   (interactive)
-  (pcase (get-text-property (point) 'racket-trace-caller)
-    (`(,_show ,file ,beg ,end)
+  (pcase (racket--trace-get #'racket-trace-caller)
+    (`(,file ,beg ,end)
      (setq racket--trace-caller-marker
            (racket--trace-goto file beg end)))
     (_ (user-error "No call site information is available"))))
 
 (defun racket-trace-goto-context-site ()
   (interactive)
-  (pcase (get-text-property (point) 'racket-trace-context)
-    (`(,_show ,file ,beg ,end)
+  (pcase (racket--trace-get #'racket-trace-context)
+    (`(,file ,beg ,end)
      (setq racket--trace-context-marker
            (racket--trace-goto file beg end)))
     (_ (user-error "No context site information is available"))))
 
 (defun racket-trace-goto-signature-site ()
   (interactive)
-  (pcase (get-text-property (point) 'racket-trace-signature)
-    (`(,_show ,file ,beg ,end)
+  (pcase (racket--trace-get #'racket-trace-signature)
+    (`(,file ,beg ,end)
      (setq racket--trace-signature-marker
            (racket--trace-goto file beg end)))))
 
