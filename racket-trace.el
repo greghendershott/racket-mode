@@ -27,6 +27,7 @@
    '(("RET" racket-trace-show-sites)
      ("."   racket-trace-goto-signature-site)
      (","   racket-trace-goto-caller-site)
+     ("c"   racket-trace-goto-context-site)
      ("n"   racket-trace-next)
      ("p"   racket-trace-previous)
      ("u"   racket-trace-up-level)
@@ -50,6 +51,9 @@ source location information.
   (add-hook 'kill-buffer-hook #'racket-trace-delete-all-overlays nil t)
   (setq-local revert-buffer-function #'racket-trace-revert-buffer-function)
   (setq buffer-invisibility-spec nil)
+  (cl-pushnew 'racket--trace-signature-marker overlay-arrow-variable-list)
+  (cl-pushnew 'racket--trace-caller-marker overlay-arrow-variable-list)
+  (cl-pushnew 'racket--trace-context-marker overlay-arrow-variable-list)
   ;; xref
   (add-hook 'xref-backend-functions
             #'racket-trace-xref-backend-function
@@ -193,12 +197,13 @@ source location information.
 
 ;;;###autoload
 (defun racket-trace ()
-  "Create the `racket-trace-mode' buffer and select it in a window."
+  "Select the `racket-trace-mode' buffer in a window."
   (interactive)
   (select-window
-   (display-buffer (racket--trace-get-buffer-create)
-                   '((display-buffer-reuse-window
-                      display-buffer-use-some-window)))))
+   (display-buffer-in-side-window (racket--trace-get-buffer-create)
+                                  '((side . bottom)
+                                    (slot . 1)
+                                    (window-height 0.3)))))
 
 (defun racket-trace-only-this-thread ()
   "Filter to show only traces for the thread at point."
@@ -208,13 +213,15 @@ source location information.
     (dolist (thd racket--trace-known-threads)
       (unless (eq thd thread)
         (add-to-invisibility-spec thd)))
+    (save-selected-window (other-window 1)) ;HACK: cause redisplay
     (message "Showing only thread %s" thread)))
 
 (defun racket-trace-all-threads ()
   "Remove filtering and show traces for all threads."
   (interactive)
   (dolist (thd racket--trace-known-threads)
-      (remove-from-invisibility-spec thd))
+    (remove-from-invisibility-spec thd))
+  (save-selected-window (other-window 1)) ;HACK: cause redisplay
   (message "Showing all threads"))
 
 (defun racket-trace-next ()
@@ -277,55 +284,64 @@ Ignores i.e. skips invisible lines."
 
 ;;; Showing caller and signature sites
 
+(defvar racket--trace-signature-marker nil
+  "A value for the variable `overlay-arrow-variable-list'.")
+(defvar racket--trace-caller-marker nil
+  "A value for the variable `overlay-arrow-variable-list'.")
+(defvar racket--trace-context-marker nil
+  "A value for the variable `overlay-arrow-variable-list'.")
+
 (defvar racket--trace-overlays nil
   "List of overlays we've added in various buffers.")
 
 (defun racket-trace-delete-all-overlays ()
-  (dolist (o racket--trace-overlays)
-    (delete-overlay o))
+  "Delete all overlays and overlay arrows in various buffers."
+  (setq racket--trace-signature-marker nil
+        racket--trace-caller-marker nil
+        racket--trace-context-marker nil)
+  (dolist (o racket--trace-overlays) (delete-overlay o))
   (setq racket--trace-overlays nil))
 
 (defun racket-trace-before-change-function (_beg _end)
   "When a buffer is modified, hide all overlays we have in it.
-We don't actually delete them, just move them \"nowhere\"."
-  (dolist (o racket--trace-overlays)
-    (when (equal (overlay-buffer o) (current-buffer))
-      (with-temp-buffer (move-overlay o 1 1)))))
+For speed we don't actually delete them, just move them \"nowhere\"."
+  (setq racket--trace-signature-marker nil
+        racket--trace-caller-marker nil
+        racket--trace-context-marker nil)
+  (let ((buf (current-buffer)))
+    (with-temp-buffer
+      (dolist (o racket--trace-overlays)
+        (when (equal (overlay-buffer o) buf)
+          (with-temp-buffer (move-overlay o 1 1)))))))
 
 (defun racket-trace-show-sites ()
   (interactive)
   "Show caller and definition sites for all parent levels and current level."
   (racket-trace-delete-all-overlays)
-  ;; Show sites for parent levels, in reverse order
+  ;; Highlight sites for parent levels, in reverse order
   (let ((here    (point))
         (parents (cl-loop until (not (racket--trace-up-level))
                           collect (point))))
     (cl-loop for pt in (nreverse parents)
              do
              (goto-char pt)
-             (racket--trace-show-sites-at-point nil))
-    ;; Show sites for current level, last.
+             (racket--trace-highlight-sites-at-point))
+    ;; Highlight sites for current level, last.
     (goto-char here)
-    (racket--trace-show-sites-at-point t)))
+    (racket--trace-highlight-sites-at-point)
+    ;; And display the buffers for the sites.
+    (unless (ignore-errors (racket-trace-goto-caller-site))
+      (message "No caller site available; press c to visit context site"))
+    (racket-trace-goto-signature-site)))
 
-(defun racket--trace-show-sites-at-point (displayp)
-  (pcase-let* ((level (get-text-property (point) 'racket-trace-level))
-               (callp (get-text-property (point) 'racket-trace-callp))
-               (`(,call-buffer ,call-beg ,call-end)
-                (racket--trace-highlight-caller-site level callp))
-               (`(,sig-buffer ,sig-beg ,sig-end)
-                (racket--trace-highlight-signature-site level callp)))
-    (when displayp
-      (cond ((and call-buffer call-beg call-end)
-             (racket--trace-goto call-buffer call-beg call-end))
-            ((and sig-buffer sig-beg sig-end)
-             (racket--trace-goto sig-buffer sig-beg sig-end)
-             (message "No call site information is available; instead showing signature site"))
-            (t
-             (user-error "No call or signature site information is available"))))))
+(defun racket--trace-highlight-sites-at-point ()
+  (let ((level (get-text-property (point) 'racket-trace-level))
+        (callp (get-text-property (point) 'racket-trace-callp)))
+    (racket--trace-highlight-signature-site level callp)
+    (racket--trace-highlight-caller-site level callp)))
 
 (defun racket--trace-highlight-caller-site (level callp)
-  (pcase (get-text-property (point) 'racket-trace-caller)
+  (pcase (or (get-text-property (point) 'racket-trace-caller))
     (`(,show ,file ,beg ,end)
      (with-current-buffer (racket--trace-buffer-for-file file)
        ;; For nested trace-expressions, we might need to make an
@@ -379,16 +395,27 @@ We don't actually delete them, just move them \"nowhere\"."
   (interactive)
   (pcase (get-text-property (point) 'racket-trace-caller)
     (`(,_show ,file ,beg ,end)
-     (racket--trace-goto file beg end))
+     (setq racket--trace-caller-marker
+           (racket--trace-goto file beg end)))
     (_ (user-error "No call site information is available"))))
+
+(defun racket-trace-goto-context-site ()
+  (interactive)
+  (pcase (get-text-property (point) 'racket-trace-context)
+    (`(,_show ,file ,beg ,end)
+     (setq racket--trace-context-marker
+           (racket--trace-goto file beg end)))
+    (_ (user-error "No context site information is available"))))
 
 (defun racket-trace-goto-signature-site ()
   (interactive)
   (pcase (get-text-property (point) 'racket-trace-signature)
     (`(,_show ,file ,beg ,end)
-     (racket--trace-goto file beg end))))
+     (setq racket--trace-signature-marker
+           (racket--trace-goto file beg end)))))
 
 (defun racket--trace-goto (file-or-buffer beg _end)
+  "Returns marker for BOL."
   (let ((buffer (if (bufferp file-or-buffer)
                     file-or-buffer
                   (racket--trace-buffer-for-file file-or-buffer))))
@@ -399,7 +426,8 @@ We don't actually delete them, just move them \"nowhere\"."
                                  (inhibit-same-window . t)))))
       (save-selected-window
         (select-window win)
-        (goto-char beg)))))
+        (goto-char beg)
+        (save-excursion (beginning-of-line) (point-marker))))))
 
 (defun racket--trace-buffer-for-file (file)
   (or (get-file-buffer file)
