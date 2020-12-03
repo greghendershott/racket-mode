@@ -214,10 +214,20 @@ property at point, and apply the struct ACCESSOR."
     (`(,path ,_line ,_col ,pos ,span)
      `(,path ,pos ,(+ pos span)))))
 
+;; TODO: Move to racket-custom.el
+(defconst racket-trace-level-color-increment 1024)
+
 (defun racket--trace-level-color (level)
-  ;; TODO: Make an array of deffaces for customization
-  (let ((colors ["cornsilk1" "cornsilk2" "LightYellow1" "LightYellow2" "LemonChiffon1" "LemonChiffon2"]))
-    (aref colors (mod level (length colors)))))
+  (pcase-let* ((background (face-background 'default))
+               (dark-mode-p (eq 'dark (frame-parameter nil 'background-mode)))
+               (`(,r ,g ,b) (color-values background))
+               (amt (* (+ level 2)
+                       racket-trace-level-color-increment
+                       (if dark-mode-p 1 -1))))
+    (concat "#"
+            (pulse-int-to-hex (+ r amt))
+            (pulse-int-to-hex (+ g amt 2048))
+            (pulse-int-to-hex (+ b amt)))))
 
 ;;; Commands
 
@@ -337,9 +347,9 @@ For speed we don't actually delete them, just move them \"nowhere\"."
     (goto-char here)
     (racket--trace-highlight-sites-at-point)
     ;; And display the buffers for the sites.
+    (racket-trace-goto-signature-site)
     (unless (ignore-errors (racket-trace-goto-caller-site))
-      (message "No caller site available; press c to visit context site"))
-    (racket-trace-goto-signature-site)))
+      (message "No caller site available; press c to visit context site"))))
 
 (defun racket--trace-highlight-sites-at-point ()
   (pcase (racket--trace-get)
@@ -359,49 +369,32 @@ For speed we don't actually delete them, just move them \"nowhere\"."
        (dolist (o (overlays-in beg end))
          (when (eq (overlay-get o 'name) 'racket-trace-overlay)
            (with-temp-buffer (move-overlay o 1 1))))
-       (let* ((level (racket-trace-level v))
-              (callp (racket-trace-callp v))
-              (show (racket-trace-show v))
-              (o (make-overlay beg end))
-              (face `(:inherit default :background ,(racket--trace-level-color level))))
-         (push o racket--trace-overlays)
-         (overlay-put o 'priority (+ 100 level))
-         (overlay-put o 'name 'racket-trace-overlay)
-         (overlay-put o 'display (if callp show t))
-         (unless callp
-           (overlay-put o 'after-string (propertize (concat " ⇒ " show)
-                                                    'face face)))
-         (overlay-put o 'face face))
-       (list (current-buffer) beg end)))))
+       (racket--trace-put-highlight-overlay v beg end
+                                            (+ 101 (racket-trace-level v)))))))
 
 (defun racket--trace-highlight-signature-site (v)
-  ;; Signature at definition site. Only show overlay for calls (not
-  ;; results), i.e. only show while still "in" the function. If
-  ;; already overlay here with exact same beg/end, it's probably from
-  ;; `racket--trace-highlight-caller-site', and this is some syntactic
-  ;; form where the caller and signature are identical -- such as a
-  ;; traced expression or the initial call to a named-let) -- so don't
-  ;; create another overlay here (which would appear "next to" the
-  ;; original).
+  "Highlight signature site."
   (pcase (racket-trace-signature v)
     (`(,file ,beg ,end)
      (with-current-buffer (racket--trace-buffer-for-file file)
-       (when (and (racket-trace-callp v)
-                  (cl-notany (lambda (o)
-                               (and (eq (overlay-get o 'name) 'racket-trace-overlay)
-                                    (eq (overlay-start o) beg)
-                                    (eq (overlay-end o) end)))
-                             (overlays-in beg end)))
-         (let* ((level (racket-trace-level v))
-                (show (racket-trace-show v))
-                (o (make-overlay beg end))
-                (face `(:inherit default :background ,(racket--trace-level-color level))))
-           (push o racket--trace-overlays)
-           (overlay-put o 'name 'racket-trace-overlay)
-           (overlay-put o 'priority 100)
-           (overlay-put o 'display show)
-           (overlay-put o 'face face))
-         (list (current-buffer) beg end))))))
+       (racket--trace-put-highlight-overlay v beg end
+                                            (+ 201 (racket-trace-level v)))))))
+
+(defun racket--trace-put-highlight-overlay (v beg end priority)
+  (let* ((level (racket-trace-level v))
+         (callp (racket-trace-callp v))
+         (show (racket-trace-show v))
+         (o (make-overlay beg end))
+         (face `(:inherit default :background ,(racket--trace-level-color level))))
+    (push o racket--trace-overlays)
+    (overlay-put o 'name 'racket-trace-overlay)
+    (overlay-put o 'priority priority)
+    (overlay-put o 'display (if callp show t))
+    (unless callp
+      (overlay-put o 'after-string (propertize (concat " ⇒ " show)
+                                               'face face)))
+    (overlay-put o 'face face))
+  (list (current-buffer) beg end))
 
 (defun racket-trace-goto-caller-site ()
   (interactive)
@@ -416,7 +409,7 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   (pcase (racket--trace-get #'racket-trace-context)
     (`(,file ,beg ,end)
      (setq racket--trace-context-marker
-           (racket--trace-goto file beg end)))
+           (racket--trace-goto file beg end t)))
     (_ (user-error "No context site information is available"))))
 
 (defun racket-trace-goto-signature-site ()
@@ -426,7 +419,7 @@ For speed we don't actually delete them, just move them \"nowhere\"."
      (setq racket--trace-signature-marker
            (racket--trace-goto file beg end)))))
 
-(defun racket--trace-goto (file-or-buffer beg _end)
+(defun racket--trace-goto (file-or-buffer beg end &optional pulse-p)
   "Returns marker for BOL."
   (let ((buffer (if (bufferp file-or-buffer)
                     file-or-buffer
@@ -439,6 +432,8 @@ For speed we don't actually delete them, just move them \"nowhere\"."
       (save-selected-window
         (select-window win)
         (goto-char beg)
+        (when pulse-p
+          (pulse-momentary-highlight-region beg end))
         (save-excursion (beginning-of-line) (point-marker))))))
 
 (defun racket--trace-buffer-for-file (file)
