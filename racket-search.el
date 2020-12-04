@@ -24,18 +24,35 @@
   (expand-file-name "make-index.rkt" racket--rkt-source-dir)
   "Pathname of script to make index.")
 
-(defvar racket--search-index '()
-  "Racket search index")
+(defvar racket--search-index '())
+(defvar racket--search-indexing nil)
 
 (defun racket--search-format (words type-expr)
-  (when type-expr
-    (if (cdr type-expr)
-        (format "%s: %s"
-                (car words)
-                (string-join
-                 (cadr type-expr)
-                 ", "))
-      (car words))))
+  (let
+      ((word (car words))
+       (write
+        (lambda (x)
+          (insert
+           (propertize
+            x
+            'face
+            'font-lock-variable-name-face)))))
+    (when type-expr
+      (if (cdr type-expr)
+          (with-temp-buffer
+            (funcall write word)
+            (insert ": ")
+            (let
+                ((mods (cadr type-expr)))
+              (when mods
+                (funcall write (car mods))
+                (cl-loop
+                 for mod in (cdr mods)
+                 do (progn
+                      (insert ", ")
+                      (funcall write mod)))))
+            (buffer-substring (point-min) (point-max)))
+        word))))
 
 (defun racket--search-filter (proc str)
   (let
@@ -73,33 +90,39 @@
           (insert str))))))
 
 (defun racket--search-make-index ()
-    (let
-        ((buf (get-buffer-create " *racket-index*")))
-      (with-current-buffer buf
-        (erase-buffer)
-        (setq racket--index '())
-        (make-process
-         :name "racket"
-         :buffer buf
-         :sentinel
-         (lambda (proc _)
-           (unless (process-live-p proc)
-             (let
-                 ;; Finalize the index as a hash table
-                 ((hash (make-hash-table
-                         :size (length racket--search-index)
-                         :test #'equal)))
-               (cl-loop
-                for e in racket--search-index
-                do (puthash (car e) (cdr e) hash))
-               (setq racket--search-index hash))
-             (kill-buffer buf)))
-         :connection-type 'pipe
-         :filter #'racket--search-filter
-         :command (list racket-program
-                        racket--make-index.rkt)))))
+  (let
+      ((buf (get-buffer-create " *racket-index*")))
+    (with-current-buffer buf
+      (erase-buffer)
+      (setq racket--search-index nil)
+      (setq racket--search-indexing t)
+      (make-process
+       :name "racket"
+       :buffer buf
+       :sentinel
+       (lambda (proc _)
+         (unless (process-live-p proc)
+           (let
+               ;; Finalize the index as a hash table
+               ((hash (make-hash-table
+                       :size (length racket--search-index)
+                       :test #'equal)))
+             (cl-loop
+              for e in racket--search-index
+              do (puthash (car e) (cdr e) hash))
+             (setq racket--search-index hash)
+             (setq racket--search-indexing nil))
+           (kill-buffer buf)))
+       :connection-type 'pipe
+       :filter #'racket--search-filter
+       :command (list racket-program
+                      racket--make-index.rkt)))))
 
 (defun racket-search (key)
+  "Search, then run `racket-xp-describe' on the selected entry.
+
+This function requires `racket-search-index' to have finished first.
+"
   (interactive
    (list
     (completing-read "Describe:" racket--search-index)))
@@ -111,9 +134,21 @@
        (racket--repl-session-id)
        "" ; This is a dummy string because we have an absolute link
        t
+       nil
        (lambda ()
          (racket-browse-url
-          (concat "file://" (car link) "#" (cdr link))))
-       nil))))
+          (concat "file://" (car link) "#" (cdr link))))))))
+
+(defun racket-search-index ()
+  "Index all the entries asynchronously."
+  (interactive)
+  (unless racket--search-indexing
+    (racket--search-make-index)))
+
+(defun racket--search-mode-lighter ()
+  (cond
+   (racket--search-indexing "Indexing...")
+   ((hash-table-p racket--search-index) "")
+   (t "Unindexed")))
 
 (provide 'racket-search)
