@@ -450,10 +450,10 @@ For speed we don't actually delete them, just move them \"nowhere\"."
             (t1 (save-excursion (goto-char (region-end))
                                 (racket--trace-get #'racket-trace-msec))))
         (when (and (numberp t0) (numberp t1))
-          (message "Time: %s msec" (abs (- t1 t0)))))
+          (message "Duration: %s msec" (abs (- t1 t0)))))
     (let ((t0 (racket--trace-get #'racket-trace-msec)))
         (when (numberp t0)
-          (message "Duration: %s msec" t0)))))
+          (message "Time: %s msec" t0)))))
 
 ;; Invisibility commands
 
