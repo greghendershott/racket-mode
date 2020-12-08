@@ -378,7 +378,8 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   (pcase (racket-trace-signature v)
     (`(,file ,beg ,end)
      (with-current-buffer (racket--trace-buffer-for-file file)
-       (racket--trace-put-highlight-overlay v beg end 100)))))
+       (racket--trace-put-highlight-overlay v beg end
+                                            (+ 201 (racket-trace-level v)))))))
 
 (defun racket--trace-put-highlight-overlay (v beg end priority)
   (let* ((level (racket-trace-level v))
