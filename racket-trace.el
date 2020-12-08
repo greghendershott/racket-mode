@@ -332,13 +332,19 @@ For speed we don't actually delete them, just move them \"nowhere\"."
         (when (equal (overlay-buffer o) buf)
           (with-temp-buffer (move-overlay o 1 1)))))))
 
+(defconst racket-trace-maximum-parents 5
+  "The maximum number of parent levels that
+  `racket-trace-show-sites' considers when showing sites, in
+  addition to the current level.")
+
 (defun racket-trace-show-sites ()
   (interactive)
-  "Show caller and definition sites for all parent levels and current level."
+  "Show caller and definition sites for parent levels and current level."
   (racket-trace-delete-all-overlays)
   ;; Highlight sites for parent levels, in reverse order
   (let ((here    (point))
-        (parents (cl-loop until (not (racket--trace-up-level))
+        (parents (cl-loop for n from 1 to racket-trace-maximum-parents
+                          until (not (racket--trace-up-level))
                           collect (point))))
     (cl-loop for pt in (nreverse parents)
              do
@@ -379,7 +385,10 @@ For speed we don't actually delete them, just move them \"nowhere\"."
     (`(,file ,beg ,end)
      (with-current-buffer (racket--trace-buffer-for-file file)
        (racket--trace-put-highlight-overlay v beg end
-                                            (+ 201 (racket-trace-level v)))))))
+                                            (+ 101
+                                               racket-trace-maximum-parents
+                                               1
+                                               (racket-trace-level v)))))))
 
 (defun racket--trace-put-highlight-overlay (v beg end priority)
   (let* ((level (racket-trace-level v))
