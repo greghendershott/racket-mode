@@ -146,7 +146,7 @@ property at point, and apply the struct ACCESSOR."
                                               (racket--trace-get #'racket-trace-thread))
                                          thread))))
                 (overline (if new-thread-p
-                              `(:overline ,(face-foreground 'default))
+                              `(:overline t)
                             `()))
                 ;; The base face for the entire line. The main feature
                 ;; here is to use :overline when this line's thread
@@ -181,9 +181,9 @@ property at point, and apply the struct ACCESSOR."
                (propertize (format "  %s" thread)
                            'face         `(,@inherit
                                            ,@overline
-                                           ,@(if new-thread-p
-                                                 `(:height 0.8)
-                                               `(:height 0.8 :foreground "gray")))
+                                           :height 0.8
+                                           ,@(when new-thread-p
+                                               `(:weight bold)))
                            'racket-trace v
                            'invisible    (if new-thread-p
                                              thread
@@ -192,7 +192,7 @@ property at point, and apply the struct ACCESSOR."
                (propertize (format "  %s" msec)
                            'face         `(,@inherit
                                            ,@overline
-                                           (:height 0.8 :foreground "gray"))
+                                           :height 0.8)
                            'racket-trace v
                            'invisible    (list thread
                                                racket--trace-invisible-timing))
