@@ -99,10 +99,10 @@ source location information.
 
 (defun racket--trace-get-buffer-create ()
   "Create buffer if necessary."
-  (unless (get-buffer racket--trace-buffer-name)
-    (with-current-buffer (get-buffer-create racket--trace-buffer-name)
-      (racket-trace-mode)))
-  (get-buffer racket--trace-buffer-name))
+  (or (get-buffer racket--trace-buffer-name)
+      (with-current-buffer (get-buffer-create racket--trace-buffer-name)
+        (racket-trace-mode)
+        (current-buffer))))
 
 (cl-defstruct racket-trace
   callp tailp name show level xref signature caller context thread msec)
@@ -118,9 +118,8 @@ property at point, and apply the struct ACCESSOR."
 
 (defun racket--trace-on-notify (data)
   (with-current-buffer (racket--trace-get-buffer-create)
-    (let* ((inhibit-read-only  t)
-           (original-point     (point))
-           (point-was-at-end-p (equal original-point (point-max))))
+    (let ((inhibit-read-only  t)
+          (original-point     (point)))
       (goto-char (point-max))
       (pcase data
         (`(,callp ,tailp ,show ,name ,level ,def ,sig ,call ,ctx ,thread ,msec)
@@ -144,63 +143,59 @@ property at point, and apply the struct ACCESSOR."
                                 (not (eq (and (zerop (forward-line -1))
                                               (racket--trace-get #'racket-trace-thread))
                                          thread))))
-                (face `(:inherit
-                        default
-                        :overline
-                        ,(if new-thread-p "black" nil)))
+                (face `(:inherit default :overline ,(if new-thread-p
+                                                        (face-foreground 'default)
+                                                      nil)))
                 ;; The base face for the entire line. The main feature
                 ;; here is to use :overline when this line's thread
                 ;; differs from the previous line.
                 (prefix (if callp
                             (if tailp "⤑ " "↘ ")
                           "   ⇒ ")))
-           (add-to-list 'racket--trace-known-threads thread)
+           (cl-pushnew thread racket--trace-known-threads)
            ;; For an "inset boxes" effect, we start the line by
            ;; drawing a space for each parent level, in its background
            ;; color.
            (cl-loop for n to (1- level)
                     do
                     (insert
-                     (propertize "  "
-                                 'face
-                                 (append face
-                                         `(:background
-                                           ,(racket--trace-level-color n)))
-                                 'racket-trace v
-                                 'invisible    thread))
-                    ;; Finally draw the interesting information for
-                    ;; this line.
-                    finally
-                    (let ((face (append face `(:background
-                                               ,(racket--trace-level-color level)))))
-                      (insert
-                       (concat
-                        (propertize (concat prefix show)
-                                    'face         face
-                                    'racket-trace v
-                                    'invisible    thread)
-                        (propertize (format "  %s" thread)
-                                    'face
-                                    (append face (if new-thread-p
-                                                     `(:height 0.8)
-                                                   `(:height 0.8 :foreground "gray")))
-                                    'racket-trace v
-                                    'invisible    (if new-thread-p
-                                                      thread
-                                                    (list thread
-                                                          racket--trace-invisible-thread)))
-                        (propertize (format "  %s" msec)
-                                    'face
-                                    (append face `(:height 0.8 :foreground "gray"))
-                                    'racket-trace v
-                                    'invisible    (list thread
-                                                        racket--trace-invisible-timing))
-                        (propertize "\n"
-                                    'face         face
-                                    'racket-trace v
-                                    'invisible    thread))))))))
-      (unless point-was-at-end-p
-        (goto-char original-point)))))
+                     (propertize
+                      "  "
+                      'face         (append face (racket--trace-level-background n))
+                      'racket-trace v
+                      'invisible    thread)))
+           ;; Finally draw the interesting information for this line.
+           ;; We insert several separately-propertized strings because
+           ;; some are "fields" that need their own face and
+           ;; 'invisible property.
+           (let ((face (append face (racket--trace-level-background level))))
+             (insert
+              (concat
+               (propertize (concat prefix show)
+                           'face         face
+                           'racket-trace v
+                           'invisible    thread)
+               (propertize (format "  %s" thread)
+                           'face
+                           (append face (if new-thread-p
+                                            `(:height 0.8)
+                                          `(:height 0.8 :foreground "gray")))
+                           'racket-trace v
+                           'invisible    (if new-thread-p
+                                             thread
+                                           (list thread
+                                                 racket--trace-invisible-thread)))
+               (propertize (format "  %s" msec)
+                           'face
+                           (append face `(:height 0.8 :foreground "gray"))
+                           'racket-trace v
+                           'invisible    (list thread
+                                               racket--trace-invisible-timing))
+               (propertize "\n"
+                           'face         face
+                           'racket-trace v
+                           'invisible    thread)))))))
+      (goto-char original-point))))
 
 (defun racket--trace-srcloc-line+col (v)
   "Extract the line and col from a srcloc."
@@ -215,19 +210,25 @@ property at point, and apply the struct ACCESSOR."
      `(,path ,pos ,(+ pos span)))))
 
 ;; TODO: Move to racket-custom.el
-(defconst racket-trace-level-color-increment 1024)
+(defconst racket-trace-level-color-increment 2048)
+(defconst racket-trace-level-color-window 6)
 
 (defun racket--trace-level-color (level)
-  (pcase-let* ((background (face-background 'default))
+  (pcase-let* ((level (abs (- (mod level racket-trace-level-color-window)
+                              (/ racket-trace-level-color-window 2))))
+               (background (face-background 'default))
                (dark-mode-p (eq 'dark (frame-parameter nil 'background-mode)))
-               (`(,r ,g ,b) (color-values background))
                (amt (* (+ level 2)
                        racket-trace-level-color-increment
-                       (if dark-mode-p 1 -1))))
+                       (if dark-mode-p 1 -1)))
+               (`(,r ,g ,b) (color-values background)))
     (concat "#"
             (pulse-int-to-hex (+ r amt))
             (pulse-int-to-hex (+ g amt 2048))
             (pulse-int-to-hex (+ b amt)))))
+
+(defun racket--trace-level-background (level)
+  `(:background ,(racket--trace-level-color level)))
 
 ;;; Commands
 
@@ -239,7 +240,7 @@ property at point, and apply the struct ACCESSOR."
    (display-buffer-in-side-window (racket--trace-get-buffer-create)
                                   '((side . bottom)
                                     (slot . 1)
-                                    (window-height 15)))))
+                                    (window-height . 15)))))
 
 (defun racket-trace-next ()
   "Move to next line and show caller and definition sites.
@@ -377,23 +378,24 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   (pcase (racket-trace-signature v)
     (`(,file ,beg ,end)
      (with-current-buffer (racket--trace-buffer-for-file file)
-       (racket--trace-put-highlight-overlay v beg end
-                                            (+ 201 (racket-trace-level v)))))))
+       (racket--trace-put-highlight-overlay v beg end 100)))))
 
 (defun racket--trace-put-highlight-overlay (v beg end priority)
   (let* ((level (racket-trace-level v))
          (callp (racket-trace-callp v))
          (show (racket-trace-show v))
          (o (make-overlay beg end))
-         (face `(:inherit default :background ,(racket--trace-level-color level))))
+         (face `(:inherit default ,@(racket--trace-level-background level))))
     (push o racket--trace-overlays)
     (overlay-put o 'name 'racket-trace-overlay)
     (overlay-put o 'priority priority)
-    (overlay-put o 'display (if callp show t))
-    (unless callp
+    (if callp
+        ;; `show' call with arguments: display /replacing/
+        (progn (overlay-put o 'display show)
+               (overlay-put o 'face face))
+      ;; `show' is results: display /after/
       (overlay-put o 'after-string (propertize (concat " ⇒ " show)
-                                               'face face)))
-    (overlay-put o 'face face))
+                                               'face face))))
   (list (current-buffer) beg end))
 
 (defun racket-trace-goto-caller-site ()
