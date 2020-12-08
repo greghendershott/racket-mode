@@ -371,23 +371,16 @@ For speed we don't actually delete them, just move them \"nowhere\"."
 (defun racket--trace-highlight-sites-at-point ()
   (pcase (racket--trace-get)
     ((and (pred racket-trace-p) v)
-     (racket--trace-highlight-signature-site v)
-     (racket--trace-highlight-caller-site v))))
+     (racket--trace-highlight-caller-site v)
+     (racket--trace-highlight-signature-site v))))
 
 (defun racket--trace-highlight-caller-site (v)
   (pcase (racket-trace-caller v)
     (`(,file ,beg ,end)
      (with-current-buffer (racket--trace-buffer-for-file file)
-       ;; For nested trace-expressions, we might need to make an
-       ;; overlay "on top of" an existing one, but that doesn't
-       ;; work, so hide any existing trace overlay(s) here. (We
-       ;; don't try to delete the overlay and remove it from
-       ;; `racket--trace-overlays' here; just move it "nowhere".)
-       (dolist (o (overlays-in beg end))
-         (when (eq (overlay-get o 'name) 'racket-trace-overlay)
-           (with-temp-buffer (move-overlay o 1 1))))
        (racket--trace-put-highlight-overlay v beg end
-                                            (+ 101 (racket-trace-level v)))))))
+                                            (+ 101
+                                               (racket-trace-level v)))))))
 
 (defun racket--trace-highlight-signature-site (v)
   "Highlight signature site."
@@ -409,13 +402,20 @@ For speed we don't actually delete them, just move them \"nowhere\"."
     (push o racket--trace-overlays)
     (overlay-put o 'name 'racket-trace-overlay)
     (overlay-put o 'priority priority)
-    (if callp
-        ;; `show' call with arguments: display /replacing/
-        (progn (overlay-put o 'display show)
-               (overlay-put o 'face face))
-      ;; `show' is results: display /after/
-      (overlay-put o 'after-string (propertize (concat " ⇒ " show)
-                                               'face face))))
+    (overlay-put o 'face face)
+    (overlay-put o 'display
+                 (if callp
+                     show              ;`show' is call w/args; replace
+                   (buffer-substring beg end))) ;keep orig
+    (unless callp ;`show' is results: display after
+      ;; Avoid drawing redundant results after-strings, which could
+      ;; happen with trace-expression; overlay priorities won't help.
+      (unless (cl-some (lambda (o)
+                         (and (overlay-get o 'after-string)
+                              (eq (overlay-get o 'name) 'racket-trace-overlay)))
+                       (overlays-at beg))
+        (overlay-put o 'after-string (propertize (concat " ⇒ " show)
+                                                 'face face)))))
   (list (current-buffer) beg end))
 
 (defun racket-trace-goto-caller-site ()
