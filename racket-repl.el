@@ -566,7 +566,9 @@ This does not display the buffer or change the selected window."
                                     (current-buffer)
                                     (cons "127.0.0.1" repl-tcp-port-number))
              (process-send-string (get-buffer-process (current-buffer))
-                                  (format "%S\n" racket--cmd-auth))
+                                  (let ((print-length nil) ;for %S
+                                        (print-level nil))
+                                    (format "%S\n" racket--cmd-auth)))
              (when noninteractive
                (princ "{racket--repl-start}: did process-send-string of auth\n"))
              (set-process-coding-system (get-buffer-process (current-buffer))

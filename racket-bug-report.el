@@ -24,13 +24,15 @@
 (defun racket-bug-report ()
   "Fill a buffer with data to make a Racket Mode bug report."
   (interactive)
-  (let ((help-window-select t))
+  (let ((help-window-select t)
+        (print-length nil) ;for `pp'
+        (print-level nil)) ;for `pp'
     (with-help-window "*racket-mode bug report*"
       (princ "Please copy all of the following lines and paste them into your bug report\n")
       (princ "at <https://github.com/greghendershott/racket-mode/issues/>.\n\n")
 
       (princ "<details>\n")
-      (princ "```\n")
+      (princ "<pre>\n")
       (pp (cons '(alist-get 'racket-mode package-alist)
                 (let ((v (assq 'racket-mode package-alist)))
                   (and v (cdr v)))))
@@ -77,7 +79,7 @@
           (cl-labels ((f (x) (list (car x)))) ;car as a list so pp line-wraps
             (pp `(enabled-minor-modes  ,@(mapcar #'f (cl-remove-if-not #'cadr sorted))))
             (pp `(disabled-minor-modes ,@(mapcar #'f (cl-remove-if     #'cadr sorted)))))))
-      (princ "```\n")
+      (princ "</pre>\n")
       (princ "</details>\n"))
     (forward-line 2)))
 

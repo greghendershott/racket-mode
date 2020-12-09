@@ -61,7 +61,9 @@ file-local variable.")
   (cl-labels ((err (&rest args)
                    (user-error (concat "racket-debuggable-files: must be "
                                        (apply #'format args)))))
-    (let* ((dir (file-name-directory file-to-run))
+    (let* ((print-length nil) ;for %S
+           (print-level nil)  ;for %S
+           (dir (file-name-directory file-to-run))
            (xs  (if (functionp racket-debuggable-files)
                     (funcall racket-debuggable-files file-to-run)
                   racket-debuggable-files))
