@@ -123,7 +123,7 @@
     ["Trim Requires" racket-trim-requires]
     ["Use #lang racket/base" racket-base-requires]
     "---"
-    ["Start Faster" racket-mode-optimize-startup]
+    ["Start Faster" racket-mode-start-faster]
     ["Customize..." customize-mode]))
 
 ;;;###autoload
