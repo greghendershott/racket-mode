@@ -18,10 +18,11 @@
              (hash-table ['call       call]
                          ['tail       tail]
                          ['show       show]
+                         ['values     vals]
                          ['name       name]
                          ['level      level]
                          ['definition definition]
-                         ['signature  signature]
+                         ['formals    formals]
                          ['caller     caller]
                          ['context    context]
                          ['thread     thread]
@@ -32,10 +33,11 @@
                     ,call
                     ,tail
                     ,show
+                    ,vals
                     ,name
                     ,level
                     ,definition
-                    ,signature
+                    ,formals
                     ,caller
                     ,context
                     ,thread
