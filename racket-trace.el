@@ -26,7 +26,7 @@
 (defvar racket-trace-mode-map
   (racket--easy-keymap-define
    '(("RET" racket-trace-show-sites)
-     ("."   racket-trace-goto-formals-site)
+     ("."   racket-trace-goto-called-site)
      (","   racket-trace-goto-caller-site)
      ("c"   racket-trace-goto-context-site)
      ("n"   racket-trace-next)
@@ -76,7 +76,7 @@ source location information.
   (setq buffer-invisibility-spec nil)
   (add-to-invisibility-spec racket--trace-invisible-timing)
   (add-to-invisibility-spec racket--trace-invisible-thread)
-  (cl-pushnew 'racket--trace-formals-marker overlay-arrow-variable-list)
+  (cl-pushnew 'racket--trace-called-marker overlay-arrow-variable-list)
   (cl-pushnew 'racket--trace-caller-marker overlay-arrow-variable-list)
   (cl-pushnew 'racket--trace-context-marker overlay-arrow-variable-list)
   (racket--trace-configure-level-faces)
@@ -106,8 +106,9 @@ source location information.
         (racket-trace-mode)
         (current-buffer))))
 
+;; "If your struct has a dozen members, you probably forgot one."
 (cl-defstruct racket-trace
-  callp tailp name show vals level xref formals caller context thread msec)
+  callp tailp name show vals level xref formals header caller context thread msec)
 
 (defun racket--trace-get (&optional accessor)
   "Get our `racket-trace' struct from a 'racket-trace text
@@ -125,10 +126,11 @@ property at point, and apply the struct ACCESSOR."
       (goto-char (point-max))
       (pcase data
         (`(,callp ,tailp ,show ,vals ,name ,level
-                  ,def ,formals ,caller ,ctx ,thread ,msec)
+                  ,def ,formals ,header ,caller ,ctx ,thread ,msec)
          (let* ((thread    (intern thread))
                 (xref      (racket--trace-srcloc-line+col def))
                 (formals   (racket--trace-srcloc-beg+end formals))
+                (header    (racket--trace-srcloc-beg+end header))
                 (caller    (racket--trace-srcloc-beg+end caller))
                 (context   (racket--trace-srcloc-beg+end ctx))
                 (v (make-racket-trace :callp   callp
@@ -139,6 +141,7 @@ property at point, and apply the struct ACCESSOR."
                                       :level   level
                                       :xref    xref
                                       :formals formals
+                                      :header  header
                                       :caller  caller
                                       :context context
                                       :thread  thread
@@ -314,7 +317,7 @@ Ignores i.e. skips invisible lines."
 
 ;;; Showing caller and formals sites
 
-(defvar racket--trace-formals-marker nil
+(defvar racket--trace-called-marker nil
   "A value for the variable `overlay-arrow-variable-list'.")
 (defvar racket--trace-caller-marker nil
   "A value for the variable `overlay-arrow-variable-list'.")
@@ -326,7 +329,7 @@ Ignores i.e. skips invisible lines."
 
 (defun racket-trace-delete-all-overlays ()
   "Delete all overlays and overlay arrows in various buffers."
-  (setq racket--trace-formals-marker nil
+  (setq racket--trace-called-marker nil
         racket--trace-caller-marker nil
         racket--trace-context-marker nil)
   (dolist (o racket--trace-overlays) (delete-overlay o))
@@ -335,7 +338,7 @@ Ignores i.e. skips invisible lines."
 (defun racket-trace-before-change-function (_beg _end)
   "When a buffer is modified, hide all overlays we have in it.
 For speed we don't actually delete them, just move them \"nowhere\"."
-  (setq racket--trace-formals-marker nil
+  (setq racket--trace-called-marker nil
         racket--trace-caller-marker nil
         racket--trace-context-marker nil)
   (let ((buf (current-buffer)))
@@ -350,30 +353,32 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   (racket-trace-delete-all-overlays)
   (pcase (racket--trace-get)
     ((and (pred racket-trace-p) v)
-     ;; Draw formals site first. That way it "wins" if the caller site
+     ;; Draw called site first. That way it "wins" if the caller site
      ;; happens to intersect.
-     (racket--trace-highlight-formals-site v)
+     (racket--trace-highlight-called-site v)
      (racket--trace-highlight-caller-site v)
      ;; Make the site(s) visible in buffers. Goto formals site last,
      ;; so if the caller site happens to be in same buffer, the
      ;; formals will be visible.
      (unless (ignore-errors (racket-trace-goto-caller-site))
        (message "No caller site available; press c to visit context site"))
-     (ignore-errors (racket-trace-goto-formals-site)))))
+     (ignore-errors (racket-trace-goto-called-site)))))
 
-(defun racket--trace-highlight-formals-site (v)
+(defun racket--trace-highlight-called-site (v)
   "Highlight formals site."
   ;; TODO: An interesting possibility here is that, if racket-xp-mode
   ;; is active, we could utilize its def/uses data to fill in the
   ;; actual value of the formal parameter at all use sites, too.
-  ;; See also comment at `racket--trace-goto-formals-site'.
-  (pcase (racket-trace-formals v)
-    (`(,file ,beg ,end)
-     (with-current-buffer (racket--trace-buffer-for-file file)
-       (racket--trace-put-highlight-overlay v
-                                            (racket-trace-vals v)
-                                            beg end
-                                            102)))))
+  ;; See also comment at `racket--trace-goto-called-site'.
+  (pcase-let ((`(,file ,beg ,end)
+               (if (racket-trace-callp v)
+                   (racket-trace-formals v)
+                 (racket-trace-header v))))
+    (with-current-buffer (racket--trace-buffer-for-file file)
+      (racket--trace-put-highlight-overlay v
+                                           (racket-trace-vals v)
+                                           beg end
+                                           102))))
 
 (defun racket--trace-highlight-caller-site (v)
   (pcase (racket-trace-caller v)
@@ -386,7 +391,7 @@ For speed we don't actually delete them, just move them \"nowhere\"."
 
 (defun racket--trace-put-highlight-overlay (v what beg end priority)
   ;; Avoid drawing overlays on top of each other, for example the
-  ;; caller and formals sites intersect. Whoever draws first wins.
+  ;; caller and called sites intersect. Whoever draws first wins.
   (unless (cl-some (lambda (o)
                      (eq (overlay-get o 'name) 'racket-trace-overlay))
                    (overlays-in beg end))
@@ -405,7 +410,7 @@ For speed we don't actually delete them, just move them \"nowhere\"."
             (overlay-put o 'display what))
         ;; `what' is results: display after. Avoid drawing redundant
         ;; results after-strings, which could happen with
-        ;; trace-expression, because caller and formals sites are the
+        ;; trace-expression, because caller and called sites are the
         ;; same; overlay priorities won't help.
         (unless (cl-some (lambda (o)
                            (and (overlay-get o 'after-string)
@@ -416,13 +421,13 @@ For speed we don't actually delete them, just move them \"nowhere\"."
                                                    'face face))))))
   (list (current-buffer) beg end))
 
-(defun racket-trace-goto-formals-site ()
+(defun racket-trace-goto-called-site ()
   (interactive)
   (pcase (racket--trace-get #'racket-trace-formals)
     (`(,file ,beg ,end)
-     (setq racket--trace-formals-marker
+     (setq racket--trace-called-marker
            (racket--trace-goto file beg end)))
-    (_ (user-error "No formals site information is available"))))
+    (_ (user-error "No called site information is available"))))
 
 (defun racket-trace-goto-caller-site ()
   (interactive)

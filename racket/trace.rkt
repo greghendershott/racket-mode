@@ -23,6 +23,7 @@
                          ['level      level]
                          ['definition definition]
                          ['formals    formals]
+                         ['header     header]
                          ['caller     caller]
                          ['context    context]
                          ['thread     thread]
@@ -38,6 +39,7 @@
                     ,level
                     ,definition
                     ,formals
+                    ,header
                     ,caller
                     ,context
                     ,thread
