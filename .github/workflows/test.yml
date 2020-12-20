@@ -17,8 +17,10 @@ jobs:
         racket_version:
           - '6.9'
           - '7.9'
-        # Also include snapshots of both Emacs and Racket, allowing
-        # failure:
+        # Also include snapshots of both Emacs and Racket. Note that
+        # "allow_failure: true" doesn't seem to actually work yet on
+        # GitHub Actions -- if this job fails it will say the overall
+        # build failed. :(
         include:
           - emacs_version: 'snapshot'
             racket_version: 'current'
