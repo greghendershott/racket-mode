@@ -138,22 +138,24 @@
                       _def-text def-beg def-end _def-px _def-py
                       _use-text use-beg use-end _use-px _use-py
                       _actual? _level require-arrow? _name-dup?)
-      ;; Consolidate the add-arrow/name-dup items into a hash table
-      ;; with one item per definition. The key is the definition position.
-      ;; The value is the set of its uses' positions.
-      (hash-update! ht-defs/uses
-                    (list (substring code-str def-beg def-end)
-                          (match require-arrow?
-                            ['module-lang 'module-lang]
-                            [#t           'import]
-                            [#f           'local])
-                          (add1 def-beg)
-                          (add1 def-end))
-                    (λ (v) (set-add v (list (add1 use-beg)
-                                            (add1 use-end))))
-                    (set))
-      (unless require-arrow?
-        (send this syncheck:add-mouse-over-status "" use-beg use-end "defined locally")))
+      (when (and (valid-beg/end? def-beg def-end)
+                 (valid-beg/end? use-beg use-end))
+        ;; Consolidate the add-arrow/name-dup items into a hash table
+        ;; with one item per definition. The key is the definition position.
+        ;; The value is the set of its uses' positions.
+        (hash-update! ht-defs/uses
+                      (list (substring code-str def-beg def-end)
+                            (match require-arrow?
+                              ['module-lang 'module-lang]
+                              [#t           'import]
+                              [#f           'local])
+                            (add1 def-beg)
+                            (add1 def-end))
+                      (λ (v) (set-add v (list (add1 use-beg)
+                                              (add1 use-end))))
+                      (set))
+        (unless require-arrow?
+          (send this syncheck:add-mouse-over-status "" use-beg use-end "defined locally"))))
 
     (define/override (syncheck:add-mouse-over-status _text beg end status)
       (when (valid-beg/end? beg end)
@@ -219,7 +221,7 @@
       ;; back end and Emacs front end. We can do the moral
       ;; equivalent: Simply return the info that the front end
       ;; should give to the "def/drr" command if/as/when needed.
-      (when (file-exists? path)
+      (when (and (valid-beg/end? beg end) (file-exists? path))
         (define drracket-id-str (symbol->string id-sym))
         (interval-map-set! im-jumps beg end
                            (list (path->string path)
@@ -229,12 +231,14 @@
                                      (list drracket-id-str text))))))
 
     (define/override (syncheck:add-docs-menu _text beg end _sym _label path _anchor anchor-text)
-      (interval-map-set! im-docs beg end
-                         (list (path->string path)
-                               anchor-text)))
+      (when (valid-beg/end? beg end)
+        (interval-map-set! im-docs beg end
+                           (list (path->string path)
+                                 anchor-text))))
 
     (define/override (syncheck:add-unused-require _req-src beg end)
-      (interval-map-set! im-unused-requires beg end (list)))
+      (when (valid-beg/end? beg end)
+        (interval-map-set! im-unused-requires beg end (list))))
 
     (define/public (get-annotations)
       ;; Obtain any online-check-syntax log message values and treat
