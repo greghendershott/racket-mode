@@ -123,12 +123,24 @@
     (define ht-imenu (make-hash))
     (define local-completion-candidates (mutable-set))
 
-    ;; I've seen drracket/check-syntax return bogus positions for e.g.
-    ;; add-mouse-over-status so here's some validation.
     (define code-len (string-length code-str))
-    (define (valid-pos? pos) (and (<= 0 pos) (< pos code-len)))
-    (define (valid-beg/end? beg end)
-      (and (< beg end) (valid-pos? beg) (valid-pos? end)))
+    (define use-empty-span-annotations? #t)
+    (define (cleanse-interval beg end)
+      ;; Starting c. 7.9.0.14 check-syntax can return (= beg end) for
+      ;; annotations of sites that use #%app and #%datum. If we want these,
+      ;; we adjust end to be (add1 beg) and proceed. Otherwise leave end
+      ;; alone and below we'll ignore this as an invalid interval.
+      (let ([end (if use-empty-span-annotations?
+                     (max (add1 beg) end)
+                     end)])
+        ;; I've seen drracket/check-syntax return bogus positions for e.g.
+        ;; add-mouse-over-status so validate for that, as well as the
+        ;; (= beg end) situation described above.
+        (define (valid-pos? pos) (and (<= 0 pos) (< pos code-len)))
+        (define (valid-interval? beg end)
+          (and (< beg end) (valid-pos? beg) (valid-pos? end)))
+        (and (valid-interval? beg end)
+             (cons beg end))))
 
     (define/override (syncheck:find-source-object stx)
       (and (equal? src (syntax-source stx))
@@ -138,46 +150,51 @@
                       _def-text def-beg def-end _def-px _def-py
                       _use-text use-beg use-end _use-px _use-py
                       _actual? _level require-arrow? _name-dup?)
-      (when (and (valid-beg/end? def-beg def-end)
-                 (valid-beg/end? use-beg use-end))
-        ;; Consolidate the add-arrow/name-dup items into a hash table
-        ;; with one item per definition. The key is the definition position.
-        ;; The value is the set of its uses' positions.
-        (hash-update! ht-defs/uses
-                      (list (substring code-str def-beg def-end)
-                            (match require-arrow?
-                              ['module-lang 'module-lang]
-                              [#t           'import]
-                              [#f           'local])
-                            (add1 def-beg)
-                            (add1 def-end))
-                      (λ (v) (set-add v (list (add1 use-beg)
-                                              (add1 use-end))))
-                      (set))
-        (unless require-arrow?
-          (send this syncheck:add-mouse-over-status "" use-beg use-end "defined locally"))))
+      (match* [(cleanse-interval def-beg def-end)
+               (cleanse-interval use-beg use-end)]
+        [[(cons def-beg def-end)
+          (cons use-beg use-end)]
+         ;; Consolidate the add-arrow/name-dup items into a hash table
+         ;; with one item per definition. The key is the definition position.
+         ;; The value is the set of its uses' positions.
+         (hash-update! ht-defs/uses
+                       (list (substring code-str def-beg def-end)
+                             (match require-arrow?
+                               ['module-lang 'module-lang]
+                               [#t           'import]
+                               [#f           'local])
+                             (add1 def-beg)
+                             (add1 def-end))
+                       (λ (v) (set-add v (list (add1 use-beg)
+                                               (add1 use-end))))
+                       (set))
+         (unless require-arrow?
+           (send this syncheck:add-mouse-over-status "" use-beg use-end "defined locally"))]
+        [[_ _] (void)]))
 
     (define/override (syncheck:add-mouse-over-status _text beg end status)
-      (when (valid-beg/end? beg end)
-        ;; Avoid silly "imported from “\"file.rkt\"”"
-        (define cleansed (regexp-replace* #px"[“””]" status ""))
-        (interval-map-update*! im-mouse-overs beg end
-                               (λ (s) (set-add s cleansed))
-                               (set cleansed))
-        ;; Find local completion candidates by looking at "bound
-        ;; occurrences" mouseovers. Why not look at the definitions in
-        ;; syncheck:add-arrow annotations? Because there won't be any
-        ;; annotation when a definition isn't yet _used_ (drracket
-        ;; doesn't need to draw an arrow from nothing to something).
-        ;; There _will_ however be a "no bound occurrences" mouseover.
-        ;; Therefore, although it's hacky to match on "occurrences"
-        ;; strings here, it's the least worst way to get _all_ local
-        ;; completion candidates. It's the same reason why we go to
-        ;; the work in imported-completions to find _everything_
-        ;; imported that _could_ be used.
-        (when (or (regexp-match? #px"^\\d+ bound occurrences?$" status)
-                  (equal? status "no bound occurrences"))
-          (set-add! local-completion-candidates (substring code-str beg end)))))
+      (match (cleanse-interval beg end)
+        [(cons beg end)
+         ;; Avoid silly "imported from “\"file.rkt\"”"
+         (define cleansed (regexp-replace* #px"[“””]" status ""))
+         (interval-map-update*! im-mouse-overs beg end
+                                (λ (s) (set-add s cleansed))
+                                (set cleansed))
+         ;; Find local completion candidates by looking at "bound
+         ;; occurrences" mouseovers. Why not look at the definitions in
+         ;; syncheck:add-arrow annotations? Because there won't be any
+         ;; annotation when a definition isn't yet _used_ (drracket
+         ;; doesn't need to draw an arrow from nothing to something).
+         ;; There _will_ however be a "no bound occurrences" mouseover.
+         ;; Therefore, although it's hacky to match on "occurrences"
+         ;; strings here, it's the least worst way to get _all_ local
+         ;; completion candidates. It's the same reason why we go to
+         ;; the work in imported-completions to find _everything_
+         ;; imported that _could_ be used.
+         (when (or (regexp-match? #px"^\\d+ bound occurrences?$" status)
+                   (equal? status "no bound occurrences"))
+           (set-add! local-completion-candidates (substring code-str beg end)))]
+        [_ (void)]))
 
     ;; These are module-level definitions (not lexical bindings). So
     ;; they are useful for things like imenu. Also these are a good
@@ -221,24 +238,31 @@
       ;; back end and Emacs front end. We can do the moral
       ;; equivalent: Simply return the info that the front end
       ;; should give to the "def/drr" command if/as/when needed.
-      (when (and (valid-beg/end? beg end) (file-exists? path))
-        (define drracket-id-str (symbol->string id-sym))
-        (interval-map-set! im-jumps beg end
-                           (list (path->string path)
-                                 submods
-                                 (if (equal? drracket-id-str text)
-                                     (list drracket-id-str)
-                                     (list drracket-id-str text))))))
+      (when (file-exists? path)
+        (match (cleanse-interval beg end)
+          [(cons beg end)
+           (define drracket-id-str (symbol->string id-sym))
+           (interval-map-set! im-jumps beg end
+                              (list (path->string path)
+                                    submods
+                                    (if (equal? drracket-id-str text)
+                                        (list drracket-id-str)
+                                        (list drracket-id-str text))))]
+          [_ (void)])))
 
     (define/override (syncheck:add-docs-menu _text beg end _sym _label path _anchor anchor-text)
-      (when (valid-beg/end? beg end)
-        (interval-map-set! im-docs beg end
-                           (list (path->string path)
-                                 anchor-text))))
+      (match (cleanse-interval beg end)
+        [(cons beg end)
+         (interval-map-set! im-docs beg end
+                            (list (path->string path)
+                                  anchor-text))]
+        [_ (void)]))
 
     (define/override (syncheck:add-unused-require _req-src beg end)
-      (when (valid-beg/end? beg end)
-        (interval-map-set! im-unused-requires beg end (list))))
+      (match (cleanse-interval beg end)
+        [(cons beg end)
+         (interval-map-set! im-unused-requires beg end (list))]
+        [_ (void)]))
 
     (define/public (get-annotations)
       ;; Obtain any online-check-syntax log message values and treat

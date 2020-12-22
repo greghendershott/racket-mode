@@ -285,8 +285,15 @@ buffer are Emacs buttons -- which you may navigate among using
 TAB, and activate using RET -- for `xref-find-definitions'
 and `racket-xp-documentation'."
   (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
-                                            racket--xp-binding-completions)
+  (pcase (or
+          ;; Handle single chars -- e.g. ( or # or " -- that
+          ;; (thing-at-point 'symbol) doesn't recognize but which
+          ;; check-syntax may annotate for #%app or #%datum.
+          (and (not prefix)
+               (get-text-property (point) 'racket-xp-doc)
+               (buffer-substring-no-properties (point) (1+ (point))))
+          (racket--symbol-at-point-or-prompt prefix "Describe: "
+                                             racket--xp-binding-completions))
     ((and (pred stringp) str)
      ;; When there is a racket-xp-doc property, use its path
      ;; and anchor, because that will be correct even for an
@@ -614,7 +621,12 @@ evaluation errors that won't be found merely from expansion -- or
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql racket-xp-xref)))
   (or (racket--module-path-name-at-point)
-      (thing-at-point 'symbol)))
+      (thing-at-point 'symbol)
+      ;; Handle single chars -- e.g. ( or # or " -- that
+      ;; (thing-at-point 'symbol) doesn't recognize but which
+      ;; check-syntax may annotate for #%app or #%datum.
+      (and (get-text-property (point) 'racket-xp-use)
+           (buffer-substring (point) (1+ (point))))))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql racket-xp-xref)))
   (completion-table-dynamic
