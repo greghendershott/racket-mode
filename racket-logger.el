@@ -16,6 +16,7 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'color)
 (require 'easymenu)
 (require 'rx)
 (require 'racket-custom)
@@ -141,9 +142,12 @@ property at point, and apply the struct ACCESSOR."
          (funcall accessor v)
        v))))
 
-(defun racket--logger-insert (v)
+(defun racket--logger-insert (notify-data)
   (pcase-let*
-      ((`(,level ,topic ,message ,depth ,caller ,context ,msec ,thread ,tracing) v)
+      ((`(,level ,topic ,message ,depth ,caller ,context ,msec ,thread ,tracing)
+        notify-data)
+       (msec   (or msec '\?))
+       (thread (or thread '\?))
        (logger-prop (make-racket-logger
                      :depth   depth
                      :caller  (racket--logger-srcloc-beg+end caller)
@@ -168,9 +172,8 @@ property at point, and apply the struct ACCESSOR."
                        (not (eq (and (zerop (forward-line -1))
                                      (racket--logger-get #'racket-logger-thread))
                                 thread))))
-       (overline (if new-thread-p
-                     `(:overline t)
-                   `()))
+       (overline (when new-thread-p
+                   `(:overline t)))
        (prefix (if trace-prop
                    (if callp
                        (if tailp
@@ -179,6 +182,9 @@ property at point, and apply the struct ACCESSOR."
                      "   ⇒ ")
                  "")))
     (cl-pushnew thread racket--logger-known-threads)
+    ;; We insert several separately-propertized strings because
+    ;; some are "fields" that need their own face and
+    ;; 'invisible property.
     (insert
      (concat
       (propertize (racket--logger-level->string level)
@@ -193,27 +199,26 @@ property at point, and apply the struct ACCESSOR."
                   'racket-logger logger-prop
                   'racket-trace  trace-prop
                   'invisible (list thread
-                                   racket--logger-invisible-topic))))
-    (insert
-     (concat
-      (propertize (concat (racket--logger-pad-string (format "%s" (or thread "")) 20)
+                                   racket--logger-invisible-topic))
+      (propertize (concat (racket--logger-pad-string (format "%s" thread) 20)
                           " ")
                   'face          `(,@overline
                                    ,@(when new-thread-p
-                                       `(:weight bold))
+                                       (unless (eq thread '\?)
+                                         `(:weight bold)))
                                    :height 0.8)
                   'racket-logger logger-prop
                   'racket-trace  trace-prop
-                  'help-echo     (format "thread: %s" (or thread "<unknown>"))
+                  'help-echo     (format "thread: %s" thread)
                   'invisible     (list thread
                                        racket--logger-invisible-thread))
-      (propertize (concat (racket--logger-pad-string (format "%s" (or msec "")) 20)
+      (propertize (concat (racket--logger-pad-string (format "%s" msec) 20)
                           " ")
                   'face          `(,@overline
                                    :height 0.8)
                   'racket-logger logger-prop
                   'racket-trace  trace-prop
-                  'help-echo     (format "msec: %s" (or msec "<unknown>"))
+                  'help-echo     (format "msec: %s" msec)
                   'invisible     (list thread
                                        racket--logger-invisible-timing))))
     ;; For an "inset boxes" effect, we start the line by
@@ -228,9 +233,6 @@ property at point, and apply the struct ACCESSOR."
                'racket-logger logger-prop
                'racket-trace  trace-prop)))
     ;; Finally draw the interesting information for this line.
-    ;; We insert several separately-propertized strings because
-    ;; some are "fields" that need their own face and
-    ;; 'invisible property.
     (let ((inherit `(:inherit ,(racket--logger-depth-face-name depth))))
       (insert
        (concat
@@ -247,7 +249,7 @@ property at point, and apply the struct ACCESSOR."
                     'invisible     thread))))))
 
 (defun racket--logger-level->string (level)
-  (case level
+  (cl-case level
     ('fatal   (propertize "[  fatal] " 'face racket-logger-fatal-face))
     ('error   (propertize "[  error] " 'face racket-logger-error-face))
     ('warning (propertize "[warning] " 'face racket-logger-warning-face))
@@ -283,7 +285,7 @@ property at point, and apply the struct ACCESSOR."
     (set-face-background 'racket-logger-even-depth-face
                          (color-lighten-name bg (* 5 sign)))
     (set-face-background 'racket-logger-odd-depth-face
-                         (color-lighten-name bg (* 10 sign)))))
+                         (color-lighten-name bg (* 15 sign)))))
 
 (advice-add 'load-theme    :after #'racket--logger-configure-depth-faces)
 (advice-add 'disable-theme :after #'racket--logger-configure-depth-faces)
@@ -305,7 +307,7 @@ property at point, and apply the struct ACCESSOR."
   (with-current-buffer (get-buffer-create racket--logger-buffer-name)
     (let ((inhibit-read-only t))
       (goto-char (point-max))
-      (insert (propertize (concat "racket-logger-config:"
+      (insert (propertize (concat "racket-logger-config:\n"
                                   (let ((print-length nil)
                                         (print-level nil))
                                     (pp-to-string racket-logger-config)))
