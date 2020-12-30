@@ -27,8 +27,7 @@
    '(("l"       racket-logger-topic-level)
      ("w"       toggle-truncate-lines)
      ("n"       racket-logger-next-item)
-     ("p"       racket-logger-previous-item)
-     ("g"       racket-logger-clear))))
+     ("p"       racket-logger-previous-item))))
 
 (easy-menu-define racket-logger-mode-menu racket-logger-mode-map
   "Menu for Racket logger mode."
@@ -37,6 +36,31 @@
     ["Toggle Truncate Lines" toggle-truncate-lines]
     "---"
     ["Clear" racket-logger-clear]))
+
+;; There are two "dimensions" of visibility:
+;;
+;; 1. Each entire line gets an 'invisibile property value which is a
+;; symbol: the user program thread name. This allows filtering logger
+;; output by thread.
+;;
+;; 2. Some portions of the line ("fields") also get an 'invisible
+;; value, which allows toggling their display on/off. For this we use
+;; magic numbers (they can't collide with symbols), which are
+;; `defconst'ed just below.
+;;
+;; See `racket--logger-on-notify' for how we set the 'invisible
+;; property. See various commands for how they call
+;; `add-to-invisibility-spec' or `remove-from-invisibility-spec'.
+(defconst racket--logger-invisible-level 0
+  "A value for the 'invisible text property and the `add-to-invisibility-spec'.")
+(defconst racket--logger-invisible-topic 1
+  "A value for the 'invisible text property and the `add-to-invisibility-spec'.")
+(defconst racket--logger-invisible-thread 2
+  "A value for the 'invisible text property and the `add-to-invisibility-spec'.")
+(defconst racket--logger-invisible-timing 3
+  "A value for the 'invisible text property and the `add-to-invisibility-spec'.")
+(defvar racket--logger-known-threads nil)
+
 
 (define-derived-mode racket-logger-mode special-mode "Racket-Logger"
   "Major mode for Racket logger output.
@@ -56,8 +80,20 @@ For more information see:
   (setq-local buffer-undo-list t) ;disable undo
   (setq-local window-point-insertion-type t)
   (setq buffer-invisibility-spec nil)
-  (add-to-invisibility-spec 'msec)
-  (racket--logger-configure-depth-faces))
+  (add-to-invisibility-spec racket--logger-invisible-timing)
+  (racket--logger-configure-depth-faces)
+  (setq-local revert-buffer-function #'racket-logger-revert-buffer-function))
+
+(defun racket-logger-revert-buffer-function (_ignore-auto noconfirm)
+  (when (or noconfirm
+            (y-or-n-p "Clear buffer?"))
+    (with-silent-modifications
+      (erase-buffer))
+    ;;(racket-logger-delete-all-overlays)
+    (dolist (thd racket--logger-known-threads)
+      (remove-from-invisibility-spec thd))
+    (setq racket--logger-known-threads nil)
+    (racket--logger-activate-config)))
 
 (defconst racket--logger-buffer-name "*Racket Logger*")
 
@@ -142,10 +178,22 @@ property at point, and apply the struct ACCESSOR."
                          "↘ ")
                      "   ⇒ ")
                  "")))
-    (insert (propertize (concat (racket--logger-level->string level)
-                                (racket--logger-topic->string topic))
-                        'racket-logger logger-prop
-                        'racket-trace  trace-prop))
+    (cl-pushnew thread racket--logger-known-threads)
+    (insert
+     (concat
+      (propertize (racket--logger-level->string level)
+                  'racket-logger logger-prop
+                  'racket-trace  trace-prop
+                  'invisible (list thread
+                                   racket--logger-invisible-level))
+      (propertize (concat (substring topic 0 (min (length topic) 15))
+                          (make-string (max 0 (- 15 (length topic))) ?\ )
+                          " ")
+                  'face racket-logger-topic-face
+                  'racket-logger logger-prop
+                  'racket-trace  trace-prop
+                  'invisible (list thread
+                                   racket--logger-invisible-topic))))
     (insert
      (concat
       (propertize (concat (racket--logger-pad-string (format "%s" (or thread "")) 20)
@@ -157,7 +205,8 @@ property at point, and apply the struct ACCESSOR."
                   'racket-logger logger-prop
                   'racket-trace  trace-prop
                   'help-echo     (format "thread: %s" (or thread "<unknown>"))
-                  'invisible     (list thread 'thread))
+                  'invisible     (list thread
+                                       racket--logger-invisible-thread))
       (propertize (concat (racket--logger-pad-string (format "%s" (or msec "")) 20)
                           " ")
                   'face          `(,@overline
@@ -165,7 +214,8 @@ property at point, and apply the struct ACCESSOR."
                   'racket-logger logger-prop
                   'racket-trace  trace-prop
                   'help-echo     (format "msec: %s" (or msec "<unknown>"))
-                  'invisible     (list thread 'msec))))
+                  'invisible     (list thread
+                                       racket--logger-invisible-timing))))
     ;; For an "inset boxes" effect, we start the line by
     ;; drawing a space for each parent level, in its background
     ;; color.
@@ -196,30 +246,13 @@ property at point, and apply the struct ACCESSOR."
                     'racket-trace  trace-prop
                     'invisible     thread))))))
 
-(defun racket--logger-topic->string (topic)
-  (propertize (concat (substring topic 0 (min (length topic) 15))
-                      (make-string (max 0 (- 15 (length topic))) ?\ )
-                      " ")
-              'face racket-logger-topic-face
-              'invisible 'topic))
-
 (defun racket--logger-level->string (level)
   (case level
-    ('fatal   (propertize "[  fatal] "
-                          'face racket-logger-fatal-face
-                          'invisible 'level))
-    ('error   (propertize "[  error] "
-                          'face racket-logger-error-face
-                          'invisible 'level))
-    ('warning (propertize "[warning] "
-                          'face racket-logger-warning-face
-                          'invisbile 'level))
-    ('info    (propertize "[   info] "
-                          'face racket-logger-info-face
-                          'invisible 'level))
-    ('debug   (propertize "[  debug] "
-                          'face racket-logger-debug-face
-                          'invisible 'level))))
+    ('fatal   (propertize "[  fatal] " 'face racket-logger-fatal-face))
+    ('error   (propertize "[  error] " 'face racket-logger-error-face))
+    ('warning (propertize "[warning] " 'face racket-logger-warning-face))
+    ('info    (propertize "[   info] " 'face racket-logger-info-face))
+    ('debug   (propertize "[  debug] " 'face racket-logger-debug-face))))
 
 ;;; srclocs
 
@@ -317,14 +350,6 @@ property at point, and apply the struct ACCESSOR."
                                     (slot . 1)
                                     (window-height . 15)))))
 
-(defun racket-logger-clear ()
-  "Clear the buffer and reconnect."
-  (interactive)
-  (when (y-or-n-p "Clear buffer? ")
-    (let ((inhibit-read-only t))
-      (delete-region (point-min) (point-max)))
-    (racket--logger-activate-config)))
-
 (defconst racket--logger-item-rx
   (rx bol ?\[ (0+ space) (or "fatal" "error" "warning" "info" "debug") ?\] space))
 
@@ -384,6 +409,57 @@ own level, therefore will follow the level specified for the
     (if level
         (racket--logger-set topic level)
       (racket--logger-unset topic))))
+
+;; Visibility commands
+
+(defun racket-logger-show-only-this-thread ()
+  "Filter to show only items for the thread at point."
+  (interactive)
+  (let ((thread (racket--logger-get #'racket-logger-thread)))
+    (unless thread (user-error "No thread found"))
+    (dolist (thd racket--logger-known-threads)
+      (unless (eq thd thread)
+        (add-to-invisibility-spec thd)))
+    (save-selected-window (other-window 1)) ;HACK: cause redisplay
+    (message "Showing only thread %s" thread)))
+
+(defun racket-logger-show-all-threads ()
+  "Remove filtering and show items for all threads."
+  (interactive)
+  (dolist (thd racket--logger-known-threads)
+    (remove-from-invisibility-spec thd))
+  (save-selected-window (other-window 1)) ;HACK: cause redisplay
+  (message "Showing all threads"))
+
+(defun racket-logger-toggle-level-fields-visibility ()
+  (interactive)
+  (if (memq racket--logger-invisible-level buffer-invisibility-spec)
+      (remove-from-invisibility-spec racket--logger-invisible-level)
+    (add-to-invisibility-spec racket--logger-invisible-level))
+  (save-selected-window (other-window 1)))
+
+(defun racket-logger-toggle-topic-fields-visibility ()
+  (interactive)
+  (if (memq racket--logger-invisible-topic buffer-invisibility-spec)
+      (remove-from-invisibility-spec racket--logger-invisible-topic)
+    (add-to-invisibility-spec racket--logger-invisible-topic))
+  (save-selected-window (other-window 1)))
+
+(defun racket-logger-toggle-thread-fields-visibility ()
+  (interactive)
+  (if (memq racket--logger-invisible-thread buffer-invisibility-spec)
+      (remove-from-invisibility-spec racket--logger-invisible-thread)
+    (add-to-invisibility-spec racket--logger-invisible-thread))
+  (save-selected-window (other-window 1))) ;HACK: cause redisplay
+
+(defun racket-logger-toggle-timing-fields-visibility ()
+  (interactive)
+  (if (memq racket--logger-invisible-timing buffer-invisibility-spec)
+      (remove-from-invisibility-spec racket--logger-invisible-timing)
+    (add-to-invisibility-spec racket--logger-invisible-timing))
+  (save-selected-window (other-window 1))) ;HACK: cause redisplay
+
+;;; Misc
 
 ;; TODO: Refine this limiting
 (defun racket--logger-limit-string (str &optional max)
