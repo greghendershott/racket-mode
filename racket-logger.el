@@ -82,6 +82,9 @@ For more information see:
   (setq-local window-point-insertion-type t)
   (setq buffer-invisibility-spec nil)
   (add-to-invisibility-spec racket--logger-invisible-timing)
+  (racket--logger-add-overlay-arrow-variables)
+  (add-hook 'before-change-functions #'racket-logger-before-change-function)
+  (add-hook 'kill-buffer-hook #'racket-logger-delete-all-overlays nil t)
   (racket--logger-configure-depth-faces)
   (setq-local revert-buffer-function #'racket-logger-revert-buffer-function))
 
@@ -122,7 +125,7 @@ For more information see:
   depth caller context msec thread)
 
 (defun racket--logger-get (&optional accessor)
-  "Get our `racket-trace' struct from a 'racket-trace text
+  "Get our `racket-logger' struct from a 'racket-logger text
 property at point, and apply the struct ACCESSOR."
   (pcase (get-text-property (point) 'racket-logger)
     ((and (pred racket-logger-p) v)
@@ -131,7 +134,7 @@ property at point, and apply the struct ACCESSOR."
        v))))
 
 (cl-defstruct racket-trace
-  callp tailp name show identifier formals header)
+  callp tailp name message show identifier formals header)
 
 (defun racket--trace-get (&optional accessor)
   "Get our `racket-trace' struct from a 'racket-trace text
@@ -164,6 +167,7 @@ property at point, and apply the struct ACCESSOR."
                   :callp      call
                   :tailp      tail
                   :name       name
+                  :message    message
                   :show       show
                   :identifier (racket--logger-srcloc-line+col identifier)
                   :formals    (racket--logger-srcloc-beg+end formals)
@@ -341,7 +345,7 @@ property at point, and apply the struct ACCESSOR."
   (or (cdr (assq topic racket-logger-config))
       not-found))
 
-;;; commands
+;;; General logger commands
 
 (defun racket-logger ()
   "Select the `racket-logger-mode' buffer in a bottom side window."
@@ -460,6 +464,167 @@ own level, therefore will follow the level specified for the
       (remove-from-invisibility-spec racket--logger-invisible-timing)
     (add-to-invisibility-spec racket--logger-invisible-timing))
   (save-selected-window (other-window 1))) ;HACK: cause redisplay
+
+;;; Showing caller and formals sites
+
+(defvar racket--logger-called-marker nil
+  "A value for the variable `overlay-arrow-variable-list'.")
+(defvar racket--logger-caller-marker nil
+  "A value for the variable `overlay-arrow-variable-list'.")
+(defvar racket--logger-context-marker nil
+  "A value for the variable `overlay-arrow-variable-list'.")
+
+(defun racket--logger-add-overlay-arrow-variables ()
+  (cl-pushnew 'racket--trace-called-marker overlay-arrow-variable-list)
+  (cl-pushnew 'racket--trace-caller-marker overlay-arrow-variable-list)
+  (cl-pushnew 'racket--trace-context-marker overlay-arrow-variable-list))
+
+(defvar racket--logger-overlays nil
+  "List of overlays we've added in various buffers.")
+
+(defun racket-logger-delete-all-overlays ()
+  "Delete all overlays and overlay arrows in various buffers."
+  (setq racket--logger-called-marker nil
+        racket--logger-caller-marker nil
+        racket--logger-context-marker nil)
+  (dolist (o racket--logger-overlays) (delete-overlay o))
+  (setq racket--logger-overlays nil))
+
+(defun racket-logger-before-change-function (_beg _end)
+  "When a buffer is modified, hide all overlays we have in it.
+For speed we don't actually delete them, just move them \"nowhere\"."
+  (setq racket--logger-called-marker nil
+        racket--logger-caller-marker nil
+        racket--logger-context-marker nil)
+  (let ((buf (current-buffer)))
+    (with-temp-buffer
+      (dolist (o racket--logger-overlays)
+        (when (equal (overlay-buffer o) buf)
+          (with-temp-buffer (move-overlay o 1 1)))))))
+
+(defun racket-logger-show-sites ()
+  (interactive)
+  "Show caller and called sites for current level."
+  (racket-logger-delete-all-overlays)
+  (pcase (racket--logger-get)
+    ((and (pred racket-logger-p) logger)
+     (pcase (racket--trace-get)
+       ((and (pred racket-trace-p) trace)
+        ;; Draw called site first. That way it "wins" if the caller
+        ;; site happens to intersect.
+        (racket--logger-highlight-called-site trace)
+        ;; Draw caller site.
+        (racket--logger-highlight-caller-site logger trace)))))
+  ;; Make the site(s) visible in buffers. Goto called site last, so if
+  ;; the caller site happens to be in same buffer, the formals will be
+  ;; visible.
+  (ignore-errors (racket-logger-goto-caller-site))
+  (ignore-errors (racket-logger-goto-called-site)))
+
+(defun racket--logger-highlight-called-site (trace)
+  ;; TODO: An interesting possibility here is that, if racket-xp-mode
+  ;; is active, we could utilize its def/uses data to fill in the
+  ;; actual value of the formal parameter at all use sites, too.
+  ;; See also comment at `racket--logger-goto-called-site'.
+  (pcase-let ((`(,file ,beg ,end)
+               (if (racket-trace-callp trace)
+                   (racket-trace-formals trace)
+                 (racket-trace-header trace))))
+    (with-current-buffer (racket--logger-buffer-for-file file)
+      (racket--logger-put-highlight-overlay (racket-trace-callp trace)
+                                            ;; `show` e.g. only args
+                                            (racket-trace-show trace)
+                                            beg end
+                                            102))))
+
+(defun racket--logger-highlight-caller-site (logger trace)
+  (pcase (racket-logger-caller logger)
+    (`(,file ,beg ,end)
+     (with-current-buffer (racket--logger-buffer-for-file file)
+       (racket--logger-put-highlight-overlay (racket-trace-callp trace)
+                                             ;; `message` e.g. "(foo 2)"
+                                             (racket-trace-message trace)
+                                             beg end
+                                             101)))))
+
+(defun racket--logger-put-highlight-overlay (callp what beg end priority)
+  ;; Avoid drawing overlays on top of each other, for example the
+  ;; caller and called sites intersect. Whoever draws first wins.
+  (unless (cl-some (lambda (o)
+                     (eq (overlay-get o 'name) 'racket-trace-overlay))
+                   (overlays-in beg end))
+    (let* ((what (racket--logger-limit-string what 80))
+           (o (make-overlay beg end))
+           (face `(:inherit 'default :background ,(face-background 'match))))
+      (push o racket--logger-overlays)
+      (overlay-put o 'name 'racket-trace-overlay)
+      (overlay-put o 'priority priority)
+      (if callp
+          ;; `what' is call w/args; replace.
+          (progn
+            (overlay-put o 'face face)
+            (overlay-put o 'display what))
+        ;; `what' is results: display after. Avoid drawing redundant
+        ;; results after-strings, which could happen with
+        ;; trace-expression, because caller and called sites are the
+        ;; same; overlay priorities won't help.
+        (unless (cl-some (lambda (o)
+                           (and (overlay-get o 'after-string)
+                                (eq (overlay-get o 'name) 'racket-trace-overlay)))
+                         (overlays-at beg))
+          (overlay-put o 'display (buffer-substring beg end))
+          (overlay-put o 'after-string (propertize (concat " ⇒ " what)
+                                                   'face face)))))))
+
+(defun racket-logger-goto-called-site ()
+  (interactive)
+  (pcase (racket--trace-get #'racket-trace-formals)
+    (`(,file ,beg ,end)
+     (setq racket--logger-called-marker
+           (racket--logger-goto file beg end)))
+    (_ (user-error "No called site information is available"))))
+
+(defun racket-logger-goto-caller-site ()
+  (interactive)
+  (pcase (racket--logger-get #'racket-logger-caller)
+    (`(,file ,beg ,end)
+     (setq racket--logger-caller-marker
+           (racket--logger-goto file beg end t)))
+    (_ (user-error "No call site information is available"))))
+
+(defun racket-logger-goto-context-site ()
+  (interactive)
+  (pcase (racket--logger-get #'racket-logger-context)
+    (`(,file ,beg ,end)
+     (setq racket--logger-context-marker
+           (racket--logger-goto file beg end t)))
+    (_ (user-error "No context site information is available"))))
+
+(defun racket--logger-goto (file-or-buffer beg end &optional pulse-p)
+  "Returns marker for BOL."
+  (let ((buffer (if (bufferp file-or-buffer)
+                    file-or-buffer
+                  (racket--logger-buffer-for-file file-or-buffer))))
+    (let ((win (display-buffer buffer
+                               '((display-buffer-reuse-window
+                                  display-buffer-below-selected
+                                  display-buffer-use-some-window)
+                                 (inhibit-same-window . t)))))
+      (save-selected-window
+        (select-window win)
+        ;; When we move point and `racket-xp-mode' is active, its
+        ;; point-motion thing kicks to display highlighting and
+        ;; tooltips. Avoid by going to 1+ end, which is less likely to
+        ;; be e.g. an identifier.
+        (goto-char (1+ end))
+        (when pulse-p
+          (pulse-momentary-highlight-region beg end))
+        (save-excursion (beginning-of-line) (point-marker))))))
+
+(defun racket--logger-buffer-for-file (file)
+  (or (get-file-buffer file)
+      (let ((find-file-suppress-same-file-warnings t))
+        (find-file-noselect file))))
 
 ;;; Misc
 
