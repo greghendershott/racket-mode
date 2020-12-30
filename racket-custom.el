@@ -567,7 +567,7 @@ to hide the interesting span in the buffer."
   "Racket Logger Config Face")
 
 (defface-racket racket-logger-topic-face
-  '((t (:inherit font-lock-function-name-face :slant italic)))
+  '((t (:inherit font-lock-keyword-face)))
   "Face for `racket-logger-mode' topics."
   "Racket Logger Config Face")
 
