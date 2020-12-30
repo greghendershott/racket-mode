@@ -1,7 +1,8 @@
 #lang at-exp racket/base
 
 (require racket/match
-         racket/format)
+         racket/format
+         "util.rkt")
 
 (provide (rename-out [command-channel logger-command-channel]
                      [notify-channel logger-notify-channel]))
@@ -18,49 +19,74 @@
 (define (logger-thread)
   (let wait ([receiver (make-receiver '((racket-mode . debug)
                                         (*           . warning)))])
-    (sync
-     (handle-evt command-channel
-                 (λ (v)
-                   (wait (make-receiver v))))
-     (handle-evt receiver
-                 (match-lambda
-                   [(vector level message _v topic)
-                    (channel-put notify-channel
-                                 `(logger
-                                   ,(~a (label level) " "
-                                        (ensure-topic-in-message topic message)
-                                        "\n")))
-                    (wait receiver)])))))
+    (sync (handle-evt command-channel
+                      (λ (v)
+                        (wait (make-receiver v))))
+          (handle-evt receiver
+                      (λ (v)
+                        (channel-put notify-channel
+                                     `(logger ,(vector->notify-value v)))
+                        (wait receiver))))))
 
-;; Go ahead and start this early so we can see our own
-;; log-racket-mode-xxx ouput in the front end.
-(void (thread logger-thread))
+(define (vector->notify-value vec)
+  (match (log-receiver-vector->hasheq vec)
+    [(hash-table ['level   level]
+                 ['topic   topic]
+                 ['message message]
+                 ['depth   depth]
+                 ['caller  caller]
+                 ['context context]
+                 ['info    info]
+                 ['tracing tracing])
+     (define (maybe-hash-ref/coerce ht key [coerce values])
+       (and ht
+            (cond [(hash-ref ht key) => coerce]
+                  [else #f])))
+     (list level
+           (~a (or topic "*"))
+           (remove-topic-from-message topic message)
+           depth
+           caller
+           context
+           (maybe-hash-ref/coerce info 'msec)
+           (maybe-hash-ref/coerce info 'thread (compose ~a object-name))
+           (and tracing
+                (list (maybe-hash-ref/coerce tracing 'call)
+                      (maybe-hash-ref/coerce tracing 'tail)
+                      (maybe-hash-ref/coerce tracing 'name)
+                      (maybe-hash-ref/coerce tracing 'show-in-situ)
+                      (maybe-hash-ref/coerce tracing 'identifier)
+                      (maybe-hash-ref/coerce tracing 'formals)
+                      (maybe-hash-ref/coerce tracing 'header))))]))
 
-(define (ensure-topic-in-message topic message)
+(define-polyfill (log-receiver-vector->hasheq v)
+  #:module vestige/receiving
+  (match v
+    [(vector level message _data topic)
+     (hasheq 'message message
+             'topic   topic
+             'level   level
+             'depth   0
+             'caller  #f
+             'context #f
+             'info    #f
+             'tracing #f)]))
+
+(define (remove-topic-from-message topic message)
   (match message
-    [(pregexp (format "^~a: " (regexp-quote (~a topic))))
-     message]
-    [message-without-topic
-     (format "~a: ~a" (or topic "*") message-without-topic)]))
+    [(pregexp (format "^~a: (.*)$" (regexp-quote (~a topic)))
+              (list _ m))
+     m]
+    [m m]))
 
 (module+ test
   (require rackunit)
-  (check-equal? (ensure-topic-in-message 'topic "topic: message")
-                "topic: message")
-  (check-equal? (ensure-topic-in-message 'topic "message")
-                "topic: message")
-  (check-equal? (ensure-topic-in-message #f "message")
-                "*: message"))
-
-(define (label level)
-  ;; justify
-  (case level
-    [(debug)   "[  debug]"]
-    [(info)    "[   info]"]
-    [(warning) "[warning]"]
-    [(error)   "[  error]"]
-    [(fatal)   "[  fatal]"]
-    [else      @~a{[level]}]))
+  (check-equal? (remove-topic-from-message 'topic "topic: message")
+                "message")
+  (check-equal? (remove-topic-from-message 'topic "message")
+                "message")
+  (check-equal? (remove-topic-from-message #f "message")
+                "message"))
 
 (define (make-receiver alist)
   (apply make-log-receiver (list* global-logger
@@ -76,3 +102,7 @@
             (match x
               [(cons '*     level) (list level)]
               [(cons logger level) (list level logger)]))))
+
+;; Go ahead and start this early so we can see our own
+;; log-racket-mode-xxx ouput in the front end.
+(void (thread logger-thread))

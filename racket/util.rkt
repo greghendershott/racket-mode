@@ -83,15 +83,15 @@
 (define-simple-macro (with-time/log what e ...+)
   (time-apply/log what (λ () e ...) '()))
 
-;;; Path extension for Racket versions < 6.6
-
 (define-simple-macro (define-polyfill (id:id arg:expr ...)
                        #:module mod:id
                        body:expr ...+)
   (define id
-    (with-handlers ([exn:fail? (λ (_exn)
-                                 (λ (arg ...) body ...))])
-      (dynamic-require 'mod 'id))))
+    (with-handlers ([exn:fail? (λ (_exn) (λ (arg ...) body ...))])
+      (procedure-rename (dynamic-require 'mod 'id)
+                        (string->symbol (~a 'id ":" 'mod))))))
+
+;;; Path extension for Racket versions < 6.6
 
 (define-polyfill (path-has-extension? path ext)
   #:module racket/path
