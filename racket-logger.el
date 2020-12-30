@@ -56,6 +56,7 @@ For more information see:
   (setq-local buffer-undo-list t) ;disable undo
   (setq-local window-point-insertion-type t)
   (setq buffer-invisibility-spec nil)
+  (add-to-invisibility-spec 'msec)
   (racket--logger-configure-depth-faces))
 
 (defconst racket--logger-buffer-name "*Racket Logger*")
@@ -83,8 +84,26 @@ For more information see:
 (cl-defstruct racket-logger
   depth caller context msec thread)
 
+(defun racket--logger-get (&optional accessor)
+  "Get our `racket-trace' struct from a 'racket-trace text
+property at point, and apply the struct ACCESSOR."
+  (pcase (get-text-property (point) 'racket-logger)
+    ((and (pred racket-logger-p) v)
+     (if accessor
+         (funcall accessor v)
+       v))))
+
 (cl-defstruct racket-trace
   callp tailp name show identifier formals header)
+
+(defun racket--trace-get (&optional accessor)
+  "Get our `racket-trace' struct from a 'racket-trace text
+property at point, and apply the struct ACCESSOR."
+  (pcase (get-text-property (point) 'racket-trace)
+    ((and (pred racket-trace-p) v)
+     (if accessor
+         (funcall accessor v)
+       v))))
 
 (defun racket--logger-insert (v)
   (pcase-let*
@@ -109,6 +128,13 @@ For more information see:
                   :identifier (racket--logger-srcloc-line+col identifier)
                   :formals    (racket--logger-srcloc-beg+end formals)
                   :header     (racket--logger-srcloc-beg+end header))))))
+       (new-thread-p (save-excursion
+                       (not (eq (and (zerop (forward-line -1))
+                                     (racket--logger-get #'racket-logger-thread))
+                                thread))))
+       (overline (if new-thread-p
+                     `(:overline t)
+                   `()))
        (prefix (if trace-prop
                    (if callp
                        (if tailp
@@ -116,9 +142,30 @@ For more information see:
                          "↘ ")
                      "   ⇒ ")
                  "")))
-    (insert (racket--logger-level->string level))
-    (insert (racket--logger-topic->string topic))
-
+    (insert (propertize (concat (racket--logger-level->string level)
+                                (racket--logger-topic->string topic))
+                        'racket-logger logger-prop
+                        'racket-trace  trace-prop))
+    (insert
+     (concat
+      (propertize (concat (racket--logger-pad-string (format "%s" (or thread "")) 20)
+                          " ")
+                  'face          `(,@overline
+                                   ,@(when new-thread-p
+                                       `(:weight bold))
+                                   :height 0.8)
+                  'racket-logger logger-prop
+                  'racket-trace  trace-prop
+                  'help-echo     (format "thread: %s" (or thread "<unknown>"))
+                  'invisible     (list thread 'thread))
+      (propertize (concat (racket--logger-pad-string (format "%s" (or msec "")) 20)
+                          " ")
+                  'face          `(,@overline
+                                   :height 0.8)
+                  'racket-logger logger-prop
+                  'racket-trace  trace-prop
+                  'help-echo     (format "msec: %s" (or msec "<unknown>"))
+                  'invisible     (list thread 'msec))))
     ;; For an "inset boxes" effect, we start the line by
     ;; drawing a space for each parent level, in its background
     ;; color.
@@ -127,7 +174,7 @@ For more information see:
              (insert
               (propertize
                "  "
-               'face          `(:inherit ,(racket--logger-depth-face-name n))
+               'face          `(:inherit ,(racket--logger-depth-face-name n) ,@overline)
                'racket-logger logger-prop
                'racket-trace  trace-prop)))
     ;; Finally draw the interesting information for this line.
@@ -139,24 +186,10 @@ For more information see:
        (concat
         (propertize (concat prefix (racket--logger-limit-string message
                                                                 4096))
-                    'face          inherit
+                    'face          `(,@inherit ,@overline)
                     'racket-logger logger-prop
                     'racket-trace  trace-prop
                     'invisible     thread)
-        (when thread
-          (propertize (format "  %s" thread)
-                      'face          `(,@inherit
-                                       :height 0.8)
-                      'racket-logger logger-prop
-                      'racket-trace  trace-prop
-                      'invisible     thread))
-        (when msec
-          (propertize (format "  %s" msec)
-                      'face          `(,@inherit
-                                       :height 0.8)
-                      'racket-logger logger-prop
-                      'racket-trace  trace-prop
-                      'invisible     thread))
         (propertize "\n"
                     'face          inherit
                     'racket-logger logger-prop
@@ -358,6 +391,13 @@ own level, therefore will follow the level specified for the
         (len (length str)))
     (if (< len max)
         str
+      (concat (substring str 0 (min len (- max 3)))
+              "..."))))
+(defun racket--logger-pad-string (str &optional max)
+  (let ((max (or max 80))
+        (len (length str)))
+    (if (< len max)
+        (concat str (make-string (- max len) ?\ ))
       (concat (substring str 0 (min len (- max 3)))
               "..."))))
 

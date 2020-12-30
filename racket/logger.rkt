@@ -49,7 +49,7 @@
            caller
            context
            (maybe-hash-ref/coerce info 'msec)
-           (maybe-hash-ref/coerce info 'thread (compose ~a object-name))
+           (maybe-hash-ref/coerce info 'thread object-name)
            (and tracing
                 (list (maybe-hash-ref/coerce tracing 'call)
                       (maybe-hash-ref/coerce tracing 'tail)
