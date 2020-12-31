@@ -546,7 +546,8 @@ This does not display the buffer or change the selected window."
                       (pcase (ignore-errors (read read-buf))
                         (`(ok ,id)
                          (when noninteractive
-                           (princ (format "{racket--repl-start}: %s\n" id)))
+                           (princ (format "{racket--repl-start}: read session-id '%s'\n"
+                                          id)))
                          (setq racket--repl-session-id id)
                          (run-with-timer 0.001 nil callback)
                          (remove-hook 'comint-preoutput-filter-functions hook t)
