@@ -522,9 +522,8 @@ For speed we don't actually delete them, just move them \"nowhere\"."
         (racket--logger-highlight-called-site trace)
         ;; Draw caller site.
         (racket--logger-highlight-caller-site logger trace)))))
-  ;; Make the site(s) visible in buffers. Goto called site last, so if
-  ;; the caller site happens to be in same buffer, the formals will be
-  ;; visible.
+  ;; Make the site(s) visible in buffers. Goto called site last, so it
+  ;; will be visible if the caller site happens to be in same buffer.
   (ignore-errors (racket-logger-goto-caller-site))
   (ignore-errors (racket-logger-goto-called-site)))
 
