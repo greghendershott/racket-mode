@@ -532,16 +532,16 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   ;; is active, we could utilize its def/uses data to fill in the
   ;; actual value of the formal parameter at all use sites, too.
   ;; See also comment at `racket--logger-goto-called-site'.
-  (pcase-let ((`(,file ,beg ,end)
-               (if (racket-trace-callp trace)
+  (pcase (if (racket-trace-callp trace)
                    (racket-trace-formals trace)
-                 (racket-trace-header trace))))
-    (with-current-buffer (racket--logger-buffer-for-file file)
-      (racket--logger-put-highlight-overlay (racket-trace-callp trace)
-                                            ;; `show` e.g. only args
-                                            (racket-trace-show trace)
-                                            beg end
-                                            102))))
+           (racket-trace-header trace))
+    (`(,file ,beg ,end)
+     (with-current-buffer (racket--logger-buffer-for-file file)
+       (racket--logger-put-highlight-overlay (racket-trace-callp trace)
+                                             ;; `show` e.g. only args
+                                             (racket-trace-show trace)
+                                             beg end
+                                             102)))))
 
 (defun racket--logger-highlight-caller-site (logger trace)
   (pcase (racket-logger-caller logger)
