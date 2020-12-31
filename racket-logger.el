@@ -277,19 +277,26 @@ property at point, and apply the struct ACCESSOR."
 ;;; Depth faces
 
 (defface racket-logger-even-depth-face '((t (:inherit default)))
-  "Face for even depths. Calculated from theme. Not for user customization."
+  "Face for even depths. Not for user customization.
+The background color of this face is calculated as a change in
+luminosity of the default face's background color."
   :group 'racket-faces)
 (defface racket-logger-odd-depth-face '((t (:inherit default)))
-  "Face for odd depths. Calculated from theme. Not for user customization."
+  "Face for odd depths. Not for user customization.
+The background color of this face is calculated as a change in
+luminosity of the default face's background color."
   :group 'racket-faces)
 
 (defun racket--logger-configure-depth-faces (&rest _ignored)
-  (let ((bg   (face-background 'default))
-        (sign (if (eq 'dark (frame-parameter nil 'background-mode)) 1 -1)))
-    (set-face-background 'racket-logger-even-depth-face
-                         (color-lighten-name bg (* 5 sign)))
-    (set-face-background 'racket-logger-odd-depth-face
-                         (color-lighten-name bg (* 15 sign)))))
+  (pcase (face-background 'default)
+    ((and (pred color-defined-p) bg)
+     (let ((sign (pcase-let* ((`(,_H ,_S ,L) (apply #'color-rgb-to-hsl
+                                                    (color-name-to-rgb bg))))
+                   (if (< L 0.5) 1 -1))))
+       (set-face-background 'racket-logger-even-depth-face
+                            (color-lighten-name bg (* 5 sign)))
+       (set-face-background 'racket-logger-odd-depth-face
+                            (color-lighten-name bg (* 10 sign)))))))
 
 (advice-add 'load-theme    :after #'racket--logger-configure-depth-faces)
 (advice-add 'disable-theme :after #'racket--logger-configure-depth-faces)
