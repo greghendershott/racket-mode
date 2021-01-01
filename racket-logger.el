@@ -1,6 +1,6 @@
 ;;; racket-logger.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2021 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -26,9 +26,18 @@
 (defvar racket-logger-mode-map
   (racket--easy-keymap-define
    '(("l"       racket-logger-topic-level)
-     ("w"       toggle-truncate-lines)
+     ("w"       'toggle-truncate-lines)
      ("n"       racket-logger-next-item)
-     ("p"       racket-logger-previous-item))))
+     ("p"       racket-logger-previous-item)
+     ("RET"     racket-logger-show-sites)
+     ("j"       racket-logger-next-item-and-show-sites)
+     ("k"       racket-logger-previous-item-and-show-sites)
+     ("L"       racket-logger-toggle-level-fields-visibility)
+     ("O"       racket-logger-toggle-topic-fields-visibility)
+     ("T"       racket-logger-toggle-thread-fields-visibility)
+     ("I"       racket-logger-toggle-timing-fields-visibility)
+     ("d"       racket-logger-show-only-this-thread)
+     ("f"       racket-logger-show-all-threads))))
 
 (easy-menu-define racket-logger-mode-menu racket-logger-mode-map
   "Menu for Racket logger mode."
@@ -145,12 +154,14 @@ property at point, and apply the struct ACCESSOR."
          (funcall accessor v)
        v))))
 
+(defconst racket--logger-unknown (intern "<unknown>"))
+
 (defun racket--logger-insert (notify-data)
   (pcase-let*
       ((`(,level ,topic ,message ,depth ,caller ,context ,msec ,thread ,tracing)
         notify-data)
-       (msec   (or msec '\?))
-       (thread (or thread '\?))
+       (msec   (or msec racket--logger-unknown))
+       (thread (or thread racket--logger-unknown))
        (logger-prop (make-racket-logger
                      :depth   depth
                      :caller  (racket--logger-srcloc-beg+end caller)
@@ -173,8 +184,8 @@ property at point, and apply the struct ACCESSOR."
                   :formals    (racket--logger-srcloc-beg+end formals)
                   :header     (racket--logger-srcloc-beg+end header))))))
        (new-thread-p (save-excursion
-                       (not (eq (and (zerop (forward-line -1))
-                                     (racket--logger-get #'racket-logger-thread))
+                       (racket-logger-previous-item)
+                       (not (eq (racket--logger-get #'racket-logger-thread)
                                 thread))))
        (overline (when new-thread-p
                    `(:overline t)))
@@ -184,7 +195,7 @@ property at point, and apply the struct ACCESSOR."
                            "⤑ "
                          "↘ ")
                      "   ⇒ ")
-                 "")))
+                 "• ")))
     (cl-pushnew thread racket--logger-known-threads)
     ;; We insert several separately-propertized strings because
     ;; some are "fields" that need their own face and
@@ -235,14 +246,21 @@ property at point, and apply the struct ACCESSOR."
                "  "
                'face          `(:inherit ,(racket--logger-depth-face-name n) ,@overline)
                'racket-logger logger-prop
-               'racket-trace  trace-prop)))
+               'racket-trace  trace-prop
+               'invisible     thread)))
     ;; Finally draw the interesting information for this line.
     (let ((inherit `(:inherit ,(racket--logger-depth-face-name depth))))
       (insert
        (concat
-        (propertize (concat prefix (racket--logger-limit-string message
-                                                                4096))
+        (propertize prefix
                     'face          `(,@inherit ,@overline)
+                    'racket-logger logger-prop
+                    'racket-trace  trace-prop
+                    'invisible     thread)
+        (propertize (racket--logger-limit-string message 4096)
+                    'racket-logger-message
+                    t ;message itself used by next/prev
+                    'face          inherit
                     'racket-logger logger-prop
                     'racket-trace  trace-prop
                     'invisible     thread)
@@ -363,31 +381,55 @@ luminosity of the default face's background color."
                                     (slot . 1)
                                     (window-height . 15)))))
 
-(defconst racket--logger-item-rx
-  (rx bol ?\[ (0+ space) (or "fatal" "error" "warning" "info" "debug") ?\] space))
+(defun racket--logger-start-of-message-span-p ()
+  (and (get-text-property (point) 'racket-logger-message)
+       (or (= (point) (point-min))
+           (not (get-text-property (1- (point)) 'racket-logger-message)))))
 
-(defun racket-logger-next-item (&optional count)
-  "Move point N items forward.
+(defun racket--logger-move-to-start-of-message-span (prev/next)
+  (pcase (funcall prev/next (point) 'racket-logger-message)
+    ((and (pred numberp) pos)
+     (goto-char pos)
+     (if (racket--logger-start-of-message-span-p)
+         t
+       (pcase (funcall prev/next (point) 'racket-logger-message)
+         ((and (pred numberp) pos)
+          (goto-char pos)
+          t))))))
 
-An \"item\" is a line starting with a log level in brackets.
+(defun racket-logger-next-item ()
+  "Move point to start of next logger message."
+  (interactive)
+  (let ((orig (point)))
+    (cl-loop while (and (racket--logger-move-to-start-of-message-span
+                         #'next-single-property-change)
+                        (invisible-p (point))))
+    (unless (and (racket--logger-start-of-message-span-p)
+                 (not (invisible-p (point))))
+      (goto-char orig)
+      (user-error "No visible next item"))))
 
-Interactively, N is the numeric prefix argument.
-If N is omitted or nil, move point 1 item forward."
-  (interactive "P")
-  (forward-char 1)
-  (if (re-search-forward racket--logger-item-rx nil t count)
-      (beginning-of-line)
-    (backward-char 1)))
+(defun racket-logger-previous-item ()
+  "Move point to start of previous logger message."
+  (interactive)
+  (let ((orig (point)))
+    (cl-loop while (and (racket--logger-move-to-start-of-message-span
+                         #'previous-single-property-change)
+                        (invisible-p (point))))
+    (unless (and (racket--logger-start-of-message-span-p)
+                 (not (invisible-p (point))))
+      (goto-char orig)
+      (user-error "No visible previous item"))))
 
-(defun racket-logger-previous-item (&optional count)
-  "Move point N items backward.
+(defun racket-logger-next-item-and-show-sites ()
+  (interactive)
+  (racket-logger-next-item)
+  (racket-logger-show-sites))
 
-An \"item\" is a line starting with a log level in brackets.
-
-Interactively, N is the numeric prefix argument.
-If N is omitted or nil, move point 1 item backward."
-  (interactive "P")
-  (re-search-backward racket--logger-item-rx nil t count))
+(defun racket-logger-previous-item-and-show-sites ()
+  (interactive)
+  (racket-logger-previous-item)
+  (racket-logger-show-sites))
 
 (defun racket-logger-topic-level ()
   "Set or unset the level for a topic.
@@ -434,15 +476,15 @@ own level, therefore will follow the level specified for the
       (unless (eq thd thread)
         (add-to-invisibility-spec thd)))
     (save-selected-window (other-window 1)) ;HACK: cause redisplay
-    (message "Showing only thread %s" thread)))
+    (message "Showing items only for thread %s" thread)))
 
 (defun racket-logger-show-all-threads ()
-  "Remove filtering and show items for all threads."
+  "Stop `racket-logger-show-only-this-thread' filtering."
   (interactive)
   (dolist (thd racket--logger-known-threads)
     (remove-from-invisibility-spec thd))
   (save-selected-window (other-window 1)) ;HACK: cause redisplay
-  (message "Showing all threads"))
+  (message "Showing items for all threads"))
 
 (defun racket-logger-toggle-level-fields-visibility ()
   (interactive)
