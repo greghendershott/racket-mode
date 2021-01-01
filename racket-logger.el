@@ -551,21 +551,22 @@ For speed we don't actually delete them, just move them \"nowhere\"."
 
 (defun racket-logger-show-sites ()
   (interactive)
-  "Show caller and called sites for current level."
+  "Show caller and/or called sites for current logger item."
   (racket-logger-delete-all-overlays)
-  (pcase (racket--trace-get)
-    ((and (pred racket-trace-p) trace)
-     ;; Draw called site first. That way it "wins" if the caller
-     ;; site happens to intersect.
-     (racket--logger-highlight-called-site trace)
-     ;; Draw caller site, if any, and make it visible.
-     (pcase (racket--logger-get)
-       ((and (pred racket-logger-p) logger)
-        (racket--logger-highlight-caller-site logger trace)
-        (ignore-errors (racket-logger-goto-caller-site))))
-     ;; Make called site visible, last, so it will be visible if the
-     ;; caller site happens to be in same buffer.
-     (ignore-errors (racket-logger-goto-called-site)))))
+  (let ((logger (racket--logger-get))
+        (trace  (racket--trace-get)))
+    ;; Draw called site first. That way it "wins" if the caller
+    ;; site happens to intersect.
+    (when trace
+      (racket--logger-highlight-called-site trace))
+    ;; Draw caller site, if any.
+    (when logger
+      (racket--logger-highlight-caller-site logger trace))
+    ;; Goto caller site, if any, and make it visible
+    (ignore-errors (racket-logger-goto-caller-site))
+    ;; Make called site visible, last, so it will be visible if the
+    ;; caller site happens to be in same buffer.
+    (ignore-errors (racket-logger-goto-called-site))))
 
 (defun racket--logger-highlight-called-site (trace)
   ;; This is slightly complicated because, for calls, normally we want
@@ -589,11 +590,16 @@ For speed we don't actually delete them, just move them \"nowhere\"."
                                             102))))
 
 (defun racket--logger-highlight-caller-site (logger trace)
+  "TRACE may be nil, in the case where we have logger-caller
+srcloc for a non-tracing logger message."
   (pcase (racket-logger-caller logger)
     (`(,file ,beg ,end)
      (with-current-buffer (racket--logger-buffer-for-file file)
-       (racket--logger-put-highlight-overlay (racket-trace-callp trace)
-                                             (racket-trace-message trace)
+       (racket--logger-put-highlight-overlay (if trace
+                                                 (racket-trace-callp trace)
+                                               t)
+                                             (and trace
+                                                 (racket-trace-message trace))
                                              beg end
                                              101)))))
 
@@ -603,17 +609,19 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   (unless (cl-some (lambda (o)
                      (eq (overlay-get o 'name) 'racket-trace-overlay))
                    (overlays-in beg end))
-    (let* ((str (racket--logger-limit-string str 80))
+    (let* ((str (and str (racket--logger-limit-string str 80)))
            (o (make-overlay beg end))
            (face `(:inherit 'default :background ,(face-background 'match))))
       (push o racket--logger-overlays)
       (overlay-put o 'name 'racket-trace-overlay)
       (overlay-put o 'priority priority)
       (if callp
-          ;; Replace
+          ;; Give beg..end the highlight face. When `str' is not nil,
+          ;; use for 'display property to replace the existing text.
           (progn
             (overlay-put o 'face face)
-            (overlay-put o 'display str))
+            (when str
+              (overlay-put o 'display str)))
         ;; `str' is results: display after. Avoid drawing redundant
         ;; results after-strings, which could happen with
         ;; trace-expression, because caller and called sites are the
@@ -622,7 +630,6 @@ For speed we don't actually delete them, just move them \"nowhere\"."
                            (and (overlay-get o 'after-string)
                                 (eq (overlay-get o 'name) 'racket-trace-overlay)))
                          (overlays-at beg))
-          (overlay-put o 'display (buffer-substring beg end))
           (overlay-put o 'after-string (propertize (concat " ⇒ " str)
                                                    'face face)))))))
 
@@ -666,7 +673,10 @@ For speed we don't actually delete them, just move them \"nowhere\"."
         ;; point-motion thing kicks to display highlighting and
         ;; tooltips. Avoid by going to 1+ end, which is less likely to
         ;; be e.g. an identifier.
-        (goto-char (1+ end))
+        (goto-char (if (and (< (1+ end) (point-max))
+                            (not (eq (char-after end) 10)))
+                       (1+ end)
+                     end))
         (when pulse-p
           (pulse-momentary-highlight-region beg end))
         (save-excursion (beginning-of-line) (point-marker))))))
