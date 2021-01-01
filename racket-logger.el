@@ -184,7 +184,7 @@ property at point, and apply the struct ACCESSOR."
                   :formals    (racket--logger-srcloc-beg+end formals)
                   :header     (racket--logger-srcloc-beg+end header))))))
        (new-thread-p (save-excursion
-                       (racket-logger-previous-item)
+                       (ignore-errors (racket-logger-previous-item))
                        (not (eq (racket--logger-get #'racket-logger-thread)
                                 thread))))
        (overline (when new-thread-p
@@ -397,29 +397,27 @@ luminosity of the default face's background color."
           (goto-char pos)
           t))))))
 
-(defun racket-logger-next-item ()
-  "Move point to start of next logger message."
-  (interactive)
+(defun racket--logger-do-move-prev-or-next (prev-or-next none-msg)
   (let ((orig (point)))
-    (cl-loop while (and (racket--logger-move-to-start-of-message-span
-                         #'next-single-property-change)
-                        (invisible-p (point))))
+    (cl-loop while
+             (and (racket--logger-move-to-start-of-message-span prev-or-next)
+                  (invisible-p (point))))
     (unless (and (racket--logger-start-of-message-span-p)
                  (not (invisible-p (point))))
       (goto-char orig)
-      (user-error "No visible next item"))))
+      (user-error none-msg))))
+
+(defun racket-logger-next-item ()
+  "Move point to start of next visible logger message."
+  (interactive)
+  (racket--logger-do-move-prev-or-next #'next-single-property-change
+                                       "No visible next item"))
 
 (defun racket-logger-previous-item ()
-  "Move point to start of previous logger message."
+  "Move point to start of previous visible logger message."
   (interactive)
-  (let ((orig (point)))
-    (cl-loop while (and (racket--logger-move-to-start-of-message-span
-                         #'previous-single-property-change)
-                        (invisible-p (point))))
-    (unless (and (racket--logger-start-of-message-span-p)
-                 (not (invisible-p (point))))
-      (goto-char orig)
-      (user-error "No visible previous item"))))
+  (racket--logger-do-move-prev-or-next #'previous-single-property-change
+                                       "No visible previous item"))
 
 (defun racket-logger-next-item-and-show-sites ()
   (interactive)
