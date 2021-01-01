@@ -330,7 +330,7 @@ luminosity of the default face's background color."
 ;;; Logger topic configuration
 
 (defun racket--logger-activate-config ()
-  "Send config to logger and display it in the buffer."
+  "Send config to back end and display it in the buffer."
   (racket--cmd/async nil
                      `(logger ,racket-logger-config))
   (with-current-buffer (get-buffer-create racket--logger-buffer-name)
