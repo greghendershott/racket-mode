@@ -514,35 +514,35 @@ own level, therefore will follow the level specified for the
 
 ;;; Showing caller and formals sites
 
-(defvar racket--logger-called-marker nil
+(defvar racket-logger-called-marker nil
   "A value for the variable `overlay-arrow-variable-list'.")
-(defvar racket--logger-caller-marker nil
+(defvar racket-logger-caller-marker nil
   "A value for the variable `overlay-arrow-variable-list'.")
-(defvar racket--logger-context-marker nil
+(defvar racket-logger-context-marker nil
   "A value for the variable `overlay-arrow-variable-list'.")
 
 (defun racket--logger-add-overlay-arrow-variables ()
-  (cl-pushnew 'racket--trace-called-marker overlay-arrow-variable-list)
-  (cl-pushnew 'racket--trace-caller-marker overlay-arrow-variable-list)
-  (cl-pushnew 'racket--trace-context-marker overlay-arrow-variable-list))
+  (cl-pushnew 'racket-logger-called-marker overlay-arrow-variable-list)
+  (cl-pushnew 'racket-logger-caller-marker overlay-arrow-variable-list)
+  (cl-pushnew 'racket-logger-context-marker overlay-arrow-variable-list))
 
 (defvar racket--logger-overlays nil
   "List of overlays we've added in various buffers.")
 
 (defun racket-logger-delete-all-overlays ()
   "Delete all overlays and overlay arrows in various buffers."
-  (setq racket--logger-called-marker nil
-        racket--logger-caller-marker nil
-        racket--logger-context-marker nil)
+  (setq racket-logger-called-marker nil
+        racket-logger-caller-marker nil
+        racket-logger-context-marker nil)
   (dolist (o racket--logger-overlays) (delete-overlay o))
   (setq racket--logger-overlays nil))
 
 (defun racket-logger-before-change-function (_beg _end)
   "When a buffer is modified, hide all overlays we have in it.
 For speed we don't actually delete them, just move them \"nowhere\"."
-  (setq racket--logger-called-marker nil
-        racket--logger-caller-marker nil
-        racket--logger-context-marker nil)
+  (setq racket-logger-called-marker nil
+        racket-logger-caller-marker nil
+        racket-logger-context-marker nil)
   (let ((buf (current-buffer)))
     (with-temp-buffer
       (dolist (o racket--logger-overlays)
@@ -626,7 +626,7 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   (interactive)
   (pcase (racket--trace-get #'racket-trace-formals)
     (`(,file ,beg ,end)
-     (setq racket--logger-called-marker
+     (setq racket-logger-called-marker
            (racket--logger-goto file beg end)))
     (_ (user-error "No called site information is available"))))
 
@@ -634,7 +634,7 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   (interactive)
   (pcase (racket--logger-get #'racket-logger-caller)
     (`(,file ,beg ,end)
-     (setq racket--logger-caller-marker
+     (setq racket-logger-caller-marker
            (racket--logger-goto file beg end t)))
     (_ (user-error "No call site information is available"))))
 
@@ -642,7 +642,7 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   (interactive)
   (pcase (racket--logger-get #'racket-logger-context)
     (`(,file ,beg ,end)
-     (setq racket--logger-context-marker
+     (setq racket-logger-context-marker
            (racket--logger-goto file beg end t)))
     (_ (user-error "No context site information is available"))))
 
