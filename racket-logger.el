@@ -553,64 +553,68 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   (interactive)
   "Show caller and called sites for current level."
   (racket-logger-delete-all-overlays)
-  (pcase (racket--logger-get)
-    ((and (pred racket-logger-p) logger)
-     (pcase (racket--trace-get)
-       ((and (pred racket-trace-p) trace)
-        ;; Draw called site first. That way it "wins" if the caller
-        ;; site happens to intersect.
-        (racket--logger-highlight-called-site trace)
-        ;; Draw caller site.
-        (racket--logger-highlight-caller-site logger trace)))))
-  ;; Make the site(s) visible in buffers. Goto called site last, so it
-  ;; will be visible if the caller site happens to be in same buffer.
-  (ignore-errors (racket-logger-goto-caller-site))
-  (ignore-errors (racket-logger-goto-called-site)))
+  (pcase (racket--trace-get)
+    ((and (pred racket-trace-p) trace)
+     ;; Draw called site first. That way it "wins" if the caller
+     ;; site happens to intersect.
+     (racket--logger-highlight-called-site trace)
+     ;; Draw caller site, if any, and make it visible.
+     (pcase (racket--logger-get)
+       ((and (pred racket-logger-p) logger)
+        (racket--logger-highlight-caller-site logger trace)
+        (ignore-errors (racket-logger-goto-caller-site))))
+     ;; Make called site visible, last, so it will be visible if the
+     ;; caller site happens to be in same buffer.
+     (ignore-errors (racket-logger-goto-called-site)))))
 
 (defun racket--logger-highlight-called-site (trace)
-  ;; TODO: An interesting possibility here is that, if racket-xp-mode
-  ;; is active, we could utilize its def/uses data to fill in the
-  ;; actual value of the formal parameter at all use sites, too.
-  ;; See also comment at `racket--logger-goto-called-site'.
-  (pcase (if (racket-trace-callp trace)
-                   (racket-trace-formals trace)
-           (racket-trace-header trace))
-    (`(,file ,beg ,end)
-     (with-current-buffer (racket--logger-buffer-for-file file)
-       (racket--logger-put-highlight-overlay (racket-trace-callp trace)
-                                             ;; `show` e.g. only args
-                                             (racket-trace-show trace)
-                                             beg end
-                                             102)))))
+  ;; This is slightly complicated because, for calls, normally we want
+  ;; to replace only formals with actuals. However a thunk has no
+  ;; formals, so in that case we replace the whole header with the
+  ;; trace message which is the entire application (f args).
+  (pcase-let ((`(,msg ,file ,beg ,end)
+               (if (racket-trace-callp trace)
+                   (pcase-let ((`(,file ,beg ,end) (racket-trace-formals trace)))
+                     (if (/= beg end)
+                         (cons (racket-trace-show trace) ;just `args`
+                               (racket-trace-formals trace))
+                       (cons (racket-trace-message trace) ;`(f args)`
+                             (racket-trace-header trace))))
+                 (cons (racket-trace-show trace) ;trace-message = -show for results
+                       (racket-trace-header trace)))))
+    (with-current-buffer (racket--logger-buffer-for-file file)
+      (racket--logger-put-highlight-overlay (racket-trace-callp trace)
+                                            msg
+                                            beg end
+                                            102))))
 
 (defun racket--logger-highlight-caller-site (logger trace)
   (pcase (racket-logger-caller logger)
     (`(,file ,beg ,end)
      (with-current-buffer (racket--logger-buffer-for-file file)
        (racket--logger-put-highlight-overlay (racket-trace-callp trace)
-                                             ;; `message` e.g. "(foo 2)"
                                              (racket-trace-message trace)
                                              beg end
                                              101)))))
 
-(defun racket--logger-put-highlight-overlay (callp what beg end priority)
+(defun racket--logger-put-highlight-overlay (callp str beg end priority)
   ;; Avoid drawing overlays on top of each other, for example the
   ;; caller and called sites intersect. Whoever draws first wins.
   (unless (cl-some (lambda (o)
                      (eq (overlay-get o 'name) 'racket-trace-overlay))
                    (overlays-in beg end))
-    (let* ((what (racket--logger-limit-string what 80))
+    (let* ((str (racket--logger-limit-string str 80))
            (o (make-overlay beg end))
            (face `(:inherit 'default :background ,(face-background 'match))))
       (push o racket--logger-overlays)
       (overlay-put o 'name 'racket-trace-overlay)
       (overlay-put o 'priority priority)
       (if callp
-          ;; `what' is call w/args; replace.
+          ;; Replace
           (progn
             (overlay-put o 'face face)
-            (overlay-put o 'display what))
-        ;; `what' is results: display after. Avoid drawing redundant
+            (overlay-put o 'display str))
+        ;; `str' is results: display after. Avoid drawing redundant
         ;; results after-strings, which could happen with
         ;; trace-expression, because caller and called sites are the
         ;; same; overlay priorities won't help.
@@ -619,7 +623,7 @@ For speed we don't actually delete them, just move them \"nowhere\"."
                                 (eq (overlay-get o 'name) 'racket-trace-overlay)))
                          (overlays-at beg))
           (overlay-put o 'display (buffer-substring beg end))
-          (overlay-put o 'after-string (propertize (concat " ⇒ " what)
+          (overlay-put o 'after-string (propertize (concat " ⇒ " str)
                                                    'face face)))))))
 
 (defun racket-logger-goto-called-site ()
@@ -682,6 +686,7 @@ For speed we don't actually delete them, just move them \"nowhere\"."
         str
       (concat (substring str 0 (min len (- max 3)))
               "..."))))
+
 (defun racket--logger-pad-string (str &optional max)
   (let ((max (or max 80))
         (len (length str)))
