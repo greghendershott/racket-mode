@@ -48,6 +48,7 @@
            depth
            caller
            context
+           (maybe-hash-ref/coerce info 'srcloc)
            (maybe-hash-ref/coerce info 'msec)
            (maybe-hash-ref/coerce info 'thread object-name)
            (and tracing

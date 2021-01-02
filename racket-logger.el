@@ -131,7 +131,7 @@ For more information see:
         (goto-char original-point)))))
 
 (cl-defstruct racket-logger
-  depth caller context msec thread)
+  depth caller context srcloc msec thread)
 
 (defun racket--logger-get (&optional accessor)
   "Get our `racket-logger' struct from a 'racket-logger text
@@ -158,7 +158,7 @@ property at point, and apply the struct ACCESSOR."
 
 (defun racket--logger-insert (notify-data)
   (pcase-let*
-      ((`(,level ,topic ,message ,depth ,caller ,context ,msec ,thread ,tracing)
+      ((`(,level ,topic ,message ,depth ,caller ,context ,srcloc ,msec ,thread ,tracing)
         notify-data)
        (msec   (or msec racket--logger-unknown))
        (thread (or thread racket--logger-unknown))
@@ -166,6 +166,7 @@ property at point, and apply the struct ACCESSOR."
                      :depth   depth
                      :caller  (racket--logger-srcloc-beg+end caller)
                      :context (racket--logger-srcloc-beg+end context)
+                     :srcloc  (racket--logger-srcloc-beg+end srcloc)
                      :msec    msec
                      :thread  thread))
        ;; Possibly more things if tracing
@@ -559,7 +560,8 @@ For speed we don't actually delete them, just move them \"nowhere\"."
     ;; site happens to intersect.
     (when trace
       (racket--logger-highlight-called-site trace))
-    ;; Draw caller site, if any.
+    ;; Draw caller site, or with-more-logging-info srcloc site, if
+    ;; any.
     (when logger
       (racket--logger-highlight-caller-site logger trace))
     ;; Goto caller site, if any, and make it visible
@@ -590,9 +592,11 @@ For speed we don't actually delete them, just move them \"nowhere\"."
                                             102))))
 
 (defun racket--logger-highlight-caller-site (logger trace)
-  "TRACE may be nil, in the case where we have logger-caller
-srcloc for a non-tracing logger message."
-  (pcase (racket-logger-caller logger)
+  "TRACE may be nil, in the case where we have logger-srcloc for
+a non-tracing logger message."
+  (pcase (if trace
+             (racket-logger-caller logger)
+           (racket-logger-srcloc logger))
     (`(,file ,beg ,end)
      (with-current-buffer (racket--logger-buffer-for-file file)
        (racket--logger-put-highlight-overlay (if trace
