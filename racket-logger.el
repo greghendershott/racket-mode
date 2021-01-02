@@ -611,7 +611,7 @@ srcloc for a non-tracing logger message."
                    (overlays-in beg end))
     (let* ((str (and str (racket--logger-limit-string str 80)))
            (o (make-overlay beg end))
-           (face `(:inherit 'default :background ,(face-background 'match))))
+           (face `(:inherit default :background ,(face-background 'match))))
       (push o racket--logger-overlays)
       (overlay-put o 'name 'racket-trace-overlay)
       (overlay-put o 'priority priority)
