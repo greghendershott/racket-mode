@@ -131,7 +131,7 @@ For more information see:
         (goto-char original-point)))))
 
 (cl-defstruct racket-logger
-  depth caller context srcloc msec thread)
+  depth caller context info msec thread)
 
 (defun racket--logger-get (&optional accessor)
   "Get our `racket-logger' struct from a 'racket-logger text
@@ -143,7 +143,7 @@ property at point, and apply the struct ACCESSOR."
        v))))
 
 (cl-defstruct racket-trace
-  callp tailp name message show identifier formals header)
+  callp tailp name message args-from args-upto identifier formals header)
 
 (defun racket--trace-get (&optional accessor)
   "Get our `racket-trace' struct from a 'racket-trace text
@@ -158,7 +158,7 @@ property at point, and apply the struct ACCESSOR."
 
 (defun racket--logger-insert (notify-data)
   (pcase-let*
-      ((`(,level ,topic ,message ,depth ,caller ,context ,srcloc ,msec ,thread ,tracing)
+      ((`(,level ,topic ,message ,depth ,caller ,context ,info ,msec ,thread ,tracing)
         notify-data)
        (msec   (or msec racket--logger-unknown))
        (thread (or thread racket--logger-unknown))
@@ -166,13 +166,13 @@ property at point, and apply the struct ACCESSOR."
                      :depth   depth
                      :caller  (racket--logger-srcloc-beg+end caller)
                      :context (racket--logger-srcloc-beg+end context)
-                     :srcloc  (racket--logger-srcloc-beg+end srcloc)
+                     :info    (racket--logger-srcloc-beg+end info)
                      :msec    msec
                      :thread  thread))
        ;; Possibly more things if tracing
        (`(,callp ,tailp ,trace-prop)
         (pcase tracing
-          (`(,call ,tail ,name ,show ,identifier ,formals ,header)
+          (`(,call ,tail ,name ,args-from ,args-upto ,identifier ,formals ,header)
            (list call
                  tail
                  (make-racket-trace
@@ -180,7 +180,8 @@ property at point, and apply the struct ACCESSOR."
                   :tailp      tail
                   :name       name
                   :message    message
-                  :show       show
+                  :args-from  args-from
+                  :args-upto  args-upto
                   :identifier (racket--logger-srcloc-line+col identifier)
                   :formals    (racket--logger-srcloc-beg+end formals)
                   :header     (racket--logger-srcloc-beg+end header))))))
@@ -556,19 +557,18 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   (racket-logger-delete-all-overlays)
   (let ((logger (racket--logger-get))
         (trace  (racket--trace-get)))
-    ;; Draw called site first. That way it "wins" if the caller
-    ;; site happens to intersect.
-    (when trace
-      (racket--logger-highlight-called-site trace))
-    ;; Draw caller site, or with-more-logging-info srcloc site, if
-    ;; any.
-    (when logger
-      (racket--logger-highlight-caller-site logger trace))
-    ;; Goto caller site, if any, and make it visible
-    (ignore-errors (racket-logger-goto-caller-site))
-    ;; Make called site visible, last, so it will be visible if the
-    ;; caller site happens to be in same buffer.
-    (ignore-errors (racket-logger-goto-called-site))))
+    (cond (trace
+           ;; Draw called site first. That way it "wins" if the caller
+           ;; site happens to intersect.
+           (racket--logger-highlight-called-site trace)
+           (racket--logger-highlight-caller-site logger trace)
+           (ignore-errors (racket-logger-goto-caller-site))
+           ;; Goto called site, last, so it will be visible if the
+           ;; caller site happens to be in same buffer.
+           (ignore-errors (racket-logger-goto-called-site)))
+          (logger
+           (racket--logger-highlight-info-site logger)
+           (ignore-errors (racket-logger-goto-info-site))))))
 
 (defun racket--logger-highlight-called-site (trace)
   ;; This is slightly complicated because, for calls, normally we want
@@ -579,11 +579,13 @@ For speed we don't actually delete them, just move them \"nowhere\"."
                (if (racket-trace-callp trace)
                    (pcase-let ((`(,file ,beg ,end) (racket-trace-formals trace)))
                      (if (/= beg end)
-                         (cons (racket-trace-show trace) ;just `args`
+                         (cons (substring (racket-trace-message trace)
+                                          (racket-trace-args-from trace)
+                                          (racket-trace-args-upto trace)) ;just `args`
                                (racket-trace-formals trace))
                        (cons (racket-trace-message trace) ;`(f args)`
                              (racket-trace-header trace))))
-                 (cons (racket-trace-show trace) ;trace-message = -show for results
+                 (cons (racket-trace-message trace) ;results
                        (racket-trace-header trace)))))
     (with-current-buffer (racket--logger-buffer-for-file file)
       (racket--logger-put-highlight-overlay (racket-trace-callp trace)
@@ -592,50 +594,42 @@ For speed we don't actually delete them, just move them \"nowhere\"."
                                             102))))
 
 (defun racket--logger-highlight-caller-site (logger trace)
-  "TRACE may be nil, in the case where we have logger-srcloc for
+  "TRACE may be nil, in the case where we have logger-info for
 a non-tracing logger message."
-  (pcase (if trace
-             (racket-logger-caller logger)
-           (racket-logger-srcloc logger))
+  (pcase (racket-logger-caller logger)
     (`(,file ,beg ,end)
      (with-current-buffer (racket--logger-buffer-for-file file)
-       (racket--logger-put-highlight-overlay (if trace
-                                                 (racket-trace-callp trace)
-                                               t)
-                                             (and trace
-                                                 (racket-trace-message trace))
+       (racket--logger-put-highlight-overlay (racket-trace-callp trace)
+                                             (racket-trace-message trace)
+                                             beg end
+                                             101)))))
+
+(defun racket--logger-highlight-info-site (logger)
+  (pcase (racket-logger-info logger)
+    (`(,file ,beg ,end)
+     (with-current-buffer (racket--logger-buffer-for-file file)
+       (racket--logger-put-highlight-overlay t
+                                             nil
                                              beg end
                                              101)))))
 
 (defun racket--logger-put-highlight-overlay (callp str beg end priority)
-  ;; Avoid drawing overlays on top of each other, for example the
-  ;; caller and called sites intersect. Whoever draws first wins.
-  (unless (cl-some (lambda (o)
-                     (eq (overlay-get o 'name) 'racket-trace-overlay))
-                   (overlays-in beg end))
-    (let* ((str (and str (racket--logger-limit-string str 80)))
-           (o (make-overlay beg end))
-           (face `(:inherit default :background ,(face-background 'match))))
-      (push o racket--logger-overlays)
-      (overlay-put o 'name 'racket-trace-overlay)
-      (overlay-put o 'priority priority)
-      (if callp
-          ;; Give beg..end the highlight face. When `str' is not nil,
-          ;; use for 'display property to replace the existing text.
-          (progn
-            (overlay-put o 'face face)
-            (when str
-              (overlay-put o 'display str)))
-        ;; `str' is results: display after. Avoid drawing redundant
-        ;; results after-strings, which could happen with
-        ;; trace-expression, because caller and called sites are the
-        ;; same; overlay priorities won't help.
-        (unless (cl-some (lambda (o)
-                           (and (overlay-get o 'after-string)
-                                (eq (overlay-get o 'name) 'racket-trace-overlay)))
-                         (overlays-at beg))
-          (overlay-put o 'after-string (propertize (concat " ⇒ " str)
-                                                   'face face)))))))
+  (let ((str (and str (racket--logger-limit-string str 80)))
+        (o (make-overlay beg end))
+        (face `(:inherit default :background ,(face-background 'match))))
+    (push o racket--logger-overlays)
+    (overlay-put o 'name 'racket-trace-overlay)
+    (overlay-put o 'priority priority)
+    (if callp
+        ;; Give beg..end the highlight face. When `str' is not nil,
+        ;; use for 'display property to replace the existing text.
+        (progn
+          (overlay-put o 'face face)
+          (when str
+            (overlay-put o 'display str)))
+      ;; `str' is results: display after.
+      (overlay-put o 'after-string (propertize (concat " ⇒ " str)
+                                               'face face)))))
 
 (defun racket-logger-goto-called-site ()
   (interactive)
@@ -651,7 +645,15 @@ a non-tracing logger message."
     (`(,file ,beg ,end)
      (setq racket-logger-caller-marker
            (racket--logger-goto file beg end t)))
-    (_ (user-error "No call site information is available"))))
+    (_ (user-error "No caller site information is available"))))
+
+(defun racket-logger-goto-info-site ()
+  (interactive)
+  (pcase (racket--logger-get #'racket-logger-info)
+    (`(,file ,beg ,end)
+     (setq racket-logger-caller-marker
+           (racket--logger-goto file beg end)))
+    (_ (user-error "No info site information is available"))))
 
 (defun racket-logger-goto-context-site ()
   (interactive)
