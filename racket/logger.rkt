@@ -40,7 +40,7 @@
                  ['tracing tracing])
      (define (maybe-hash-ref/coerce ht key [coerce values])
        (and ht
-            (cond [(hash-ref ht key) => coerce]
+            (cond [(hash-ref ht key #f) => coerce]
                   [else #f])))
      (list level
            (~a (or topic "*"))
