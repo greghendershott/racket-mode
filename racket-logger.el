@@ -131,7 +131,7 @@ For more information see:
         (goto-char original-point)))))
 
 (cl-defstruct racket-logger
-  depth caller context info msec thread)
+  depth context msec thread primary-site secondary-site)
 
 (defun racket--logger-get (&optional accessor)
   "Get our `racket-logger' struct from a 'racket-logger text
@@ -142,56 +142,32 @@ property at point, and apply the struct ACCESSOR."
          (funcall accessor v)
        v))))
 
-(cl-defstruct racket-trace
-  callp tailp name message args-from args-upto identifier formals header)
-
-(defun racket--trace-get (&optional accessor)
-  "Get our `racket-trace' struct from a 'racket-trace text
-property at point, and apply the struct ACCESSOR."
-  (pcase (get-text-property (point) 'racket-trace)
-    ((and (pred racket-trace-p) v)
-     (if accessor
-         (funcall accessor v)
-       v))))
-
 (defconst racket--logger-unknown (intern "<unknown>"))
 
 (defun racket--logger-insert (notify-data)
   (pcase-let*
-      ((`(,level ,topic ,message ,depth ,caller ,context ,info ,msec ,thread ,tracing)
+      ((`(,level ,topic ,message ,depth
+                 ,context
+                 ,msec ,thread
+                 ,tracingp ,callp ,tailp
+                 ,primary ,secondary)
         notify-data)
        (msec   (or msec racket--logger-unknown))
        (thread (or thread racket--logger-unknown))
        (logger-prop (make-racket-logger
                      :depth   depth
-                     :caller  (racket--logger-srcloc-beg+end caller)
                      :context (racket--logger-srcloc-beg+end context)
-                     :info    (racket--logger-srcloc-beg+end info)
                      :msec    msec
-                     :thread  thread))
-       ;; Possibly more things if tracing
-       (`(,callp ,tailp ,trace-prop)
-        (pcase tracing
-          (`(,call ,tail ,name ,args-from ,args-upto ,identifier ,formals ,header)
-           (list call
-                 tail
-                 (make-racket-trace
-                  :callp      call
-                  :tailp      tail
-                  :name       name
-                  :message    message
-                  :args-from  args-from
-                  :args-upto  args-upto
-                  :identifier (racket--logger-srcloc-line+col identifier)
-                  :formals    (racket--logger-srcloc-beg+end formals)
-                  :header     (racket--logger-srcloc-beg+end header))))))
+                     :thread  thread
+                     :primary-site   primary
+                     :secondary-site secondary))
        (new-thread-p (save-excursion
                        (ignore-errors (racket-logger-previous-item))
                        (not (eq (racket--logger-get #'racket-logger-thread)
                                 thread))))
        (overline (when new-thread-p
                    `(:overline t)))
-       (prefix (if trace-prop
+       (prefix (if tracingp
                    (if callp
                        (if tailp
                            "⤑ "
@@ -206,7 +182,6 @@ property at point, and apply the struct ACCESSOR."
      (concat
       (propertize (racket--logger-level->string level)
                   'racket-logger logger-prop
-                  'racket-trace  trace-prop
                   'invisible (list thread
                                    racket--logger-invisible-level))
       (propertize (concat (substring topic 0 (min (length topic) 15))
@@ -214,7 +189,6 @@ property at point, and apply the struct ACCESSOR."
                           " ")
                   'face racket-logger-topic-face
                   'racket-logger logger-prop
-                  'racket-trace  trace-prop
                   'invisible (list thread
                                    racket--logger-invisible-topic))
       (propertize (concat (racket--logger-pad-string (format "%s" thread) 20)
@@ -225,7 +199,6 @@ property at point, and apply the struct ACCESSOR."
                                          `(:weight bold)))
                                    :height 0.8)
                   'racket-logger logger-prop
-                  'racket-trace  trace-prop
                   'help-echo     (format "thread: %s" thread)
                   'invisible     (list thread
                                        racket--logger-invisible-thread))
@@ -234,7 +207,6 @@ property at point, and apply the struct ACCESSOR."
                   'face          `(,@overline
                                    :height 0.8)
                   'racket-logger logger-prop
-                  'racket-trace  trace-prop
                   'help-echo     (format "msec: %s" msec)
                   'invisible     (list thread
                                        racket--logger-invisible-timing))))
@@ -248,7 +220,6 @@ property at point, and apply the struct ACCESSOR."
                "  "
                'face          `(:inherit ,(racket--logger-depth-face-name n) ,@overline)
                'racket-logger logger-prop
-               'racket-trace  trace-prop
                'invisible     thread)))
     ;; Finally draw the interesting information for this line.
     (let ((inherit `(:inherit ,(racket--logger-depth-face-name depth))))
@@ -257,19 +228,16 @@ property at point, and apply the struct ACCESSOR."
         (propertize prefix
                     'face          `(,@inherit ,@overline)
                     'racket-logger logger-prop
-                    'racket-trace  trace-prop
                     'invisible     thread)
         (propertize (racket--logger-limit-string message 4096)
                     'racket-logger-message
                     t ;message itself used by next/prev
                     'face          inherit
                     'racket-logger logger-prop
-                    'racket-trace  trace-prop
                     'invisible     thread)
         (propertize "\n"
                     'face          inherit
                     'racket-logger logger-prop
-                    'racket-trace  trace-prop
                     'invisible     thread))))))
 
 (defun racket--logger-level->string (level)
@@ -514,18 +482,18 @@ own level, therefore will follow the level specified for the
     (add-to-invisibility-spec racket--logger-invisible-timing))
   (save-selected-window (other-window 1))) ;HACK: cause redisplay
 
-;;; Showing caller and formals sites
+;;; Showing source sites
 
-(defvar racket-logger-called-marker nil
+(defvar racket-logger-primary-marker nil
   "A value for the variable `overlay-arrow-variable-list'.")
-(defvar racket-logger-caller-marker nil
+(defvar racket-logger-secondary-marker nil
   "A value for the variable `overlay-arrow-variable-list'.")
 (defvar racket-logger-context-marker nil
   "A value for the variable `overlay-arrow-variable-list'.")
 
 (defun racket--logger-add-overlay-arrow-variables ()
-  (cl-pushnew 'racket-logger-called-marker overlay-arrow-variable-list)
-  (cl-pushnew 'racket-logger-caller-marker overlay-arrow-variable-list)
+  (cl-pushnew 'racket-logger-primary-marker overlay-arrow-variable-list)
+  (cl-pushnew 'racket-logger-secondary-marker overlay-arrow-variable-list)
   (cl-pushnew 'racket-logger-context-marker overlay-arrow-variable-list))
 
 (defvar racket--logger-overlays nil
@@ -533,8 +501,8 @@ own level, therefore will follow the level specified for the
 
 (defun racket-logger-delete-all-overlays ()
   "Delete all overlays and overlay arrows in various buffers."
-  (setq racket-logger-called-marker nil
-        racket-logger-caller-marker nil
+  (setq racket-logger-primary-marker nil
+        racket-logger-secondary-marker nil
         racket-logger-context-marker nil)
   (dolist (o racket--logger-overlays) (delete-overlay o))
   (setq racket--logger-overlays nil))
@@ -542,8 +510,8 @@ own level, therefore will follow the level specified for the
 (defun racket-logger-before-change-function (_beg _end)
   "When a buffer is modified, hide all overlays we have in it.
 For speed we don't actually delete them, just move them \"nowhere\"."
-  (setq racket-logger-called-marker nil
-        racket-logger-caller-marker nil
+  (setq racket-logger-primary-marker nil
+        racket-logger-secondary-marker nil
         racket-logger-context-marker nil)
   (let ((buf (current-buffer)))
     (with-temp-buffer
@@ -552,108 +520,52 @@ For speed we don't actually delete them, just move them \"nowhere\"."
           (with-temp-buffer (move-overlay o 1 1)))))))
 
 (defun racket-logger-show-sites ()
+  "Show source code sites, if any, associated with a logging item."
   (interactive)
-  "Show caller and/or called sites for current logger item."
   (racket-logger-delete-all-overlays)
-  (let ((logger (racket--logger-get))
-        (trace  (racket--trace-get)))
-    (cond (trace
-           ;; Draw called site first. That way it "wins" if the caller
-           ;; site happens to intersect.
-           (racket--logger-highlight-called-site trace)
-           (racket--logger-highlight-caller-site logger trace)
-           (ignore-errors (racket-logger-goto-caller-site))
-           ;; Goto called site, last, so it will be visible if the
-           ;; caller site happens to be in same buffer.
-           (ignore-errors (racket-logger-goto-called-site)))
-          (logger
-           (racket--logger-highlight-info-site logger)
-           (ignore-errors (racket-logger-goto-info-site))))))
+  ;; Highlight both
+  (racket--logger-highlight-site #'racket-logger-primary-site)
+  (racket--logger-highlight-site #'racket-logger-secondary-site)
+  ;; Goto both; primary last in case both sites in same buffer
+  (ignore-errors (racket-logger-goto-secondary-site))
+  (ignore-errors (racket-logger-goto-primary-site)))
 
-(defun racket--logger-highlight-called-site (trace)
-  ;; This is slightly complicated because, for calls, normally we want
-  ;; to replace only formals with actuals. However a thunk has no
-  ;; formals, so in that case we replace the whole header with the
-  ;; trace message which is the entire application (f args).
-  (pcase-let ((`(,msg ,file ,beg ,end)
-               (if (racket-trace-callp trace)
-                   (pcase-let ((`(,_file ,beg ,end) (racket-trace-formals trace)))
-                     (if (/= beg end)
-                         (cons (substring (racket-trace-message trace)
-                                          (racket-trace-args-from trace)
-                                          (racket-trace-args-upto trace)) ;just `args`
-                               (racket-trace-formals trace))
-                       (cons (racket-trace-message trace) ;`(f args)`
-                             (racket-trace-header trace))))
-                 (cons (racket-trace-message trace) ;results
-                       (racket-trace-header trace)))))
-    (with-current-buffer (racket--logger-buffer-for-file file)
-      (racket--logger-put-highlight-overlay (racket-trace-callp trace)
-                                            msg
-                                            beg end
-                                            102))))
-
-(defun racket--logger-highlight-caller-site (logger trace)
-  "TRACE may be nil, in the case where we have logger-info for
-a non-tracing logger message."
-  (pcase (racket-logger-caller logger)
-    (`(,file ,beg ,end)
+(defun racket--logger-highlight-site (accessor)
+  (pcase (racket--logger-get accessor)
+    (`(,action ,file ,beg ,end . ,maybe-string)
      (with-current-buffer (racket--logger-buffer-for-file file)
-       (racket--logger-put-highlight-overlay (racket-trace-callp trace)
-                                             (racket-trace-message trace)
-                                             beg end
-                                             101)))))
+       (let ((str (pcase maybe-string
+                    (`(,(and (pred stringp) str))
+                     (racket--logger-limit-string str 80))))
+             (o (make-overlay beg end))
+             (face `(:inherit default :background ,(face-background 'match))))
+         (push o racket--logger-overlays)
+         (overlay-put o 'name 'racket-trace-overlay)
+         (overlay-put o 'priority 101)
+         (cl-case action
+           ('highlight
+            (overlay-put o 'face face))
+           ('replace
+            (overlay-put o 'face face)
+            (overlay-put o 'display str))
+           ('after
+            (overlay-put o 'after-string (propertize str 'face face)))))))))
 
-(defun racket--logger-highlight-info-site (logger)
-  (pcase (racket-logger-info logger)
-    (`(,file ,beg ,end)
-     (with-current-buffer (racket--logger-buffer-for-file file)
-       (racket--logger-put-highlight-overlay t
-                                             nil
-                                             beg end
-                                             101)))))
-
-(defun racket--logger-put-highlight-overlay (callp str beg end priority)
-  (let ((str (and str (racket--logger-limit-string str 80)))
-        (o (make-overlay beg end))
-        (face `(:inherit default :background ,(face-background 'match))))
-    (push o racket--logger-overlays)
-    (overlay-put o 'name 'racket-trace-overlay)
-    (overlay-put o 'priority priority)
-    (if callp
-        ;; Give beg..end the highlight face. When `str' is not nil,
-        ;; use for 'display property to replace the existing text.
-        (progn
-          (overlay-put o 'face face)
-          (when str
-            (overlay-put o 'display str)))
-      ;; `str' is results: display after.
-      (overlay-put o 'after-string (propertize (concat " ⇒ " str)
-                                               'face face)))))
-
-(defun racket-logger-goto-called-site ()
+(defun racket-logger-goto-primary-site ()
   (interactive)
-  (pcase (racket--trace-get #'racket-trace-formals)
-    (`(,file ,beg ,end)
-     (setq racket-logger-called-marker
+  (pcase (racket--logger-get #'racket-logger-primary-site)
+    (`(,_action ,file ,beg ,end . ,_)
+     (setq racket-logger-primary-marker
            (racket--logger-goto file beg end)))
     (_ (user-error "No called site information is available"))))
 
-(defun racket-logger-goto-caller-site ()
+(defun racket-logger-goto-secondary-site ()
   (interactive)
-  (pcase (racket--logger-get #'racket-logger-caller)
-    (`(,file ,beg ,end)
-     (setq racket-logger-caller-marker
-           (racket--logger-goto file beg end t)))
-    (_ (user-error "No caller site information is available"))))
-
-(defun racket-logger-goto-info-site ()
-  (interactive)
-  (pcase (racket--logger-get #'racket-logger-info)
-    (`(,file ,beg ,end)
-     (setq racket-logger-caller-marker
+  (pcase (racket--logger-get #'racket-logger-secondary-site)
+    (`(,_action ,file ,beg ,end . ,_)
+     (setq racket-logger-secondary-marker
            (racket--logger-goto file beg end)))
-    (_ (user-error "No info site information is available"))))
+    (_ (user-error "No caller site information is available"))))
 
 (defun racket-logger-goto-context-site ()
   (interactive)
@@ -664,7 +576,7 @@ a non-tracing logger message."
     (_ (user-error "No context site information is available"))))
 
 (defun racket--logger-goto (file-or-buffer beg end &optional pulse-p)
-  "Returns marker for BOL."
+  "Make BEG .. END visible in a buffer in some window."
   (let ((buffer (if (bufferp file-or-buffer)
                     file-or-buffer
                   (racket--logger-buffer-for-file file-or-buffer))))
@@ -675,17 +587,9 @@ a non-tracing logger message."
                                  (inhibit-same-window . t)))))
       (save-selected-window
         (select-window win)
-        ;; When we move point and `racket-xp-mode' is active, its
-        ;; point-motion thing kicks to display highlighting and
-        ;; tooltips. Avoid by going to 1+ end, which is less likely to
-        ;; be e.g. an identifier.
-        (goto-char (if (and (< (1+ end) (point-max))
-                            (not (eq (char-after end) 10)))
-                       (1+ end)
-                     end))
+        (goto-char end)
         (when pulse-p
-          (pulse-momentary-highlight-region beg end))
-        (save-excursion (beginning-of-line) (point-marker))))))
+          (pulse-momentary-highlight-region beg end))))))
 
 (defun racket--logger-buffer-for-file (file)
   (or (get-file-buffer file)

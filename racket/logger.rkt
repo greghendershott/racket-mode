@@ -29,15 +29,17 @@
                         (wait receiver))))))
 
 (define (vector->notify-value vec)
-  (match (log-receiver-vector->hasheq vec)
-    [(hash-table ['level   level]
-                 ['topic   topic]
-                 ['message message]
-                 ['depth   depth]
-                 ['caller  caller]
-                 ['context context]
-                 ['info    info]
-                 ['tracing tracing])
+  (match (add-interactive-sites
+          (log-receiver-vector->hasheq vec))
+    [(and ht
+          (hash-table ['level   level]
+                      ['topic   topic]
+                      ['message message]
+                      ['depth   depth]
+                      ['caller  caller]
+                      ['context context]
+                      ['info    info]
+                      ['tracing tracing]))
      (define (maybe-hash-ref/coerce ht key [coerce values])
        (and ht
             (cond [(hash-ref ht key #f) => coerce]
@@ -46,20 +48,14 @@
            (~a (or topic "*"))
            (remove-topic-from-message topic message)
            depth
-           caller
            context
-           (maybe-hash-ref/coerce info 'srcloc)
            (maybe-hash-ref/coerce info 'msec)
            (maybe-hash-ref/coerce info 'thread object-name)
-           (and tracing
-                (list (maybe-hash-ref/coerce tracing 'call)
-                      (maybe-hash-ref/coerce tracing 'tail)
-                      (maybe-hash-ref/coerce tracing 'name)
-                      (maybe-hash-ref/coerce tracing 'args-from)
-                      (maybe-hash-ref/coerce tracing 'args-upto)
-                      (maybe-hash-ref/coerce tracing 'identifier)
-                      (maybe-hash-ref/coerce tracing 'formals)
-                      (maybe-hash-ref/coerce tracing 'header))))]))
+           (and tracing #t)
+           (and tracing (hash-ref tracing 'call #f))
+           (and tracing (hash-ref tracing 'tail #f))
+           (hash-ref ht 'primary-site #f)
+           (hash-ref ht 'secondary-site #f))]))
 
 (define-polyfill (log-receiver-vector->hasheq v)
   #:module vestige/receiving
@@ -73,6 +69,10 @@
              'context #f
              'info    #f
              'tracing #f)]))
+
+(define-polyfill (add-interactive-sites ht)
+  #:module vestige/receiving
+  values)
 
 (define (remove-topic-from-message topic message)
   (match message
