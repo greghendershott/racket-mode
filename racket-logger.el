@@ -577,7 +577,7 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   ;; trace message which is the entire application (f args).
   (pcase-let ((`(,msg ,file ,beg ,end)
                (if (racket-trace-callp trace)
-                   (pcase-let ((`(,file ,beg ,end) (racket-trace-formals trace)))
+                   (pcase-let ((`(,_file ,beg ,end) (racket-trace-formals trace)))
                      (if (/= beg end)
                          (cons (substring (racket-trace-message trace)
                                           (racket-trace-args-from trace)
