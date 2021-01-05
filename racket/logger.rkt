@@ -40,22 +40,22 @@
                       ['context context]
                       ['info    info]
                       ['tracing tracing]))
-     (define (maybe-hash-ref/coerce ht key [coerce values])
+     (define (lookup ht key #:coerce [coerce values] #:default [default #f])
        (and ht
             (cond [(hash-ref ht key #f) => coerce]
-                  [else #f])))
+                  [else default])))
      (list level
            (~a (or topic "*"))
            (remove-topic-from-message topic message)
            depth
            context
-           (maybe-hash-ref/coerce info 'msec)
-           (maybe-hash-ref/coerce info 'thread object-name)
+           (lookup info 'msec)
+           (lookup info 'thread #:coerce object-name)
            (and tracing #t)
-           (and tracing (hash-ref tracing 'call #f))
-           (and tracing (hash-ref tracing 'tail #f))
-           (hash-ref ht 'primary-site #f)
-           (hash-ref ht 'secondary-site #f))]))
+           (lookup tracing 'call)
+           (lookup tracing 'tail)
+           (lookup ht 'primary-site)
+           (lookup ht 'secondary-site))]))
 
 (define-polyfill (log-receiver-vector->hasheq v)
   #:module vestige/receiving
