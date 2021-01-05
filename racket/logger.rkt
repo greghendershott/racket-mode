@@ -29,7 +29,7 @@
                         (wait receiver))))))
 
 (define (vector->notify-value vec)
-  (match (add-interactive-sites
+  (match (add-presentation-sites
           (log-receiver-vector->hasheq vec))
     [(and ht
           (hash-table ['level   level]
@@ -70,9 +70,9 @@
              'info    #f
              'tracing #f)]))
 
-(define-polyfill (add-interactive-sites ht)
+(define-polyfill (add-presentation-sites ht)
   #:module vestige/receiving
-  values)
+  ht)
 
 (define (remove-topic-from-message topic message)
   (match message
