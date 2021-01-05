@@ -429,7 +429,7 @@ set as a file-local variable."
     (optimizer               . info)
     (racket/contract         . error)
     (sequence-specialization . info)
-    (vestige/tracing         . debug)
+    (vestige                 . debug)
     (*                       . fatal))
   "Configuration of `racket-logger-mode' topics and levels
 
