@@ -78,6 +78,10 @@ You should probably also exit and restart Emacs.
 
 ** Update
 
+In Emacs use `M-x list-packages` to list your installed packages.
+Find `racket-mode` and press `U` to mark it to be upgraded.
+Then press `x` to execute the upgrades.
+
 Be aware that updating an Emacs package doesn't necessarily fully update Emacs' state. (One example symptom: an "invalid function" error message.)
 
 After updating the package, you might need to restart Emacs.
