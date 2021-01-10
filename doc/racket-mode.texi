@@ -45,6 +45,10 @@ Install
 * Uninstall::
 * Update::
 
+Update
+
+* Upgrading all packages::
+* Updating just Racket Mode::
 Configure
 
 * Key bindings::
@@ -306,7 +310,7 @@ Type @kbd{M-x}  @code{package-refresh-contents} @kbd{RET} .
 @node Install Racket Mode
 @section Install Racket Mode
 
-When Emacs is configured to use MELPA, simply type @kbd{M-x}  @verb{~package-install~} @kbd{RET}  @verb{~racket-mode~} @kbd{RET} .
+When Emacs is configured to use MELPA, simply type @kbd{M-x}  @code{package-install} @kbd{RET}  @code{racket-mode} @kbd{RET} .
 
 @node Minimal Racket
 @section Minimal Racket
@@ -327,21 +331,45 @@ You should probably also exit and restart Emacs.
 @node Update
 @section Update
 
-Be aware that updating an Emacs package doesn't necessarily fully update Emacs' state. (One example symptom: an ``invalid function'' error message.)
+@menu
+* Upgrading all packages::
+* Updating just Racket Mode::
+@end menu
 
-After updating the package, you might need to restart Emacs.
+@node Upgrading all packages
+@subsection Upgrading all packages
 
-In some cases, you might even need to:
+The ``easy path'' provided by Emacs is to update @emph{all} packages to their latest versions. Although you might not want to do this --- see next section --- here is how to do so:
 
 @enumerate
 @item
-Uninstall Racket Mode.
+Use @kbd{M-x}  @code{list-packages}. It should display a message like ``42 packages can be upgraded; type ‘U’ to mark them for upgrading.''.
 
 @item
-Exit and restart Emacs.
+Press @kbd{U}  as suggested to mark them all.
 
 @item
-Install Racket Mode.
+Press @kbd{x}  to execute.
+@end enumerate
+
+After such a mass update, it might be wise to exist restart Emacs.
+
+@node Updating just Racket Mode
+@subsection Updating just Racket Mode
+
+Updating all packages sometimes is more than you want. For example, maybe you will discover that some packages have changed in ways that require you to take time to learn about, change customizations, and so on.
+
+To update just Racket Mode:
+
+@enumerate
+@item
+Uninstall Racket Mode: @kbd{M-x}  @code{package-delete} @kbd{RET}  @code{racket-mode} @kbd{RET} .
+
+@item
+Optional but most reliable: Exit and restart Emacs.
+
+@item
+Install Racket Mode: @kbd{M-x}  @code{package-install} @kbd{RET}  @code{racket-mode} @kbd{RET} . This will install the latest version.
 @end enumerate
 
 @node Configure
