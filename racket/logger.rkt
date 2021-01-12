@@ -36,9 +36,8 @@
                       ['topic   topic]
                       ['message message]
                       ['depth   depth]
-                      ['caller  caller]
                       ['context context]
-                      ['info    info]
+                      ['data    data]
                       ['tracing tracing]))
      (define (lookup ht key #:coerce [coerce values] #:default [default #f])
        (and ht
@@ -49,8 +48,8 @@
            (remove-topic-from-message topic message)
            depth
            context
-           (lookup info 'msec)
-           (lookup info 'thread #:coerce object-name)
+           (lookup data 'msec)
+           (lookup data 'thread #:coerce object-name)
            (and tracing #t)
            (lookup tracing 'call)
            (lookup tracing 'tail)
