@@ -524,21 +524,22 @@ For speed we don't actually delete them, just move them \"nowhere\"."
   (interactive)
   (racket-logger-delete-all-overlays)
   ;; Highlight both
-  (racket--logger-highlight-site #'racket-logger-primary-site)
-  (racket--logger-highlight-site #'racket-logger-secondary-site)
+  (racket--logger-highlight-site #'racket-logger-primary-site
+                                 racket-logger-primary-site-face)
+  (racket--logger-highlight-site #'racket-logger-secondary-site
+                                 racket-logger-secondary-site-face)
   ;; Goto both; primary last in case both sites in same buffer
   (ignore-errors (racket-logger-goto-secondary-site))
   (ignore-errors (racket-logger-goto-primary-site)))
 
-(defun racket--logger-highlight-site (accessor)
+(defun racket--logger-highlight-site (accessor face)
   (pcase (racket--logger-get accessor)
     (`(,action ,file ,beg ,end . ,maybe-string)
      (with-current-buffer (racket--logger-buffer-for-file file)
        (let ((str (pcase maybe-string
                     (`(,(and (pred stringp) str))
                      (racket--logger-limit-string str 80))))
-             (o (make-overlay beg end))
-             (face `(:inherit default :background ,(face-background 'match))))
+             (o (make-overlay beg end)))
          (push o racket--logger-overlays)
          (overlay-put o 'name 'racket-trace-overlay)
          (overlay-put o 'priority 101)
