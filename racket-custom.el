@@ -597,7 +597,7 @@ to hide the interesting span in the buffer."
   "Racket Logger Debug Face")
 
 (defface-racket racket-logger-primary-site-face
-  '((t (:foreground "black" :background "SeaGreen1" :weight bold)))
+  '((t (:foreground "black" :background "SeaGreen1")))
   "Face for `racket-logger-mode' \"primary sites\"."
   "Racket Logger Primary Site Face")
 
