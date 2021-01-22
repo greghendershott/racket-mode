@@ -1254,7 +1254,7 @@ x
 The opening parenthesis of an expression in tail position is
 highlighted using the face @ref{racket-xp-tail-position-face} and has
 a tooltip annotation, ``tail''. The opening parenthesis of an
-encloding expression with the same continuation as one or more
+enclosing expression with the same continuation as one or more
 expressions in tail position is highlighted using the face
 @ref{racket-xp-tail-target-face} and has a tooltip annotation,
 ``head''. Furthermore, all the immediately related expressions
