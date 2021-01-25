@@ -194,17 +194,32 @@ the `racket-indent-function` property."
         (cond ((integerp method)
                (racket--indent-special-form method indent-point state))
               ((eq method 'defun)
-               body-indent)
+               (racket--indent-defun indent-point body-indent))
               (method
                (funcall method indent-point state))
               ((string-match (rx bos (or "def" "with-")) head)
-               body-indent) ;just like 'defun
+               (racket--indent-defun indent-point body-indent)) ;like 'defun
               ((string-match (rx bos "begin") head)
                (racket--indent-special-form 0 indent-point state))
               ((string-match (rx bos (or "for/" "for*/")) head)
                (racket--indent-for indent-point state))
               (t
                (racket--normal-indent indent-point state)))))))
+
+(defun racket--indent-defun (indent-point body-indent)
+  (save-excursion
+    (goto-char indent-point)
+    ;; When a line starts with ":", indent with previous sexp if that
+    ;; is a list. Handles a Typed Racket result type on its own line
+    ;; after list of formal parameters. (Although the following test
+    ;; matches ":" elsewhere, the start of the previous list sexp is
+    ;; the same as body-indent -- what we'd do anyway.)
+    (or (and (looking-at "[ ]*:")
+             (ignore-errors
+               (backward-sexp 1)
+               (and (eq ?\( (char-syntax (char-after)))
+                    (current-column))))
+        body-indent)))
 
 (defun racket--hash-literal-or-keyword-p ()
   "Looking at things like #fl() #hash() or #:keyword ?

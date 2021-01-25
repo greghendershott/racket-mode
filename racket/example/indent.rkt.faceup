@@ -323,3 +323,13 @@
   ∪ «b::» (x «k:...») «k:...» «b:->» (x «k:...»)
   [(∪ any_ls «k:...»)
    ,(«k:apply» «b:append» (term (any_ls «k:...»)))])
+
+«m:;; »«x:Issue #516
+»(«k:lambda» (f [a «b::» «t:Number»]
+           [b «b::» «t:Number»]) «b::» «t:Number»
+  «:racket-selfeval-face:10»)
+
+(«k:lambda» (f [a «b::» «t:Number»]
+           [b «b::» «t:Number»])
+        «b::» «t:Number»
+  «:racket-selfeval-face:10»)

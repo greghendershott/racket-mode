@@ -323,3 +323,13 @@
   ∪ : (x ...) ... -> (x ...)
   [(∪ any_ls ...)
    ,(apply append (term (any_ls ...)))])
+
+;; Issue #516
+(lambda (f [a : Number]
+           [b : Number]) : Number
+  10)
+
+(lambda (f [a : Number]
+           [b : Number])
+        : Number
+  10)
