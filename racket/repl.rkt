@@ -249,7 +249,7 @@
         ;; possibly entering module->namespace.
         (set-session! (current-session-id) maybe-mod #f)
         ;; 3. If module, require and enter its namespace, etc.
-        (with-expanded-syntax-caching-evaluator maybe-mod
+        (with-expanded-syntax-caching-evaluator
           (when (and maybe-mod mod-path)
             (parameterize ([current-module-name-resolver module-name-resolver-for-run])
               ;; When exn:fail during module load, re-run.

@@ -9,8 +9,7 @@
          racket/class
          drracket/check-syntax
          "../imports.rkt"
-         (only-in "../online-check-syntax.rkt"
-                  [get get-online-check-syntax-messages])
+         "../online-check-syntax.rkt"
          "../syntax.rkt"
          "../util.rkt")
 
@@ -59,6 +58,8 @@
         (λ () (call-with-semaphore
                sema
                (λ ()
+                 (log-racket-mode-debug "(current-memory-use) ~v"
+                                        (current-memory-use))
                  (hash-remove! ht path-str))))))))
 
 ;; Note: Instead of using the `show-content` wrapper, we give already
@@ -271,11 +272,9 @@
     (define/public (get-annotations)
       ;; Obtain any online-check-syntax log message values and treat
       ;; them as mouse-overs.
-      (for ([v (in-set (get-online-check-syntax-messages src))])
-        (match-define (list beg end string-or-thunk) v)
-        (define (force v) (if (procedure? v) (v) v))
-        (send this syncheck:add-mouse-over-status
-              "" beg end (force string-or-thunk)))
+      (for ([v (in-set (current-online-check-syntax))])
+        (match-define (list beg end str) v)
+        (send this syncheck:add-mouse-over-status "" beg end str))
 
       ;; Convert ht-defs/uses to a list of defs, each of whose uses
       ;; are sorted by positions.
