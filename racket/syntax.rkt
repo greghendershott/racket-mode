@@ -237,6 +237,10 @@
 
   (define-logger racket-mode-syntax-cache)
 
+  (define sema (make-semaphore 1))
+  (define-simple-macro (with-sema e:expr ...+)
+    (call-with-semaphore sema (λ () e ...)))
+
   ;; This lookup table allows the path->existing-syntax and
   ;; path->existing-expanded-syntax functions to deal with a cache
   ;; miss by re-expanding (and re-caching). Those are intended to
@@ -246,57 +250,95 @@
   ;; is never cleaned up, but I believe (?) it's much less "heavy"
   ;; than the syntax, expanded syntax, and namespace values in the
   ;; main cache.
-  (define path->code (make-hash)) ;(hash/c path? code?)
+  (define path->code (make-hash)) ;(hash/c path? string?)
   (struct code (str digest))
   (define (get-code path)
     (hash-ref path->code path #f))
 
-  ;; This is the main cache. Our eviction strategy is for cache
-  ;; entries to be ephemerons keyed on the namespace. In practice this
-  ;; means that a major GC will evict nearly all of these, except
-  ;; maybe those for the most recently run file in each REPL session
-  ;; and its non-compiled required files loaded by our caching
-  ;; eval-handler.
+  ;; The main cache is an association list in order from MRU to LRU.
+  ;; The keys are paths. The values are either cache-entry (not
+  ;; evictable) or an ephemeron keyed by the namespace (evictable when
+  ;; the ns is not otherwise reachable). Approximately the first
+  ;; `mru-to-keep` items in the list are non-evictable cache-entry
+  ;; items; the rest are evictable ephemerons. (It can be one more; we
+  ;; don't really care, so we don't track whether a set/get moves an
+  ;; item in/out of that first `mru-to-keep`.)
   ;;
-  ;; That is a fairly "chunky" approach: Nothing is freed until a
-  ;; major GC, at which point possibly too much is freed. But I'm not
-  ;; sure what else to do, exactly. Could the Emacs front end tell us
-  ;; some explicit "working set" to preserve (or not)? Sure, but the
-  ;; desirable "working set" is not just a list of Emacs buffer files.
-  ;; For example, the caching done by the eval-handler means that
-  ;; things like visit-definition, which need to walk fully expanded
-  ;; syntax to find the location, will find that already available in
-  ;; the cache. This speeds up a very common usage pattern: Visit a
-  ;; file, then visit the definition of something in a required file.
-  ;; That scenario was a big motivation for caching. [Yes,
-  ;; check-syntax tells us the defining file -- but not the location
-  ;; within; to find that we need syntax and often expanded syntax.]
-  (define cache (make-hash)) ;(hash/c path? (ephemeron/c namespace? cache-entry?)
+  ;; Note: After making changes to mru-to-keep, cache-set!, or
+  ;; cache-get, it would be wise to run the slow-test submodule in
+  ;; check-syntax.rkt as a smoke test.
+  (define cache null)
   (struct cache-entry (stx exp-stx digest dir namespace online))
+  (define mru-to-keep 8)
+
+  (define (not-evicted? v)
+    (or (cache-entry? v)
+        (ephemeron-value v)))
+
+  (define (promote v) ;make non-evictable
+    (match v
+      [(? cache-entry? ce) ce]
+      [(? ephemeron? e) (or (ephemeron-value e) e)]))
+
+  (define (demote v) ;make evictable
+    (match v
+      [(and (struct* cache-entry ([namespace ns])) ce) (make-ephemeron ns ce)]
+      [(? ephemeron? e) e]))
+
+  (define (promote/demote n v)
+    (if (< n mru-to-keep)
+        (promote v)
+        (demote v)))
 
   (define/contract (cache-set! path code-str stx exp-stx digest)
     (-> path? string? syntax? syntax? string? any)
-    (log-racket-mode-syntax-cache-debug "cache-set: ~v" path)
-    (define dir (current-load-relative-directory))
-    (define namespace (current-namespace))
-    (define online (current-online-check-syntax))
-    (hash-set! cache path
-               (make-ephemeron
-                namespace
-                (cache-entry stx exp-stx digest dir namespace online)))
-    (hash-set! path->code path (code code-str digest)))
+    (with-sema
+      (log-racket-mode-syntax-cache-debug "cache-set: ~v" path)
+      (hash-set! path->code path (code code-str digest))
+      ;; This is written to walk the existing association list just
+      ;; once to build the new tail onto which we'll cons a new item
+      ;; for `path`. When building the new tail, we don't keep any old
+      ;; item for `path` or any already-evicted items. We promote or
+      ;; demote items we do keep.
+      (define head
+        (cons path (cache-entry stx exp-stx digest
+                                (current-load-relative-directory)
+                                (current-namespace)
+                                (current-online-check-syntax))))
+      (define tail
+        (for*/list ([(k+v n) (in-indexed cache)]
+                    [k (in-value (car k+v))] #:unless (equal? k path)
+                    [v (in-value (cdr k+v))] #:when (not-evicted? v))
+          (cons k (promote/demote n v))))
+      (set! cache (cons head tail))))
 
   (define/contract (cache-get path)
     (-> path? (or/c #f cache-entry?))
-    (log-cache-stats)
-    (match (hash-ref cache path #f)
-      [(? ephemeron? e)
-       (define v (ephemeron-value e))
-       (log-racket-mode-syntax-cache-debug "cache-get ~v: v=~v" path v)
-       v]
-      [#f
-       (log-racket-mode-syntax-cache-debug "cache-get ~v: not found" path)
-       #f]))
+    (with-sema
+      ;; This is written to walk the existing association list just
+      ;; once, to look for `path` while building the new tail. If
+      ;; found, it becomes the new head. Regardless, in the new tail
+      ;; we don't keep already-evicted items. We promote or demote
+      ;; items we do keep.
+      (define-values (head reversed-tail)
+        (for*/fold ([head #f]
+                    [tail null])
+                   ([(k+v n) (in-indexed cache)]
+                    [k (in-value (car k+v))]
+                    [v (in-value (cdr k+v))] #:when (not-evicted? v))
+          (cond
+            [(equal? k path) ;found: don't add to tail, will be new head
+             (values (cons k (promote v))
+                     tail)]
+            [else
+             (values head
+                     (cons (cons k (promote/demote n v))
+                           tail))])))
+      (define tail (reverse reversed-tail))
+      (log-racket-mode-syntax-cache-debug "cache-get ~v => ~v ~v" path head tail)
+      (match head
+        [(cons _ (? cache-entry? ce)) (set! cache (cons head tail)) ce]
+        [#f                           (set! cache tail)             #f])))
 
   ;; "If your parameterize form uses a half dozen parameters, you're
   ;; probably missing some" -- not Alan Perlis
@@ -306,23 +348,5 @@
                      [current-load-relative-directory dir]
                      [current-directory               dir]
                      [current-online-check-syntax     ol])
-        e ...)))
-
-  (define (log-cache-stats)
-    (when (log-level? (current-logger) 'debug 'racket-mode-syntax-cache)
-      (define-values (active-count active evicted-count evicted)
-        (for/fold ([active-count 0]
-                   [active '()]
-                   [evicted-count 0]
-                   [evicted '()])
-                  ([(k v) (in-hash cache)])
-          (define n (path->string (file-name-from-path k)))
-          (if (ephemeron-value v)
-              (values (add1 active-count) (cons n active) evicted-count evicted)
-              (values active-count active (add1 evicted-count) (cons n evicted)))))
-      (log-racket-mode-syntax-cache-debug
-       "~v syntax cache entries...\n~v active: ~v\n~v evicted: ~v"
-       (+ active-count evicted-count)
-       active-count active
-       evicted-count evicted))))
+        e ...))))
 (require 'cache)
