@@ -452,3 +452,40 @@
   ;; Twice to exercise and test cache
   (check-equal? (check-this-file (path->string (syntax-source #'here)))
                 (check-this-file (path->string (syntax-source #'here)))))
+
+(module+ slow-test
+  ;; To a large extent this is a test of the syntax cache in
+  ;; syntax.rkt -- a sanity check that the eviction strategy is
+  ;; working to avoid an unbounded and excessive growth in
+  ;; current-memory-use.
+  ;;
+  ;; Probably most consistent way to run is outside Emacs with:
+  ;;
+  ;;   raco test --submodule slow-test check-syntax.rkt
+  (require rackunit
+           racket/file
+           racket/path)
+  (for ([_ 2]) (collect-garbage))
+  (define start (current-seconds))
+  (define least (current-memory-use))
+  (define most  least)
+  (define count 0)
+  (for* ([roots (in-list '(("racket.rkt" "typed")
+                           ("core.rkt" "typed-racket")
+                           ("main.rkt" "racket")))]
+         [path  (in-directory
+                 (path-only
+                  (apply collection-file-path roots)))]
+         #:when (equal? #"rkt" (filename-extension path)))
+    (set! count (add1 count))
+    (check-syntax (path->string path) (file->string path))
+    (define after (current-memory-use))
+    (printf "~a, ~a, ~v\n" count after (path->string path))
+    (set! least (min least after))
+    (set! most  (max most  after)))
+  (printf "Time:  ~a seconds\n" (- (current-seconds) start))
+  (printf "Least: ~a bytes\n" least)
+  (printf "Most:  ~a bytes\n" most)
+  (define mem-use-diff (- most least))
+  (printf "Diff:  ~a bytes\n" mem-use-diff)
+  (check-true (< mem-use-diff 700000000)))
