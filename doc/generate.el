@@ -97,6 +97,7 @@
     racket-expand-last-sexp
     "Other"
     racket-mode-start-faster
+    racket-mode-start-slower
     "Showing information"
     racket-show-pseudo-tooltip
     racket-show-echo-area

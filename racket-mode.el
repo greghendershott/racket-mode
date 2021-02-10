@@ -170,17 +170,24 @@ for Racket packages.
 
 This command will do a `raco make` of Racket Mode's .rkt files,
 creating bytecode files in `compiled/` subdirectories. As a
-result, when a `racket-run' or `racket-repl' command must start
-the Racket process, it will start faster.
+result, when a command must start the Racket process, it will
+start somewhat faster.
 
-If you run this command, ever, you should run it again after:
+On many computers, the resulting speed up is negligible, and
+might not be worth the complication.
+
+If you run this command, ever, you will need to run it again
+after:
 
 - Installing an updated version of Racket Mode. Otherwise, you
   might lose some of the speed-up.
 
 - Installing a new version of Racket and/or changing the value of
   the variable `racket-program'. Otherwise, you might get an
-  error message due to the bytecode being different versions."
+  error message due to the bytecode being different versions.
+
+To revert to compiling on startup, use
+`racket-mode-start-slower'. "
   (interactive)
   (let* ((racket  (executable-find racket-program))
          (rkts0   (expand-file-name "*.rkt" racket--rkt-source-dir) )
@@ -191,8 +198,19 @@ If you run this command, ever, you should run it again after:
                           (shell-quote-wildcard-pattern rkts1)))
          (prompt (format "Do `%s` " command)))
     (when (y-or-n-p prompt)
+      (racket-stop-back-end)
       (async-shell-command command))))
 
+(defun racket-mode-start-slower ()
+  "Delete the \"compiled\" directories made by `racket-mode-start-faster'."
+  (interactive)
+  (let* ((dir0 (expand-file-name "compiled"          racket--rkt-source-dir) )
+         (dir1 (expand-file-name "commands/compiled" racket--rkt-source-dir))
+         (prompt (format "Delete %s and %s" dir0 dir1)))
+    (when (y-or-n-p prompt)
+      (racket-stop-back-end)
+      (ignore-errors (delete-directory dir0 t))
+      (ignore-errors (delete-directory dir1 t)))))
 
 (defun racket-documentation-search ()
   "Search documentation.

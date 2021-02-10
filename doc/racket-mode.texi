@@ -148,6 +148,7 @@ Macro expand
 Other
 
 * racket-mode-start-faster::
+* racket-mode-start-slower::
 
 Showing information
 
@@ -2147,6 +2148,7 @@ Uses Racket's @code{expand-once} in the namespace from the most recent
 
 @menu
 * racket-mode-start-faster::
+* racket-mode-start-slower::
 @end menu
 
 @node racket-mode-start-faster
@@ -2164,10 +2166,14 @@ for Racket packages.
 
 This command will do a @code{raco make} of Racket Mode's .rkt files,
 creating bytecode files in @code{compiled/} subdirectories. As a
-result, when a @ref{racket-run} or @ref{racket-repl} command must start
-the Racket process, it will start faster.
+result, when a command must start the Racket process, it will
+start somewhat faster.
 
-If you run this command, ever, you should run it again after:
+On many computers, the resulting speed up is negligible, and
+might not be worth the complication.
+
+If you run this command, ever, you will need to run it again
+after:
 
 @itemize
 @item
@@ -2179,6 +2185,16 @@ Installing a new version of Racket and/or changing the value of
 the variable @ref{racket-program}. Otherwise, you might get an
 error message due to the bytecode being different versions.
 @end itemize
+
+To revert to compiling on startup, use
+@ref{racket-mode-start-slower}. 
+
+@node racket-mode-start-slower
+@subsection racket-mode-start-slower
+
+@kbd{M-x}  @code{racket-mode-start-slower}
+
+Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 
 @node Showing information
 @section Showing information
