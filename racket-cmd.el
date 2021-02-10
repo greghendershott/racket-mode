@@ -29,12 +29,19 @@
 (autoload         'racket--logger-on-notify "racket-logger")
 
 ;;;###autoload
+(defvar racket-start-back-end-hook nil
+  "Hook run after `racket-start-back-end'.")
+
+;;;###autoload
 (defun racket-start-back-end ()
   "Start the back end process used by Racket Mode.
 
-If the process is already started, this command will stop and restart it."
+If the process is already started, this command will stop and restart it.
+
+As the final step, runs the hook `racket-start-back-end-hook'."
   (interactive)
-  (racket--cmd-open))
+  (racket--cmd-open)
+  (run-hooks racket-start-back-end-hook))
 
 ;;;###autoload
 (defun racket-stop-back-end ()
