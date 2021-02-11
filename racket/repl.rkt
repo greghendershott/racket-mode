@@ -159,6 +159,7 @@
             (log-racket-mode-fatal "Authorization failed: ~v"
                                    supplied-token)
             (exit 'racket-mode-repl-auth-failure))
+          (port-count-lines! in) ;#519
           (thread repl-manager-thread-thunk))))
     (accept-a-connection)))
 
