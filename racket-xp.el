@@ -799,8 +799,12 @@ If you have set `racket-xp-after-change-refresh-delay' to nil --
 or to a very large amount -- you can use this command to annotate
 manually."
   (interactive)
-  (racket--xp-annotate (lambda ()
-                         (racket-xp--force-redisplay (selected-window)))))
+  (when racket-xp-mode
+    (racket--xp-annotate
+     (let ((windows (get-buffer-window-list (current-buffer) nil t)))
+       (lambda ()
+         (dolist (window windows)
+           (racket-xp--force-redisplay window)))))))
 
 (defun racket--xp-annotate (&optional after-thunk)
   (racket--xp-set-status 'running)
