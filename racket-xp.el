@@ -391,69 +391,70 @@ or `racket-repl-describe'."
     (racket--remove-overlays (point-min) (point-max) face)))
 
 (defun racket-xp-pre-redisplay (window)
-  (let ((point (window-point window)))
-    (unless (equal point (window-parameter window 'racket-xp-point))
-      (set-window-parameter window 'racket-xp-point point)
-      (pcase (get-text-property point 'help-echo)
-        ((and s (pred racket--non-empty-string-p))
-         (racket-show s
-                      (or (next-single-property-change point 'help-echo)
-                          (point-max))))
-        (_ (racket-show "")))
-      (let ((def (get-text-property point 'racket-xp-def))
-            (use (get-text-property point 'racket-xp-use)))
-        (unless (and (equal def (window-parameter window 'racket-xp-def))
-                     (equal use (window-parameter window 'racket-xp-use)))
-          (set-window-parameter window 'racket-xp-def def)
-          (set-window-parameter window 'racket-xp-use use)
-          (racket--remove-overlays-in-buffer racket-xp-def-face
-                                             racket-xp-use-face)
-          (pcase def
-            (`(,kind ,_id ,(and uses `((,beg ,_end) . ,_)))
-             (when (or (eq kind 'local)
-                       racket-xp-highlight-imports-p)
-               (pcase (get-text-property beg 'racket-xp-use)
-                 (`(,beg ,end)
-                  (racket--add-overlay beg end racket-xp-def-face)))
-               (dolist (use uses)
-                 (pcase use
+  (with-current-buffer (window-buffer window)
+    (let ((point (window-point window)))
+      (unless (equal point (window-parameter window 'racket-xp-point))
+        (set-window-parameter window 'racket-xp-point point)
+        (pcase (get-text-property point 'help-echo)
+          ((and s (pred racket--non-empty-string-p))
+           (racket-show s
+                        (or (next-single-property-change point 'help-echo)
+                            (point-max))))
+          (_ (racket-show "")))
+        (let ((def (get-text-property point 'racket-xp-def))
+              (use (get-text-property point 'racket-xp-use)))
+          (unless (and (equal def (window-parameter window 'racket-xp-def))
+                       (equal use (window-parameter window 'racket-xp-use)))
+            (set-window-parameter window 'racket-xp-def def)
+            (set-window-parameter window 'racket-xp-use use)
+            (racket--remove-overlays-in-buffer racket-xp-def-face
+                                               racket-xp-use-face)
+            (pcase def
+              (`(,kind ,_id ,(and uses `((,beg ,_end) . ,_)))
+               (when (or (eq kind 'local)
+                         racket-xp-highlight-imports-p)
+                 (pcase (get-text-property beg 'racket-xp-use)
                    (`(,beg ,end)
-                    (racket--add-overlay beg end racket-xp-use-face)))))))
-          (pcase use
-            (`(,def-beg ,def-end)
-             (pcase (get-text-property def-beg 'racket-xp-def)
-               (`(,kind ,_id ,uses)
-                (when (or (eq kind 'local)
-                          racket-xp-highlight-imports-p)
-                  (racket--add-overlay def-beg def-end racket-xp-def-face)
-                  (dolist (use uses)
-                    (pcase use
-                      (`(,beg ,end)
-                       (racket--add-overlay beg end racket-xp-use-face)))))))))))
-      (let ((target  (get-text-property point 'racket-xp-tail-target))
-            (context (get-text-property point 'racket-xp-tail-position)))
-        (unless (and (equal target (window-parameter window 'racket-xp-tail-target))
-                     (equal context   (window-parameter window 'racket-xp-tail-position)))
-          (set-window-parameter window 'racket-xp-tail-target  target)
-          (set-window-parameter window 'racket-xp-tail-position context)
-          (racket--remove-overlays-in-buffer racket-xp-tail-target-face
-                                             racket-xp-tail-position-face)
-          ;; This is slightly simpler than def/uses because there are
-          ;; no beg..end ranges, just single positions.
-          (pcase target
-            ((and (pred listp) contexts `(,pos . ,_))
-             (pcase (get-text-property pos 'racket-xp-tail-position)
-               ((and (pred markerp) pos)
-                (racket--add-overlay pos (1+ pos) 'racket-xp-tail-target-face -1)
-                (dolist (context contexts)
-                  (racket--add-overlay context (1+ context) 'racket-xp-tail-position-face -2))))))
-          (pcase context
-            ((and (pred markerp) target-pos)
-             (pcase (get-text-property target-pos 'racket-xp-tail-target)
-               ((and (pred listp) contexts)
-                (racket--add-overlay target-pos (1+ target-pos) 'racket-xp-tail-target-face -1)
-                (dolist (context contexts)
-                  (racket--add-overlay context (1+ context) 'racket-xp-tail-position-face 2)))))))))))
+                    (racket--add-overlay beg end racket-xp-def-face)))
+                 (dolist (use uses)
+                   (pcase use
+                     (`(,beg ,end)
+                      (racket--add-overlay beg end racket-xp-use-face)))))))
+            (pcase use
+              (`(,def-beg ,def-end)
+               (pcase (get-text-property def-beg 'racket-xp-def)
+                 (`(,kind ,_id ,uses)
+                  (when (or (eq kind 'local)
+                            racket-xp-highlight-imports-p)
+                    (racket--add-overlay def-beg def-end racket-xp-def-face)
+                    (dolist (use uses)
+                      (pcase use
+                        (`(,beg ,end)
+                         (racket--add-overlay beg end racket-xp-use-face)))))))))))
+        (let ((target  (get-text-property point 'racket-xp-tail-target))
+              (context (get-text-property point 'racket-xp-tail-position)))
+          (unless (and (equal target (window-parameter window 'racket-xp-tail-target))
+                       (equal context   (window-parameter window 'racket-xp-tail-position)))
+            (set-window-parameter window 'racket-xp-tail-target  target)
+            (set-window-parameter window 'racket-xp-tail-position context)
+            (racket--remove-overlays-in-buffer racket-xp-tail-target-face
+                                               racket-xp-tail-position-face)
+            ;; This is slightly simpler than def/uses because there are
+            ;; no beg..end ranges, just single positions.
+            (pcase target
+              ((and (pred listp) contexts `(,pos . ,_))
+               (pcase (get-text-property pos 'racket-xp-tail-position)
+                 ((and (pred markerp) pos)
+                  (racket--add-overlay pos (1+ pos) 'racket-xp-tail-target-face -1)
+                  (dolist (context contexts)
+                    (racket--add-overlay context (1+ context) 'racket-xp-tail-position-face -2))))))
+            (pcase context
+              ((and (pred markerp) target-pos)
+               (pcase (get-text-property target-pos 'racket-xp-tail-target)
+                 ((and (pred listp) contexts)
+                  (racket--add-overlay target-pos (1+ target-pos) 'racket-xp-tail-target-face -1)
+                  (dolist (context contexts)
+                    (racket--add-overlay context (1+ context) 'racket-xp-tail-position-face 2))))))))))))
 
 (defun racket-xp--force-redisplay (window)
   (dolist (param '(racket-xp-point
