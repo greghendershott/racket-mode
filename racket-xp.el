@@ -790,7 +790,21 @@ This is ad hoc and forensic."
 
 ;;; Annotation
 
-(defvar racket--xp-imenu-index nil)
+(defun racket-xp-annotate-all-buffers ()
+  "Call `racket-xp-annotate' in all `racket-xp-mode' buffers."
+  (interactive)
+  (let ((buffers (seq-filter (lambda (buffer)
+                               (with-current-buffer buffer
+                                 racket-xp-mode))
+                             (buffer-list))))
+    (when (y-or-n-p
+           (format "Request re-annotation of %s racket-xp-mode buffers?"
+                   (length buffers)))
+      (message "")
+      (with-temp-message "Working..."
+        (dolist (buffer buffers)
+          (with-current-buffer buffer
+            (racket-xp-annotate)))))))
 
 (defun racket-xp-annotate ()
   "Request the buffer to be analyzed and annotated.
@@ -805,6 +819,8 @@ manually."
        (lambda ()
          (dolist (window windows)
            (racket-xp--force-redisplay window)))))))
+
+(defvar racket--xp-imenu-index nil)
 
 (defun racket--xp-annotate (&optional after-thunk)
   (racket--xp-set-status 'running)
