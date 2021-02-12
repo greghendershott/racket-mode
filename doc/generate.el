@@ -63,7 +63,16 @@
     racket-xp-mode
     (racket-xp-describe ,racket-xp-mode-map)
     (racket-xp-documentation ,racket-xp-mode-map)
-    (racket-xp-tail-target ,racket-xp-mode-map)
+    (racket-xp-next-definition ,racket-xp-mode-map)
+    (racket-xp-previous-definition ,racket-xp-mode-map)
+    (racket-xp-next-use ,racket-xp-mode-map)
+    (racket-xp-previous-use ,racket-xp-mode-map)
+    (racket-xp-next-error ,racket-xp-mode-map)
+    (racket-xp-previous-error ,racket-xp-mode-map)
+    (racket-xp-tail-up ,racket-xp-mode-map)
+    (racket-xp-tail-down ,racket-xp-mode-map)
+    (racket-xp-tail-next-sibling ,racket-xp-mode-map)
+    (racket-xp-tail-previous-sibling ,racket-xp-mode-map)
     racket-documentation-search
     "Run"
     racket-repl-mode

@@ -177,7 +177,7 @@
                        (add1 head)
                        (λ (v) (set-add v (add1 tail)))
                        (set))
-         (send this syncheck:add-mouse-over-status "" head (add1 head) "head")
+         (send this syncheck:add-mouse-over-status "" head (add1 head) "⟦tail⟧")
          (send this syncheck:add-mouse-over-status "" tail (add1 tail) "tail")]
         [[_ _ _]
          (log-racket-mode-warning
