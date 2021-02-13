@@ -208,8 +208,8 @@ commands will use a buffer of that name, creating it if
 necessary."
   :tag "REPL Buffer Name Function"
   :type '(choice (const :tag "One REPL buffer for all edit buffers" nil)
-                 (const :tag "One REPL buffer for all project edit buffers" racket-repl--buffer-name-project)
-                 (const :tag "One REPL buffer for each edit buffer" racket-repl--buffer-name-unique)
+                 (const :tag "One REPL buffer for all project edit buffers" racket-repl-buffer-name-project)
+                 (const :tag "One REPL buffer for each edit buffer" racket-repl-buffer-name-unique)
                  (function :tag "Other function"))
   :group 'racket-repl)
 
