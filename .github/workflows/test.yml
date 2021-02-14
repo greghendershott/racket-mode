@@ -16,7 +16,7 @@ jobs:
           - '27.1'
         racket_version:
           - '6.9'
-          - '7.9'
+          - '8.0'
         # Also include snapshots of both Emacs and Racket. Note that
         # "allow_failure: true" doesn't seem to actually work yet on
         # GitHub Actions -- if this job fails it will say the overall
