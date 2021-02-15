@@ -11,16 +11,19 @@ jobs:
       fail-fast: false
       matrix:
         emacs_version:
-          - '25.1'
+          - '25.1'              # our minimum supported version
           - '26.3'
-          - '27.1'
+          - '27.1'              # most recent release
         racket_version:
-          - '6.9'
-          - '8.0'
-        # Also include snapshots of both Emacs and Racket. Note that
-        # "allow_failure: true" doesn't seem to actually work yet on
-        # GitHub Actions -- if this job fails it will say the overall
-        # build failed. :(
+          - '6.9'               # our minimum supported version
+          - 'stable'            # most recent release
+        # Also include bleeding edge snapshots of both Emacs and
+        # Racket. Note that "allow_failure: true" doesn't seem to
+        # actually work yet on GitHub Actions like it does on Travis
+        # CI: If this fails it will say the overall job failed. :(
+        # Meanwhile in the GitHub protected branch settings by making
+        # this one NOT a required status check -- which is some but
+        # not all of the behavior we miss from Travis CI.
         include:
           - emacs_version: 'snapshot'
             racket_version: 'current'
@@ -34,7 +37,7 @@ jobs:
         with:
           version: ${{ matrix.emacs_version }}
       - name: Install Racket
-        uses: Bogdanp/setup-racket@v0.8
+        uses: Bogdanp/setup-racket@v1.1
         with:
           architecture: 'x64'
           distribution: 'full'
