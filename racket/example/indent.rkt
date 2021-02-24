@@ -333,3 +333,18 @@
            [b : Number])
         : Number
   10)
+
+;; Issue #521
+(define-judgment-form L
+  #:mode (⇓ I I O O)
+  #:contract (⇓ Γ e Δ v)
+
+  [----------- Value
+   (⇓ Γ v Γ v)]
+
+
+  [(⇓ Γ e Δ (λ (y) e_*))
+   (⇓ Δ (subst e_* y x) Θ v)
+   ------------------------- Application
+   (⇓ Γ (e x) Θ v)])
+

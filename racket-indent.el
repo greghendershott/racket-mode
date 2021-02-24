@@ -187,7 +187,8 @@ the `racket-indent-function` property."
   (let ((body-indent (+ (current-column) lisp-body-indent)))
     (forward-char 1)
     (if (or (racket--hash-literal-or-keyword-p)
-            (racket--data-sequence-p))
+            (racket--data-sequence-p)
+            (racket--all-hyphens-p))
         (progn (backward-prefix-chars) (current-column))
       (let* ((head   (buffer-substring (point) (progn (forward-sexp 1) (point))))
              (method (racket--get-indent-function-method head)))
@@ -227,6 +228,10 @@ The last occurs in Racket contract forms, e.g. (->* () (#:kw kw)).
 Returns nil for #% identifiers like #%app."
   (looking-at (rx ?\# (or ?\:
                           (not (any ?\%))))))
+
+(defun racket--all-hyphens-p ()
+  "Magic for redex like what DrRacket does."
+  (looking-at (rx (>= 3 ?-) (and (not (syntax word)) (not (syntax symbol))))))
 
 (defun racket--data-sequence-p ()
   "Looking at \"data\" sequences where we align under head item?
