@@ -97,6 +97,17 @@ everything. If you find that too \"noisy\", set this to nil.")
     "---"
     ["Annotate Now" racket-xp-annotate]))
 
+(defvar racket-xp-buffer-size-limit 128000
+  "When `buffer-size' is at least this amount, disable auto refresh.
+
+Also show yes/no warning for manual `racket-xp-annotate'.
+
+See issue #522.
+
+The default value is of course arbitrary. For comparison it is
+about half the size of the largest handwritten file I know in the
+Racket sources, drracket/private/unit.rkt.")
+
 ;;;###autoload
 (define-minor-mode racket-xp-mode
   "A minor mode that analyzes expanded code to explain and explore.
@@ -258,7 +269,10 @@ commands directly to whatever keys you prefer.
                         (racket-xp-visit . t)
                         (racket-xp-doc . t))))
   (cond (racket-xp-mode
-         (racket--xp-annotate)
+         (if (< (buffer-size) racket-xp-buffer-size-limit)
+             (racket--xp-annotate)
+           (setq racket-xp-after-change-refresh-delay nil)
+           (message "Extremely large buffer; setting racket-xp-after-change-refresh-delay set to nil"))
          (add-hook 'after-change-functions
                    #'racket--xp-after-change-hook
                    t t)
@@ -881,7 +895,9 @@ If you have set `racket-xp-after-change-refresh-delay' to nil --
 or to a very large amount -- you can use this command to annotate
 manually."
   (interactive)
-  (when racket-xp-mode
+  (when (and racket-xp-mode
+             (or (< (buffer-size) racket-xp-buffer-size-limit)
+                 (yes-or-no-p "The buffer is so large Emacs will probably 'freeze'! Are you sure you want to continue? ")))
     (racket--xp-annotate
      (let ((windows (get-buffer-window-list (current-buffer) nil t)))
        (lambda ()
