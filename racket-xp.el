@@ -188,18 +188,16 @@ understands the two different imports of \"define\":
 
 When point is on the opening parenthesis of an expression in tail
 position, it is highlighted using the face
-`racket-xp-tail-position-face' and has a tooltip annotation,
-\"tail\".
+`racket-xp-tail-position-face'.
 
 When point is on the opening parenthesis of an enclosing
 expression with respect to which one or more expressions are in
 tail position, it is highlighted using the face
-`racket-xp-tail-target-face' and has a tooltip annotation,
-\"⟦tail⟧\".
+`racket-xp-tail-target-face'.
 
 Furthermore, when point is on the opening parenthesis of either
 kind of expression, all of the immediately related expressions
-are also highlighted. Various commands to move among them:
+are also highlighted. Various commands move among them:
 
   - `racket-xp-tail-up'
   - `racket-xp-tail-down'
