@@ -80,7 +80,7 @@ their response asychronously."
 
 (defcustom racket-path-from-emacs-to-racket-function
   #'identity
-  "A function used to transform Emacs Lisp pathnames before supplying to the Racket back end.
+  "A function to transform Emacs Lisp pathnames given to the Racket back end.
 
 If you run Emacs on Windows Subsystem for Linux, and want to run
 Racket programs using Windows Racket.exe rather than Linux
@@ -96,7 +96,7 @@ you probably also want to customize the \"reverse\":
   (if racket--winp
       (lambda (path) (subst-char-in-string ?\\ ?/ path))
       #'identity)
-  "A function used to transform pathnames supplied by the Racket back end before using them in Emacs.
+  "A function to transform Racket back end pathnames given to Emacs Lisp.
 
 The default on Windows replaces back with forward slashes. The
 default elsewhere is `identity'.
@@ -430,7 +430,7 @@ set as a file-local variable."
     (racket/contract         . error)
     (sequence-specialization . info)
     (*                       . fatal))
-  "Configuration of `racket-logger-mode' topics and levels
+  "Configuration of `racket-logger-mode' topics and levels.
 
 The topic '* respresents the default level used for topics not
 assigned a level. Otherwise, the topic symbols are the same as
