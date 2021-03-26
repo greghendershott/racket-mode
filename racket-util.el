@@ -55,8 +55,8 @@ variable `racket-path-from-emacs-to-racket-function'."
 
 (defun racket--get-buffer-recreate (bufname)
   "Like `get-buffer-create' but re-creates the buffer if it already exists."
-  (let* ((buf (get-buffer bufname))
-         (_   (when buf (kill-buffer buf)))))
+  (let ((buf (get-buffer bufname)))
+    (when buf (kill-buffer buf)))
   (get-buffer-create bufname))
 
 (defun racket--save-if-changed ()
