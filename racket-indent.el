@@ -1,6 +1,6 @@
 ;;; racket-indent.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2021 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -187,18 +187,19 @@ the `racket-indent-function` property."
   (let ((body-indent (+ (current-column) lisp-body-indent)))
     (forward-char 1)
     (if (or (racket--hash-literal-or-keyword-p)
-            (racket--data-sequence-p))
+            (racket--data-sequence-p)
+            (racket--all-hyphens-p))
         (progn (backward-prefix-chars) (current-column))
       (let* ((head   (buffer-substring (point) (progn (forward-sexp 1) (point))))
              (method (racket--get-indent-function-method head)))
         (cond ((integerp method)
                (racket--indent-special-form method indent-point state))
               ((eq method 'defun)
-               body-indent)
+               (racket--indent-defun indent-point body-indent))
               (method
                (funcall method indent-point state))
               ((string-match (rx bos (or "def" "with-")) head)
-               body-indent) ;just like 'defun
+               (racket--indent-defun indent-point body-indent)) ;like 'defun
               ((string-match (rx bos "begin") head)
                (racket--indent-special-form 0 indent-point state))
               ((string-match (rx bos (or "for/" "for*/")) head)
@@ -206,12 +207,31 @@ the `racket-indent-function` property."
               (t
                (racket--normal-indent indent-point state)))))))
 
+(defun racket--indent-defun (indent-point body-indent)
+  (save-excursion
+    (goto-char indent-point)
+    ;; When a line starts with ":", indent with previous sexp if that
+    ;; is a list. Handles a Typed Racket result type on its own line
+    ;; after list of formal parameters. (Although the following test
+    ;; matches ":" elsewhere, the start of the previous list sexp is
+    ;; the same as body-indent -- what we'd do anyway.)
+    (or (and (looking-at "[ ]*:")
+             (ignore-errors
+               (backward-sexp 1)
+               (and (eq ?\( (char-syntax (char-after)))
+                    (current-column))))
+        body-indent)))
+
 (defun racket--hash-literal-or-keyword-p ()
   "Looking at things like #fl() #hash() or #:keyword ?
 The last occurs in Racket contract forms, e.g. (->* () (#:kw kw)).
 Returns nil for #% identifiers like #%app."
   (looking-at (rx ?\# (or ?\:
                           (not (any ?\%))))))
+
+(defun racket--all-hyphens-p ()
+  "Magic for redex like what DrRacket does."
+  (looking-at (rx (>= 3 ?-) (and (not (syntax word)) (not (syntax symbol))))))
 
 (defun racket--data-sequence-p ()
   "Looking at \"data\" sequences where we align under head item?
@@ -387,6 +407,114 @@ ignore a short list defined by scheme-mode itself."
                               with-values)))
              (get sym 'scheme-indent-function)))))
 
+(defconst racket--indent-specs
+  '(;; begin* forms default to 0 unless otherwise specified here
+    (begin0 1)
+    (c-declare 0)
+    (c-lambda 2)
+    (call-with-input-file defun)
+    (call-with-input-file* defun)
+    (call-with-output-file defun)
+    (call-with-output-file* defun)
+    (case 1)
+    (case-lambda 0)
+    (catch 1)
+    (class defun)
+    (class* defun)
+    (compound-unit/sig 0)
+    (cond 0)
+    ;; def* forms default to 'defun unless otherwise specified here
+    (delay 0)
+    (do 2)
+    (dynamic-wind 0)
+    (fn 1)       ;alias for lambda (although not officially in Racket)
+    ;; for/ and for*/ forms default to racket--indent-for unless
+    ;; otherwise specified here
+    (for 1)
+    (for/list racket--indent-for)
+    (for/lists racket--indent-for/fold)
+    (for/fold racket--indent-for/fold)
+    (for* 1)
+    (for*/lists racket--indent-for/fold)
+    (for*/fold racket--indent-for/fold)
+    (instantiate 2)
+    (interface 1)
+    (λ defun)
+    (lambda defun)
+    (lambda/kw defun)
+    (let racket--indent-maybe-named-let)
+    (let* 1)
+    (letrec 1)
+    (letrec-values 1)
+    (let-values 1)
+    (let*-values 1)
+    (let+ 1)
+    (let-syntax 1)
+    (let-syntaxes 1)
+    (letrec-syntax 1)
+    (letrec-syntaxes 1)
+    (letrec-syntaxes+values racket--indent-for/fold-untyped)
+    (local 1)
+    (let/cc 1)
+    (let/ec 1)
+    (match 1)
+    (match* 1)
+    (match-define defun)
+    (match-lambda 0)
+    (match-lambda* 0)
+    (match-let 1)
+    (match-let* 1)
+    (match-let*-values 1)
+    (match-let-values 1)
+    (match-letrec 1)
+    (match-letrec-values 1)
+    (match/values 1)
+    (mixin 2)
+    (module 2)
+    (module+ 1)
+    (module* 2)
+    (opt-lambda 1)
+    (parameterize 1)
+    (parameterize-break 1)
+    (parameterize* 1)
+    (quasisyntax/loc 1)
+    (receive 2)
+    (require/typed 1)
+    (require/typed/provide 1)
+    (send* 1)
+    (shared 1)
+    (sigaction 1)
+    (splicing-let 1)
+    (splicing-letrec 1)
+    (splicing-let-values 1)
+    (splicing-letrec-values 1)
+    (splicing-let-syntax 1)
+    (splicing-letrec-syntax 1)
+    (splicing-let-syntaxes 1)
+    (splicing-letrec-syntaxes 1)
+    (splicing-letrec-syntaxes+values racket--indent-for/fold-untyped)
+    (splicing-local 1)
+    (splicing-syntax-parameterize 1)
+    (struct defun)
+    (syntax-case 2)
+    (syntax-case* 3)
+    (syntax-rules 1)
+    (syntax-id-rules 1)
+    (syntax-parse 1)
+    (syntax-parser 0)
+    (syntax-parameterize 1)
+    (syntax/loc 1)
+    (syntax-parse 1)
+    (test-begin 0)
+    (test-case 1)
+    (unit defun)
+    (unit/sig 2)
+    (unless 1)
+    (when 1)
+    (while 1)
+    ;; with- forms default to 1 unless otherwise specified here
+    ))
+
 (defun racket--set-indentation ()
   "Set indentation for various Racket forms.
 
@@ -394,121 +522,16 @@ Note that `racket-indent-function' handles some forms -- e.g.
 `begin*`, `def*` `for/*`, `with-*` -- with regexp matches for
 anything not explicitly listed here.
 
-Note that indentation is set for the symbol alone, and also with
-a : suffix for legacy Typed Racket. For example both `let` and
-`let:`. Although this is overzealous in the sense that Typed
-Racket does not define its own variant of all of these, it
-doesn't hurt to do so."
-  (mapc (lambda (x)
-          (put (car x) 'racket-indent-function (cadr x))
-          (let ((typed (intern (format "%s:" (car x)))))
-            (put typed 'racket-indent-function (cadr x))))
-        '(;; begin* forms default to 0 unless otherwise specified here
-          (begin0 1)
-          (c-declare 0)
-          (c-lambda 2)
-          (call-with-input-file defun)
-          (call-with-input-file* defun)
-          (call-with-output-file defun)
-          (call-with-output-file* defun)
-          (case 1)
-          (case-lambda 0)
-          (catch 1)
-          (class defun)
-          (class* defun)
-          (compound-unit/sig 0)
-          (cond 0)
-          ;; def* forms default to 'defun unless otherwise specified here
-          (delay 0)
-          (do 2)
-          (dynamic-wind 0)
-          (fn 1) ;alias for lambda (although not officially in Racket)
-          ;; for/ and for*/ forms default to racket--indent-for unless
-          ;; otherwise specified here
-          (for 1)
-          (for/list racket--indent-for)
-          (for/lists racket--indent-for/fold)
-          (for/fold racket--indent-for/fold)
-          (for* 1)
-          (for*/lists racket--indent-for/fold)
-          (for*/fold racket--indent-for/fold)
-          (instantiate 2)
-          (interface 1)
-          (λ 1)
-          (lambda 1)
-          (lambda/kw 1)
-          (let racket--indent-maybe-named-let)
-          (let* 1)
-          (letrec 1)
-          (letrec-values 1)
-          (let-values 1)
-          (let*-values 1)
-          (let+ 1)
-          (let-syntax 1)
-          (let-syntaxes 1)
-          (letrec-syntax 1)
-          (letrec-syntaxes 1)
-          (letrec-syntaxes+values racket--indent-for/fold-untyped)
-          (local 1)
-          (let/cc 1)
-          (let/ec 1)
-          (match 1)
-          (match* 1)
-          (match-define defun)
-          (match-lambda 0)
-          (match-lambda* 0)
-          (match-let 1)
-          (match-let* 1)
-          (match-let*-values 1)
-          (match-let-values 1)
-          (match-letrec 1)
-          (match-letrec-values 1)
-          (match/values 1)
-          (mixin 2)
-          (module 2)
-          (module+ 1)
-          (module* 2)
-          (opt-lambda 1)
-          (parameterize 1)
-          (parameterize-break 1)
-          (parameterize* 1)
-          (quasisyntax/loc 1)
-          (receive 2)
-          (require/typed 1)
-          (require/typed/provide 1)
-          (send* 1)
-          (shared 1)
-          (sigaction 1)
-          (splicing-let 1)
-          (splicing-letrec 1)
-          (splicing-let-values 1)
-          (splicing-letrec-values 1)
-          (splicing-let-syntax 1)
-          (splicing-letrec-syntax 1)
-          (splicing-let-syntaxes 1)
-          (splicing-letrec-syntaxes 1)
-          (splicing-letrec-syntaxes+values racket--indent-for/fold-untyped)
-          (splicing-local 1)
-          (splicing-syntax-parameterize 1)
-          (struct defun)
-          (syntax-case 2)
-          (syntax-case* 3)
-          (syntax-rules 1)
-          (syntax-id-rules 1)
-          (syntax-parse 1)
-          (syntax-parser 0)
-          (syntax-parameterize 1)
-          (syntax/loc 1)
-          (syntax-parse 1)
-          (test-begin 0)
-          (test-case 1)
-          (unit defun)
-          (unit/sig 2)
-          (unless 1)
-          (when 1)
-          (while 1)
-          ;; with- forms default to 1 unless otherwise specified here
-          )))
+Note that indentation is set for the symbol as listed, and also
+with a : suffix for legacy Typed Racket -- for example both `let`
+and `let:`. Although overzealous in the sense that Typed Racket
+doesn't define its own variant of all of these, these extras are
+harmless."
+  (dolist (spec racket--indent-specs)
+    (pcase-let* ((`(,plain-sym ,val) spec)
+                 (typed-sym (intern (format "%s:" plain-sym))))
+      (put plain-sym 'racket-indent-function val)
+      (put typed-sym 'racket-indent-function val))))
 
 (provide 'racket-indent)
 

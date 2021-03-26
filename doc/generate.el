@@ -63,6 +63,16 @@
     racket-xp-mode
     (racket-xp-describe ,racket-xp-mode-map)
     (racket-xp-documentation ,racket-xp-mode-map)
+    (racket-xp-next-definition ,racket-xp-mode-map)
+    (racket-xp-previous-definition ,racket-xp-mode-map)
+    (racket-xp-next-use ,racket-xp-mode-map)
+    (racket-xp-previous-use ,racket-xp-mode-map)
+    (racket-xp-next-error ,racket-xp-mode-map)
+    (racket-xp-previous-error ,racket-xp-mode-map)
+    (racket-xp-tail-up ,racket-xp-mode-map)
+    (racket-xp-tail-down ,racket-xp-mode-map)
+    (racket-xp-tail-next-sibling ,racket-xp-mode-map)
+    (racket-xp-tail-previous-sibling ,racket-xp-mode-map)
     racket-documentation-search
     "Run"
     racket-repl-mode
@@ -96,6 +106,7 @@
     racket-expand-last-sexp
     "Other"
     racket-mode-start-faster
+    racket-mode-start-slower
     "Showing information"
     racket-show-pseudo-tooltip
     racket-show-echo-area
@@ -210,6 +221,8 @@
     racket-xp-def-face
     racket-xp-use-face
     racket-xp-unused-face
+    racket-xp-tail-target-face
+    racket-xp-tail-position-face
     racket-logger-config-face
     racket-logger-topic-face
     racket-logger-fatal-face

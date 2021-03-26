@@ -45,6 +45,10 @@ Install
 * Uninstall::
 * Update::
 
+Update
+
+* Upgrading all packages::
+* Updating just Racket Mode::
 Configure
 
 * Key bindings::
@@ -98,6 +102,16 @@ Explore
 * racket-xp-mode::
 * racket-xp-describe::
 * racket-xp-documentation::
+* racket-xp-next-definition::
+* racket-xp-previous-definition::
+* racket-xp-next-use::
+* racket-xp-previous-use::
+* racket-xp-next-error::
+* racket-xp-previous-error::
+* racket-xp-tail-up::
+* racket-xp-tail-down::
+* racket-xp-tail-next-sibling::
+* racket-xp-tail-previous-sibling::
 * racket-documentation-search::
 
 Run
@@ -143,6 +157,7 @@ Macro expand
 Other
 
 * racket-mode-start-faster::
+* racket-mode-start-slower::
 
 Showing information
 
@@ -221,6 +236,8 @@ All
 * racket-xp-def-face::
 * racket-xp-use-face::
 * racket-xp-unused-face::
+* racket-xp-tail-target-face::
+* racket-xp-tail-position-face::
 * racket-logger-config-face::
 * racket-logger-topic-face::
 * racket-logger-fatal-face::
@@ -306,7 +323,7 @@ Type @kbd{M-x}  @code{package-refresh-contents} @kbd{RET} .
 @node Install Racket Mode
 @section Install Racket Mode
 
-When Emacs is configured to use MELPA, simply type @kbd{M-x}  @verb{~package-install~} @kbd{RET}  @verb{~racket-mode~} @kbd{RET} .
+When Emacs is configured to use MELPA, simply type @kbd{M-x}  @code{package-install} @kbd{RET}  @code{racket-mode} @kbd{RET} .
 
 @node Minimal Racket
 @section Minimal Racket
@@ -327,21 +344,45 @@ You should probably also exit and restart Emacs.
 @node Update
 @section Update
 
-Be aware that updating an Emacs package doesn't necessarily fully update Emacs' state. (One example symptom: an ``invalid function'' error message.)
+@menu
+* Upgrading all packages::
+* Updating just Racket Mode::
+@end menu
 
-After updating the package, you might need to restart Emacs.
+@node Upgrading all packages
+@subsection Upgrading all packages
 
-In some cases, you might even need to:
+The ``easy path'' provided by Emacs is to update @emph{all} packages to their latest versions. Although you might not want to do this --- see next section --- here is how to do so:
 
 @enumerate
 @item
-Uninstall Racket Mode.
+Use @kbd{M-x}  @code{list-packages}. It should display a message like ``42 packages can be upgraded; type ‘U’ to mark them for upgrading.''.
 
 @item
-Exit and restart Emacs.
+Press @kbd{U}  as suggested to mark them all.
 
 @item
-Install Racket Mode.
+Press @kbd{x}  to execute.
+@end enumerate
+
+After such a mass update, it might be wise to exist restart Emacs.
+
+@node Updating just Racket Mode
+@subsection Updating just Racket Mode
+
+Updating all packages sometimes is more than you want. For example, maybe you will discover that some packages have changed in ways that require you to take time to learn about, change customizations, and so on.
+
+To update just Racket Mode:
+
+@enumerate
+@item
+Uninstall Racket Mode: @kbd{M-x}  @code{package-delete} @kbd{RET}  @code{racket-mode} @kbd{RET} .
+
+@item
+Optional but most reliable: Exit and restart Emacs.
+
+@item
+Install Racket Mode: @kbd{M-x}  @code{package-install} @kbd{RET}  @code{racket-mode} @kbd{RET} . This will install the latest version.
 @end enumerate
 
 @node Configure
@@ -1134,6 +1175,16 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 * racket-xp-mode::
 * racket-xp-describe::
 * racket-xp-documentation::
+* racket-xp-next-definition::
+* racket-xp-previous-definition::
+* racket-xp-next-use::
+* racket-xp-previous-use::
+* racket-xp-next-error::
+* racket-xp-previous-error::
+* racket-xp-tail-up::
+* racket-xp-tail-down::
+* racket-xp-tail-next-sibling::
+* racket-xp-tail-previous-sibling::
 * racket-documentation-search::
 @end menu
 
@@ -1169,6 +1220,11 @@ Visually annotating bindings -- local or imported definitions
 and references to them.
 
 @item
+Visually annotating expressions in a tail position, as well as
+the enclosing expression with respect to which they are in a
+tail position.
+
+@item
 Completion candidates.
 
 @item
@@ -1197,7 +1253,18 @@ and/or slow, in your @code{racket-xp-mode-hook} you may disable them:
 The remaining features discussed below will still work.
 
 You may also use commands to navigate among a definition and its
-uses, or to rename a local definitions and all its uses.
+uses, or to rename a local definitions and all its uses:
+
+@itemize
+@item
+@ref{racket-xp-next-definition}
+@item
+@ref{racket-xp-previous-definition}
+@item
+@ref{racket-xp-next-use}
+@item
+@ref{racket-xp-previous-use}
+@end itemize
 
 In the following little example, not only does
 drracket/check-syntax distinguish the various ``x'' bindings, it
@@ -1213,6 +1280,30 @@ x
   (define x 2)
   x)
 @end example
+
+When point is on the opening parenthesis of an expression in tail
+position, it is highlighted using the face
+@ref{racket-xp-tail-position-face}.
+
+When point is on the opening parenthesis of an enclosing
+expression with respect to which one or more expressions are in
+tail position, it is highlighted using the face
+@ref{racket-xp-tail-target-face}.
+
+Furthermore, when point is on the opening parenthesis of either
+kind of expression, all of the immediately related expressions
+are also highlighted. Various commands move among them:
+
+@itemize
+@item
+@ref{racket-xp-tail-up}
+@item
+@ref{racket-xp-tail-down}
+@item
+@ref{racket-xp-tail-next-sibling}
+@item
+@ref{racket-xp-tail-previous-sibling}
+@end itemize
 
 The function @code{racket-xp-complete-at-point} is added to the
 variable @code{completion-at-point-functions}. Note that in this case,
@@ -1239,8 +1330,8 @@ and use the @code{racket-xp-annotate} command manually.
 The mode line changes to reflect the current status of
 annotations, and whether or not you had a syntax error.
 
-If you have one or more syntax errors, @code{racket-xp-next-error} and
-@code{racket-xp-previous-error} to navigate among them. Although most
+If you have one or more syntax errors, @ref{racket-xp-next-error} and
+@ref{racket-xp-previous-error} navigate among them. Although most
 languages will stop after the first syntax error, some like Typed
 Racket will try to collect and report multiple errors.
 
@@ -1261,7 +1352,7 @@ type, remember that as an Emacs user, you are free to bind this
 map to a more convenient prefix, and/or bind any individual
 commands directly to whatever keys you prefer.
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
 @item @kbd{M-.} 
@@ -1271,11 +1362,19 @@ commands directly to whatever keys you prefer.
 @item @kbd{C-c C-.} 
 @tab @ref{racket-xp-describe}
 @item @kbd{C-c # P} 
-@tab @code{racket-xp-previous-error}
+@tab @ref{racket-xp-previous-error}
 @item @kbd{C-c # N} 
-@tab @code{racket-xp-next-error}
+@tab @ref{racket-xp-next-error}
 @item @kbd{C-c # g} 
 @tab @code{racket-xp-annotate}
+@item @kbd{C-c # <} 
+@tab @ref{racket-xp-tail-previous-sibling}
+@item @kbd{C-c # >} 
+@tab @ref{racket-xp-tail-next-sibling}
+@item @kbd{C-c # v} 
+@tab @ref{racket-xp-tail-down}
+@item @kbd{C-c # ^} 
+@tab @ref{racket-xp-tail-up}
 @item @kbd{C-c # r} 
 @tab @code{racket-xp-rename}
 @item @kbd{C-c # ?} 
@@ -1283,13 +1382,13 @@ commands directly to whatever keys you prefer.
 @item @kbd{C-c # .} 
 @tab @code{xref-find-definitions}
 @item @kbd{C-c # p} 
-@tab @code{racket-xp-previous-use}
+@tab @ref{racket-xp-previous-use}
 @item @kbd{C-c # n} 
-@tab @code{racket-xp-next-use}
+@tab @ref{racket-xp-next-use}
 @item @kbd{C-c # k} 
-@tab @code{racket-xp-previous-definition}
+@tab @ref{racket-xp-previous-definition}
 @item @kbd{C-c # j} 
-@tab @code{racket-xp-next-definition}
+@tab @ref{racket-xp-next-definition}
 @end multitable
 
 @node racket-xp-describe
@@ -1365,6 +1464,80 @@ Proceeds directly to the Search Manuals page. Use this if you
 would like to see documentation for all identifiers named
 ``define'', for example.
 @end enumerate
+
+@node racket-xp-next-definition
+@subsection racket-xp-next-definition
+
+@kbd{C-c # j} 
+
+Move point to the next definition.
+
+@node racket-xp-previous-definition
+@subsection racket-xp-previous-definition
+
+@kbd{C-c # k} 
+
+Move point to the previous definition.
+
+@node racket-xp-next-use
+@subsection racket-xp-next-use
+
+@kbd{C-c # n} 
+
+When point is on a use, go to the next, sibling use.
+
+@node racket-xp-previous-use
+@subsection racket-xp-previous-use
+
+@kbd{C-c # p} 
+
+When point is on a use, go to the previous, sibling use.
+
+@node racket-xp-next-error
+@subsection racket-xp-next-error
+
+@kbd{C-c # N} 
+
+Go to the next error.
+
+@node racket-xp-previous-error
+@subsection racket-xp-previous-error
+
+@kbd{C-c # P} 
+
+Go to the previous error.
+
+@node racket-xp-tail-up
+@subsection racket-xp-tail-up
+
+@kbd{C-c # ^} 
+
+Go ``up'' to the expression enclosing an expression in tail position.
+
+When point is on the opening parenthesis of an expression in tail
+position, go its ``target'' -- that is, go to the enclosing
+expression with the same continuation as the tail expression.
+
+@node racket-xp-tail-down
+@subsection racket-xp-tail-down
+
+@kbd{C-c # v} 
+
+Go ``down'' to the first tail position enclosed by the current expression.
+
+@node racket-xp-tail-next-sibling
+@subsection racket-xp-tail-next-sibling
+
+@kbd{C-c # >} 
+
+Go to the next tail position sharing the same enclosing expression.
+
+@node racket-xp-tail-previous-sibling
+@subsection racket-xp-tail-previous-sibling
+
+@kbd{C-c # <} 
+
+Go to the previous tail position sharing the same enclosing expression.
 
 @node racket-documentation-search
 @subsection racket-documentation-search
@@ -2086,6 +2259,7 @@ Uses Racket's @code{expand-once} in the namespace from the most recent
 
 @menu
 * racket-mode-start-faster::
+* racket-mode-start-slower::
 @end menu
 
 @node racket-mode-start-faster
@@ -2103,10 +2277,14 @@ for Racket packages.
 
 This command will do a @code{raco make} of Racket Mode's .rkt files,
 creating bytecode files in @code{compiled/} subdirectories. As a
-result, when a @ref{racket-run} or @ref{racket-repl} command must start
-the Racket process, it will start faster.
+result, when a command must start the Racket process, it will
+start somewhat faster.
 
-If you run this command, ever, you should run it again after:
+On many computers, the resulting speed up is negligible, and
+might not be worth the complication.
+
+If you run this command, ever, you will need to run it again
+after:
 
 @itemize
 @item
@@ -2118,6 +2296,16 @@ Installing a new version of Racket and/or changing the value of
 the variable @ref{racket-program}. Otherwise, you might get an
 error message due to the bytecode being different versions.
 @end itemize
+
+To revert to compiling on startup, use
+@ref{racket-mode-start-slower}. 
+
+@node racket-mode-start-slower
+@subsection racket-mode-start-slower
+
+@kbd{M-x}  @code{racket-mode-start-slower}
+
+Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 
 @node Showing information
 @section Showing information
@@ -2710,6 +2898,8 @@ to hide the interesting span in the buffer.
 * racket-xp-def-face::
 * racket-xp-use-face::
 * racket-xp-unused-face::
+* racket-xp-tail-target-face::
+* racket-xp-tail-position-face::
 * racket-logger-config-face::
 * racket-logger-topic-face::
 * racket-logger-fatal-face::
@@ -2748,6 +2938,16 @@ Face @ref{racket-xp-mode} uses to highlight uses.
 @subsection racket-xp-unused-face
 
 Face @ref{racket-xp-mode} uses to highlight unused requires or definitions.
+
+@node racket-xp-tail-target-face
+@subsection racket-xp-tail-target-face
+
+Face @ref{racket-xp-mode} uses to highlight targets of a tail position.
+
+@node racket-xp-tail-position-face
+@subsection racket-xp-tail-position-face
+
+Face @ref{racket-xp-mode} uses to highlight expressions in a tail position.
 
 @node racket-logger-config-face
 @subsection racket-logger-config-face

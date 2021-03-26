@@ -323,3 +323,28 @@
   ∪ «b::» (x «k:...») «k:...» «b:->» (x «k:...»)
   [(∪ any_ls «k:...»)
    ,(«k:apply» «b:append» (term (any_ls «k:...»)))])
+
+«m:;; »«x:Issue #516
+»(«k:lambda» (f [a «b::» «t:Number»]
+           [b «b::» «t:Number»]) «b::» «t:Number»
+  «:racket-selfeval-face:10»)
+
+(«k:lambda» (f [a «b::» «t:Number»]
+           [b «b::» «t:Number»])
+        «b::» «t:Number»
+  «:racket-selfeval-face:10»)
+
+«m:;; »«x:Issue #521
+»(define-judgment-form «v:L»
+  «:racket-keyword-argument-face:#:mode» (⇓ I I O O)
+  «:racket-keyword-argument-face:#:contract» (⇓ Γ e Δ v)
+
+  [----------- Value
+   (⇓ Γ v Γ v)]
+
+
+  [(⇓ Γ e Δ («k:λ» (y) e_*))
+   (⇓ Δ (subst e_* y x) Θ v)
+   ------------------------- Application
+   (⇓ Γ (e x) Θ v)])
+

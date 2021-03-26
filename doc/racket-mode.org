@@ -62,7 +62,7 @@ To use MELPA:
 - Type {{{kbd(M-x)}}} ~package-refresh-contents~ {{{kbd(RET)}}}.
 
 ** Install Racket Mode
-When Emacs is configured to use MELPA, simply type {{{kbd(M-x)}}} =package-install= {{{kbd(RET)}}} =racket-mode= {{{kbd(RET)}}}.
+When Emacs is configured to use MELPA, simply type {{{kbd(M-x)}}} ~package-install~ {{{kbd(RET)}}} ~racket-mode~ {{{kbd(RET)}}}.
 
 ** Minimal Racket
 If you have installed the minimal Racket distribution (for example by using the [[https://github.com/Homebrew/homebrew-core/blob/master/Formula/minimal-racket.rb][homebrew formula]]) Racket Mode needs some additional packages (like ~errortrace~ and ~macro-debugger~). A simple way to get all these packages is to install the ~drracket~ Racket package. In a command shell:
@@ -78,17 +78,29 @@ You should probably also exit and restart Emacs.
 
 ** Update
 
-Be aware that updating an Emacs package doesn't necessarily fully update Emacs' state. (One example symptom: an "invalid function" error message.)
+*** Upgrading all packages
 
-After updating the package, you might need to restart Emacs.
+The "easy path" provided by Emacs is to update /all/ packages to their latest versions. Although you might not want to do this --- see next section --- here is how to do so:
 
-In some cases, you might even need to:
+1. Use {{{kbd(M-x)}}} ~list-packages~. It should display a message like "42 packages can be upgraded; type ‘U’ to mark them for upgrading.".
 
-1. Uninstall Racket Mode.
+2. Press {{{kbd(U)}}} as suggested to mark them all.
 
-2. Exit and restart Emacs.
+3. Press {{{kbd(x)}}} to execute.
 
-3. Install Racket Mode.
+After such a mass update, it might be wise to exist restart Emacs.
+
+*** Updating just Racket Mode
+
+Updating all packages sometimes is more than you want. For example, maybe you will discover that some packages have changed in ways that require you to take time to learn about, change customizations, and so on.
+
+To update just Racket Mode:
+
+1. Uninstall Racket Mode: {{{kbd(M-x)}}} ~package-delete~ {{{kbd(RET)}}} ~racket-mode~ {{{kbd(RET)}}}.
+
+2. Optional but most reliable: Exit and restart Emacs.
+
+3. Install Racket Mode: {{{kbd(M-x)}}} ~package-install~ {{{kbd(RET)}}} ~racket-mode~ {{{kbd(RET)}}}. This will install the latest version.
 
 * Configure
 

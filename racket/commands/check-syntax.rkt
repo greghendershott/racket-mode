@@ -9,8 +9,7 @@
          racket/class
          drracket/check-syntax
          "../imports.rkt"
-         (only-in "../online-check-syntax.rkt"
-                  [get get-online-check-syntax-messages])
+         "../online-check-syntax.rkt"
          "../syntax.rkt"
          "../util.rkt")
 
@@ -59,6 +58,8 @@
         (λ () (call-with-semaphore
                sema
                (λ ()
+                 (log-racket-mode-debug "(current-memory-use) ~v"
+                                        (current-memory-use))
                  (hash-remove! ht path-str))))))))
 
 ;; Note: Instead of using the `show-content` wrapper, we give already
@@ -122,6 +123,7 @@
     (define ht-defs/uses (make-hash))
     (define ht-imenu (make-hash))
     (define local-completion-candidates (mutable-set))
+    (define ht-tails (make-hash))
 
     ;; I've seen drracket/check-syntax return bogus positions for e.g.
     ;; add-mouse-over-status so here's some validation.
@@ -138,27 +140,54 @@
                       _def-text def-beg def-end _def-px _def-py
                       _use-text use-beg use-end _use-px _use-py
                       _actual? _level require-arrow? _name-dup?)
-      ;; Consolidate the add-arrow/name-dup items into a hash table
-      ;; with one item per definition. The key is the definition position.
-      ;; The value is the set of its uses' positions.
-      (hash-update! ht-defs/uses
-                    (list (substring code-str def-beg def-end)
-                          (match require-arrow?
-                            ['module-lang 'module-lang]
-                            [#t           'import]
-                            [#f           'local])
-                          (add1 def-beg)
-                          (add1 def-end))
-                    (λ (v) (set-add v (list (add1 use-beg)
-                                            (add1 use-end))))
-                    (set))
-      (unless require-arrow?
-        (send this syncheck:add-mouse-over-status "" use-beg use-end "defined locally")))
+      (when (and (valid-beg/end? def-beg def-end)
+                 (valid-beg/end? use-beg use-end))
+        ;; Consolidate the add-arrow/name-dup items into a hash table
+        ;; with one item per definition. The key is the definition position.
+        ;; The value is the set of its uses' positions.
+        (hash-update! ht-defs/uses
+                      (list (substring code-str def-beg def-end)
+                            (match require-arrow?
+                              ['module-lang 'module-lang]
+                              [#t           'import]
+                              [#f           'local])
+                            (add1 def-beg)
+                            (add1 def-end))
+                      (λ (v) (set-add v (list (add1 use-beg)
+                                              (add1 use-end))))
+                      (set))
+        (unless require-arrow?
+          (send this syncheck:add-mouse-over-status "" use-beg use-end "defined locally"))))
+
+    (define/override (syncheck:add-tail-arrow from-src from-pos to-src to-pos)
+      ;; Note: "from" and "to" are in terms of DrRacket _arrow_
+      ;; direction, which it draws _opposite_ of the _jump_ direction.
+      ;; Therefore we reverse the positions below.
+      (define head from-pos)
+      (define tail to-pos)
+      ;; AFAICT the sources should always = the source being analyzed
+      ;; -- i.e. the head and tail should be in the same source file.
+      ;; If a macro has neglected to supply good srcloc, and so e.g.
+      ;; the srcloc of the tail target is inside the macro source, we
+      ;; have no good way to show that to the user, so ignore it.
+      (match* [from-src to-src src]
+        [[v v v]
+         ;; Consolidate to hash-table much like defs/uses
+         (hash-update! ht-tails
+                       (add1 head)
+                       (λ (v) (set-add v (add1 tail)))
+                       (set))]
+        [[_ _ _]
+         (log-racket-mode-warning
+          "Ignoring syncheck:add-tail-arrow because sources differ"
+          (list from-src to-src src))]))
 
     (define/override (syncheck:add-mouse-over-status _text beg end status)
       (when (valid-beg/end? beg end)
         ;; Avoid silly "imported from “\"file.rkt\"”"
         (define cleansed (regexp-replace* #px"[“””]" status ""))
+        ;; Automatically append multiple mouse-over messages for the
+        ;; same interval.
         (interval-map-update*! im-mouse-overs beg end
                                (λ (s) (set-add s cleansed))
                                (set cleansed))
@@ -197,53 +226,52 @@
           [(cons key more) (trie-set! (hash-ref! ht key (make-hash)) more)]))
       (set-add! local-completion-candidates (~a symbol)))
 
-    (define/override (syncheck:add-jump-to-definition text beg end id-sym path submods)
+    (define/override (syncheck:add-jump-to-definition _n/a beg end id-sym path submods)
       ;; - drracket/check-syntax only reports the file, not the
-      ;;   position within. We can find that using our
-      ;;   def-in-file.
+      ;;   position within. We can find that using our def-in-file.
       ;;
-      ;; - drracket/check-syntax uses identifier-binding which
-      ;;   isn't smart about contracting and/or renaming
-      ;;   provides. As a result, the value of the id here can
-      ;;   be wrong. e.g. For "make-traversal" it will report
-      ;;   "provide/contract-id-make-traversal.1". It's good to
-      ;;   try both ids with def-in-file.
+      ;; - drracket/check-syntax uses identifier-binding which can't
+      ;;   follow some contracting and renaming provides. As a result,
+      ;;   the value of the id here can be wrong. For example it will
+      ;;   report "provide/contract-id-make-traversal.1" for
+      ;;   "make-traversal". When the reported id differs from that in
+      ;;   the source text, we report both to try with def-in-file.
       ;;
-      ;; However, calling def-in-file here/now for all jumps
-      ;; would be quite slow. Futhermore, a user might not
-      ;; actually use the jumps -- maybe not any, probably not
-      ;; most, certainly not all.
+      ;; However, calling def-in-file here/now for all jumps would be
+      ;; quite slow. Futhermore, a user might not actually use the
+      ;; jumps -- maybe not any, probably not most, certainly not all.
       ;;
       ;; Sound like a job for a thunk, e.g. racket/promise
-      ;; delay/force? We can't marshal a promise between Racket
-      ;; back end and Emacs front end. We can do the moral
-      ;; equivalent: Simply return the info that the front end
-      ;; should give to the "def/drr" command if/as/when needed.
-      (when (file-exists? path)
+      ;; delay/force? We can't marshal a promise between Racket back
+      ;; end and Emacs front end. We can do the moral equivalent:
+      ;; Simply return the info that the front end should give to the
+      ;; "def/drr" command if/as/when needed.
+      (when (and (valid-beg/end? beg end) (file-exists? path))
+        (define src-str (substring code-str beg end))
         (define drracket-id-str (symbol->string id-sym))
         (interval-map-set! im-jumps beg end
                            (list (path->string path)
                                  submods
-                                 (if (equal? drracket-id-str text)
+                                 (if (equal? drracket-id-str src-str)
                                      (list drracket-id-str)
-                                     (list drracket-id-str text))))))
+                                     (list drracket-id-str src-str))))))
 
     (define/override (syncheck:add-docs-menu _text beg end _sym _label path _anchor anchor-text)
-      (interval-map-set! im-docs beg end
-                         (list (path->string path)
-                               anchor-text)))
+      (when (valid-beg/end? beg end)
+        (interval-map-set! im-docs beg end
+                           (list (path->string path)
+                                 anchor-text))))
 
     (define/override (syncheck:add-unused-require _req-src beg end)
-      (interval-map-set! im-unused-requires beg end (list)))
+      (when (valid-beg/end? beg end)
+        (interval-map-set! im-unused-requires beg end (list))))
 
     (define/public (get-annotations)
       ;; Obtain any online-check-syntax log message values and treat
       ;; them as mouse-overs.
-      (for ([v (in-set (get-online-check-syntax-messages src))])
-        (match-define (list beg end string-or-thunk) v)
-        (define (force v) (if (procedure? v) (v) v))
-        (send this syncheck:add-mouse-over-status
-              "" beg end (force string-or-thunk)))
+      (for ([v (in-set (current-online-check-syntax))])
+        (match-define (list beg end str) v)
+        (send this syncheck:add-mouse-over-status "" beg end str))
 
       ;; Convert ht-defs/uses to a list of defs, each of whose uses
       ;; are sorted by positions.
@@ -255,6 +283,9 @@
                   def-beg def-end
                   req sym
                   (sort (set->list uses) < #:key car)))))
+      (define targets/tails
+        (for/list ([(target tails) (in-hash ht-tails)])
+          (list 'target/tails target (sort (set->list tails) <))))
       ;; Convert the interval maps for other annotations into simple
       ;; lists of the form (list symbol beg end value ...). Also add1
       ;; positions for Emacs.
@@ -269,6 +300,7 @@
       ;; Append all and sort by `beg` position
       (sort (append
              defs/uses
+             targets/tails
              (im->list im-mouse-overs     'info mouse-over-set->result)
              (im->list im-jumps           'jump)
              (im->list im-docs            'doc)
@@ -417,3 +449,40 @@
   ;; Twice to exercise and test cache
   (check-equal? (check-this-file (path->string (syntax-source #'here)))
                 (check-this-file (path->string (syntax-source #'here)))))
+
+(module+ slow-test
+  ;; To a large extent this is a test of the syntax cache in
+  ;; syntax.rkt -- a sanity check that the eviction strategy is
+  ;; working to avoid an unbounded and excessive growth in
+  ;; current-memory-use.
+  ;;
+  ;; Probably most consistent way to run is outside Emacs with:
+  ;;
+  ;;   raco test --submodule slow-test check-syntax.rkt
+  (require rackunit
+           racket/file
+           racket/path)
+  (for ([_ 2]) (collect-garbage))
+  (define start (current-seconds))
+  (define least (current-memory-use))
+  (define most  least)
+  (define count 0)
+  (for* ([roots (in-list '(("racket.rkt" "typed")
+                           ("core.rkt" "typed-racket")
+                           ("main.rkt" "racket")))]
+         [path  (in-directory
+                 (path-only
+                  (apply collection-file-path roots)))]
+         #:when (equal? #"rkt" (filename-extension path)))
+    (set! count (add1 count))
+    (check-syntax (path->string path) (file->string path))
+    (define after (current-memory-use))
+    (printf "~a, ~a, ~v\n" count after (path->string path))
+    (set! least (min least after))
+    (set! most  (max most  after)))
+  (printf "Time:  ~a seconds\n" (- (current-seconds) start))
+  (printf "Least: ~a bytes\n" least)
+  (printf "Most:  ~a bytes\n" most)
+  (define mem-use-diff (- most least))
+  (printf "Diff:  ~a bytes\n" mem-use-diff)
+  (check-true (< mem-use-diff 700000000)))

@@ -6,10 +6,10 @@ BATCHEMACS = $(EMACS) --batch --no-site-file -q -eval '(progn (add-to-list (quot
 
 BYTECOMP = $(BATCHEMACS) -eval '(progn (require (quote bytecomp)) (setq byte-compile-warnings t) (setq byte-compile-error-on-warn t))' -f batch-byte-compile
 
-.PHONY : help show-versions clean compile deps test test-elisp test-racket
+.PHONY : help show-versions clean compile deps test test-elisp test-racket test-slow
 
 help:
-	@echo "Targets: show-versions, clean, compile, deps, test, test-elisp, test-racket"
+	@echo "Targets: show-versions, clean, compile, deps, test, test-elisp, test-racket, test-slow"
 
 show-versions:
 	@echo `which $(RACKET)`
@@ -27,7 +27,7 @@ clean:
 
 compile: show-versions $(ELCS)
 
-# Install packages we depend on for development and/or testing.
+# Install Emacs packages we depend on for development and/or testing.
 # Intended for one-time use by developers and for Travis CI. (Normal
 # users get a subset of these deps automatically as a result of our
 # Package-Requires in racket-mode.el)
@@ -43,3 +43,7 @@ test-racket:
 
 test-elisp:
 	$(BATCHEMACS) -l ert -l racket-tests.el -eval '(setq racket-program "$(RACKET)")' -f ert-run-tests-batch-and-exit
+
+test-slow:
+	$(RACKET) -l raco test --submodule slow-test ./racket/imports.rkt
+	$(RACKET) -l raco test --submodule slow-test ./racket/commands/check-syntax.rkt

@@ -29,12 +29,19 @@
 (autoload         'racket--logger-on-notify "racket-logger")
 
 ;;;###autoload
+(defvar racket-start-back-end-hook nil
+  "Hook run after `racket-start-back-end'.")
+
+;;;###autoload
 (defun racket-start-back-end ()
   "Start the back end process used by Racket Mode.
 
-If the process is already started, this command will stop and restart it."
+If the process is already started, this command will stop and restart it.
+
+As the final step, runs the hook `racket-start-back-end-hook'."
   (interactive)
-  (racket--cmd-open))
+  (racket--cmd-open)
+  (run-hooks racket-start-back-end-hook))
 
 ;;;###autoload
 (defun racket-stop-back-end ()
@@ -87,7 +94,9 @@ See issue #327.")
                      :sentinel #'ignore)
    :command         (list racket-program
                           (funcall racket-adjust-run-rkt racket--run.rkt)
-                          (setq racket--cmd-auth (format "%S" `(auth ,(random))))
+                          (setq racket--cmd-auth (let ((print-length nil) ;for %S
+                                                       (print-level nil))
+                                                   (format "%S" `(auth ,(random)))))
                           (if (and (boundp 'image-types)
                                    (fboundp 'image-type-available-p)
                                    (or (and (memq 'svg image-types)
@@ -176,7 +185,9 @@ form. See `racket--restoring-current-buffer'."
     (puthash racket--cmd-nonce callback racket--cmd-nonce->callback))
   (process-send-string
    (get-process racket--cmd-process-name)
-   (format "%S\n" `(,racket--cmd-nonce ,repl-session-id . ,command-sexpr))))
+   (let ((print-length nil) ;for %S
+         (print-level nil))
+     (format "%S\n" `(,racket--cmd-nonce ,repl-session-id . ,command-sexpr)))))
 
 (defun racket--cmd/async (repl-session-id command-sexpr &optional callback)
   "You probably want to use this instead of `racket--cmd/async-raw'.
@@ -213,7 +224,9 @@ mistake."
              (`(ok ,v)    (with-current-buffer buf (funcall callback v)))
              (`(error ,m) (message "%s" m))
              (`(break)    nil)
-             (v           (message "Unknown command response: %S" v))))
+             (v           (let ((print-length nil) ;for %S
+                                (print-level nil))
+                            (message "Unknown command response: %S" v)))))
        #'ignore))))
 
 (defun racket--cmd/await (repl-session-id command-sexpr)
@@ -233,7 +246,9 @@ in a specific namespace."
       (pcase response
         (`(ok ,v)    v)
         (`(error ,m) (error "%s" m))
-        (v           (error "Unknown command response: %S" v))))))
+        (v           (let ((print-length nil) ;for %S
+                           (print-level nil))
+                       (error "Unknown command response: %S" v)))))))
 
 (provide 'racket-cmd)
 

@@ -1,6 +1,6 @@
 # Racket mode for GNU Emacs
 
-[![Build Status](https://travis-ci.org/greghendershott/racket-mode.svg?branch=master)](https://travis-ci.org/greghendershott/racket-mode)
+[![CI](https://github.com/greghendershott/racket-mode/workflows/CI/badge.svg)](https://github.com/greghendershott/racket-mode/actions)
 [![MELPA](https://melpa.org/packages/racket-mode-badge.svg)](https://melpa.org/#/racket-mode)
 [![Documentation](https://img.shields.io/badge/Docs-Documentation-blue.svg)](https://www.racket-mode.com/)
 
