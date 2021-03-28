@@ -62,6 +62,7 @@ Configure
 * eldoc::
 * Start faster::
 * Unicode input method::
+* Ligatures::
 
 Commands
 
@@ -407,6 +408,7 @@ You can @code{setq} this directly in your Emacs init file (@verb{,~/.emacs,} or 
 * eldoc::
 * Start faster::
 * Unicode input method::
+* Ligatures::
 @end menu
 
 @node Key bindings
@@ -607,6 +609,11 @@ To automatically enable the @code{racket-unicode} input method in @code{racket-m
 @xref{racket-unicode-input-method-enable}.
 
 @xref{racket-insert-lambda}.
+
+@node Ligatures
+@section Ligatures
+
+Prior to Emacs 28.0.50, things like @code{auto-composition-mode} or @code{ligature-mode} that use @code{composition-function-table} to display ligatures can cause Emacs to freeze. This can happen when an Emacs @code{overlay} displays a string containing such a ligature --- this includes the overlays created by @code{racket-show-pseudo-tooltip}, as used by @code{racket-xp-mode}. The only known work-around is to change the value of @code{racket-show-functions} to something ``boring'' such as @code{(racket-show-echo-area)}.
 
 @node Reference
 @chapter Reference

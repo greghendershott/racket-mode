@@ -265,6 +265,10 @@ To automatically enable the ~racket-unicode~ input method in ~racket-mode~ and ~
 
 {{{see(racket-insert-lambda)}}}.
 
+** Ligatures
+
+Prior to Emacs 28.0.50, things like ~auto-composition-mode~ or ~ligature-mode~ that use ~composition-function-table~ to display ligatures can cause Emacs to freeze. This can happen when an Emacs ~overlay~ displays a string containing such a ligature --- this includes the overlays created by ~racket-show-pseudo-tooltip~, as used by ~racket-xp-mode~. The only known work-around is to change the value of ~racket-show-functions~ to something "boring" such as ~(racket-show-echo-area)~.
+
 * Reference
 The following sections are generated from the doc strings for each command, variable, or face. (As a result, some of the formatting might not be quite as nice or correct as in the previous sections.)
 
