@@ -46,6 +46,7 @@ To fund this work, see [[https://github.com/users/greghendershott/sponsorship][G
 The recommended way to use Racket Mode is to install the package from [[https://melpa.org/#/racket-mode][MELPA]].
 
 ** Configure Emacs to use MELPA
+
 To use MELPA:
 
 - Add the following to your =~/.emacs= or =~/.emacs.d/init.el=:
@@ -62,9 +63,11 @@ To use MELPA:
 - Type {{{kbd(M-x)}}} ~package-refresh-contents~ {{{kbd(RET)}}}.
 
 ** Install Racket Mode
+
 When Emacs is configured to use MELPA, simply type {{{kbd(M-x)}}} ~package-install~ {{{kbd(RET)}}} ~racket-mode~ {{{kbd(RET)}}}.
 
 ** Minimal Racket
+
 If you have installed the minimal Racket distribution (for example by using the [[https://github.com/Homebrew/homebrew-core/blob/master/Formula/minimal-racket.rb][homebrew formula]]) Racket Mode needs some additional packages (like ~errortrace~ and ~macro-debugger~). A simple way to get all these packages is to install the ~drracket~ Racket package. In a command shell:
 
 #+BEGIN_SRC shell
@@ -72,6 +75,7 @@ raco pkg install drracket
 #+END_SRC
 
 ** Uninstall
+
 To uninstall Racket Mode, simply type {{{kbd(M-x)}}} ~package-delete~ {{{kbd(RET)}}} ~racket-mode~ {{{kbd(RET)}}}.
 
 You should probably also exit and restart Emacs.
@@ -230,6 +234,7 @@ If instead of paredit you prefer [[https://melpa.org/#/smartparens][smartparens]
 #+END_SRC
 
 ** Edit buffers and REPL buffers
+
 By default, all ~racket-mode~ edit buffers share one ~racket-repl-mode~ buffer. For example, if you run foo.rkt, the REPL prompt changes to ~foo.rkt>~, and the REPL is inside the file module namespace. If you then run bar.rkt, the REPL prompt changes to ~bar.rkt>~, and you are in that namespace.
 
 If you prefer, you can use more than one REPL buffer, by customizing the variable {{{ref(racket-repl-buffer-name-function)}}}: Another option is to have one REPL buffer for each edit buffer, similar to Dr Racket. Yet another option is to share the same REPL buffer for files belonging to the same project. You can also define your own, custom function.
@@ -270,6 +275,7 @@ To automatically enable the ~racket-unicode~ input method in ~racket-mode~ and ~
 Prior to Emacs 28.0.50, things like ~auto-composition-mode~ or ~ligature-mode~ that use ~composition-function-table~ to display ligatures can cause Emacs to freeze. This can happen when an Emacs ~overlay~ displays a string containing such a ligature --- this includes the overlays created by ~racket-show-pseudo-tooltip~, as used by ~racket-xp-mode~. The only known work-around is to change the value of ~racket-show-functions~ to something "boring" such as ~(racket-show-echo-area)~.
 
 * Reference
+
 The following sections are generated from the doc strings for each command, variable, or face. (As a result, some of the formatting might not be quite as nice or correct as in the previous sections.)
 
 You can also view these by using the normal Emacs help mechanism:
