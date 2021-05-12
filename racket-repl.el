@@ -768,6 +768,7 @@ A value for the variable `comint-output-filter-functions'."
                           (marker-position comint-last-output-start))
                      comint-last-output-start
                    (point-min-marker)))
+      (forward-line 0) ;in case comint-last-output-start left mid line: #535
       (let ((pmark (process-mark (get-buffer-process (current-buffer)))))
         (while (re-search-forward "\"#<Image: \\(.+?racket-image-.+?\\)>\""
                                   pmark
