@@ -187,9 +187,6 @@ as if the user had C-g to quit."
             s))
       sap)))
 
-(defconst racket--config-dir (file-name-as-directory
-                              (locate-user-emacs-file "racket-mode")))
-
 (defun racket-project-root (file)
   "Given an absolute pathname for FILE, return its project root directory.
 

@@ -285,6 +285,13 @@ more-helpful error message."
  "The motivation for this is now N/A with `racket-xp-mode'."
  "2020-02-26")
 
+(defcustom racket-repl-history-directory
+  (locate-user-emacs-file (convert-standard-filename "racket-mode/"))
+  "Directory for `racket-repl-mode' history files."
+  :tag "REPL History Directory"
+  :type 'file
+  :group 'racket-repl)
+
 (defcustom racket-history-filter-regexp "\\`\\s *\\'"
   "Input matching this regexp are NOT saved on the history list.
 Default value is a regexp to ignore input that is all whitespace."
