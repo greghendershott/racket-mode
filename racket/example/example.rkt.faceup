@@ -384,3 +384,7 @@ BAR
 
 «m:;; »«x:Issue 478
 »(«x:#|blah blah blah|#» «k:begin»)
+
+«m:;; »«x:Issue 534
+»(«k:define» «v:foo‾bar» «:racket-selfeval-face:42»)
+(«k:let» ([«v:foo‾bar» «:racket-selfeval-face:42»]) foo‾bar)

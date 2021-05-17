@@ -1,6 +1,6 @@
 ;;; racket-font-lock.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2021 by Greg Hendershott.
 
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
@@ -68,15 +68,15 @@
   (eval-when-compile
     `(
       ;; keyword argument
-      (,(rx "#:" (1+ (or (syntax word) (syntax symbol))))
+      (,(rx "#:" (1+ (or (syntax word) (syntax symbol) (syntax punctuation))))
        . racket-keyword-argument-face)
 
       ;; Various things for racket-selfeval-face
       (,(rx (or
              ;; symbol
              (seq ?' ?| (+ any) ?|)
-             (seq ?' (1+ (or (syntax word) (syntax symbol))))
-             (seq "#\\" (1+ (or (syntax word) (syntax symbol))))))
+             (seq ?' (1+ (or (syntax word) (syntax symbol) (syntax punctuation))))
+             (seq "#\\" (1+ (or (syntax word) (syntax symbol) (syntax punctuation))))))
        . racket-selfeval-face)
 
       ;; #rx #px
@@ -140,24 +140,24 @@
     `(
       ;; def* -- variables
       (,(rx (syntax open-parenthesis)
-            "def" (0+ (or (syntax word) (syntax symbol)))
+            "def" (0+ (or (syntax word) (syntax symbol) (syntax punctuation)))
             (1+ space)
-            (group (1+ (or (syntax word) (syntax symbol)))))
+            (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation)))))
        1 font-lock-variable-name-face)
       (,(rx (syntax open-parenthesis)
             "define-values"
             (1+ space)
             (syntax open-parenthesis)
-            (group (1+ (or (syntax word) (syntax symbol) space)))
+            (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation) space)))
             (syntax close-parenthesis))
        1 font-lock-variable-name-face)
 
       ;; def* -- functions
       (,(rx (syntax open-parenthesis)
-            "def" (0+ (or (syntax word) (syntax symbol)))
+            "def" (0+ (or (syntax word) (syntax symbol) (syntax punctuation)))
             (1+ space)
             (1+ (syntax open-parenthesis)) ;1+ b/c curried define
-            (group (1+ (or (syntax word) (syntax symbol)))))
+            (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation)))))
        1 font-lock-function-name-face)
 
       ;; let identifiers
@@ -167,9 +167,9 @@
       (,(rx (syntax open-parenthesis)
             (group "module" (? "*"))
             (1+ space)
-            (group (1+ (or (syntax word) (syntax symbol))))
+            (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation))))
             (1+ space)
-            (group (1+ (or (syntax word) (syntax symbol)))))
+            (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation)))))
        (1 font-lock-keyword-face nil t)
        (2 font-lock-function-name-face nil t)
        (3 font-lock-variable-name-face nil t))
@@ -177,7 +177,7 @@
       (,(rx (syntax open-parenthesis)
             (group "module+")
             (1+ space)
-            (group (1+ (or (syntax word) (syntax symbol)))))
+            (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation)))))
        (1 font-lock-keyword-face nil t)
        (2 font-lock-function-name-face nil t))
       ))
@@ -309,7 +309,8 @@ similar, it will already be there."
   (while (re-search-forward
           (rx (syntax open-parenthesis)
               (* (syntax whitespace))
-              (group-n 1 "let" (* (or (syntax word) (syntax symbol)))))
+              (group-n 1 "let"
+                       (* (or (syntax word) (syntax symbol) (syntax punctuation)))))
           limit
           t)
     (ignore-errors
@@ -319,7 +320,9 @@ similar, it will already be there."
         ;; check rhs of bindings for more lets.
         (save-excursion
           ;; Check for named let
-          (when (looking-at (rx (+ space) (+ (or (syntax word) (syntax symbol)))))
+          (when (looking-at (rx (+ space) (+ (or (syntax word)
+                                                 (syntax symbol)
+                                                 (syntax punctuation)))))
             (forward-sexp 1)
             (backward-sexp 1)
             (racket--sexp-set-face font-lock-function-name-face))

@@ -1,6 +1,6 @@
 ;;; racket-common.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2021 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -140,7 +140,7 @@
          (group ?#
                 (??
                  (not (any ?| ?: ?\\)) ;not comment #362 or kw arg #448
-                 (*? (or (syntax symbol) (syntax word)))))
+                 (*? (or (syntax symbol) (syntax word) (syntax punctuation)))))
          (any ?\" ?\( ?\[ ?\{))
      (1 "'"))
     ;; Syntax quoting
@@ -370,7 +370,8 @@ or syntax quoting, because those won't be valid Racket syntax."
                   (or "module" "module*" "module+")
                   (1+ " ")
                   (group (+ (or (syntax symbol)
-                                (syntax word)))))))
+                                (syntax word)
+                                (syntax punctuation)))))))
 
 (defun racket--looking-at-quoted-form ()
   (or (memq (char-before) '(?\' ?\` ?\,))

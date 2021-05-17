@@ -231,7 +231,9 @@ Returns nil for #% identifiers like #%app."
 
 (defun racket--all-hyphens-p ()
   "Magic for redex like what DrRacket does."
-  (looking-at (rx (>= 3 ?-) (and (not (syntax word)) (not (syntax symbol))))))
+  (looking-at (rx (>= 3 ?-) (and (not (syntax word))
+                                 (not (syntax symbol))
+                                 (not (syntax punctuation))))))
 
 (defun racket--data-sequence-p ()
   "Looking at \"data\" sequences where we align under head item?
