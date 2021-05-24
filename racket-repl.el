@@ -768,6 +768,7 @@ A value for the variable `comint-output-filter-functions'."
                           (marker-position comint-last-output-start))
                      comint-last-output-start
                    (point-min-marker)))
+      (forward-line 0) ;in case comint-last-output-start left mid line: #535
       (let ((pmark (process-mark (get-buffer-process (current-buffer)))))
         (while (re-search-forward "\"#<Image: \\(.+?racket-image-.+?\\)>\""
                                   pmark
@@ -1109,10 +1110,10 @@ identifier bindings and modules from the REPL's namespace.
   ;; Persistent history
   (setq-local comint-input-autoexpand nil) ;#450
   (setq-local comint-input-filter #'racket-repl--input-filter)
-  (make-directory racket--config-dir t)
+  (make-directory racket-repl-history-directory t)
   (setq-local comint-input-ring-file-name
               (expand-file-name (racket--buffer-name-slug)
-                                racket--config-dir))
+                                racket-repl-history-directory))
   (comint-read-input-ring t)
   (add-hook 'kill-buffer-hook #'comint-write-input-ring nil t)
   (add-hook 'kill-emacs-hook #'racket--repl-save-all-histories nil t)

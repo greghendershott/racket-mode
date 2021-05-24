@@ -197,15 +197,15 @@
            (check-equal? undone complete))]
         [_ (void)]))))
 
-;; If this looks like a source location where the pathname is not
-;; complete, prepend current-directory if that results in an actually
+;; If this looks like a source location where the pathname is
+;; relative, prepend current-directory if that results in an actually
 ;; existing file.
 (define (complete-paths s)
   (regexp-replace*
    #px"([^:]+):(\\d+[:.]\\d+)"
    s
    (λ (_ orig-path line+col)
-     (~a (or (and (not (complete-path? orig-path))
+     (~a (or (and (relative-path? orig-path)
                   (existing (build-path (current-directory) orig-path)))
              orig-path)
          ":" line+col))))

@@ -203,6 +203,7 @@ REPL variables
 
 * racket-repl-buffer-name-function::
 * racket-submodules-to-run::
+* racket-repl-history-directory::
 * racket-history-filter-regexp::
 * racket-images-inline::
 * racket-imagemagick-props::
@@ -2584,7 +2585,7 @@ The following values will @emph{not} work:
 @node racket-path-from-emacs-to-racket-function
 @subsection racket-path-from-emacs-to-racket-function
 
-A function used to transform Emacs Lisp pathnames before supplying to the Racket back end.
+A function to transform Emacs Lisp pathnames given to the Racket back end.
 
 If you run Emacs on Windows Subsystem for Linux, and want to run
 Racket programs using Windows Racket.exe rather than Linux
@@ -2595,7 +2596,7 @@ you probably also want to customize the ``reverse'':
 @node racket-path-from-racket-to-emacs-function
 @subsection racket-path-from-racket-to-emacs-function
 
-A function used to transform pathnames supplied by the Racket back end before using them in Emacs.
+A function to transform Racket back end pathnames given to Emacs Lisp.
 
 The default on Windows replaces back with forward slashes. The
 default elsewhere is @code{identity}.
@@ -2654,6 +2655,7 @@ properly encoded URL.
 @menu
 * racket-repl-buffer-name-function::
 * racket-submodules-to-run::
+* racket-repl-history-directory::
 * racket-history-filter-regexp::
 * racket-images-inline::
 * racket-imagemagick-props::
@@ -2713,6 +2715,11 @@ It is NOT used by commands that run one specific module, such as:
 @item
 @ref{racket-profile}
 @end itemize
+
+@node racket-repl-history-directory
+@subsection racket-repl-history-directory
+
+Directory for @ref{racket-repl-mode} history files.
 
 @node racket-history-filter-regexp
 @subsection racket-history-filter-regexp
@@ -2805,7 +2812,7 @@ and/or @code{racket-repl-mode-map} keymaps.
 @node racket-logger-config
 @subsection racket-logger-config
 
-Configuration of @ref{racket-logger-mode} topics and levels
+Configuration of @ref{racket-logger-mode} topics and levels.
 
 The topic `* respresents the default level used for topics not
 assigned a level. Otherwise, the topic symbols are the same as

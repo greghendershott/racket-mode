@@ -170,6 +170,7 @@
     "REPL variables"
     racket-repl-buffer-name-function
     racket-submodules-to-run
+    racket-repl-history-directory
     racket-history-filter-regexp
     racket-images-inline
     racket-imagemagick-props
