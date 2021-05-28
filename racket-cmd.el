@@ -78,34 +78,39 @@ that Racket Mode can find its own run.rkt file.")
 See issue #327.")
 
 (defun racket--cmd-open ()
-  (racket--cmd-close) ;never create multi processes e.g. "racket-process<1>"
-  (make-process
-   :name            racket--cmd-process-name
-   :connection-type 'pipe
-   :noquery         t
-   :coding          'utf-8
-   :buffer          (get-buffer-create (concat " *" racket--cmd-process-name "*"))
-   :stderr          (make-pipe-process
-                     :name     (concat racket--cmd-process-name "-stderr")
-                     :buffer   nil
-                     :noquery  t
-                     :coding   'utf-8
-                     :filter   #'racket--cmd-process-stderr-filter
-                     :sentinel #'ignore)
-   :command         (list racket-program
-                          (funcall racket-adjust-run-rkt racket--run.rkt)
-                          (setq racket--cmd-auth (let ((print-length nil) ;for %S
-                                                       (print-level nil))
-                                                   (format "%S" `(auth ,(random)))))
-                          (if (and (boundp 'image-types)
-                                   (fboundp 'image-type-available-p)
-                                   (or (and (memq 'svg image-types)
-                                            (image-type-available-p 'svg))
-                                       (and (memq 'imagemagick image-types)
-                                            (image-type-available-p 'imagemagick))))
-                              "--use-svg"
-                            "--do-not-use-svg"))
-   :filter          #'racket--cmd-process-filter))
+  ;; Avoid multiple processes/buffers like "racket-process<1>".
+  (racket--cmd-close)
+  ;; Give the process buffer the current values of some vars; see
+  ;; <https://github.com/purcell/envrc/issues/22>.
+  (cl-letf* (((default-value 'process-environment) process-environment)
+             ((default-value 'exec-path)           exec-path))
+    (make-process
+     :name            racket--cmd-process-name
+     :connection-type 'pipe
+     :noquery         t
+     :coding          'utf-8
+     :buffer          (get-buffer-create (concat " *" racket--cmd-process-name "*"))
+     :stderr          (make-pipe-process
+                       :name     (concat racket--cmd-process-name "-stderr")
+                       :buffer   nil
+                       :noquery  t
+                       :coding   'utf-8
+                       :filter   #'racket--cmd-process-stderr-filter
+                       :sentinel #'ignore)
+     :command         (list racket-program
+                            (funcall racket-adjust-run-rkt racket--run.rkt)
+                            (setq racket--cmd-auth (let ((print-length nil) ;for %S
+                                                         (print-level nil))
+                                                     (format "%S" `(auth ,(random)))))
+                            (if (and (boundp 'image-types)
+                                     (fboundp 'image-type-available-p)
+                                     (or (and (memq 'svg image-types)
+                                              (image-type-available-p 'svg))
+                                         (and (memq 'imagemagick image-types)
+                                              (image-type-available-p 'imagemagick))))
+                                "--use-svg"
+                              "--do-not-use-svg"))
+     :filter          #'racket--cmd-process-filter)))
 
 (defun racket--cmd-close ()
   (pcase (get-process racket--cmd-process-name)
