@@ -74,7 +74,7 @@ can set this variable to the function `racket-wsl-to-windows' so
 that Racket Mode can find its own run.rkt file.")
 
 (defvar racket--cmd-auth nil
-  "A value we give the Racket back-end when we launch it and when we connect.
+  "A value we give the Racket back-end when we launch it and when we create REPLs.
 See issue #327.")
 
 (defun racket--cmd-open ()
@@ -99,9 +99,8 @@ See issue #327.")
                        :sentinel #'ignore)
      :command         (list racket-program
                             (funcall racket-adjust-run-rkt racket--run.rkt)
-                            (setq racket--cmd-auth (let ((print-length nil) ;for %S
-                                                         (print-level nil))
-                                                     (format "%S" `(auth ,(random)))))
+                            "--auth"
+                            (setq racket--cmd-auth (format "token-%x" (random)))
                             (if (and (boundp 'image-types)
                                      (fboundp 'image-type-available-p)
                                      (or (and (memq 'svg image-types)
