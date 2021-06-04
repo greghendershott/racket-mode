@@ -43,7 +43,7 @@ or indeed whatever you want."
          (file (make-temp-file "racket-browse-url-" nil ".html"))
          (html (format "<html><head><meta http-equiv=\"refresh\" content=\"0;url=%s\" /></head></html>" url)))
     (write-region html nil file nil 'no-wrote-file-message)
-    (browse-url url)))
+    (browse-url file)))
 
 (provide 'racket-browse-url)
 
