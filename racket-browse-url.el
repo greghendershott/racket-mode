@@ -41,9 +41,10 @@ you do not need to use this. You can customize the variable
 or indeed whatever you want."
   (let* ((url  (if (string-match ".*://" url) url (concat "file://" url)))
          (file (make-temp-file "racket-browse-url-" nil ".html"))
+         (file-uri (concat "file://" file))
          (html (format "<html><head><meta http-equiv=\"refresh\" content=\"0;url=%s\" /></head></html>" url)))
     (write-region html nil file nil 'no-wrote-file-message)
-    (browse-url file)))
+    (browse-url file-uri)))
 
 (provide 'racket-browse-url)
 
