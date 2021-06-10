@@ -15,16 +15,16 @@
          "util.rkt")
 
 (provide display-exn
-         our-error-display-handler
+         racket-mode-error-display-handler
          prevent-path-elision-by-srcloc->string)
 
 (module+ test
   (require rackunit))
 
 (define (display-exn exn)
-  (our-error-display-handler (exn-message exn) exn))
+  (racket-mode-error-display-handler (exn-message exn) exn))
 
-(define (our-error-display-handler str v)
+(define (racket-mode-error-display-handler str v)
   (cond [(exn? v)
          (unless (equal? "Check failure" (exn-message v)) ;rackunit check fails
            (fresh-line)

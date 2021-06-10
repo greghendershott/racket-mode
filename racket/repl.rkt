@@ -166,9 +166,9 @@
 (define (repl-manager-thread-thunk)
   (define session-id (next-session-id!))
   (log-racket-mode-info "start ~v" session-id)
-  (parameterize* ([error-display-handler    our-error-display-handler]
-                  [current-session-id       session-id]
-                  [current-repl-msg-chan    (make-channel)])
+  (parameterize* ([error-display-handler racket-mode-error-display-handler]
+                  [current-session-id    session-id]
+                  [current-repl-msg-chan (make-channel)])
     (do-run
      (initial-run-config
       (λ ()
