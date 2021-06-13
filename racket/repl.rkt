@@ -204,11 +204,63 @@
     (custodian-limit-memory repl-cust
                             (inexact->exact (round (* 1024 1024 mem-limit)))
                             repl-cust))
-  ;; If racket/gui/base isn't loaded, the current-eventspace parameter
-  ;; doesn't exist, so make a "dummy" parameter of that name.
-  (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
 
-  ;; Create REPL thread
+  ;; repl-thunk loads the user program and enters read-eval-print-loop
+  (define (repl-thunk)
+    ;; 0. Command line arguments
+    (current-command-line-arguments cmd-line-args)
+    ;; 1. Set print hooks and output handlers
+    (set-print-parameters pretty-print? columns pixels/char)
+    (set-output-handlers)
+    ;; 2. Record as much info about our session as we can, before
+    ;; possibly entering module->namespace.
+    (set-session! (current-session-id) maybe-mod #f)
+    ;; 3. If module, require and enter its namespace, etc.
+    (with-expanded-syntax-caching-evaluator
+      (when (and maybe-mod mod-path)
+        (parameterize ([current-module-name-resolver module-name-resolver-for-run])
+          ;; When exn:fail during module load, re-run.
+          (define (load-exn-handler exn)
+            (display-exn exn)
+            (channel-put (current-repl-msg-chan)
+                         (struct-copy run-config cfg [maybe-mod #f]))
+            (sync never-evt)) ;manager thread will shutdown custodian
+          (with-handlers ([exn? load-exn-handler])
+            (with-stack-checkpoint
+              #;(maybe-configure-runtime mod-path) ;FIRST: see #281
+              (namespace-require mod-path)
+              (for ([submod (in-list extra-submods-to-run)])
+                (define submod-spec `(submod ,(build-path dir file) ,@submod))
+                (when (module-declared? submod-spec)
+                  (dynamic-require submod-spec #f)))
+              ;; User's program may have changed current-directory;
+              ;; use parameterize to set for module->namespace but
+              ;; restore user's value for REPL.
+              (current-namespace
+               (parameterize ([current-directory dir])
+                 (module->namespace mod-path)))
+              (maybe-warn-about-submodules mod-path context-level)
+              (check-#%top-interaction))))))
+    ;; 4. Update information about our session -- now that
+    ;; current-namespace is possibly updated, and, it is OK to
+    ;; call get-repl-submit-predicate.
+    (set-session! (current-session-id)
+                  maybe-mod
+                  (get-repl-submit-predicate maybe-mod))
+    ;; 5. Now that the program has run, and `sessions` is updated,
+    ;; call the ready-thunk. On REPL startup this lets us wait
+    ;; sending the repl-session-id until `sessions` is updated.
+    ;; And for subsequent run commands, this lets us it wait to
+    ;; send a response.
+    (ready-thunk)
+    ;; 6. read-eval-print-loop
+    (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
+                   [current-module-name-resolver module-name-resolver-for-repl])
+      ;; Note that read-eval-print-loop catches all non-break
+      ;; exceptions.
+      (read-eval-print-loop)))
+
+  ;; Create thread for repl-thunk
   (define repl-thread
     (parameterize* ;; Use `parameterize*` because the order matters.
         (;; FIRST: current-custodian and current-namespace, so in
@@ -228,82 +280,21 @@
                 [else (let ([oe (current-eval)]) (λ (e) (with-stack-checkpoint (oe e))))])]
          [instrumenting-enabled (instrument-level? context-level)]
          [profiling-enabled (eq? context-level 'profile)]
-         [test-coverage-enabled (eq? context-level 'coverage)]
-         ;; LAST: `current-eventspace` because `make-eventspace`
-         ;; creates an event handler thread -- now. We want that
-         ;; thread to inherit the parameterizations above. (Otherwise
-         ;; in the non-gui case, we call `thread` below in the body of
-         ;; the parameterize* form, so that's fine.)
-         [current-eventspace ((txt/gui void make-eventspace))])
-      ;; repl-thunk will either be used as the thunk for a thread we
-      ;; make directly -- or, when racket/gui/base is instantiated,
-      ;; installed as the current eventspace's event queue via
-      ;; queue-callback, running under (eventspace-handler-thread
-      ;; (current-eventspace)).
-      (define (repl-thunk)
-        ;; 0. Command line arguments
-        (current-command-line-arguments cmd-line-args)
-        ;; 1. Set print hooks and output handlers
-        (set-print-parameters pretty-print? columns pixels/char)
-        (set-output-handlers)
-        ;; 2. Record as much info about our session as we can, before
-        ;; possibly entering module->namespace.
-        (set-session! (current-session-id) maybe-mod #f)
-        ;; 3. If module, require and enter its namespace, etc.
-        (with-expanded-syntax-caching-evaluator
-          (when (and maybe-mod mod-path)
-            (parameterize ([current-module-name-resolver module-name-resolver-for-run])
-              ;; When exn:fail during module load, re-run.
-              (define (load-exn-handler exn)
-                (display-exn exn)
-                (channel-put (current-repl-msg-chan)
-                             (struct-copy run-config cfg [maybe-mod #f]))
-                (sync never-evt)) ;manager thread will shutdown custodian
-              (with-handlers ([exn? load-exn-handler])
-                (with-stack-checkpoint
-                  (maybe-configure-runtime mod-path) ;FIRST: see #281
-                  (namespace-require mod-path)
-                  (for ([submod (in-list extra-submods-to-run)])
-                    (define submod-spec `(submod ,(build-path dir file) ,@submod))
-                    (when (module-declared? submod-spec)
-                      (dynamic-require submod-spec #f)))
-                  ;; User's program may have changed current-directory;
-                  ;; use parameterize to set for module->namespace but
-                  ;; restore user's value for REPL.
-                  (current-namespace
-                   (parameterize ([current-directory dir])
-                     (module->namespace mod-path)))
-                  (maybe-warn-about-submodules mod-path context-level)
-                  (check-#%top-interaction))))))
-        ;; 4. Update information about our session -- now that
-        ;; current-namespace is possibly updated, and, it is OK to
-        ;; call get-repl-submit-predicate.
-        (set-session! (current-session-id)
-                      maybe-mod
-                      (get-repl-submit-predicate maybe-mod))
-        ;; 5. Now that the program has run, and `sessions` is updated,
-        ;; call the ready-thunk. On REPL startup this lets us wait
-        ;; sending the repl-session-id until `sessions` is updated.
-        ;; And for subsequent run commands, this lets us it wait to
-        ;; send a response.
-        (ready-thunk)
-        ;; 6. read-eval-print-loop
-        (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
-                       [current-module-name-resolver module-name-resolver-for-repl])
-          ;; Note that read-eval-print-loop catches all non-break
-          ;; exceptions.
-          (read-eval-print-loop)))
+         [test-coverage-enabled (eq? context-level 'coverage)])
+      ;; Run repl-thunk on a plain thread, or, on the eventspace
+      ;; thread via queue-callback. Return the thread.
+      (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
+      (parameterize ([current-eventspace (parameterize-break #f
+                                           ((txt/gui void make-eventspace)))])
+        (define t/v ((txt/gui thread    queue-callback           ) repl-thunk))
+        (define thd ((txt/gui (λ _ t/v) eventspace-handler-thread) (current-eventspace)))
+        thd)))
 
-      ;; Main thread: Run repl-thunk on a plain thread, or, on the
-      ;; eventspace thread via queue-callback. Return the thread.
-      (define t/v ((txt/gui thread    queue-callback           ) repl-thunk))
-      (define thd ((txt/gui (λ _ t/v) eventspace-handler-thread) (current-eventspace)))
-      thd))
-
-  ;; Main thread: Wait for message from REPL thread on channel. Also
-  ;; catch breaks, in which case we (a) break the REPL thread so
-  ;; display-exn runs there, and (b) continue from the break instead
-  ;; of re-running so that the REPL environment is maintained.
+  ;; While the repl thread runs, here on the main thread we wait for a
+  ;; message via channel. Also catch breaks, in which case we (a)
+  ;; break the REPL thread so display-exn runs there, and (b) continue
+  ;; from the break instead of re-running so that the REPL environment
+  ;; is maintained.
   (define message
     (call-with-exception-handler
      (match-lambda
