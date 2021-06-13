@@ -7,31 +7,32 @@
 
 (provide get-interaction)
 
-;; Note: We should handle eof-object? and exn:fail:network? by doing
-;; an exit and letting the exit-handler in run.rkt cleanup the TCP
-;; connection. This handles the case where e.g. the user kills the
-;; REPL buffer and its process on the client/Emacs side. We used to
-;; have code here in an effort support lang/datalog using eof as an
-;; expression separator -- but that just causes an endless loop 100%
-;; CPU spike with an abandoned tcp-input-port. So give up on that,
-;; reverting issue #305.
+;; Note: We handle eof-object? and exn:fail:network? by doing an exit
+;; and letting the exit-handler in run.rkt cleanup the TCP connection.
+;; This handles the case where e.g. the user kills the REPL buffer and
+;; its process on the client/Emacs side. We used to have code here in
+;; an effort support lang/datalog using eof as an expression separator
+;; -- but that just causes an endless loop 100% CPU spike with an
+;; abandoned tcp-input-port. So give up on that, reverting issue #305.
 
 (define (get-interaction prompt)
-  (match (with-handlers ([exn:fail? values])
-           (define in ((current-get-interaction-input-port)))
-           (unless (already-more-to-read? in) ;#311
-             (display-prompt prompt))
-           (with-stack-checkpoint
-             ((current-read-interaction) prompt in)))
-    [(? eof-object?)
-     (log-racket-mode-info "get-interaction: eof")
-     (exit 'get-interaction-eof)]
-    [(? exn:fail:network?)
-     (log-racket-mode-info "get-interaction: exn:fail:network\n")
-     (exit 'get-interaction-exn:fail:network)]
-    [(? exn:fail? exn)
-     (raise exn)]
-    [v v]))
+  ;; Using with-handlers here would be a mistake; see #543.
+  (call-with-exception-handler
+   (λ (e)
+     (cond [(exn:fail:network? e)
+            (log-racket-mode-info "get-interaction: exn:fail:network")
+            (exit 'get-interaction-exn:fail:network)]
+           [else e]))
+   (λ ()
+     (define in ((current-get-interaction-input-port)))
+     (unless (already-more-to-read? in) ;#311
+       (display-prompt prompt))
+     (match (with-stack-checkpoint
+              ((current-read-interaction) prompt in))
+       [(? eof-object?)
+        (log-racket-mode-info "get-interaction: eof")
+        (exit 'get-interaction-eof)]
+       [v v]))))
 
 (define (already-more-to-read? in)
   ;; Is there already at least one more read-able expression on in?
