@@ -284,8 +284,7 @@
       ;; Run repl-thunk on a plain thread, or, on the eventspace
       ;; thread via queue-callback. Return the thread.
       (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
-      (parameterize ([current-eventspace (parameterize-break #f
-                                           ((txt/gui void make-eventspace)))])
+      (parameterize ([current-eventspace ((txt/gui void make-eventspace))])
         (define t/v ((txt/gui thread    queue-callback           ) repl-thunk))
         (define thd ((txt/gui (λ _ t/v) eventspace-handler-thread) (current-eventspace)))
         thd)))
