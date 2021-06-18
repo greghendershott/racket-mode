@@ -135,22 +135,24 @@ left-justify everything and do not draw any border."
       ;; remaining text to shift. This can happen e.g. due to Unicode
       ;; characters like λ. Furthermore, our replacement text can be
       ;; two pixels wider because :box (:line-width -1) doesn't seem
-      ;; to work as advertised. So, we add _another_ overlay simply to
-      ;; replace the character following our tooltip with a space of
-      ;; the necessary pixel width to keep things aligned. Although
-      ;; covering the character with a space isn't great -- even if
-      ;; you justify it as a sort of "shadow" (?) -- it is less-worse
-      ;; than having the remainder of the line jiggle as the tooltip
-      ;; apears and disappears.
+      ;; to work as advertised.
+      ;;
+      ;; To avoid this, we add _another_ overlay simply to replace the
+      ;; character following our tooltip with a space of the necessary
+      ;; pixel width to keep things aligned. Although covering the
+      ;; character with a space isn't great -- even if you justify it
+      ;; as a sort of "shadow" (?) -- it's better than having the
+      ;; remainder of the line jiggle as the tooltip apears and
+      ;; disappears.
       (if (< beg next-eol)
           (cl-labels ((text-pixel-width
                        (beg end)
                        (car (window-text-pixel-size nil beg end))))
             (let* ((end  (min next-eol (+ beg text-len)))
                    (ov   (make-overlay beg end))
-                   (old  (text-pixel-width beg end))
+                   (old  (text-pixel-width (1+ eol) end))
                    (_    (overlay-put ov 'display text))
-                   (new  (text-pixel-width beg end))
+                   (new  (text-pixel-width (1+ eol) end))
                    (diff (- new old)))
               (cons
                ov
