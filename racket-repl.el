@@ -781,8 +781,10 @@ A value for the variable `comint-output-filter-functions'."
                                              racket-imagemagick-props
                                              'imagemagick)
                                         nil  ;file not data
-                                        (and (image-type-available-p 'imagemagick)
-                                             racket-imagemagick-props))))
+                                        (append
+                                         '(:scale 1.0) ;#529
+                                         (and (image-type-available-p 'imagemagick)
+                                              racket-imagemagick-props)))))
                   (t
                    (replace-match (format "[file://%s]" file))))
             (set-marker pmark (max pmark (point)))
