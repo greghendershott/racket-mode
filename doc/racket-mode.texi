@@ -130,6 +130,8 @@ Run
 * racket-logger::
 * racket-logger-mode::
 * racket-debug-mode::
+* racket-repl-clear::
+* racket-repl-clear-leaving-last-prompt::
 
 Test
 
@@ -218,6 +220,8 @@ Other variables
 * racket-pretty-lambda::
 * racket-smart-open-bracket-enable::
 * racket-logger-config::
+* racket-before-run-hook::
+* racket-after-run-hook::
 
 Experimental debugger variables
 
@@ -1454,6 +1458,7 @@ If no such identifer exists, opens the Search Manuals page. In
 this case, the variable @ref{racket-documentation-search-location}
 determines whether the search is done locally as with `raco
 doc`, or visits a URL.
+
 @item
 @kbd{C-u} 
 
@@ -1593,6 +1598,8 @@ the Racket ``Search Manuals'' page.
 * racket-logger::
 * racket-logger-mode::
 * racket-debug-mode::
+* racket-repl-clear::
+* racket-repl-clear-leaving-last-prompt::
 @end menu
 
 @node racket-repl-mode
@@ -1719,6 +1726,11 @@ commands.
 @kbd{<f5>} 
 
 This is @ref{racket-run} followed by selecting the REPL buffer window.
+
+This is similar to how Dr Racket behaves.
+
+To make it even more similar, you may add @ref{racket-repl-clear} to
+the variable @ref{racket-before-run-hook}.
 
 @node racket-run-module-at-point
 @subsection racket-run-module-at-point
@@ -2029,6 +2041,27 @@ provides shortcut keys:
 @item @kbd{SPC} 
 @tab @code{racket-debug-step}
 @end multitable
+
+@node racket-repl-clear
+@subsection racket-repl-clear
+
+Delete all text in the REPL.
+
+A suitable value for the hook @ref{racket-before-run-hook} if you
+want the REPL buffer to be cleared before each run, much like
+with Dr Racket. To do so you can use @code{customize}, or, add to your
+Emacs init file something like:
+
+(add-hook `racket-before-run-hook #'racket-repl-clear)
+
+See also the command @ref{racket-repl-clear-leaving-last-prompt}.
+
+@node racket-repl-clear-leaving-last-prompt
+@subsection racket-repl-clear-leaving-last-prompt
+
+@kbd{M-x}  @code{racket-repl-clear-leaving-last-prompt}
+
+Delete all text in the REPL, except for the last prompt.
 
 @node Test
 @section Test
@@ -2756,6 +2789,8 @@ Use pretty-print instead of print in REPL?
 * racket-pretty-lambda::
 * racket-smart-open-bracket-enable::
 * racket-logger-config::
+* racket-before-run-hook::
+* racket-after-run-hook::
 @end menu
 
 @node racket-indent-curly-as-sequence
@@ -2814,6 +2849,29 @@ For more information see:
 The default value sets some known ``noisy'' topics to be one
 level quieter. That way you can set the `* topic to a level like
 `debug and not get overhwelmed by these noisy topics.
+
+@node racket-before-run-hook
+@subsection racket-before-run-hook
+
+Normal hook done before various Racket Mode run commands.
+
+When hook functions are called, @code{current-buffer} is that of the
+@ref{racket-mode} buffer when the run command was issued. If a hook
+function instead needs the @ref{racket-repl-mode} buffer, it should
+get that from the variable @code{racket-repl-buffer-name}.
+
+@node racket-after-run-hook
+@subsection racket-after-run-hook
+
+Normal hook done after various Racket Mode run commands.
+
+Here ``after'' means that the run has completed and the REPL is
+waiting at another prompt.
+
+When hook functions are called, @code{current-buffer} is that of the
+@ref{racket-mode} buffer when the run command was issued. If a hook
+function instead needs the @ref{racket-repl-mode} buffer, it should
+get that from the variable @code{racket-repl-buffer-name}.
 
 @node Experimental debugger variables
 @section Experimental debugger variables

@@ -160,7 +160,8 @@
     [`(debug-eval ,src ,l ,c ,p ,code) (debug-eval src l c p code)]
     [`(debug-resume ,v)                (debug-resume v)]
     [`(debug-disable)                  (debug-disable)]
-    [`(break ,kind)                    (break-repl-thread (current-session-id) kind)]))
+    [`(break ,kind)                    (break-repl-thread (current-session-id) kind)]
+    [`(repl-zero-column)               (repl-zero-column)]))
 
 ;;; A few commands defined here
 

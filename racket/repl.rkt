@@ -21,7 +21,8 @@
 (provide start-repl-session-server
          repl-tcp-port-number
          run
-         break-repl-thread)
+         break-repl-thread
+         repl-zero-column)
 
 ;;; Messages to each repl manager thread
 
@@ -86,6 +87,13 @@
      (log-racket-mode-debug "break-repl-thread: ~v ~v" sid kind)
      (break-thread t (case kind [(hang-up terminate) kind] [else #f]))]
     [_ (log-racket-mode-error "break-repl-thread: ~v not in `sessions`" sid)]))
+
+;; Command. Called from a command-server thread
+(struct zero-column (chan))
+(define (repl-zero-column)
+  (define ch (make-channel))
+  (channel-put (current-repl-msg-chan) (zero-column ch))
+  (sync ch))
 
 ;; Command. Called from a command-server thread
 (define/contract (run what subs mem pp cols pix/char ctx args dbgs)
@@ -257,7 +265,6 @@
     ;; 6. read-eval-print-loop
     (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
                    [current-module-name-resolver module-name-resolver-for-repl])
-      (fresh-line)
       ;; Note that read-eval-print-loop catches all non-break
       ;; exceptions.
       (read-eval-print-loop)))
@@ -291,26 +298,35 @@
         (define thd ((txt/gui (λ _ t/v) eventspace-handler-thread) (current-eventspace)))
         thd)))
 
-  ;; While the repl thread runs, here on the main thread we wait for a
-  ;; message via channel. Also catch breaks, in which case we (a)
-  ;; break the REPL thread so display-exn runs there, and (b) continue
-  ;; from the break instead of re-running so that the REPL environment
-  ;; is maintained.
-  (define message
-    (call-with-exception-handler
-     (match-lambda
-       [(and (or (? exn:break:terminate?) (? exn:break:hang-up?)) e) e]
-       [(exn:break _msg _marks continue) (break-thread repl-thread) (continue)]
-       [e e])
-     (λ () (sync (current-repl-msg-chan)))))
-  (match context-level
-    ['profile  (clear-profile-info!)]
-    ['coverage (clear-test-coverage-info!)]
-    [_         (void)])
-  (custodian-shutdown-all repl-cust)
-  (match message
-    [(? run-config? new-cfg) (do-run new-cfg)]
-    [(load-gui repl?)        (require-gui repl?) (do-run cfg)]))
+  (define (clean-up-and-run some-cfg)
+    (case context-level
+      [(profile)  (clear-profile-info!)]
+      [(coverage) (clear-test-coverage-info!)])
+    (custodian-shutdown-all repl-cust)
+    (fresh-line)
+    (do-run some-cfg))
+
+  ;; While the repl thread is in read-eval-print-loop, here on the
+  ;; repl session thread we wait for messages via repl-msg-chan. Also
+  ;; catch breaks, in which case we (a) break the REPL thread so
+  ;; display-exn runs there, and (b) continue from our break.
+  (let get-message ()
+    (define message
+      (call-with-exception-handler
+       (match-lambda
+         [(and (or (? exn:break:terminate?) (? exn:break:hang-up?)) e) e]
+         [(exn:break _msg _marks continue) (break-thread repl-thread) (continue)]
+         [e e])
+       (λ () (sync (current-repl-msg-chan)))))
+    (match message
+      [(? run-config? c) (clean-up-and-run c)]
+      [(load-gui repl?)  (require-gui repl?)
+                         (clean-up-and-run cfg)]
+      [(zero-column ch)  (zero-column!)
+                         (channel-put ch 'done)
+                         (get-message)]
+      [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)
+         (get-message)])))
 
 (define/contract ((make-prompt-read m))
   (-> (or/c #f mod?) (-> any))

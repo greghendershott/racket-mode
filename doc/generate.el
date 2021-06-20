@@ -88,6 +88,8 @@
     racket-logger
     racket-logger-mode
     (racket-debug-mode ,racket-xp-mode-map)
+    racket-repl-clear
+    racket-repl-clear-leaving-last-prompt
     "Test"
     racket-test
     racket-raco-test
@@ -183,6 +185,8 @@
     racket-pretty-lambda
     racket-smart-open-bracket-enable
     racket-logger-config
+    racket-before-run-hook
+    racket-after-run-hook
     "Experimental debugger variables"
     racket-debuggable-files
     "Showing information"
