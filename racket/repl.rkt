@@ -159,7 +159,8 @@
             (log-racket-mode-fatal "Authorization failed: ~v"
                                    supplied-token)
             (exit 'racket-mode-repl-auth-failure))
-          (port-count-lines! in) ;#519
+          (port-count-lines! in)  ;#519
+          (port-count-lines! out) ;for fresh-line
           (thread repl-manager-thread-thunk))))
     (accept-a-connection)))
 
@@ -256,6 +257,7 @@
     ;; 6. read-eval-print-loop
     (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
                    [current-module-name-resolver module-name-resolver-for-repl])
+      (fresh-line)
       ;; Note that read-eval-print-loop catches all non-break
       ;; exceptions.
       (read-eval-print-loop)))
@@ -306,7 +308,6 @@
     ['coverage (clear-test-coverage-info!)]
     [_         (void)])
   (custodian-shutdown-all repl-cust)
-  (newline) ;; FIXME: Move this to racket-mode.el instead?
   (match message
     [(? run-config? new-cfg) (do-run new-cfg)]
     [(load-gui repl?)        (require-gui repl?) (do-run cfg)]))

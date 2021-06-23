@@ -9,7 +9,6 @@
          racket/match
          racket/string
          setup/dirs
-         "fresh-line.rkt"
          "instrument.rkt"
          "stack-checkpoint.rkt"
          "util.rkt")
@@ -27,7 +26,6 @@
 (define (racket-mode-error-display-handler str v)
   (cond [(exn? v)
          (unless (equal? "Check failure" (exn-message v)) ;rackunit check fails
-           (fresh-line)
            (display-commented (complete-paths
                                (undo-path->relative-string/library str)))
            (display-srclocs v)
@@ -35,7 +33,6 @@
              (display-context v))
            (maybe-suggest-packages v))]
         [else
-         (fresh-line)
          (display-commented str)]))
 
 ;;; srclocs

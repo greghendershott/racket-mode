@@ -8,7 +8,9 @@
                   filename-extension
                   some-system-path->string))
 
-(provide display-commented
+(provide fresh-line
+         zero-column!
+         display-commented
          string->namespace-syntax
          syntax-or-sexpr->syntax
          syntax-or-sexpr->sexpr
@@ -29,9 +31,21 @@
          path-replace-extension
          some-system-path->string)
 
+;; Issue a newline unless already in column zero. Assumes
+;; port-count-lines! already applied to current-output-port.
+(define (fresh-line)
+  (flush-output)
+  (define-values [_line col _pos] (port-next-location (current-output-port)))
+  (unless (eq? col 0) (newline)))
+
+(define (zero-column!)
+  (define-values [line col pos] (port-next-location (current-output-port)))
+  (set-port-next-location! (current-output-port) line 0 (- pos col)))
+
 (define (display-commented str)
-  (eprintf "; ~a\n"
-           (regexp-replace* "\n" str "\n; ")))
+  (fresh-line)
+  (printf "; ~a\n"
+          (regexp-replace* "\n" str "\n; ")))
 
 (define (string->namespace-syntax str)
   (namespace-syntax-introduce

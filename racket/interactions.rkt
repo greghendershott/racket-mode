@@ -1,7 +1,6 @@
 #lang racket/base
 
 (require racket/match
-         "fresh-line.rkt"
          "stack-checkpoint.rkt"
          "util.rkt")
 
@@ -56,9 +55,7 @@
   (sync/timeout 0.01 ch))
 
 (define (display-prompt str)
-  (flush-output (current-error-port))
   (fresh-line)
   (display str)
   (display "> ")
-  (flush-output)
-  (zero-column!))
+  (flush-output))
