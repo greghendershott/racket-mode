@@ -138,9 +138,11 @@
     ;; the opening delimiter -- the ( [ { or " -- here.
     ((rx (not (any ?|))
          (group ?#
-                (??
-                 (not (any ?| ?: ?\\)) ;not comment #362 or kw arg #448
-                 (*? (or (syntax symbol) (syntax word) (syntax punctuation)))))
+                (?? (not (any ?|        ;not comment #362
+                              ?:        ;not keyword arg #448
+                              space     ;not space #546
+                              ?\\))
+                    (*? (or (syntax symbol) (syntax word) (syntax punctuation)))))
          (any ?\" ?\( ?\[ ?\{))
      (1 "'"))
     ;; Syntax quoting

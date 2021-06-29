@@ -388,3 +388,6 @@ BAR
 «m:;; »«x:Issue 534
 »(«k:define» «v:foo‾bar» «:racket-selfeval-face:42»)
 («k:let» ([«v:foo‾bar» «:racket-selfeval-face:42»]) foo‾bar)
+
+«m:;; »«x:Issue 546
+»«:racket-selfeval-face:'C#» («b:add1» «:racket-selfeval-face:1»)
