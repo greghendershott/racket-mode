@@ -1,7 +1,5 @@
 #lang typed/racket/no-check
 
-(require racket/syntax)
-
 ;; Generate lists for Racket keywords, builtins, and types.
 ;;
 ;; The question of what is a "keyword" and a "builtin" is not so
@@ -25,9 +23,9 @@
 ;; (b) "builtins" are everything else provided by #lang racket and
 ;; #lang typed/racket (except the capitalized Types from typed/racket
 ;; go into their own list). Plus for modern macros, racket/syntax and
-;; a few items from syntax/parse (but not its the syntax classes,
-;; because `id` and `str` are too "generic" and too likely to be user
-;; program identifiers).
+;; a few items from syntax/parse (but not its syntax classes, because
+;; `id` and `str` are too "generic" and too likely to be user program
+;; identifiers).
 ;;
 ;; Is that somewhat arbitrary? Hell yes. It's my least-worst,
 ;; practical idea for now. Also, IMHO it's an improvement over getting
@@ -76,6 +74,7 @@
                                      eq?)
                   base-stx)
         symbol<=?))
+
 ;; So many builtins, Emacs gives "regexp too long" error, so split into two:
 (define-values (builtins1 builtins2)
   (let ([mid (/ (length builtins) 2)])
@@ -88,11 +87,14 @@
 
 (define types Types)
 
+;;; Print
+
 (define (prn xs)
   (pretty-print (map symbol->string (sort xs symbol<=?))))
 
-;; Run these to print, copy and paste into racket-keywords-and-builtins.el
-;; (prn types)
-;; (prn keywords)
-;; (prn builtins1)
-;; (prn builtins2)
+;; Enter each submodule to print a quoted list of symbols, then copy
+;; and paste each list into racket-keywords-and-builtins.el.
+(module+ types    (prn types))
+(module+ keywords (prn keywords))
+(module+ builtins1 (prn builtins1))
+(module+ builtins2 (prn builtins2))
