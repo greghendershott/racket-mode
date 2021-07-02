@@ -31,7 +31,9 @@
        [(? eof-object?)
         (log-racket-mode-info "get-interaction: eof")
         (exit 'get-interaction-eof)]
-       [v v]))))
+       [v
+        (zero-column!)
+        v]))))
 
 (define (already-more-to-read? in)
   ;; Is there already at least one more read-able expression on in?
