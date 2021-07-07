@@ -235,9 +235,24 @@ If instead of paredit you prefer [[https://melpa.org/#/smartparens][smartparens]
 
 ** Edit buffers and REPL buffers
 
-By default, all ~racket-mode~ edit buffers share one ~racket-repl-mode~ buffer. For example, if you run foo.rkt, the REPL prompt changes to ~foo.rkt>~, and the REPL is inside the file module namespace. If you then run bar.rkt, the REPL prompt changes to ~bar.rkt>~, and you are in that namespace.
+By default, all ~racket-mode~ edit buffers share one ~racket-repl-mode~ buffer, named ~*Racket REPL*~. For example, if you run foo.rkt, the REPL prompt changes to ~foo.rkt>~, and the REPL is inside the file module namespace. If you then run bar.rkt, the REPL prompt changes to ~bar.rkt>~, and you are in that namespace.
 
-If you prefer, you can use more than one REPL buffer, by customizing the variable {{{ref(racket-repl-buffer-name-function)}}}: Another option is to have one REPL buffer for each edit buffer, similar to Dr Racket. Yet another option is to share the same REPL buffer for files belonging to the same project. You can also define your own, custom function.
+If you prefer, you can use more than one REPL buffer, by customizing the variable {{{ref(racket-repl-buffer-name-function)}}}:
+
+- Share a REPL buffer among files belonging to the same project; each REPL buffer is named ~*Racket REPL <project-name>*~.
+- A unique REPL buffer for each edit buffer, similar to Dr Racket; each REPL buffer is named ~*Racket REPL <file.rkt>*~.
+- You can also define your own, custom function.
+
+You can customize where the REPL buffer is displayed by adding an item to the Emacs variable ~display-buffer-alist~. A good regular expression to use for this would be ~\\`\\*Racket REPL~. For example, if you wanted to make the REPL buffer appear in a new frame:
+
+#+BEGIN_SRC lisp
+(add-to-list 'display-buffer-alist
+             '("\\`\\*Racket REPL"
+               (display-buffer-reuse-window
+                display-buffer-pop-up-frame)
+               (reusable-frames . 0)
+               (inhibit-same-window . t)))
+#+END_SRC
 
 ** eldoc
 
