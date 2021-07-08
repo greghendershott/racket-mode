@@ -43,6 +43,7 @@
 (require 'racket-collection)
 (require 'racket-bug-report)
 (require 'racket-util)
+(require 'racket-pcomplete)
 (require 'easymenu)
 
 (defvar racket-mode-map
