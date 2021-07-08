@@ -25,6 +25,7 @@
 (require 'racket-imenu)
 (require 'racket-util)
 (require 'racket-visit)
+(require 'racket-search)
 (require 'racket-show)
 (require 'racket-xp-complete)
 (require 'easymenu)
@@ -1062,7 +1063,11 @@ manually."
                           "Getting analysis from Racket Mode back-end and annotating"))
             (otherwise  '("λ" (face (:strike-through t))
                           "Racket Mode back-end not available")))))
-      `(" " (:propertize ,(concat prefix suffix)
+      `(" "
+        (:propertize ,(concat
+                           prefix
+                           suffix
+                           (racket--search-mode-lighter))
                          ,@face
                          help-echo ,help-echo)))))
 
