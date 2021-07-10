@@ -227,29 +227,28 @@
     ;; 3. If module, require and enter its namespace, etc.
     (with-expanded-syntax-caching-evaluator
       (when (and maybe-mod mod-path)
-        (parameterize ([current-module-name-resolver module-name-resolver-for-run])
-          ;; When exn:fail during module load, re-run.
-          (define (load-exn-handler exn)
-            (display-exn exn)
-            (channel-put (current-repl-msg-chan)
-                         (struct-copy run-config cfg [maybe-mod #f]))
-            (sync never-evt)) ;manager thread will shutdown custodian
-          (with-handlers ([exn? load-exn-handler])
-            (with-stack-checkpoint
-              #;(maybe-configure-runtime mod-path) ;FIRST: see #281
-              (namespace-require mod-path)
-              (for ([submod (in-list extra-submods-to-run)])
-                (define submod-spec `(submod ,(build-path dir file) ,@submod))
-                (when (module-declared? submod-spec)
-                  (dynamic-require submod-spec #f)))
-              ;; User's program may have changed current-directory;
-              ;; use parameterize to set for module->namespace but
-              ;; restore user's value for REPL.
-              (current-namespace
-               (parameterize ([current-directory dir])
-                 (module->namespace mod-path)))
-              (maybe-warn-about-submodules mod-path context-level)
-              (check-#%top-interaction))))))
+        ;; When exn:fail during module load, re-run.
+        (define (load-exn-handler exn)
+          (display-exn exn)
+          (channel-put (current-repl-msg-chan)
+                       (struct-copy run-config cfg [maybe-mod #f]))
+          (sync never-evt)) ;manager thread will shutdown custodian
+        (with-handlers ([exn? load-exn-handler])
+          (with-stack-checkpoint
+            #;(maybe-configure-runtime mod-path) ;FIRST: see #281
+            (namespace-require mod-path)
+            (for ([submod (in-list extra-submods-to-run)])
+              (define submod-spec `(submod ,(build-path dir file) ,@submod))
+              (when (module-declared? submod-spec)
+                (dynamic-require submod-spec #f)))
+            ;; User's program may have changed current-directory;
+            ;; use parameterize to set for module->namespace but
+            ;; restore user's value for REPL.
+            (current-namespace
+             (parameterize ([current-directory dir])
+               (module->namespace mod-path)))
+            (maybe-warn-about-submodules mod-path context-level)
+            (check-#%top-interaction)))))
     ;; 4. Update information about our session -- now that
     ;; current-namespace is possibly updated, and, it is OK to
     ;; call get-repl-submit-predicate.
@@ -263,8 +262,7 @@
     ;; send a response.
     (ready-thunk)
     ;; 6. read-eval-print-loop
-    (parameterize ([current-prompt-read (make-prompt-read maybe-mod)]
-                   [current-module-name-resolver module-name-resolver-for-repl])
+    (parameterize ([current-prompt-read (make-prompt-read maybe-mod)])
       ;; Note that read-eval-print-loop catches all non-break
       ;; exceptions.
       (read-eval-print-loop)))
@@ -290,7 +288,7 @@
          [instrumenting-enabled (instrument-level? context-level)]
          [profiling-enabled (eq? context-level 'profile)]
          [test-coverage-enabled (eq? context-level 'coverage)])
-      ;; Run repl-thunk on a plain thread, or, on the eventspace
+      ;; Run repl-thunk on a plain thread, or, on GUI eventspace
       ;; thread via queue-callback. Return the thread.
       (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
       (parameterize ([current-eventspace ((txt/gui void make-eventspace))])
@@ -320,8 +318,6 @@
        (λ () (sync (current-repl-msg-chan)))))
     (match message
       [(? run-config? c) (clean-up-and-run c)]
-      [(load-gui repl?)  (require-gui repl?)
-                         (clean-up-and-run cfg)]
       [(zero-column ch)  (zero-column!)
                          (channel-put ch 'done)
                          (get-message)]
@@ -380,25 +376,6 @@
   (unless (memq '#%top-interaction (namespace-mapped-symbols))
     (display-commented
      "Because the language used by this module provides no #%top-interaction\n you will be unable to evaluate expressions here in the REPL.")))
-
-;; Catch attempt to load racket/gui/base for the first time.
-(define (make-module-name-resolver repl?)
-  (let ([orig-resolver (current-module-name-resolver)])
-    (define (resolve mp rmp stx load?)
-      (when (and load? (memq mp '(racket/gui/base
-                                  racket/gui/dynamic
-                                  scheme/gui/base)))
-        (unless (gui-required?)
-          (channel-put (current-repl-msg-chan)
-                       (load-gui repl?))
-          (sync never-evt)))
-      (orig-resolver mp rmp stx load?))
-    (case-lambda
-      [(rmp ns)           (orig-resolver rmp ns)]
-      [(mp rmp stx)       (resolve mp rmp stx #t)]
-      [(mp rmp stx load?) (resolve mp rmp stx load?)])))
-(define module-name-resolver-for-run  (make-module-name-resolver #f))
-(define module-name-resolver-for-repl (make-module-name-resolver #t))
 
 ;;; Output handlers; see issues #381 #397
 
