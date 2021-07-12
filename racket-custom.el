@@ -281,7 +281,7 @@ more-helpful error message."
  "2020-02-26")
 
 (defcustom racket-repl-history-directory
-  (locate-user-emacs-file (convert-standard-filename "racket-mode/"))
+  (locate-user-emacs-file (file-name-as-directory "racket-mode"))
   "Directory for `racket-repl-mode' history files."
   :tag "REPL History Directory"
   :type 'file
