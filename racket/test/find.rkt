@@ -1,6 +1,7 @@
 #lang at-exp racket/base
 
 (require racket/format
+         racket/list
          racket/match
          racket/runtime-path
          rackunit
@@ -9,6 +10,9 @@
          "../syntax.rkt"
          "find-examples.rkt")
 
+(define ((path-ends-in? . xs) ps)
+  (list-prefix? (reverse (map string->path xs))
+                (reverse (explode-path ps))))
 (define (not-0 v) (not (= 0 v)))
 (define (not-1 v) (not (= 1 v)))
 
@@ -21,7 +25,7 @@
                 '("defined in #%kernel, signature unavailable"))
 
   (check-match (find-definition how "displayln")
-               (list (pregexp "/racket/private/misc\\.rkt$")
+               (list (? (path-ends-in? "racket" "private" "misc.rkt"))
                      (? not-1)
                      (? not-0)))
   (check-equal? (find-signature how "displayln")
@@ -31,7 +35,7 @@
   ;; set srcloc: Can we at least return a specfic location for its
   ;; parent syntax (as opposed to line 1 column 0)?
   (check-match (find-definition how "in-hash")
-               (list (pregexp "/racket/private/for.rkt$")
+               (list (? (path-ends-in? "racket" "private" "for.rkt"))
                      (? not-1)
                      (? not-0)))
 
@@ -119,9 +123,9 @@
        ;; sexprs as text: `find-definition` takes a string, because
        ;; `racket-visit-definition` takes text from an Emacs buffer.
        (λ () (with-input-from-file file read)))))
-  (for ([file '("commands/requires.rkt"
-                "repl.rkt")])
-    (check-non-bof-location (build-path parent-dir file))))
+  (for ([file '(("commands" "requires.rkt")
+                ("repl.rkt"))])
+    (check-non-bof-location (apply build-path parent-dir file))))
 
 
 ;; Exercise "how" = 'namespace

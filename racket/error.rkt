@@ -165,9 +165,9 @@
 
 (module+ test
   (check-equal? (undo-path->relative-string/library "<collects>/racket/file.rkt:1:0:")
-                (~a (build-path (find-collects-dir) "racket/file.rkt") ":1:0:"))
+                (~a (build-path (find-collects-dir) "racket" "file.rkt") ":1:0:"))
   (check-equal? (undo-path->relative-string/library "<doc>/2d/index.html:1:0:")
-                (~a (build-path (find-doc-dir) "2d/index.html") ":1:0:"))
+                (~a (build-path (find-doc-dir) "2d" "index.html") ":1:0:"))
   ;; Note: No test for <user-doc> because unlikely to work on Travis CI
   (let ([non-existing "<collects>/racket/does-not-exist.rkt:1:0 blah blah blah"])
    (check-equal? (undo-path->relative-string/library non-existing)
