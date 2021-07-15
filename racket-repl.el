@@ -1145,19 +1145,16 @@ A suitable value for the hook `kill-emacs-hook'."
 
 (defun racket--buffer-name-slug ()
   "Change `buffer-name' to a string that is a valid filename."
-  ;; 3. Finally use `shell-quote-argument' to try to catch anything
-  ;; else.
-  (shell-quote-argument
-   ;; 2. But not leading or trailing ?-
+  ;; 2. But not leading or trailing ?-
+  (replace-regexp-in-string
+   (rx (or (seq bos (+ ?-))
+           (seq (+ ?-) eos)))
+   ""
+   ;; 1. Replace runs of anything that is not alnum with a single ?-.
    (replace-regexp-in-string
-    (rx (or (seq bos (+ ?-))
-            (seq (+ ?-) eos)))
-    ""
-    ;; 1. Replace runs of anything that is not alnum with a single ?-.
-    (replace-regexp-in-string
-     (rx (+ (not (any alnum))))
-     "-"
-     (buffer-name)))))
+    (rx (+ (not (any alnum))))
+    "-"
+    (buffer-name))))
 
 (defun racket-repl-clear ()
   "Delete all text in the REPL.
