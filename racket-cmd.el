@@ -113,7 +113,12 @@ See issue #327.")
 
 (defun racket--cmd-close ()
   (pcase (get-process racket--cmd-process-name)
-    ((and (pred (processp)) proc) (delete-process proc))))
+    ((and (pred (processp)) proc) (delete-process proc)))
+  ;; Also kill buffer; helpful in case it contains unread output
+  ;; (perhaps because the output was un-read-able, e.g. invalid ELisp
+  ;; expression).
+  (pcase (get-buffer (concat " *" racket--cmd-process-name "*"))
+    ((and (pred (bufferp)) buf) (kill-buffer buf))))
 
 (defun racket--cmd-process-stderr-filter (proc string)
   "Show back end process stderr via `message'.
