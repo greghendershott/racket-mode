@@ -75,7 +75,13 @@ file-local variable.")
                      ((pred stringp) (expand-file-name v dir))
                      (_              (err "string or 'run-file but is `%S' in `%S'"
                                           v xs))))
-                 xs)))
+                 xs))
+           (xs  (if (eq system-type 'windows-nt)
+                    (mapcar
+                     (lambda (v)
+                       (replace-regexp-in-string (rx "/") "\\" v nil t))
+                     xs)
+                  xs)))
       xs)))
 
 (defvar racket--debug-break-positions nil)
