@@ -235,7 +235,7 @@
           (sync never-evt)) ;manager thread will shutdown custodian
         (with-handlers ([exn? load-exn-handler])
           (with-stack-checkpoint
-            #;(maybe-configure-runtime mod-path) ;FIRST: see #281
+            (maybe-configure-runtime mod-path) ;FIRST: see #281
             (namespace-require mod-path)
             (for ([submod (in-list extra-submods-to-run)])
               (define submod-spec `(submod ,(build-path dir file) ,@submod))
