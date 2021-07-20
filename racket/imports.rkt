@@ -60,24 +60,33 @@
         [ _ (void)])))
 
   (define (handle-raw-require-spec spec lang)
-    (syntax-case* spec (for-meta for-syntax for-template for-label just-meta) symbolic-compare?
-      [(for-meta _phase specs ...)
-       (for ([spec (in-syntax #'(specs ...))])
-         (handle-phaseless-spec spec lang))]
-      [(for-syntax specs ...)
-       (for ([spec (in-syntax #'(specs ...))])
-         (handle-phaseless-spec spec lang))]
-      [(for-template specs ...)
-       (for ([spec (in-syntax #'(specs ...))])
-         (handle-phaseless-spec spec lang))]
-      [(for-label specs ...)
-       (for ([spec (in-syntax #'(specs ...))])
-         (handle-phaseless-spec spec lang))]
-      [(just-meta phase specs ...)
-       (for ([spec (in-syntax #'(specs ...))])
-         (handle-raw-require-spec spec lang))]
-      [raw-module-path
-       (handle-phaseless-spec #'raw-module-path lang)]))
+    (let loop ([spec spec])
+      (syntax-case* spec
+          (for-meta for-syntax for-template for-label just-meta for-space just-space)
+          symbolic-compare?
+        [(for-meta _phase specs ...)
+         (for ([spec (in-syntax #'(specs ...))])
+           (loop spec))]
+        [(for-syntax specs ...)
+         (for ([spec (in-syntax #'(specs ...))])
+           (loop spec))]
+        [(for-template specs ...)
+         (for ([spec (in-syntax #'(specs ...))])
+           (loop spec))]
+        [(for-label specs ...)
+         (for ([spec (in-syntax #'(specs ...))])
+           (loop spec))]
+        [(just-meta phase specs ...)
+         (for ([spec (in-syntax #'(specs ...))])
+           (loop spec))]
+        [(for-space #f specs ...)
+         (for ([spec (in-syntax #'(specs ...))])
+           (loop spec))]
+        [(just-space #f specs ...)
+         (for ([spec (in-syntax #'(specs ...))])
+           (loop spec))]
+        [raw-module-path
+         (handle-phaseless-spec #'raw-module-path lang)])))
 
   (define (handle-phaseless-spec spec lang)
     (syntax-case* spec (only prefix all-except prefix-all-except rename)
