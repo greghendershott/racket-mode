@@ -76,13 +76,13 @@
         [(for-label specs ...)
          (for ([spec (in-syntax #'(specs ...))])
            (loop spec))]
-        [(just-meta phase specs ...)
+        [(just-meta _phase specs ...)
          (for ([spec (in-syntax #'(specs ...))])
            (loop spec))]
-        [(for-space #f specs ...)
+        [(for-space _space specs ...)
          (for ([spec (in-syntax #'(specs ...))])
            (loop spec))]
-        [(just-space #f specs ...)
+        [(just-space _space specs ...)
          (for ([spec (in-syntax #'(specs ...))])
            (loop spec))]
         [raw-module-path
