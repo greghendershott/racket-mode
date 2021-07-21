@@ -479,6 +479,8 @@ ignore a short list defined by scheme-mode itself."
     (parameterize 1)
     (parameterize-break 1)
     (parameterize* 1)
+    (place 1)
+    (place/context 1)
     (quasisyntax/loc 1)
     (receive 2)
     (require/typed 1)
