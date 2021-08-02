@@ -272,7 +272,7 @@
   ;;
   ;; Exercise where the "how" is a path-string, meaning look up that
   ;; path from our cache, not on disk.
-  (let ([path-str "/tmp/x.rkt"]
+  (let ([path-str (path->string (build-path (find-system-path 'temp-dir) "x.rkt"))]
         [code-str (~a `(module x racket/base
                         (define (module-function-binding x y z) (+ 1 x))
                         (define module-variable-binding 42)))])
@@ -285,13 +285,18 @@
                   `(,path-str 1 79)))
   ;; Exercise the "make-traversal" scenario described in comments
   ;; above.
-  (let ([path-str "/tmp/x.rkt"]
+  (let ([path-str (path->string (build-path (find-system-path 'temp-dir) "x.rkt"))]
         [code-str (~a `(module x racket/base
                         (require drracket/check-syntax)
                         "make-traversal"))])
     (string->expanded-syntax path-str code-str void)
     (check-match (find-definition path-str "make-traversal")
-                 (list (pregexp "private/syncheck/traversals.rkt$") _ _))))
+                 (list (? (path-ends-in? "drracket" "private" "syncheck" "traversals.rkt"))
+                       _ _))))
+
+(define ((path-ends-in? . xs) ps)
+  (list-prefix? (reverse (map string->path xs))
+                (reverse (explode-path ps))))
 
 ;; These `get-syntax` and `get-expanded-syntax` functions handle where
 ;; we get the syntax.

@@ -2,7 +2,7 @@ EMACS ?= emacs
 
 RACKET ?= racket
 
-BATCHEMACS = $(EMACS) --batch --no-site-file -q -eval '(progn (add-to-list (quote load-path) "${PWD}/") (package-initialize))'
+BATCHEMACS = $(EMACS) --batch --no-site-file -q -eval '(progn (add-to-list (quote load-path) nil) (package-initialize))'
 
 BYTECOMP = $(BATCHEMACS) -eval '(progn (require (quote bytecomp)) (setq byte-compile-warnings t) (setq byte-compile-error-on-warn t))' -f batch-byte-compile
 

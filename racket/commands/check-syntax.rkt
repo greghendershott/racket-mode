@@ -137,8 +137,8 @@
            src))
 
     (define/override (syncheck:add-arrow/name-dup/pxpy
-                      _def-text def-beg def-end _def-px _def-py
-                      _use-text use-beg use-end _use-px _use-py
+                      _def-src def-beg def-end _def-px _def-py
+                      _use-src use-beg use-end _use-px _use-py
                       _actual? _level require-arrow? _name-dup?)
       (when (and (valid-beg/end? def-beg def-end)
                  (valid-beg/end? use-beg use-end))
@@ -179,10 +179,10 @@
                        (set))]
         [[_ _ _]
          (log-racket-mode-warning
-          "Ignoring syncheck:add-tail-arrow because sources differ"
+          "Ignoring syncheck:add-tail-arrow because sources differ ~v"
           (list from-src to-src src))]))
 
-    (define/override (syncheck:add-mouse-over-status _text beg end status)
+    (define/override (syncheck:add-mouse-over-status _src beg end status)
       (when (valid-beg/end? beg end)
         ;; Avoid silly "imported from “\"file.rkt\"”"
         (define cleansed (regexp-replace* #px"[“””]" status ""))
@@ -215,7 +215,7 @@
     ;; for that same reason, they're not useful for ht-def/uses
     ;; because many of them may overlap for the same source span,
     ;; which won't work well for front-end features.
-    (define/override (syncheck:add-definition-target _source beg _end symbol rev-mods)
+    (define/override (syncheck:add-definition-target _src beg _end symbol rev-mods)
       (let trie-set! ([ht   ht-imenu]
                       [keys (reverse
                              (cons (~a symbol)
@@ -226,7 +226,7 @@
           [(cons key more) (trie-set! (hash-ref! ht key (make-hash)) more)]))
       (set-add! local-completion-candidates (~a symbol)))
 
-    (define/override (syncheck:add-jump-to-definition _n/a beg end id-sym path submods)
+    (define/override (syncheck:add-jump-to-definition _src beg end id-sym path submods)
       ;; - drracket/check-syntax only reports the file, not the
       ;;   position within. We can find that using our def-in-file.
       ;;
@@ -256,13 +256,13 @@
                                      (list drracket-id-str)
                                      (list drracket-id-str src-str))))))
 
-    (define/override (syncheck:add-docs-menu _text beg end _sym _label path _anchor anchor-text)
+    (define/override (syncheck:add-docs-menu _src beg end _sym _label path _anchor anchor-text)
       (when (valid-beg/end? beg end)
         (interval-map-set! im-docs beg end
                            (list (path->string path)
                                  anchor-text))))
 
-    (define/override (syncheck:add-unused-require _req-src beg end)
+    (define/override (syncheck:add-unused-require _src beg end)
       (when (valid-beg/end? beg end)
         (interval-map-set! im-unused-requires beg end (list))))
 

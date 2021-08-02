@@ -37,14 +37,44 @@ jobs:
         with:
           version: ${{ matrix.emacs_version }}
       - name: Install Racket
-        uses: Bogdanp/setup-racket@v1.1
+        uses: Bogdanp/setup-racket@v1.5
         with:
           architecture: 'x64'
           distribution: 'full'
           version: ${{ matrix.racket_version }}
-      - name: Install Package
+      - name: Install Emacs Packages
         run: make deps
       - name: Compile Elisp
         run: make compile
       - name: Run Tests
         run: make test
+
+  test_windows:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        emacs_version:
+          - '27.1'              # most recent release
+        racket_version:
+          - 'stable'            # most recent release
+    name: Test Windows Emacs ${{ matrix.emacs_version }} and Racket ${{ matrix.racket_version }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: Install Emacs on Windows
+        uses: jcs090218/setup-emacs-windows@master
+        with:
+          version: ${{ matrix.emacs_version }}
+      - name: Install Racket
+        uses: Bogdanp/setup-racket@v1.5
+        with:
+          architecture: 'x64'
+          distribution: 'full'
+          platform: 'windows'
+          version: ${{ matrix.racket_version }}
+      - name: Install Emacs Packages
+        run: make deps
+      - name: Run Tests
+        run: emacs --batch --no-site-file -q -eval "(progn (add-to-list (quote load-path) nil) (package-initialize))" -l ert -l racket-tests.el -f ert-run-tests-batch-and-exit
+

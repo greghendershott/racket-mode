@@ -82,8 +82,9 @@
     (= (->mod '("f.rkt")) (mod dir f.rkt f.rkt))
     (= (->mod '(f.rkt))   (mod dir f.rkt f.rkt)))
   ;; abs path
-  (let ([dir (string->path "/p/t/")])
-    (= (->mod "/p/t/f.rkt") (mod dir f.rkt f.rkt))
+  (let* ([top (case (system-type) [(windows) "\\"] [(unix macosx) "/"])]
+         [dir (path->directory-path (build-path top "p" "t"))])
+    (= (->mod (build-path "/" "p" "t" "f.rkt")) (mod dir f.rkt f.rkt))
     (= (->mod '/p/t/f.rkt)  (mod dir f.rkt f.rkt))
     (= (->mod '(submod "/p/t/f.rkt" a b)) (mod dir f.rkt `(submod ,f.rkt a b)))
     (= (->mod '(submod /p/t/f.rkt a b))   (mod dir f.rkt `(submod ,f.rkt a b)))

@@ -9,25 +9,23 @@
          racket/match
          racket/string
          setup/dirs
-         "fresh-line.rkt"
          "instrument.rkt"
          "stack-checkpoint.rkt"
          "util.rkt")
 
 (provide display-exn
-         our-error-display-handler
+         racket-mode-error-display-handler
          prevent-path-elision-by-srcloc->string)
 
 (module+ test
   (require rackunit))
 
 (define (display-exn exn)
-  (our-error-display-handler (exn-message exn) exn))
+  (racket-mode-error-display-handler (exn-message exn) exn))
 
-(define (our-error-display-handler str v)
+(define (racket-mode-error-display-handler str v)
   (cond [(exn? v)
          (unless (equal? "Check failure" (exn-message v)) ;rackunit check fails
-           (fresh-line)
            (display-commented (complete-paths
                                (undo-path->relative-string/library str)))
            (display-srclocs v)
@@ -35,7 +33,6 @@
              (display-context v))
            (maybe-suggest-packages v))]
         [else
-         (fresh-line)
          (display-commented str)]))
 
 ;;; srclocs
@@ -168,9 +165,9 @@
 
 (module+ test
   (check-equal? (undo-path->relative-string/library "<collects>/racket/file.rkt:1:0:")
-                (~a (build-path (find-collects-dir) "racket/file.rkt") ":1:0:"))
+                (~a (build-path (find-collects-dir) "racket" "file.rkt") ":1:0:"))
   (check-equal? (undo-path->relative-string/library "<doc>/2d/index.html:1:0:")
-                (~a (build-path (find-doc-dir) "2d/index.html") ":1:0:"))
+                (~a (build-path (find-doc-dir) "2d" "index.html") ":1:0:"))
   ;; Note: No test for <user-doc> because unlikely to work on Travis CI
   (let ([non-existing "<collects>/racket/does-not-exist.rkt:1:0 blah blah blah"])
    (check-equal? (undo-path->relative-string/library non-existing)
@@ -197,15 +194,15 @@
            (check-equal? undone complete))]
         [_ (void)]))))
 
-;; If this looks like a source location where the pathname is not
-;; complete, prepend current-directory if that results in an actually
+;; If this looks like a source location where the pathname is
+;; relative, prepend current-directory if that results in an actually
 ;; existing file.
 (define (complete-paths s)
   (regexp-replace*
    #px"([^:]+):(\\d+[:.]\\d+)"
    s
    (λ (_ orig-path line+col)
-     (~a (or (and (not (complete-path? orig-path))
+     (~a (or (and (relative-path? orig-path)
                   (existing (build-path (current-directory) orig-path)))
              orig-path)
          ":" line+col))))

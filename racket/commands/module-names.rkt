@@ -74,7 +74,7 @@
   (for ([link-file (in-list (current-library-collection-links))])
     (cond [link-file
            (when (file-exists? link-file)
-             (define-values (base name dir?) (split-path link-file))
+             (define-values (base _name _dir?) (split-path link-file))
              (match (with-handlers ([exn:fail? (λ (x) '())])
                       (call-with-input-file link-file read))
                [(? list? vs)
@@ -86,13 +86,22 @@
                     (define prefix (if (string? (list-ref v 0))
                                        (list-ref v 0)
                                        #f))
-                    (define path (simplify-path
-                                  (if (relative-path? (list-ref v 1))
-                                      (build-path base (list-ref v 1))
-                                      (list-ref v 1))))
+                    (define path
+                      (match (list-ref v 1)
+                        [(? string? str) str]
+                        [(? bytes? bstr) (bytes->path bstr)]
+                        [(? list? elems) (apply build-path
+                                                (for/list ([elem (in-list elems)])
+                                                  (if (bytes? elem)
+                                                      (bytes->path-element elem)
+                                                      elem)))]))
+                    (define abs-path (simplify-path
+                                      (if (relative-path? path)
+                                          (build-path base path)
+                                          path)))
                     (set-add! results
                               (collection prefix
-                                          path))))]
+                                          abs-path))))]
                [_ (void)]))]
           [else
            (for ([p (in-list (current-library-collection-paths))])

@@ -1,6 +1,6 @@
 ;;; racket-imenu.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2021 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -39,17 +39,23 @@ and call us recursively."
   "Return the identifier for the sexp at point if any, else nil.
 
 If sexp at point is a Racket module form create a submenu."
-  (cond ((looking-at (rx "(define" (* (or (syntax word) (syntax symbol)))
+  (cond ((looking-at (rx "(define" (* (or (syntax word)
+                                          (syntax symbol)
+                                          (syntax punctuation)))
                          (+ (syntax whitespace))
                          (* ?\()
-                         (group (+ (or (syntax word) (syntax symbol))))))
+                         (group (+ (or (syntax word)
+                                       (syntax symbol)
+                                       (syntax punctuation))))))
          (list (cons (match-string-no-properties 1)
                      (if imenu-use-markers
                          (copy-marker (match-beginning 1))
                        (match-beginning 1)))))
         ((looking-at (rx "(module" (? (any ?+ ?*))
                          (+ (syntax whitespace))
-                         (group (+ (or (syntax word) (syntax symbol))))))
+                         (group (+ (or (syntax word)
+                                       (syntax symbol)
+                                       (syntax punctuation))))))
          (save-excursion
            (goto-char (match-end 1))
            (racket--imenu-goto-start-of-current-sexp)

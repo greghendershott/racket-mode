@@ -30,7 +30,7 @@
 (require 'sh-script) ;for sh-heredoc face
 
 (defgroup racket nil
-  "Editing and REPL for the Racket language."
+  "Modes for the Racket language."
   :group 'languages
   :link '(url-link :tag "README on GitHub" "https://github.com/greghendershott/racket-mode/blob/master/README.md"))
 
@@ -112,13 +112,8 @@ you probably also want to customize the \"reverse\":
   :group 'racket)
 
 (defcustom racket-browse-url-function
-  (if (string-match "gnu" (symbol-name system-type))
-      #'browse-url
-    'racket-browse-url-using-temporary-file)
-  "Function to call to browse a URL.
-
-On Linux this defaults to `browse-url', otherwise it defaults to
-`racket-browse-url-using-temporary-file'."
+  'racket-browse-url-using-temporary-file
+  "Function to call to browse a URL."
   :tag "Browse URL Function"
   :type 'function
   :safe #'functionp
@@ -285,6 +280,13 @@ more-helpful error message."
  "The motivation for this is now N/A with `racket-xp-mode'."
  "2020-02-26")
 
+(defcustom racket-repl-history-directory
+  (locate-user-emacs-file (file-name-as-directory "racket-mode"))
+  "Directory for `racket-repl-mode' history files."
+  :tag "REPL History Directory"
+  :type 'file
+  :group 'racket-repl)
+
 (defcustom racket-history-filter-regexp "\\`\\s *\\'"
   "Input matching this regexp are NOT saved on the history list.
 Default value is a regexp to ignore input that is all whitespace."
@@ -353,7 +355,34 @@ language syntax is not s-expressions. When t `racket-repl-submit'
 will use this to decide whether to submit your input, yet."
   :tag "Use REPL Submit Predicate"
   :type 'boolean
-  :safe #'booleanp
+  :safe nil
+  :group 'racket-repl)
+
+(defcustom racket-before-run-hook nil
+  "Normal hook done before various Racket Mode run commands.
+
+When hook functions are called, `current-buffer' is that of the
+`racket-mode' buffer when the run command was issued. If a hook
+function instead needs the `racket-repl-mode' buffer, it should
+get that from the variable `racket-repl-buffer-name'."
+  :tag "Before Run Hook"
+  :type 'hook
+  :safe nil
+  :group 'racket-repl)
+
+(defcustom racket-after-run-hook nil
+  "Normal hook done after various Racket Mode run commands.
+
+Here \"after\" means that the run has completed and the REPL is
+waiting at another prompt.
+
+When hook functions are called, `current-buffer' is that of the
+`racket-mode' buffer when the run command was issued. If a hook
+function instead needs the `racket-repl-mode' buffer, it should
+get that from the variable `racket-repl-buffer-name'."
+  :tag "After Run Hook"
+  :type 'hook
+  :safe 'nil
   :group 'racket-repl)
 
 ;;; Other

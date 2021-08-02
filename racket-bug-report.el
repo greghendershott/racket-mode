@@ -48,16 +48,24 @@
                           racket--rkt-source-dir
                           racket-program
                           racket-command-timeout
+                          racket-path-from-emacs-to-racket-function
+                          racket-path-from-racket-to-emacs-function
+                          racket-browse-url-function
+                          racket-documentation-search-location
                           racket-xp-after-change-refresh-delay
+                          racket-xp-mode-lighter
                           racket-xp-highlight-unused-regexp
                           racket-repl-buffer-name-function
+                          racket-submodules-to-run
                           racket-memory-limit
                           racket-error-context
+                          racket-repl-history-directory
                           racket-history-filter-regexp
                           racket-images-inline
+                          racket-imagemagick-props
                           racket-images-keep-last
                           racket-images-system-viewer
-                          racket-images-system-viewer
+                          racket-pretty-print
                           racket-use-repl-submit-predicate
                           racket-pretty-print
                           racket-indent-curly-as-sequence

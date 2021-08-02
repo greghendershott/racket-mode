@@ -162,7 +162,8 @@
   ;; identifier in the lexical context of an expanded module form --
   ;; including imported identifiers -- from the expanded syntax
   ;; cache.
-  (define path-str "/path/to/foobar.rkt")
+  (define top (case (system-type) [(windows) "C:\\"] [(unix macosx) "/"]))
+  (define path-str (path->string (build-path top "path" "to" "foobar.rkt")))
   (define code-str (~a '(module foobar racket/base
                          (require net/url racket/set)
                          (let ([a-lexical-binding 42])

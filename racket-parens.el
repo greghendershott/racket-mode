@@ -1,6 +1,6 @@
 ;;; racket-parens.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2021 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -89,7 +89,9 @@ This function is a suitable element for the list variable
 `paredit-space-for-delimiter-predicates'."
   (if (and (racket--mode-edits-racket-p)
            (not endp))
-      (not (looking-back (rx ?# (* (or (syntax word) (syntax symbol))))
+      (not (looking-back (rx ?# (* (or (syntax word)
+                                       (syntax symbol)
+                                       (syntax punctuation))))
                          nil))
     t))
 
@@ -109,13 +111,19 @@ This function is a suitable element for the list variable
       (not (or
             ;; @foo[ @foo{
             (and (memq delimiter '(?\[ ?\{))
-                 (looking-back (rx ?@ (* (or (syntax word) (syntax symbol))))
+                 (looking-back (rx ?@ (* (or (syntax word)
+                                             (syntax symbol)
+                                             (syntax punctuation))))
                                nil))
             ;; @foo[]{
             (and (eq delimiter ?\{)
-                 (looking-back (rx ?@ (* (or (syntax word) (syntax symbol)))
+                 (looking-back (rx ?@ (* (or (syntax word)
+                                             (syntax symbol)
+                                             (syntax punctuation)))
                                    ?\[
-                                   (* (or (syntax word) (syntax symbol)))
+                                   (* (or (syntax word)
+                                          (syntax symbol)
+                                          (syntax punctuation)))
                                    ?\])
                                nil))))
     t))

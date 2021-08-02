@@ -17,7 +17,7 @@
 
   (define launch-token
     (match (current-command-line-arguments)
-      [(vector token svg-flag-str)
+      [(vector (== "--auth") token svg-flag-str)
        (emacs-can-use-svg! svg-flag-str)
        token]
       [v

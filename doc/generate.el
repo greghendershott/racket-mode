@@ -88,6 +88,8 @@
     racket-logger
     racket-logger-mode
     (racket-debug-mode ,racket-xp-mode-map)
+    racket-repl-clear
+    racket-repl-clear-leaving-last-prompt
     "Test"
     racket-test
     racket-raco-test
@@ -170,6 +172,7 @@
     "REPL variables"
     racket-repl-buffer-name-function
     racket-submodules-to-run
+    racket-repl-history-directory
     racket-history-filter-regexp
     racket-images-inline
     racket-imagemagick-props
@@ -182,6 +185,8 @@
     racket-pretty-lambda
     racket-smart-open-bracket-enable
     racket-logger-config
+    racket-before-run-hook
+    racket-after-run-hook
     "Experimental debugger variables"
     racket-debuggable-files
     "Showing information"

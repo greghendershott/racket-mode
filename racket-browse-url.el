@@ -27,33 +27,24 @@
 
 A suitable value for the variable `racket-browse-url-function'.
 
-On some operating systems, the default handling for file URLs
-will ignore anchors -- the portion of the URL after the #
-character. But Racket documentation URLs depend on these to jump
-to a location within a page. This function attempts to work
-around that problem by using a temporary HTML file with a meta
-redirect as a \"trampoline\".
+Racket documentation URLs depend on anchors -- the portion of the
+URL after the # character -- to jump to a location within a page.
+Unfortunately on some operating systems and/or versions of Emacs,
+the default handling for browsing file URLs ignores anchors. This
+function attempts to avoid the problem by using a temporary HTML
+file with a meta redirect as a \"trampoline\".
 
-You might think that Emacs' `browse-url' would handle this
-portably, but as of Emacs 26 it does not. Although a user may
-customize the variable `browse-url-browser-function' to a
-specific technique that works, the default doesn't necessarily
-work for anchors on for instance macOS or Windows.
-
-For Racket Mode, we do want Racket documentation to \"just work\"
--- and because it does not do so on 2/3 operating systems, we
-reluctantly handle this. Note that a user can customize the
-variable `racket-browse-url-function' to `browse-url' -- which
-indeed is our default on *nix -- or to
-`browse-url-browser-function' in case they have customized that,
-or indeed to whatever they want. So this is an attempt to work
-better by default, while still supporting users who want to
-customize."
+Although the intent is to provide a default that \"just works\",
+you do not need to use this. You can customize the variable
+`racket-browse-url-function' instead to be `browse-url', or
+`browse-url-browser-function' in case have have customized that,
+or indeed whatever you want."
   (let* ((url  (if (string-match ".*://" url) url (concat "file://" url)))
          (file (make-temp-file "racket-browse-url-" nil ".html"))
+         (file-uri (concat "file://" file))
          (html (format "<html><head><meta http-equiv=\"refresh\" content=\"0;url=%s\" /></head></html>" url)))
     (write-region html nil file nil 'no-wrote-file-message)
-    (browse-url file)))
+    (browse-url file-uri)))
 
 (provide 'racket-browse-url)
 

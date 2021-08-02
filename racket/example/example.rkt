@@ -384,3 +384,10 @@ BAR
 
 ;; Issue 478
 (#|blah blah blah|# begin)
+
+;; Issue 534
+(define foo‾bar 42)
+(let ([foo‾bar 42]) foo‾bar)
+
+;; Issue 546
+'C# (add1 1)

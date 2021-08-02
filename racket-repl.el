@@ -332,7 +332,12 @@ Defined as a function so it can be a menu target."
   (racket-run '(16)))
 
 (defun racket-run-and-switch-to-repl (&optional prefix)
-  "This is `racket-run' followed by selecting the REPL buffer window."
+  "This is `racket-run' followed by selecting the REPL buffer window.
+
+This is similar to how Dr Racket behaves.
+
+To make it even more similar, you may add `racket-repl-clear' to
+the variable `racket-before-run-hook'."
   (interactive "P")
   (racket--repl-run (list (racket--buffer-file-name))
                     racket-submodules-to-run
@@ -433,10 +438,17 @@ The following values will /not/ work:
 ")
 
 (defvar racket--repl-before-run-hook nil
-  "Thunks to do before each `racket--repl-run'.")
+  "Thunks to do before each `racket--repl-run'.
+
+This hook is for internal use by Racket Mode. An equivalent hook
+for end user customization is `racket-before-run-hook'.")
 
 (defvar racket--repl-after-run-hook nil
   "Thunks to do after each `racket--repl-run'.
+
+This hook is for internal use by Racket Mode. An equivalent hook
+for end user customization is `racket-after-run-hook'.
+
 Here \"after\" means that the run has completed and e.g. the REPL
 is waiting at another prompt.")
 
@@ -464,14 +476,16 @@ be nil which is equivalent to #'ignore.
   server."
   (unless (eq major-mode 'racket-mode)
     (user-error "Only works from a `racket-mode' buffer"))
-  (run-hook-with-args 'racket--repl-before-run-hook)
+  (run-hook-with-args 'racket--repl-before-run-hook) ;ours
+  (run-hook-with-args 'racket-before-run-hook)       ;users'
   (let* ((cmd (racket--repl-make-run-command (or what-to-run (racket--what-to-run))
                                              extra-submods
                                              (or context-level racket-error-context)))
          (buf (current-buffer))
          (after (lambda (_ignore)
                   (with-current-buffer buf
-                    (run-hook-with-args 'racket--repl-after-run-hook)
+                    (run-hook-with-args 'racket--repl-after-run-hook) ;ours
+                    (run-hook-with-args 'racket-after-run-hook)       ;users'
                     (when callback
                       (funcall callback))))))
     (cond ((racket--repl-live-p)
@@ -567,9 +581,7 @@ This does not display the buffer or change the selected window."
                                     (current-buffer)
                                     (cons "127.0.0.1" repl-tcp-port-number))
              (process-send-string (get-buffer-process (current-buffer))
-                                  (let ((print-length nil) ;for %S
-                                        (print-level nil))
-                                    (format "%S\n" racket--cmd-auth)))
+                                  (format "\"%s\"\n" racket--cmd-auth))
              (when noninteractive
                (princ "{racket--repl-start}: did process-send-string of auth\n"))
              (set-process-coding-system (get-buffer-process (current-buffer))
@@ -769,6 +781,7 @@ A value for the variable `comint-output-filter-functions'."
                           (marker-position comint-last-output-start))
                      comint-last-output-start
                    (point-min-marker)))
+      (forward-line 0) ;in case comint-last-output-start left mid line: #535
       (let ((pmark (process-mark (get-buffer-process (current-buffer)))))
         (while (re-search-forward "\"#<Image: \\(.+?racket-image-.+?\\)>\""
                                   pmark
@@ -783,8 +796,10 @@ A value for the variable `comint-output-filter-functions'."
                                              racket-imagemagick-props
                                              'imagemagick)
                                         nil  ;file not data
-                                        (and (image-type-available-p 'imagemagick)
-                                             racket-imagemagick-props))))
+                                        (append
+                                         '(:scale 1.0) ;#529
+                                         (and (image-type-available-p 'imagemagick)
+                                              racket-imagemagick-props)))))
                   (t
                    (replace-match (format "[file://%s]" file))))
             (set-marker pmark (max pmark (point)))
@@ -1110,10 +1125,10 @@ identifier bindings and modules from the REPL's namespace.
   ;; Persistent history
   (setq-local comint-input-autoexpand nil) ;#450
   (setq-local comint-input-filter #'racket-repl--input-filter)
-  (make-directory racket--config-dir t)
+  (make-directory racket-repl-history-directory t)
   (setq-local comint-input-ring-file-name
               (expand-file-name (racket--buffer-name-slug)
-                                racket--config-dir))
+                                racket-repl-history-directory))
   (comint-read-input-ring t)
   (add-hook 'kill-buffer-hook #'comint-write-input-ring nil t)
   (add-hook 'kill-emacs-hook #'racket--repl-save-all-histories nil t)
@@ -1131,19 +1146,66 @@ A suitable value for the hook `kill-emacs-hook'."
 
 (defun racket--buffer-name-slug ()
   "Change `buffer-name' to a string that is a valid filename."
-  ;; 3. Finally use `shell-quote-argument' to try to catch anything
-  ;; else.
-  (shell-quote-argument
-   ;; 2. But not leading or trailing ?-
+  ;; 2. But not leading or trailing ?-
+  (replace-regexp-in-string
+   (rx (or (seq bos (+ ?-))
+           (seq (+ ?-) eos)))
+   ""
+   ;; 1. Replace runs of anything that is not alnum with a single ?-.
    (replace-regexp-in-string
-    (rx (or (seq bos (+ ?-))
-            (seq (+ ?-) eos)))
-    ""
-    ;; 1. Replace runs of anything that is not alnum with a single ?-.
-    (replace-regexp-in-string
-     (rx (+ (not (any alnum))))
-     "-"
-     (buffer-name)))))
+    (rx (+ (not (any alnum))))
+    "-"
+    (buffer-name))))
+
+(defun racket-repl-clear ()
+  "Delete all text in the REPL.
+
+A suitable value for the hook `racket-before-run-hook' if you
+want the REPL buffer to be cleared before each run, much like
+with Dr Racket. To do so you can use `customize', or, add to your
+Emacs init file something like:
+
+  (add-hook 'racket-before-run-hook #'racket-repl-clear)
+
+See also the command `racket-repl-clear-leaving-last-prompt'."
+  ;; This prevents a first blank line, by telling the back end that
+  ;; output is no longer sitting at some non-zero column after a
+  ;; prompt; therefore fresh-line won't need to issue a newline.
+  (racket--cmd/async (racket--repl-session-id) `(repl-zero-column))
+  (racket--do-repl-clear nil))
+
+(defun racket-repl-clear-leaving-last-prompt ()
+  "Delete all text in the REPL, except for the last prompt."
+  (interactive)
+  (racket--do-repl-clear t))
+
+(defun racket--do-repl-clear (leave-last-prompt-p)
+  (cl-case major-mode
+    (racket-repl-mode
+     (racket--delete-all-buffer-text leave-last-prompt-p))
+    (racket-mode
+     (when (get-buffer racket-repl-buffer-name)
+       (with-current-buffer racket-repl-buffer-name
+         (racket--delete-all-buffer-text leave-last-prompt-p))))
+    (otherwise
+     (user-error "Current buffer is not a Racket Mode edit or REPL buffer"))))
+
+(defun racket--delete-all-buffer-text (leave-last-prompt-p)
+  (with-silent-modifications
+    (widen)
+    (let ((end (if leave-last-prompt-p
+                   (save-excursion
+                     (goto-char (point-max))
+                     (comint-previous-prompt 1)
+                     (comint-next-prompt 1)
+                     (forward-line 0)   ;BOL ignoring fields
+                     (point))
+                 (point-max)))
+          (inhibit-read-only t))
+      (delete-region (point-min) end)
+      (goto-char (point-max))
+      (dolist (win (get-buffer-window-list))
+        (set-window-point win (point-max))))))
 
 (provide 'racket-repl)
 

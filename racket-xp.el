@@ -517,6 +517,7 @@ The command varies based on how many \\[universal-argument] command prefixes you
    this case, the variable `racket-documentation-search-location'
    determines whether the search is done locally as with `raco
    doc`, or visits a URL.
+
 2. \\[universal-argument]
 
    Prompts you to enter a symbol, defaulting to the symbol at

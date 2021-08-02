@@ -62,6 +62,7 @@ Configure
 * eldoc::
 * Start faster::
 * Unicode input method::
+* Ligatures::
 
 Commands
 
@@ -129,6 +130,8 @@ Run
 * racket-logger::
 * racket-logger-mode::
 * racket-debug-mode::
+* racket-repl-clear::
+* racket-repl-clear-leaving-last-prompt::
 
 Test
 
@@ -202,6 +205,7 @@ REPL variables
 
 * racket-repl-buffer-name-function::
 * racket-submodules-to-run::
+* racket-repl-history-directory::
 * racket-history-filter-regexp::
 * racket-images-inline::
 * racket-imagemagick-props::
@@ -216,6 +220,8 @@ Other variables
 * racket-pretty-lambda::
 * racket-smart-open-bracket-enable::
 * racket-logger-config::
+* racket-before-run-hook::
+* racket-after-run-hook::
 
 Experimental debugger variables
 
@@ -407,6 +413,7 @@ You can @code{setq} this directly in your Emacs init file (@verb{,~/.emacs,} or 
 * eldoc::
 * Start faster::
 * Unicode input method::
+* Ligatures::
 @end menu
 
 @node Key bindings
@@ -565,9 +572,29 @@ If instead of paredit you prefer @uref{https://melpa.org/#/smartparens,smartpare
 @node Edit buffers and REPL buffers
 @section Edit buffers and REPL buffers
 
-By default, all @code{racket-mode} edit buffers share one @code{racket-repl-mode} buffer. For example, if you run foo.rkt, the REPL prompt changes to @code{foo.rkt>}, and the REPL is inside the file module namespace. If you then run bar.rkt, the REPL prompt changes to @code{bar.rkt>}, and you are in that namespace.
+By default, all @code{racket-mode} edit buffers share one @code{racket-repl-mode} buffer, named @code{*Racket REPL*}. For example, if you run foo.rkt, the REPL prompt changes to @code{foo.rkt>}, and the REPL is inside the file module namespace. If you then run bar.rkt, the REPL prompt changes to @code{bar.rkt>}, and you are in that namespace.
 
-If you prefer, you can use more than one REPL buffer, by customizing the variable @ref{racket-repl-buffer-name-function}: Another option is to have one REPL buffer for each edit buffer, similar to Dr Racket. Yet another option is to share the same REPL buffer for files belonging to the same project. You can also define your own, custom function.
+If you prefer, you can use more than one REPL buffer, by customizing the variable @ref{racket-repl-buffer-name-function}:
+
+@itemize
+@item
+Share a REPL buffer among files belonging to the same project; each REPL buffer is named @code{*Racket REPL <project-name>*}.
+@item
+A unique REPL buffer for each edit buffer, similar to Dr Racket; each REPL buffer is named @code{*Racket REPL <file.rkt>*}.
+@item
+You can also define your own, custom function.
+@end itemize
+
+You can customize where the REPL buffer is displayed by adding an item to the Emacs variable @code{display-buffer-alist}. A good regular expression to use for this would be @code{\\`\\*Racket REPL}. For example, if you wanted to make the REPL buffer appear in a new frame:
+
+@lisp
+(add-to-list 'display-buffer-alist
+	     '("\\`\\*Racket REPL"
+	       (display-buffer-reuse-window
+		display-buffer-pop-up-frame)
+	       (reusable-frames . 0)
+	       (inhibit-same-window . t)))
+@end lisp
 
 @node eldoc
 @section eldoc
@@ -607,6 +634,11 @@ To automatically enable the @code{racket-unicode} input method in @code{racket-m
 @xref{racket-unicode-input-method-enable}.
 
 @xref{racket-insert-lambda}.
+
+@node Ligatures
+@section Ligatures
+
+Prior to Emacs 28.0.50, things like @code{auto-composition-mode} or @code{ligature-mode} that use @code{composition-function-table} to display ligatures can cause Emacs to freeze. This can happen when an Emacs @code{overlay} displays a string containing such a ligature --- this includes the overlays created by @code{racket-show-pseudo-tooltip}, as used by @code{racket-xp-mode}. The only known work-around is to change the value of @code{racket-show-functions} to something ``boring'' such as @code{(racket-show-echo-area)}.
 
 @node Reference
 @chapter Reference
@@ -1446,6 +1478,7 @@ If no such identifer exists, opens the Search Manuals page. In
 this case, the variable @ref{racket-documentation-search-location}
 determines whether the search is done locally as with `raco
 doc`, or visits a URL.
+
 @item
 @kbd{C-u} 
 
@@ -1585,6 +1618,8 @@ the Racket ``Search Manuals'' page.
 * racket-logger::
 * racket-logger-mode::
 * racket-debug-mode::
+* racket-repl-clear::
+* racket-repl-clear-leaving-last-prompt::
 @end menu
 
 @node racket-repl-mode
@@ -1711,6 +1746,11 @@ commands.
 @kbd{<f5>} 
 
 This is @ref{racket-run} followed by selecting the REPL buffer window.
+
+This is similar to how Dr Racket behaves.
+
+To make it even more similar, you may add @ref{racket-repl-clear} to
+the variable @ref{racket-before-run-hook}.
 
 @node racket-run-module-at-point
 @subsection racket-run-module-at-point
@@ -2021,6 +2061,27 @@ provides shortcut keys:
 @item @kbd{SPC} 
 @tab @code{racket-debug-step}
 @end multitable
+
+@node racket-repl-clear
+@subsection racket-repl-clear
+
+Delete all text in the REPL.
+
+A suitable value for the hook @ref{racket-before-run-hook} if you
+want the REPL buffer to be cleared before each run, much like
+with Dr Racket. To do so you can use @code{customize}, or, add to your
+Emacs init file something like:
+
+(add-hook `racket-before-run-hook #'racket-repl-clear)
+
+See also the command @ref{racket-repl-clear-leaving-last-prompt}.
+
+@node racket-repl-clear-leaving-last-prompt
+@subsection racket-repl-clear-leaving-last-prompt
+
+@kbd{M-x}  @code{racket-repl-clear-leaving-last-prompt}
+
+Delete all text in the REPL, except for the last prompt.
 
 @node Test
 @section Test
@@ -2434,28 +2495,18 @@ Browse a URL via a temporary HTML file using a meta redirect.
 
 A suitable value for the variable @ref{racket-browse-url-function}.
 
-On some operating systems, the default handling for file URLs
-will ignore anchors -- the portion of the URL after the #
-character. But Racket documentation URLs depend on these to jump
-to a location within a page. This function attempts to work
-around that problem by using a temporary HTML file with a meta
-redirect as a ``trampoline''.
+Racket documentation URLs depend on anchors -- the portion of the
+URL after the # character -- to jump to a location within a page.
+Unfortunately on some operating systems and/or versions of Emacs,
+the default handling for browsing file URLs ignores anchors. This
+function attempts to avoid the problem by using a temporary HTML
+file with a meta redirect as a ``trampoline''.
 
-You might think that Emacs' @code{browse-url} would handle this
-portably, but as of Emacs 26 it does not. Although a user may
-customize the variable @code{browse-url-browser-function} to a
-specific technique that works, the default doesn't necessarily
-work for anchors on for instance macOS or Windows.
-
-For Racket Mode, we do want Racket documentation to ``just work''
--- and because it does not do so on 2/3 operating systems, we
-reluctantly handle this. Note that a user can customize the
-variable @ref{racket-browse-url-function} to @code{browse-url} -- which
-indeed is our default on *nix -- or to
-@code{browse-url-browser-function} in case they have customized that,
-or indeed to whatever they want. So this is an attempt to work
-better by default, while still supporting users who want to
-customize.
+Although the intent is to provide a default that ``just works'',
+you do not need to use this. You can customize the variable
+@ref{racket-browse-url-function} instead to be @code{browse-url}, or
+@code{browse-url-browser-function} in case have have customized that,
+or indeed whatever you want.
 
 @node Variables
 @chapter Variables
@@ -2577,7 +2628,7 @@ The following values will @emph{not} work:
 @node racket-path-from-emacs-to-racket-function
 @subsection racket-path-from-emacs-to-racket-function
 
-A function used to transform Emacs Lisp pathnames before supplying to the Racket back end.
+A function to transform Emacs Lisp pathnames given to the Racket back end.
 
 If you run Emacs on Windows Subsystem for Linux, and want to run
 Racket programs using Windows Racket.exe rather than Linux
@@ -2588,7 +2639,7 @@ you probably also want to customize the ``reverse'':
 @node racket-path-from-racket-to-emacs-function
 @subsection racket-path-from-racket-to-emacs-function
 
-A function used to transform pathnames supplied by the Racket back end before using them in Emacs.
+A function to transform Racket back end pathnames given to Emacs Lisp.
 
 The default on Windows replaces back with forward slashes. The
 default elsewhere is @code{identity}.
@@ -2603,9 +2654,6 @@ you probably also want to customize the ``reverse'':
 @subsection racket-browse-url-function
 
 Function to call to browse a URL.
-
-On Linux this defaults to @code{browse-url}, otherwise it defaults to
-@ref{racket-browse-url-using-temporary-file}.
 
 @node racket-xp-after-change-refresh-delay
 @subsection racket-xp-after-change-refresh-delay
@@ -2647,6 +2695,7 @@ properly encoded URL.
 @menu
 * racket-repl-buffer-name-function::
 * racket-submodules-to-run::
+* racket-repl-history-directory::
 * racket-history-filter-regexp::
 * racket-images-inline::
 * racket-imagemagick-props::
@@ -2707,6 +2756,11 @@ It is NOT used by commands that run one specific module, such as:
 @ref{racket-profile}
 @end itemize
 
+@node racket-repl-history-directory
+@subsection racket-repl-history-directory
+
+Directory for @ref{racket-repl-mode} history files.
+
 @node racket-history-filter-regexp
 @subsection racket-history-filter-regexp
 
@@ -2755,6 +2809,8 @@ Use pretty-print instead of print in REPL?
 * racket-pretty-lambda::
 * racket-smart-open-bracket-enable::
 * racket-logger-config::
+* racket-before-run-hook::
+* racket-after-run-hook::
 @end menu
 
 @node racket-indent-curly-as-sequence
@@ -2798,7 +2854,7 @@ and/or @code{racket-repl-mode-map} keymaps.
 @node racket-logger-config
 @subsection racket-logger-config
 
-Configuration of @ref{racket-logger-mode} topics and levels
+Configuration of @ref{racket-logger-mode} topics and levels.
 
 The topic `* respresents the default level used for topics not
 assigned a level. Otherwise, the topic symbols are the same as
@@ -2813,6 +2869,29 @@ For more information see:
 The default value sets some known ``noisy'' topics to be one
 level quieter. That way you can set the `* topic to a level like
 `debug and not get overhwelmed by these noisy topics.
+
+@node racket-before-run-hook
+@subsection racket-before-run-hook
+
+Normal hook done before various Racket Mode run commands.
+
+When hook functions are called, @code{current-buffer} is that of the
+@ref{racket-mode} buffer when the run command was issued. If a hook
+function instead needs the @ref{racket-repl-mode} buffer, it should
+get that from the variable @code{racket-repl-buffer-name}.
+
+@node racket-after-run-hook
+@subsection racket-after-run-hook
+
+Normal hook done after various Racket Mode run commands.
+
+Here ``after'' means that the run has completed and the REPL is
+waiting at another prompt.
+
+When hook functions are called, @code{current-buffer} is that of the
+@ref{racket-mode} buffer when the run command was issued. If a hook
+function instead needs the @ref{racket-repl-mode} buffer, it should
+get that from the variable @code{racket-repl-buffer-name}.
 
 @node Experimental debugger variables
 @section Experimental debugger variables
