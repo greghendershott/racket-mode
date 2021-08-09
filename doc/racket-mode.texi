@@ -114,6 +114,7 @@ Explore
 * racket-xp-tail-next-sibling::
 * racket-xp-tail-previous-sibling::
 * racket-documentation-search::
+* racket-search-describe::
 
 Run
 
@@ -889,7 +890,7 @@ doing ``raco doc'' at the command line.
 A ``require'' form is inserted into the buffer, followed by doing
 a @ref{racket-tidy-requires}.
 
-Caveat: This works in terms of identifers that are documented.
+Caveat: This works in terms of identifiers that are documented.
 The mechanism is similar to that used for Racket's ``Search
 Manuals'' feature. Today there exists no system-wide database of
 identifiers that are exported but not documented.
@@ -1218,6 +1219,7 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 * racket-xp-tail-next-sibling::
 * racket-xp-tail-previous-sibling::
 * racket-documentation-search::
+* racket-search-describe::
 @end menu
 
 @node racket-xp-mode
@@ -1428,12 +1430,48 @@ commands directly to whatever keys you prefer.
 
 @kbd{C-c C-.} 
 
-Describe the identifier at point in a @code{*Racket Describe*} buffer.
+Describe something in a @code{*Racket Describe*} buffer.
 
-With @kbd{C-u}  you are prompted enter the
-identifier, but in this case it only considers definitions or
-imports at the file's module level -- not local bindings nor
-definitions in submodules.
+The command varies based on how many @kbd{C-u} 
+command prefixes you supply.
+
+@enumerate
+@item
+None.
+
+Uses the symbol at point. If no such symbol exists, you are
+prompted enter the identifier, but in this case it only
+considers definitions or imports at the file's module level --
+not local bindings nor definitions in submodules.
+
+@itemize
+@item
+If the identifier has installed Racket documentation, then a
+simplified version of the HTML is presented in the buffer,
+including the ``blue box'', documentation prose, and
+examples.
+
+@item
+Otherwise, if the identifier is a function, then its
+signature is displayed, for example "(name arg-1-name
+arg-2-name)".
+@end itemize
+
+@item
+@kbd{C-u} 
+
+Always prompts you to enter a symbol, defaulting to the symbol
+at point if any.
+
+Otheriwse behaves like 0.
+
+@item
+@kbd{C-u}  @kbd{C-u} 
+
+This is an alias for @ref{racket-search-describe}, which uses
+installed documentation in a @code{racket-describe-mode} buffer
+instead of an external web browser.
+@end enumerate
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
@@ -1441,17 +1479,6 @@ something, regardless of whether it has installed documentation
 
 This buffer is also displayed when you use @code{company-mode} and
 press F1 or C-h in its pop up completion list.
-
-@itemize
-@item
-If the identifier has installed Racket documentation, then a
-simplified version of the HTML is presented in the buffer,
-including the ``blue box'', documentation prose, and examples.
-
-@item
-Otherwise, if the identifier is a function, then its signature
-is displayed, for example "(name arg-1-name arg-2-name)".
-@end itemize
 
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
@@ -1465,7 +1492,8 @@ and @ref{racket-xp-documentation}.
 
 View documentation in an external web browser.
 
-The command varies based on how many @kbd{C-u}  command prefixes you supply.
+The command varies based on how many @kbd{C-u} 
+command prefixes you supply.
 
 @enumerate
 @item
@@ -1482,16 +1510,16 @@ doc`, or visits a URL.
 @item
 @kbd{C-u} 
 
-Prompts you to enter a symbol, defaulting to the symbol at
-point if any.
+Always prompts you to enter a symbol, defaulting to the symbol
+at point if any.
 
-Otherwise behaves like 1.
+Otherwise behaves like 0.
 
 @item
 @kbd{C-u}  @kbd{C-u} 
 
-Prompts you to enter anything, defaulting to the symbol at
-point if any.
+Always prompts you to enter anything, defaulting to the symbol
+at point if any.
 
 Proceeds directly to the Search Manuals page. Use this if you
 would like to see documentation for all identifiers named
@@ -1600,6 +1628,28 @@ topics that merely include ``define''.
 This command does not try to go directly to the help topic for a
 definition provided by any specific module. Instead it goes to
 the Racket ``Search Manuals'' page.
+
+@node racket-search-describe
+@subsection racket-search-describe
+
+@kbd{M-x}  @code{racket-search-describe}
+
+Search installed documentation; view using @code{racket-describe-mode}.
+
+Always prompts you to enter a symbol, defaulting to the symbol at
+point if any.
+
+@itemize
+@item
+If just one module exports the name, you go directly to a
+Racket Describe buffer with its documentation.
+
+@item
+If multiple modules export the name, you go first to a
+``disambiguation'' buffer similar to the Racket ``Search
+Manuals'' web page. You may press RET on any item to get a
+Racket Describe buffer for that module's version of the thing.
+@end itemize
 
 @node Run
 @section Run
@@ -1794,28 +1844,54 @@ buffer to run command-line Racket.
 
 Describe the identifier at point in a @code{*Racket Describe*} buffer.
 
-The intent is to give a quick reminder or introduction to
-something, regardless of whether it has installed documentation
--- and to do so within Emacs, without switching to a web browser.
+The command varies based on how many @kbd{C-u} 
+command prefixes you supply.
 
-This buffer is also displayed when you use @code{company-mode} and
-press F1 or C-h in its pop up completion list.
+@enumerate
+@item
+None.
+
+Uses the symbol at point. If no such symbol exists, you are
+prompted enter the identifier, but in this case it only
+considers definitions or imports at the file's module level --
+not local bindings nor definitions in submodules.
 
 @itemize
 @item
 If the identifier has installed Racket documentation, then a
 simplified version of the HTML is presented in the buffer,
-including the ``blue box'', documentation prose, and examples.
+including the ``blue box'', documentation prose, and
+examples.
 
 @item
-Otherwise, if the identifier is a function, then its signature
-is displayed, for example @code{(name arg-1-name arg-2-name)}. If it
-has a contract or a Typed Racket type, that is also displayed.
+Otherwise, if the identifier is a function, then its
+signature is displayed, for example "(name arg-1-name
+arg-2-name)".
 @end itemize
+
+@item
+@kbd{C-u} 
+
+Always prompts you to enter a symbol, defaulting to the symbol
+at point if any.
+
+Otheriwse behaves like 0.
+
+@item
+@kbd{C-u}  @kbd{C-u} 
+
+This is an alias for @ref{racket-search-describe}, which uses
+installed documentation in a @code{racket-describe-mode} buffer
+instead of an external web browser.
+@end enumerate
+
+The intent is to give a quick reminder or introduction to
+something, regardless of whether it has installed documentation
+-- and to do so within Emacs, without switching to a web browser.
 
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for @code{racket-repl-visit-definition}
+TAB, and activate using RET -- for @code{xref-find-definitions}
 and @ref{racket-repl-documentation}.
 
 @node racket-repl-documentation

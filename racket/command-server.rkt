@@ -11,7 +11,10 @@
          "mod.rkt"
          "repl.rkt"
          "repl-session.rkt"
-         (only-in "scribble.rkt" libs-exporting-documented)
+         (only-in "scribble.rkt"
+                  documented-export-names
+                  libs+paths+anchors-exporting-documented
+                  libs-exporting-documented)
          "util.rkt")
 
 (lazy-require
@@ -136,6 +139,8 @@
     [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
     [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]
     [`(requires/find ,str)             (libs-exporting-documented str)]
+    [`(doc-index-names)                (documented-export-names)]
+    [`(doc-index-lookup ,str)          (libs+paths+anchors-exporting-documented str)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
     ;; namespace), if their first "how" argument is 'namespace.

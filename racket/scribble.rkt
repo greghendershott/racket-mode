@@ -9,6 +9,7 @@
          racket/match
          racket/path
          racket/promise
+         racket/set
          racket/string
          (only-in scribble/core
                   tag?)
@@ -19,11 +20,14 @@
          (only-in xml
                   xml->xexpr
                   element
-                  xexpr->string))
+                  xexpr->string)
+         (only-in "util.rkt" log-racket-mode-debug))
 
 (provide binding->path+anchor
          path+anchor->html
          identifier->bluebox
+         documented-export-names
+         libs+paths+anchors-exporting-documented
          libs-exporting-documented)
 
 (module+ test
@@ -113,25 +117,20 @@
   (define (anchor xs)
     (for/or ([x (in-list xs)])
       (match x
-        [`(a ((name ,a)) . ,_) (or (not name) (equal? name a))]
-        [`(,tag ,attrs . ,es)  (anchor es)]
-        [_                     #f])))
+        [`(a ((name ,a)) . ,_)  (or (not name) (equal? name a))]
+        [`(,_tag ,_attrs . ,es) (anchor es)]
+        [_                      #f])))
   (match x
     [`(div ((class "SIntrapara"))
-           (blockquote ((class "SVInsetFlow"))
-                       (table ,(list-no-order `(class "boxed RBoxed") _ ...)
-                              . ,es)))
-     ;; That's likely sufficient to say we're in HTML resulting from a
-     ;; Scribble defXXX form. From here on out, there can be some
-     ;; variation, so just look recursively for anchors within `es'.
+       . ,es)
      (anchor es)]
     [`(blockquote ((class "leftindent"))
-                  (p ())
-                  (div ((class "SIntrapara"))
-                       (blockquote ((class "SVInsetFlow"))
-                                   (table ,(list-no-order `(class "boxed RBoxed") _ ...)
-                                          . ,es)))
-                  ,_ ...)
+       (p ())
+       (div ((class "SIntrapara"))
+        (blockquote ((class "SVInsetFlow"))
+         (table ,(list-no-order `(class "boxed RBoxed") _ ...)
+                . ,es)))
+       ,_ ...)
      (anchor es)]
     [_ #f]))
 
@@ -245,32 +244,53 @@
                   "(list v ...) -> list?\n  v : any/c"))
   (check-false (identifier->bluebox (datum->syntax #f (gensym)))))
 
-;;; Documented exports of a symbol by zero or more libraries
+;;; Documented exports
 
-(define (libs-exporting-documented sym-as-str)
-  ;; (-> string? (listof (list/c sym:string? tag:string?)))
-  (define sym (string->symbol sym-as-str))
+(define (documented-export-names)
   (define xref (force xref-promise))
-  (define idx (xref-index xref))
-  (define libs
-    (for*/list ([entry (in-list idx)]
-                [desc  (in-value (entry-desc entry))]
-                #:when (and (exported-index-desc? desc)
-                            (eq? sym (exported-index-desc-name desc)))
-                [lib   (in-value (car (exported-index-desc-from-libs desc)))]) ;*
-      (symbol->string lib)))
-  (sort libs
+  (define results
+    (for*/set ([entry (in-list (xref-index xref))]
+               [desc (in-value (entry-desc entry))]
+               #:when (exported-index-desc? desc)
+               [libs (in-value (exported-index-desc-from-libs desc))]
+               #:when (not (null? libs))
+               [name (in-value (symbol->string
+                                (exported-index-desc-name desc)))])
+      name))
+  (sort (set->list results) string<?))
+
+(define (libs+paths+anchors-exporting-documented sym-as-str)
+  (define xref (force xref-promise))
+  (define results
+   (for*/set ([entry (in-list (xref-index xref))]
+              [desc (in-value (entry-desc entry))]
+              #:when (exported-index-desc? desc)
+              [name (in-value (symbol->string
+                               (exported-index-desc-name desc)))]
+              #:when (equal? name sym-as-str)
+              [libs (in-value (map symbol->string
+                                   (exported-index-desc-from-libs desc)))]
+              #:when (not (null? libs)))
+     (define-values (path anchor)
+       (xref-tag->path+anchor xref (entry-tag entry)))
+     (list libs (path->string path) anchor)))
+  (sort (set->list results)
         string<?
         #:cache-keys? #t
-        #:key (match-lambda
-                [(and (pregexp "^racket/") v)       (string-append "0_" v)]
-                [(and (pregexp "^typed/racket/") v) (string-append "1_" v)]
-                [v v])))
+        #:key
+        (match-lambda
+          [(cons (cons lib _) _)
+           (match lib
+             [(and (pregexp "^racket/") v)
+              (string-append "0_" v)]
+             [(and (pregexp "^typed/racket/") v)
+              (string-append "1_" v)]
+             [v v])])))
 
-;; *: (exported-index-desc-from-libs desc) is a list. Empirically -- I
-;; haven't yet found the docs or spec -- the list is usually a single
-;; lib. Sometimes it is multiple, e.g. '(racket/base racket) or
-;; '(typed/racket/base typed/racket). Generalizing from those two
-;; examples (!), the most-specific one is first. The most-specific one
-;; is what we'd prefer in a feature that automatically adds a require.
-;; TL;DR: Always just use the car of this list.
+(define (libs-exporting-documented sym-as-str)
+  ;; Take just the first lib. This usually seems to be the
+  ;; most-specific, e.g. (racket/base racket).
+  (map car
+       ;; Take just the list of libs.
+       (map car
+            (libs+paths+anchors-exporting-documented sym-as-str))))

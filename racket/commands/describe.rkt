@@ -70,7 +70,7 @@
                        (λ (stx)
                          (or (path+anchor->html (binding->path+anchor stx))
                              (sig-and/or-type how stx))))])
-      (format "Found no documentation for ~v in ~a."
+      (format "Found no documentation for ~v in ~v."
               str how)))
 
 (define/contract (sig-and/or-type how stx)

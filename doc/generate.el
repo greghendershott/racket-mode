@@ -74,6 +74,7 @@
     (racket-xp-tail-next-sibling ,racket-xp-mode-map)
     (racket-xp-tail-previous-sibling ,racket-xp-mode-map)
     racket-documentation-search
+    racket-search-describe
     "Run"
     racket-repl-mode
     racket-run

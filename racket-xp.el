@@ -312,12 +312,39 @@ commands directly to whatever keys you prefer.
                       t))))
 
 (defun racket-xp-describe (&optional prefix)
-"Describe the identifier at point in a `*Racket Describe*` buffer.
+  "Describe something in a `*Racket Describe*` buffer.
 
-With \\[universal-argument] you are prompted enter the
-identifier, but in this case it only considers definitions or
-imports at the file's module level -- not local bindings nor
-definitions in submodules.
+The command varies based on how many \\[universal-argument]
+command prefixes you supply.
+
+0. None.
+
+   Uses the symbol at point. If no such symbol exists, you are
+   prompted enter the identifier, but in this case it only
+   considers definitions or imports at the file's module level --
+   not local bindings nor definitions in submodules.
+
+   - If the identifier has installed Racket documentation, then a
+     simplified version of the HTML is presented in the buffer,
+     including the \"blue box\", documentation prose, and
+     examples.
+
+   - Otherwise, if the identifier is a function, then its
+     signature is displayed, for example \"\(name arg-1-name
+     arg-2-name\)\".
+
+1. \\[universal-argument]
+
+   Always prompts you to enter a symbol, defaulting to the symbol
+   at point if any.
+
+   Otheriwse behaves like 0.
+
+2. \\[universal-argument] \\[universal-argument]
+
+   This is an alias for `racket-search-describe', which uses
+   installed documentation in a `racket-describe-mode' buffer
+   instead of an external web browser.
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
@@ -326,50 +353,45 @@ something, regardless of whether it has installed documentation
 This buffer is also displayed when you use `company-mode' and
 press F1 or C-h in its pop up completion list.
 
-- If the identifier has installed Racket documentation, then a
-  simplified version of the HTML is presented in the buffer,
-  including the \"blue box\", documentation prose, and examples.
-
-- Otherwise, if the identifier is a function, then its signature
-  is displayed, for example \"(name arg-1-name arg-2-name)\".
-
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
 TAB, and activate using RET -- for `xref-find-definitions'
 and `racket-xp-documentation'."
   (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
-                                            racket--xp-binding-completions)
-    ((and (pred stringp) str)
-     ;; When there is a racket-xp-doc property, use its path
-     ;; and anchor, because that will be correct even for an
-     ;; identifier in a submodule with different imports than the file
-     ;; module. Else supply the file path-str, and the "describe"
-     ;; command will treat it as a file module identifier.
-     (let ((how (pcase (get-text-property (point) 'racket-xp-doc)
-                  (`(,path ,anchor) `(,path . ,anchor))
-                  (_                (racket--buffer-file-name))))
-           ;; These two thunks are effectively lazy
-           ;; `xref-find-definitions' and `racket-xp-documentation'.
-           ;; The thunks might be called later, if/when the user
-           ;; "clicks" a "button" in the `racket-describe-mode'
-           ;; buffer. By the time that happens, this `racket-mode'
-           ;; buffer might no longer exist. Even if it exists, point
-           ;; may have changed. That's why it is important to capture
-           ;; values from the `racket-mode' buffer, now.
-           (visit-thunk
-            (pcase (xref-backend-definitions 'racket-xp-xref str)
-              (`(,xref) (lambda () (racket--pop-to-xref-location xref)))))
-           (doc-thunk
-            (pcase (get-text-property (point) 'racket-xp-doc)
-              (`(,path ,anchor)
-               (lambda ()
-                 (racket-browse-url (concat "file://" path "#" anchor))))
-              (_
-               (let ((bfn (racket--buffer-file-name)))
+  (if (equal prefix '(16))
+      (racket-search-describe)
+    (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
+                                              racket--xp-binding-completions)
+      ((and (pred stringp) str)
+       ;; When there is a racket-xp-doc property, use its path and
+       ;; anchor, because that will be correct even for an identifier
+       ;; in a submodule with different imports than the file module.
+       ;; Else supply the file path-str, and the "describe" command
+       ;; will treat it as a file module identifier.
+       (let ((how (pcase (get-text-property (point) 'racket-xp-doc)
+                    (`(,path ,anchor) `(,path . ,anchor))
+                    (_                (racket--buffer-file-name))))
+             ;; These two thunks are effectively lazy
+             ;; `xref-find-definitions' and `racket-xp-documentation'.
+             ;; The thunks might be called later, if/when the user
+             ;; "clicks" a "button" in the `racket-describe-mode'
+             ;; buffer. By the time that happens, this `racket-mode'
+             ;; buffer might no longer exist. Even if it exists, point
+             ;; may have changed. That's why it is important to
+             ;; capture values from the `racket-mode' buffer, now.
+             (visit-thunk
+              (pcase (xref-backend-definitions 'racket-xp-xref str)
+                (`(,xref) (lambda () (racket--pop-to-xref-location xref)))))
+             (doc-thunk
+              (pcase (get-text-property (point) 'racket-xp-doc)
+                (`(,path ,anchor)
                  (lambda ()
-                   (racket--doc-command nil bfn str)))))))
-       (racket--do-describe how nil str t visit-thunk doc-thunk)))))
+                   (racket-browse-url (concat "file://" path "#" anchor))))
+                (_
+                 (let ((bfn (racket--buffer-file-name)))
+                   (lambda ()
+                     (racket--doc-command nil bfn str)))))))
+         (racket--do-describe how nil str t visit-thunk doc-thunk))))))
 
 (defun racket-xp-eldoc-function ()
   "A value for the variable `eldoc-documentation-function'.
@@ -505,9 +527,10 @@ or `racket-repl-describe'."
 (defun racket-xp-documentation (&optional prefix)
   "View documentation in an external web browser.
 
-The command varies based on how many \\[universal-argument] command prefixes you supply.
+The command varies based on how many \\[universal-argument]
+command prefixes you supply.
 
-1. None.
+0. None.
 
    Uses the symbol at point. Tries to find documentation for an
    identifer defined in the expansion of the current buffer.
@@ -517,17 +540,17 @@ The command varies based on how many \\[universal-argument] command prefixes you
    determines whether the search is done locally as with `raco
    doc`, or visits a URL.
 
-2. \\[universal-argument]
+1. \\[universal-argument]
 
-   Prompts you to enter a symbol, defaulting to the symbol at
-   point if any.
+   Always prompts you to enter a symbol, defaulting to the symbol
+   at point if any.
 
-   Otherwise behaves like 1.
+   Otherwise behaves like 0.
 
-3. \\[universal-argument] \\[universal-argument]
+2. \\[universal-argument] \\[universal-argument]
 
-   Prompts you to enter anything, defaulting to the symbol at
-   point if any.
+   Always prompts you to enter anything, defaulting to the symbol
+   at point if any.
 
    Proceeds directly to the Search Manuals page. Use this if you
    would like to see documentation for all identifiers named

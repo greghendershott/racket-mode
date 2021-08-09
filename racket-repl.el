@@ -909,40 +909,63 @@ A more satisfying experience is to use `racket-repl-describe' or
 ;;; describe
 
 (defun racket-repl-describe (&optional prefix)
-"Describe the identifier at point in a `*Racket Describe*` buffer.
+  "Describe the identifier at point in a `*Racket Describe*` buffer.
+
+The command varies based on how many \\[universal-argument]
+command prefixes you supply.
+
+0. None.
+
+   Uses the symbol at point. If no such symbol exists, you are
+   prompted enter the identifier, but in this case it only
+   considers definitions or imports at the file's module level --
+   not local bindings nor definitions in submodules.
+
+   - If the identifier has installed Racket documentation, then a
+     simplified version of the HTML is presented in the buffer,
+     including the \"blue box\", documentation prose, and
+     examples.
+
+   - Otherwise, if the identifier is a function, then its
+     signature is displayed, for example \"\(name arg-1-name
+     arg-2-name\)\".
+
+1. \\[universal-argument]
+
+   Always prompts you to enter a symbol, defaulting to the symbol
+   at point if any.
+
+   Otheriwse behaves like 0.
+
+2. \\[universal-argument] \\[universal-argument]
+
+   This is an alias for `racket-search-describe', which uses
+   installed documentation in a `racket-describe-mode' buffer
+   instead of an external web browser.
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
 -- and to do so within Emacs, without switching to a web browser.
 
-This buffer is also displayed when you use `company-mode' and
-press F1 or C-h in its pop up completion list.
-
-- If the identifier has installed Racket documentation, then a
-  simplified version of the HTML is presented in the buffer,
-  including the \"blue box\", documentation prose, and examples.
-
-- Otherwise, if the identifier is a function, then its signature
-  is displayed, for example `(name arg-1-name arg-2-name)`. If it
-  has a contract or a Typed Racket type, that is also displayed.
-
 You can quit the buffer by pressing q. Also, at the bottom of the
 buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for `racket-repl-visit-definition'
+TAB, and activate using RET -- for `xref-find-definitions'
 and `racket-repl-documentation'."
   (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
-                                            racket--repl-namespace-symbols)
-    ((and (pred stringp) str)
-     (let ((repl-session-id (racket--repl-session-id)))
-       (racket--do-describe
-        'namespace
-        repl-session-id
-        str
-        t
-        (pcase (xref-backend-definitions 'racket-repl-xref str)
-          (`(,xref) (lambda () (racket--pop-to-xref-location xref))))
-        (lambda () (racket--doc-command repl-session-id 'namespace str)))))))
+  (if (equal prefix '(16))
+      (racket-search-describe)
+    (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
+                                              racket--repl-namespace-symbols)
+      ((and (pred stringp) str)
+       (let ((repl-session-id (racket--repl-session-id)))
+         (racket--do-describe
+          'namespace
+          repl-session-id
+          str
+          t
+          (pcase (xref-backend-definitions 'racket-repl-xref str)
+            (`(,xref) (lambda () (racket--pop-to-xref-location xref))))
+          (lambda () (racket--doc-command repl-session-id 'namespace str))))))))
 
 ;;; racket-xref-repl
 

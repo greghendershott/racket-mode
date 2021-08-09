@@ -16,10 +16,14 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'shr)
+(require 'subr-x)
 (require 'racket-cmd)
 (require 'racket-util)
 (require 'racket-visit)
-(require 'shr)
+;; Don't (require 'racket-repl). Mutual dependency. Instead:
+(declare-function 'racket--repl-session-id "racket-repl")
+(autoload         'racket--repl-session-id "racket-repl")
 
 (defun racket--do-describe (how
                             repl-session-id
@@ -116,6 +120,85 @@ Returns the buffer in which the description was written."
 (defun racket-describe--prev-button ()
   (interactive)
   (forward-button -1 t t))
+
+;;; Search and disambiguation using local docs
+
+;; For people who don't want to use a web browser at all: Search local
+;; documentation, disambiguate in a buffer, and view in a
+;; racket-describe-mode buffer.
+
+;; Note: If we merge the multi back ends branch, this will need to
+;; become a hash-table.
+(defvar racket--local-doc-index-names nil)
+
+(defun racket--local-doc-index-names ()
+  (unless racket--local-doc-index-names
+    (with-temp-message "Reading local documentation index..."
+      (setq racket--local-doc-index-names
+            (racket--cmd/await nil `(doc-index-names)))))
+  (unless racket--local-doc-index-names
+    (error "Can't read documentation index"))
+  racket--local-doc-index-names)
+
+(defun racket-search-describe ()
+  "Search installed documentation; view using `racket-describe-mode'.
+
+Always prompts you to enter a symbol, defaulting to the symbol at
+point if any.
+
+- If just one module exports the name, you go directly to a
+  Racket Describe buffer with its documentation.
+
+- If multiple modules export the name, you go first to a
+  \"disambiguation\" buffer similar to the Racket \"Search
+  Manuals\" web page. You may press RET on any item to get a
+  Racket Describe buffer for that module's version of the thing.
+"
+  (interactive)
+  (let ((key (racket--symbol-at-point-or-prompt t "Describe: "
+                                                (racket--local-doc-index-names))))
+    (pcase (racket--cmd/await nil `(doc-index-lookup ,key))
+      (`() (message "not found"))
+      (`((,_mods ,path ,anchor)) (racket-search-describe-visit key path anchor))
+      (vs
+       (with-current-buffer (get-buffer-create
+                             (format "*Racket Search Describe `%s`*" key))
+         (let ((col-name (format "`%s` as provided by" key)))
+           (racket-search-describe-mode)
+           (setq tabulated-list-format (vector (list col-name 80 t)))
+           (setq tabulated-list-entries
+                 (mapcar (pcase-lambda (`(,mods ,path ,anchor))
+                           (list nil
+                                 (vector
+                                  (list (string-join mods ", ")
+                                        'face   'default
+                                        'key    key
+                                        'path   path
+                                        'anchor anchor
+                                        'action #'racket-search-describe-button))))
+                         vs))
+           (tabulated-list-init-header)
+           (tabulated-list-print)
+           (pop-to-buffer (current-buffer))))))))
+
+(defun racket-search-describe-button (button)
+  (racket-search-describe-visit (button-get button 'key)
+                                (button-get button 'path)
+                                (button-get button 'anchor)))
+
+(defun racket-search-describe-visit (term path anchor)
+  (racket--do-describe (cons path anchor)
+                       (racket--repl-session-id)
+                       term
+                       t))
+
+(defvar racket-search-describe-mode-map
+  (let ((map (make-sparse-keymap)))
+    map))
+
+(define-derived-mode racket-search-describe-mode tabulated-list-mode
+  "RacketSearchDescribe"
+  "Major mode for disambiguating documentation search results.")
 
 (provide 'racket-describe)
 
