@@ -138,6 +138,15 @@ and `racket-repl-documentation' should look for the search page.
   :safe (lambda (val) (or (stringp val) (eq val 'local)))
   :group 'racket)
 
+(defcustom racket--rkt-remote-source-dir
+  "/tmp/racket-mode-source/"
+  "Path to dir of our Racket source files in the remote host. The
+actual remote host is determined at the calling site. See
+`racket--rkt-get-source-dir'."
+  :tag "Remote root to copy racket files."
+  :type 'directory
+  :group 'racket)
+
 ;;; Xp Mode
 
 (defgroup racket-xp nil

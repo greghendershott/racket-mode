@@ -77,39 +77,74 @@ that Racket Mode can find its own run.rkt file.")
   "A value we give the Racket back-end when we launch it and when we create REPLs.
 See issue #327.")
 
+
+(defun racket--rkt-get-source-dir (path)
+  "Using PATH to determine the rempote host copy
+`racket--rkt-source-dir' to `racket--rkt-remote-source-dir' in
+the rempote host and return the latter.
+
+If PATH is a local path then just retuirn
+`racket--rkt-source-dir'. If PATH is nil we assume we are
+operating locally and `racket--rkt-source-dir' is returned.
+
+The return value of this function is to be used as an argument to
+the racket repl invocation so it will have no tramp prefix. "
+  (if (or (null path) (not (file-remote-p path)))
+      racket--rkt-source-dir
+    (let ((remote-file-struct (tramp-dissect-file-name path)))
+      (setf (tramp-file-name-localname remote-file-struct)
+            racket--rkt-remote-source-dir)
+      (let ((remote-dir-name (tramp-make-tramp-file-name remote-file-struct)))
+        (unless (tramp-handle-file-directory-p remote-dir-name)
+          ;; COPY-DIRECTORY likes to create symlinks when the source
+          ;; is a symling (eg straight keeps package repos in a
+          ;; symlinked dir). This will never work when copying to a
+          ;; remote host. Fortunately we can replace every symlink
+          ;; create with a file copy.
+          (flet ((make-symbolic-link (src dst x) (copy-file src dst t nil)))
+           (copy-directory racket--rkt-source-dir remote-dir-name
+                           nil t t))))
+      racket--rkt-remote-source-dir)))
+
 (defun racket--cmd-open ()
   ;; Avoid multiple processes/buffers like "racket-process<1>".
   (racket--cmd-close)
   ;; Give the process buffer the current values of some vars; see
   ;; <https://github.com/purcell/envrc/issues/22>.
-  (cl-letf* (((default-value 'process-environment) process-environment)
-             ((default-value 'exec-path)           exec-path))
-    (make-process
-     :name            racket--cmd-process-name
-     :connection-type 'pipe
-     :noquery         t
-     :coding          'utf-8
-     :buffer          (get-buffer-create (concat " *" racket--cmd-process-name "*"))
-     :stderr          (make-pipe-process
-                       :name     (concat racket--cmd-process-name "-stderr")
-                       :buffer   nil
-                       :noquery  t
-                       :coding   'utf-8
-                       :filter   #'racket--cmd-process-stderr-filter
-                       :sentinel #'ignore)
-     :command         (list racket-program
-                            (funcall racket-adjust-run-rkt racket--run.rkt)
-                            "--auth"
-                            (setq racket--cmd-auth (format "token-%x" (random)))
-                            (if (and (boundp 'image-types)
-                                     (fboundp 'image-type-available-p)
-                                     (or (and (memq 'svg image-types)
-                                              (image-type-available-p 'svg))
-                                         (and (memq 'imagemagick image-types)
-                                              (image-type-available-p 'imagemagick))))
+  (let ((cmd (list racket-program
+                   (funcall racket-adjust-run-rkt
+                            (expand-file-name "main.rkt"
+                                              (racket--rkt-get-source-dir
+                                              default-directory)))
+                   "--auth"
+                   (setq racket--cmd-auth (format "token-%x" (random)))
+                   (if (and (boundp 'image-types)
+                            (fboundp 'image-type-available-p)
+                            (or (and (memq 'svg image-types)
+                                     (image-type-available-p 'svg))
+                                (and (memq 'imagemagick image-types)
+                                     (image-type-available-p 'imagemagick))))
                                 "--use-svg"
-                              "--do-not-use-svg"))
-     :filter          #'racket--cmd-process-filter)))
+                     "--do-not-use-svg"))))
+    (cl-letf* (((default-value 'process-environment) process-environment)
+               ((default-value 'exec-path)           exec-path))
+      (message "Running racket: %s" cmd)
+      (let* ((buf (get-buffer-create (concat " *" racket--cmd-process-name "*")))
+             (errbuf (get-buffer-create (concat " *" racket--cmd-process-name ":stderr*")))
+             (is-remote (and default-directory (file-remote-p default-directory)))
+             (make-process-fn
+              (if is-remote #'tramp-sh-handle-make-process #'make-process))
+             (p (funcall make-process-fn
+                 :name            racket--cmd-process-name
+                 :connection-type 'pipe ; Ignored by tramp
+                 :noquery         t
+                 :coding          'utf-8
+                 :buffer          buf
+                 :stderr          errbuf
+                 :command         cmd
+                 :filter          #'racket--cmd-process-filter)))
+        (unless (eq (process-status p) 'run)
+          (error "Racket process status is not 'run: %s" (process-status p)))))))
 
 (defun racket--cmd-close ()
   (pcase (get-process racket--cmd-process-name)

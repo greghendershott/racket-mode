@@ -128,8 +128,8 @@
 (define listener
   (tcp-listen 0  ;choose port dynamically, a.k.a. "ephemeral" port
               64
-              #f ;reuse? not recommended for ephemeral ports
-              "127.0.0.1"))
+              #t ;reuse? not recommended for ephemeral ports
+              "0.0.0.0"))
 (define repl-tcp-port-number
   (let-values ([(_loc-addr port _rem-addr _rem-port) (tcp-addresses listener #t)])
     (log-racket-mode-info "TCP port ~v chosen for REPL sessions" port)

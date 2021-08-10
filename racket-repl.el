@@ -234,6 +234,7 @@ buffer to run command-line Racket."
     (if (racket--repl-live-p)
         (display-and-maybe-select)
       (racket--repl-start
+       (racket--get-host)
        (lambda ()
          (racket--repl-refresh-namespace-symbols)
          (display-and-maybe-select))))))
@@ -493,7 +494,7 @@ be nil which is equivalent to #'ignore.
            (racket--cmd/async (racket--repl-session-id) cmd after)
            (display-buffer racket-repl-buffer-name))
           (t
-           (racket--repl-start
+           (racket--repl-start (racket--get-host)
             (lambda ()
               (when noninteractive
                 (princ "{racket--repl-run}: callback from racket--repl-start called\n"))
@@ -526,12 +527,21 @@ WHAT-TO-RUN may be nil, meaning just a `racket/base` namespace."
       (set-window-buffer nil (current-buffer))
       (car (window-text-pixel-size nil (line-beginning-position) (point))))))
 
-(defun racket--repl-start (callback)
+(defun racket--get-host ()
+  (if (or (null default-directory) (not (file-remote-p default-directory)))
+      "127.0.0.1"
+    (tramp-file-name-host (tramp-dissect-file-name default-directory))))
+
+(defun racket--repl-start (repl-host-name callback)
   "Create a `comint-mode' / `racket-repl-mode' buffer connected to a REPL session.
 
 Sets `racket--repl-session-id'.
 
-This does not display the buffer or change the selected window."
+This does not display the buffer or change the selected window.
+
+REPL-HOST-NAME is a string with the name or ip of the remote host
+where racket is running. If it is running locally it should be
+\"127.0.0.1\"."
   ;; Issue the command to learn the ephemeral TCP port chosen by the
   ;; back end for REPL I/O. As a bonus, this will start the back end
   ;; if necessary.
@@ -539,66 +549,76 @@ This does not display the buffer or change the selected window."
   (racket--cmd/async
    nil
    `(repl-tcp-port-number)
-   (lambda (repl-tcp-port-number)
-     (when noninteractive
-       (princ (format "{racket--repl-start}: (repl-tcp-port-number) replied %s\n" repl-tcp-port-number)))
-     (with-current-buffer (get-buffer-create racket-repl-buffer-name)
-       ;; Add a pre-output hook that -- possibly over multiple calls
-       ;; to accumulate text -- reads `(ok ,id) to set
-       ;; `racket--repl-session-id' then removes itself.
-       (let ((hook      nil)
-             (read-buf  (generate-new-buffer " *racket-repl-session-id-reader*")))
-         (when noninteractive
-           (princ (format "{racket--repl-start}: buffer is '%s'\n" read-buf)))
-         (setq hook (lambda (txt)
-                      (when noninteractive
-                        (princ (format "{racket--repl-start}: early pre-output-hook called '%s'\n" txt)))
-                      (with-current-buffer read-buf
-                        (goto-char (point-max))
-                        (insert txt)
-                        (goto-char (point-min)))
-                      (pcase (ignore-errors (read read-buf))
-                        (`(ok ,id)
-                         (when noninteractive
-                           (princ (format "{racket--repl-start}: %s\n" id)))
-                         (setq racket--repl-session-id id)
-                         (run-with-timer 0.001 nil callback)
-                         (remove-hook 'comint-preoutput-filter-functions hook t)
-                         (prog1
-                             (with-current-buffer read-buf
-                               (buffer-substring (if (eq (char-after) ?\n)
-                                                     (1+ (point))
-                                                   (point))
-                                                 (point-max)))
-                           (kill-buffer read-buf)))
-                        (_ ""))))
-         (add-hook 'comint-preoutput-filter-functions hook nil t))
+   (apply-partially #'racket--start-comint callback repl-host-name)))
 
-       (condition-case ()
-           (progn
-             (make-comint-in-buffer racket-repl-buffer-name
-                                    (current-buffer)
-                                    (cons "127.0.0.1" repl-tcp-port-number))
-             (process-send-string (get-buffer-process (current-buffer))
-                                  (format "\"%s\"\n" racket--cmd-auth))
-             (when noninteractive
-               (princ "{racket--repl-start}: did process-send-string of auth\n"))
-             (set-process-coding-system (get-buffer-process (current-buffer))
-                                        'utf-8 'utf-8) ;for e.g. λ
-             ;; Buffer might already be in `racket-repl-mode' -- e.g.
-             ;; `racket-repl-exit' was used and now we're
-             ;; "restarting". In that case avoid re-initialization
-             ;; that is at best unnecessary or at worst undesirable
-             ;; (e.g. `comint-input-ring' would lose input history).
-             (unless (eq major-mode 'racket-repl-mode)
-               (when noninteractive
-                 (princ "{racket--repl-start}: (racket-repl-mode)\n"))
-               (racket-repl-mode)))
-         (file-error
-          (let ((kill-buffer-query-functions nil)
-                (kill-buffer-hook nil))
-            (kill-buffer)) ;don't leave partially initialized REPL buffer
-          (message "Could not connect to REPL server at 127.0.0.1:%s" repl-tcp-port-number)))))))
+(defun racket--start-comint (callback repl-host-name repl-tcp-port-number)
+  "Start a comint buffer and connect it to the racket
+process. REPL-HOST-NAME should be either 127.0.0.1 if the server
+is running locally or the ip/hostname in case it is a remote
+host. REPL-TCP-PORT-NUMBER is the port. CALLBACK is a function
+that accepts no arguments and it is called in called once the
+buffer is created."
+  (when noninteractive
+    (princ (format "{racket--repl-start}: (repl-tcp-port-number) replied %s\n" repl-tcp-port-number)))
+  (with-current-buffer (get-buffer-create racket-repl-buffer-name)
+    ;; Add a pre-output hook that -- possibly over multiple calls
+    ;; to accumulate text -- reads `(ok ,id) to set
+    ;; `racket--repl-session-id' then removes itself.
+    (let ((hook      nil)
+          (read-buf  (generate-new-buffer " *racket-repl-session-id-reader*")))
+      (when noninteractive
+        (princ (format "{racket--repl-start}: buffer is '%s'\n" read-buf)))
+      (setq hook (lambda (txt)
+                   (when noninteractive
+                     (princ (format "{racket--repl-start}: early pre-output-hook called '%s'\n" txt)))
+                   (with-current-buffer read-buf
+                     (goto-char (point-max))
+                     (insert txt)
+                     (goto-char (point-min)))
+                   (pcase (ignore-errors (read read-buf))
+                     (`(ok ,id)
+                      (when noninteractive
+                        (princ (format "{racket--repl-start}: %s\n" id)))
+                      (setq racket--repl-session-id id)
+                      (run-with-timer 0.001 nil callback)
+                      (remove-hook 'comint-preoutput-filter-functions hook t)
+                      (prog1
+                          (with-current-buffer read-buf
+                            (buffer-substring (if (eq (char-after) ?\n)
+                                                  (1+ (point))
+                                                (point))
+                                              (point-max)))
+                        (kill-buffer read-buf)))
+                     (_ ""))))
+      (add-hook 'comint-preoutput-filter-functions hook nil t))
+
+    (condition-case ()
+        (progn
+          (make-comint-in-buffer racket-repl-buffer-name
+                                 (current-buffer)
+                                 (cons repl-host-name repl-tcp-port-number))
+          (process-send-string (get-buffer-process (current-buffer))
+                               (format "\"%s\"\n" racket--cmd-auth))
+          (when noninteractive
+            (princ "{racket--repl-start}: did process-send-string of auth\n"))
+          (set-process-coding-system (get-buffer-process (current-buffer))
+                                     'utf-8 'utf-8) ;for e.g. λ
+          ;; Buffer might already be in `racket-repl-mode' -- e.g.
+          ;; `racket-repl-exit' was used and now we're
+          ;; "restarting". In that case avoid re-initialization
+          ;; that is at best unnecessary or at worst undesirable
+          ;; (e.g. `comint-input-ring' would lose input history).
+          (unless (eq major-mode 'racket-repl-mode)
+            (when noninteractive
+              (princ "{racket--repl-start}: (racket-repl-mode)\n"))
+            (racket-repl-mode)))
+      (file-error
+       (let ((kill-buffer-query-functions nil)
+             (kill-buffer-hook nil))
+         (kill-buffer)) ;don't leave partially initialized REPL buffer
+       (message "Could not connect to REPL server: %s"
+                repl-host-name
+                repl-tcp-port-number)))))
 
 ;;; Misc
 
