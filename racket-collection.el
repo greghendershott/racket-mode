@@ -1,6 +1,6 @@
 ;;; racket-collection.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2021 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -79,22 +79,35 @@
      (("SPC" "TAB" "C-v" "<next>" "M-v" "<prior>" "M-<" "<home>" "M->" "<end>")
       racket--orp/nop))))
 
-(defun racket--orp/process ()
+(defun racket--orp/make-process ()
   "Start process to run find-module-path-completions.rkt."
-  (let ((name   "racket-find-module-path-completions-process")
-        (buffer " *racket-find-module-path-completions*")
-        (stderr " *racket-find-module-path-completions-stderr*")
-        (rkt    (funcall racket-adjust-run-rkt
-                         (expand-file-name "find-module-path-completions.rkt"
-                                           racket--rkt-source-dir))))
+  (let* ((name    "racket-find-module-path-completions")
+         (local-p (equal (plist-get racket-back-end 'host-name)
+                         "127.0.0.1"))
+         (rkt     (expand-file-name "find-module-path-completions.rkt"
+                                    (if local-p
+                                        racket--rkt-source-dir
+                                      (plist-get racket-back-end 'remote-source-dir))))
+         (command (list (or (plist-get racket-back-end 'racket-program)
+                            racket-program)
+                        rkt))
+         (command (if local-p
+                      command
+                    (cons "ssh"
+                          (cons (format "%s@%s"
+                                        (plist-get racket-back-end 'user-name)
+                                        (plist-get racket-back-end 'host-name))
+                                command)))))
     (make-process :name            name
-                  :buffer          buffer
-                  :command         (list racket-program rkt)
                   :connection-type 'pipe
-                  :stderr          stderr)))
+                  :noquery         t
+                  :coding          'utf-8
+                  :buffer          (concat " *" name "*")
+                  :stderr          (concat " *" name "-stderr*")
+                  :command         command)))
 
 (defun racket--orp/begin ()
-  (setq racket--orp/tq (tq-create (racket--orp/process))))
+  (setq racket--orp/tq (tq-create (racket--orp/make-process))))
 
 (defun racket--orp/request-tx-matches (input)
   "Request matches from the Racket process; delivered to `racket--orp/rx-matches'."
@@ -108,8 +121,7 @@
 (defun racket--orp/rx-matches (buffer answer)
   "Completion proc; receives answer to request by `racket--orp/request-tx-matches'."
   (when racket--orp/active
-    (setq racket--orp/matches (mapcar racket-path-from-racket-to-emacs-function
-                                      (split-string answer "\n" t)))
+    (setq racket--orp/matches (split-string answer "\n" t))
     (setq racket--orp/match-index 0)
     (with-current-buffer buffer
       (racket--orp/draw-matches))))
@@ -146,9 +158,11 @@ at the top, marked with \"->\".
                               racket--orp/input
                               racket--orp/keymap)
         (when racket--orp/matches
-          (find-file (elt racket--orp/matches racket--orp/match-index))))
+          (find-file (racket-file-name-back-to-front
+                      (elt racket--orp/matches racket--orp/match-index)))))
     (error (setq racket--orp/input "")
            (setq racket--orp/matches nil)))
+  (remove-hook 'minibuffer-setup-hook #'racket--orp/minibuffer-setup)
   (setq racket--orp/active nil)
   (racket--orp/end))
 

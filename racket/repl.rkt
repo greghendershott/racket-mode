@@ -148,23 +148,23 @@
 
 ;;; REPL session server
 
-;; Define these at the module level so that they are initialized when
-;; the module loads -- before other threads like the session manager
-;; or command manager threads try to use them.
-(define listener
-  (tcp-listen 0  ;choose port dynamically, a.k.a. "ephemeral" port
-              64
-              #f ;reuse? not recommended for ephemeral ports
-              "127.0.0.1"))
-(define repl-tcp-port-number
-  (let-values ([(_loc-addr port _rem-addr _rem-port) (tcp-addresses listener #t)])
-    (log-racket-mode-info "TCP port ~v chosen for REPL sessions" port)
-    port))
+(define repl-tcp-port-number #f)
 
-(define (start-repl-session-server launch-token)
-  (thread (listener-thread-thunk launch-token)))
+(define (start-repl-session-server launch-token accept-host tcp-port)
+  (define listener
+    (tcp-listen tcp-port ;0 == choose port dynamically, a.k.a. "ephemeral" port
+                64
+                (not (zero? tcp-port)) ;reuse not good for ephemeral ports
+                accept-host))
+  (set! repl-tcp-port-number
+        (let-values ([(_loc-addr port _rem-addr _rem-port) (tcp-addresses listener #t)])
+          port))
+  (log-racket-mode-info "Accepting TCP connections from host ~v on port ~v"
+                        accept-host
+                        repl-tcp-port-number)
+  (thread (listener-thread-thunk launch-token listener)))
 
-(define ((listener-thread-thunk launch-token))
+(define ((listener-thread-thunk launch-token listener))
   (let accept-a-connection ()
     (define custodian (make-custodian))
     (parameterize ([current-custodian custodian])

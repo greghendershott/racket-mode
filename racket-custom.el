@@ -34,37 +34,152 @@
   :group 'languages
   :link '(url-link :tag "README on GitHub" "https://github.com/greghendershott/racket-mode/blob/master/README.md"))
 
-;; This should be _before_ the `defcustom' of `racket-program' (see
-;; note in doc for `define-obsolete-variable-alias').
-(define-obsolete-variable-alias
-  'racket-racket-program
-  'racket-program
-  "2017-06-02")
-
-(make-obsolete-variable
-  'racket-raco-program
-  "You need only set `racket-program' to the Racket executable pathname."
-  "2017-06-02")
+;; These aliases need be _before_ the `defcustom' of `racket-program'
+;; (see note in doc for `define-obsolete-variable-alias').
+(define-obsolete-variable-alias 'racket-racket-program 'racket-program "2017-06-02")
+(define-obsolete-variable-alias 'racket-raco-program   'racket-program "2017-06-02")
 
 (defvar racket--winp (string-match-p "windows" (symbol-name system-type)))
 
-(defcustom racket-program (cond (racket--winp "Racket.exe")
-                                (t            "racket"))
-  "Pathname of the racket executable."
+(defcustom racket-program (if racket--winp "Racket.exe" "racket")
+  "Pathname of the Racket executable.
+
+Although a value for the variable `racket-back-end-function' can
+override this, `racket-back-end-default' does not because it
+supplies a `racket-back-end-create' object with a
+nil :racket-program member."
   :tag "Racket Program"
   :type '(file :must-match t)
   :risky t
   :group 'racket)
 
-(make-obsolete-variable
- 'racket-command-port
- "This no longer has any effect. The Racket Mode back end chooses an ephemeral TCP port for REPL sessions and I/O."
- "2020-04-25")
+(defcustom racket-back-end-function nil
+  "A function to support multiple simultaneous back ends.
 
-(make-obsolete-variable
-  'racket-command-startup
-  "This no longer has any effect."
-  "2020-01-23")
+This function is called with a property list having default
+values that normally \"just work\" for buffers that are local or
+remote. If you need to do some special configuration, your
+function can return a modified property list.
+
+When this value is nil it is treated as `identity' --- the
+default configuration is not changed.
+
+Following is a description of the properties:
+
+- `name`
+
+  A unique name for the back end.
+
+  This name is distinct from `host-name` to allow for multiple
+  back ends on the same host --- for example each running a
+  different version of Racket.
+
+  The name is used as a suffix for the names of buffers that are
+  not visiting a file. That way there is a unique buffer per back
+  end, and, users can easily distinguish them. For example
+  `*Racket Describe <foo>` and `Racket Describe <bar>*` buffers.
+
+  The name is also combined with a \"racket-back-end-\" prefix to
+  make the name of the Emacs process used to run the back end.
+  Normally \"racket-back-end-<name>\". This process name is used
+  to determine where to send a command for a back end.
+
+- `racket-program`
+
+  When not nil we use this, otherwise we use the value of the
+  customization variable `racket-program'.
+
+- `remote-source-dir`
+
+  When `host-name` is not \"127.0.0.1\", this is where on a
+  remote host we will copy the back end's *.rkt files.
+
+- `host-name`
+
+  When `host-name` is not \"127.0.0.1\", used to start a back end
+  on a host via SSH.
+
+  Always used to make TCP/IP connections to a back end for REPL
+  sesssions.
+
+- `user-name`, `ssh-port`
+
+  When `host-name` is not \"127.0.0.1\", these are used to make
+  an SSH connection. Note that `ssh-port` is `numberp' not
+  `stringp'.
+
+- `repl-tcp-accept-host`
+
+  Host from which the back end TCP REPL server will accept
+  connections. \"127.0.0.1\" means it will accept only local
+  connections. \"0.0.0.0\" means it will accept connections from
+  anywhere --- which usually is risky unless the remote is behind
+  a firewall that limits connections!
+
+- `repl-tcp-port`
+
+  The port number the back end TCP REPL server uses to listen for
+  connections. When 0, this means the back end chooses an
+  available port --- a so-called \"ephemeral\" port. Usually that
+  is practical only on a local host. Otherwise a specific port
+  number should be used, and, remember to allow that in the
+  remote's firewall. Note that this is `numberp' not `stringp'.
+
+The default property list is set to values that are appropriate
+for whether a buffer's file is local or remote:
+
+- When the value of the variable `default-directory' satisfies
+  `tramp-tramp-file-p', it is dissected to set `user-name`,
+  `host-name`, and `ssh-port`. Furthermore, `repl-tcp-port` is
+  set to 55555 and `repl-tcp-accept-host` is set to \"0.0.0.0\"
+  \(accepts connections from anywhere).
+
+  When working with back ends on remote hosts, *remember to check
+  your remote host firewall*. The goal here is to make sure
+  things work --- but only for you. Probably you want the
+  firewall to limit from where it accepts SSH connections on
+  `ssh-port`. Also you need the firewall to accept connections on
+  `repl-tcp-port`, but again, limiting from where --- either in
+  the firewall or by setting `repl-tcp-accept-host` to a value
+  that is /not/ \"0.0.0.0\".
+
+- Otherwise, reasonable defaults are used for a local back end.
+  For example `host-name` is set to \"127.0.0.1\",
+  `repl-tcp-port` is set to 0 \(meaning the back end picks an
+  ephemeral port) and `repl-tcp-accept-host` is set to
+  \"127.0.0.1\" \(meaning the back end only accept TCP
+  connections locally)
+
+Although the default values usually \"just work\", you might want
+a special configuration.
+
+For example, you could modify the property list to use a
+locally-built Racket on the local host, and the default installed
+Racket on remote hosts. You could do this by examing the
+`host-name` property you are given, and changing the
+`racket-program` property accordingly:
+
+#+BEGIN_SRC lisp
+  (setq racket-back-end-function
+        (lambda (v)
+          (plist-put
+           v
+           'racket-program
+           (if (equal (plist-get v 'host-name) \"127.0.0.1\")
+               \"~/src/racket-lang/racket/bin/racket\"
+             \"racket\"))))
+#+END_SRC
+
+As another example, you could also specify a different local back
+end for buffers in different project subdirectories, setting the
+`racket-program` property to different versions of Racket."
+  :tag "REPL Back End Function"
+  :type '(function :tag "Other function")
+  :group 'racket)
+
+(make-obsolete-variable 'racket-command-port nil "2020-04-25")
+
+(make-obsolete-variable 'racket-command-startup nil "2020-01-23")
 
 (defcustom racket-command-timeout 10
   "How many seconds to wait for command server responses.
@@ -78,38 +193,9 @@ their response asychronously."
   :risky t
   :group 'racket)
 
-(defcustom racket-path-from-emacs-to-racket-function
-  #'identity
-  "A function to transform Emacs Lisp pathnames given to the Racket back end.
+(make-obsolete-variable 'racket-path-from-emacs-to-racket-function nil "2020-08-26")
 
-If you run Emacs on Windows Subsystem for Linux, and want to run
-Racket programs using Windows Racket.exe rather than Linux
-racket, you can set this to `racket-wsl-to-windows'. In that case
-you probably also want to customize the \"reverse\":
-`racket-path-from-racket-to-emacs-function'."
-  :tag "Path from Emacs to Racket Function"
-  :type 'function
-  :safe 'functionp
-  :group 'racket)
-
-(defcustom racket-path-from-racket-to-emacs-function
-  (if racket--winp
-      (lambda (path) (subst-char-in-string ?\\ ?/ path))
-      #'identity)
-  "A function to transform Racket back end pathnames given to Emacs Lisp.
-
-The default on Windows replaces back with forward slashes. The
-default elsewhere is `identity'.
-
-If you run Emacs on Windows Subsystem for Linux, and want to run
-Racket programs using Windows Racket.exe rather than Linux
-racket, you can set this to `racket-windows-to-wsl'. In that case
-you probably also want to customize the \"reverse\":
-`racket-path-from-emacs-to-racket-function'."
-  :tag "Path from Racket to Emacs Function"
-  :type 'function
-  :safe #'functionp
-  :group 'racket)
+(make-obsolete-variable 'racket-path-from-racket-to-emacs-function nil "2020-08-26")
 
 (defcustom racket-browse-url-function
   'racket-browse-url-using-temporary-file
@@ -195,7 +281,7 @@ This is used when a `racket-mode' buffer is created. Changing
 this to a new value only affects `racket-mode' buffers created
 later.
 
-Any such function takes no arguments, should look at
+Any such function takes no arguments, should look at the variable
 `buffer-file-name' if necessary, and either `setq-default' or
 `setq-local' the variable `racket-repl-buffer-name' to a desired
 `racket-repl-mode' buffer name. As a result, `racket-run'
@@ -275,10 +361,7 @@ more-helpful error message."
   :risky t
   :group 'racket-repl)
 
-(make-obsolete-variable
- 'racket-retry-as-skeleton
- "The motivation for this is now N/A with `racket-xp-mode'."
- "2020-02-26")
+(make-obsolete-variable 'racket-retry-as-skeleton nil "2020-02-26")
 
 (defcustom racket-repl-history-directory
   (locate-user-emacs-file (file-name-as-directory "racket-mode"))
@@ -690,4 +773,4 @@ See the variable `racket-browse-url-function'."
 
 (provide 'racket-custom)
 
-;; racket-custom.el ends here
+;;; racket-custom.el ends here

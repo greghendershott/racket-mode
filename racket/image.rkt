@@ -42,5 +42,7 @@
          (and (? bytes? bstr) (app default-width width))) ;bytes
      (define filename (make-temporary-file (~a "racket-image-~a." ext)))
      (with-output-to-file filename #:exists 'truncate (λ () (display bstr)))
+     ;; FIXME: Return tramp file name so this works when host is
+     ;; remote?
      (cons (format "#<Image: ~a>" filename) width)]
     [_ #f]))

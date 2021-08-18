@@ -23,6 +23,7 @@
 (require 'racket-util)
 (require 'racket-visit)
 (require 'racket-scribble)
+(require 'racket-browse-url)
 ;; Don't (require 'racket-repl). Mutual dependency. Instead:
 (declare-function 'racket--repl-session-id "racket-repl")
 (autoload         'racket--repl-session-id "racket-repl")
@@ -65,7 +66,8 @@ POP-TO-P should be non-nil for use by direct user commands like
 `racket-xp-describe' and `racket-repl-describe': the buffer is
 displayed using `pop-to-buffer'. POP-TO-P should be nil for use
 as a :company-doc-buffer function."
-  (let ((buf-name "*Racket Describe*"))
+  (let ((buf-name (format "*Racket Describe <%s>*"
+                          (plist-get racket-back-end 'name))))
     (with-current-buffer (get-buffer-create buf-name)
       (unless (eq major-mode 'racket-describe-mode)
         (racket-describe-mode))
@@ -95,7 +97,7 @@ as a :company-doc-buffer function."
                         'face 'italic)))
          (racket--cmd/async
           repl-session-id
-          `(describe ,how ,str)
+          `(describe ,(racket-how-front-to-back how) ,str)
           (lambda (result)
             (pcase result
               ;; STR has documentation at path and anchor. Handle like
@@ -300,7 +302,7 @@ for our custom shr handler."
     ;; the buffer, therefore the choice of character matters. Don't
     ;; use a space because shr might eliminate it. Don't use something
     ;; that `thing-at-point' considers part of a symbol (in case user
-    ;; inovkes `racket-search-describe' with point here).
+    ;; inovkes `racket-describe-search' with point here).
     (when (= start (point))
       (insert ?^)
       (put-text-property (1- (point)) (point) 'display ""))
@@ -474,6 +476,7 @@ External links -- which are opened using the variable
 browser program -- are given `racket-describe-ext-link-face'.
 
 \\{racket-describe-mode-map}"
+  (setq-local racket-back-end (racket--get-back-end))
   (setq show-trailing-whitespace nil)
   (setq-local revert-buffer-function #'racket-describe-mode-revert-buffer)
   (buffer-disable-undo))
@@ -484,33 +487,38 @@ browser program -- are given `racket-describe-ext-link-face'.
 ;; documentation, disambiguate in a buffer, and view in a
 ;; racket-describe-mode buffer.
 
-(defvar racket--describe-terms nil
+(defvar racket--describe-terms (make-hash-table :test 'equal)
   "Used for completion candidates.")
 
-(defun racket--remove-documented-names ()
+(defun racket--remove-describe-terms ()
   "A `racket-stop-back-end-hook' to clean up `racket--describe-terms'."
-  (setq racket--describe-terms nil))
+  (let ((key (plist-get racket-back-end 'name)))
+    (when key
+      (remhash key racket--describe-terms))))
 
-(add-hook 'racket-stop-back-end-hook #'racket--remove-documented-names)
+(add-hook 'racket-stop-back-end-hook #'racket--remove-describe-terms)
 
 (defun racket--describe-terms ()
-  (pcase racket--describe-terms
-    (`nil
-     (setq racket--describe-terms 'fetching)
-     (racket--cmd/async nil
-                        '(doc-index-names)
-                        (lambda (names)
-                          (setq racket--describe-terms
-                                (sort names #'string-lessp))))
-     ;; Wait for response but if waiting too long just return nil,
-     ;; and use the response next time.
-     (with-temp-message "Getting completion candidates from back end..."
-       (with-timeout (5 nil)
-         (while (equal 'fetching racket--describe-terms)
-           (accept-process-output nil 0.01))
-         racket--describe-terms)))
-    ('fetching nil)
-    ((and (pred listp) names) names)))
+  (let ((key (plist-get racket-back-end 'name)))
+    (pcase (gethash key racket--describe-terms)
+      (`nil
+       (puthash key 'fetching
+                racket--describe-terms)
+       (racket--cmd/async nil
+                          '(doc-index-names)
+                          (lambda (names)
+                            (puthash key
+                                     (sort names #'string-lessp)
+                                     racket--describe-terms)))
+       ;; Wait for response but if waiting too long just return nil,
+       ;; and use the response next time.
+       (with-temp-message "Getting completion candidates from back end..."
+        (with-timeout (5 nil)
+          (while (equal 'fetching (gethash key racket--describe-terms))
+            (accept-process-output nil 0.01))
+          (gethash key racket--describe-terms))))
+      ('fetching nil)
+      ((and (pred listp) names) names))))
 
 (defun racket-describe-search ()
   "Search installed documentation; view using `racket-describe-mode'.
@@ -529,8 +537,9 @@ point if any.
   (interactive)
   (let* ((name (racket--symbol-at-point-or-prompt t "Describe: "
                                                   (racket--describe-terms)))
-         (buf-name (format "*Racket Search Describe `%s`*"
-                           name)))
+         (buf-name (format "*Racket Search Describe `%s` <%s>*"
+                           name
+                           (plist-get racket-back-end 'name))))
     (racket--cmd/async
      nil
      `(doc-index-lookup ,name)
@@ -539,7 +548,9 @@ point if any.
          (`()
           (message "No documention found for %s" name))
          (`((,_term ,_what ,_from ,path ,anchor))
-          (racket-describe-search-visit name path anchor))
+          (racket-describe-search-visit name
+                                        (racket-file-name-back-to-front path)
+                                        anchor))
          (vs
           (with-current-buffer
               (get-buffer-create buf-name)
@@ -562,7 +573,7 @@ point if any.
                                (vector
                                 (list term
                                       'name   term
-                                      'path   path
+                                      'path   (racket-file-name-back-to-front path)
                                       'anchor anchor
                                       'action #'racket-describe-search-button)
                                 what
@@ -599,7 +610,8 @@ point if any.
 (define-derived-mode racket-describe-search-mode tabulated-list-mode
   "RacketSearchDescribe"
   "Major mode for disambiguating documentation search results.
-\\{racket-describe-search-mode-map}")
+\\{racket-describe-search-mode-map}"
+  (setq-local racket-back-end (racket--get-back-end)))
 
 (provide 'racket-describe)
 

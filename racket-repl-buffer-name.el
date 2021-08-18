@@ -19,14 +19,23 @@
 (require 'racket-custom)
 (require 'racket-repl)
 (require 'racket-util)
+(require 'tramp)
+
+;;;###autoload
+(defun racket-call-racket-repl-buffer-name-function ()
+  (funcall (or (and (functionp racket-repl-buffer-name-function)
+                    racket-repl-buffer-name-function)
+               #'racket-repl-buffer-name-shared)))
 
 ;;;###autoload
 (defun racket-repl-buffer-name-shared ()
-  "All `racket-mode' edit buffers share one `racket-repl-mode' buffer.
+  "All `racket-mode' edit buffers share one `racket-repl-mode' buffer per back end.
 
 A value for the variable `racket-repl-buffer-name-function'."
   (interactive)
-  (setq-default racket-repl-buffer-name "*Racket REPL*"))
+  (setq-local racket-repl-buffer-name
+              (format "*Racket REPL <%s>*"
+                      (plist-get racket-back-end 'name))))
 
 ;;;###autoload
 (defun racket-repl-buffer-name-unique ()

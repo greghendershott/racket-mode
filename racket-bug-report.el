@@ -46,6 +46,7 @@
                           major-mode
                           racket--el-source-dir
                           racket--rkt-source-dir
+                          racket-back-end-function
                           racket-program
                           racket-command-timeout
                           racket-path-from-emacs-to-racket-function

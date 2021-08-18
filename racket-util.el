@@ -1,6 +1,6 @@
 ;;; racket-util.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2021 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -45,20 +45,14 @@ DEF is the same as DEF for `define-key'."
 (defun racket--buffer-file-name (&optional no-adjust)
   "Like `buffer-file-name' but always a non-propertized string.
 
-Unless NO-ADJUST is not nil, applies the name to the function
-variable `racket-path-from-emacs-to-racket-function'."
+Unless NO-ADJUST is not nil, replaces backward with forward
+slahes on Windows."
   (let ((v (and (buffer-file-name)
                 (substring-no-properties (buffer-file-name)))))
-    (if no-adjust
+    (if (or no-adjust
+            (not racket--winp))
         v
-      (funcall racket-path-from-emacs-to-racket-function
-               v))))
-
-(defun racket--get-buffer-recreate (bufname)
-  "Like `get-buffer-create' but re-creates the buffer if it already exists."
-  (let ((buf (get-buffer bufname)))
-    (when buf (kill-buffer buf)))
-  (get-buffer-create bufname))
+      (subst-char-in-string ?\\ ?/ v))))
 
 (defun racket--save-if-changed ()
   (unless (eq major-mode 'racket-mode)

@@ -55,13 +55,15 @@ Used by the commands `racket-expand-file',
 
 \\{racket-stepper-mode-map}
 "
+  (setq-local racket-back-end (racket--get-back-end))
   (setq header-line-format
         "Press RET to step. C-u RET to step all. C-h m to see help.")
   (setq-local font-lock-defaults
               (list racket-stepper-font-lock-keywords
                     t)))        ;keywords only -- not strings/comments
 
-(defvar racket-stepper--buffer-name "*Racket Stepper*")
+(defun racket--stepper-buffer-name ()
+  (format "*Racket Stepper <%s>*" (plist-get racket-back-end 'name)))
 
 ;;; commands
 
@@ -144,24 +146,27 @@ INTO-BASE is treated as a raw command prefix arg and converted to boolp."
               (eq which 'file))
     (error "Only works when the racket-mode buffer has a REPL buffer, and, you should racket-run first"))
   ;; Create buffer if necessary
-  (unless (get-buffer racket-stepper--buffer-name)
-    (with-current-buffer (get-buffer-create racket-stepper--buffer-name)
-      (racket-stepper-mode)))
-  ;; Give it a window if necessary
-  (unless (get-buffer-window racket-stepper--buffer-name)
-    (pop-to-buffer (get-buffer racket-stepper--buffer-name)))
-  ;; Select the stepper window and insert
-  (select-window (get-buffer-window racket-stepper--buffer-name))
-  (let ((inhibit-read-only t))
-    (delete-region (point-min) (point-max))
-    (insert "Starting macro expansion stepper... please wait...\n"))
-  (racket--cmd/async racket--stepper-repl-session-id
-                     `(macro-stepper (,which . ,str)
-                                     ,(and into-base t))
-                     #'racket-stepper--insert))
+  (let ((name (racket--stepper-buffer-name)))
+    (unless (get-buffer name)
+      (with-current-buffer (get-buffer-create name)
+        (racket-stepper-mode)))
+    ;; Give it a window if necessary
+    (unless (get-buffer-window name)
+      (pop-to-buffer (get-buffer name)))
+    ;; Select the stepper window and insert
+    (select-window (get-buffer-window name))
+    (let ((inhibit-read-only t))
+      (delete-region (point-min) (point-max))
+      (insert "Starting macro expansion stepper... please wait...\n"))
+    (racket--cmd/async racket--stepper-repl-session-id
+                       `(macro-stepper (,which . ,(if (eq which 'file)
+                                                      (racket-file-name-front-to-back str)
+                                                    str))
+                                       ,(and into-base t))
+                       #'racket-stepper--insert)))
 
 (defun racket-stepper--insert (steps)
-  (with-current-buffer racket-stepper--buffer-name
+  (with-current-buffer (racket--stepper-buffer-name)
     (let ((inhibit-read-only t))
       (goto-char (point-max))
       (dolist (step steps)

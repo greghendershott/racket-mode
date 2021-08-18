@@ -77,38 +77,47 @@ For more information see:
 
 \\{racket-logger-mode-map}
 "
+  (setq-local racket-back-end (racket--get-back-end))
   (setq-local font-lock-defaults (list racket-logger-font-lock-keywords))
   (setq-local truncate-lines t)
   (setq-local buffer-undo-list t) ;disable undo
   (setq-local window-point-insertion-type t))
 
-(defconst racket--logger-buffer-name "*Racket Logger*")
+(defun racket--logger-buffer-name ()
+  (format "*Racket Logger <%s>*" (plist-get racket-back-end 'name)))
 
 (defun racket--logger-get-buffer-create ()
   "Create buffer if necessary. Do not display or select it."
-  (unless (get-buffer racket--logger-buffer-name)
-    (with-current-buffer (get-buffer-create racket--logger-buffer-name)
-      (racket-logger-mode)
-      (racket--logger-activate-config)))
-  (get-buffer racket--logger-buffer-name))
+  (unless racket-back-end
+    (user-error "Cannot create racket-logger-mode buffer with nil racket-back-end"))
+  (let ((name (racket--logger-buffer-name)))
+    (unless (get-buffer name)
+      (with-current-buffer (get-buffer-create name)
+        (racket-logger-mode)
+        (racket--logger-activate-config)))
+    (get-buffer name)))
 
-(defun racket--logger-on-notify (str)
- (when noninteractive ;emacs --batch
-    (princ (format "{racket logger}: %s" str)))
-  (with-current-buffer (racket--logger-get-buffer-create)
-    (let* ((inhibit-read-only  t)
-           (original-point     (point))
-           (point-was-at-end-p (equal original-point (point-max))))
-      (goto-char (point-max))
-      (insert str)
-      (unless point-was-at-end-p
-        (goto-char original-point)))))
+(defun racket--logger-on-notify (back-end str)
+  "This is called from `racket--cmd-dispatch-response'."
+  (when noninteractive ;emacs --batch
+    (princ (format "{logger %s}: %s"
+                   (plist-get racket-back-end 'host-name)
+                   str)))
+  (let ((racket-back-end back-end))
+    (with-current-buffer (racket--logger-get-buffer-create)
+      (let* ((inhibit-read-only  t)
+             (original-point     (point))
+             (point-was-at-end-p (equal original-point (point-max))))
+        (goto-char (point-max))
+        (insert str)
+        (unless point-was-at-end-p
+          (goto-char original-point))))))
 
 (defun racket--logger-activate-config ()
   "Send config to logger and display it in the buffer."
   (racket--cmd/async nil
                      `(logger ,racket-logger-config))
-  (with-current-buffer (get-buffer-create racket--logger-buffer-name)
+  (with-current-buffer (racket--logger-get-buffer-create)
     (let ((inhibit-read-only t))
       (goto-char (point-max))
       (insert (propertize (concat racket--logger-print-config-prefix
@@ -150,18 +159,19 @@ For more information see:
   (interactive)
   (racket--logger-get-buffer-create)
   ;; Give it a window if necessary
-  (unless (get-buffer-window racket--logger-buffer-name)
-    (display-buffer (get-buffer racket--logger-buffer-name)))
+  (unless (get-buffer-window (racket--logger-buffer-name))
+    (display-buffer (get-buffer (racket--logger-buffer-name))))
   ;; Select the window
-  (select-window (get-buffer-window racket--logger-buffer-name)))
+  (select-window (get-buffer-window (racket--logger-buffer-name))))
 
 (defun racket-logger-clear ()
   "Clear the buffer and reconnect."
   (interactive)
-  (when (y-or-n-p "Clear buffer? ")
-    (let ((inhibit-read-only t))
-      (delete-region (point-min) (point-max)))
-    (racket--logger-activate-config)))
+  (when (eq major-mode 'racket-logger-mode)
+    (when (y-or-n-p "Clear buffer? ")
+      (let ((inhibit-read-only t))
+        (delete-region (point-min) (point-max)))
+      (racket--logger-activate-config))))
 
 (defconst racket--logger-item-rx
   (rx bol ?\[ (0+ space) (or "fatal" "error" "warning" "info" "debug") ?\] space))

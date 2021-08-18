@@ -15,13 +15,16 @@
            expected-version
            actual-version))
 
-  (define launch-token
+  (define-values (launch-token accept-host tcp-port)
     (match (current-command-line-arguments)
-      [(vector (== "--auth") token svg-flag-str)
+      [(vector (== "--auth")        token
+               (== "--accept-host") accept-host
+               (== "--port")        tcp-port
+               svg-flag-str)
        (emacs-can-use-svg! svg-flag-str)
-       token]
+       (values token accept-host (string->number tcp-port))]
       [v
-       (eprintf "Bad command-line arguments: ~v\n" v)
+       (eprintf "Bad command-line arguments:\n~v\n" v)
        (exit)]))
 
   ;; Save original current-{input output}-port to give to
@@ -31,5 +34,5 @@
     ;; Set no-ops so e.g. rando print can't bork the command I/O.
     (parameterize ([current-input-port  (open-input-bytes #"")]
                    [current-output-port (open-output-nowhere)])
-      (start-repl-session-server launch-token)
+      (start-repl-session-server launch-token accept-host tcp-port)
       (command-server-loop stdin stdout))))

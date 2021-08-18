@@ -98,7 +98,7 @@ file-local variable.")
    (save-excursion
      (goto-char beg)
      (list 'debug-eval
-           (racket--buffer-file-name)
+           (racket-file-name-front-to-back (racket--buffer-file-name))
            (line-number-at-pos)
            (current-column)
            (point)
@@ -112,18 +112,19 @@ file-local variable.")
 (defun racket--debug-on-break (response)
   (pcase response
     (`((,src . ,pos) ,positions ,locals ,vals)
-     (pcase (find-buffer-visiting src)
-       (`nil (other-window 1) (find-file src))
-       (buf  (pop-to-buffer buf)))
-     (goto-char pos)
-     (pcase vals
-       (`(,_id before)          (message "Break before expression"))
-       (`(,_id after (,_ . ,s)) (message "Break after expression: (values %s"
-                                         (substring s 1))))
-     (setq racket--debug-break-positions positions)
-     (setq racket--debug-break-locals locals)
-     (setq racket--debug-break-info vals)
-     (racket-debug-mode 1))))
+     (let ((src (racket-file-name-back-to-front src)))
+       (pcase (find-buffer-visiting src)
+         (`nil (other-window 1) (find-file src))
+         (buf  (pop-to-buffer buf)))
+       (goto-char pos)
+       (pcase vals
+         (`(,_id before)          (message "Break before expression"))
+         (`(,_id after (,_ . ,s)) (message "Break after expression: (values %s"
+                                           (substring s 1))))
+       (setq racket--debug-break-positions positions)
+       (setq racket--debug-break-locals locals)
+       (setq racket--debug-break-info vals)
+       (racket-debug-mode 1)))))
 
 (defun racket--debug-resume (next-break value-prompt-p)
   (unless racket--debug-break-info (user-error "Not debugging"))
