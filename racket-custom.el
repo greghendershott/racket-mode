@@ -1,6 +1,6 @@
 ;;; racket-custom.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -34,37 +34,27 @@
   :group 'languages
   :link '(url-link :tag "README on GitHub" "https://github.com/greghendershott/racket-mode/blob/master/README.md"))
 
-;; This should be _before_ the `defcustom' of `racket-program' (see
-;; note in doc for `define-obsolete-variable-alias').
-(define-obsolete-variable-alias
-  'racket-racket-program
-  'racket-program
-  "2017-06-02")
+;; These aliases need be _before_ the `defcustom' of `racket-program'
+;; (see note in doc for `define-obsolete-variable-alias').
+(define-obsolete-variable-alias 'racket-racket-program 'racket-program "2017-06-02")
+(define-obsolete-variable-alias 'racket-raco-program   'racket-program "2017-06-02")
 
-(make-obsolete-variable
-  'racket-raco-program
-  "You need only set `racket-program' to the Racket executable pathname."
-  "2017-06-02")
+(defvar racket--winp (eq 'windows-nt system-type))
 
-(defvar racket--winp (string-match-p "windows" (symbol-name system-type)))
+(defcustom racket-program (if racket--winp "Racket.exe" "racket")
+  "Pathname of the Racket executable.
 
-(defcustom racket-program (cond (racket--winp "Racket.exe")
-                                (t            "racket"))
-  "Pathname of the racket executable."
+Note that a back end configuration can override this with a
+non-nil `racket-program` property list value. See
+`racket-add-back-end'."
   :tag "Racket Program"
   :type '(file :must-match t)
   :risky t
   :group 'racket)
 
-(make-obsolete-variable
- 'racket-command-port
- "This no longer has any effect. The Racket Mode back end chooses an ephemeral TCP port for REPL sessions and I/O."
- "2020-04-25")
+(make-obsolete-variable 'racket-command-port nil "2020-04-25")
 
-(make-obsolete-variable
-  'racket-command-startup
-  "This no longer has any effect."
-  "2020-01-23")
+(make-obsolete-variable 'racket-command-startup nil "2020-01-23")
 
 (defcustom racket-command-timeout 10
   "How many seconds to wait for command server responses.
@@ -78,38 +68,9 @@ their response asychronously."
   :risky t
   :group 'racket)
 
-(defcustom racket-path-from-emacs-to-racket-function
-  #'identity
-  "A function to transform Emacs Lisp pathnames given to the Racket back end.
+(make-obsolete-variable 'racket-path-from-emacs-to-racket-function nil "2020-08-26")
 
-If you run Emacs on Windows Subsystem for Linux, and want to run
-Racket programs using Windows Racket.exe rather than Linux
-racket, you can set this to `racket-wsl-to-windows'. In that case
-you probably also want to customize the \"reverse\":
-`racket-path-from-racket-to-emacs-function'."
-  :tag "Path from Emacs to Racket Function"
-  :type 'function
-  :safe 'functionp
-  :group 'racket)
-
-(defcustom racket-path-from-racket-to-emacs-function
-  (if racket--winp
-      (lambda (path) (subst-char-in-string ?\\ ?/ path))
-      #'identity)
-  "A function to transform Racket back end pathnames given to Emacs Lisp.
-
-The default on Windows replaces back with forward slashes. The
-default elsewhere is `identity'.
-
-If you run Emacs on Windows Subsystem for Linux, and want to run
-Racket programs using Windows Racket.exe rather than Linux
-racket, you can set this to `racket-windows-to-wsl'. In that case
-you probably also want to customize the \"reverse\":
-`racket-path-from-emacs-to-racket-function'."
-  :tag "Path from Racket to Emacs Function"
-  :type 'function
-  :safe #'functionp
-  :group 'racket)
+(make-obsolete-variable 'racket-path-from-racket-to-emacs-function nil "2020-08-26")
 
 (defcustom racket-browse-url-function
   'racket-browse-url-using-temporary-file
@@ -132,7 +93,7 @@ and `racket-repl-documentation' should look for the search page.
   \"%s\" at the point at which to insert the user's search text.
   the help desk. Apart from \"%s\", the string should be a
   properly encoded URL."
-  :tag "Where to search documentation"
+  :tag "Documentation Search Location"
   :type '(choice (string :tag "URL")
                  (const :tag "Local" 'local))
   :safe (lambda (val) (or (stringp val) (eq val 'local)))
@@ -195,7 +156,7 @@ This is used when a `racket-mode' buffer is created. Changing
 this to a new value only affects `racket-mode' buffers created
 later.
 
-Any such function takes no arguments, should look at
+Any such function takes no arguments, should look at the variable
 `buffer-file-name' if necessary, and either `setq-default' or
 `setq-local' the variable `racket-repl-buffer-name' to a desired
 `racket-repl-mode' buffer name. As a result, `racket-run'
@@ -275,10 +236,7 @@ more-helpful error message."
   :risky t
   :group 'racket-repl)
 
-(make-obsolete-variable
- 'racket-retry-as-skeleton
- "The motivation for this is now N/A with `racket-xp-mode'."
- "2020-02-26")
+(make-obsolete-variable 'racket-retry-as-skeleton nil "2020-02-26")
 
 (defcustom racket-repl-history-directory
   (locate-user-emacs-file (file-name-as-directory "racket-mode"))
@@ -690,4 +648,4 @@ See the variable `racket-browse-url-function'."
 
 (provide 'racket-custom)
 
-;; racket-custom.el ends here
+;;; racket-custom.el ends here

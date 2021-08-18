@@ -1,6 +1,6 @@
 ;;; racket-scribble.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2021 by Greg Hendershott.
+;; Copyright (c) 2021-2022 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -18,6 +18,7 @@
 
 (require 'shr)
 (require 'url-util)
+(require 'tramp)
 
 (defconst racket--scribble-temp-nbsp #x2020
   "Character we substitute for #xA0 non-breaking-space.
@@ -38,11 +39,14 @@ This will ensure that the non-breaking-space chars actually have
 the effect of being non-breaking.")
 
 (defun racket--scribble-path->shr-dom (path)
-  (let* ((base  (file-name-directory path))
-         (dom   (racket--html-file->dom path))
-         (mains (racket--scribble-main-elements path dom))
-         (dom   (racket--massage-scribble-dom path base mains)))
-    dom))
+  (with-temp-message (format "Getting and formatting documentation %s..."
+                             path)
+    (let* ((tramp-verbose 2) ;avoid excessive messages
+           (base  (file-name-directory path))
+           (dom   (racket--html-file->dom path))
+           (mains (racket--scribble-main-elements path dom))
+           (dom   (racket--massage-scribble-dom path base mains)))
+      dom)))
 
 (defun racket--html-file->dom (path)
   (with-temp-buffer

@@ -37,6 +37,7 @@
                               (eq ?\s (char-syntax (char-after (point))))
                               end))
                     (sym (and beg end (buffer-substring-no-properties beg end)))
+                    (how (racket-how-front-to-back how))
                     (str (and sym (racket--cmd/await repl-session-id
                                                      `(type ,how ,sym)))))
                str)

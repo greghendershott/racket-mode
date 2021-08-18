@@ -1,6 +1,6 @@
 ;;; racket-debug.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2018-2020 by Greg Hendershott.
+;; Copyright (c) 2018-2022 by Greg Hendershott.
 
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
@@ -15,74 +15,44 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'racket-back-end)
 (require 'racket-repl)
 (require 'easymenu)
 (require 'cl-lib)
 (require 'rx)
 
-(defun racket-project-files (file-to-run)
+(defun racket-same-directory-files (file)
   "A suitable value for the variable `racket-debuggable-files'.
-When projectile is installed and we're in a project, return all
-its Racket files. Else return all Racket files in the same
-directory as `file-to-run'. In all cases, include `file-to-run'.
-In all cases, return absolute path names."
-  (cons
-   file-to-run
-   (or
-    (ignore-errors
-      (require 'projectile)
-      (when (and (fboundp 'projectile-project-root)
-                 (fboundp 'projectile-dir-files))
-        (let ((root (projectile-project-root)))
-          (mapcar (lambda (v)
-                    (expand-file-name v root))
-                  (cl-remove-if-not (lambda (v)
-                                      (and (member (file-name-extension v)
-                                                   '("rkt" "ss" "scm" "scrbl"))
-                                           v))
-                                    (projectile-dir-files root))))))
-    (directory-files (file-name-directory file-to-run)
-                     t
-                     (rx "." (or "rkt" "ss" "scm" "scrbl") eos)))))
+Return FILE plus absolute paths for all Racket files in the same
+directory as FILE."
+  (cons file
+        (directory-files (file-name-directory file)
+                         t
+                         (rx "." (or "rkt" "ss" "scm" "scrbl") eos)
+                         nil)))
 
-(defvar racket-debuggable-files #'racket-project-files
+(defvar racket-debuggable-files #'racket-same-directory-files
   "Used to tell `racket-run' what files may be instrumented for debugging.
-Must be a list of strings that are pathnames, such as from
-`racket--buffer-file-name', -or-, a function that returns such a
-list given the pathname of the file being run. If any path
-strings are relative, they are made absolute using
-`expand-file-name' with the directory of the file being run. The
-symbol 'run-file may be supplied in the list; it will be replaced
-with the pathname of the file being run. Safe to set as a
-file-local variable.")
+
+This isn't yet a defcustom becuase the debugger status is still
+\"experimental\".
+
+Must be either a list of file name strings, or, a function that
+takes the name of the file being run and returns a list of file
+names.
+
+Each file name in the list is made absolute using
+`expand-file-name' with respect to the file being run and given
+to `racket-file-name-front-to-back'.")
 
 (defun racket--debuggable-files (file-to-run)
   "Do the work described in doc str for variable `racket-debuggable-files'."
-  (cl-labels ((err (&rest args)
-                   (user-error (concat "racket-debuggable-files: must be "
-                                       (apply #'format args)))))
-    (let* ((print-length nil) ;for %S
-           (print-level nil)  ;for %S
-           (dir (file-name-directory file-to-run))
-           (xs  (if (functionp racket-debuggable-files)
-                    (funcall racket-debuggable-files file-to-run)
-                  racket-debuggable-files))
-           (xs  (if (listp xs) xs (err "a list but is `%S'" xs)))
-           (xs  (mapcar
-                 (lambda (v)
-                   (pcase v
-                     (`run-file      file-to-run)
-                     ((pred stringp) (expand-file-name v dir))
-                     (_              (err "string or 'run-file but is `%S' in `%S'"
-                                          v xs))))
-                 xs))
-           (xs  (if (eq system-type 'windows-nt)
-                    (mapcar
-                     (lambda (v)
-                       (replace-regexp-in-string (rx "/") "\\" v nil t))
-                     xs)
-                  xs)))
-      xs)))
+  (mapcar (lambda (file)
+            (racket-file-name-front-to-back
+             (expand-file-name file file-to-run)))
+          (if (functionp racket-debuggable-files)
+              (funcall racket-debuggable-files file-to-run)
+            racket-debuggable-files)))
 
 (defvar racket--debug-break-positions nil)
 (defvar racket--debug-break-locals nil)
@@ -98,7 +68,7 @@ file-local variable.")
    (save-excursion
      (goto-char beg)
      (list 'debug-eval
-           (racket--buffer-file-name)
+           (racket-file-name-front-to-back (racket--buffer-file-name))
            (line-number-at-pos)
            (current-column)
            (point)
@@ -112,18 +82,19 @@ file-local variable.")
 (defun racket--debug-on-break (response)
   (pcase response
     (`((,src . ,pos) ,positions ,locals ,vals)
-     (pcase (find-buffer-visiting src)
-       (`nil (other-window 1) (find-file src))
-       (buf  (pop-to-buffer buf)))
-     (goto-char pos)
-     (pcase vals
-       (`(,_id before)          (message "Break before expression"))
-       (`(,_id after (,_ . ,s)) (message "Break after expression: (values %s"
-                                         (substring s 1))))
-     (setq racket--debug-break-positions positions)
-     (setq racket--debug-break-locals locals)
-     (setq racket--debug-break-info vals)
-     (racket-debug-mode 1))))
+     (let ((src (racket-file-name-back-to-front src)))
+       (pcase (find-buffer-visiting src)
+         (`nil (other-window 1) (find-file src))
+         (buf  (pop-to-buffer buf)))
+       (goto-char pos)
+       (pcase vals
+         (`(,_id before)          (message "Break before expression"))
+         (`(,_id after (,_ . ,s)) (message "Break after expression: (values %s"
+                                           (substring s 1))))
+       (setq racket--debug-break-positions positions)
+       (setq racket--debug-break-locals locals)
+       (setq racket--debug-break-info vals)
+       (racket-debug-mode 1)))))
 
 (defun racket--debug-resume (next-break value-prompt-p)
   (unless racket--debug-break-info (user-error "Not debugging"))

@@ -1,6 +1,6 @@
 ;;; racket-show.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2021 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -173,9 +173,9 @@ any border."
       ;; remainder of the line jiggle as the tooltip apears and
       ;; disappears.
       (if (< beg next-eol)
-          (cl-labels ((text-pixel-width
-                       (beg end)
-                       (car (window-text-pixel-size nil beg end))))
+          (cl-flet ((text-pixel-width
+                     (beg end)
+                     (car (window-text-pixel-size nil beg end))))
             (let* ((end  (min next-eol (+ beg text-len)))
                    (ov   (make-overlay beg end))
                    (old  (text-pixel-width (1+ eol) end))

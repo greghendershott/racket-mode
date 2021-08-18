@@ -13,10 +13,10 @@
          (pretty-print-size-hook (make-pretty-print-size-hook pixels/char))
          (pretty-print-print-hook (make-pretty-print-print-hook))]
         [else
-         (current-print plain-print-handler)])
+         (current-print racket-mode-plain-print-handler)])
   (print-syntax-width +inf.0))
 
-(define (plain-print-handler v)
+(define (racket-mode-plain-print-handler v)
   (unless (void? v)
     (println (match (convert-image v)
                [(cons path-name _pixel-width) path-name]

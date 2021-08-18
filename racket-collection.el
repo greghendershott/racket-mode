@@ -1,6 +1,6 @@
 ;;; racket-collection.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -17,6 +17,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'tq)
+(require 'racket-back-end)
 (require 'racket-repl)
 (require 'racket-custom) ;for `racket-program'
 (require 'racket-util)
@@ -62,9 +63,9 @@
 (defvar racket--orp/active nil ;;FIXME: Use minibuffer-exit-hook instead?
   "Is `racket-open-require-path' using the minibuffer?")
 (defvar racket--orp/input ""
-  "The current user input. Unless user C-g's this persists, as with DrR.")
+  "The current user input.")
 (defvar racket--orp/matches nil
-  "The current user matches. Unless user C-g's this persists, as with DrR.")
+  "The current user matches.")
 (defvar racket--orp/match-index 0
   "The index of the current match selected by the user.")
 (defvar racket--orp/max-height 10
@@ -79,22 +80,26 @@
      (("SPC" "TAB" "C-v" "<next>" "M-v" "<prior>" "M-<" "<home>" "M->" "<end>")
       racket--orp/nop))))
 
-(defun racket--orp/process ()
+(defun racket--orp/make-process ()
   "Start process to run find-module-path-completions.rkt."
-  (let ((name   "racket-find-module-path-completions-process")
-        (buffer " *racket-find-module-path-completions*")
-        (stderr " *racket-find-module-path-completions-stderr*")
-        (rkt    (funcall racket-adjust-run-rkt
-                         (expand-file-name "find-module-path-completions.rkt"
-                                           racket--rkt-source-dir))))
+  (let* ((back-end  (racket-back-end))
+         (name      (concat "racket-find-module-path-completions-"
+                            (racket-back-end-name back-end)))
+         (rkt-file  (expand-file-name "find-module-path-completions.rkt"
+                                      (if (racket--back-end-local-p back-end)
+                                          racket--rkt-source-dir
+                                        (plist-get back-end :remote-source-dir))))
+         (command (racket--back-end-args->command back-end (list rkt-file))))
     (make-process :name            name
-                  :buffer          buffer
-                  :command         (list racket-program rkt)
                   :connection-type 'pipe
-                  :stderr          stderr)))
+                  :noquery         t
+                  :coding          'utf-8
+                  :buffer          (concat " *" name "*")
+                  :stderr          (concat " *" name "-stderr*")
+                  :command         command)))
 
 (defun racket--orp/begin ()
-  (setq racket--orp/tq (tq-create (racket--orp/process))))
+  (setq racket--orp/tq (tq-create (racket--orp/make-process))))
 
 (defun racket--orp/request-tx-matches (input)
   "Request matches from the Racket process; delivered to `racket--orp/rx-matches'."
@@ -108,8 +113,7 @@
 (defun racket--orp/rx-matches (buffer answer)
   "Completion proc; receives answer to request by `racket--orp/request-tx-matches'."
   (when racket--orp/active
-    (setq racket--orp/matches (mapcar racket-path-from-racket-to-emacs-function
-                                      (split-string answer "\n" t)))
+    (setq racket--orp/matches (split-string answer "\n" t))
     (setq racket--orp/match-index 0)
     (with-current-buffer buffer
       (racket--orp/draw-matches))))
@@ -136,19 +140,21 @@ at the top, marked with \"->\".
   (racket--orp/begin)
   (setq racket--orp/active t)
   (setq racket--orp/match-index 0)
-  ;; We do NOT initialize `racket--orp/input' or `racket--orp/matches'
-  ;; here. Like DrR, we remember from last time invoked. We DO
-  ;; initialize them in racket--orp/quit i.e. user presses C-g.
+  (setq racket--orp/input "")
+  (setq racket--orp/matches nil)
   (add-hook 'minibuffer-setup-hook #'racket--orp/minibuffer-setup)
-  (condition-case ()
+  (unwind-protect
       (progn
         (read-from-minibuffer "Open require path: "
                               racket--orp/input
-                              racket--orp/keymap)
+                              racket--orp/keymap
+                              nil)
         (when racket--orp/matches
-          (find-file (elt racket--orp/matches racket--orp/match-index))))
-    (error (setq racket--orp/input "")
-           (setq racket--orp/matches nil)))
+          (find-file (racket-file-name-back-to-front
+                      (elt racket--orp/matches racket--orp/match-index)))))
+    (setq racket--orp/input "")
+    (setq racket--orp/matches nil))
+  (remove-hook 'minibuffer-setup-hook #'racket--orp/minibuffer-setup)
   (setq racket--orp/active nil)
   (racket--orp/end))
 

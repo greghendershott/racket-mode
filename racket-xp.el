@@ -535,7 +535,7 @@ command prefixes you supply.
   (interactive "P")
   (pcase (get-text-property (point) 'racket-xp-doc)
     ((and `(,path ,anchor) (guard (not prefix)))
-     (racket-browse-url (concat "file://" path "#" anchor)))
+     (racket-browse-file-url path anchor))
     (_
      (racket--doc prefix (buffer-file-name) racket--xp-binding-completions))))
 
@@ -772,10 +772,17 @@ evaluation errors that won't be found merely from expansion -- or
    ;; Something annotated for jump-to-definition by drracket/check-syntax
    (pcase (get-text-property 0 'racket-xp-visit str)
      (`(,path ,subs ,ids)
-      (pcase (racket--cmd/await nil `(def/drr ,(racket--buffer-file-name) ,path ,subs ,ids))
+      (pcase (racket--cmd/await nil
+                                `(def/drr
+                                   ,(racket-file-name-front-to-back
+                                     (racket--buffer-file-name))
+                                   ,(racket-file-name-front-to-back path)
+                                   ,subs
+                                   ,ids))
         (`(,path ,line ,col)
          (list (xref-make str
-                          (xref-make-file-location path line col)))))))
+                          (xref-make-file-location
+                           (racket-file-name-back-to-front path) line col)))))))
    (pcase (get-text-property 0 'racket-xp-use str)
      (`(,beg ,end)
       (list
@@ -788,7 +795,8 @@ evaluation errors that won't be found merely from expansion -- or
       (xref-backend-definitions 'racket-xref-module id)))
    ;; Something that, for whatever reason, drracket/check-syntax did
    ;; not annotate.
-   (pcase (racket--cmd/await nil `(def ,(racket--buffer-file-name)
+   (pcase (racket--cmd/await nil `(def ,(racket-file-name-front-to-back
+                                         (racket--buffer-file-name))
                                        ,(substring-no-properties str)))
      (`(,path ,line ,col)
       (list (xref-make str
@@ -922,7 +930,8 @@ manually."
   (let ((generation-of-our-request racket--xp-edit-generation))
     (racket--cmd/async
      nil
-     `(check-syntax ,(or (racket--buffer-file-name) (buffer-name))
+     `(check-syntax ,(racket-file-name-front-to-back
+                      (or (racket--buffer-file-name) (buffer-name)))
                     ,(buffer-substring-no-properties (point-min) (point-max)))
      (lambda (response)
        (when (= generation-of-our-request racket--xp-edit-generation)
@@ -961,14 +970,18 @@ manually."
     (dolist (x xs)
       (pcase x
         (`(error ,path ,beg ,end ,str)
-         (racket--xp-add-error path beg str)
-         (when (equal path (racket--buffer-file-name))
-           (remove-text-properties beg end
-                                   (list 'help-echo     nil
-                                         'racket-xp-def nil
-                                         'racket-xp-use nil))
-           (racket--add-overlay beg end racket-xp-error-face)
-           (put-text-property beg end 'help-echo str)))
+         (let ((path (racket-file-name-back-to-front path)))
+           (racket--xp-add-error path beg str)
+           (when (equal path (racket--buffer-file-name))
+             (remove-text-properties
+              beg end
+              (list 'help-echo     nil
+                    'racket-xp-def nil
+                    'racket-xp-use nil))
+             (racket--add-overlay beg end racket-xp-error-face)
+             (add-text-properties
+              beg end
+              (list 'help-echo str)))))
         (`(info ,beg ,end ,str)
          (put-text-property beg end 'help-echo str)
          (when (and (string-equal str "no bound occurrences")
@@ -1010,9 +1023,15 @@ manually."
                                 'racket-xp-tail-position
                                 target))))
         (`(jump ,beg ,end ,path ,subs ,ids)
-         (put-text-property beg end 'racket-xp-visit (list path subs ids)))
+         (add-text-properties
+          beg end
+          (list 'racket-xp-visit
+                (list (racket-file-name-back-to-front path) subs ids))))
         (`(doc ,beg ,end ,path ,anchor)
-         (put-text-property beg end 'racket-xp-doc (list path anchor)))))))
+         (add-text-properties
+          beg end
+          (list 'racket-xp-doc
+                (list (racket-file-name-back-to-front path) anchor))))))))
 
 (defun racket--xp-clear (&optional only-errors-p)
   (with-silent-modifications

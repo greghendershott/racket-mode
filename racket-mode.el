@@ -1,6 +1,6 @@
 ;;; racket-mode.el --- Racket editing, REPL, and more  -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 
 ;; Package: racket-mode
 ;; Package-Requires: ((emacs "25.1"))
@@ -135,6 +135,7 @@
 
 \\{racket-mode-map}"
   (racket--common-variables)
+  (racket-call-racket-repl-buffer-name-function)
   (setq-local imenu-create-index-function #'racket-imenu-create-index-function)
   (hs-minor-mode t)
   (setq-local completion-at-point-functions (list #'racket-complete-at-point))

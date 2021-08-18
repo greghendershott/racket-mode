@@ -17,10 +17,17 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'racket-custom)
+(require 'racket-cmd)
 
 (defun racket-browse-url (url &rest args)
   (when url
     (apply racket-browse-url-function url args)))
+
+(defun racket-browse-file-url (path anchor)
+  (when (or (file-remote-p path)
+            (not (racket--back-end-local-p)))
+    (user-error "Cannot use web browser to browse remote documentation; instead use `racket-describe'"))
+  (racket-browse-url (concat "file://" path "#" anchor)))
 
 (defun racket-browse-url-using-temporary-file (url &rest _args)
   "Browse a URL via a temporary HTML file using a meta redirect.

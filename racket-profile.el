@@ -1,6 +1,6 @@
 ;;; racket-profile.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2021 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -42,7 +42,8 @@ delete compiled/*.zo files."
   (unless (eq major-mode 'racket-mode)
     (user-error "Works only in a racket-mode buffer"))
   (message "Running with profiling instrumentation...")
-  (let ((buf-name "*Racket Profile*")
+  (let ((buf-name (format "*Racket Profile <%s>*"
+                          (racket-back-end-name)))
         (what-to-run (racket--what-to-run)))
     (racket--repl-run
      what-to-run
@@ -83,7 +84,7 @@ delete compiled/*.zo files."
                                        (not (and (zerop calls) (zerop msec))))
                                    (or racket--profile-show-non-project
                                        (equal (racket-project-root
-                                               file)
+                                               (racket-file-name-back-to-front file))
                                               racket--profile-project-root))))
                             racket--profile-results))
                  (`(,width-calls ,width-msec ,width-name)
@@ -104,7 +105,8 @@ delete compiled/*.zo files."
                 ("Source" 99           t)]))
       (setq tabulated-list-entries
             (seq-map (pcase-lambda (`(,calls ,msec ,name ,file ,beg ,end))
-                       (let* ((simplified-file
+                       (let* ((file (racket-file-name-back-to-front file))
+                              (simplified-file
                                (if (equal (racket-project-root file)
                                           racket--profile-project-root)
                                    (file-relative-name file racket--profile-project-root)

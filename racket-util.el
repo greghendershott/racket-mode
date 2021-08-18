@@ -1,6 +1,6 @@
 ;;; racket-util.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -42,23 +42,21 @@ DEF is the same as DEF for `define-key'."
           spec)
     m))
 
-(defun racket--buffer-file-name (&optional no-adjust)
-  "Like `buffer-file-name' but always a non-propertized string.
+(defun racket--buffer-file-name (&optional no-replace-slash)
+  "Like `buffer-file-name' but adjusted for use outside Emacs.
 
-Unless NO-ADJUST is not nil, applies the name to the function
-variable `racket-path-from-emacs-to-racket-function'."
+Always a non-propertized string.
+
+When on Windows and unless NO-REPLACE-SLASH is not nil, replaces
+back slashes with forward slashes. Emacs uses forward slashes for
+buffer file names even on Windows, so we need to \"reverse\"
+this to use the names with shell programs or a Racket back end."
   (let ((v (and (buffer-file-name)
                 (substring-no-properties (buffer-file-name)))))
-    (if no-adjust
-        v
-      (funcall racket-path-from-emacs-to-racket-function
-               v))))
-
-(defun racket--get-buffer-recreate (bufname)
-  "Like `get-buffer-create' but re-creates the buffer if it already exists."
-  (let ((buf (get-buffer bufname)))
-    (when buf (kill-buffer buf)))
-  (get-buffer-create bufname))
+    (if (and racket--winp
+             (not no-replace-slash))
+        (subst-char-in-string ?\\ ?/ v)
+      v)))
 
 (defun racket--save-if-changed ()
   (unless (eq major-mode 'racket-mode)

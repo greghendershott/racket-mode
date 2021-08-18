@@ -1,6 +1,6 @@
 ;;; racket-tests.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 
 ;; License:
 ;; This is free software; you can redistribute it and/or modify it
@@ -157,7 +157,7 @@ supplied to it."
       ;; Exit
       (racket-tests/type&press "(exit)" "RET")
       (should (racket-tests/see-back
-               "Process *Racket REPL* connection broken by remote peer\n"))
+               "Process *Racket REPL </>* connection broken by remote peer\n"))
       (kill-buffer))))
 
 ;;; Multi REPLs
@@ -216,7 +216,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
         (should (racket-tests/see-back (concat "\n" name "> ")))
         (racket-repl-exit)
         (should (racket-tests/see-back
-                 "Process *Racket REPL* connection broken by remote peer\n"))
+                 "Process *Racket REPL </>* connection broken by remote peer\n"))
         (kill-buffer))
       (kill-buffer)
       (delete-file path))))
@@ -251,15 +251,15 @@ c.rkt. Visit each file, racket-run, and check as expected."
           (racket-tests/should-eventually
            (racket-tests/see-back (concat "\n" name "> "))))
 
-        (racket-tests/should-eventually (get-buffer "*Racket Profile*"))
-        (with-current-buffer (get-buffer "*Racket Profile*")
+        (racket-tests/should-eventually (get-buffer "*Racket Profile </>*"))
+        (with-current-buffer (get-buffer "*Racket Profile </>*")
           (racket-tests/should-eventually (eq major-mode 'racket-profile-mode))
           (kill-buffer))
 
         (with-current-buffer repl-name
           (racket-repl-exit)
           (should (racket-tests/see-back
-                   "Process *Racket REPL* connection broken by remote peer\n"))
+                   "Process *Racket REPL </>* connection broken by remote peer\n"))
           (kill-buffer))
         (kill-buffer)
         (delete-file path)))))
@@ -340,7 +340,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
      (with-racket-repl-buffer
        (racket-repl-exit)
        (should (racket-tests/see-back
-                "Process *Racket REPL* connection broken by remote peer\n"))
+                "Process *Racket REPL </>* connection broken by remote peer\n"))
        (kill-buffer))
 
      (kill-buffer)
@@ -393,7 +393,7 @@ want to use the value of `racket-program' at run time."
       (write-region code nil path nil 'no-wrote-file-message)
       (find-file path)
       (racket-expand-file)
-      (set-buffer "*Racket Stepper*")
+      (set-buffer "*Racket Stepper </>*")
       (should (eq major-mode 'racket-stepper-mode))
       (should (equal header-line-format "Press RET to step. C-u RET to step all. C-h m to see help."))
       (racket-tests/should-eventually
@@ -483,7 +483,7 @@ want to use the value of `racket-program' at run time."
         (write-region code nil path nil 'no-wrote-file-message)
         (find-file path)
         (racket-expand-file 4) ;; i.e. C-u prefix
-        (set-buffer "*Racket Stepper*")
+        (set-buffer "*Racket Stepper </>*")
         (should (eq major-mode 'racket-stepper-mode))
         (should (equal header-line-format "Press RET to step. C-u RET to step all. C-h m to see help."))
         (racket-tests/should-eventually
@@ -594,7 +594,7 @@ want to use the value of `racket-program' at run time."
 
         (goto-char (point-max))         ;after the cond expression
         (racket-expand-last-sexp)
-        (set-buffer "*Racket Stepper*")
+        (set-buffer "*Racket Stepper </>*")
         (should (eq major-mode 'racket-stepper-mode))
         (should (equal header-line-format "Press RET to step. C-u RET to step all. C-h m to see help."))
         (racket-tests/should-eventually
@@ -613,10 +613,11 @@ want to use the value of `racket-program' at run time."
         (racket-tests/should-eventually
          (faceup-test-font-lock-buffer nil racket-tests/expand-expression-4))
 
+        (quit-window)
         (with-racket-repl-buffer
           (racket-repl-exit)
           (should (racket-tests/see-back
-                   "Process *Racket REPL* connection broken by remote peer\n"))
+                   "Process *Racket REPL </>* connection broken by remote peer\n"))
           (kill-buffer))
 
         (kill-buffer)

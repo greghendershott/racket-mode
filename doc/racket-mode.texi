@@ -29,9 +29,11 @@
 * Introduction::
 * Install::
 * Configure::
+* Architecture::
 * Reference::
 * Commands::
 * Variables::
+* Configuration functions::
 * Faces::
 
 @detailmenu
@@ -75,9 +77,6 @@ Commands
 * Collections::
 * Macro expand::
 * Other::
-* Showing information::
-* Associating edit buffers with REPL buffers::
-* Browsing file URLs with anchors::
 
 Edit
 
@@ -162,31 +161,13 @@ Other
 
 * racket-mode-start-faster::
 * racket-mode-start-slower::
-
-Showing information
-
-* racket-show-pseudo-tooltip::
-* racket-show-echo-area::
-* racket-show-header-line::
-* racket-show-pos-tip::
-
-Associating edit buffers with REPL buffers
-
-* racket-repl-buffer-name-shared::
-* racket-repl-buffer-name-unique::
-* racket-repl-buffer-name-project::
-* racket-project-root::
-
-Browsing file URLs with anchors
-
-* racket-browse-url-using-temporary-file::
 Variables
 
 * General variables::
 * REPL variables::
 * Other variables::
 * Experimental debugger variables::
-* Showing information: Showing informationx. 
+* Showing information::
 
 General variables
 
@@ -195,8 +176,6 @@ General variables
 * racket-memory-limit::
 * racket-error-context::
 * racket-user-command-line-arguments::
-* racket-path-from-emacs-to-racket-function::
-* racket-path-from-racket-to-emacs-function::
 * racket-browse-url-function::
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
@@ -231,6 +210,34 @@ Experimental debugger variables
 Showing information
 
 * racket-show-functions::
+Configuration functions
+
+* Showing information: Showing informationx. 
+* Associating edit buffers with REPL buffers::
+* Browsing file URLs with anchors::
+* Configuring back ends::
+
+Showing information
+
+* racket-show-pseudo-tooltip::
+* racket-show-echo-area::
+* racket-show-header-line::
+* racket-show-pos-tip::
+
+Associating edit buffers with REPL buffers
+
+* racket-repl-buffer-name-shared::
+* racket-repl-buffer-name-unique::
+* racket-repl-buffer-name-project::
+* racket-project-root::
+
+Browsing file URLs with anchors
+
+* racket-browse-url-using-temporary-file::
+
+Configuring back ends
+
+* racket-add-back-end::
 Faces
 
 * All::
@@ -288,8 +295,6 @@ Various other modes to support specific features:
 @ref{racket-debug-mode}
 @end itemize
 @end itemize
-
-Racket Mode uses a ``back end server'' written in Racket, which is responsible for running files and implementing commands that cannot be implemented in Emacs Lisp.@footnote{Racket Mode's Racket code is also delivered as part of the Emacs package --- @emph{not} as a Racket package. Delivering both Emacs and Racket code in one Emacs package simplifies installation and updates. The main drawback is that the Racket code is not automatically byte-compiled, as would normally be done by @code{raco pkg install}. To address this: @xref{racket-mode-start-faster}.}
 
 For code, issues, and pull requests, see the @uref{https://github.com/greghendershott/racket-mode,Git repo}.
 
@@ -660,7 +665,44 @@ To automatically enable the @code{racket-unicode} input method in @code{racket-m
 @node Ligatures
 @section Ligatures
 
-Prior to Emacs 28.0.50, things like @code{auto-composition-mode} or @code{ligature-mode} that use @code{composition-function-table} to display ligatures can cause Emacs to freeze. This can happen when an Emacs @code{overlay} displays a string containing such a ligature --- this includes the overlays created by @code{racket-show-pseudo-tooltip}, as used by @code{racket-xp-mode}. The only known work-around is to change the value of @code{racket-show-functions} to something ``boring'' such as @code{(racket-show-echo-area)}.
+Prior to Emacs 28.0.50, things like @code{auto-composition-mode} or @code{ligature-mode} that use @code{composition-function-table} to display ligatures can cause Emacs to freeze. This can happen when an Emacs @emph{overlay} displays a string containing such a ligature. Although the problem is not limited to Racket Mode, it affects the overlays created by @code{racket-show-pseudo-tooltip}, as used by @code{racket-xp-mode}. The only known work-around is to change the value of @code{racket-show-functions} to something ``boring'' such as @code{(racket-show-echo-area)}.
+
+@node Architecture
+@chapter Architecture
+
+Racket Mode consists of a single Emacs front end, and one or more processes running a back end written in Racket.@footnote{Racket Mode's Racket code is delivered as part of the Emacs package --- @emph{not} as a Racket package. Delivering both Emacs and Racket code in one Emacs package simplifies installation and updates. The main drawback is that the Racket code is not automatically compiled, as would normally be done by @code{raco pkg install}. To address this: @xref{racket-mode-start-faster}.}
+
+A back end is responsible for commands that cannot be implemented in Emacs Lisp, as well as supplying zero or more REPLs.
+
+Although you can start and stop a back end with @code{racket-start-back-end} and @code{racket-stop-back-end}, a back end is normally started automatically when the front end needs to issue some command. This includes commands that do @emph{not} involve @code{racket-run} or a REPL. For example @code{racket-xp-mode} issues commands to check your code and annotate the buffer, even if you do not run it. In other words, a back end supplies zero or more REPLs --- a back end is not the same thing as a REPL.
+
+To learn more about how @emph{many} REPLs are used: @xref{racket-repl-buffer-name-function}.
+
+In the common case there is only one back end, on the same local host as Emacs, and it is used for @code{.rkt} files in any directory.
+
+@image{scenario-0,,, Emacs front end and one local back end. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+
+However you can configure using any number of back ends on any number of local or remote hosts.
+
+As one example, you can have multiple back ends on the local host. One back end is used for a project under a specific subdirectory, and the other back end for all others. (Perhaps one project needs Racket built from source, and everything else uses an installed, older version of Racket. By using different back ends, not only will @code{racket-run} use the desired version of Racket for a file, so will commands for documentation or visiting definitions.)
+
+@image{scenario-1,,, Emacs front end and two local back ends --- one for a project path. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+
+Furthermore, you could work with a project located on a remote host, whose files you edit using TRAMP. You also want the back end to run there. For a remote host, Racket Mode copies its back end source files to the remote when necessary, and runs the back end using ssh.
+
+@image{scenario-2,,, Emacs front end and a back end on a remote host. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+
+Of course the remote can also use different back ends for different paths.
+
+@image{scenario-3,,, Emacs front end and two back ends on a remote host. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+
+And of course you can have multiple remotes.
+
+@image{scenario-4,,, Emacs front end and two back ends each on two remote hosts. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+
+If you need any of these ``fancy'' configurations: @xref{racket-add-back-end}.
+
+However by default a configuration is automatically created for one back end on the local host. For that very common case, you don't need to configure anything.
 
 @node Reference
 @chapter Reference
@@ -688,9 +730,6 @@ You can also view these by using the normal Emacs help mechanism:
 * Collections::
 * Macro expand::
 * Other::
-* Showing information::
-* Associating edit buffers with REPL buffers::
-* Browsing file URLs with anchors::
 @end menu
 
 @node Edit
@@ -1845,18 +1884,19 @@ Show a Racket REPL buffer in some window.
 @strong{IMPORTANT}
 
 The main, intended use of Racket Mode's REPL is that you
-@code{find-file} some specific .rkt file, then @ref{racket-run} it. The
-REPL will then match that file.
+@code{find-file} some specific .rkt file, then run it using
+@ref{racket-run} or @ref{racket-run-module-at-point}. The resulting REPL
+will correspond to those definitions and match your expectations.
 
-If the REPL isn't running, and you want to start it for no file
-in particular? Then you could use this command. But the resulting
+If you really want to start a REPL for no file in particular,
+then you could use this @ref{racket-repl} command. But the resulting
 REPL will have a minimal ``#lang racket/base'' namespace. You
 could enter "(require racket)" if you want the equivalent of
 ``#lang racket''. You could also "(require racket/enter)" if
 you want things like ``enter!''. But in some sense you'd be
-``using it wrong''. If you really don't want to use Racket Mode's
-REPL as intended, then you might as well use a plain Emacs shell
-buffer to run command-line Racket.
+``using it wrong''. If you actually don't want to use Racket
+Mode's REPL as intended, then consider using a plain Emacs
+@code{shell} buffer to run command-line Racket.
 
 @node racket-repl-describe
 @subsection racket-repl-describe
@@ -2429,149 +2469,6 @@ To revert to compiling on startup, use
 
 Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 
-@node Showing information
-@section Showing information
-
-@menu
-* racket-show-pseudo-tooltip::
-* racket-show-echo-area::
-* racket-show-header-line::
-* racket-show-pos-tip::
-@end menu
-
-@node racket-show-pseudo-tooltip
-@subsection racket-show-pseudo-tooltip
-
-Show using an overlay that resembles a tooltip.
-
-This is nicer than @ref{racket-show-pos-tip} because it:
-
-@itemize
-@item
-Doesn't flicker while navigating.
-@item
-Doesn't disappear after a timeout.
-@item
-Performs well when @code{x-gtk-use-system-tooltips} is nil.
-@end itemize
-
-On the other hand, this does not look as nice when displaying
-text that spans multiple lines or is too wide to fit the window.
-In that case, we simply left-justify everything and do not draw
-any border.
-
-@node racket-show-echo-area
-@subsection racket-show-echo-area
-
-Show things in the echo area.
-
-A value for the variable @ref{racket-show-functions}.
-
-This does @emph{not} add STR to the ``@strong{Messages}'' log buffer.
-
-@node racket-show-header-line
-@subsection racket-show-header-line
-
-Show things using a buffer header line.
-
-A value for the variable @ref{racket-show-functions}.
-
-When there is nothing to show, keep a blank header-line. That
-way, the buffer below doesn't ``jump up and down'' by a line as
-messages appear and disappear. Only when V is nil do we remove
-the header line.
-
-@node racket-show-pos-tip
-@subsection racket-show-pos-tip
-
-Show things using @code{pos-tip-show} if available.
-
-A value for the variable @ref{racket-show-functions}.
-
-@node Associating edit buffers with REPL buffers
-@section Associating edit buffers with REPL buffers
-
-@menu
-* racket-repl-buffer-name-shared::
-* racket-repl-buffer-name-unique::
-* racket-repl-buffer-name-project::
-* racket-project-root::
-@end menu
-
-@node racket-repl-buffer-name-shared
-@subsection racket-repl-buffer-name-shared
-
-@kbd{M-x}  @code{racket-repl-buffer-name-shared}
-
-All @ref{racket-mode} edit buffers share one @ref{racket-repl-mode} buffer.
-
-A value for the variable @ref{racket-repl-buffer-name-function}.
-
-@node racket-repl-buffer-name-unique
-@subsection racket-repl-buffer-name-unique
-
-@kbd{M-x}  @code{racket-repl-buffer-name-unique}
-
-Each @ref{racket-mode} edit buffer gets its own @ref{racket-repl-mode} buffer.
-
-A value for the variable @ref{racket-repl-buffer-name-function}.
-
-@node racket-repl-buffer-name-project
-@subsection racket-repl-buffer-name-project
-
-@kbd{M-x}  @code{racket-repl-buffer-name-project}
-
-All @ref{racket-mode} buffers in a project share a @ref{racket-repl-mode} buffer.
-
-A value for the variable @ref{racket-repl-buffer-name-function}.
-
-The ``project'' is determined by @ref{racket-project-root}.
-
-@node racket-project-root
-@subsection racket-project-root
-
-Given an absolute pathname for FILE, return its project root directory.
-
-The ``project'' is determined by trying, in order:
-
-@itemize
-@item
-@code{projectile-project-root}
-@item
-@code{vc-root-dir}
-@item
-@code{project-current}
-@item
-@code{file-name-directory}
-@end itemize
-
-@node Browsing file URLs with anchors
-@section Browsing file URLs with anchors
-
-@menu
-* racket-browse-url-using-temporary-file::
-@end menu
-
-@node racket-browse-url-using-temporary-file
-@subsection racket-browse-url-using-temporary-file
-
-Browse a URL via a temporary HTML file using a meta redirect.
-
-A suitable value for the variable @ref{racket-browse-url-function}.
-
-Racket documentation URLs depend on anchors -- the portion of the
-URL after the # character -- to jump to a location within a page.
-Unfortunately on some operating systems and/or versions of Emacs,
-the default handling for browsing file URLs ignores anchors. This
-function attempts to avoid the problem by using a temporary HTML
-file with a meta redirect as a ``trampoline''.
-
-Although the intent is to provide a default that ``just works'',
-you do not need to use this. You can customize the variable
-@ref{racket-browse-url-function} instead to be @code{browse-url}, or
-@code{browse-url-browser-function} in case have have customized that,
-or indeed whatever you want.
-
 @node Variables
 @chapter Variables
 
@@ -2580,7 +2477,7 @@ or indeed whatever you want.
 * REPL variables::
 * Other variables::
 * Experimental debugger variables::
-* Showing information: Showing informationx. 
+* Showing information::
 @end menu
 
 @node General variables
@@ -2592,8 +2489,6 @@ or indeed whatever you want.
 * racket-memory-limit::
 * racket-error-context::
 * racket-user-command-line-arguments::
-* racket-path-from-emacs-to-racket-function::
-* racket-path-from-racket-to-emacs-function::
 * racket-browse-url-function::
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
@@ -2603,7 +2498,11 @@ or indeed whatever you want.
 @node racket-program
 @subsection racket-program
 
-Pathname of the racket executable.
+Pathname of the Racket executable.
+
+Note that a back end configuration can override this with a
+non-nil @code{racket-program} property list value. See
+@ref{racket-add-back-end}.
 
 @node racket-command-timeout
 @subsection racket-command-timeout
@@ -2689,31 +2588,6 @@ The following values will @emph{not} work:
 (list "-f" "bar")
 @end lisp
 
-@node racket-path-from-emacs-to-racket-function
-@subsection racket-path-from-emacs-to-racket-function
-
-A function to transform Emacs Lisp pathnames given to the Racket back end.
-
-If you run Emacs on Windows Subsystem for Linux, and want to run
-Racket programs using Windows Racket.exe rather than Linux
-racket, you can set this to @code{racket-wsl-to-windows}. In that case
-you probably also want to customize the ``reverse'':
-@ref{racket-path-from-racket-to-emacs-function}.
-
-@node racket-path-from-racket-to-emacs-function
-@subsection racket-path-from-racket-to-emacs-function
-
-A function to transform Racket back end pathnames given to Emacs Lisp.
-
-The default on Windows replaces back with forward slashes. The
-default elsewhere is @code{identity}.
-
-If you run Emacs on Windows Subsystem for Linux, and want to run
-Racket programs using Windows Racket.exe rather than Linux
-racket, you can set this to @code{racket-windows-to-wsl}. In that case
-you probably also want to customize the ``reverse'':
-@ref{racket-path-from-emacs-to-racket-function}.
-
 @node racket-browse-url-function
 @subsection racket-browse-url-function
 
@@ -2783,7 +2657,7 @@ This is used when a @ref{racket-mode} buffer is created. Changing
 this to a new value only affects @ref{racket-mode} buffers created
 later.
 
-Any such function takes no arguments, should look at
+Any such function takes no arguments, should look at the variable
 @code{buffer-file-name} if necessary, and either @code{setq-default} or
 @code{setq-local} the variable @code{racket-repl-buffer-name} to a desired
 @ref{racket-repl-mode} buffer name. As a result, @ref{racket-run}
@@ -2968,16 +2842,19 @@ get that from the variable @code{racket-repl-buffer-name}.
 @subsection racket-debuggable-files
 
 Used to tell @ref{racket-run} what files may be instrumented for debugging.
-Must be a list of strings that are pathnames, such as from
-@code{racket--buffer-file-name}, -or-, a function that returns such a
-list given the pathname of the file being run. If any path
-strings are relative, they are made absolute using
-@code{expand-file-name} with the directory of the file being run. The
-symbol `run-file may be supplied in the list; it will be replaced
-with the pathname of the file being run. Safe to set as a
-file-local variable.
 
-@node Showing informationx
+This isn't yet a defcustom becuase the debugger status is still
+``experimental''.
+
+Must be either a list of file name strings, or, a function that
+takes the name of the file being run and returns a list of file
+names.
+
+Each file name in the list is made absolute using
+@code{expand-file-name} with respect to the file being run and given
+to @code{racket-file-name-front-to-back}.
+
+@node Showing information
 @section Showing information
 
 @menu
@@ -3019,6 +2896,360 @@ the span, i.e. below and/or right of POS. Examples:
 A function that shows STR in a fixed location may of course
 ignore POS. Examples: @ref{racket-show-echo-area} and
 @ref{racket-show-header-line}
+
+@node Configuration functions
+@chapter Configuration functions
+
+@menu
+* Showing information: Showing informationx. 
+* Associating edit buffers with REPL buffers::
+* Browsing file URLs with anchors::
+* Configuring back ends::
+@end menu
+
+@node Showing informationx
+@section Showing information
+
+@menu
+* racket-show-pseudo-tooltip::
+* racket-show-echo-area::
+* racket-show-header-line::
+* racket-show-pos-tip::
+@end menu
+
+@node racket-show-pseudo-tooltip
+@subsection racket-show-pseudo-tooltip
+
+@code{(racket-show-pseudo-tooltip str &optional pos)}
+
+
+Show using an overlay that resembles a tooltip.
+
+This is nicer than @ref{racket-show-pos-tip} because it:
+
+@itemize
+@item
+Doesn't flicker while navigating.
+@item
+Doesn't disappear after a timeout.
+@item
+Performs well when @code{x-gtk-use-system-tooltips} is nil.
+@end itemize
+
+On the other hand, this does not look as nice when displaying
+text that spans multiple lines or is too wide to fit the window.
+In that case, we simply left-justify everything and do not draw
+any border.
+
+@node racket-show-echo-area
+@subsection racket-show-echo-area
+
+@code{(racket-show-echo-area str &optional _pos)}
+
+
+Show things in the echo area.
+
+A value for the variable @ref{racket-show-functions}.
+
+This does @emph{not} add STR to the ``@strong{Messages}'' log buffer.
+
+@node racket-show-header-line
+@subsection racket-show-header-line
+
+@code{(racket-show-header-line str &optional _pos)}
+
+
+Show things using a buffer header line.
+
+A value for the variable @ref{racket-show-functions}.
+
+When there is nothing to show, keep a blank header-line. That
+way, the buffer below doesn't ``jump up and down'' by a line as
+messages appear and disappear. Only when V is nil do we remove
+the header line.
+
+@node racket-show-pos-tip
+@subsection racket-show-pos-tip
+
+@code{(racket-show-pos-tip str &optional pos)}
+
+
+Show things using @code{pos-tip-show} if available.
+
+A value for the variable @ref{racket-show-functions}.
+
+@node Associating edit buffers with REPL buffers
+@section Associating edit buffers with REPL buffers
+
+@menu
+* racket-repl-buffer-name-shared::
+* racket-repl-buffer-name-unique::
+* racket-repl-buffer-name-project::
+* racket-project-root::
+@end menu
+
+@node racket-repl-buffer-name-shared
+@subsection racket-repl-buffer-name-shared
+
+@code{(racket-repl-buffer-name-shared)}
+
+
+All @ref{racket-mode} edit buffers share one @ref{racket-repl-mode} buffer per back end.
+
+A value for the variable @ref{racket-repl-buffer-name-function}.
+
+@node racket-repl-buffer-name-unique
+@subsection racket-repl-buffer-name-unique
+
+@code{(racket-repl-buffer-name-unique)}
+
+
+Each @ref{racket-mode} edit buffer gets its own @ref{racket-repl-mode} buffer.
+
+A value for the variable @ref{racket-repl-buffer-name-function}.
+
+@node racket-repl-buffer-name-project
+@subsection racket-repl-buffer-name-project
+
+@code{(racket-repl-buffer-name-project)}
+
+
+All @ref{racket-mode} buffers in a project share a @ref{racket-repl-mode} buffer.
+
+A value for the variable @ref{racket-repl-buffer-name-function}.
+
+The ``project'' is determined by @ref{racket-project-root}.
+
+@node racket-project-root
+@subsection racket-project-root
+
+@code{(racket-project-root file)}
+
+
+Given an absolute pathname for FILE, return its project root directory.
+
+The ``project'' is determined by trying, in order:
+
+@itemize
+@item
+@code{projectile-project-root}
+@item
+@code{vc-root-dir}
+@item
+@code{project-current}
+@item
+@code{file-name-directory}
+@end itemize
+
+@node Browsing file URLs with anchors
+@section Browsing file URLs with anchors
+
+@menu
+* racket-browse-url-using-temporary-file::
+@end menu
+
+@node racket-browse-url-using-temporary-file
+@subsection racket-browse-url-using-temporary-file
+
+@code{(racket-browse-url-using-temporary-file url &rest _args)}
+
+
+Browse a URL via a temporary HTML file using a meta redirect.
+
+A suitable value for the variable @ref{racket-browse-url-function}.
+
+Racket documentation URLs depend on anchors -- the portion of the
+URL after the # character -- to jump to a location within a page.
+Unfortunately on some operating systems and/or versions of Emacs,
+the default handling for browsing file URLs ignores anchors. This
+function attempts to avoid the problem by using a temporary HTML
+file with a meta redirect as a ``trampoline''.
+
+Although the intent is to provide a default that ``just works'',
+you do not need to use this. You can customize the variable
+@ref{racket-browse-url-function} instead to be @code{browse-url}, or
+@code{browse-url-browser-function} in case have have customized that,
+or indeed whatever you want.
+
+@node Configuring back ends
+@section Configuring back ends
+
+@menu
+* racket-add-back-end::
+@end menu
+
+@node racket-add-back-end
+@subsection racket-add-back-end
+
+@code{(racket-add-back-end directory &rest plist)}
+
+
+Add a description of a Racket Mode back end.
+
+Racket Mode supports one or more back ends, which are Racket
+processes supporting REPLs as well as various other Racket Mode
+features.
+
+DIRECTORY is a string describing a @code{file-name-absolute-p}
+directory on some local or remote server.
+
+When a back end's DIRECTORY is the longest matching prefix of a
+buffer's @code{default-directory}, that back end is used for the
+buffer.
+
+DIRECTORY can be a local directory like ``/'' or
+``/path/to/project'', or a @code{file-remote-p} directory like
+``/user@@host:'' or ``/user@@host:/path/to/project''.
+
+Note that you need not include a method -- such as the ``ssh'' in
+``/ssh:user@@host:'' -- and if you do it is stripped: A back end
+process is always started using SSH. Even if multiple buffers for
+the same user+host+port use different methods, they will share
+the same back end.
+
+Practically speaking, DIRECTORY is a path you could give to
+@code{find-file} to successfully find some local or remote file, but
+omitting any method. (Some remote file shorthand forms get
+expanded to at least ``/method:host:''. When in doubt check
+@code{buffer-file-name} and follow its example.)
+
+In addition to being used as a pattern to pick a back end for a
+buffer, DIRECTORY determines:
+
+@itemize
+@item
+Whether the back end is local or remote.
+
+@item
+The host name. Used to make TCP/IP connections to a back end
+for REPL sesssions. When remote used for SSH connections to
+start the back end process.
+
+This may be a Host alias from ~/.ssh/config with a HostName, in
+which case HostName is used as the actual host name for both
+SSH and TCP/IP connections.
+
+@item
+When remote, any explicit user and port used to make SSH
+connections (as opposed to relying on values from
+~/.ssh/config).
+
+@item
+Other properties get reasonable defaults based on whether the
+back end is local or remote, as described below.
+@end itemize
+
+After DIRECTORY, the remainining arguments are optional; they are
+alternating :keywords and values describing some other properties
+of a back end:
+
+@itemize
+@item
+:racket-program
+
+When not nil this is used instead of the value of the
+customization variable @ref{racket-program}.
+
+@item
+:remote-source-dir
+
+Where on a remote host to copy the back end's *.rkt files when
+they do not exist or do not match the digest of the local
+files. This must be @code{file-name-absolute-p} on the remote. Only
+supply the localname there (not a full @code{file-remote-p}). The
+default value is ``/tmp/racket-mode-back-end''.
+
+@item
+:repl-tcp-accept-host
+
+Host from which the back end TCP REPL server will accept
+connections. ``127.0.0.1'' means it will accept only local
+connections. ``0.0.0.0'' means it will accept connections from
+anywhere --- which usually is risky unless the remote is behind
+a firewall that limits connections!
+
+@item
+:repl-tcp-port
+
+The port number the back end TCP REPL server uses to listen for
+connections.
+
+Note that this is @code{numberp} --- not @code{stringp}.
+
+When 0, this means the back end chooses an available port --- a
+so-called ``ephemeral'' port. Usually that is practical only on
+a local host. Otherwise a specific port number should be used,
+and, remember to allow that in the remote's firewall.
+
+@item
+:windows
+
+Whether the back end uses Windows style path names. Used to do
+translation betwen slashes and backslashes between the Emacs
+front end (which uses slashes even on Windows) and the Racket
+back end (which expects native backslashes on Windows).
+@end itemize
+
+The default property values are appropriate for whether
+DIRECTORY is local or remote:
+
+@itemize
+@item
+When DIRECTORY is remote, :repl-tcp-port is set to 55555,
+:repl-tcp-accept-host is set to ``0.0.0.0'' (accepts
+connections from anywhere), and :windows is nil.
+
+When working with back ends on remote hosts, @strong{remember to check
+your remote host firewall}. Your goal is to make sure things
+work for you --- but only for you.
+
+Probably you want the firewall to limit from where it accepts
+SSH connections.
+
+Also you need the firewall to accept connections on
+:repl-tcp-port, but again, limiting from where --- either in
+the firewall or by setting :repl-tcp-accept-host to a value
+that is @emph{not} ``0.0.0.0''.
+
+@item
+Otherwise, reasonable defaults are used for a local back end:
+:repl-tcp-port is set to 0 (meaning the back end picks an
+ephemeral port), :repl-tcp-accept-host is set to ``127.0.0.1''
+(meaning the back end only accept TCP connections locally),
+and :windows is set based on @code{system-type}.
+@end itemize
+
+Although the default values usually ``just work'' for local and
+remote back ends, you might want a special configuration. Here
+are a few examples.
+
+@lisp
+;; 1. A back end configuration for "/" is
+;; created automatically and works fine as a default
+;; for buffers visiting local files, so we don't need
+;; to add one here.
+
+;; 2. However assume we want buffers under /var/tmp/8.0
+;; instead to use Racket 8.0.
+(racket-add-back-end "/var/tmp/8.0"
+		     :racket-program "~/racket/8.0/bin/racket")
+
+;; 3. A back end configuration will be created
+;; automatically for buffers visiting file names like
+;; "/ssh:user@@linode", so we don't need to add one here.
+;;
+;; If ~/.ssh/config defines a Host alias named "linode",
+;; with HostName and User settings, a file name as simple as
+;; "/linode:" would work fine with tramp -- and the
+;; automatically created back end configuration would work
+;; fine, too.
+
+;; 4. For example's sake, assume for buffers visiting
+;; /ssh:headless:~/gui-project/ we want :racket-program instead
+;; to be "xvfb-run racket".
+(racket-add-back-end "/ssh:headless:~/gui-project/"
+		     :racket-program "xvfb-run racket")
+@end lisp
 
 @node Faces
 @chapter Faces

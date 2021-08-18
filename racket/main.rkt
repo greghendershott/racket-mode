@@ -4,25 +4,31 @@
          racket/port
          version/utils
          "command-server.rkt"
-         (only-in "image.rkt" emacs-can-use-svg!)
+         (only-in "image.rkt" set-use-svg?!)
          "repl.rkt")
 
 (module+ main
-  (define expected-version "6.9")
+  ;; Assert Racket minimum version
+  (define minimum-version "6.9")
   (define actual-version (version))
-  (unless (version<=? expected-version actual-version)
-    (error 'racket-mode "needs at least Racket ~a but you have ~a"
-           expected-version
+  (unless (version<=? minimum-version actual-version)
+    (error '|Racket Mode back end| "Need Racket ~a or newer but ~a is ~a"
+           minimum-version
+           (find-executable-path (find-system-path 'exec-file))
            actual-version))
 
-  (define launch-token
+  ;; Command-line flags (from Emacs front end invoking us)
+  (define-values (launch-token accept-host tcp-port)
     (match (current-command-line-arguments)
-      [(vector (== "--auth") token svg-flag-str)
-       (emacs-can-use-svg! svg-flag-str)
-       token]
+      [(vector "--auth"        auth
+               "--accept-host" accept-host
+               "--port"        port
+               (or (and "--use-svg"        (app (λ _ (set-use-svg?! #t)) _))
+                   (and "--do-not-use-svg" (app (λ _ (set-use-svg?! #f)) _))))
+       (values auth accept-host (string->number port))]
       [v
-       (eprintf "Bad command-line arguments: ~v\n" v)
-       (exit)]))
+       (error '|Racket Mode back end|
+              "Bad command-line arguments:\n~v\n" v)]))
 
   ;; Save original current-{input output}-port to give to
   ;; command-server-loop for command I/O.
@@ -31,5 +37,5 @@
     ;; Set no-ops so e.g. rando print can't bork the command I/O.
     (parameterize ([current-input-port  (open-input-bytes #"")]
                    [current-output-port (open-output-nowhere)])
-      (start-repl-session-server launch-token)
+      (start-repl-session-server launch-token accept-host tcp-port)
       (command-server-loop stdin stdout))))

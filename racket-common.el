@@ -1,6 +1,6 @@
 ;;; racket-common.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2021 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -18,8 +18,9 @@
 
 ;; Things used by both racket-mode and racket-repl-mode
 
-(require 'cl-lib)
+(require 'cl-extra)
 (require 'thingatpt)
+(require 'tramp)
 (require 'racket-custom)
 (require 'racket-keywords-and-builtins)
 (require 'racket-font-lock)
@@ -326,6 +327,18 @@ Allows #; to be followed by zero or more space or newline chars."
 
 ;;; racket--what-to-run
 
+(defun racket--what-to-run-p (v)
+  "Predicate for a \"what-to-run\" value.
+Either nil or a list, where the first element of the list is a
+file name and the remainder are `symbolp' submodule names."
+  (pcase v
+    (`() t)
+    (`(,file . ,subs)
+     (and (or (tramp-file-name-p file)
+              (and (stringp file) (file-exists-p file)))
+          (cl-every #'symbolp subs)))
+    (_ nil)))
+
 (defun racket--what-to-run ()
   (cons (racket--buffer-file-name)
         (racket--submod-path)))
@@ -356,7 +369,7 @@ or syntax quoting, because those won't be valid Racket syntax."
         (save-excursion
           (racket--escape-string-or-comment)
           (while t
-            (when-let ((mod-name-sym (racket--looking-at-module-form)))
+            (when-let (mod-name-sym (racket--looking-at-module-form))
               (push mod-name-sym xs))
             (when (racket--looking-at-quoted-form-p)
               (push nil xs))

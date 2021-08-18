@@ -1,6 +1,6 @@
 ;;; racket-describe.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2021 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -23,6 +23,7 @@
 (require 'racket-util)
 (require 'racket-visit)
 (require 'racket-scribble)
+(require 'racket-browse-url)
 ;; Don't (require 'racket-repl). Mutual dependency. Instead:
 (declare-function 'racket--repl-session-id "racket-repl")
 (autoload         'racket--repl-session-id "racket-repl")
@@ -65,7 +66,8 @@ POP-TO-P should be non-nil for use by direct user commands like
 `racket-xp-describe' and `racket-repl-describe': the buffer is
 displayed using `pop-to-buffer'. POP-TO-P should be nil for use
 as a :company-doc-buffer function."
-  (let ((buf-name "*Racket Describe*"))
+  (let ((buf-name (format "*Racket Describe <%s>*"
+                          (racket-back-end-name))))
     (with-current-buffer (get-buffer-create buf-name)
       (unless (eq major-mode 'racket-describe-mode)
         (racket-describe-mode))
@@ -89,22 +91,22 @@ as a :company-doc-buffer function."
         ;; use the back end describe command. It returns one of three
         ;; kinds of values.
         ((guard (or (stringp how) (eq how 'namespace)))
-         (let ((buffer-read-only nil))
-           (insert
-            (propertize (format "Getting information from back end about %s ..." str)
-                        'face 'italic)))
+         (setq header-line-format
+               (propertize (format "Getting information from back end about %s ..." str)
+                           'face 'italic))
          (racket--cmd/async
           repl-session-id
-          `(describe ,how ,str)
+          `(describe ,(racket-how-front-to-back how) ,str)
           (lambda (result)
             (pcase result
               ;; STR has documentation at path and anchor. Handle like
               ;; the case where we knew the path and anchor up-front.
               (`(,(and path (pred stringp)) . ,anchor)
-               (racket--describe-insert-dom pop-to-p
-                                            path
-                                            anchor
-                                            (racket--scribble-path->shr-dom path)))
+               (let ((path (racket-file-name-back-to-front path)))
+                 (racket--describe-insert-dom pop-to-p
+                                              path
+                                              anchor
+                                              (racket--scribble-path->shr-dom path))))
               ;; STR doesn't have documentation, but it does have a
               ;; signature and/or type, and here is a dom about that
               ;; we can insert.
@@ -233,7 +235,7 @@ When span has a title attribute, set help-echo property.
 
 When span has a RktXXX or techinside class, set the face."
   (let ((start (point)))
-    (if-let ((face (racket--describe-dom->face dom)))
+    (if-let (face (racket--describe-dom->face dom))
         (shr-fontize-dom dom face)
       (shr-generic dom))
     (when-let (title (dom-attr dom 'title))
@@ -300,7 +302,7 @@ for our custom shr handler."
     ;; the buffer, therefore the choice of character matters. Don't
     ;; use a space because shr might eliminate it. Don't use something
     ;; that `thing-at-point' considers part of a symbol (in case user
-    ;; inovkes `racket-search-describe' with point here).
+    ;; inovkes `racket-describe-search' with point here).
     (when (= start (point))
       (insert ?^)
       (put-text-property (1- (point)) (point) 'display ""))
@@ -342,21 +344,21 @@ PATH is doc path, as in 'racket-doc-link-path.
 GOTO is as in `racket--describe-goto'."
   (if (equal path (car racket--describe-here))
       (racket--describe-goto goto) ;just move, same page
-    (let ((buffer-read-only nil))
-      (erase-buffer)
-      (insert
-       (propertize
-        (format "Waiting for documentation file %s"
-                path)
-        'face 'italic))
-      (condition-case e
-          (racket--describe-insert-dom t
-                                       path
-                                       goto
-                                       (racket--scribble-path->shr-dom path))
-        (error (erase-buffer)
-               (insert (format "%S" e))
-               (setq racket--describe-here nil))))))
+    (setq header-line-format
+          (propertize
+           (format "Waiting for documentation file %s"
+                   path)
+           'face 'italic))
+    (condition-case e
+        (racket--describe-insert-dom t
+                                     path
+                                     goto
+                                     (racket--scribble-path->shr-dom path))
+      (error
+       (setq header-line-format
+             (propertize (format "%S" e)
+                         'face 'error))
+       (setq racket--describe-here nil)))))
 
 (defun racket--describe-maybe-push-here (which)
   "When it is a path, push `racket--describe-here' to WHICH stack.
@@ -404,7 +406,7 @@ command does not find documentation."
     (racket-browse-url href)))
 
 (defun racket-describe-mode-revert-buffer (_ignore-auto _noconfirm)
-  (when-let ((page (car racket--describe-here)))
+  (when-let (page (car racket--describe-here))
     (setq racket--describe-here nil)
     (racket--describe-fetch-and-show page (point))))
 
@@ -413,13 +415,13 @@ command does not find documentation."
 
 The anchor is the first one at or before point, if any."
   (interactive)
-  (when-let ((page (car racket--describe-here)))
-    (if-let ((anchor (or (get-text-property (point) 'racket-anchor)
-                         (when-let ((pos (previous-single-property-change
-                                          (point) 'racket-anchor)))
-                           (or (get-text-property pos 'racket-anchor)
-                               (when (< (point-min) pos)
-                                 (get-text-property (1- pos) 'racket-anchor)))))))
+  (when-let (page (car racket--describe-here))
+    (if-let (anchor (or (get-text-property (point) 'racket-anchor)
+                        (when-let (pos (previous-single-property-change
+                                        (point) 'racket-anchor))
+                          (or (get-text-property pos 'racket-anchor)
+                              (when (< (point-min) pos)
+                                (get-text-property (1- pos) 'racket-anchor))))))
         (racket-browse-url (concat page "#" (url-hexify-string anchor)))
       (racket-browse-url page))))
 
@@ -484,33 +486,38 @@ browser program -- are given `racket-describe-ext-link-face'.
 ;; documentation, disambiguate in a buffer, and view in a
 ;; racket-describe-mode buffer.
 
-(defvar racket--describe-terms nil
+(defvar racket--describe-terms (make-hash-table :test 'equal)
   "Used for completion candidates.")
 
-(defun racket--remove-documented-names ()
+(defun racket--remove-describe-terms ()
   "A `racket-stop-back-end-hook' to clean up `racket--describe-terms'."
-  (setq racket--describe-terms nil))
+  (let ((key (racket-back-end-name)))
+    (when key
+      (remhash key racket--describe-terms))))
 
-(add-hook 'racket-stop-back-end-hook #'racket--remove-documented-names)
+(add-hook 'racket-stop-back-end-hook #'racket--remove-describe-terms)
 
 (defun racket--describe-terms ()
-  (pcase racket--describe-terms
-    (`nil
-     (setq racket--describe-terms 'fetching)
-     (racket--cmd/async nil
-                        '(doc-index-names)
-                        (lambda (names)
-                          (setq racket--describe-terms
-                                (sort names #'string-lessp))))
-     ;; Wait for response but if waiting too long just return nil,
-     ;; and use the response next time.
-     (with-temp-message "Getting completion candidates from back end..."
-       (with-timeout (5 nil)
-         (while (equal 'fetching racket--describe-terms)
-           (accept-process-output nil 0.01))
-         racket--describe-terms)))
-    ('fetching nil)
-    ((and (pred listp) names) names)))
+  (let ((key (racket-back-end-name)))
+    (pcase (gethash key racket--describe-terms)
+      (`nil
+       (puthash key 'fetching
+                racket--describe-terms)
+       (racket--cmd/async nil
+                          '(doc-index-names)
+                          (lambda (names)
+                            (puthash key
+                                     (sort names #'string-lessp)
+                                     racket--describe-terms)))
+       ;; Wait for response but if waiting too long just return nil,
+       ;; and use the response next time.
+       (with-temp-message "Getting completion candidates from back end..."
+        (with-timeout (5 nil)
+          (while (equal 'fetching (gethash key racket--describe-terms))
+            (accept-process-output nil 0.01))
+          (gethash key racket--describe-terms))))
+      ('fetching nil)
+      ((and (pred listp) names) names))))
 
 (defun racket-describe-search ()
   "Search installed documentation; view using `racket-describe-mode'.
@@ -529,8 +536,9 @@ point if any.
   (interactive)
   (let* ((name (racket--symbol-at-point-or-prompt t "Describe: "
                                                   (racket--describe-terms)))
-         (buf-name (format "*Racket Search Describe `%s`*"
-                           name)))
+         (buf-name (format "*Racket Search Describe `%s` <%s>*"
+                           name
+                           (racket-back-end-name))))
     (racket--cmd/async
      nil
      `(doc-index-lookup ,name)
@@ -539,7 +547,9 @@ point if any.
          (`()
           (message "No documention found for %s" name))
          (`((,_term ,_what ,_from ,path ,anchor))
-          (racket-describe-search-visit name path anchor))
+          (racket-describe-search-visit name
+                                        (racket-file-name-back-to-front path)
+                                        anchor))
          (vs
           (with-current-buffer
               (get-buffer-create buf-name)
@@ -562,7 +572,7 @@ point if any.
                                (vector
                                 (list term
                                       'name   term
-                                      'path   path
+                                      'path   (racket-file-name-back-to-front path)
                                       'anchor anchor
                                       'action #'racket-describe-search-button)
                                 what

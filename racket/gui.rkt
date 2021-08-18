@@ -2,31 +2,34 @@
 
 ;; Note that racket/gui/dynamic is in `base` package --- requiring it
 ;; does NOT create a dependency on the `gui-lib` package.
-(require racket/gui/dynamic)
+(require racket/gui/dynamic
+         racket/port
+         racket/system)
 
 (provide txt/gui
          make-initial-repl-namespace)
 
-;; Load racket/gui/base eagerly, if available, instantiating it in our
+;; Attempt to load racket/gui/base eagerly, instantiating it in our
 ;; namespace and under our main custodian (as opposed to those for
 ;; user programs). This is our strategy to avoid "racket/gui/base
-;; cannot be instantiated more than once per process". The only reason
-;; it won't be loaded here now is if we're on a minimal Racket
-;; installation where gui-lib is not installed.
-(with-handlers ([exn:fail? void])
-  (dynamic-require 'racket/gui/base #f))
-
-;; If that succeeded, then it is important for REPL namespaces
-;; initially to have racket/gui/base _attached_, regardless of whether
-;; a user program _requires_ it. See also issue #555.
-(define-namespace-anchor anchor)
-(define (make-initial-repl-namespace)
-  (define ns (make-base-namespace))
-  (when (gui-available?)
-    (namespace-attach-module (namespace-anchor->empty-namespace anchor)
-                             'racket/gui/base
-                             ns))
-  ns)
+;; cannot be instantiated more than once per process".
+;;
+;; The only scenarios where racket/gui/base won't be loaded now:
+;;
+;; - It's not available: we're on a minimal Racket installation
+;;   where gui-lib is not installed.
+;;
+;; - It can't initialize: e.g. gui-lib is installed but errors with
+;;   'Gtk initialization failed for display ":0"', because we're on
+;;   a headless system but our racket process wasn't run using
+;;   xvfb-run. Because this leaves gui-lib in a "semi-initialized"
+;;   state where `gui-available?` returns true but things don't
+;;   actually work, we check using another racket process.
+(when (parameterize ([current-error-port (open-output-nowhere)])
+        (system* (find-executable-path (find-system-path 'exec-file))
+                 "-e" "(require racket/gui/base)"))
+  (with-handlers ([exn:fail? void])
+    (dynamic-require 'racket/gui/base #f)))
 
 ;; #301: On Windows, show then hide an initial frame.
 (when (and (gui-available?)
@@ -37,6 +40,31 @@
   (define dynamic-send (dynamic-require 'racket/class 'dynamic-send))
   (dynamic-send f 'show #t)
   (dynamic-send f 'show #f))
+
+(define-namespace-anchor anchor)
+(define our-ns (namespace-anchor->empty-namespace anchor))
+(define (make-initial-repl-namespace)
+  (define new-ns (make-base-namespace))
+
+  ;; If load-racket/gui/base! was called, and it was able to load
+  ;; racket/gui/base, then it is important for REPL namespaces
+  ;; initially to have racket/gui/base _attached_, regardless of
+  ;; whether a given user program `require`s it. They might require it
+  ;; in the REPL. See also issue #555.
+  (when (gui-available?)
+    (namespace-attach-module our-ns 'racket/gui/base new-ns))
+
+  ;; Avoid potential problem (IIUC because Racket structs are
+  ;; generative) with file/convertible by attaching the same instance
+  ;; to user namespaces.
+  ;;
+  ;; Always do this. Things like pict-lib work without gui-lib, and we
+  ;; can still do our feature where we "print images in the REPL". To
+  ;; see how we do this using file/convertible, see print.rkt and
+  ;; image.rkt.
+  (namespace-attach-module our-ns 'file/convertible new-ns)
+
+  new-ns)
 
 ;; Like mz/mr from racket/sandbox.
 (define-syntax txt/gui

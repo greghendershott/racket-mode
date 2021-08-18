@@ -22,6 +22,10 @@
 (require 'racket-util)
 (declare-function racket--repl-session-id "racket-repl.el" ())
 
+(defun racket--doc-assert-local-back-end ()
+  (unless (racket--back-end-local-p)
+    (user-error "Cannot use web browser to browse remote documentation; instead use `racket-describe'")))
+
 (defun racket--doc (prefix how completions)
   "A helper for `racket-xp-documentation' and `racket-repl-documentation'."
   (let ((search-p (equal prefix '(16))))
@@ -32,6 +36,7 @@
       ((and (pred stringp) str)
        (if search-p
            (racket--search-doc str)
+         (racket--doc-assert-local-back-end)
          (racket--doc-command (when (eq how 'namespace)
                                 (racket--repl-session-id))
                               how
@@ -41,12 +46,13 @@
   "A helper for `racket--doc', `racket-xp-describe', and `racket-repl-describe'.
 
 Centralizes how to issue doc command and handle response correctly."
-  (racket--cmd/async repl-session-id
-                     `(doc ,how ,str)
-                     (lambda (maybe-url)
-                       (if maybe-url
-                           (racket-browse-url maybe-url)
-                         (racket--search-doc str)))))
+  (let ((how (racket-how-front-to-back how)))
+    (racket--cmd/async repl-session-id
+                       `(doc ,how ,str)
+                       (lambda (maybe-url)
+                         (if maybe-url
+                             (racket-browse-url maybe-url)
+                           (racket--search-doc str))))))
 
 (defun racket--search-doc (str)
   "Search docs where the variable `racket-documentation-search-location' says."
@@ -55,6 +61,7 @@ Centralizes how to issue doc command and handle response correctly."
     ('local                   (racket--search-doc-locally str))))
 
 (defun racket--search-doc-locally (str)
+  (racket--doc-assert-local-back-end)
   (call-process (expand-file-name racket-program)
                 nil ;INFILE: none
                 0   ;DESTINATION: discard/don't wait

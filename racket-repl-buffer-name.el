@@ -1,6 +1,6 @@
 ;;; racket-repl-buffer-name.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -16,17 +16,27 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'racket-back-end)
 (require 'racket-custom)
 (require 'racket-repl)
 (require 'racket-util)
+(require 'tramp)
+
+;;;###autoload
+(defun racket-call-racket-repl-buffer-name-function ()
+  (funcall (or (and (functionp racket-repl-buffer-name-function)
+                    racket-repl-buffer-name-function)
+               #'racket-repl-buffer-name-shared)))
 
 ;;;###autoload
 (defun racket-repl-buffer-name-shared ()
-  "All `racket-mode' edit buffers share one `racket-repl-mode' buffer.
+  "All `racket-mode' edit buffers share one `racket-repl-mode' buffer per back end.
 
 A value for the variable `racket-repl-buffer-name-function'."
   (interactive)
-  (setq-default racket-repl-buffer-name "*Racket REPL*"))
+  (setq-local racket-repl-buffer-name
+              (format "*Racket REPL <%s>*"
+                      (racket-back-end-name))))
 
 ;;;###autoload
 (defun racket-repl-buffer-name-unique ()
@@ -47,7 +57,8 @@ The \"project\" is determined by `racket-project-root'."
   (interactive)
   (setq-local racket-repl-buffer-name
               (format "*Racket REPL <%s>*"
-                      (racket-project-root (racket--buffer-file-name)))))
+                      (racket--file-name-sans-remote-method
+                       (racket-project-root (racket--buffer-file-name))))))
 
 (defun racket-mode-maybe-offer-to-kill-repl-buffer ()
   "Maybe offer to kill a `racket-repl-mode' buffer.

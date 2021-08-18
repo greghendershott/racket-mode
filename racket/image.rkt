@@ -7,14 +7,13 @@
          racket/format
          racket/match)
 
-(provide emacs-can-use-svg!
+(provide set-use-svg?!
          convert-image)
 
 ;; Emacs front end tells us whether SVG is an image file type Emacs
-;; can render.
+;; can render. This comes via a command line flag when we start up.
 (define use-svg? #t)
-(define (emacs-can-use-svg! command-line-flag-str)
-  (set! use-svg? (equal? command-line-flag-str "--use-svg")))
+(define (set-use-svg?! v) (set! use-svg? v))
 
 (define (convert-image v)
   (and (convertible? v)
@@ -37,10 +36,10 @@
 
 (define (convert-and-save v fmt ext)
   (define (default-width _) 4096)
-  (match (convert v fmt)
+  (match (convert v fmt #f)
     [(or (list* (? bytes? bstr) width _)                  ;bytes+bounds
          (and (? bytes? bstr) (app default-width width))) ;bytes
      (define filename (make-temporary-file (~a "racket-image-~a." ext)))
      (with-output-to-file filename #:exists 'truncate (λ () (display bstr)))
      (cons (format "#<Image: ~a>" filename) width)]
-    [_ #f]))
+    [#f #f]))
