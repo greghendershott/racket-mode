@@ -55,7 +55,11 @@ Centralizes how to issue doc command and handle response correctly."
     ('local                   (racket--search-doc-locally str))))
 
 (defun racket--search-doc-locally (str)
-  (call-process racket-program nil 0 nil "-l" "raco" "doc" str))
+  (call-process (expand-file-name racket-program)
+                nil ;INFILE: none
+                0   ;DESTINATION: discard/don't wait
+                nil ;DISPLAY: none
+                "-l" "raco" "docs" str))
 
 (provide 'racket-doc)
 
