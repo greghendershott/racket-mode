@@ -77,12 +77,12 @@
 (defun racket-fold-all-tests ()
   "Fold (hide) all test submodules."
   (interactive)
-  (racket--for-all-tests "Folded" 'hs-hide-block))
+  (racket--for-all-tests "Folded" #'hs-hide-block))
 
 (defun racket-unfold-all-tests ()
   "Unfold (show) all test submodules."
   (interactive)
-  (racket--for-all-tests "Unfolded" 'hs-show-block))
+  (racket--for-all-tests "Unfolded" #'hs-show-block))
 
 ;;; requires
 
@@ -306,7 +306,7 @@ doing \"raco doc\" at the command line.
 A \"require\" form is inserted into the buffer, followed by doing
 a `racket-tidy-requires'.
 
-Caveat: This works in terms of identifers that are documented.
+Caveat: This works in terms of identifiers that are documented.
 The mechanism is similar to that used for Racket's \"Search
 Manuals\" feature. Today there exists no system-wide database of
 identifiers that are exported but not documented."
