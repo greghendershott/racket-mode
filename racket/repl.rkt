@@ -216,24 +216,42 @@
 
   ;; repl-thunk loads the user program and enters read-eval-print-loop
   (define (repl-thunk)
-    ;; 0. Command line arguments
+    ;; Command line arguments
     (current-command-line-arguments cmd-line-args)
-    ;; 1. Set print hooks and output handlers
+    ;; Set print hooks and output handlers
     (set-print-parameters pretty-print? columns pixels/char)
     (set-output-handlers)
-    ;; 2. Record as much info about our session as we can, before
+    ;; Record as much info about our session as we can, before
     ;; possibly entering module->namespace.
     (set-session! (current-session-id) maybe-mod #f)
-    ;; 3. If module, require and enter its namespace, etc.
-    (with-expanded-syntax-caching-evaluator
-      (when (and maybe-mod mod-path)
-        ;; When exn:fail during module load, re-run.
-        (define (load-exn-handler exn)
-          (display-exn exn)
-          (channel-put (current-repl-msg-chan)
-                       (struct-copy run-config cfg [maybe-mod #f]))
-          (sync never-evt)) ;manager thread will shutdown custodian
-        (with-handlers ([exn? load-exn-handler])
+    ;; Set our initial value for current-namespace. When no module,
+    ;; this will be the ns used in the REPL. Otherwise this is simply
+    ;; the intial ns used for module->namespace, below, which returns
+    ;; what we will set as current-namespace for the REPL.
+    (current-namespace (make-initial-repl-namespace))
+    ;; Now that the initial current-namespace is set, set some
+    ;; parameters related to evaluation.
+    (compile-enforce-module-constants (eq? context-level 'low))
+    (compile-context-preservation-enabled (not (eq? context-level 'low)))
+    (current-eval
+     [cond [(debug-level? context-level) (make-debug-eval-handler debug-files)]
+           [(instrument-level? context-level)(make-instrumented-eval-handler)]
+           [else (let ([oe (current-eval)]) (λ (e) (with-stack-checkpoint (oe e))))]])
+    (instrumenting-enabled (instrument-level? context-level))
+    (profiling-enabled (eq? context-level 'profile))
+    (test-coverage-enabled (eq? context-level 'coverage))
+    ;; If module, require and enter its namespace, etc.
+    (when (and maybe-mod mod-path)
+      (with-expanded-syntax-caching-evaluator
+        (with-handlers (;; When exn during module load, display it,
+                        ;; ask the manager thread to re-run, and wait
+                        ;; for it to shut down our custodian.
+                        [exn?
+                         (λ (exn)
+                           (display-exn exn)
+                           (channel-put (current-repl-msg-chan)
+                                        (struct-copy run-config cfg [maybe-mod #f]))
+                           (sync never-evt))])
           (with-stack-checkpoint
             (maybe-configure-runtime mod-path) ;FIRST: see #281
             (namespace-require mod-path)
@@ -249,45 +267,28 @@
                (module->namespace mod-path)))
             (maybe-warn-about-submodules mod-path context-level)
             (check-#%top-interaction)))))
-    ;; 4. Update information about our session -- now that
-    ;; current-namespace is possibly updated, and, it is OK to
-    ;; call get-repl-submit-predicate.
+    ;; Update information about our session -- now that
+    ;; current-namespace is possibly updated, and, it is OK to call
+    ;; get-repl-submit-predicate.
     (set-session! (current-session-id)
                   maybe-mod
                   (get-repl-submit-predicate maybe-mod))
-    ;; 5. Now that the program has run, and `sessions` is updated,
-    ;; call the ready-thunk. On REPL startup this lets us wait
-    ;; sending the repl-session-id until `sessions` is updated.
-    ;; And for subsequent run commands, this lets us it wait to
-    ;; send a response.
+    ;; Now that user's program has run, and `sessions` is updated,
+    ;; call the ready-thunk. On REPL session startup this lets us
+    ;; postpone sending the repl-session-id until `sessions` is
+    ;; updated. And for subsequent run commands, this lets us it wait
+    ;; to send a response, which is useful for commands that want to
+    ;; run after a run command has finished.
     (ready-thunk)
-    ;; 6. read-eval-print-loop
+    ;; And finally, enter read-eval-print-loop.
     (parameterize ([current-prompt-read (make-prompt-read maybe-mod)])
       ;; Note that read-eval-print-loop catches all non-break
       ;; exceptions.
       (read-eval-print-loop)))
 
-  ;; Create thread for repl-thunk
+  ;; Create thread to run repl-thunk
   (define repl-thread
-    (parameterize* ;; Use `parameterize*` because the order matters.
-        (;; FIRST: current-custodian and current-namespace, so in
-         ;; effect for later parameterizations.
-         [current-custodian repl-cust]
-         [current-namespace (if mod-path
-                                ((txt/gui make-base-empty-namespace
-                                          make-gui-namespace))
-                                ((txt/gui make-base-namespace
-                                          make-gui-namespace)))]
-         ;; OTHERS:
-         [compile-enforce-module-constants (eq? context-level 'low)]
-         [compile-context-preservation-enabled (not (eq? context-level 'low))]
-         [current-eval
-          (cond [(debug-level? context-level) (make-debug-eval-handler debug-files)]
-                [(instrument-level? context-level)(make-instrumented-eval-handler)]
-                [else (let ([oe (current-eval)]) (λ (e) (with-stack-checkpoint (oe e))))])]
-         [instrumenting-enabled (instrument-level? context-level)]
-         [profiling-enabled (eq? context-level 'profile)]
-         [test-coverage-enabled (eq? context-level 'coverage)])
+    (parameterize ([current-custodian repl-cust])
       ;; Run repl-thunk on a plain thread, or, on GUI eventspace
       ;; thread via queue-callback. Return the thread.
       (define current-eventspace (txt/gui (make-parameter #f) current-eventspace))
