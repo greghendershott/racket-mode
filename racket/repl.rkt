@@ -275,7 +275,7 @@
          [current-custodian repl-cust]
          [current-namespace (if mod-path
                                 ((txt/gui make-base-empty-namespace
-                                          make-gui-empty-namespace))
+                                          make-gui-namespace))
                                 ((txt/gui make-base-namespace
                                           make-gui-namespace)))]
          ;; OTHERS:
