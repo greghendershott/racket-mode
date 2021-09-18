@@ -37,12 +37,10 @@
 
 (define (convert-and-save v fmt ext)
   (define (default-width _) 4096)
-  (match (convert v fmt)
+  (match (convert v fmt #f)
     [(or (list* (? bytes? bstr) width _)                  ;bytes+bounds
          (and (? bytes? bstr) (app default-width width))) ;bytes
      (define filename (make-temporary-file (~a "racket-image-~a." ext)))
      (with-output-to-file filename #:exists 'truncate (λ () (display bstr)))
-     ;; FIXME: Return tramp file name so this works when host is
-     ;; remote?
      (cons (format "#<Image: ~a>" filename) width)]
-    [_ #f]))
+    [#f #f]))

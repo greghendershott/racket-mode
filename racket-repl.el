@@ -816,7 +816,8 @@ A value for the variable `comint-output-filter-functions'."
                                   pmark
                                   t)
           (let* ((beg (match-beginning 0))
-                 (file (match-string-no-properties 1)))
+                 (file (match-string-no-properties 1))
+                 (file (racket-file-name-back-to-front file)))
             (cond ((and racket-images-inline (display-images-p))
                    (replace-match "")
                    (insert-image (apply #'create-image
