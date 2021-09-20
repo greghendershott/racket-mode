@@ -939,33 +939,20 @@ command prefixes you supply.
 
 2. \\[universal-argument] \\[universal-argument]
 
-   This is an alias for `racket-search-describe', which uses
+   This is an alias for `racket-describe-search', which uses
    installed documentation in a `racket-describe-mode' buffer
    instead of an external web browser.
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
--- and to do so within Emacs, without switching to a web browser.
-
-You can quit the buffer by pressing q. Also, at the bottom of the
-buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for `xref-find-definitions'
-and `racket-repl-documentation'."
+-- and to do so within Emacs, without switching to a web browser."
   (interactive "P")
   (if (equal prefix '(16))
-      (racket-search-describe)
+      (racket-describe-search)
     (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
                                               racket--repl-namespace-symbols)
       ((and (pred stringp) str)
-       (let ((repl-session-id (racket--repl-session-id)))
-         (racket--do-describe
-          'namespace
-          repl-session-id
-          str
-          t
-          (pcase (xref-backend-definitions 'racket-repl-xref str)
-            (`(,xref) (lambda () (racket--pop-to-xref-location xref))))
-          (lambda () (racket--doc-command repl-session-id 'namespace str))))))))
+       (racket--do-describe 'namespace (racket--repl-session-id) str t)))))
 
 ;;; racket-xref-repl
 
@@ -1092,6 +1079,7 @@ The command varies based on how many \\[universal-argument] command prefixes you
      ("M-C-y"           racket-insert-lambda)
      ("C-c C-d"         racket-repl-documentation)
      ("C-c C-."         racket-repl-describe)
+     ("C-c C-s"         racket-describe-search)
      ("C-c C-z"         racket-repl-switch-to-edit)
      ("C-c C-l"         racket-logger)
      ("C-c C-c"         racket-repl-break)

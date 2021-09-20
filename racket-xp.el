@@ -67,7 +67,8 @@ everything. If you find that too \"noisy\", set this to nil.")
    `(("C-c #"     ,racket-xp-control-c-hash-keymap)
      ("M-."       ,#'xref-find-definitions)
      ("C-c C-."   ,#'racket-xp-describe)
-     ("C-c C-d"   ,#'racket-xp-documentation))))
+     ("C-c C-d"   ,#'racket-xp-documentation)
+     ("C-c C-s"   ,#'racket-describe-search))))
 
 (easy-menu-define racket-xp-mode-menu racket-xp-mode-map
   "Menu for `racket-xp-mode'."
@@ -94,6 +95,7 @@ everything. If you find that too \"noisy\", set this to nil.")
     "---"
     ["Racket Documentation" racket-xp-documentation]
     ["Describe" racket-xp-describe]
+    ["Describe Search" racket-describe-search]
     "---"
     ["Annotate Now" racket-xp-annotate]))
 
@@ -342,7 +344,7 @@ command prefixes you supply.
 
 2. \\[universal-argument] \\[universal-argument]
 
-   This is an alias for `racket-search-describe', which uses
+   This is an alias for `racket-describe-search', which uses
    installed documentation in a `racket-describe-mode' buffer
    instead of an external web browser.
 
@@ -351,15 +353,10 @@ something, regardless of whether it has installed documentation
 -- and to do so within Emacs, without switching to a web browser.
 
 This buffer is also displayed when you use `company-mode' and
-press F1 or C-h in its pop up completion list.
-
-You can quit the buffer by pressing q. Also, at the bottom of the
-buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for `xref-find-definitions'
-and `racket-xp-documentation'."
+press F1 or C-h in its pop up completion list."
   (interactive "P")
   (if (equal prefix '(16))
-      (racket-search-describe)
+      (racket-describe-search)
     (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
                                               racket--xp-binding-completions)
       ((and (pred stringp) str)
@@ -370,28 +367,8 @@ and `racket-xp-documentation'."
        ;; will treat it as a file module identifier.
        (let ((how (pcase (get-text-property (point) 'racket-xp-doc)
                     (`(,path ,anchor) `(,path . ,anchor))
-                    (_                (racket--buffer-file-name))))
-             ;; These two thunks are effectively lazy
-             ;; `xref-find-definitions' and `racket-xp-documentation'.
-             ;; The thunks might be called later, if/when the user
-             ;; "clicks" a "button" in the `racket-describe-mode'
-             ;; buffer. By the time that happens, this `racket-mode'
-             ;; buffer might no longer exist. Even if it exists, point
-             ;; may have changed. That's why it is important to
-             ;; capture values from the `racket-mode' buffer, now.
-             (visit-thunk
-              (pcase (xref-backend-definitions 'racket-xp-xref str)
-                (`(,xref) (lambda () (racket--pop-to-xref-location xref)))))
-             (doc-thunk
-              (pcase (get-text-property (point) 'racket-xp-doc)
-                (`(,path ,anchor)
-                 (lambda ()
-                   (racket-browse-url (concat "file://" path "#" anchor))))
-                (_
-                 (let ((bfn (racket--buffer-file-name)))
-                   (lambda ()
-                     (racket--doc-command nil bfn str)))))))
-         (racket--do-describe how nil str t visit-thunk doc-thunk))))))
+                    (_                (racket--buffer-file-name)))))
+         (racket--do-describe how nil str t))))))
 
 (defun racket-xp-eldoc-function ()
   "A value for the variable `eldoc-documentation-function'.

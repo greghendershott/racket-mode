@@ -3,11 +3,14 @@
 (require racket/contract
          racket/match
          racket/port
-         racket/set)
+         racket/set
+         syntax/parse/define)
 
 (provide elisp-read
          elisp-bool/c
          as-racket-bool
+         with-parens
+         elisp-write
          elisp-writeln)
 
 ;;; Read a subset of Emacs Lisp values as Racket values
@@ -32,29 +35,49 @@
 
 ;;; Write a subset of Racket values as Emacs Lisp values
 
-(define (elisp-writeln v out)
-  (elisp-write v out)
-  (newline out))
+(define (elisp-writeln v)
+  (elisp-write v)
+  (newline))
 
-(define (elisp-write v out)
-  (write (racket->elisp v) out))
+(define-simple-macro (with-parens e:expr ...+)
+  (begin (display "(")
+         e ...
+         (display ")")))
 
-(define (racket->elisp v)
+(define (elisp-write v)
   (match v
-    [(or #f (list))     'nil]
-    [#t                 't]
-    [(? list? xs)       (map racket->elisp xs)]
-    [(cons x y)         (cons (racket->elisp x) (racket->elisp y))]
-    [(? path? v)        (path->string v)]
-    [(? hash? v)        (for/list ([(k v) (in-hash v)])
-                          (cons (racket->elisp k) (racket->elisp v)))]
-    [(? generic-set? v) (map racket->elisp (set->list v))]
-    [(? void?)          'void] ;avoid Elisp-unreadable "#<void>"
-    [v                  v]))
+    [(or #f (list))     (write 'nil)]
+    [#t                 (write 't)]
+    [(? list? xs)       (with-parens
+                          (for-each (λ (v)
+                                      (elisp-write v)
+                                      (display " "))
+                                    xs))]
+    [(cons x y)         (with-parens
+                          (elisp-write x)
+                          (display " . ")
+                          (elisp-write y))]
+    [(? path? v)        (elisp-write (path->string v))]
+    [(? hash? v)        (with-parens
+                          (hash-for-each v
+                                         (λ (k v)
+                                           (elisp-write (cons k v))
+                                           (display " "))))]
+    [(? generic-set? v) (with-parens
+                          (set-for-each v
+                                        (λ (v)
+                                          (elisp-write v)
+                                          (display " "))))]
+    [(? void?)          (display "void")] ;avoid Elisp-unreadable "#<void>"
+    [(? procedure? w)   (w)]
+    [(or (? number? v)
+         (? symbol? v)
+         (? string? v)) (write v)]
+    [v                  (eprintf "elisp-write can't write Racket value ~v\n" v)
+                        (void)]))
 
 (module+ test
   (require rackunit)
   (check-equal? (with-output-to-string
-                  (λ () (elisp-write '(1 #t nil () (a . b) #hash((1 . 2) (3 . 4)))
-                                     (current-output-port))))
-                "(1 t nil nil (a . b) ((1 . 2) (3 . 4)))"))
+                  (λ () (elisp-write '(1 #t nil () (a . b) #hash((1 . 2) (3 . 4))))))
+                "(1 t nil nil (a . b) ((1 . 2) (3 . 4) ) )"))

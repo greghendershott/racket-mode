@@ -114,7 +114,7 @@ Explore
 * racket-xp-tail-next-sibling::
 * racket-xp-tail-previous-sibling::
 * racket-documentation-search::
-* racket-search-describe::
+* racket-describe-search::
 
 Run
 
@@ -725,6 +725,10 @@ Major mode for editing Racket source files.
 @tab @ref{racket-unfold-all-tests}
 @item @kbd{C-c C-f} 
 @tab @ref{racket-fold-all-tests}
+@item @kbd{C-c C-.} 
+@tab @ref{racket-describe-search}
+@item @kbd{C-c C-s} 
+@tab @ref{racket-describe-search}
 @item @kbd{C-c C-d} 
 @tab @ref{racket-documentation-search}
 @item @kbd{C-c C-p} 
@@ -1219,7 +1223,7 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 * racket-xp-tail-next-sibling::
 * racket-xp-tail-previous-sibling::
 * racket-documentation-search::
-* racket-search-describe::
+* racket-describe-search::
 @end menu
 
 @node racket-xp-mode
@@ -1391,6 +1395,8 @@ commands directly to whatever keys you prefer.
 @tab Binding
 @item @kbd{M-.} 
 @tab @code{xref-find-definitions}
+@item @kbd{C-c C-s} 
+@tab @ref{racket-describe-search}
 @item @kbd{C-c C-d} 
 @tab @ref{racket-xp-documentation}
 @item @kbd{C-c C-.} 
@@ -1468,7 +1474,7 @@ Otheriwse behaves like 0.
 @item
 @kbd{C-u}  @kbd{C-u} 
 
-This is an alias for @ref{racket-search-describe}, which uses
+This is an alias for @ref{racket-describe-search}, which uses
 installed documentation in a @code{racket-describe-mode} buffer
 instead of an external web browser.
 @end enumerate
@@ -1479,11 +1485,6 @@ something, regardless of whether it has installed documentation
 
 This buffer is also displayed when you use @code{company-mode} and
 press F1 or C-h in its pop up completion list.
-
-You can quit the buffer by pressing q. Also, at the bottom of the
-buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for @code{xref-find-definitions}
-and @ref{racket-xp-documentation}.
 
 @node racket-xp-documentation
 @subsection racket-xp-documentation
@@ -1629,10 +1630,10 @@ This command does not try to go directly to the help topic for a
 definition provided by any specific module. Instead it goes to
 the Racket ``Search Manuals'' page.
 
-@node racket-search-describe
-@subsection racket-search-describe
+@node racket-describe-search
+@subsection racket-describe-search
 
-@kbd{M-x}  @code{racket-search-describe}
+@kbd{C-c C-.}  or @kbd{C-c C-s} 
 
 Search installed documentation; view using @code{racket-describe-mode}.
 
@@ -1702,6 +1703,8 @@ identifier bindings and modules from the REPL's namespace.
 @tab @ref{racket-logger}
 @item @kbd{C-c C-z} 
 @tab @code{racket-repl-switch-to-edit}
+@item @kbd{C-c C-s} 
+@tab @ref{racket-describe-search}
 @item @kbd{C-c C-.} 
 @tab @ref{racket-repl-describe}
 @item @kbd{C-c C-d} 
@@ -1880,7 +1883,7 @@ Otheriwse behaves like 0.
 @item
 @kbd{C-u}  @kbd{C-u} 
 
-This is an alias for @ref{racket-search-describe}, which uses
+This is an alias for @ref{racket-describe-search}, which uses
 installed documentation in a @code{racket-describe-mode} buffer
 instead of an external web browser.
 @end enumerate
@@ -1888,11 +1891,6 @@ instead of an external web browser.
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
 -- and to do so within Emacs, without switching to a web browser.
-
-You can quit the buffer by pressing q. Also, at the bottom of the
-buffer are Emacs buttons -- which you may navigate among using
-TAB, and activate using RET -- for @code{xref-find-definitions}
-and @ref{racket-repl-documentation}.
 
 @node racket-repl-documentation
 @subsection racket-repl-documentation

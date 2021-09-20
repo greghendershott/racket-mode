@@ -69,6 +69,8 @@
      ("C-c C-p"     racket-cycle-paren-shapes)
      ("M-C-y"       racket-insert-lambda)
      ("C-c C-d"     racket-documentation-search)
+     (("C-c C-s"
+       "C-c C-.")   racket-describe-search)
      ("C-c C-f"     racket-fold-all-tests)
      ("C-c C-u"     racket-unfold-all-tests)
      ((")" "]" "}") racket-insert-closing)))

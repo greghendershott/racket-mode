@@ -1,13 +1,8 @@
 #lang racket/base
 
-(require (only-in html
-                  read-html-as-xml)
-         racket/contract
-         racket/file
+(require racket/contract
          racket/format
-         racket/function
          racket/match
-         racket/path
          racket/promise
          racket/set
          racket/string
@@ -16,18 +11,15 @@
          scribble/blueboxes
          scribble/manual-struct
          scribble/xref
+         scribble/tag
          setup/xref
-         (only-in xml
-                  xml->xexpr
-                  element
-                  xexpr->string)
-         (only-in "util.rkt" log-racket-mode-debug))
+         syntax/parse/define
+         "elisp.rkt")
 
 (provide binding->path+anchor
-         path+anchor->html
          identifier->bluebox
-         documented-export-names
-         libs+paths+anchors-exporting-documented
+         doc-index-names
+         doc-index-lookup
          libs-exporting-documented)
 
 (module+ test
@@ -35,183 +27,32 @@
 
 (define xref-promise (delay/thread (load-collections-xref)))
 
+;; When running on a machine with little memory, such as a small VPS
+;; or AWS instance, I have seen the oom-killer terminate the process
+;; after we try to handle a back end command that does some of these
+;; documentation operations. Presumably they use enough memory that
+;; Racket asks the OS for more? To make that less likely, do a major
+;; GC before/after. So far this seems to be a successful mitigation,
+;; although it also seems like a kludge.
+(define (call-avoiding-oom-killer thunk)
+  (collect-garbage 'major)
+  (begin0 (thunk)
+    (collect-garbage 'major)))
+
+(define-simple-macro (with-less-memory-pressure e:expr ...+)
+  (call-avoiding-oom-killer (λ () e ...)))
+
 (define/contract (binding->path+anchor stx)
   (-> identifier? (or/c #f (cons/c path-string? (or/c #f string?))))
-  (let* ([xref (force xref-promise)]
-         [tag  (xref-binding->definition-tag xref stx 0)]
-         [p+a  (and tag (tag->path+anchor xref tag))])
-    p+a))
+  (with-less-memory-pressure
+    (let* ([xref (force xref-promise)]
+           [tag  (xref-binding->definition-tag xref stx 0)]
+           [p+a  (and tag (tag->path+anchor xref tag))])
+      p+a)))
 
 (define (tag->path+anchor xref tag)
   (define-values (path anchor) (xref-tag->path+anchor xref tag))
   (and path anchor (cons path anchor)))
-
-;;; Scribble docs as HTML suitable for Emacs' shr renderer
-
-(define/contract (path+anchor->html path+anchor)
-  (-> (or/c #f (cons/c path-string? (or/c #f string?)))
-      (or/c #f string?))
-  (match path+anchor
-    [(cons path anchor)
-     (let* ([xexpr (get-raw-xexpr path anchor)]
-            [xexpr (and xexpr (massage-xexpr path xexpr))]
-            [html  (and xexpr (xexpr->string xexpr))])
-       html)]
-    [_ #f]))
-
-(define (get-raw-xexpr path anchor)
-  (define (heading-element? x)
-    (match x
-      [(cons (or 'h1 'h2 'h3 'h4 'h5 'h6) _) #t]
-      [_ #f]))
-  (match (let loop ([es (main-elements (html-file->xexpr path))])
-           (match es
-             [(list) (list)]
-             [(cons (? (curryr anchored-element anchor) this) more)
-              ;; Accumulate until another intrapara with an anchor, or
-              ;; until a heading element indicating a new subsection.
-              (cons this
-                    (let get ([es more])
-                      (match es
-                        [(list) (list)]
-                        [(cons (? heading-element?) _) (list)] ;stop
-                        [(cons (? anchored-element) _) (list)] ;stop
-                        [(cons this more) (cons this (get more))])))]
-             [(cons _ more) (loop more)]))
-    [(list) #f]
-    [xs     `(div () ,@xs)]))
-
-(module+ test
-  (test-case "procedure"
-    (check-not-false (path+anchor->html (binding->path+anchor #'print))))
-  (test-case "syntax"
-    (check-not-false (path+anchor->html (binding->path+anchor #'match))))
-  (test-case "parameter"
-    (check-not-false (path+anchor->html (binding->path+anchor #'current-eval))))
-  (test-case "indented sub-item"
-    (check-not-false (path+anchor->html (binding->path+anchor #'struct-out))))
-  (test-case "deftogether"
-    (test-case "1 of 2"
-      (check-not-false (path+anchor->html (binding->path+anchor #'lambda))))
-    (test-case "2 of 2"
-      (check-not-false (path+anchor->html (binding->path+anchor #'λ)))))
-  (check-not-false (path+anchor->html (binding->path+anchor #'xref-binding->definition-tag))))
-
-(define (main-elements x)
-  (match x
-    [`(x () "\n"
-       (html ()
-             (head ,_ . ,_)
-             (body ,_
-                   (div ([class "tocset"]) . ,_)
-                   (div ([class "maincolumn"])
-                        (div ([class "main"]) . ,es))
-                   . ,_)))
-     es]
-    [_ '()]))
-
-;; anchored-element : xexpr? (or/c #f string?) -> (or/c #f string?)
-;; When `name` is #f, return the first anchor having any name.
-;; Otherwise, return the first anchor having `name`.
-(define (anchored-element x [name #f])
-  (define (anchor xs)
-    (for/or ([x (in-list xs)])
-      (match x
-        [`(a ((name ,a)) . ,_)  (or (not name) (equal? name a))]
-        [`(,_tag ,_attrs . ,es) (anchor es)]
-        [_                      #f])))
-  (match x
-    [`(div ((class "SIntrapara"))
-       . ,es)
-     (anchor es)]
-    [`(blockquote ((class "leftindent"))
-       (p ())
-       (div ((class "SIntrapara"))
-        (blockquote ((class "SVInsetFlow"))
-         (table ,(list-no-order `(class "boxed RBoxed") _ ...)
-                . ,es)))
-       ,_ ...)
-     (anchor es)]
-    [_ #f]))
-
-(define (html-file->xexpr pathstr)
-  (xml->xexpr
-   (element #f #f 'x '()
-           (read-html-as-xml (open-input-string (file->string pathstr))))))
-
-;; This is a big ole pile of poo, attempting to simplify and massage
-;; the HTML so that Emacs shr renders it in the least-worst way.
-;;
-;; Note: Emacs shr renderer removes leading spaces and nbsp from <td>
-;; elements -- which messes up the alignment of s-expressions
-;; including contracts. But actually, the best place to address that
-;; is up in Elisp, not here -- replace &nbsp; in the HTML with some
-;; temporary character, then replace that character in the shr output.
-(define (massage-xexpr html-pathname xexpr)
-  ;; In addition to the main x-expression value handled by `walk`, we
-  ;; have a couple annoying side values. Rather than "thread" them
-  ;; through `walk` as additional values -- literally or using some
-  ;; monadic hand-wavery -- I'm just going to set! them. Won't even
-  ;; try to hide my sin by using make-parameter. I hereby accept the
-  ;; deduction of Functional Experience Points.
-  (define kind-xexprs '())
-  (define provide-xexprs '())
-  (define (walk x)
-    (match x
-      ;; The "Provided" title/tooltip. Set aside for later.
-      [`(span ([title ,(and s (pregexp "^Provided from:"))]) . ,xs)
-       (set! provide-xexprs (list s))
-       `(span () ,@(map walk xs))]
-      ;; The HTML for the "kind" (e.g. procedure or syntax or
-      ;; parameter) comes before the rest of the bluebox. Simple HTML
-      ;; renderers like shr don't handle this well. Set aside for
-      ;; later.
-      [`(div ([class "RBackgroundLabel SIEHidden"])
-         (div ([class "RBackgroundLabelInner"]) (p () . ,xs)))
-       (set! kind-xexprs `((i () ,@xs)))
-       ""]
-      ;; Bold RktValDef, which is the name of the thing.
-      [`(a ([class ,(pregexp "RktValDef|RktStxDef")] . ,_) . ,xs)
-       `(b () ,@(map walk xs))]
-      ;; Kill links. (Often these won't work anyway -- e.g. due to
-      ;; problems with "open" and file: links on macOS.)
-      [`(a ,_ . ,xs)
-       `(span () ,@(map walk xs))]
-      ;; Kill "see also" notes, since they're N/A w/o links.
-      [`(div ([class "SIntrapara"])
-         (blockquote ([class "refpara"]) . ,_))
-       `(span ())]
-      ;; Delete some things that produce unwanted blank lines and/or
-      ;; indents in simple rendering engines like Emacs' shr.
-      [`(blockquote ([class ,(or "SVInsetFlow" "SubFlow")]) . ,xs)
-       `(span () ,@(map walk xs))]
-      [`(p ([class "RForeground"]) . ,xs)
-       `(div () ,@(map walk xs))]
-      ;; Let's italicize all RktXXX classes except RktPn.
-      [`(span ([class ,(pregexp "^Rkt(?!Pn)")]) . ,xs)
-       `(i () ,@(map walk xs))]
-      ;; Image sources need path prepended.
-      [`(img ,(list-no-order `[src ,src] more ...))
-       `(img ([src ,(~a "file://" (path-only html-pathname) src)] . ,more))]
-      ;; Misc element: Just walk kids.
-      [`(,tag ,attrs . ,xs)
-       `(,tag ,attrs ,@(map walk xs))]
-      [x x]))
-  (match (walk xexpr)
-    [`(div () . ,xs)
-     (define hs
-       (match* [kind-xexprs provide-xexprs]
-         [[`() `()] `()]
-         [[ks   ps] `((span () ,@ks 'nbsp ,@ps))]))
-     `(div () ,@hs ,@xs)]))
-
-(module+ test
-  (check-equal? ;issue 410
-   (massage-xexpr (string->path "/path/to/file.html")
-                  `(div ()
-                    (img ([x "x"] [src "foo.png"] [y "y"]))))
-   `(div ()
-     (img ([src "file:///path/to/foo.png"] [x "x"] [y "y"])))))
 
 ;;; Blueboxes
 
@@ -244,53 +85,112 @@
                   "(list v ...) -> list?\n  v : any/c"))
   (check-false (identifier->bluebox (datum->syntax #f (gensym)))))
 
-;;; Documented exports
+;;; Documentation index
 
-(define (documented-export-names)
-  (define xref (force xref-promise))
-  (define results
-    (for*/set ([entry (in-list (xref-index xref))]
-               [desc (in-value (entry-desc entry))]
-               #:when (exported-index-desc? desc)
-               [libs (in-value (exported-index-desc-from-libs desc))]
-               #:when (not (null? libs))
-               [name (in-value (symbol->string
-                                (exported-index-desc-name desc)))])
-      name))
-  (sort (set->list results) string<?))
+;; Note that `xref-index` returns a list of 30K+ `entry` structs. We
+;; can't avoid that with the official API. That will bump peak memory
+;; use. :( Best we can do is sandwich it in major GCs, to avoid the
+;; peak going even higher. Furthermore in doc-index-names we avoid
+;; making _another_ 30K+ list, by returning a thunk for elisp-write
+;; to call, to do "streaming" writes.
 
-(define (libs+paths+anchors-exporting-documented sym-as-str)
-  (define xref (force xref-promise))
-  (define results
-   (for*/set ([entry (in-list (xref-index xref))]
-              [desc (in-value (entry-desc entry))]
-              #:when (exported-index-desc? desc)
-              [name (in-value (symbol->string
-                               (exported-index-desc-name desc)))]
-              #:when (equal? name sym-as-str)
-              [libs (in-value (map symbol->string
-                                   (exported-index-desc-from-libs desc)))]
-              #:when (not (null? libs)))
-     (define-values (path anchor)
-       (xref-tag->path+anchor xref (entry-tag entry)))
-     (list libs (path->string path) anchor)))
-  (sort (set->list results)
-        string<?
-        #:cache-keys? #t
-        #:key
-        (match-lambda
-          [(cons (cons lib _) _)
-           (match lib
-             [(and (pregexp "^racket/") v)
-              (string-append "0_" v)]
-             [(and (pregexp "^typed/racket/") v)
-              (string-append "1_" v)]
-             [v v])])))
+(define ((doc-index-names))
+  (with-less-memory-pressure
+    (with-parens
+      (define xref (force xref-promise))
+      (for* ([entry (in-list (xref-index xref))]
+             [desc (in-value (entry-desc entry))]
+             #:when (not (constructor-index-desc? desc))
+             [term (in-value (car (entry-words entry)))])
+        (elisp-write term))
+      (newline))))
 
+(define (doc-index-lookup str)
+  (with-less-memory-pressure
+    (define xref (force xref-promise))
+    (define results
+      (for*/set ([entry (in-list (xref-index xref))]
+                 [desc (in-value (entry-desc entry))]
+                 #:when (not (constructor-index-desc? desc))
+                 [term (in-value (car (entry-words entry)))]
+                 #:when (equal? str term))
+        (define tag (entry-tag entry))
+        (define-values (path anchor) (xref-tag->path+anchor xref tag))
+        (define-values (what from)
+          (cond
+            [(module-path-index-desc? desc)
+             (values 'module null)]
+            [(exported-index-desc? desc)
+             (define kind
+               (match desc
+                 [(? language-index-desc?)  'language]
+                 [(? reader-index-desc?)    'reader]
+                 [(? form-index-desc?)      'syntax]
+                 [(? procedure-index-desc?) 'procedure]
+                 [(? thing-index-desc?)     'value]
+                 [(? struct-index-desc?)    'structure]
+                 [(? class-index-desc?)     'class]
+                 [(? interface-index-desc?) 'interface]
+                 [(? mixin-index-desc?)     'mixin]
+                 [(? method-index-desc?)
+                  (cond
+                    [(method-tag? tag)
+                     (define-values (c/i _m) (get-class/interface-and-method tag))
+                     (cons 'method c/i)]
+                    [else 'method])]
+                 [_ ""]))
+             (define libs (exported-index-desc-from-libs desc))
+             (values kind libs)]
+            [else
+             (println (reverse (explode-path path)))
+             (values 'documentation
+                     (list
+                      (match (reverse (explode-path path))
+                        [(list* _ v _) (path->string v)]
+                        [_             (~a tag)])))]))
+        (list term what from path anchor)))
+    (sort (set->list results)
+          string<?
+          #:cache-keys? #t
+          #:key
+          (match-lambda
+            [(list* _term _what (cons from _) _path _anchor)
+             (match (~a from)
+               [(and (pregexp "^racket/") v)
+                (string-append "0_" v)]
+               [(and (pregexp "^typed/racket/") v)
+                (string-append "1_" v)]
+               [v v])]
+            [(cons term _) term]))))
+
+;;; This is for the requires/find command
+
+;; Given some symbol as a string, return the modules providing it,
+;; sorted by most likely to be desired.
 (define (libs-exporting-documented sym-as-str)
-  ;; Take just the first lib. This usually seems to be the
-  ;; most-specific, e.g. (racket/base racket).
-  (map car
-       ;; Take just the list of libs.
-       (map car
-            (libs+paths+anchors-exporting-documented sym-as-str))))
+  (with-less-memory-pressure
+    (define xref (force xref-promise))
+    (define results
+      (for*/set ([entry (in-list (xref-index xref))]
+                 [desc (in-value (entry-desc entry))]
+                 #:when (exported-index-desc? desc)
+                 [name (in-value (symbol->string
+                                  (exported-index-desc-name desc)))]
+                 #:when (equal? name sym-as-str)
+                 [libs (in-value (map symbol->string
+                                      (exported-index-desc-from-libs desc)))]
+                 #:when (not (null? libs)))
+        ;; Take just the first lib. This usually seems to be the
+        ;; most-specific, e.g. (racket/base racket).
+        (car libs)))
+    (sort (set->list results)
+          string<?
+          #:cache-keys? #t
+          #:key
+          (lambda (lib)
+            (match lib
+              [(and (pregexp "^racket/") v)
+               (string-append "0_" v)]
+              [(and (pregexp "^typed/racket/") v)
+               (string-append "1_" v)]
+              [v v])))))

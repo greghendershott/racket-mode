@@ -186,7 +186,7 @@
         ;; of a specific REPL. We wait to do so until this ready-thunk
         ;; to ensure the `sessions` hash table has this session before
         ;; any subsequent commands use call-with-session-context.
-        (elisp-writeln `(ok ,session-id) (current-output-port))
+        (elisp-writeln `(ok ,session-id))
         (flush-output)
         (display-commented (string-append "\n" (banner))))))))
 

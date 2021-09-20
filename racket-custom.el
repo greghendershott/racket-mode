@@ -639,6 +639,20 @@ to hide the interesting span in the buffer."
   "Face for `racket-debug-mode' result values."
   "Racket Debug Result Face")
 
+(defface-racket racket-doc-link-face
+  '((t (:underline (:color "gray" :style line))))
+  "Face for `racket-describe-mode' doc links to open in `racket-describe-mode'.
+Note: When some special face is already specified by the
+documentation, then to avoid visual clutter this face is NOT also
+added."
+  "Racket Doc Link Face")
+
+(defface-racket racket-ext-link-face
+  '((t (:underline (:style wave) :slant italic :weight bold)))
+  "Face for `racket-describe-mode' external links.
+See the variable `racket-browse-url-function'."
+  "Racket Ext Link Face")
+
 (provide 'racket-custom)
 
 ;; racket-custom.el ends here

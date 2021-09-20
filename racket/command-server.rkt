@@ -12,8 +12,8 @@
          "repl.rkt"
          "repl-session.rkt"
          (only-in "scribble.rkt"
-                  documented-export-names
-                  libs+paths+anchors-exporting-documented
+                  doc-index-names
+                  doc-index-lookup
                   libs-exporting-documented)
          "util.rkt")
 
@@ -78,16 +78,18 @@
     (procedure-rename thk (string->symbol label)))
 
   (define (write-responses-forever)
-    (elisp-writeln (sync response-channel
-                         logger-notify-channel
-                         debug-notify-channel)
-                   out)
-    (flush-output out)
-    (write-responses-forever))
+    (parameterize ([current-output-port out])
+      (let loop ()
+        (elisp-writeln (sync response-channel
+                             logger-notify-channel
+                             debug-notify-channel))
+        (flush-output)
+        (loop))))
 
   ;; With all the pieces defined, let's go:
   (thread write-responses-forever)
-  (elisp-writeln `(ready) out)
+  (parameterize ([current-output-port out])
+    (elisp-writeln `(ready)))
   (let read-a-command ()
     (match (elisp-read in)
       [(list* nonce sid sexp) (thread (do-command/queue-response nonce sid sexp))
@@ -139,8 +141,8 @@
     [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
     [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]
     [`(requires/find ,str)             (libs-exporting-documented str)]
-    [`(doc-index-names)                (documented-export-names)]
-    [`(doc-index-lookup ,str)          (libs+paths+anchors-exporting-documented str)]
+    [`(doc-index-names)                (doc-index-names)]
+    [`(doc-index-lookup ,str)          (doc-index-lookup str)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
     ;; namespace), if their first "how" argument is 'namespace.
