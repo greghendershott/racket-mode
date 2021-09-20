@@ -1,8 +1,7 @@
 #lang racket/base
 
 (require (for-syntax racket/base)
-         gui-debugger/marks
-         (only-in mzscheme [apply plain-apply])
+         (only-in racket/base [apply plain-apply]) ;;???
          (prefix-in kernel: syntax/kerncase))
 
 ;; This is like gui-debugger/annotate except:
@@ -24,7 +23,10 @@
 ;; 4. We remove the source arg that is completely unused (I'm guessing
 ;;    historical).
 
-(provide annotate-for-single-stepping)
+(provide annotate-for-single-stepping
+         mark-source
+         mark-bindings
+         debug-key)
 
 (define (annotate-for-single-stepping stx break? break-before break-after)
   (define (break-wrap debug-info annotated raw is-tail?)
@@ -379,3 +381,49 @@
 
 (define code-insp (variable-reference->module-declaration-inspector
                    (#%variable-reference)))
+
+;;; marks
+
+;; This is the equivalent of gui-debugger/marks that we actually use.
+;; We want to avoid dependency on gui-debugger-lib because it depends
+;; on racket/gui.
+
+(define-struct full-mark-struct (module-name source label bindings values))
+
+;; debug-key: this key will be used as a key for the continuation marks.
+(define-struct debug-key-struct ())
+(define debug-key (make-debug-key-struct))
+
+(define (assemble-debug-info tail-bound free-vars label lifting?)
+  (map make-mark-binding-stx free-vars))
+
+(define (wcm-wrap debug-info expr)
+  (quasisyntax/loc expr (with-continuation-mark #,debug-key #,debug-info #,expr)))
+
+(define (make-debug-info module-name source tail-bound free-vars label lifting? assembled-info-stx)
+  (make-full-mark module-name source label free-vars assembled-info-stx))
+
+(define (make-mark-binding-stx id)
+  #`(case-lambda
+      [() #,id] ; Note: `id` might be undefined; caller must catch exceptions
+      [(v) (set! #,id v)]))
+
+;; the 'varargs' creator is used to avoid an extra cons cell in every mark
+(define (make-make-full-mark-varargs module-name source label bindings)
+  (lambda (values)
+    (make-full-mark-struct module-name source label bindings values)))
+
+(define (make-full-mark module-name source label bindings assembled-info-stx)
+  (datum->syntax #'here
+                 `(#%plain-lambda ()
+                   (#%plain-app
+                    ,(make-make-full-mark-varargs module-name source label bindings)
+                    ,assembled-info-stx))))
+
+(define (mark-source mark)
+  (full-mark-struct-source (mark)))
+
+(define (mark-bindings mark)
+  (map list
+       (full-mark-struct-bindings (mark))
+       (full-mark-struct-values (mark))))

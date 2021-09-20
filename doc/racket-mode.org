@@ -68,11 +68,19 @@ When Emacs is configured to use MELPA, simply type {{{kbd(M-x)}}} ~package-insta
 
 ** Minimal Racket
 
-If you have installed the minimal Racket distribution (for example by using the [[https://github.com/Homebrew/homebrew-core/blob/master/Formula/minimal-racket.rb][homebrew formula]]) Racket Mode needs some additional packages (like ~errortrace~ and ~macro-debugger~). A simple way to get all these packages is to install the ~drracket~ Racket package. In a command shell:
+If you have installed the minimal Racket distribution (for example by using the [[https://github.com/Homebrew/homebrew-core/blob/master/Formula/minimal-racket.rb][homebrew formula]]) Racket Mode needs some additional Racket packages. A simple way to get all these packages is to install the ~drracket~ Racket package. In a command shell:
 
 #+BEGIN_SRC shell
-raco pkg install drracket
+raco pkg install --auto drracket
 #+END_SRC
+
+If you do /not/ plan to use ~racket-xp-mode~, then a more-targeted approach is instead to install these specific packages and their dependencies:
+
+#+BEGIN_SRC shell
+raco pkg install --auto data-lib errortrace-lib macro-debugger-text-lib rackunit-lib racket-index scribble-lib
+#+END_SRC
+
+If you /do/ want to use ~racket-xp-mode~, then you would also need to install ~drracket-tool-lib~ --- but since it has many of the same dependencies (including ~gui-lib~) as ~drracket~ you may well install ~drracket~.
 
 ** Uninstall
 

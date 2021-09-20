@@ -1,13 +1,13 @@
 #lang at-exp racket/base
 
-(require (only-in macro-debugger/analysis/check-requires show-requires)
-         racket/contract
+(require racket/contract
          racket/format
          racket/function
          (only-in racket/list append* append-map add-between filter-map)
          racket/match
          racket/set
-         racket/string)
+         racket/string
+         "../util.rkt")
 
 (provide requires/tidy
          requires/trim
@@ -65,6 +65,11 @@
                                          (list/c 'bypass module-path? number? list?)
                                          (list/c 'drop   module-path? number?))))
 (define mod+level? (list/c module-path? number?))
+
+
+(define-polyfill (show-requires _)
+  #:module macro-debugger/analysis/check-requires
+  (error 'requires "Won't work until you `raco pkg install macro-debugger-lib`"))
 
 (define/contract (analyze path-str)
   (-> path-string? requires-analysis?)

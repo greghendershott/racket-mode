@@ -177,8 +177,10 @@
 (module+ test
   (let ()
     (local-require racket/path
-                   setup/path-to-relative
-                   drracket/find-module-path-completions)
+                   setup/path-to-relative)
+    (define-polyfill (alternate-racket-clcl/clcp path box)
+      #:module drracket/find-module-path-completions
+      (values null null null))
     (define-values (_links _paths pkg-dirs)
       (alternate-racket-clcl/clcp (find-system-path 'exec-file) (box #f)))
     (printf "Checking .rkt files in ~v packages...\n" (length pkg-dirs))
