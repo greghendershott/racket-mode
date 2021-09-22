@@ -5,6 +5,7 @@
          version/utils
          "command-server.rkt"
          (only-in "image.rkt" emacs-can-use-svg!)
+         (only-in "gui.rkt" load-racket/gui/base!)
          "repl.rkt")
 
 (module+ main
@@ -20,8 +21,13 @@
       [(vector (== "--auth")        token
                (== "--accept-host") accept-host
                (== "--port")        tcp-port
-               svg-flag-str)
+               (and (or "--use-svg" "--do-not-use-svg")
+                    svg-flag-str)
+               (and (or "--never-gui" "--always-gui")
+                    gui-flag-str))
        (emacs-can-use-svg! svg-flag-str)
+       (when (equal? gui-flag-str "--always-gui")
+         (load-racket/gui/base!))
        (values token accept-host (string->number tcp-port))]
       [v
        (eprintf "Bad command-line arguments:\n~v\n" v)

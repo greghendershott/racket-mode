@@ -113,7 +113,8 @@ See `racket-back-end-function' for more information."
           'user-name            user
           'ssh-port             port
           'repl-tcp-accept-host (if local-p "127.0.0.1" "0.0.0.0")
-          'repl-tcp-port        (if local-p 0 55555))))
+          'repl-tcp-port        (if local-p 0 55555)
+          'never-gui            (not local-p))))
 
 (defun racket--back-end-filename-to-user+host+port (filename)
   (let* ((tfns (and (tramp-tramp-file-p filename)
@@ -244,6 +245,8 @@ even from compiled bytecode.")
                                        (image-type-available-p 'imagemagick))))
                          "--use-svg"
                        "--do-not-use-svg"))
+           (gui-flag (if (plist-get racket-back-end 'never-gui)
+                         "--never-gui" "--always-gui"))
            (process-name (racket--back-end-process-name))
            (process-name-stderr (racket--back-end-process-name-stderr))
            (stderr (make-pipe-process
@@ -262,7 +265,8 @@ even from compiled bytecode.")
                           "--port"        (format "%s"
                                                   (plist-get racket-back-end
                                                              'repl-tcp-port))
-                          svg-flag))
+                          svg-flag
+                          gui-flag))
            (command (if local-p
                         command
                       (cons "ssh"

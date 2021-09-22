@@ -125,14 +125,28 @@ Following is a description of the properties:
   number should be used, and, remember to allow that in the
   remote's firewall. Note that this is `numberp' not `stringp'.
 
+- `never-gui`
+
+  When this is true, the back end will /not/ attempt to load
+  racket/gui/base eagerly. This makes sense for a remote back end
+  running on a headless server, but the Racket gui-lib package is
+  installed. Keep in mind that when `never-gui` is enabled, if
+  you `racket-run' a program that requires
+  racket/gui/base (directly or indirectly), you cannot run a
+  second such program without Racket complaining that
+  racket/gui/base cannot be instantiated more than once. If that
+  happens, you must use `racket-start-back-end' to restart the
+  back end process.
+
 The default property list is set to values that are appropriate
 for whether a buffer's file is local or remote:
 
 - When the value of the variable `default-directory' satisfies
   `tramp-tramp-file-p', it is dissected to set `user-name`,
   `host-name`, and `ssh-port`. Furthermore, `repl-tcp-port` is
-  set to 55555 and `repl-tcp-accept-host` is set to \"0.0.0.0\"
-  \(accepts connections from anywhere).
+  set to 55555, `repl-tcp-accept-host` is set to \"0.0.0.0\"
+  \(accepts connections from anywhere), and `never-gui` is set
+  true.
 
   When working with back ends on remote hosts, *remember to check
   your remote host firewall*. The goal here is to make sure
@@ -146,9 +160,9 @@ for whether a buffer's file is local or remote:
 - Otherwise, reasonable defaults are used for a local back end.
   For example `host-name` is set to \"127.0.0.1\",
   `repl-tcp-port` is set to 0 \(meaning the back end picks an
-  ephemeral port) and `repl-tcp-accept-host` is set to
+  ephemeral port), `repl-tcp-accept-host` is set to
   \"127.0.0.1\" \(meaning the back end only accept TCP
-  connections locally)
+  connections locally), and `never-gui` is set false.
 
 Although the default values usually \"just work\", you might want
 a special configuration.
