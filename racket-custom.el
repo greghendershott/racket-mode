@@ -102,11 +102,20 @@ Following is a description of the properties:
   Always used to make TCP/IP connections to a back end for REPL
   sesssions.
 
-- `user-name`, `ssh-port`
+- `user-name`
 
-  When `host-name` is not \"127.0.0.1\", these are used to make
-  an SSH connection. Note that `ssh-port` is `numberp' not
-  `stringp'.
+  When `host-name` is not \"127.0.0.1\", used to make an SSH
+  connection. It may be nil, meaning to use a value from
+  ~/.ssh/config.
+
+- `ssh-port`
+
+  When `host-name` is not \"127.0.0.1\", used to make an SSH
+  connection. Note that this is `numberp' not `stringp'. It may
+  be nil, meaning to use a value from ~/.ssh/config or the
+  default value of 22. If you wouldn't include a port when typing
+  a tramp file name for `find-file', then set `ssh-port` to nil
+  (rather than 22).
 
 - `repl-tcp-accept-host`
 

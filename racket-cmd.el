@@ -83,8 +83,10 @@ end cannot run files hosted on another.")
     (when (plist-get v 'racket-program)
       (check stringp (plist-get v 'racket-program)))
     (check stringp (plist-get v 'host-name))
-    (check stringp (plist-get v 'user-name))
-    (check numberp (plist-get v 'ssh-port))
+    (when (plist-get v 'user-name)
+      (check stringp (plist-get v 'user-name)))
+    (when (plist-get v 'ssh-port)
+      (check numberp (plist-get v 'ssh-port)))
     (check stringp (plist-get v 'repl-tcp-accept-host))
     (check stringp (plist-get v 'remote-source-dir)))
   v)
@@ -119,19 +121,20 @@ See `racket-back-end-function' for more information."
 (defun racket--back-end-filename-to-user+host+port (filename)
   (let* ((tfns (and (tramp-tramp-file-p filename)
                     (tramp-dissect-file-name filename)))
-         (user (or (and tfns
-                        (equal "ssh" (tramp-file-name-method tfns))
-                        (tramp-file-name-user tfns))
-                   (user-login-name)))
+         (user (and tfns
+                    (equal "ssh" (tramp-file-name-method tfns))
+                    (tramp-file-name-user tfns)))
          (host (or (and tfns
                         (equal "ssh" (tramp-file-name-method tfns))
-                        (tramp-file-name-host tfns))
+                        (if (fboundp 'tramp-file-name-real-host)
+                            (tramp-file-name-real-host tfns) ;older tramp
+                          (tramp-file-name-host tfns)))
                    "127.0.0.1"))
-         (port (or (and tfns
-                        (equal "ssh" (tramp-file-name-method tfns))
-                        (fboundp 'tramp-file-name-port)
-                        (tramp-file-name-port tfns))
-                   22)))
+         (port (and tfns
+                    (equal "ssh" (tramp-file-name-method tfns))
+                    (let ((p (tramp-file-name-port tfns)))
+                      (and (not (equal p 22))
+                           p)))))
     (list user host port)))
 
 (defun racket-file-name-front-to-back (file)
@@ -269,11 +272,15 @@ even from compiled bytecode.")
                           gui-flag))
            (command (if local-p
                         command
-                      (cons "ssh"
-                            (cons (format "%s@%s"
-                                          (plist-get racket-back-end 'user-name)
-                                          (plist-get racket-back-end 'host-name))
-                                  command))))
+                      `("ssh"
+                        ,@(when-let ((p (plist-get racket-back-end 'ssh-port)))
+                            `("-p" ,(format "%s" p)))
+                        ,(if-let ((u (plist-get racket-back-end 'user-name)))
+                             (format "%s@%s"
+                                     u
+                                     (plist-get racket-back-end 'host-name))
+                           (plist-get racket-back-end 'host-name))
+                        ,@command)))
            (process
             (make-process
              :name            process-name
@@ -481,11 +488,11 @@ last time we needed to copy.
 
 This is the most efficient way I can think of to handle this over
 a possibly slow remote connection."
-  (let* ((user (plist-get racket-back-end 'user-name))
-         (host (plist-get racket-back-end 'host-name))
-         (port (plist-get racket-back-end 'ssh-port))
-         (dir  (plist-get racket-back-end 'remote-source-dir))
-         (tramp-dir (racket--make-tramp-file-name user host port dir))
+  (let* ((tramp-dir (racket--make-tramp-file-name
+                     (plist-get racket-back-end 'user-name)
+                     (plist-get racket-back-end 'host-name)
+                     (plist-get racket-back-end 'ssh-port)
+                     (plist-get racket-back-end 'remote-source-dir)))
          (digest-here
           (sha1
            (string-join
@@ -529,10 +536,15 @@ a possibly slow remote connection."
           ;; our digest file.
           (copy-file temp-digest-file-here digest-file-there t)
           (delete-file temp-digest-file-here))
-        (message "Racket Mode back end copied to remote back end at %s" host)))
-    dir))
+        (message "Racket Mode back end copied to remote back end at %s"
+                 (plist-get racket-back-end 'host-name))))
+    (plist-get racket-back-end 'remote-source-dir)))
 
 (defun racket--make-tramp-file-name (user host port localname)
+  (unless (or (not user) (stringp user)) (error "user must be nil or stringp"))
+  (unless (or (not port) (numberp port)) (error "port must be nil or numberp"))
+  (unless (stringp host) (error "host must be stringp"))
+  (unless (stringp localname) (error "localname must be stringp"))
   ;; Using `tramp-make-tramp-file-name' across versions of Emacs is a
   ;; PITA because it has had three different signatures. Although the
   ;; newest version supports the middle signature for backward
@@ -546,7 +558,7 @@ a possibly slow remote connection."
                                     (or user "")
                                     ""  ;domain
                                     host
-                                    (format "%s" port)
+                                    port
                                     localname))
     (wrong-number-of-arguments
      ;; Otherwise try the oldest signature (METHOD USER HOST
@@ -555,7 +567,9 @@ a possibly slow remote connection."
          (with-no-warnings ;from byte compiler
            (tramp-make-tramp-file-name "ssh"
                                        (or user "")
-                                       host
+                                       (if (or (not port) (= port 22))
+                                           host
+                                         (format "%s#%s" host port))
                                        localname))
        (wrong-number-of-arguments
         (error "Unsupported flavor of `tramp-make-tramp-file-name'."))))))
