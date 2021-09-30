@@ -5,7 +5,7 @@ on:
   pull_request:
 
 jobs:
-  test:
+  ubuntu:
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -13,7 +13,7 @@ jobs:
         emacs_version:
           - '25.1'              # our minimum supported version
           - '26.3'
-          - '27.1'              # most recent release
+          - '27.2'              # most recent release
         racket_version:
           - '6.9'               # our minimum supported version
           - 'stable'            # most recent release
@@ -28,7 +28,7 @@ jobs:
           - emacs_version: 'snapshot'
             racket_version: 'current'
             allow_failure: true
-    name: Test Emacs ${{ matrix.emacs_version }} and Racket ${{ matrix.racket_version }}
+    name: Ubuntu Emacs ${{ matrix.emacs_version }} and Racket ${{ matrix.racket_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@master
@@ -42,6 +42,8 @@ jobs:
           architecture: 'x64'
           distribution: 'full'
           version: ${{ matrix.racket_version }}
+      - name: Show versions
+        run: make show-versions
       - name: Install Emacs Packages
         run: make deps
       - name: Compile Elisp
@@ -49,20 +51,20 @@ jobs:
       - name: Run Tests
         run: make test
 
-  test_windows:
+  windows:
     runs-on: windows-latest
     strategy:
       fail-fast: false
       matrix:
         emacs_version:
-          - '27.1'              # most recent release
+          - '27.2'              # most recent release
         racket_version:
           - 'stable'            # most recent release
-    name: Test Windows Emacs ${{ matrix.emacs_version }} and Racket ${{ matrix.racket_version }}
+    name: Windows Emacs ${{ matrix.emacs_version }} and Racket ${{ matrix.racket_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@master
-      - name: Install Emacs on Windows
+      - name: Install Emacs
         uses: jcs090218/setup-emacs-windows@master
         with:
           version: ${{ matrix.emacs_version }}
@@ -75,6 +77,8 @@ jobs:
           version: ${{ matrix.racket_version }}
       - name: Install Emacs Packages
         run: make deps
+      - name: Compile Elisp
+        run: make compile
       - name: Run Tests
-        run: emacs --batch --no-site-file -q -eval "(progn (add-to-list (quote load-path) nil) (package-initialize))" -l ert -l racket-tests.el -f ert-run-tests-batch-and-exit
+        run: make test
 

@@ -1,15 +1,12 @@
-EMACS ?= emacs
-
-RACKET ?= racket
-
-BATCHEMACS = $(EMACS) --batch --no-site-file -q -eval '(progn (add-to-list (quote load-path) nil) (package-initialize))'
-
-BYTECOMP = $(BATCHEMACS) -eval '(progn (require (quote bytecomp)) (setq byte-compile-warnings t) (setq byte-compile-error-on-warn t))' -f batch-byte-compile
-
 .PHONY : help show-versions clean compile deps test test-elisp test-racket test-slow
 
 help:
 	@echo "Targets: show-versions, clean, compile, deps, test, test-elisp, test-racket, test-slow"
+
+# Allow running with an emacs or racket executable other than the
+# default on PATH. e.g. `EMACS=/path/to/emacs make`.
+EMACS ?= emacs
+RACKET ?= racket
 
 show-versions:
 	@echo `which $(RACKET)`
@@ -17,32 +14,53 @@ show-versions:
 	@echo `which $(EMACS)`
 	@$(EMACS) --version
 
-%.elc : %.el
-	$(BYTECOMP) $<
+batch-emacs := $(EMACS) --batch -Q -L . --eval '(package-initialize)'
 
-ELCS := $(patsubst %.el,%.elc,$(wildcard *.el))
+byte-compile := \
+  $(batch-emacs) \
+  -l bytecomp \
+  --eval '(setq byte-compile-warnings t)' \
+  --eval '(setq byte-compile-error-on-warn t)' \
+  -f batch-byte-compile
+
+%.elc : %.el
+	$(byte-compile) $<
+
+# Build an .elc file for every .el file in the top dir.
+elc-files := $(patsubst %.el,%.elc,$(wildcard *.el))
 
 clean:
-	-rm $(ELCS) 2> /dev/null
+	-rm $(elc-files) 2> /dev/null
 
-compile: show-versions $(ELCS)
+compile: $(elc-files)
 
 # Install Emacs packages we depend on for development and/or testing.
-# Intended for one-time use by developers and for Travis CI. (Normal
-# users get a subset of these deps automatically as a result of our
-# Package-Requires in racket-mode.el)
+# Intended to be run once per machine by developers, as well as by CI.
+# (Normal users get a subset of these deps automatically as a result
+# of our Package-Requires in racket-mode.el.)
+melpa-url := https://melpa.org/packages/
 deps:
-	$(BATCHEMACS) -eval '(progn (add-to-list (quote package-archives) (cons "melpa" "http://melpa.org/packages/")) (package-initialize) (package-refresh-contents) (package-install (quote faceup)) (package-install (quote paredit)) (package-install (quote pos-tip)))'
+	$(batch-emacs) \
+      --eval '(add-to-list (quote package-archives) (cons "melpa" "$(melpa-url)"))' \
+      --eval '(package-initialize)' \
+      --eval '(package-refresh-contents)' \
+      --eval '(package-install (quote faceup))' \
+      --eval '(package-install (quote paredit))' \
+      --eval '(package-install (quote pos-tip))'
 
 test: test-racket test-elisp
+
+test-elisp:
+	$(batch-emacs) \
+      -l ert \
+      -l racket-tests.el \
+      --eval '(setq racket-program "$(RACKET)")' \
+      -f ert-run-tests-batch-and-exit
 
 test-racket:
 	$(RACKET) -l raco test ./racket/test/
 	$(RACKET) -l raco test -x ./racket/*.rkt
 	$(RACKET) -l raco test -x ./racket/commands/*.rkt
-
-test-elisp:
-	$(BATCHEMACS) -l ert -l racket-tests.el -eval '(setq racket-program "$(RACKET)")' -f ert-run-tests-batch-and-exit
 
 test-slow:
 	$(RACKET) -l raco test --submodule slow-test ./racket/imports.rkt
