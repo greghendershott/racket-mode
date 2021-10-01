@@ -24,6 +24,11 @@
            [else e]))
    (λ ()
      (define in ((current-get-interaction-input-port)))
+     ;; Need to port-count-lines! here -- not sufficient to do to REPL
+     ;; TCP input port upon connection -- because racket/gui/base sets
+     ;; current-get-interaction-port to wrap the original input port.
+     ;; See issues #519 #556.
+     (port-count-lines! in)
      (unless (already-more-to-read? in) ;#311
        (display-prompt prompt))
      (match (with-stack-checkpoint

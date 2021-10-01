@@ -167,11 +167,7 @@
             (log-racket-mode-fatal "Authorization failed: ~v"
                                    supplied-token)
             (exit 'racket-mode-repl-auth-failure))
-          ;; port-count-lines! for things like #519, #556. Furthermore
-          ;; set current-get-interaction-port to return this so that
-          ;; racket/gui/base's override respects it.
-          (port-count-lines! in)
-          (current-get-interaction-input-port (λ () in))
+          (port-count-lines! in)  ;but for #519 #556 see interactions.rkt
           (port-count-lines! out) ;for fresh-line
           (thread repl-manager-thread-thunk))))
     (accept-a-connection)))
