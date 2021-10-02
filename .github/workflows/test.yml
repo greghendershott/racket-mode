@@ -75,8 +75,8 @@ jobs:
           distribution: 'full'
           platform: 'windows'
           version: ${{ matrix.racket_version }}
-      - name: Install Emacs Packages
-        run: make deps
+      - name: Install Emacs Packages insecurely on Windows
+        run: make deps-win-ci
       - name: Compile Elisp
         run: make compile
       - name: Run Tests

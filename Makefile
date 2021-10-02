@@ -48,6 +48,21 @@ deps:
       --eval '(package-install (quote paredit))' \
       --eval '(package-install (quote pos-tip))'
 
+# October 2021: This is a hopefully temporary hack to work-around
+# Windows Emacs being unable to validate Let's Encrypt certificates.
+# This fetches the archives/packages even if the certificate fails.
+# This is (probably) acceptable for CI and for Windows, only.
+deps-win-ci:
+	$(batch-emacs) \
+      --eval '(add-to-list (quote package-archives) (cons "melpa" "$(melpa-url)"))' \
+      --eval '(package-initialize)' \
+      -l nsm \
+      --eval '(setq network-security-level (quote low))' \
+      --eval '(package-refresh-contents)' \
+      --eval '(package-install (quote faceup))' \
+      --eval '(package-install (quote paredit))' \
+      --eval '(package-install (quote pos-tip))'
+
 test: test-racket test-elisp
 
 test-elisp:
