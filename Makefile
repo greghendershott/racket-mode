@@ -66,7 +66,7 @@ test: test-racket test-elisp
 test-elisp:
 	$(batch-emacs) \
       -l ert \
-      -l racket-tests.el \
+      -l test/racket-tests.el \
       --eval '(setq racket-program "$(RACKET)")' \
       -f ert-run-tests-batch-and-exit
 

@@ -3,7 +3,7 @@
 ;; Copyright (c) 2013-2020 by Greg Hendershott.
 
 ;; Package: racket-mode
-;; Package-Requires: ((emacs "25.1") (faceup "0.0.2"))
+;; Package-Requires: ((emacs "25.1"))
 ;; Author: Greg Hendershott
 ;; URL: https://www.racket-mode.com/
 
