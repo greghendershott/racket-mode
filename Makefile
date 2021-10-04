@@ -45,8 +45,7 @@ deps:
       --eval '(package-initialize)' \
       --eval '(package-refresh-contents)' \
       --eval '(package-install (quote faceup))' \
-      --eval '(package-install (quote paredit))' \
-      --eval '(package-install (quote pos-tip))'
+      --eval '(package-install (quote paredit))'
 
 # October 2021: This is a hopefully temporary hack to work-around
 # Windows Emacs being unable to validate Let's Encrypt certificates.
@@ -60,8 +59,7 @@ deps-win-ci:
       --eval '(setq network-security-level (quote low))' \
       --eval '(package-refresh-contents)' \
       --eval '(package-install (quote faceup))' \
-      --eval '(package-install (quote paredit))' \
-      --eval '(package-install (quote pos-tip))'
+      --eval '(package-install (quote paredit))'
 
 test: test-racket test-elisp
 

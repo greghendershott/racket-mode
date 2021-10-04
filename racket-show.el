@@ -1,6 +1,6 @@
 ;;; racket-show.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2021 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -18,7 +18,7 @@
 
 (require 'racket-util)
 (require 'racket-custom)
-(require 'pos-tip)
+(require 'pos-tip nil t) ;noerror
 (require 'cl-macs)
 
 (defun racket-show (val &optional pos)
@@ -56,16 +56,14 @@ the header line."
   "Show things using `pos-tip-show' if available.
 
 A value for the variable `racket-show-functions'."
-  (when (racket--pos-tip-available-p)
+  (when (and (fboundp 'x-hide-tip)
+             (fboundp 'x-show-tip)
+             (not (memq window-system (list nil 'pc)))
+             (fboundp 'pos-tip-show)
+             (fboundp 'pos-tip-hide))
     (if (racket--non-empty-string-p v)
         (pos-tip-show v nil pos)
       (pos-tip-hide))))
-
-(defun racket--pos-tip-available-p ()
-  "Is `pos-tip' available and expected to work on current frame?"
-  (and (fboundp 'x-hide-tip)
-       (fboundp 'x-show-tip)
-       (not (memq window-system (list nil 'pc)))))
 
 (defvar-local racket--pseudo-tooltip-overlays nil)
 
