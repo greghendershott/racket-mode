@@ -104,7 +104,7 @@ as a :company-doc-buffer function."
               ;; the case where we knew the path and anchor up-front.
               (`(,(and path (pred stringp)) . ,anchor)
                (racket--describe-insert-dom pop-to-p
-                                            path
+                                            (racket-file-name-back-to-front path)
                                             anchor
                                             (racket--scribble-path->shr-dom path)))
               ;; STR doesn't have documentation, but it does have a
