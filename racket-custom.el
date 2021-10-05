@@ -136,16 +136,26 @@ Following is a description of the properties:
 
 - `never-gui`
 
-  When this is true, the back end will /not/ attempt to load
-  racket/gui/base eagerly. This makes sense for a remote back end
-  running on a headless server, but the Racket gui-lib package is
-  installed. Keep in mind that when `never-gui` is enabled, if
-  you `racket-run' a program that requires
-  racket/gui/base (directly or indirectly), you cannot run a
-  second such program without Racket complaining that
-  racket/gui/base cannot be instantiated more than once. If that
-  happens, you must use `racket-start-back-end' to restart the
-  back end process.
+  When this is true: The back end will /not/ attempt to load
+  racket/gui/base eagerly. This can make sense for a remote back
+  end running on a headless server, where the Racket gui-lib
+  package is installed but you do /not/ want to use it. Keep in
+  mind that when `never-gui` is true, if you `racket-run' a
+  program that requires racket/gui/base (directly or indirectly),
+  you cannot run a second such program without Racket complaining
+  that racket/gui/base cannot be instantiated more than once. If
+  that happens, you must use `racket-start-back-end' to restart
+  the back end process.
+
+  When this is false: The back end /will/ attempt to load
+  racket/gui/base eagerly. This can make sense for a remote back
+  end running on a headless server, where the Racket gui-lib
+  package is installed and you /do/ want to use it. In this case
+  the headless server should have the xvfb package installed, and
+  you should set the `racket-program` property to something like
+  \"xvfb-run racket\". Now your programs can use packages that
+  depend on `gui-lib`, including obvious things like `pict` and
+  `plot`, as well as some unfortunately less-obvious things.
 
 The default property list is set to values that are appropriate
 for whether a buffer's file is local or remote:

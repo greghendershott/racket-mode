@@ -817,19 +817,21 @@ A value for the variable `comint-output-filter-functions'."
                                   t)
           (let* ((beg (match-beginning 0))
                  (file (match-string-no-properties 1))
-                 (file (racket-file-name-back-to-front file)))
+                 (file (racket-file-name-back-to-front file))
+                 (file (or (file-local-copy file) file)))
             (cond ((and racket-images-inline (display-images-p))
                    (replace-match "")
-                   (insert-image (apply #'create-image
-                                        file
-                                        (and (image-type-available-p 'imagemagick)
-                                             racket-imagemagick-props
-                                             'imagemagick)
-                                        nil  ;file not data
-                                        (append
-                                         '(:scale 1.0) ;#529
-                                         (and (image-type-available-p 'imagemagick)
-                                              racket-imagemagick-props)))))
+                   (insert-image
+                    (apply #'create-image
+                           file
+                           (and (image-type-available-p 'imagemagick)
+                                racket-imagemagick-props
+                                'imagemagick)
+                           nil          ;data-p
+                           (append
+                            '(:scale 1.0) ;#529
+                            (and (image-type-available-p 'imagemagick)
+                                 racket-imagemagick-props)))))
                   (t
                    (replace-match (format "[file://%s]" file))))
             (set-marker pmark (max pmark (point)))
