@@ -91,10 +91,9 @@ as a :company-doc-buffer function."
         ;; use the back end describe command. It returns one of three
         ;; kinds of values.
         ((guard (or (stringp how) (eq how 'namespace)))
-         (let ((buffer-read-only nil))
-           (insert
-            (propertize (format "Getting information from back end about %s ..." str)
-                        'face 'italic)))
+         (setq header-line-format
+               (propertize (format "Getting information from back end about %s ..." str)
+                           'face 'italic))
          (racket--cmd/async
           repl-session-id
           `(describe ,(racket-how-front-to-back how) ,str)
@@ -344,21 +343,21 @@ PATH is doc path, as in 'racket-doc-link-path.
 GOTO is as in `racket--describe-goto'."
   (if (equal path (car racket--describe-here))
       (racket--describe-goto goto) ;just move, same page
-    (let ((buffer-read-only nil))
-      (erase-buffer)
-      (insert
-       (propertize
-        (format "Waiting for documentation file %s"
-                path)
-        'face 'italic))
-      (condition-case e
-          (racket--describe-insert-dom t
-                                       path
-                                       goto
-                                       (racket--scribble-path->shr-dom path))
-        (error (erase-buffer)
-               (insert (format "%S" e))
-               (setq racket--describe-here nil))))))
+    (setq header-line-format
+          (propertize
+           (format "Waiting for documentation file %s"
+                   path)
+           'face 'italic))
+    (condition-case e
+        (racket--describe-insert-dom t
+                                     path
+                                     goto
+                                     (racket--scribble-path->shr-dom path))
+      (error
+       (setq header-line-format
+             (propertize (format "%S" e)
+                         'face 'error))
+       (setq racket--describe-here nil)))))
 
 (defun racket--describe-maybe-push-here (which)
   "When it is a path, push `racket--describe-here' to WHICH stack.
