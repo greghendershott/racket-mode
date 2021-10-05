@@ -102,10 +102,11 @@ as a :company-doc-buffer function."
               ;; STR has documentation at path and anchor. Handle like
               ;; the case where we knew the path and anchor up-front.
               (`(,(and path (pred stringp)) . ,anchor)
-               (racket--describe-insert-dom pop-to-p
-                                            (racket-file-name-back-to-front path)
-                                            anchor
-                                            (racket--scribble-path->shr-dom path)))
+               (let ((path (racket-file-name-back-to-front path)))
+                 (racket--describe-insert-dom pop-to-p
+                                              path
+                                              anchor
+                                              (racket--scribble-path->shr-dom path))))
               ;; STR doesn't have documentation, but it does have a
               ;; signature and/or type, and here is a dom about that
               ;; we can insert.
