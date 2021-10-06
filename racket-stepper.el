@@ -55,7 +55,6 @@ Used by the commands `racket-expand-file',
 
 \\{racket-stepper-mode-map}
 "
-  (setq-local racket-back-end (racket--get-back-end))
   (setq header-line-format
         "Press RET to step. C-u RET to step all. C-h m to see help.")
   (setq-local font-lock-defaults
@@ -63,7 +62,7 @@ Used by the commands `racket-expand-file',
                     t)))        ;keywords only -- not strings/comments
 
 (defun racket--stepper-buffer-name ()
-  (format "*Racket Stepper <%s>*" (plist-get racket-back-end 'name)))
+  (format "*Racket Stepper <%s>*" (plist-get (racket-back-end) 'name)))
 
 ;;; commands
 

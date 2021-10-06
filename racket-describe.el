@@ -67,7 +67,7 @@ POP-TO-P should be non-nil for use by direct user commands like
 displayed using `pop-to-buffer'. POP-TO-P should be nil for use
 as a :company-doc-buffer function."
   (let ((buf-name (format "*Racket Describe <%s>*"
-                          (plist-get racket-back-end 'name))))
+                          (plist-get (racket-back-end) 'name))))
     (with-current-buffer (get-buffer-create buf-name)
       (unless (eq major-mode 'racket-describe-mode)
         (racket-describe-mode))
@@ -476,7 +476,6 @@ External links -- which are opened using the variable
 browser program -- are given `racket-describe-ext-link-face'.
 
 \\{racket-describe-mode-map}"
-  (setq-local racket-back-end (racket--get-back-end))
   (setq show-trailing-whitespace nil)
   (setq-local revert-buffer-function #'racket-describe-mode-revert-buffer)
   (buffer-disable-undo))
@@ -492,14 +491,14 @@ browser program -- are given `racket-describe-ext-link-face'.
 
 (defun racket--remove-describe-terms ()
   "A `racket-stop-back-end-hook' to clean up `racket--describe-terms'."
-  (let ((key (plist-get racket-back-end 'name)))
+  (let ((key (plist-get (racket-back-end) 'name)))
     (when key
       (remhash key racket--describe-terms))))
 
 (add-hook 'racket-stop-back-end-hook #'racket--remove-describe-terms)
 
 (defun racket--describe-terms ()
-  (let ((key (plist-get racket-back-end 'name)))
+  (let ((key (plist-get (racket-back-end) 'name)))
     (pcase (gethash key racket--describe-terms)
       (`nil
        (puthash key 'fetching
@@ -539,7 +538,7 @@ point if any.
                                                   (racket--describe-terms)))
          (buf-name (format "*Racket Search Describe `%s` <%s>*"
                            name
-                           (plist-get racket-back-end 'name))))
+                           (plist-get (racket-back-end) 'name))))
     (racket--cmd/async
      nil
      `(doc-index-lookup ,name)
@@ -610,8 +609,7 @@ point if any.
 (define-derived-mode racket-describe-search-mode tabulated-list-mode
   "RacketSearchDescribe"
   "Major mode for disambiguating documentation search results.
-\\{racket-describe-search-mode-map}"
-  (setq-local racket-back-end (racket--get-back-end)))
+\\{racket-describe-search-mode-map}")
 
 (provide 'racket-describe)
 

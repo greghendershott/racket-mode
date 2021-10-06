@@ -135,7 +135,6 @@
 
 \\{racket-mode-map}"
   (racket--common-variables)
-  (setq-local racket-back-end (racket--get-back-end))
   (racket-call-racket-repl-buffer-name-function)
   (setq-local imenu-create-index-function #'racket-imenu-create-index-function)
   (hs-minor-mode t)

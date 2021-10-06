@@ -171,7 +171,7 @@ Variables
 General variables
 
 * racket-program::
-* racket-back-end-function::
+* racket-back-end-functions::
 * racket-command-timeout::
 * racket-memory-limit::
 * racket-error-context::
@@ -2463,7 +2463,7 @@ any border.
 
 @menu
 * racket-program::
-* racket-back-end-function::
+* racket-back-end-functions::
 * racket-command-timeout::
 * racket-memory-limit::
 * racket-error-context::
@@ -2484,18 +2484,16 @@ This does @emph{not} add STR to the ``@strong{Messages}'' log buffer.
 @node racket-show-header-line
 @subsection racket-show-header-line
 
-@node racket-back-end-function
-@subsection racket-back-end-function
+@node racket-back-end-functions
+@subsection racket-back-end-functions
 
-A function to support multiple simultaneous back ends.
+Configure multiple simultaneous back ends.
 
-This function is called with a property list having default
-values that normally ``just work'' for buffers that are local or
-remote. If you need to do some special configuration, your
-function can return a modified property list.
-
-When this value is nil it is treated as @code{identity} --- the
-default configuration is not changed.
+This is a list of @code{functionp} values. Each function is called
+until one returns a non-nil value, which should be a property
+list describing a back end. Typically the function will examine
+@code{default-directory} to determine whether it returns a property
+list and the values therein.
 
 Following is a description of the properties:
 
@@ -2541,11 +2539,21 @@ Always used to make TCP/IP connections to a back end for REPL
 sesssions.
 
 @item
-@code{user-name}, @code{ssh-port}
+@code{user-name}
 
-When @code{host-name} is not ``127.0.0.1'', these are used to make
-an SSH connection. Note that @code{ssh-port} is @code{numberp} not
-@code{stringp}.
+When @code{host-name} is not ``127.0.0.1'', used to make an SSH
+connection. It may be nil, meaning to use a value from
+~/.ssh/config.
+
+@item
+@code{ssh-port}
+
+When @code{host-name} is not ``127.0.0.1'', used to make an SSH
+connection. Note that this is @code{numberp} not @code{stringp}. It may
+be nil, meaning to use a value from ~/.ssh/config or the
+default value of 22. If you wouldn't include a port when typing
+a tramp file name for @code{find-file}, then set @code{ssh-port} to nil
+(rather than 22).
 
 @item
 @code{repl-tcp-accept-host}
@@ -2569,20 +2577,30 @@ remote's firewall. Note that this is @code{numberp} not @code{stringp}.
 @item
 @code{never-gui}
 
-When this is true, the back end will @emph{not} attempt to load
-racket/gui/base eagerly. This makes sense for a remote back end
-running on a headless server, but the Racket gui-lib package is
-installed. Keep in mind that when @code{never-gui} is enabled, if
-you @ref{racket-run} a program that requires
-racket/gui/base (directly or indirectly), you cannot run a
-second such program without Racket complaining that
-racket/gui/base cannot be instantiated more than once. If that
-happens, you must use @code{racket-start-back-end} to restart the
-back end process.
+When this is true: The back end will @emph{not} attempt to load
+racket/gui/base eagerly. This can make sense for a remote back
+end running on a headless server, where the Racket gui-lib
+package is installed but you do @emph{not} want to use it. Keep in
+mind that when @code{never-gui} is true, if you @ref{racket-run} a
+program that requires racket/gui/base (directly or indirectly),
+you cannot run a second such program without Racket complaining
+that racket/gui/base cannot be instantiated more than once. If
+that happens, you must use @code{racket-start-back-end} to restart
+the back end process.
+
+When this is false: The back end @emph{will} attempt to load
+racket/gui/base eagerly. This can make sense for a remote back
+end running on a headless server, where the Racket gui-lib
+package is installed and you @emph{do} want to use it. In this case
+the headless server should have the xvfb package installed, and
+you should set the @code{racket-program} property to something like
+``xvfb-run racket''. Now your programs can use packages that
+depend on @code{gui-lib}, including obvious things like @code{pict} and
+@code{plot}, as well as some unfortunately less-obvious things.
 @end itemize
 
-The default property list is set to values that are appropriate
-for whether a buffer's file is local or remote:
+The @code{racket-back-end-default} property list has values that are
+appropriate for whether a buffer's file is local or remote:
 
 @itemize
 @item
@@ -2590,12 +2608,12 @@ When the value of the variable @code{default-directory} satisfies
 @code{tramp-tramp-file-p}, it is dissected to set @code{user-name},
 @code{host-name}, and @code{ssh-port}. Furthermore, @code{repl-tcp-port} is
 set to 55555, @code{repl-tcp-accept-host} is set to ``0.0.0.0''
-(accepts connections from anywhere), and @code{never-gui} is set
-true.
+(accepts connections from anywhere), and @code{gui} is set
+false.
 
 When working with back ends on remote hosts, @strong{remember to check
 your remote host firewall}. The goal here is to make sure
-things work --- but only for you. Probably you want the
+things work for you --- and only you. Probably you want the
 firewall to limit from where it accepts SSH connections on
 @code{ssh-port}. Also you need the firewall to accept connections on
 @code{repl-tcp-port}, but again, limiting from where --- either in
@@ -2608,7 +2626,7 @@ For example @code{host-name} is set to ``127.0.0.1'',
 @code{repl-tcp-port} is set to 0 (meaning the back end picks an
 ephemeral port), @code{repl-tcp-accept-host} is set to
 ``127.0.0.1'' (meaning the back end only accept TCP
-connections locally), and @code{never-gui} is set false.
+connections locally), and @code{gui} is set true.
 @end itemize
 
 Although the default values usually ``just work'', you might want
@@ -2618,17 +2636,35 @@ For example, you could modify the property list to use a
 locally-built Racket on the local host, and the default installed
 Racket on remote hosts. You could do this by examing the
 @code{host-name} property you are given, and changing the
-@code{racket-program} property accordingly:
+@code{racket-program} property accordingly.
+
+For another example, on a specific remote host maybe you need to
+use gui-lib so you want to run racket using xvfb-run, and, you
+need the back end to load racket/gui/base eagerly (to avoid
+Racket giving ``can't instantiate racket/gui/base a second time
+in the same process'' errors).
+
+Here are those two examples:
 
 @lisp
-(setq racket-back-end-function
-      (lambda (v)
-	(plist-put
-	 v
-	 'racket-program
-	 (if (equal (plist-get v 'host-name) "127.0.0.1")
-	     "~/src/racket-lang/racket/bin/racket"
-	   "racket"))))
+(defun my-racket-back-end-function ()
+  (let ((v (racket-back-end-default)))
+    (cond
+     ;; locally use Racket built from source
+     ((equal (plist-get v 'host-name) "127.0.0.1")
+      (plist-put v
+		 'racket-program
+		 "~/src/racket-lang/racket/bin/racket"))
+     ;; experiment using xvfb-run on "linode" server
+     ((equal (plist-get v 'host-name) "linode")
+      (let* ((v (plist-put v 'gui            t))
+	     (v (plist-put v 'racket-program "xvfb-run racket")))
+	v))
+     ;; otherwise just use the default
+     (otherwise v))))
+
+(setq racket-back-end-functions
+      (list #'my-racket-back-end-function))
 @end lisp
 
 As another example, you could also specify a different local back

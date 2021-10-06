@@ -234,12 +234,6 @@ you want things like \"enter!\". But in some sense you'd be
 Mode's REPL as intended, then consider using a plain Emacs
 `shell' buffer to run command-line Racket."
   (interactive "P")
-  ;; Ensure some buffer-local variables are set, because `racket-repl'
-  ;; may be called from any buffer. This bends our ususal policies
-  ;; that `racket-repl-buffer-name' is set only in `racket-mode'
-  ;; buffers (not Racket Mode buffers generally) and that back end
-  ;; vars like `racket-back-end' are set only in Racket Mode buffers.
-  (setq-local racket-back-end (racket--get-back-end))
   (racket-call-racket-repl-buffer-name-function)
   (cl-labels
       ((display-and-maybe-select
@@ -1166,7 +1160,6 @@ identifier bindings and modules from the REPL's namespace.
 
 \\{racket-repl-mode-map}"
   (racket--common-variables)
-  (setq-local racket-back-end (racket--get-back-end))
   (setq-local comint-use-prompt-regexp nil)
   (setq-local comint-prompt-read-only t)
   (setq-local comint-scroll-show-maximum-output nil) ;t slow for big outputs

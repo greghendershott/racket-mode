@@ -44,25 +44,22 @@
 (defcustom racket-program (if racket--winp "Racket.exe" "racket")
   "Pathname of the Racket executable.
 
-Although a value for the variable `racket-back-end-function' can
-override this, `racket-back-end-default' does not because it
-supplies a `racket-back-end-create' object with a
-nil :racket-program member."
+The customiziation variable `racket-back-end-functions' can
+override this for a specific back end with a non-nil
+`racket-program` property list value."
   :tag "Racket Program"
   :type '(file :must-match t)
   :risky t
   :group 'racket)
 
-(defcustom racket-back-end-function nil
-  "A function to support multiple simultaneous back ends.
+(defcustom racket-back-end-functions nil
+  "Configure multiple simultaneous back ends.
 
-This function is called with a property list having default
-values that normally \"just work\" for buffers that are local or
-remote. If you need to do some special configuration, your
-function can return a modified property list.
-
-When this value is nil it is treated as `identity' --- the
-default configuration is not changed.
+This is a list of `functionp' values. Each function is called
+until one returns a non-nil value, which should be a property
+list describing a back end. Typically the function will examine
+`default-directory' to determine whether it returns a property
+list and the values therein.
 
 Following is a description of the properties:
 
@@ -157,19 +154,19 @@ Following is a description of the properties:
   depend on `gui-lib`, including obvious things like `pict` and
   `plot`, as well as some unfortunately less-obvious things.
 
-The default property list is set to values that are appropriate
-for whether a buffer's file is local or remote:
+The `racket-back-end-default' property list has values that are
+appropriate for whether a buffer's file is local or remote:
 
 - When the value of the variable `default-directory' satisfies
   `tramp-tramp-file-p', it is dissected to set `user-name`,
   `host-name`, and `ssh-port`. Furthermore, `repl-tcp-port` is
   set to 55555, `repl-tcp-accept-host` is set to \"0.0.0.0\"
-  \(accepts connections from anywhere), and `never-gui` is set
-  true.
+  \(accepts connections from anywhere), and `gui` is set
+  false.
 
   When working with back ends on remote hosts, *remember to check
   your remote host firewall*. The goal here is to make sure
-  things work --- but only for you. Probably you want the
+  things work for you --- and only you. Probably you want the
   firewall to limit from where it accepts SSH connections on
   `ssh-port`. Also you need the firewall to accept connections on
   `repl-tcp-port`, but again, limiting from where --- either in
@@ -181,7 +178,7 @@ for whether a buffer's file is local or remote:
   `repl-tcp-port` is set to 0 \(meaning the back end picks an
   ephemeral port), `repl-tcp-accept-host` is set to
   \"127.0.0.1\" \(meaning the back end only accept TCP
-  connections locally), and `never-gui` is set false.
+  connections locally), and `gui` is set true.
 
 Although the default values usually \"just work\", you might want
 a special configuration.
@@ -190,17 +187,35 @@ For example, you could modify the property list to use a
 locally-built Racket on the local host, and the default installed
 Racket on remote hosts. You could do this by examing the
 `host-name` property you are given, and changing the
-`racket-program` property accordingly:
+`racket-program` property accordingly.
+
+For another example, on a specific remote host maybe you need to
+use gui-lib so you want to run racket using xvfb-run, and, you
+need the back end to load racket/gui/base eagerly (to avoid
+Racket giving \"can't instantiate racket/gui/base a second time
+in the same process\" errors).
+
+Here are those two examples:
 
 #+BEGIN_SRC lisp
-  (setq racket-back-end-function
-        (lambda (v)
-          (plist-put
-           v
-           'racket-program
-           (if (equal (plist-get v 'host-name) \"127.0.0.1\")
-               \"~/src/racket-lang/racket/bin/racket\"
-             \"racket\"))))
+  (defun my-racket-back-end-function ()
+    (let ((v (racket-back-end-default)))
+      (cond
+       ;; locally use Racket built from source
+       ((equal (plist-get v 'host-name) \"127.0.0.1\")
+        (plist-put v
+                   'racket-program
+                   \"~/src/racket-lang/racket/bin/racket\"))
+       ;; experiment using xvfb-run on \"linode\" server
+       ((equal (plist-get v 'host-name) \"linode\")
+        (let* ((v (plist-put v 'gui            t))
+               (v (plist-put v 'racket-program \"xvfb-run racket\")))
+          v))
+       ;; otherwise just use the default
+       (otherwise v))))
+
+  (setq racket-back-end-functions
+        (list #'my-racket-back-end-function))
 #+END_SRC
 
 As another example, you could also specify a different local back

@@ -182,7 +182,7 @@
 (defconst racket-generate--variables
   '("General variables"
     racket-program
-    racket-back-end-function
+    racket-back-end-functions
     racket-command-timeout
     racket-memory-limit
     racket-error-context

@@ -82,21 +82,21 @@
 (defun racket--orp/make-process ()
   "Start process to run find-module-path-completions.rkt."
   (let* ((name    "racket-find-module-path-completions")
-         (local-p (equal (plist-get racket-back-end 'host-name)
+         (local-p (equal (plist-get (racket-back-end) 'host-name)
                          "127.0.0.1"))
          (rkt     (expand-file-name "find-module-path-completions.rkt"
                                     (if local-p
                                         racket--rkt-source-dir
-                                      (plist-get racket-back-end 'remote-source-dir))))
-         (command (list (or (plist-get racket-back-end 'racket-program)
+                                      (plist-get (racket-back-end) 'remote-source-dir))))
+         (command (list (or (plist-get (racket-back-end) 'racket-program)
                             racket-program)
                         rkt))
          (command (if local-p
                       command
                     (cons "ssh"
                           (cons (format "%s@%s"
-                                        (plist-get racket-back-end 'user-name)
-                                        (plist-get racket-back-end 'host-name))
+                                        (plist-get (racket-back-end) 'user-name)
+                                        (plist-get (racket-back-end) 'host-name))
                                 command)))))
     (make-process :name            name
                   :connection-type 'pipe

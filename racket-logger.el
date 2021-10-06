@@ -77,19 +77,18 @@ For more information see:
 
 \\{racket-logger-mode-map}
 "
-  (setq-local racket-back-end (racket--get-back-end))
   (setq-local font-lock-defaults (list racket-logger-font-lock-keywords))
   (setq-local truncate-lines t)
   (setq-local buffer-undo-list t) ;disable undo
   (setq-local window-point-insertion-type t))
 
 (defun racket--logger-buffer-name ()
-  (format "*Racket Logger <%s>*" (plist-get racket-back-end 'name)))
+  (format "*Racket Logger <%s>*" (plist-get (racket-back-end) 'name)))
 
 (defun racket--logger-get-buffer-create ()
   "Create buffer if necessary. Do not display or select it."
-  (unless racket-back-end
-    (user-error "Cannot create racket-logger-mode buffer with nil racket-back-end"))
+  (unless (racket-back-end)
+    (user-error "Cannot create racket-logger-mode buffer with nil (racket-back-end)"))
   (let ((name (racket--logger-buffer-name)))
     (unless (get-buffer name)
       (with-current-buffer (get-buffer-create name)
@@ -97,13 +96,14 @@ For more information see:
         (racket--logger-activate-config)))
     (get-buffer name)))
 
-(defun racket--logger-on-notify (back-end str)
+(defun racket--logger-on-notify (_back-end str)
   "This is called from `racket--cmd-dispatch-response'."
   (when noninteractive ;emacs --batch
     (princ (format "{logger %s}: %s"
-                   (plist-get racket-back-end 'host-name)
+                   (plist-get (racket-back-end) 'host-name)
                    str)))
-  (let ((racket-back-end back-end))
+  (let (;(racket-back-end back-end) ;; FIXME
+        )
     (with-current-buffer (racket--logger-get-buffer-create)
       (let* ((inhibit-read-only  t)
              (original-point     (point))

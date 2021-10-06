@@ -42,7 +42,8 @@ delete compiled/*.zo files."
   (unless (eq major-mode 'racket-mode)
     (user-error "Works only in a racket-mode buffer"))
   (message "Running with profiling instrumentation...")
-  (let ((buf-name "*Racket Profile*")
+  (let ((buf-name (format "*Racket Profile <%s>*"
+                          (plist-get (racket-back-end) 'name)))
         (what-to-run (racket--what-to-run)))
     (racket--repl-run
      what-to-run
