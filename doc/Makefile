@@ -1,6 +1,8 @@
-.PHONY: docs clean deploy
+.PHONY: doc docs clean deploy
 
-docs: racket-mode.info racket-mode.html
+doc: racket-mode.info racket-mode.html
+
+docs: doc
 
 clean:
 	-rm reference.org
