@@ -489,31 +489,34 @@ Otherwise if `racket--repl-live-p', send the command."
     (signal 'wrong-type-argument `(racket--what-to-run-p ,what)))
   (run-hook-with-args 'racket--repl-before-run-hook) ;ours
   (run-hook-with-args 'racket-before-run-hook)       ;users'
-  (let* ((what (or what (racket--what-to-run)))
-         (what (pcase what
-                 (`(,file . ,subs)
-                  (cons (racket-file-name-front-to-back file) subs))
-                 (`() `())))
-         (context-level (or context-level racket-error-context))
-         (cmd (list 'run
-                    what
-                    extra-submods
-                    racket-memory-limit
-                    racket-pretty-print
-                    (window-width)
-                    (racket--char-pixel-width)
-                    context-level
-                    racket-user-command-line-arguments
-                    (when (and what (eq context-level 'debug))
-                      (mapcar #'racket-file-name-front-to-back
-                              (racket--debuggable-files (car what))))))
-         (buf (current-buffer))
-         (after (lambda (_ignore)
-                  (with-current-buffer buf
-                    (run-hook-with-args 'racket--repl-after-run-hook) ;ours
-                    (run-hook-with-args 'racket-after-run-hook) ;user's
-                    (when callback
-                      (funcall callback))))))
+  (pcase-let*
+      ((context-level (or context-level racket-error-context))
+       (what (or what (racket--what-to-run)))
+       (`(,what ,debug-files)
+        (pcase what
+          (`(,file . ,subs)
+           (list (cons (racket-file-name-front-to-back file) subs)
+                 (when (eq context-level 'debug)
+                   (racket--debuggable-files file))))
+          (`()
+           (list nil nil))))
+       (cmd (list 'run
+                  what
+                  extra-submods
+                  racket-memory-limit
+                  racket-pretty-print
+                  (window-width)
+                  (racket--char-pixel-width)
+                  context-level
+                  racket-user-command-line-arguments
+                  debug-files))
+       (buf (current-buffer))
+       (after (lambda (_ignore)
+                (with-current-buffer buf
+                  (run-hook-with-args 'racket--repl-after-run-hook) ;ours
+                  (run-hook-with-args 'racket-after-run-hook) ;user's
+                  (when callback
+                    (funcall callback))))))
     (cond ((racket--repl-live-p)
            (unless (racket--repl-session-id)
              (error "No REPL session"))
