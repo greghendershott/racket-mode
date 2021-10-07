@@ -140,9 +140,16 @@ lets it know the HostName if any."
   "Make a front end file name usable to give to the back end.
 
 When a tramp file name, extract the \"localname\" portion of a
-tramp file name."
-  (if (tramp-tramp-file-p file)
-      (tramp-file-name-localname (tramp-dissect-file-name file))
+tramp file name.
+
+When on Windows, substitute slashes with backslashes."
+  (let* ((file (if (tramp-tramp-file-p file)
+                   (tramp-file-name-localname
+                    (tramp-dissect-file-name file))
+                 file))
+         (file (if racket--winp
+                   (subst-char-in-string ?/ ?\\ file)
+                 file)))
     file))
 
 (defun racket-how-front-to-back (how)
