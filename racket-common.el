@@ -18,8 +18,9 @@
 
 ;; Things used by both racket-mode and racket-repl-mode
 
-(require 'cl-lib)
+(require 'cl-extra)
 (require 'thingatpt)
+(require 'tramp)
 (require 'racket-custom)
 (require 'racket-keywords-and-builtins)
 (require 'racket-font-lock)
@@ -325,6 +326,18 @@ Allows #; to be followed by zero or more space or newline chars."
 
 
 ;;; racket--what-to-run
+
+(defun racket--what-to-run-p (v)
+  "Predicate for a \"what-to-run\" value.
+Either nil or a list, where the first element of the list is a
+file name and the remainder are `symbolp' submodule names."
+  (pcase v
+    (`() t)
+    (`(,file . ,subs)
+     (and (or (tramp-file-name-p file)
+              (and (stringp file) (file-exists-p file)))
+          (cl-every #'symbolp subs)))
+    (_ nil)))
 
 (defun racket--what-to-run ()
   (cons (racket--buffer-file-name)

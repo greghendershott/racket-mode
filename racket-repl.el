@@ -461,11 +461,11 @@ for end user customization is `racket-after-run-hook'.
 Here \"after\" means that the run has completed and e.g. the REPL
 is waiting at another prompt.")
 
-(defun racket--repl-run (&optional what-to-run extra-submods context-level callback)
+(defun racket--repl-run (&optional what extra-submods context-level callback)
   "Do an initial or subsequent run.
 
-WHAT-TO-RUN should be a cons of a file name to a list of
-submodule symbols. Or if nil, defaults to `racket--what-to-run'.
+WHAT must be `racket--what-to-run-p', where nil defaults to
+`racket--what-to-run'.
 
 EXTRA-SUBMODS should be a list of symbols, names of extra
 submodules to run, e.g. '(test main). This is intended for use by
@@ -479,22 +479,39 @@ defaults to the variable `racket-error-context'.
 CALLBACK is used as the callback for `racket--cmd/async'; it may
 be nil which is equivalent to #'ignore.
 
-- If the REPL is not live, create it.
+If not `racket--repl-live-p', start it and supply the run
+command via the start callback.the REPL is not live, create it.
 
-- If the REPL is live, send a 'run command to the backend's TCP
-  server."
+Otherwise if `racket--repl-live-p', send the command."
   (unless (eq major-mode 'racket-mode)
     (user-error "Only works from a `racket-mode' buffer"))
+  (unless (racket--what-to-run-p what)
+    (signal 'wrong-type-argument `(racket--what-to-run-p ,what)))
   (run-hook-with-args 'racket--repl-before-run-hook) ;ours
   (run-hook-with-args 'racket-before-run-hook)       ;users'
-  (let* ((cmd (racket--repl-make-run-command (or what-to-run (racket--what-to-run))
-                                             extra-submods
-                                             (or context-level racket-error-context)))
+  (let* ((what (or what (racket--what-to-run)))
+         (what (pcase what
+                 (`(,file . ,subs)
+                  (cons (racket-file-name-front-to-back file) subs))
+                 (`() `())))
+         (context-level (or context-level racket-error-context))
+         (cmd (list 'run
+                    what
+                    extra-submods
+                    racket-memory-limit
+                    racket-pretty-print
+                    (window-width)
+                    (racket--char-pixel-width)
+                    context-level
+                    racket-user-command-line-arguments
+                    (when (and what (eq context-level 'debug))
+                      (mapcar #'racket-file-name-front-to-back
+                              (racket--debuggable-files (car what))))))
          (buf (current-buffer))
          (after (lambda (_ignore)
                   (with-current-buffer buf
                     (run-hook-with-args 'racket--repl-after-run-hook) ;ours
-                    (run-hook-with-args 'racket-after-run-hook)       ;users'
+                    (run-hook-with-args 'racket-after-run-hook) ;user's
                     (when callback
                       (funcall callback))))))
     (cond ((racket--repl-live-p)
@@ -512,25 +529,6 @@ be nil which is equivalent to #'ignore.
                   (error "No REPL session"))
                 (racket--cmd/async (racket--repl-session-id) cmd after)
                 (display-buffer racket-repl-buffer-name))))))))
-
-(defun racket--repl-make-run-command (what-to-run extra-submods context-level)
-  "Form a `run` command sexpr for the backend.
-WHAT-TO-RUN may be nil, meaning just a `racket/base` namespace."
-  (let ((context-level (or context-level racket-error-context)))
-    (list 'run
-          (pcase what-to-run
-            (`(,file . ,subs) (cons (racket-file-name-front-to-back file) subs))
-            (v v))
-          extra-submods
-          racket-memory-limit
-          racket-pretty-print
-          (window-width)
-          (racket--char-pixel-width)
-          context-level
-          racket-user-command-line-arguments
-          (when (and what-to-run (eq context-level 'debug))
-            (mapcar #'racket-file-name-front-to-back
-                    (racket--debuggable-files (car what-to-run)))))))
 
 (defun racket--char-pixel-width ()
   (with-temp-buffer
