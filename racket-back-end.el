@@ -89,7 +89,8 @@ variable `default-directory' to decided what to return."
           'ssh-port             port
           'repl-tcp-accept-host (if local-p "127.0.0.1" "0.0.0.0")
           'repl-tcp-port        (if local-p 0 55555)
-          'gui                  local-p)))
+          'gui                  local-p
+          'windows              (and local-p racket--winp))))
 
 (defun racket--back-end-filename-to-user+host+port (filename)
   (let* ((tfns (and (tramp-tramp-file-p filename)
@@ -142,12 +143,12 @@ lets it know the HostName if any."
 When a tramp file name, extract the \"localname\" portion of a
 tramp file name.
 
-When on Windows, substitute slashes with backslashes."
+When Windows back end, substitute slashes with backslashes."
   (let* ((file (if (tramp-tramp-file-p file)
                    (tramp-file-name-localname
                     (tramp-dissect-file-name file))
                  file))
-         (file (if racket--winp
+         (file (if (plist-get (racket-back-end) 'windows)
                    (subst-char-in-string ?/ ?\\ file)
                  file)))
     file))

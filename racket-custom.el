@@ -131,28 +131,37 @@ Following is a description of the properties:
   number should be used, and, remember to allow that in the
   remote's firewall. Note that this is `numberp' not `stringp'.
 
-- `never-gui`
+- `gui`
 
-  When this is true: The back end will /not/ attempt to load
+  When this is false: The back end will /not/ attempt to load
   racket/gui/base eagerly. This can make sense for a remote back
   end running on a headless server, where the Racket gui-lib
-  package is installed but you do /not/ want to use it. Keep in
-  mind that when `never-gui` is true, if you `racket-run' a
-  program that requires racket/gui/base (directly or indirectly),
-  you cannot run a second such program without Racket complaining
-  that racket/gui/base cannot be instantiated more than once. If
-  that happens, you must use `racket-start-back-end' to restart
-  the back end process.
+  package is installed, making racket/gui/base available, but you
+  do not want to use it. Keep in mind that when `gui` is false,
+  if you `racket-run' a program that /does/ require
+  racket/gui/base (directly or indirectly), you cannot run a
+  second such program without Racket complaining that
+  racket/gui/base cannot be instantiated more than once. If that
+  happens, you must use `racket-start-back-end' to restart the
+  back end process.
 
-  When this is false: The back end /will/ attempt to load
+  When this is true: The back end /will/ attempt to load
   racket/gui/base eagerly. This can make sense for a remote back
   end running on a headless server, where the Racket gui-lib
-  package is installed and you /do/ want to use it. In this case
-  the headless server should have the xvfb package installed, and
-  you should set the `racket-program` property to something like
-  \"xvfb-run racket\". Now your programs can use packages that
-  depend on `gui-lib`, including obvious things like `pict` and
-  `plot`, as well as some unfortunately less-obvious things.
+  package is installed, making racket/gui/base available, and you
+  do want to use it. In this case the headless server should have
+  the xvfb package installed, and you should set the
+  `racket-program` property to something like \"xvfb-run
+  racket\". Now your programs can use modules that require
+  racket/gui/base, including obvious things like `plot`, as well
+  as some unfortunately less-obvious things.
+
+- `windows`
+
+  Whether the back end is running on Windows. When the back end
+  is remote -- when `host-name` is not \"127.0.0.1\" -- this
+  defaults to false. Otherwise, when the back end is local, it is
+  whether `system-type` is \"windows\".
 
 The `racket-back-end-default' property list has values that are
 appropriate for whether a buffer's file is local or remote:
