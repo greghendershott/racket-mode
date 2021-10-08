@@ -28,18 +28,30 @@
     (dynamic-send f 'show #t)
     (dynamic-send f 'show #f)))
 
-;; If early-load-racket/gui/base! was called, and it was able to load
-;; racket/gui/base,, then it is important for REPL namespaces
-;; initially to have racket/gui/base _attached_, regardless of whether
-;; a user program _requires_ it. See also issue #555.
 (define-namespace-anchor anchor)
 (define (make-initial-repl-namespace)
-  (define ns (make-base-namespace))
+  (define new-ns (make-base-namespace))
+  (define our-ns (namespace-anchor->empty-namespace anchor))
+
+  ;; If load-racket/gui/base! was called, and it was able to load
+  ;; racket/gui/base, then it is important for REPL namespaces
+  ;; initially to have racket/gui/base _attached_, regardless of
+  ;; whether a given user program `require`s it. They might require it
+  ;; in the REPL. See also issue #555.
   (when (gui-available?)
-    (namespace-attach-module (namespace-anchor->empty-namespace anchor)
-                             'racket/gui/base
-                             ns))
-  ns)
+    (namespace-attach-module our-ns 'racket/gui/base new-ns))
+
+  ;; Avoid potential problem (IIUC because Racket structs are
+  ;; generative) with file/convertible by attaching the same instance
+  ;; to user namespaces.
+  ;;
+  ;; Always do this. Things like pict-lib work without gui-lib, and we
+  ;; can still do our feature where we "print images in the REPL". To
+  ;; see how we do this using file/convertible, see print.rkt and
+  ;; image.rkt.
+  (namespace-attach-module our-ns 'file/convertible new-ns)
+
+  new-ns)
 
 ;; Like mz/mr from racket/sandbox.
 (define-syntax txt/gui
