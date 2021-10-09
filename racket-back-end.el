@@ -169,21 +169,18 @@ car is a path name, or the symbol namespace. Apply
 (defun racket-file-name-back-to-front (file)
   "Make a file name from the back end usable on the front end.
 
-When the back end is local: When on Windows, replace back slashes
-with forward slashes; else return FILE as is.
+When Windows back end, replace back slashes with forward slashes.
 
-When the back end is remote: Treat FILE as the \"localname\"
-portion of a tramp file name, and make a tramp file name using
-various back end property list values for the remaining
-components."
-  (if (racket--back-end-local-p)
-      (if racket--winp
-          (subst-char-in-string ?\\ ?/ file)
-        file)
-    (racket--make-tramp-file-name (plist-get (racket-back-end) 'user-name)
-                                  (plist-get (racket-back-end) 'host-name)
-                                  (plist-get (racket-back-end) 'ssh-port)
-                                  file)))
+When remote back end, treat FILE as the \"localname\" portion of
+a tramp file name, and make a tramp file name using various back
+end property list values for the remaining components."
+  (let ((back-end (racket-back-end)))
+    (racket--make-tramp-file-name (plist-get back-end 'user-name)
+                                  (plist-get back-end 'host-name)
+                                  (plist-get back-end 'ssh-port)
+                                  (if (plist-get back-end 'windows)
+                                      (subst-char-in-string ?\\ ?/ file)
+                                    file))))
 
 ;;; Tramp remote back end source files
 
