@@ -82,36 +82,36 @@ For more information see:
   (setq-local buffer-undo-list t) ;disable undo
   (setq-local window-point-insertion-type t))
 
-(defun racket--logger-buffer-name ()
-  (format "*Racket Logger <%s>*" (racket-back-end-name)))
+(defun racket--logger-buffer-name (&optional back-end-name)
+  (format "*Racket Logger <%s>*" (or back-end-name
+                                     (racket-back-end-name))))
 
-(defun racket--logger-get-buffer-create ()
+(defun racket--logger-get-buffer-create (&optional back-end-name)
   "Create buffer if necessary. Do not display or select it."
-  (unless (racket-back-end)
-    (user-error "Cannot create racket-logger-mode buffer with nil (racket-back-end)"))
-  (let ((name (racket--logger-buffer-name)))
+  (let ((name (racket--logger-buffer-name back-end-name)))
     (unless (get-buffer name)
       (with-current-buffer (get-buffer-create name)
         (racket-logger-mode)
         (racket--logger-activate-config)))
     (get-buffer name)))
 
-(defun racket--logger-on-notify (_back-end str)
-  "This is called from `racket--cmd-dispatch-response'."
+(defun racket--logger-on-notify (back-end-name str)
+  "This is called from `racket--cmd-dispatch-response'.
+
+As a result, we might create this buffer before the user does a
+`racket-logger-mode' command."
   (when noninteractive ;emacs --batch
     (princ (format "{logger %s}: %s"
                    (racket-back-end-name)
                    str)))
-  (let (;(racket-back-end back-end) ;; FIXME
-        )
-    (with-current-buffer (racket--logger-get-buffer-create)
-      (let* ((inhibit-read-only  t)
-             (original-point     (point))
-             (point-was-at-end-p (equal original-point (point-max))))
-        (goto-char (point-max))
-        (insert str)
-        (unless point-was-at-end-p
-          (goto-char original-point))))))
+  (with-current-buffer (racket--logger-get-buffer-create back-end-name)
+    (let* ((inhibit-read-only  t)
+           (original-point     (point))
+           (point-was-at-end-p (equal original-point (point-max))))
+      (goto-char (point-max))
+      (insert str)
+      (unless point-was-at-end-p
+        (goto-char original-point)))))
 
 (defun racket--logger-activate-config ()
   "Send config to logger and display it in the buffer."

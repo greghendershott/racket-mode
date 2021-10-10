@@ -76,7 +76,7 @@ We share this among back ends, which is fine. Keep in mind this
 does get freshly initialized each time this .el file is loaded --
 even from compiled bytecode.")
 
-(defvar-local racket--cmd-dispatch-back-end nil
+(defvar-local racket--cmd-dispatch-back-end-name nil
   "Buffer-local in back end process buffer.")
 
 (defun racket--cmd-open ()
@@ -94,7 +94,7 @@ even from compiled bytecode.")
            (process-name-stderr (racket--back-end-process-name-stderr back-end-name))
            (buffer (get-buffer-create (concat " *" process-name "*")))
            (_ (with-current-buffer buffer
-                (setq-local racket--cmd-dispatch-back-end back-end)))
+                (setq-local racket--cmd-dispatch-back-end-name back-end-name)))
            (stderr (make-pipe-process
                     :name     process-name-stderr
                     :buffer   (concat " *" process-name-stderr "*")
@@ -195,13 +195,14 @@ sentinel is `ignore'."
         (goto-char (point-min))
         (while (pcase (ignore-errors (read buffer))
                  (`nil `nil)
-                 (sexp (delete-region (point-min)
-                                      (if (eq (char-after) ?\n)
-                                          (1+ (point))
-                                        (point)))
-                       (racket--cmd-dispatch-response racket--cmd-dispatch-back-end
-                                                      sexp)
-                       t)))))))
+                 (sexp
+                  (delete-region (point-min)
+                                 (if (eq (char-after) ?\n)
+                                     (1+ (point))
+                                   (point)))
+                  (racket--cmd-dispatch-response racket--cmd-dispatch-back-end-name
+                                                 sexp)
+                  t)))))))
 
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
   "A hash from nonce to callback function.")
