@@ -89,7 +89,7 @@ even from compiled bytecode.")
     (let* ((back-end-name (racket-back-end-name))
            (back-end (racket-back-end back-end-name))
            (_ (when noninteractive
-                (princ (format "back end name is %s\n" back-end-name))))
+                (princ (format "back end is %S\n" back-end))))
            (process-name (racket--back-end-process-name back-end-name))
            (process-name-stderr (racket--back-end-process-name-stderr back-end-name))
            (buffer (get-buffer-create (concat " *" process-name "*")))
