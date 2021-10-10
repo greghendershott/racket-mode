@@ -42,17 +42,21 @@ DEF is the same as DEF for `define-key'."
           spec)
     m))
 
-(defun racket--buffer-file-name (&optional no-adjust)
-  "Like `buffer-file-name' but always a non-propertized string.
+(defun racket--buffer-file-name (&optional no-replace-slash)
+  "Like `buffer-file-name' but adjusted for use outside Emacs.
 
-Unless NO-ADJUST is not nil, replaces backward with forward
-slahes on Windows."
+Always a non-propertized string.
+
+When on Windows and unless NO-REPLACE-SLASH is not nil, replaces
+back slashes with forward slashes. Emacs uses forward slashes for
+buffer file names even on Windows, so we need to \"reverse\"
+this to use the names with shell programs or a Racket back end."
   (let ((v (and (buffer-file-name)
                 (substring-no-properties (buffer-file-name)))))
-    (if (or no-adjust
-            (not racket--winp))
-        v
-      (subst-char-in-string ?\\ ?/ v))))
+    (if (and racket--winp
+             (not no-replace-slash))
+        (subst-char-in-string ?\\ ?/ v)
+      v)))
 
 (defun racket--save-if-changed ()
   (unless (eq major-mode 'racket-mode)

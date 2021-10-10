@@ -43,7 +43,7 @@ delete compiled/*.zo files."
     (user-error "Works only in a racket-mode buffer"))
   (message "Running with profiling instrumentation...")
   (let ((buf-name (format "*Racket Profile <%s>*"
-                          (plist-get (racket-back-end) 'name)))
+                          (racket-back-end-name)))
         (what-to-run (racket--what-to-run)))
     (racket--repl-run
      what-to-run

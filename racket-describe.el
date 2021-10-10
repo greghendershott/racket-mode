@@ -67,7 +67,7 @@ POP-TO-P should be non-nil for use by direct user commands like
 displayed using `pop-to-buffer'. POP-TO-P should be nil for use
 as a :company-doc-buffer function."
   (let ((buf-name (format "*Racket Describe <%s>*"
-                          (plist-get (racket-back-end) 'name))))
+                          (racket-back-end-name))))
     (with-current-buffer (get-buffer-create buf-name)
       (unless (eq major-mode 'racket-describe-mode)
         (racket-describe-mode))
@@ -491,14 +491,14 @@ browser program -- are given `racket-describe-ext-link-face'.
 
 (defun racket--remove-describe-terms ()
   "A `racket-stop-back-end-hook' to clean up `racket--describe-terms'."
-  (let ((key (plist-get (racket-back-end) 'name)))
+  (let ((key (racket-back-end-name)))
     (when key
       (remhash key racket--describe-terms))))
 
 (add-hook 'racket-stop-back-end-hook #'racket--remove-describe-terms)
 
 (defun racket--describe-terms ()
-  (let ((key (plist-get (racket-back-end) 'name)))
+  (let ((key (racket-back-end-name)))
     (pcase (gethash key racket--describe-terms)
       (`nil
        (puthash key 'fetching
@@ -538,7 +538,7 @@ point if any.
                                                   (racket--describe-terms)))
          (buf-name (format "*Racket Search Describe `%s` <%s>*"
                            name
-                           (plist-get (racket-back-end) 'name))))
+                           (racket-back-end-name))))
     (racket--cmd/async
      nil
      `(doc-index-lookup ,name)

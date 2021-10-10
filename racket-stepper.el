@@ -62,7 +62,7 @@ Used by the commands `racket-expand-file',
                     t)))        ;keywords only -- not strings/comments
 
 (defun racket--stepper-buffer-name ()
-  (format "*Racket Stepper <%s>*" (plist-get (racket-back-end) 'name)))
+  (format "*Racket Stepper <%s>*" (racket-back-end-name)))
 
 ;;; commands
 

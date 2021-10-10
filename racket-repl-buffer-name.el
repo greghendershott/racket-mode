@@ -35,7 +35,7 @@ A value for the variable `racket-repl-buffer-name-function'."
   (interactive)
   (setq-local racket-repl-buffer-name
               (format "*Racket REPL <%s>*"
-                      (plist-get (racket-back-end) 'name))))
+                      (racket-back-end-name))))
 
 ;;;###autoload
 (defun racket-repl-buffer-name-unique ()

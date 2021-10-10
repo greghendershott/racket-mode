@@ -60,12 +60,10 @@ Before doing anything runs the hook `racket-stop-back-end-hook'."
   (racket--cmd-close))
 
 (defun racket--cmd-open-p ()
-  "Does a running process exist for `racket-back-end'?"
-  (and (racket-back-end)
-       (stringp (racket--back-end-process-name))
-       (pcase (get-process (racket--back-end-process-name))
-         ((and (pred (processp)) proc)
-          (eq 'run (process-status proc))))))
+  "Does a running process exist for `racket-back-end-name'?"
+  (pcase (get-process (racket--back-end-process-name (racket-back-end-name)))
+    ((and (pred (processp)) proc)
+     (eq 'run (process-status proc)))))
 
 (make-obsolete-variable
  'racket-adjust-run-rkt
@@ -78,6 +76,9 @@ We share this among back ends, which is fine. Keep in mind this
 does get freshly initialized each time this .el file is loaded --
 even from compiled bytecode.")
 
+(defvar-local racket--cmd-dispatch-back-end nil
+  "Buffer-local in back end process buffer.")
+
 (defun racket--cmd-open ()
   ;; Avoid excess processes/buffers like "racket-process<1>".
   (racket--cmd-close)
@@ -85,10 +86,23 @@ even from compiled bytecode.")
   ;; <https://github.com/purcell/envrc/issues/22>.
   (cl-letf* (((default-value 'process-environment) process-environment)
              ((default-value 'exec-path)           exec-path))
-    (when noninteractive
-      (princ (format "racket-back-end-name is %s\n"
-                     (plist-get (racket-back-end) 'name))))
-    (let* ((local-p (racket--back-end-local-p))
+    (let* ((back-end-name (racket-back-end-name))
+           (back-end (racket-back-end back-end-name))
+           (_ (when noninteractive
+                (princ (format "back end name is %s\n" back-end-name))))
+           (process-name (racket--back-end-process-name back-end-name))
+           (process-name-stderr (racket--back-end-process-name-stderr back-end-name))
+           (buffer (get-buffer-create (concat " *" process-name "*")))
+           (_ (with-current-buffer buffer
+                (setq-local racket--cmd-dispatch-back-end back-end)))
+           (stderr (make-pipe-process
+                    :name     process-name-stderr
+                    :buffer   (concat " *" process-name-stderr "*")
+                    :noquery  t
+                    :coding   'utf-8
+                    :filter   #'racket--cmd-process-stderr-filter
+                    :sentinel #'ignore))
+           (local-p (racket--back-end-local-p back-end))
            (main-dot-rkt (expand-file-name
                           "main.rkt"
                           (if local-p
@@ -102,38 +116,29 @@ even from compiled bytecode.")
                                        (image-type-available-p 'imagemagick))))
                          "--use-svg"
                        "--do-not-use-svg"))
-           (gui-flag (if (plist-get (racket-back-end) 'gui)
+           (gui-flag (if (plist-get back-end 'gui)
                          "--always-gui" "--never-gui"))
-           (process-name (racket--back-end-process-name))
-           (process-name-stderr (racket--back-end-process-name-stderr))
-           (stderr (make-pipe-process
-                    :name     process-name-stderr
-                    :buffer   (concat " *" process-name-stderr "*")
-                    :noquery  t
-                    :coding   'utf-8
-                    :filter   #'racket--cmd-process-stderr-filter
-                    :sentinel #'ignore))
-           (command (list (or (plist-get (racket-back-end) 'racket-program)
+           (command (list (or (plist-get back-end :racket-program)
                               racket-program)
                           main-dot-rkt
                           "--auth"        racket--back-end-auth-token
-                          "--accept-host" (plist-get (racket-back-end)
-                                                     'repl-tcp-accept-host)
+                          "--accept-host" (plist-get back-end
+                                                     :repl-tcp-accept-host)
                           "--port"        (format "%s"
-                                                  (plist-get (racket-back-end)
-                                                             'repl-tcp-port))
+                                                  (plist-get back-end
+                                                             :repl-tcp-port))
                           svg-flag
                           gui-flag))
            (command (if local-p
                         command
                       `("ssh"
-                        ,@(when-let ((p (plist-get (racket-back-end) 'ssh-port)))
+                        ,@(when-let ((p (plist-get back-end :ssh-port)))
                             `("-p" ,(format "%s" p)))
-                        ,(if-let ((u (plist-get (racket-back-end) 'user-name)))
+                        ,(if-let ((u (plist-get back-end :user-name)))
                              (format "%s@%s"
                                      u
-                                     (plist-get (racket-back-end) 'host-name))
-                           (plist-get (racket-back-end) 'host-name))
+                                     (plist-get back-end :host-name))
+                           (plist-get back-end :host-name))
                         ,@command)))
            (process
             (make-process
@@ -141,22 +146,15 @@ even from compiled bytecode.")
              :connection-type 'pipe
              :noquery         t
              :coding          'utf-8
-             :buffer          (get-buffer-create
-                               (concat " *" process-name "*"))
+             :buffer          buffer
              :stderr          stderr
              :command         command
              :filter          #'racket--cmd-process-filter
              :sentinel        #'racket--cmd-process-sentinel))
            (status (process-status process)))
-      ;; Give the process buffer the same buffer-local value for
-      ;; `default-directory', so that we can retrieve the same
-      ;; `racket-back-end' value for logger-notify handling below.
-      (let ((dd default-directory))
-        (with-current-buffer (process-buffer process)
-          (setq-local default-directory dd)))
       (unless (eq status 'run)
         (error "%s process status is not \"run\", instead it is %s"
-               (racket--back-end-process-name)
+               process-name
                status))
       (run-hooks 'racket-start-back-end-hook))))
 
@@ -171,10 +169,10 @@ even from compiled bytecode.")
                   (pcase (get-buffer (process-buffer proc))
                     ((and (pred (bufferp)) buf)
                      (kill-buffer buf))))))))
-    (when (racket-back-end)
+    (when-let ((name (racket-back-end-name)))
       (run-hooks 'racket-stop-back-end-hook)
-      (delete-process-and-buffer (racket--back-end-process-name))
-      (delete-process-and-buffer (racket--back-end-process-name-stderr)))))
+      (delete-process-and-buffer (racket--back-end-process-name name))
+      (delete-process-and-buffer (racket--back-end-process-name-stderr name)))))
 
 (defun racket--cmd-process-sentinel (proc event)
   (when (string-match-p "exited abnormally|failed|connection broken" event)
@@ -201,7 +199,7 @@ sentinel is `ignore'."
                                       (if (eq (char-after) ?\n)
                                           (1+ (point))
                                         (point)))
-                       (racket--cmd-dispatch-response (racket-back-end)
+                       (racket--cmd-dispatch-response racket--cmd-dispatch-back-end
                                                       sexp)
                        t)))))))
 
@@ -247,10 +245,6 @@ CALLBACK is called, as it was when the command was sent. If you
 need to do something to do that original buffer, save the
 `current-buffer' in a `let' and use it in a `with-current-buffer'
 form. See `racket--restoring-current-buffer'."
-  (unless (racket-back-end)
-    (error "(racket-back-end) is nil"))
-  (unless (stringp (racket--back-end-process-name))
-    (error "racket--back-end-process-name is not a string"))
   (unless (racket--cmd-open-p)
     (racket--cmd-open))
   (cl-incf racket--cmd-nonce)

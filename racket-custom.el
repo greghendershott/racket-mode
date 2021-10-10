@@ -39,199 +39,39 @@
 (define-obsolete-variable-alias 'racket-racket-program 'racket-program "2017-06-02")
 (define-obsolete-variable-alias 'racket-raco-program   'racket-program "2017-06-02")
 
-(defvar racket--winp (string-match-p "windows" (symbol-name system-type)))
+(defvar racket--winp (eq 'windows-nt system-type))
 
 (defcustom racket-program (if racket--winp "Racket.exe" "racket")
   "Pathname of the Racket executable.
 
-The customiziation variable `racket-back-end-functions' can
-override this for a specific back end with a non-nil
-`racket-program` property list value."
+Note that a back end configuration can override this with a
+non-nil `racket-program` property list value. See
+`racket-add-back-end'."
   :tag "Racket Program"
   :type '(file :must-match t)
   :risky t
   :group 'racket)
 
-(defcustom racket-back-end-functions nil
-  "Configure multiple simultaneous back ends.
+(defcustom racket-back-end-name-hook nil
+  "Determine the name of a back end to use for the current buffer.
 
-This is a list of `functionp' values. Each function is called
-until one returns a non-nil value, which should be a property
-list describing a back end. Typically the function will examine
-`default-directory' to determine whether it returns a property
-list and the values therein.
+By default, the back end name is the same as the host name of the
+buffer's value for the variable `default-directory'.
 
-Following is a description of the properties:
+In other words, by default there is one back end per host.
 
-- `name`
+If you want to use more than one back end per host, you need to
+customize this hook to a non-empty list of functions;
+`run-hook-with-args-until-success' will call each function until
+one returns a non-nil name string. Typically such a function will
+`string-match-p' a pattern on `default-directory' -- for example,
+is the buffer visiting a file within a certain directory tree for
+a certain project, which should use a different back end.
 
-  A unique name for the back end.
-
-  This name is distinct from `host-name` to allow for multiple
-  back ends on the same host --- for example each running a
-  different version of Racket.
-
-  The name is used as a suffix for the names of buffers that are
-  not visiting a file. That way there is a unique buffer per back
-  end, and, users can easily distinguish them. For example
-  `*Racket Describe <foo>` and `Racket Describe <bar>*` buffers.
-
-  The name is also combined with a \"racket-back-end-\" prefix to
-  make the name of the Emacs process used to run the back end.
-  Normally \"racket-back-end-<name>\". This process name is used
-  to determine where to send a command for a back end.
-
-- `racket-program`
-
-  When not nil we use this, otherwise we use the value of the
-  customization variable `racket-program'.
-
-- `remote-source-dir`
-
-  When `host-name` is not \"127.0.0.1\", this is where on a
-  remote host we will copy the back end's *.rkt files.
-
-- `host-name`
-
-  When `host-name` is not \"127.0.0.1\", used to start a back end
-  on a host via SSH.
-
-  Always used to make TCP/IP connections to a back end for REPL
-  sesssions.
-
-- `user-name`
-
-  When `host-name` is not \"127.0.0.1\", used to make an SSH
-  connection. It may be nil, meaning to use a value from
-  ~/.ssh/config.
-
-- `ssh-port`
-
-  When `host-name` is not \"127.0.0.1\", used to make an SSH
-  connection. Note that this is `numberp' not `stringp'. It may
-  be nil, meaning to use a value from ~/.ssh/config or the
-  default value of 22. If you wouldn't include a port when typing
-  a tramp file name for `find-file', then set `ssh-port` to nil
-  (rather than 22).
-
-- `repl-tcp-accept-host`
-
-  Host from which the back end TCP REPL server will accept
-  connections. \"127.0.0.1\" means it will accept only local
-  connections. \"0.0.0.0\" means it will accept connections from
-  anywhere --- which usually is risky unless the remote is behind
-  a firewall that limits connections!
-
-- `repl-tcp-port`
-
-  The port number the back end TCP REPL server uses to listen for
-  connections. When 0, this means the back end chooses an
-  available port --- a so-called \"ephemeral\" port. Usually that
-  is practical only on a local host. Otherwise a specific port
-  number should be used, and, remember to allow that in the
-  remote's firewall. Note that this is `numberp' not `stringp'.
-
-- `gui`
-
-  When this is false: The back end will /not/ attempt to load
-  racket/gui/base eagerly. This can make sense for a remote back
-  end running on a headless server, where the Racket gui-lib
-  package is installed, making racket/gui/base available, but you
-  do not want to use it. Keep in mind that when `gui` is false,
-  if you `racket-run' a program that /does/ require
-  racket/gui/base (directly or indirectly), you cannot run a
-  second such program without Racket complaining that
-  racket/gui/base cannot be instantiated more than once. If that
-  happens, you must use `racket-start-back-end' to restart the
-  back end process.
-
-  When this is true: The back end /will/ attempt to load
-  racket/gui/base eagerly. This can make sense for a remote back
-  end running on a headless server, where the Racket gui-lib
-  package is installed, making racket/gui/base available, and you
-  do want to use it. In this case the headless server should have
-  the xvfb package installed, and you should set the
-  `racket-program` property to something like \"xvfb-run
-  racket\". Now your programs can use modules that require
-  racket/gui/base, including obvious things like `plot`, as well
-  as some unfortunately less-obvious things.
-
-- `windows`
-
-  Whether the back end is running on Windows. When the back end
-  is remote -- when `host-name` is not \"127.0.0.1\" -- this
-  defaults to false. Otherwise, when the back end is local, it is
-  whether `system-type` is \"windows\".
-
-The `racket-back-end-default' property list has values that are
-appropriate for whether a buffer's file is local or remote:
-
-- When the value of the variable `default-directory' satisfies
-  `tramp-tramp-file-p', it is dissected to set `user-name`,
-  `host-name`, and `ssh-port`. Furthermore, `repl-tcp-port` is
-  set to 55555, `repl-tcp-accept-host` is set to \"0.0.0.0\"
-  \(accepts connections from anywhere), and `gui` is set
-  false.
-
-  When working with back ends on remote hosts, *remember to check
-  your remote host firewall*. The goal here is to make sure
-  things work for you --- and only you. Probably you want the
-  firewall to limit from where it accepts SSH connections on
-  `ssh-port`. Also you need the firewall to accept connections on
-  `repl-tcp-port`, but again, limiting from where --- either in
-  the firewall or by setting `repl-tcp-accept-host` to a value
-  that is /not/ \"0.0.0.0\".
-
-- Otherwise, reasonable defaults are used for a local back end.
-  For example `host-name` is set to \"127.0.0.1\",
-  `repl-tcp-port` is set to 0 \(meaning the back end picks an
-  ephemeral port), `repl-tcp-accept-host` is set to
-  \"127.0.0.1\" \(meaning the back end only accept TCP
-  connections locally), and `gui` is set true.
-
-Although the default values usually \"just work\", you might want
-a special configuration.
-
-For example, you could modify the property list to use a
-locally-built Racket on the local host, and the default installed
-Racket on remote hosts. You could do this by examing the
-`host-name` property you are given, and changing the
-`racket-program` property accordingly.
-
-For another example, on a specific remote host maybe you need to
-use gui-lib so you want to run racket using xvfb-run, and, you
-need the back end to load racket/gui/base eagerly (to avoid
-Racket giving \"can't instantiate racket/gui/base a second time
-in the same process\" errors).
-
-Here are those two examples:
-
-#+BEGIN_SRC lisp
-  (defun my-racket-back-end-function ()
-    (let ((v (racket-back-end-default)))
-      (cond
-       ;; locally use Racket built from source
-       ((equal (plist-get v 'host-name) \"127.0.0.1\")
-        (plist-put v
-                   'racket-program
-                   \"~/src/racket-lang/racket/bin/racket\"))
-       ;; experiment using xvfb-run on \"linode\" server
-       ((equal (plist-get v 'host-name) \"linode\")
-        (let* ((v (plist-put v 'gui            t))
-               (v (plist-put v 'racket-program \"xvfb-run racket\")))
-          v))
-       ;; otherwise just use the default
-       (otherwise v))))
-
-  (setq racket-back-end-functions
-        (list #'my-racket-back-end-function))
-#+END_SRC
-
-As another example, you could also specify a different local back
-end for buffers in different project subdirectories, setting the
-`racket-program` property to different versions of Racket."
-  :tag "REPL Back End Function"
-  :type '(function :tag "Other function")
+For more information about back end configurations, as well as
+use examples, see `racket-add-back-end'."
+  :tag "REPL Back End Name Hook"
+  :type 'hook
   :group 'racket)
 
 (make-obsolete-variable 'racket-command-port nil "2020-04-25")
@@ -275,7 +115,7 @@ and `racket-repl-documentation' should look for the search page.
   \"%s\" at the point at which to insert the user's search text.
   the help desk. Apart from \"%s\", the string should be a
   properly encoded URL."
-  :tag "Where to search documentation"
+  :tag "Documentation Search Location"
   :type '(choice (string :tag "URL")
                  (const :tag "Local" 'local))
   :safe (lambda (val) (or (stringp val) (eq val 'local)))

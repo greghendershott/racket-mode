@@ -83,7 +83,7 @@ For more information see:
   (setq-local window-point-insertion-type t))
 
 (defun racket--logger-buffer-name ()
-  (format "*Racket Logger <%s>*" (plist-get (racket-back-end) 'name)))
+  (format "*Racket Logger <%s>*" (racket-back-end-name)))
 
 (defun racket--logger-get-buffer-create ()
   "Create buffer if necessary. Do not display or select it."
@@ -100,7 +100,7 @@ For more information see:
   "This is called from `racket--cmd-dispatch-response'."
   (when noninteractive ;emacs --batch
     (princ (format "{logger %s}: %s"
-                   (plist-get (racket-back-end) 'host-name)
+                   (racket-back-end-name)
                    str)))
   (let (;(racket-back-end back-end) ;; FIXME
         )
