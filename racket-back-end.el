@@ -33,35 +33,7 @@
 ;; TCP port for one or more REPL sessions.
 ;;
 ;; When some buffer needs a back end, which back end does it use?
-;;
-;; For efficiency there are two levels of mapping:
-;;
-;; 1. From a buffer to a back end name.
-;;
-;; The simple case is the back end name is the same as the host name.
-;; The default is to use the host-name portion of `default-directory'
-;; when `tramp-tramp-file-p', else "127.0.0.1".
-;;
-;; Users can customize to use more than back end on the same host,
-;; such as to run different versions of Racket for different projects.
-;;
-;; 2. Given a back end name:
-;;
-;; - It is trivial to get the names of its process and process-buffer.
-;;   If these already exist they may be used to send commands. If they
-;;   do not already exist then `racket--cmd/async' automatically calls
-;;   `racket--cmd-open' to create them.
-;;
-;; - It can be found in `racket-back-end-configurations', a list of
-;;   property lists. Each includes information necessary to:
-;;
-;;   - Create an Emacs process to run the back end locally or
-;;     remotely.
-;;
-;;   - Make a TCP connection to start a REPL session.
-;;
-;;   - Decide how to translate file names between front and back end
-;;   - (e.g. is the back end running on Windows).
+;; That's the concern of the back end configuration code in this file.
 
 ;; Commands that create buffers that do not visit a file should use
 ;; (racket-back-end-name) as a suffix in the buffer name -- enabling a
@@ -75,91 +47,80 @@
 ;; buffer names for different back end names -- because a REPL on a
 ;; back end cannot run files hosted on another.
 
-(defun racket-back-end-name ()
-  "Return the name of a back end to use for `current-buffer'.
-
-Consults `racket-back-end-name-hook' for special configurations,
-but otherwise simply uses the host-name of `default-directory' as
-the name of the back end configuration to use."
-  (or (run-hook-with-args-until-success 'racket-back-end-name-hook)
-      (let ((tfns (and (tramp-tramp-file-p default-directory)
-                       (tramp-dissect-file-name default-directory))))
-        (or (and tfns
-                 (equal "ssh" (tramp-file-name-method tfns))
-                 (if (fboundp 'tramp-file-name-real-host)
-                     (tramp-file-name-real-host tfns) ;older tramp
-                   (tramp-file-name-host tfns)))
-            "127.0.0.1"))))
-
-(defun racket--back-end-process-name (&optional name)
-  (concat "racket-back-end-" (or name (racket-back-end-name))))
-
-(defun racket--back-end-process-name-stderr (&optional name)
-  (concat (racket--back-end-process-name name) "-stderr"))
+;; Note: In various places we use `file-remote-p', which, despite the
+;; "-p" isn't just a predicate; it returns the remote prefix before
+;; the localname, expanded.
+;;
+;; Although `file-remote-p' has an optional argument to extract
+;; pieces, only 'localname (and perhaps 'user?) are reliable at least
+;; in Emacs 25. Instead see `racket--back-end-host+user+port'.
 
 (defvar racket-back-end-configurations nil
-  "A list of property lists.
+  "A list of property lists, each of which has a unique :directory.
 
 Instead of modifying this directly, use `racket-add-back-end' and
 `racket-remove-back-end'.")
 
-(defun racket-back-end (&optional name)
-  "Return a back end configuration plist having NAME.
+(defun racket-back-end ()
+  "Return a back end configuration plist for current buffer.
 
-When NAME is nil, uses `racket-back-end-name'. If a configuration
-does not already exist, automatically add one created by
-`racket-back-end-default'."
-  (let ((name (or name (racket-back-end-name))))
-    (or (cl-find name
-                 racket-back-end-configurations
-                 :test #'string-equal
-                 :key (lambda (plist) (plist-get plist :name)))
-        (racket-add-back-end default-directory
-                             :name name))))
+If a configuration does not already exist, automatically add
+one."
+  (or (cl-find default-directory
+               racket-back-end-configurations
+               ;; This relies on `racket-add-back-end' keeping the
+               ;; list sorted from longest to shortest :directory
+               ;; patterns.
+               :test (lambda (path plist)
+                       (let* ((directory (plist-get plist :directory))
+                              (regexp (concat "^" (regexp-quote directory))))
+                         (and (string-match-p regexp path)
+                              (equal (file-remote-p path)
+                                     (file-remote-p directory))))))
+      (racket-add-back-end (if-let ((str (file-remote-p default-directory)))
+                               (substring-no-properties str)
+                             "/"))))
 
-(defun racket-add-back-end (example-file-name &rest plist)
+(defun racket-add-back-end (directory &rest plist)
   "Add a description of a Racket Mode back end configuration.
 
-When a configuration with the same `:name` already exists it is
+When a configuration with the same DIRECTORY already exists it is
 replaced.
 
-Given some buffer, the hook `racket-back-end-name-hook' says the
-name of the back end it should it use. The named back end
-configurations are added by this function. If you don't specify a
-back end configuration for a host, one is created automatically.
-As a result, you may not need to use this function in your Emacs
-init file; things may \"just work\" unless you have special
-needs.
+DIRECTORY should be a string describing a `file-name-absolute-p'
+directory on some local or remote server. It can be a local
+directory like \"/\" or \"/path/to/project\", or also, it can be
+a `file-remote-p' directory like \"/ssh:user@host:\", or
+\"/ssh:user@host:/path/to/project\". Basically it should be the
+same sort of path you would provide to `find-file' that would
+successfully access some local or remote file.
 
-EXAMPLE-FILE-NAME is an example of the sort of file name you
-would use to visit a file on the host. This could be a local file
-name like \"/\" or a `tramp-tramp-file-p' like \"/ssh:host:\",
-\"/ssh:user@host:\", \"/host:\", and so on.
+DIRECTORY is used as a pattern to compare to `default-directory'
+for a buffer, to see if the back end should be used for the
+buffer.
 
-EXAMPLE-FILE-NAME is used as a convenience to supply default
-values for properties if do do not specify them. In addition to
-extracting things like the host-name, other properties get
-reasonable defaults based on whether it is local or remote.
+DIRECTORY also determines:
 
-After EXAMPLE-FILE-NAME, the remainining arguments are
-alternating :keywords and values describing a back end. The only
-required property is `:name`.
+- Whether the back end is local or remote.
 
-- :name
+- The host name. Used to make TCP/IP connections to a back end
+  for REPL sesssions. When remote used for SSH connections to
+  start the back end process.
 
-  A unique name for the back end.
+  This may be a Host alias from ~/.ssh/config with a HostName, in
+  which case the latter is used as the actual host-name for both
+  SSH and TCP/IP connections.
 
-  This name is distinct from :host-name to allow for multiple
-  back ends on the same host (for example each running a
-  different version of Racket).
+- When remote, any explicit user and port used to make SSH
+  connections (as opposed to relying on values from
+  ~/.ssh/config).
 
-  The name is used as a suffix for the names of buffers that are
-  not visiting a file. That way there is a unique buffer per back
-  end, and, users can easily distinguish them. For example
-  `*Racket Describe <foo>` and `Racket Describe <bar>*` buffers.
+- Other properties get reasonable defaults based on whether the
+  back end is local or remote, as described below.
 
-  The name is also combined with a \"racket-back-end-\" prefix to
-  make the name of the Emacs process used to run the back end.
+After DIRECTORY, the remainining arguments are optional
+alternating :keywords and values describing some other properties
+of a back end:
 
 - :racket-program
 
@@ -168,43 +129,11 @@ required property is `:name`.
 
 - :remote-source-dir
 
-  When :host-name is not \"127.0.0.1\", this is where on a remote
-  host to copy the back end's *.rkt files when they do not exist
-  or do not match the digest of the local files. This must be
-  `file-name-absolute-p' on the remote --- and just the file
-  name, a.k.a. localname, /not/ a full `tramp-tramp-file-p'. The
-  default value is \"/tmp/racket-mode-back-end\".
-
-- :host-name
-
-  When :host-name is not \"127.0.0.1\", used to start a back end
-  on a host via SSH.
-
-  Always used to make TCP/IP connections to a back end for REPL
-  sesssions.
-
-  This may be a Host alias from ~/.ssh/config with a HostName, in
-  which case the latter is used as the actual host-name.
-
-- :user-name
-
-  When :host-name is not \"127.0.0.1\", used to make an SSH
-  connection.
-
-  It may be nil, meaning to use a value from ~/.ssh/config.
-
-- :ssh-port
-
-  When :host-name is not \"127.0.0.1\", used to make an SSH
-  connection.
-
-  Note that this is nil or `numberp' --- not `stringp'.
-
-  It may be nil, meaning to use a value from ~/.ssh/config or the
-  SSH protocol default value. If you wouldn't include a port when
-  typing a tramp file name for `find-file', then don't do so in
-  EXAMPLE-FILE-NAME, and, don't supply a :ssh-port value of 22;
-  just let it be nil.
+  Where on a remote host to copy the back end's *.rkt files when
+  they do not exist or do not match the digest of the local
+  files. This must be `file-name-absolute-p' on the remote ---
+  and just the path name there, a.k.a. localname. The default
+  value is \"/tmp/racket-mode-back-end\".
 
 - :repl-tcp-accept-host
 
@@ -228,42 +157,41 @@ required property is `:name`.
 
 - :gui
 
-  When this is false: The back end will /not/ attempt to load
-  racket/gui/base eagerly. This can make sense for a remote back
-  end running on a headless server, where the Racket gui-lib
-  package is installed, making racket/gui/base available, but you
-  do not want to use it. Keep in mind that when `gui` is false,
-  if you `racket-run' a program that /does/ require
-  racket/gui/base (directly or indirectly), you cannot run a
-  second such program without Racket complaining that
-  racket/gui/base cannot be instantiated more than once. If that
-  happens, you must use `racket-start-back-end' to restart the
-  back end process.
+  - When :gui is false: The back end will /not/ attempt to load
+    racket/gui/base eagerly. This can make sense for a remote
+    back end running on a headless server, where the Racket
+    gui-lib package is installed, making racket/gui/base
+    available, but you do not want to use it. Keep in mind that
+    when `gui` is false, if you `racket-run' a program that
+    /does/ require racket/gui/base (directly or indirectly), you
+    cannot run a second such program without Racket complaining
+    that racket/gui/base cannot be instantiated more than once in
+    the same process. If that happens, you must use
+    `racket-start-back-end' to restart the back end process.
 
-  When this is true: The back end /will/ attempt to load
-  racket/gui/base eagerly. This can make sense for a remote back
-  end running on a headless server, where the Racket gui-lib
-  package is installed, making racket/gui/base available, and you
-  do want to use it. In this case the headless server should have
-  the xvfb package installed, and you should set the
-  :racket-program property to something like \"xvfb-run racket\".
-  Now your programs can use modules that require racket/gui/base,
-  including obvious things like plot, as well as some
-  unfortunately less-obvious things.
+  - When :gui is true: The back end /will/ attempt to load
+    racket/gui/base eagerly. This can make sense for a remote
+    back end running on a headless server, where the Racket
+    gui-lib package is installed, making racket/gui/base
+    available, and you do want to use it. In this case the
+    headless server should have the xvfb package installed, and
+    you should set the :racket-program property to something like
+    \"xvfb-run racket\". Now your programs can use modules that
+    require racket/gui/base, including obvious things like plot,
+    as well as some unfortunately less-obvious things.
 
 - :windows
 
   Whether the back end uses Windows style path names. Used to do
-  translation betwen slashes and backslashes between Emacs and
-  Racket.
+  translation betwen slashes and backslashes between the Emacs
+  front end (which uses slashes even on Windows) and the Racket
+  back end (which expects native backslashes on Windows).
 
 The default property values are appropriate for whether
-EXAMPLE-FILE-NAME is local or remote:
+DIRECTORY is local or remote:
 
-- When EXAMPLE-FILE-NAME satisfies `tramp-tramp-file-p', it is
-  dissected to set :user-name, :host-name, and :ssh-port.
-  Furthermore, :repl-tcp-port is set to 55555,
-  :repl-tcp-accept-host is set to \"0.0.0.0\" \(accepts
+- When DIRECTORY is remote, :repl-tcp-port is set to 55555,
+  :repl-tcp-accept-host is set to \"0.0.0.0\" (accepts
   connections from anywhere), :gui is nil, and :windows is nil.
 
   When working with back ends on remote hosts, *remember to check
@@ -275,11 +203,10 @@ EXAMPLE-FILE-NAME is local or remote:
   the firewall or by setting :repl-tcp-accept-host to a value
   that is /not/ \"0.0.0.0\".
 
-- Otherwise, reasonable defaults are used for a local back end.
-  For example :host-name is set to \"127.0.0.1\",
-  :repl-tcp-port is set to 0 \(meaning the back end picks an
+- Otherwise, reasonable defaults are used for a local back end:
+  :repl-tcp-port is set to 0 (meaning the back end picks an
   ephemeral port), :repl-tcp-accept-host is set to \"127.0.0.1\"
-  \(meaning the back end only accept TCP connections locally),
+  (meaning the back end only accept TCP connections locally),
   :gui is true, and :windows is set based on `system-type'.
 
 Although the default values usually \"just work\" for local and
@@ -287,86 +214,45 @@ remote back ends, you might want a special configuration. Here
 are a few examples.
 
 #+BEGIN_SRC lisp
-    ;; Set `racket-program' to Racket built from source
-    (setq racket-program \"~/src/racket-lang/racket/bin/racket\")
-
-    ;; 1. A back end configuration named \"127.0.0.1\" is
+    ;; 1. A back end configuration for \"/\" is
     ;; created automatically and works fine as a default
     ;; for buffers visiting local files, so we don't need
-    ;; to define one here.
+    ;; to add one here.
 
     ;; 2. However assume we want buffers under /var/tmp/8.0
-    ;; instead to use Racket 8.0. We say they should use a
-    ;; back end that we'll name \"local-8.0\" ...
-    (add-hook 'racket-back-end-name-hook
-              (lambda ()
-                (when (string-match-p \"^/var/tmp/8.0\" default-directory)
-                  \"local-8.0\")))
-    ;; ... which we define to have the usual settings for
-    ;; a local back end, except :racket-program is where
-    ;; we have installed Racket 8.0.
-    (racket-add-back-end \"/\"
-                         :name           \"local-8.0\"
+    ;; instead to use Racket 8.0.
+    (racket-add-back-end \"/var/tmp/8.0\"
                          :racket-program \"~/racket/8.0/bin/racket\")
 
-    ;; 3. A back end configuration named \"linode\" will be created
-    ;; automatically for buffers vising tramp file names like
-    ;; \"/ssh:user@linode\" so we need not specify one here.
+    ;; 3. A back end configuration will be created
+    ;; automatically for buffers visiting file names like
+    ;; \"/ssh:user@linode\", so we don't need to add one here.
     ;;
     ;; If ~/.ssh/config defines a Host alias named \"linode\",
-    ;; with HostName and User settings, a tramp file name as simple as
-    ;; \"/linode:\" would work fine with tramp -- and its automatically
-    ;; created back end configuration would work fine, too.
+    ;; with HostName and User settings, a file name as simple as
+    ;; \"/linode:\" would work fine with tramp -- and the
+    ;; automaticlly created back end configuration would work
+    ;; fine, too.
 
-    ;; 4. For the sake example, assume for buffers visiting
-    ;; /ssh:headless:* we want :racket-program instead to be
-    ;; \"xvfb-run racket\" and :gui to be true. In that case we
-    ;; can provide the example file name, and set just the
-    ;; properties we want to be different.
-    (racket-add-back-end \"/ssh:headless:\"
-                         :name           \"headless\"
+    ;; 4. For example's sake, assume for buffers visiting
+    ;; /ssh:headless:~/gui-project/ we want :racket-program instead
+    ;; to be \"xvfb-run racket\" and :gui to be true.
+    (racket-add-back-end \"/ssh:headless:~/gui-project/\"
                          :racket-program \"xvfb-run racket\"
                          :gui            t)
 #+END_SRC
 "
-  (unless (and (stringp example-file-name)
-               (file-name-absolute-p example-file-name))
-    (signal 'wrong-type-argument `((and stringp file-name-absolute-p)
-                                   example-file-name
-                                   ,example-file-name)))
-  (unless (memq :name plist)
-    (user-error "racket-add-back-end: You must supply a :name"))
-  (let* ((tfns (and (tramp-tramp-file-p example-file-name)
-                    (tramp-dissect-file-name example-file-name)))
-         (user (and tfns
-                    (equal "ssh" (tramp-file-name-method tfns))
-                    (tramp-file-name-user tfns)))
-         (host (or (and tfns
-                        (equal "ssh" (tramp-file-name-method tfns))
-                        (if (fboundp 'tramp-file-name-real-host)
-                            (tramp-file-name-real-host tfns) ;older tramp
-                          (tramp-file-name-host tfns)))
-                   "127.0.0.1"))
-         (port (and tfns
-                    (equal "ssh" (tramp-file-name-method tfns))
-                    (let ((p (tramp-file-name-port tfns)))
-                      (and (not (equal p 22))
-                           p))))
-         (local-p (equal host "127.0.0.1"))
+  (unless (and (stringp directory) (file-name-absolute-p directory))
+    (error "racket-add-back-end: directory must be file-name-absolute-p"))
+  (let* ((local-p (not (file-remote-p directory)))
          (plist
           (list
-           :name                 (or (plist-get plist :name)
-                                     host)
+           :directory            directory
            :racket-program       (or (plist-get plist :racket-program)
                                      nil)
            :remote-source-dir    (or (plist-get plist :remote-source-dir)
-                                     "/tmp/racket-mode-back-end")
-           :host-name            (or (plist-get plist :host)
-                                     host)
-           :user-name            (or (plist-get plist :user)
-                                     user)
-           :ssh-port             (or (plist-get plist :ssh-port)
-                                     port)
+                                     (unless local-p
+                                       "/tmp/racket-mode-back-end"))
            :repl-tcp-accept-host (or (plist-get plist :repl-tcp-accept-host)
                                      (if local-p "127.0.0.1" "0.0.0.0"))
            :repl-tcp-port        (or (plist-get plist :repl-tcp-port)
@@ -381,8 +267,13 @@ are a few examples.
                                      (plist-get plist :windows)
                                    (and local-p racket--winp)))))
     (racket--back-end-validate plist)
-    (racket-remove-back-end (plist-get plist :name))
-    (push plist racket-back-end-configurations)
+    (racket-remove-back-end (plist-get plist :directory))
+    ;; Add keeping sorted from longest :directory pattern to shortest
+    (setq racket-back-end-configurations
+          (sort (cons plist racket-back-end-configurations)
+                (lambda (a b)
+                  (> (length (plist-get a :directory))
+                     (length (plist-get b :directory))))))
     plist))
 
 (defun racket--back-end-validate (plist)
@@ -392,51 +283,63 @@ are a few examples.
                (unless (funcall type v)
                  (signal 'wrong-type-argument (list type key v)))))
             (number-or-null-p (n) (or (not n) (numberp n))))
-    (check #'stringp :name)
+    (check #'stringp :directory)
     (check #'string-or-null-p :racket-program)
-    (check #'stringp :host-name)
-    (check #'string-or-null-p :user-name)
-    (check #'number-or-null-p :ssh-port)
     (check #'stringp :repl-tcp-accept-host)
     (check #'numberp :repl-tcp-port)
-    (unless (string-equal (plist-get plist :host-name) "127.0.0.1")
+    (when (file-remote-p (plist-get plist :directory))
       (check #'stringp :remote-source-dir)
       (check #'file-name-absolute-p :remote-source-dir))
     (check #'booleanp :gui)
     (check #'booleanp :windows))
   plist)
 
-(defun racket-remove-back-end (name)
+(defun racket-remove-back-end (directory)
   (setq racket-back-end-configurations
         (cl-remove-if (lambda (plist)
-                        (string-equal (plist-get plist :name)
-                                      name))
+                        (string-equal (plist-get plist :directory)
+                                      directory))
                       racket-back-end-configurations)))
 
-(defun racket--back-end-local-p (&optional back-end)
-  (equal (plist-get (or back-end (racket-back-end)) :host-name)
-         "127.0.0.1"))
+(defun racket-back-end-name (&optional back-end)
+  "Return the \"name\" of a back end.
 
-(defun racket-file-name-to-user+host+port (filename)
-  (let* ((tfns (and (tramp-tramp-file-p filename)
-                    (tramp-dissect-file-name filename)))
-         (user (and tfns
-                    (equal "ssh" (tramp-file-name-method tfns))
-                    (tramp-file-name-user tfns)))
+This is the back-end :directory. It can be used as suffix to use
+in the name of a buffer not visiting a file. It can also be used
+in situations where you want to refer to the back end indirectly,
+by \"id\" instead of by value."
+  (plist-get (or back-end (racket-back-end)) :directory))
+
+(defun racket--back-end-process-name (&optional back-end)
+  (concat "racket-back-end-" (racket-back-end-name back-end)))
+
+(defun racket--back-end-process-name-stderr (&optional back-end)
+  (concat (racket--back-end-process-name back-end) "-stderr"))
+
+(defun racket--back-end-host+user+port (back-end)
+  "Although it would be wonderful simply to use `file-remote-p',
+it is unreliable for 'host or 'port, at least on Emacs 25.
+Instead need the following."
+  (let* ((file-name (plist-get back-end :directory))
+         (tfns (and (tramp-tramp-file-p file-name)
+                    (tramp-dissect-file-name file-name)))
          (host (or (and tfns
                         (equal "ssh" (tramp-file-name-method tfns))
                         (if (fboundp 'tramp-file-name-real-host)
                             (tramp-file-name-real-host tfns) ;older tramp
                           (tramp-file-name-host tfns)))
                    "127.0.0.1"))
+         (user (and tfns
+                    (equal "ssh" (tramp-file-name-method tfns))
+                    (tramp-file-name-user tfns)))
          (port (and tfns
                     (equal "ssh" (tramp-file-name-method tfns))
                     (let ((p (tramp-file-name-port tfns)))
                       (and (not (equal p 22))
                            p)))))
-    (list user host port)))
+    (list host user port)))
 
-(defun racket--back-end-actual-host ()
+(defun racket--remote-file-actual-host (host)
   "Return actual host name, considering possible ~/.ssh/config HostName.
 
 The user may have supplied a tramp file name using a Host defined
@@ -445,34 +348,35 @@ host name. The ssh command of course uses that config so we can
 start a back end process just fine. However `racket-repl-mode'
 needs to open a TCP connection at the same host. This function
 lets it know the HostName if any."
-  (let ((host (plist-get (racket-back-end) :host-name)))
-    (condition-case nil
-        (with-temp-buffer
-         (insert-file-contents-literally "~/.ssh/config")
-         (goto-char (point-min))
-         ;; Dumb parsing to find a HostName within the Host block.
-         ;; Does not handle Match blocks except to recognize them
-         ;; ending the desired Host block.
-         (let ((case-fold-search t))
-           (search-forward-regexp (concat "host[ ]+" host "[ \n]"))
-           (let ((limit (save-excursion
-                          (or (search-forward-regexp "\\(host|match\\) " nil t)
-                              (point-max)))))
-             (search-forward-regexp "hostname[ ]+\\([^ \n]+\\)" limit)
-             (match-string 1))))
-      (error host))))
+  (condition-case nil
+      (with-temp-buffer
+        (insert-file-contents-literally "~/.ssh/config")
+        (goto-char (point-min))
+        ;; Dumb parsing to find a HostName within the Host block.
+        ;; Does not handle Match blocks except to recognize them
+        ;; ending the desired Host block.
+        (let ((case-fold-search t))
+          (search-forward-regexp (concat "host[ ]+" host "[ \n]"))
+          (let ((limit (save-excursion
+                         (or (search-forward-regexp "\\(host|match\\) " nil t)
+                             (point-max)))))
+            (search-forward-regexp "hostname[ ]+\\([^ \n]+\\)" limit)
+            (match-string 1))))
+    (error host)))
+
+
+(defun racket--back-end-local-p (&optional back-end)
+  (not (file-remote-p (plist-get (or back-end (racket-back-end))
+                                 :directory))))
 
 (defun racket-file-name-front-to-back (file)
-  "Make a front end file name usable to give to the back end.
+  "Make a front end file name usable on the back end.
 
-When a tramp file name, extract the \"localname\" portion of a
-tramp file name.
+When a remote file name, extract the \"localname\" portion.
 
 When Windows back end, substitute slashes with backslashes."
-  (let* ((file (if (tramp-tramp-file-p file)
-                   (tramp-file-name-localname
-                    (tramp-dissect-file-name file))
-                 file))
+  (let* ((file (or (file-remote-p file 'localname)
+                   file))
          (file (if (plist-get (racket-back-end) :windows)
                    (subst-char-in-string ?/ ?\\ file)
                  file)))
@@ -497,18 +401,15 @@ car is a path name, or the symbol namespace. Apply
 When Windows back end, replace back slashes with forward slashes.
 
 When remote back end, treat FILE as the \"localname\" portion of
-a tramp file name, and make a tramp file name using various back
-end property list values for the remaining components."
+a remote file name, and form a remote file name by prepending to
+FILE the back end's remote prefix."
   (let* ((back-end (racket-back-end))
          (file (if (plist-get back-end :windows)
                    (subst-char-in-string ?\\ ?/ file)
                  file))
-         (file (if (racket--back-end-local-p back-end)
-                   file
-                 (racket--make-tramp-file-name (plist-get back-end :user-name)
-                                               (plist-get back-end :host-name)
-                                               (plist-get back-end :ssh-port)
-                                               file))))
+         (file (if-let ((prefix (file-remote-p (plist-get back-end :directory))))
+                   (concat (substring-no-properties prefix) file)
+                 file)))
     file))
 
 ;;; Tramp remote back end source files
@@ -527,11 +428,11 @@ last time we needed to copy.
 
 This is the most efficient way I can think of to handle this over
 a possibly slow remote connection."
-  (let* ((tramp-dir (racket--make-tramp-file-name
-                     (plist-get (racket-back-end) :user-name)
-                     (plist-get (racket-back-end) :host-name)
-                     (plist-get (racket-back-end) :ssh-port)
-                     (plist-get (racket-back-end) :remote-source-dir)))
+  (let* ((back-end (racket-back-end))
+         (back-end-dir (plist-get back-end :directory))
+         (remote-source-dir (plist-get back-end :remote-source-dir))
+         (tramp-dir (concat (file-remote-p back-end-dir)
+                            remote-source-dir))
          (digest-here
           (sha1
            (string-join
@@ -576,8 +477,8 @@ a possibly slow remote connection."
           (copy-file temp-digest-file-here digest-file-there t)
           (delete-file temp-digest-file-here))
         (message "Racket Mode back end copied to remote back end at %s"
-                 (plist-get (racket-back-end) :host-name))))
-    (plist-get (racket-back-end) :remote-source-dir)))
+                 tramp-dir)))
+    remote-source-dir))
 
 (defun racket--make-tramp-file-name (user host port localname)
   (unless (or (not user) (stringp user)) (error "user must be nil or stringp"))

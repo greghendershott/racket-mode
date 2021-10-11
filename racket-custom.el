@@ -52,28 +52,6 @@ non-nil `racket-program` property list value. See
   :risky t
   :group 'racket)
 
-(defcustom racket-back-end-name-hook nil
-  "Determine the name of a back end to use for the current buffer.
-
-By default, the back end name is the same as the host name of the
-buffer's value for the variable `default-directory'.
-
-In other words, by default there is one back end per host.
-
-If you want to use more than one back end per host, you need to
-customize this hook to a non-empty list of functions;
-`run-hook-with-args-until-success' will call each function until
-one returns a non-nil name string. Typically such a function will
-`string-match-p' a pattern on `default-directory' -- for example,
-is the buffer visiting a file within a certain directory tree for
-a certain project, which should use a different back end.
-
-For more information about back end configurations, as well as
-use examples, see `racket-add-back-end'."
-  :tag "REPL Back End Name Hook"
-  :type 'hook
-  :group 'racket)
-
 (make-obsolete-variable 'racket-command-port nil "2020-04-25")
 
 (make-obsolete-variable 'racket-command-startup nil "2020-01-23")

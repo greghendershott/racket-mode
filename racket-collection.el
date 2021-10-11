@@ -93,11 +93,17 @@
                         rkt))
          (command (if local-p
                       command
-                    (cons "ssh"
-                          (cons (format "%s@%s"
-                                        (plist-get back-end :user-name)
-                                        (plist-get back-end :host-name))
-                                command)))))
+                    (pcase-let ((`(,host ,user ,port)
+                                 (racket--back-end-host+user+port back-end)))
+                        `("ssh"
+                          ,@(when port
+                              `("-p" ,(format "%s" port)))
+                          ,(if user
+                               (format "%s@%s"
+                                       user
+                                       host)
+                             host)
+                          ,@command)))))
     (make-process :name            name
                   :connection-type 'pipe
                   :noquery         t

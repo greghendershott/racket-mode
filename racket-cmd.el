@@ -61,7 +61,7 @@ Before doing anything runs the hook `racket-stop-back-end-hook'."
 
 (defun racket--cmd-open-p ()
   "Does a running process exist for `racket-back-end-name'?"
-  (pcase (get-process (racket--back-end-process-name (racket-back-end-name)))
+  (pcase (get-process (racket--back-end-process-name (racket-back-end)))
     ((and (pred (processp)) proc)
      (eq 'run (process-status proc)))))
 
@@ -86,15 +86,15 @@ even from compiled bytecode.")
   ;; <https://github.com/purcell/envrc/issues/22>.
   (cl-letf* (((default-value 'process-environment) process-environment)
              ((default-value 'exec-path)           exec-path))
-    (let* ((back-end-name (racket-back-end-name))
-           (back-end (racket-back-end back-end-name))
+    (let* ((back-end (racket-back-end))
            (_ (when noninteractive
                 (princ (format "back end is %S\n" back-end))))
-           (process-name (racket--back-end-process-name back-end-name))
-           (process-name-stderr (racket--back-end-process-name-stderr back-end-name))
+           (process-name (racket--back-end-process-name back-end))
+           (process-name-stderr (racket--back-end-process-name-stderr back-end))
            (buffer (get-buffer-create (concat " *" process-name "*")))
            (_ (with-current-buffer buffer
-                (setq-local racket--cmd-dispatch-back-end-name back-end-name)))
+                (setq-local racket--cmd-dispatch-back-end-name
+                            (racket-back-end-name back-end))))
            (stderr (make-pipe-process
                     :name     process-name-stderr
                     :buffer   (concat " *" process-name-stderr "*")
@@ -131,15 +131,17 @@ even from compiled bytecode.")
                           gui-flag))
            (command (if local-p
                         command
-                      `("ssh"
-                        ,@(when-let ((p (plist-get back-end :ssh-port)))
-                            `("-p" ,(format "%s" p)))
-                        ,(if-let ((u (plist-get back-end :user-name)))
-                             (format "%s@%s"
-                                     u
-                                     (plist-get back-end :host-name))
-                           (plist-get back-end :host-name))
-                        ,@command)))
+                      (pcase-let ((`(,host ,user ,port)
+                                   (racket--back-end-host+user+port back-end)))
+                        `("ssh"
+                          ,@(when port
+                              `("-p" ,(format "%s" port)))
+                          ,(if user
+                               (format "%s@%s"
+                                       user
+                                       host)
+                             host)
+                          ,@command))))
            (process
             (make-process
              :name            process-name
@@ -169,10 +171,10 @@ even from compiled bytecode.")
                   (pcase (get-buffer (process-buffer proc))
                     ((and (pred (bufferp)) buf)
                      (kill-buffer buf))))))))
-    (when-let ((name (racket-back-end-name)))
+    (when-let ((back-end (racket-back-end)))
       (run-hooks 'racket-stop-back-end-hook)
-      (delete-process-and-buffer (racket--back-end-process-name name))
-      (delete-process-and-buffer (racket--back-end-process-name-stderr name)))))
+      (delete-process-and-buffer (racket--back-end-process-name back-end))
+      (delete-process-and-buffer (racket--back-end-process-name-stderr back-end)))))
 
 (defun racket--cmd-process-sentinel (proc event)
   (when (string-match-p "exited abnormally|failed|connection broken" event)
