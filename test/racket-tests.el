@@ -33,8 +33,7 @@
 
 ;;; Utility functions for "integration" testing
 
-(defconst ci-p (or (getenv "TRAVIS_CI")
-                   (getenv "CI"))
+(defconst ci-p (getenv "CI")
   "Is there an environment variable saying we're running on CI?")
 
 (defconst racket-tests/timeout (if ci-p 30 10))
@@ -624,20 +623,50 @@ want to use the value of `racket-program' at run time."
         (kill-buffer)
         (delete-file path)))))
 
-;;; Indentation
+;;; Indentation correctness
 
 (defun racket-tests/same-indent (file)
-  (with-current-buffer (find-file (expand-file-name file
-                                                    racket-tests/here-dir))
+  (with-current-buffer (find-file (expand-file-name file racket-tests/here-dir))
     (indent-region (point-min) (point-max))
     (let ((ok (not (buffer-modified-p))))
       (revert-buffer t t t)  ;revert in case running ERT interactively
       ok)))
 
-(ert-deftest racket-tests/indent-rkt ()
+(ert-deftest racket-tests/indent-same ()
   "Indentation of example/*.rkt shouldn't change."
-  (should (racket-tests/same-indent "../racket/example/example.rkt"))
-  (should (racket-tests/same-indent "../racket/example/indent.rkt")))
+  (should (racket-tests/same-indent "example/example.rkt"))
+  (should (racket-tests/same-indent "example/indent.rkt")))
+
+;;; Indentation speed
+
+;; Note: Although these call `indent-region' on large files, the point
+;; is to measure `racket-indent-line'. Indenting huge regions like
+;; entire files isn't a priority use case. We don't even bother to
+;; supply an `indent-region-function'; indeed we rely on that here --
+;; the fact that `indent-region' will therefore call
+;; `racket-indent-line' for every one of the thousands of lines in
+;; these files. TL;DR: We're measuring indent-line by calling it
+;; thousands of times including lines near the end of very large
+;; files.
+
+(defun racket-tests/indent-time (file)
+  (with-current-buffer (find-file (expand-file-name file racket-tests/here-dir))
+    (racket-mode)
+    (let* ((start (float-time))
+           (_ (indent-region (point-min) (point-max)))
+           (finish (float-time))
+           (dur (- finish start)))
+      (message "indent %s took %s seconds" file dur)
+      (revert-buffer t t t)
+      dur)))
+
+(ert-deftest racket-tests/indent-speed-1 ()
+  (should (or (< (racket-tests/indent-time "example/class-internal.rkt") 10)
+              ci-p)))
+
+(ert-deftest racket-tests/indent-speed-2 ()
+  (should (or (< (racket-tests/indent-time "example/core.scm") 10)
+              ci-p)))
 
 ;;; Font-lock
 
@@ -646,15 +675,14 @@ want to use the value of `racket-program' at run time."
 FILE is interpreted as relative to this source directory."
   (let ((font-lock-maximum-decoration t))
     (faceup-test-font-lock-file 'racket-mode
-                                (expand-file-name file
-                                                  racket-tests/here-dir))))
+                                (expand-file-name file racket-tests/here-dir))))
 
 (faceup-defexplainer racket-tests/same-faceup)
 
 (ert-deftest racket-tests/font-lock ()
   "Font-lock of example/*.rkt shouldn't change."
-  (should (racket-tests/same-faceup "../racket/example/indent.rkt"))
-  (should (racket-tests/same-faceup "../racket/example/example.rkt")))
+  (should (racket-tests/same-faceup "example/indent.rkt"))
+  (should (racket-tests/same-faceup "example/example.rkt")))
 
 ;;; fill-paragraph comment issue 437
 

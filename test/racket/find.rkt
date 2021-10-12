@@ -6,8 +6,8 @@
          racket/runtime-path
          rackunit
          syntax/modread
-         "../find.rkt"
-         "../syntax.rkt"
+         "../../racket/find.rkt"
+         "../../racket/syntax.rkt"
          "find-examples.rkt")
 
 (define ((path-ends-in? . xs) ps)
@@ -16,7 +16,7 @@
 (define (not-0 v) (not (= 0 v)))
 (define (not-1 v) (not (= 1 v)))
 
-(define-runtime-path parent-dir "..")
+(define-runtime-path parent-dir "../../racket/")
 
 (define (test how)
   (check-equal? (find-definition how "display")

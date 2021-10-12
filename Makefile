@@ -71,7 +71,7 @@ test-elisp:
       -f ert-run-tests-batch-and-exit
 
 test-racket:
-	$(RACKET) -l raco test ./racket/test/
+	$(RACKET) -l raco test ./test/racket/
 	$(RACKET) -l raco test -x ./racket/*.rkt
 	$(RACKET) -l raco test -x ./racket/commands/*.rkt
 
