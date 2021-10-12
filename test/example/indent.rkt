@@ -348,3 +348,18 @@
    ------------------------- Application
    (⇓ Γ (e x) Θ v)])
 
+;; Issue 558
+(module+ test
+  (+
+   1
+   #<<EOF
+()
+EOF
+   )
+  1)
+
+(foo (bar "
+(abc)"
+          this
+          not
+          indented))

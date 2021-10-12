@@ -391,18 +391,6 @@ or syntax quoting, because those won't be valid Racket syntax."
 
 ;;; Misc
 
-(defun racket--escape-string-or-comment ()
-  "If point is in a string or comment, move to its start.
-
-Note that this can be expensive, as it uses `syntax-ppss' which
-parses from the start of the buffer. Although `syntax-ppss' uses
-a cache, that is invalidated after any changes to the buffer. As
-a result, the worst case would be to call this function after
-every character is inserted to a buffer."
-  (pcase (racket--ppss-string/comment-start (syntax-ppss))
-    (`() nil)
-    (pos (goto-char pos))))
-
 (defun racket-backward-up-list ()
   "Like `backward-up-list' but works when point is in a string or comment.
 

@@ -17,6 +17,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'cl-lib)
+(require 'subr-x)
 (require 'racket-util)
 (require 'racket-custom)
 (require 'racket-ppss)
@@ -118,19 +119,18 @@ people who may have extensive scheme-indent-function settings,
 particularly in the form of file or dir local variables.
 Otherwise prefer putting properties on `racket-indent-function'."
   (interactive)
-  (pcase (racket--calculate-indent)
-    (`()  nil)
+  (when-let ((amount (racket--calculate-indent)))
     ;; When point is within the leading whitespace, move it past the
     ;; new indentation whitespace. Otherwise preserve its position
     ;; relative to the original text.
-    (amount (let ((pos (- (point-max) (point)))
-                  (beg (progn (beginning-of-line) (point))))
-              (skip-chars-forward " \t")
-              (unless (= amount (current-column))
-                (delete-region beg (point))
-                (indent-to amount))
-              (when (< (point) (- (point-max) pos))
-                (goto-char (- (point-max) pos)))))))
+    (let ((pos (- (point-max) (point)))
+          (beg (progn (beginning-of-line) (point))))
+      (skip-chars-forward " \t")
+      (unless (= amount (current-column))
+        (delete-region beg (point))
+        (indent-to amount))
+      (when (< (point) (- (point-max) pos))
+        (goto-char (- (point-max) pos))))))
 
 (defun racket--calculate-indent ()
   "Return appropriate indentation for current line as Lisp code.
@@ -145,7 +145,8 @@ need."
     (beginning-of-line)
     (let ((indent-point (point))
           (state        nil))
-      (racket--plain-beginning-of-defun)
+      (racket--escape-string-or-comment)
+      (condition-case nil (backward-up-list 1) (scan-error nil))
       (while (< (point) indent-point)
         (setq state (parse-partial-sexp (point) indent-point 0)))
       (let ((strp (racket--ppss-string-p state))
@@ -156,18 +157,6 @@ need."
          ((and state last cont) (racket-indent-function indent-point state))
          (cont                  (goto-char (1+ cont)) (current-column))
          (t                     (current-column)))))))
-
-(defun racket--plain-beginning-of-defun ()
-  "Like default/plain `beginning-of-function'.
-Our `racket--beginning-of-defun-function' is aware of module
-forms and tailored to using C-M-a to navigate interactively. But
-it is too slow to be used here -- especially in \"degenerate\"
-cases like a 3000 line file consisting of one big `module` or
-`library` sexpr."
-  (when (re-search-backward (rx bol (syntax open-parenthesis))
-                            nil
-                            'move)
-    (goto-char (1- (match-end 0)))))
 
 (defun racket-indent-function (indent-point state)
   "Called by `racket--calculate-indent' to get indent column.
@@ -536,6 +525,17 @@ harmless."
                  (typed-sym (intern (format "%s:" plain-sym))))
       (put plain-sym 'racket-indent-function val)
       (put typed-sym 'racket-indent-function val))))
+
+(defun racket--escape-string-or-comment ()
+  "If point is in a string or comment, move to its start.
+
+Note that this can be expensive, as it uses `syntax-ppss' which
+parses from the start of the buffer. Although `syntax-ppss' uses
+a cache, that is invalidated after any changes to the buffer. As
+a result, the worst case would be to call this function after
+every character is inserted to a buffer."
+  (when-let ((pos (racket--ppss-string/comment-start (syntax-ppss))))
+    (goto-char pos)))
 
 (provide 'racket-indent)
 

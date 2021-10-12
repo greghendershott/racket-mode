@@ -348,3 +348,18 @@
    ------------------------- Application
    (⇓ Γ (e x) Θ v)])
 
+«m:;; »«x:Issue 558
+»(«k:module+» «f:test»
+  («b:+»
+   «:racket-selfeval-face:1»
+   «:racket-here-string-face:#<<EOF
+()
+EOF
+»   )
+  «:racket-selfeval-face:1»)
+
+(foo (bar «s:"
+(abc)"»
+          «b:this»
+          «b:not»
+          indented))
