@@ -62,9 +62,9 @@
 (defvar racket--orp/active nil ;;FIXME: Use minibuffer-exit-hook instead?
   "Is `racket-open-require-path' using the minibuffer?")
 (defvar racket--orp/input ""
-  "The current user input. Unless user C-g's this persists, as with DrR.")
+  "The current user input.")
 (defvar racket--orp/matches nil
-  "The current user matches. Unless user C-g's this persists, as with DrR.")
+  "The current user matches.")
 (defvar racket--orp/match-index 0
   "The index of the current match selected by the user.")
 (defvar racket--orp/max-height 10
@@ -154,20 +154,20 @@ at the top, marked with \"->\".
   (racket--orp/begin)
   (setq racket--orp/active t)
   (setq racket--orp/match-index 0)
-  ;; We do NOT initialize `racket--orp/input' or `racket--orp/matches'
-  ;; here. Like DrR, we remember from last time invoked. We DO
-  ;; initialize them in racket--orp/quit i.e. user presses C-g.
+  (setq racket--orp/input "")
+  (setq racket--orp/matches nil)
   (add-hook 'minibuffer-setup-hook #'racket--orp/minibuffer-setup)
-  (condition-case ()
+  (unwind-protect
       (progn
         (read-from-minibuffer "Open require path: "
                               racket--orp/input
-                              racket--orp/keymap)
+                              racket--orp/keymap
+                              nil)
         (when racket--orp/matches
-          (find-file (racket-file-name-back-to-front
+          (find-file (racket-file-name-front-to-back
                       (elt racket--orp/matches racket--orp/match-index)))))
-    (error (setq racket--orp/input "")
-           (setq racket--orp/matches nil)))
+    (setq racket--orp/input "")
+    (setq racket--orp/matches nil))
   (remove-hook 'minibuffer-setup-hook #'racket--orp/minibuffer-setup)
   (setq racket--orp/active nil)
   (racket--orp/end))
