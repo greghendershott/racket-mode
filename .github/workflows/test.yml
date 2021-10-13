@@ -73,7 +73,6 @@ jobs:
         with:
           architecture: 'x64'
           distribution: 'full'
-          platform: 'windows'
           version: ${{ matrix.racket_version }}
       - name: Install Emacs Packages insecurely on Windows
         run: make deps-win-ci
