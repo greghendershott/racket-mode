@@ -195,16 +195,15 @@ sentinel is `ignore'."
         (goto-char (point-max))
         (insert string)
         (goto-char (point-min))
-        (while (pcase (ignore-errors (read buffer))
-                 (`nil `nil)
-                 (sexp
-                  (delete-region (point-min)
-                                 (if (eq (char-after) ?\n)
-                                     (1+ (point))
-                                   (point)))
-                  (racket--cmd-dispatch-response racket--cmd-dispatch-back-end-name
-                                                 sexp)
-                  t)))))))
+        (while
+          (when-let ((sexp (ignore-errors (read buffer))))
+            (delete-region (point-min)
+                           (if (eq (char-after) ?\n)
+                               (1+ (point))
+                             (point)))
+            (racket--cmd-dispatch-response racket--cmd-dispatch-back-end-name
+                                           sexp)
+            t))))))
 
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
   "A hash from nonce to callback function.")
