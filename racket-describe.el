@@ -465,7 +465,7 @@ browser program -- are given `racket-describe-ext-link-face'.
 
 \\{racket-describe-mode-map}"
   (setq show-trailing-whitespace nil)
-  (setq revert-buffer-function #'racket-describe-mode-revert-buffer)
+  (setq-local revert-buffer-function #'racket-describe-mode-revert-buffer)
   (buffer-disable-undo))
 
 ;;; Search and disambiguation using local docs
