@@ -135,7 +135,6 @@
     [`(check-syntax ,path-str ,code)   (check-syntax path-str code)]
     [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
     [`(macro-stepper/next ,what)       (macro-stepper/next what)]
-    [`(find-collection ,str)           (find-collection str)]
     [`(module-names)                   (module-names)]
     [`(requires/tidy ,reqs)            (requires/tidy reqs)]
     [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
@@ -182,22 +181,9 @@
   (sort (map symbol->string (namespace-mapped-symbols))
         string<?))
 
-;;; eval-commmand
-
 (define/contract (eval-command str)
   (-> string? string?)
   (call-with-values (λ ()
                       ((current-eval) (string->namespace-syntax str)))
                     (λ vs
                       (apply ~a #:separator "\n" (map ~v vs)))))
-
-;;; find-collection
-
-(define-polyfill (find-collection-dir str)
-  #:module find-collection/find-collection
-  (error 'find-collection-dir
-         "For this to work, you need to `raco pkg install raco-find-collection`"))
-
-(define/contract (find-collection str)
-  (-> path-string? (listof string?))
-  (map path->string (find-collection-dir str)))

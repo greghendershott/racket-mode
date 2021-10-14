@@ -100,7 +100,6 @@
     racket-send-last-sexp
     "Collections"
     racket-open-require-path
-    racket-find-collection
     "Macro expand"
     racket-stepper-mode
     racket-expand-file

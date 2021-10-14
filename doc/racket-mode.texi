@@ -148,7 +148,6 @@ Eval
 Collections
 
 * racket-open-require-path::
-* racket-find-collection::
 
 Macro expand
 
@@ -335,11 +334,19 @@ When Emacs is configured to use MELPA, simply type @kbd{M-x}  @code{package-inst
 @node Minimal Racket
 @section Minimal Racket
 
-If you have installed the minimal Racket distribution (for example by using the @uref{https://github.com/Homebrew/homebrew-core/blob/master/Formula/minimal-racket.rb,homebrew formula}) Racket Mode needs some additional packages (like @code{errortrace} and @code{macro-debugger}). A simple way to get all these packages is to install the @code{drracket} Racket package. In a command shell:
+If you have installed the minimal Racket distribution (for example by using the @uref{https://github.com/Homebrew/homebrew-core/blob/master/Formula/minimal-racket.rb,homebrew formula}) Racket Mode needs some additional Racket packages. A simple way to get all these packages is to install the @code{drracket} Racket package. In a command shell:
 
 @example
-raco pkg install drracket
+raco pkg install --auto drracket
 @end example
+
+If you do @emph{not} plan to use @code{racket-xp-mode}, then a more-targeted approach is instead to install these specific packages and their dependencies:
+
+@example
+raco pkg install --auto data-lib errortrace-lib macro-debugger-text-lib rackunit-lib racket-index scribble-lib
+@end example
+
+If you @emph{do} want to use @code{racket-xp-mode}, then you would also need to install @code{drracket-tool-lib} --- but since it has many of the same dependencies (including @code{gui-lib}) as @code{drracket} you may well install @code{drracket}.
 
 @node Uninstall
 @section Uninstall
@@ -2240,7 +2247,6 @@ without the #; prefix.
 
 @menu
 * racket-open-require-path::
-* racket-find-collection::
 @end menu
 
 @node racket-open-require-path
@@ -2266,34 +2272,6 @@ RET on a file exits doing @code{find-file}.
 @item
 C-g aborts.
 @end itemize
-
-@node racket-find-collection
-@subsection racket-find-collection
-
-@kbd{M-x}  @code{racket-find-collection}
-
-Given a collection name, try to find its directory and files.
-
-Takes a collection name from point.
-
-With @kbd{C-u}  prompts you.
-
-If only one directory is found, @code{ido-find-file-in-dir} lets you
-pick a file there.
-
-If more than one directory is found, @code{ido-completing-read} lets
-you pick one, then @code{ido-find-file-in-dir} lets you pick a file
-there.
-
-Note: This requires the @code{raco-find-collection} package to be
-installed. To install it, in @code{shell} enter:
-
-raco pkg install raco-find-collection
-
-Tip: This works best with @code{ido-enable-flex-matching} set to t.
-Also handy is the @code{flx-ido} package from MELPA.
-
-See also: @ref{racket-open-require-path}.
 
 @node Macro expand
 @section Macro expand

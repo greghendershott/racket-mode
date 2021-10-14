@@ -16,71 +16,15 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
-(require 'ido)
 (require 'tq)
 (require 'racket-repl)
-(require 'racket-complete) ;for `racket--symbol-at-point-or-prompt'
 (require 'racket-custom) ;for `racket-program'
 (require 'racket-util)
 
-;;; racket-find-collection
-
-(defun racket-find-collection (&optional prefix)
-  "Given a collection name, try to find its directory and files.
-
-Takes a collection name from point.
-
-With \\[universal-argument] prompts you.
-
-If only one directory is found, `ido-find-file-in-dir' lets you
-pick a file there.
-
-If more than one directory is found, `ido-completing-read' lets
-you pick one, then `ido-find-file-in-dir' lets you pick a file
-there.
-
-Note: This requires the `raco-find-collection' package to be
-installed. To install it, in `shell' enter:
-
-    raco pkg install raco-find-collection
-
-Tip: This works best with `ido-enable-flex-matching' set to t.
-Also handy is the `flx-ido' package from MELPA.
-
-See also: `racket-open-require-path'."
-  (interactive "P")
-  (pcase (racket--symbol-at-point-or-prompt prefix "Collection name: ")
-    (`() nil)
-    (coll
-     (racket--cmd/async
-      nil
-      `(find-collection ,coll)
-      (lambda (result)
-        (pcase result
-          (`()
-           (user-error (format "Collection `%s' not found" coll)))
-          (`(,path)
-           (racket--find-file-in-dir path))
-          (paths
-           (let ((done nil))
-             (while (not done)
-               ;; `(ido-find-file-in-dir (ido-completing-read paths))`
-               ;; -- except we want to let the user press C-g inside
-               ;; ido-find-file-in-dir to back up and pick a different
-               ;; module path.
-               (let ((dir (ido-completing-read "Directory: " paths)))
-                 (condition-case ()
-                     (progn (racket--find-file-in-dir dir)
-                            (setq done t))
-                   (quit nil))))))))))))
-
-(defun racket--find-file-in-dir (dir)
-  "Like `ido-find-file-in-dir', but allows C-d to `dired' as does `ido-find-file'."
-  (ido-file-internal ido-default-file-method nil dir))
-
-
-;;; racket-open-require-path
-
+(define-obsolete-function-alias
+  'racket-find-collection
+  'racket-open-require-path
+  "2021-10-15")
 
 ;; From looking at ido-mode and ido-vertical-mode:
 ;;
