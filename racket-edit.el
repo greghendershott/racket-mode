@@ -21,7 +21,6 @@
 (require 'cl-lib)
 (require 'cl-macs)
 (require 'comint)
-(require 'ido)
 (require 'racket-custom)
 (require 'racket-cmd)
 (require 'racket-common)
@@ -298,10 +297,7 @@ module form, meaning the outermost, file module."
 When more than one module supplies an identifer with the same
 name, they are listed for you to choose one. The list is sorted
 alphabetically, except modules starting with \"racket/\" and
-\"typed/racket/\" are sorted before others. While at the prompt,
-as a convenience you can press C-h to see the \"Search Manuals\"
-page for locally installed packages -- effectively like
-doing \"raco doc\" at the command line.
+\"typed/racket/\" are sorted before others.
 
 A \"require\" form is inserted into the buffer, followed by doing
 a `racket-tidy-requires'.
@@ -329,17 +325,10 @@ identifiers that are exported but not documented."
                 (`(,lib)
                  lib)
                 (libs
-                 (let* ((map (prog1 (make-sparse-keymap)))
-                        (_   (set-keymap-parent map ido-completion-map))
-                        (_   (define-key map "\C-h"
-                               (lambda ()
-                                 (interactive)
-                                 (racket--search-doc-locally sym-at-point))))
-                        (overriding-local-map map))
-                   (ido-completing-read
-                    (format "\"%s\" is provided by multiple libraries, choose one (C-h to search manuals): "
-                            sym-at-point)
-                    libs))))))
+                 (completing-read
+                  (format "\"%s\" is provided by multiple libraries, choose one: "
+                          sym-at-point)
+                  libs)))))
          (when lib
            (let ((pt  (copy-marker (point)))
                  (req `(require ,(intern lib))))

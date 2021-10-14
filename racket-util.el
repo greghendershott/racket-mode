@@ -164,7 +164,7 @@ When installed as a package, this can be found from the variable
 
 When FORCE-PROMPT-P always prompt. The prompt uses
 `read-from-minibuffer' when COMPLETIONS is nil, else
-`ido-completing-read'.
+`completing-read'.
 
 Returns `stringp' not `symbolp' to simplify using the result in a
 sexpr that can be passed to Racket backend. Likewise the string
@@ -176,7 +176,7 @@ as if the user had C-g to quit."
     (if (or force-prompt-p
             (not sap))
         (let* ((s (if completions
-                      (ido-completing-read prompt completions nil nil sap)
+                      (completing-read prompt completions nil nil sap)
                     (read-from-minibuffer prompt sap)))
                (s (if s
                       (racket--trim (substring-no-properties s))

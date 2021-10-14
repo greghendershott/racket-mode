@@ -150,13 +150,13 @@ Racket Mode supports four, increasing levels of font-lock:
 - ~2~: Identifiers in ~define~-like and ~let~-like forms.
 - ~3~: Identifiers provided by ~racket~, ~typed/racket~, ~racket/syntax~, and ~syntax/parse~. (This level effectively treats Racket as a language, instead of a language for making languages.).
 
-** Completion
+** Competion at point
 
 In Emacs, a major mode may supply a "completion-at-point function". This function is used by manual completion commands like ~complete-symbol~ (bound by default to {{{kbd(C-M-i)}}}), as well as by auto-completion packages like ~company-mode~.
 
 - ~racket-mode~ supplies ~racket-complete-at-point~, which simply supplies the same symbols that it knows how to font-lock. This does /not/ require the Racket Mode back end to be running. But of course the completion candidates do not correspond to your program's definitions or those it imports. This is a static, "better than nothing" fallback.
 
-- ~racket-xp-mode~ --- an optional minor mode that enhances ~racket-mode~ --- supplies ~racket-xp-complete-at-point~, which uses a static analysis to find local and imported binding names. Although this requires the Racket Mode back end to be running --- and will automatically start it --- it does /not/ require the edit buffer to be ~racket-run~.
+- ~racket-xp-mode~ --- an optional minor mode that enhances ~racket-mode~ --- supplies ~racket-xp-complete-at-point~, which uses a static analysis to find local and imported binding names. Although this requires the Racket Mode back end to be running --- and will automatically start it --- it does /not/ require the edit buffer to be ~racket-run~. This also supplies meta data usable by the ~company-capf~ backend.
 
 - ~racket-repl-mode~ supplies ~racket-repl-complete-at-point~, which uses the result of ~namespace-mapped-symbols~ on the program currently running in the REPL.
 
@@ -169,6 +169,12 @@ If you want {{{kbd(TAB)}}} to do completion as well as indent, add the following
 #+END_SRC
 
 This changes the behavior of Emacs' standard ~indent-for-tab-command~, to which {{{kbd(TAB)}}} is bound by default in ~racket-mode~ and ~racket-repl-mode~.
+
+** Completion in minibuffer
+
+Sometimes Racket Mode asks for input in the minibuffer. To do so it uses the standard Emacs function ~completing-read~, so as to be compatible with all Emacs packages that enhance ~completing-read~, such as helm, ivy, ido-completing-read+, vertico, and so on.
+
+(Earlier versions of Racket Mode sometimes used ~ido-completing-read~. If you have upgraded Racket Mode and miss that, simply install the ido-completing-read+ package.)
 
 ** Xref (definitions and references)
 

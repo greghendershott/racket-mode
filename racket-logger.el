@@ -192,8 +192,6 @@ If N is omitted or nil, move point 1 item backward."
 (defun racket-logger-topic-level ()
   "Set or unset the level for a topic.
 
-For convenience, input choices using `ido-completing-read'.
-
 The topic labeled \"*\" is the level to use for all topics not
 specifically assigned a level.
 
@@ -201,7 +199,7 @@ The level choice \"*\" means the topic will no longer have its
 own level, therefore will follow the level specified for the
 \"*\" topic."
   (interactive)
-  (let* ((topic  (ido-completing-read
+  (let* ((topic  (completing-read
                   "Topic: "
                   (racket--logger-topics)))
          (topic  (pcase topic
@@ -210,7 +208,7 @@ own level, therefore will follow the level specified for the
          (topic  (intern topic))
          (levels (list "fatal" "error" "warning" "info" "debug"))
          (levels (if (eq topic '*) levels (cons "*" levels)))
-         (level  (ido-completing-read
+         (level  (completing-read
                   (format "Level for topic `%s': " topic)
                   levels
                   nil t nil nil
