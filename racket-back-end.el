@@ -27,10 +27,13 @@
 ;; The process could be local or (via ssh) remote. The remote process
 ;; could even be something like "ssh xvfb-run racket racket/main.rkt".
 ;; But for most people it's simply a local process, running on the
-;; same machine as Emacs. The back end accepts commands and returns
-;; responses, as well as giving non-command-response notifications
-;; (logging, debugging). The back end also accepts connections on a
-;; TCP port for one or more REPL sessions.
+;; same machine as Emacs.
+;;
+;; The back end accepts commands and returns responses, as well as
+;; giving non-command-response notifications (logging, debugging),
+;; which is handled in racket-cmd.el. The back end also accepts
+;; connections on a TCP port for one or more REPL sessions, which is
+;; handled in racket-repl.el
 ;;
 ;; When some buffer needs a back end, which back end does it use?
 ;; That's the concern of the back end configuration code in this file.
@@ -89,15 +92,17 @@ replaced.
 
 DIRECTORY should be a string describing a `file-name-absolute-p'
 directory on some local or remote server. It can be a local
-directory like \"/\" or \"/path/to/project\", or also, it can be
-a `file-remote-p' directory like \"/ssh:user@host:\", or
-\"/ssh:user@host:/path/to/project\". Basically it should be the
-same sort of path you would provide to `find-file' that would
-successfully access some local or remote file.
+directory like \"/\" or \"/path/to/project\". Also, it can be a
+`file-remote-p' directory like \"/ssh:user@host:\", or
+\"/ssh:user@host:/path/to/project\". Basically it's a path you
+could give to `find-file' to successfully access some local or
+remote file. (Some remote file shorthand forms get expanded to at
+least \"/ssh:host:\" -- double-check `buffer-file-name' and
+follow its example.)
 
 DIRECTORY is used as a pattern to compare to `default-directory'
-for a buffer, to see if the back end should be used for the
-buffer.
+for a buffer, to determine whether the back end should be used
+for the buffer.
 
 DIRECTORY also determines:
 
@@ -108,7 +113,7 @@ DIRECTORY also determines:
   start the back end process.
 
   This may be a Host alias from ~/.ssh/config with a HostName, in
-  which case the latter is used as the actual host-name for both
+  which case HostName is used as the actual host name for both
   SSH and TCP/IP connections.
 
 - When remote, any explicit user and port used to make SSH
@@ -118,7 +123,7 @@ DIRECTORY also determines:
 - Other properties get reasonable defaults based on whether the
   back end is local or remote, as described below.
 
-After DIRECTORY, the remainining arguments are optional
+After DIRECTORY, the remainining arguments are optional; they are
 alternating :keywords and values describing some other properties
 of a back end:
 
@@ -131,9 +136,9 @@ of a back end:
 
   Where on a remote host to copy the back end's *.rkt files when
   they do not exist or do not match the digest of the local
-  files. This must be `file-name-absolute-p' on the remote ---
-  and just the path name there, a.k.a. localname. The default
-  value is \"/tmp/racket-mode-back-end\".
+  files. This must be `file-name-absolute-p' on the remote. Only
+  supply the localname there (not a full `file-remote-p'). The
+  default value is \"/tmp/racket-mode-back-end\".
 
 - :repl-tcp-accept-host
 
