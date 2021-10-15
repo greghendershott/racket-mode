@@ -306,7 +306,7 @@ find the start of a string or comment."
             (parse-sexp-ignore-comments t))
         (while (ignore-errors
                  (goto-char (scan-lists (point) -1 1))
-                 (unless (looking-at racket-module-forms)
+                 (unless (looking-at-p racket-module-forms)
                    (setq pos (point)))
                  t))
         (and pos
@@ -342,11 +342,11 @@ Allows #; to be followed by zero or more space or newline chars."
     (ignore-errors
       (forward-sexp)
       (backward-sexp)
-      (when (looking-at (rx "#!"))
+      (when (looking-at-p (rx "#!"))
         (forward-line)
         (forward-sexp)
         (backward-sexp))
-      (looking-at (rx "#lang")))))
+      (looking-at-p (rx "#lang")))))
 
 (defun racket--modules-at-point ()
   "List of module names that point is within, from outer to inner.
@@ -355,31 +355,32 @@ or syntax quoting, because those won't be valid Racket syntax."
   (let ((xs nil))
     (condition-case ()
         (save-excursion
-          (save-match-data
-            (racket--escape-string-or-comment)
-            (while t
-              (when (racket--looking-at-module-form)
-                (push (intern (match-string-no-properties 1)) xs))
-              (when (racket--looking-at-quoted-form)
-                (push nil xs))
-              (backward-up-list))))
+          (racket--escape-string-or-comment)
+          (while t
+            (when-let ((mod-name-sym (racket--looking-at-module-form)))
+              (push mod-name-sym xs))
+            (when (racket--looking-at-quoted-form-p)
+              (push nil xs))
+            (backward-up-list)))
       (scan-error xs))
     (racket--take-while xs #'identity)))
 
 (defun racket--looking-at-module-form ()
-  "Sets match data group 1 to the module name."
-  (looking-at (rx ?\(
-                  (or "module" "module*" "module+")
-                  (1+ " ")
-                  (group (+ (or (syntax symbol)
-                                (syntax word)
-                                (syntax punctuation)))))))
+  "When looking at a module form, return the mod name as a symbol."
+  (save-match-data
+    (when (looking-at (rx ?\(
+                          (or "module" "module*" "module+")
+                          (1+ " ")
+                          (group (+ (or (syntax symbol)
+                                        (syntax word)
+                                        (syntax punctuation))))))
+      (intern (match-string-no-properties 1)))))
 
-(defun racket--looking-at-quoted-form ()
+(defun racket--looking-at-quoted-form-p ()
   (or (memq (char-before) '(?\' ?\` ?\,))
       (and (eq (char-before (1- (point))) ?\,)
            (eq (char-before) ?\@))
-      (looking-at
+      (looking-at-p
        (rx ?\(
            (or "quote" "quasiquote"
                "unquote" "unquote-splicing"

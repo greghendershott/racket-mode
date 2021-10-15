@@ -290,7 +290,7 @@ module form, meaning the outermost, file module."
   (and (eq ?\( (char-syntax (char-after)))
        (save-excursion
          (down-list 1)
-         (looking-at "require"))))
+         (looking-at-p "require"))))
 
 (defun racket-add-require-for-identifier ()
   "Add a require for the identifier at point.

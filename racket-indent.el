@@ -204,7 +204,7 @@ the `racket-indent-function` property."
     ;; after list of formal parameters. (Although the following test
     ;; matches ":" elsewhere, the start of the previous list sexp is
     ;; the same as body-indent -- what we'd do anyway.)
-    (or (and (looking-at "[ ]*:")
+    (or (and (looking-at-p "[ ]*:")
              (ignore-errors
                (backward-sexp 1)
                (and (eq ?\( (char-syntax (char-after)))
@@ -215,14 +215,14 @@ the `racket-indent-function` property."
   "Looking at things like #fl() #hash() or #:keyword ?
 The last occurs in Racket contract forms, e.g. (->* () (#:kw kw)).
 Returns nil for #% identifiers like #%app."
-  (looking-at (rx ?\# (or ?\:
-                          (not (any ?\%))))))
+  (looking-at-p (rx ?\# (or ?\:
+                            (not (any ?\%))))))
 
 (defun racket--all-hyphens-p ()
   "Magic for redex like what DrRacket does."
-  (looking-at (rx (>= 3 ?-) (and (not (syntax word))
-                                 (not (syntax symbol))
-                                 (not (syntax punctuation))))))
+  (looking-at-p (rx (>= 3 ?-) (and (not (syntax word))
+                                   (not (syntax symbol))
+                                   (not (syntax punctuation))))))
 
 (defun racket--data-sequence-p ()
   "Looking at \"data\" sequences where we align under head item?
@@ -317,7 +317,7 @@ To handle nested items, we search `backward-up-list' up to
 
 (defun racket--conditional-indent (indent-point state looking-at-regexp true false)
   (skip-chars-forward " \t")
-  (let ((n (if (looking-at looking-at-regexp) true false)))
+  (let ((n (if (looking-at-p looking-at-regexp) true false)))
     (racket--indent-special-form n indent-point state)))
 
 (defconst racket--identifier-regexp
@@ -345,7 +345,7 @@ Checks for either of:
   "Indent function for for/fold and for*/fold."
   ;; check for maybe-type-ann e.g. (for/fold : T ([n 0]) ([x xs]) x)
   (skip-chars-forward " \t\n")
-  (if (looking-at ":")
+  (if (looking-at-p ":")
       (racket--indent-special-form 4 indent-point state)
     (racket--indent-for/fold-untyped indent-point state)))
 

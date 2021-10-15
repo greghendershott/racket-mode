@@ -23,14 +23,14 @@
        (> (point) (point-min))
        (save-excursion
          (condition-case nil
-             ;; The char-before and looking-at checks below are to
+             ;; The char-before and looking-at-p checks below are to
              ;; skip when the sexp is quoted or when its first elem
              ;; couldn't be a Racket function name.
              (let* ((beg (progn
                            (backward-up-list)
                            (and (not (memq (char-before) '(?` ?' ?,)))
                                 (progn (forward-char 1) (point)))))
-                    (beg (and beg (looking-at "[^0-9#'`,\"]") beg))
+                    (beg (and beg (looking-at-p "[^0-9#'`,\"]") beg))
                     (end (and beg (progn (forward-sexp) (point))))
                     (end (and end
                               (char-after (point))

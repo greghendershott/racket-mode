@@ -39,29 +39,30 @@ and call us recursively."
   "Return the identifier for the sexp at point if any, else nil.
 
 If sexp at point is a Racket module form create a submenu."
-  (cond ((looking-at (rx "(define" (* (or (syntax word)
-                                          (syntax symbol)
-                                          (syntax punctuation)))
-                         (+ (syntax whitespace))
-                         (* ?\()
-                         (group (+ (or (syntax word)
-                                       (syntax symbol)
-                                       (syntax punctuation))))))
-         (list (cons (match-string-no-properties 1)
-                     (if imenu-use-markers
-                         (copy-marker (match-beginning 1))
-                       (match-beginning 1)))))
-        ((looking-at (rx "(module" (? (any ?+ ?*))
-                         (+ (syntax whitespace))
-                         (group (+ (or (syntax word)
-                                       (syntax symbol)
-                                       (syntax punctuation))))))
-         (save-excursion
-           (goto-char (match-end 1))
-           (racket--imenu-goto-start-of-current-sexp)
-           (list (cons (concat "Module: " (match-string-no-properties 1))
-                       (racket--imenu-walk )))))
-        (t nil)))
+  (save-match-data
+    (cond ((looking-at (rx "(define" (* (or (syntax word)
+                                            (syntax symbol)
+                                            (syntax punctuation)))
+                           (+ (syntax whitespace))
+                           (* ?\()
+                           (group (+ (or (syntax word)
+                                         (syntax symbol)
+                                         (syntax punctuation))))))
+           (list (cons (match-string-no-properties 1)
+                       (if imenu-use-markers
+                           (copy-marker (match-beginning 1))
+                         (match-beginning 1)))))
+          ((looking-at (rx "(module" (? (any ?+ ?*))
+                           (+ (syntax whitespace))
+                           (group (+ (or (syntax word)
+                                         (syntax symbol)
+                                         (syntax punctuation))))))
+           (save-excursion
+             (goto-char (match-end 1))
+             (racket--imenu-goto-start-of-current-sexp)
+             (list (cons (concat "Module: " (match-string-no-properties 1))
+                         (racket--imenu-walk )))))
+          (t nil))))
 
 (defun racket--imenu-goto-start-of-current-sexp ()
   (ignore-errors

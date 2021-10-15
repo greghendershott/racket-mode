@@ -716,7 +716,7 @@ without the #; prefix."
     (condition-case ()
         (progn
           (backward-sexp)
-          (if (save-match-data (looking-at "#;"))
+          (if (looking-at-p "#;")
               (+ (point) 2)
             (point)))
       (scan-error (user-error "There isn't a complete s-expression before point")))))

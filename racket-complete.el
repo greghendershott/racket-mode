@@ -41,7 +41,7 @@
         (condition-case ()
             (while (not done)
               (backward-up-list)
-              (when (looking-at (rx ?\( (or "require" "#%require")))
+              (when (looking-at-p (rx ?\( (or "require" "#%require")))
                 (setq done t)
                 (setq result t)))
           (scan-error nil))

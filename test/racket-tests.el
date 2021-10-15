@@ -73,7 +73,7 @@ supplied to it."
   (racket-tests/eventually (looking-back rx (point-min))))
 
 (defun racket-tests/see-forward-rx (rx)
-  (racket-tests/eventually (looking-at rx)))
+  (racket-tests/eventually (looking-at-p rx)))
 
 (defun racket-tests/see-back (str)
   (racket-tests/see-back-rx (regexp-quote str)))
@@ -282,7 +282,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (racket-tests/should-eventually
        (progn (goto-char (point-min))
               (racket-xp-next-definition)
-              (looking-at (regexp-quote "racket/base"))))
+              (looking-at-p (regexp-quote "racket/base"))))
       (racket-xp-next-definition)
       (should (racket-tests/see-forward "foobar"))
       (should (equal (get-text-property (point) 'help-echo) "1 bound occurrence"))

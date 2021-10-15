@@ -268,12 +268,13 @@ of example/example.rkt."
         (goto-char (match-end 0))
         (forward-comment (buffer-size))
         (let ((num-prefixes 1))
-          (while (looking-at (rx "#;"))
-            (cl-incf num-prefixes)
-            (racket--region-set-face (match-beginning 0) (match-end 0)
-                                     'font-lock-comment-delimiter-face t)
-            (goto-char (match-end 0))
-            (forward-comment (buffer-size)))
+          (save-match-data
+            (while (looking-at (rx "#;"))
+              (cl-incf num-prefixes)
+              (racket--region-set-face (match-beginning 0) (match-end 0)
+                                       'font-lock-comment-delimiter-face t)
+              (goto-char (match-end 0))
+              (forward-comment (buffer-size))))
           ;; Font-lock as many successive sexprs as prefixes
           (dotimes (_ num-prefixes)
             (let ((beg (point)))
@@ -320,9 +321,9 @@ similar, it will already be there."
         ;; check rhs of bindings for more lets.
         (save-excursion
           ;; Check for named let
-          (when (looking-at (rx (+ space) (+ (or (syntax word)
-                                                 (syntax symbol)
-                                                 (syntax punctuation)))))
+          (when (looking-at-p (rx (+ space) (+ (or (syntax word)
+                                                   (syntax symbol)
+                                                   (syntax punctuation)))))
             (forward-sexp 1)
             (backward-sexp 1)
             (racket--sexp-set-face font-lock-function-name-face))
@@ -334,7 +335,7 @@ similar, it will already be there."
           (down-list 1) ;to the open paren of the first binding form
           (while (ignore-errors
                    (down-list 1) ;to the id or list of id's
-                   (if (not (looking-at "[([{]"))
+                   (if (not (looking-at-p "[([{]"))
                        (racket--sexp-set-face font-lock-variable-name-face)
                      ;; list of ids, e.g. let-values
                      (down-list 1)    ;to first id
