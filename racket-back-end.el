@@ -468,12 +468,16 @@ a possibly slow remote connection."
         (let ((tramp-verbose 2)) ;avoid "encoding"/"decoding" messages
           ;; Copy the back end directory to the remote.
           ;;
-          ;;`copy-directory' likes to create symlinks when the source
-          ;; is a symlink (e.g. straight.el keeps package repos in a
-          ;; symlinked dir). This will never work when copying to a
-          ;; remote host. Fortunately we can replace every symlink
-          ;; create with a file copy.
-          (cl-flet ((make-symbolic-link (src dest _x) (copy-file src dest t nil)))
+          ;;`copy-directory' creates symlinks when the source is a
+          ;; symlink (and e.g. straight.el keeps package repos in a
+          ;; symlinked dir), which won't work on a remote host. Change
+          ;; `make-symbolic-link' to `copy-file' during the dynamic
+          ;; extent of our call to `copy-directory'. Note that
+          ;; `cl-flet' is /not/ the right thing to use here; see e.g.
+          ;; <http://endlessparentheses.com/understanding-letf-and-how-it-replaces-flet.html>
+          (cl-letf (((symbol-function 'make-symbolic-link)
+                     (lambda (src dest ok-if-already-exists-p)
+                       (copy-file src dest ok-if-already-exists-p nil))))
             (copy-directory racket--rkt-source-dir
                             tramp-dir
                             nil t t))
