@@ -168,13 +168,13 @@ In some cases we resort to returning custom elements for
        ((and href
              (or
               (pred
-               (string-match ;as for installed releases
+               (string-match-p ;as for installed releases
                 "^https?://download.racket-lang.org/releases/[^/]+/doc/local-redirect/index.html[?]\\(.*\\)$"))
               (pred
-               (string-match ;as for local builds from source
+               (string-match-p ;as for local builds from source
                 "^https?://docs.racket-lang.org/local-redirect/index.html[?]\\(.*\\)$"))
               (pred
-               (string-match ;as for installed snapshot builds
+               (string-match-p ;as for installed snapshot builds
                 "^https?://.+?/snapshots/[^/]+/doc/local-redirect/index.html[?]\\(.*\\)$"))))
         (let ((qps (url-parse-query-string (match-string 1 href))))
           (if (assoc "tag" qps)
@@ -210,20 +210,21 @@ In some cases we resort to returning custom elements for
        ;; Otherwise the common case is some combo of path and/or anchor.
        (href
         (pcase-let* ((`(,path . ,anchor)
-                      (cond
-                       ((equal href "")
-                        (cons racket--scribble-file nil))
-                       ((string-match "^#\\(.+\\)$" href)
-                        (cons racket--scribble-file (match-string 1 href)))
-                       ((string-match "^\\(.*\\)#\\(.+\\)$" href)
-                        (cons (expand-file-name (match-string 1 href)
-                                                racket--scribble-base)
-                              (match-string 2 href)))
-                       ((string-match "^\\(.+\\)$" href)
-                        (cons (expand-file-name (match-string 1 href)
-                                                racket--scribble-base)
-                              nil))
-                       (t (error "unexpected href"))))
+                      (save-match-data
+                        (cond
+                         ((equal href "")
+                          (cons racket--scribble-file nil))
+                         ((string-match "^#\\(.+\\)$" href)
+                          (cons racket--scribble-file (match-string 1 href)))
+                         ((string-match "^\\(.*\\)#\\(.+\\)$" href)
+                          (cons (expand-file-name (match-string 1 href)
+                                                  racket--scribble-base)
+                                (match-string 2 href)))
+                         ((string-match "^\\(.+\\)$" href)
+                          (cons (expand-file-name (match-string 1 href)
+                                                  racket--scribble-base)
+                                nil))
+                         (t (error "unexpected href")))))
                      (anchor (and anchor (url-unhex-string anchor))))
           `(racket-doc-link ((path   . ,path)
                              (anchor . ,anchor)

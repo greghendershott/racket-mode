@@ -46,7 +46,7 @@
   "You need only set `racket-program' to the Racket executable pathname."
   "2017-06-02")
 
-(defvar racket--winp (string-match "windows" (symbol-name system-type)))
+(defvar racket--winp (string-match-p "windows" (symbol-name system-type)))
 
 (defcustom racket-program (cond (racket--winp "Racket.exe")
                                 (t            "racket"))

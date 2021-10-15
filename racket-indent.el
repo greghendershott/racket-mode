@@ -187,11 +187,11 @@ the `racket-indent-function` property."
                (racket--indent-defun indent-point body-indent))
               (method
                (funcall method indent-point state))
-              ((string-match (rx bos (or "def" "with-")) head)
+              ((string-match-p (rx bos (or "def" "with-")) head)
                (racket--indent-defun indent-point body-indent)) ;like 'defun
-              ((string-match (rx bos "begin") head)
+              ((string-match-p (rx bos "begin") head)
                (racket--indent-special-form 0 indent-point state))
-              ((string-match (rx bos (or "for/" "for*/")) head)
+              ((string-match-p (rx bos (or "for/" "for*/")) head)
                (racket--indent-for indent-point state))
               (t
                (racket--normal-indent indent-point state)))))))
@@ -271,9 +271,9 @@ To handle nested items, we search `backward-up-list' up to
     (if (ignore-errors
           ;; `backward-sexp' until we reach the start of a sexp that is the
           ;; first of its line (the start of the enclosing sexp).
-          (while (string-match (rx (not blank))
-                               (buffer-substring (line-beginning-position)
-                                                 (point)))
+          (while (string-match-p (rx (not blank))
+                                 (buffer-substring (line-beginning-position)
+                                                   (point)))
             (setq last-sexp (prog1 (point)
                               (forward-sexp -1))))
           t)

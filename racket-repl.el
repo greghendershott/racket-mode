@@ -122,7 +122,7 @@ but does not have a live session."
 
 (defun racket-repl--input-filter (str)
   "Don't save anything matching `racket-history-filter-regexp'."
-  (not (string-match racket-history-filter-regexp str)))
+  (not (string-match-p racket-history-filter-regexp str)))
 
 (defalias 'racket-repl-eval-or-newline-and-indent #'racket-repl-submit)
 

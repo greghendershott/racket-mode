@@ -39,7 +39,7 @@ you do not need to use this. You can customize the variable
 `racket-browse-url-function' instead to be `browse-url', or
 `browse-url-browser-function' in case have have customized that,
 or indeed whatever you want."
-  (let* ((url  (if (string-match ".*://" url) url (concat "file://" url)))
+  (let* ((url  (if (string-match-p ".*://" url) url (concat "file://" url)))
          (file (make-temp-file "racket-browse-url-" nil ".html"))
          (file-uri (concat "file://" file))
          (html (format "<html><head><meta http-equiv=\"refresh\" content=\"0;url=%s\" /></head></html>" url)))
