@@ -485,40 +485,6 @@ a possibly slow remote connection."
                  tramp-dir)))
     remote-source-dir))
 
-(defun racket--make-tramp-file-name (user host port localname)
-  (unless (or (not user) (stringp user)) (error "user must be nil or stringp"))
-  (unless (or (not port) (numberp port)) (error "port must be nil or numberp"))
-  (unless (stringp host) (error "host must be stringp"))
-  (unless (stringp localname) (error "localname must be stringp"))
-  ;; Using `tramp-make-tramp-file-name' across versions of Emacs is a
-  ;; PITA because it has had three different signatures. Although the
-  ;; newest version supports the middle signature for backward
-  ;; compatibility, it doesn't support the oldest signature.
-  ;;
-  ;; First try the middle signature (METHOD USER DOMAIN HOST PORT
-  ;; LOCALNAME &optional HOP):
-  (condition-case nil
-      (with-no-warnings ;from byte compiler
-        (tramp-make-tramp-file-name "ssh"
-                                    (or user "")
-                                    ""  ;domain
-                                    host
-                                    port
-                                    localname))
-    (wrong-number-of-arguments
-     ;; Otherwise try the oldest signature (METHOD USER HOST
-     ;; LOCALNAME). Note this means needing to ignore `port'.
-     (condition-case nil
-         (with-no-warnings ;from byte compiler
-           (tramp-make-tramp-file-name "ssh"
-                                       (or user "")
-                                       (if (or (not port) (= port 22))
-                                           host
-                                         (format "%s#%s" host port))
-                                       localname))
-       (wrong-number-of-arguments
-        (error "Unsupported flavor of `tramp-make-tramp-file-name'."))))))
-
 (provide 'racket-back-end)
 
 ;; racket-back-end.el ends here
