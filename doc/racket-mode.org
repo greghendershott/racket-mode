@@ -150,7 +150,7 @@ Racket Mode supports four, increasing levels of font-lock:
 - ~2~: Identifiers in ~define~-like and ~let~-like forms.
 - ~3~: Identifiers provided by ~racket~, ~typed/racket~, ~racket/syntax~, and ~syntax/parse~. (This level effectively treats Racket as a language, instead of a language for making languages.).
 
-** Competion at point
+** Completion at point
 
 In Emacs, a major mode may supply a "completion-at-point function". This function is used by manual completion commands like ~complete-symbol~ (bound by default to {{{kbd(C-M-i)}}}), as well as by auto-completion packages like ~company-mode~.
 

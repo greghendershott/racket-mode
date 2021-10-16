@@ -53,7 +53,7 @@ Configure
 
 * Key bindings::
 * Font-lock (syntax highlighting)::
-* Competion at point::
+* Completion at point::
 * Completion in minibuffer::
 * Xref (definitions and references)::
 * Indent::
@@ -413,7 +413,7 @@ You can @code{setq} this directly in your Emacs init file (@verb{,~/.emacs,} or 
 @menu
 * Key bindings::
 * Font-lock (syntax highlighting)::
-* Competion at point::
+* Completion at point::
 * Completion in minibuffer::
 * Xref (definitions and references)::
 * Indent::
@@ -459,8 +459,8 @@ Racket Mode supports four, increasing levels of font-lock:
 @code{3}: Identifiers provided by @code{racket}, @code{typed/racket}, @code{racket/syntax}, and @code{syntax/parse}. (This level effectively treats Racket as a language, instead of a language for making languages.).
 @end itemize
 
-@node Competion at point
-@section Competion at point
+@node Completion at point
+@section Completion at point
 
 In Emacs, a major mode may supply a ``completion-at-point function''. This function is used by manual completion commands like @code{complete-symbol} (bound by default to @kbd{C-M-i} ), as well as by auto-completion packages like @code{company-mode}.
 
