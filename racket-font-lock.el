@@ -86,11 +86,11 @@
       ;; Some self-eval constants
       (,(rx
          (seq symbol-start
-              (or "#t" "#true" "#f" "#false"
+              (or "#t" "#T" "#true" "#f" "#F" "#false"
                   (seq (any "-+")
                        (or "inf" "inF" "iNf" "iNF" "Inf" "InF" "INf" "INF"
                            "nan" "naN" "nAn" "nAN" "Nan" "NaN" "NAn" "NAN")
-                       "." (any "0fF")))
+                       "." (any "0fFtT")))
               symbol-end))
        . racket-selfeval-face)
 
@@ -98,8 +98,23 @@
       (,(rx
          (seq symbol-start
               (or
-               ;; #d #e #i or no hash prefix
-               (seq (? "#" (any "dDeEiI"))
+               ;; #d or no hash prefix
+               (seq (? "#" (any "dD"))
+                    (? (any "-+"))
+                    (1+ digit)
+                    (? (any "./") (1+ digit))
+                    (? (any "eEfFtT")
+                       (? (any "-+"))
+                       (1+ digit))
+                    (? ?+
+                       (1+ digit)
+                       (? (any "./") (1+ digit))
+                       (? (any "eEfFtT")
+                          (? (any "-+"))
+                          (1+ digit))
+                       ?i))
+               ;; #e or #i
+               (seq "#" (any "eEiI")
                     (? (any "-+"))
                     (1+ digit)
                     (? (any "./") (1+ digit))
@@ -124,7 +139,7 @@
                              (1+ (any "01"))
                              (? (any "./") (1+ (any "01"))))
                         (seq (1+ (any "01"))
-                             (any "eEfF")
+                             (any "eEfFtT")
                              (? (any "-+"))
                              (1+ (any "01")))))
                ;; #o
@@ -133,7 +148,7 @@
                              (1+ (any "0-7"))
                              (? (any "./") (1+ (any "0-7"))))
                         (seq (1+ (any "0-7"))
-                             (any "eEfF")
+                             (any "eEfFtT")
                              (? (any "-+"))
                              (1+ (any "0-7"))))))
               symbol-end))
