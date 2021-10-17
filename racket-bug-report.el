@@ -36,9 +36,9 @@
       (pp (cons '(alist-get 'racket-mode package-alist)
                 (let ((v (assq 'racket-mode package-alist)))
                   (and v (cdr v)))))
-      (cl-labels ((id-val (id) (list id
-                                     (condition-case () (symbol-value id)
-                                       (error 'UNDEFINED)))))
+      (cl-flet ((id-val (id) (list id
+                                   (condition-case () (symbol-value id)
+                                     (error 'UNDEFINED)))))
         (pp `(,@(mapcar #'id-val
                         `(emacs-version
                           system-type
@@ -84,7 +84,7 @@
                              (lambda (a b)
                                (string-lessp (format "%s" (car a))
                                              (format "%s" (car b)))))))
-          (cl-labels ((f (x) (list (car x)))) ;car as a list so pp line-wraps
+          (cl-flet ((f (x) (list (car x)))) ;car as a list so pp line-wraps
             (pp `(enabled-minor-modes  ,@(mapcar #'f (cl-remove-if-not #'cadr sorted))))
             (pp `(disabled-minor-modes ,@(mapcar #'f (cl-remove-if     #'cadr sorted)))))))
       (princ "</pre>\n")

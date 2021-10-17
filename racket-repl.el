@@ -235,7 +235,7 @@ Mode's REPL as intended, then consider using a plain Emacs
 `shell' buffer to run command-line Racket."
   (interactive "P")
   (racket-call-racket-repl-buffer-name-function)
-  (cl-labels
+  (cl-flet
       ((display-and-maybe-select
         ()
         (display-buffer racket-repl-buffer-name)
