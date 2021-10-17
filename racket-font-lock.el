@@ -84,10 +84,14 @@
        1 racket-selfeval-face)
 
       ;; Some self-eval constants
-      (,(regexp-opt '("#t" "#true" "#f" "#false"
-                      "+inf.0" "-inf.0" "+nan.0" "-nan.0"
-                      "+inf.f" "-inf.f" "+nan.f" "-nan.f")
-                     'symbols)
+      (,(rx
+         (seq symbol-start
+              (or "#t" "#true" "#f" "#false"
+                  (seq (any "-+")
+                       (or "inf" "inF" "iNf" "iNF" "Inf" "InF" "INf" "INF"
+                           "nan" "naN" "nAn" "nAN" "Nan" "NaN" "NAn" "NAN")
+                       "." (any "0fF")))
+              symbol-end))
        . racket-selfeval-face)
 
       ;; Numeric literals including Racket reader hash prefixes.
@@ -95,41 +99,41 @@
          (seq symbol-start
               (or
                ;; #d #e #i or no hash prefix
-               (seq (? "#" (any "dei"))
+               (seq (? "#" (any "dDeEiI"))
                     (? (any "-+"))
                     (1+ digit)
                     (? (any "./") (1+ digit))
-                    (? (or ?e ?f)
+                    (? (any "eEfF")
                        (? (any "-+"))
                        (1+ digit))
                     (? ?+
                        (1+ digit)
                        (? (any "./") (1+ digit))
-                       (? (or ?e ?f)
+                       (? (any "eEfF")
                           (? (any "-+"))
                           (1+ digit))
                        ?i))
                ;; #x
-               (seq "#x"
+               (seq "#" (any "xX")
                     (? (any "-+"))
                     (1+ hex-digit)
                     (? (any "./") (1+ hex-digit)))
                ;; #b
-               (seq "#b"
+               (seq "#" (any "bB")
                     (or (seq (? (any "-+"))
                              (1+ (any "01"))
                              (? (any "./") (1+ (any "01"))))
                         (seq (1+ (any "01"))
-                             (or ?e ?f)
+                             (any "eEfF")
                              (? (any "-+"))
                              (1+ (any "01")))))
                ;; #o
-               (seq "#o"
+               (seq "#" (any "oO")
                     (or (seq (? (any "-+"))
                              (1+ (any "0-7"))
                              (? (any "./") (1+ (any "0-7"))))
                         (seq (1+ (any "0-7"))
-                             (or ?e ?f)
+                             (any "eEfF")
                              (? (any "-+"))
                              (1+ (any "0-7"))))))
               symbol-end))
