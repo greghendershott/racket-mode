@@ -84,7 +84,10 @@
        1 racket-selfeval-face)
 
       ;; Some self-eval constants
-      (,(regexp-opt '("#t" "#true" "#f" "#false" "+inf.0" "-inf.0" "+nan.0") 'symbols)
+      (,(regexp-opt '("#t" "#true" "#f" "#false"
+                      "+inf.0" "-inf.0" "+nan.0"
+                      "+inf.f" "-inf.f" "+nan.f")
+                     'symbols)
        . racket-selfeval-face)
 
       ;; Numeric literals including Racket reader hash prefixes.
@@ -96,13 +99,13 @@
                     (? (any "-+"))
                     (1+ digit)
                     (? (any "./") (1+ digit))
-                    (? ?e
+                    (? (or ?e ?f)
                        (? (any "-+"))
                        (1+ digit))
                     (? ?+
                        (1+ digit)
                        (? (any "./") (1+ digit))
-                       (? ?e
+                       (? (or ?e ?f)
                           (? (any "-+"))
                           (1+ digit))
                        ?i))
@@ -117,7 +120,7 @@
                              (1+ (any "01"))
                              (? (any "./") (1+ (any "01"))))
                         (seq (1+ (any "01"))
-                             ?e
+                             (or ?e ?f)
                              (? (any "-+"))
                              (1+ (any "01")))))
                ;; #o
@@ -126,7 +129,7 @@
                              (1+ (any "0-7"))
                              (? (any "./") (1+ (any "0-7"))))
                         (seq (1+ (any "0-7"))
-                             ?e
+                             (or ?e ?f)
                              (? (any "-+"))
                              (1+ (any "0-7"))))))
               symbol-end))
