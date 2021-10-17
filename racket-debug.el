@@ -37,24 +37,22 @@ directory as FILE."
 This isn't yet a defcustom becuase the debugger status is still
 \"experimental\".
 
-Must be a list of file name strings, or, a function that takes
-the name of the file being run returns a list of file names.
+Must be either a list of file name strings, or, a function that
+takes the name of the file being run and returns a list of file
+names.
 
 Each file name in the list is made absolute using
-`expand-file-name' with the file being run, and, given to
-`racket-file-name-front-to-back'.
-
-Safe to set as a buffer-local variable.")
+`expand-file-name' with respect to the file being run and given
+to `racket-file-name-front-to-back'.")
 
 (defun racket--debuggable-files (file-to-run)
   "Do the work described in doc str for variable `racket-debuggable-files'."
-  (let* ((files (if (functionp racket-debuggable-files)
-                    (funcall racket-debuggable-files file-to-run)
-                  racket-debuggable-files))
-         (files (mapcar (lambda (v)
-                          (expand-file-name v file-to-run))
-                        files)))
-    (mapcar #'racket-file-name-front-to-back files)))
+  (mapcar (lambda (file)
+            (racket-file-name-front-to-back
+             (expand-file-name file file-to-run)))
+          (if (functionp racket-debuggable-files)
+              (funcall racket-debuggable-files file-to-run)
+            racket-debuggable-files)))
 
 (defvar racket--debug-break-positions nil)
 (defvar racket--debug-break-locals nil)
