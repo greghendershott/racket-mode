@@ -85,8 +85,8 @@
 
       ;; Some self-eval constants
       (,(regexp-opt '("#t" "#true" "#f" "#false"
-                      "+inf.0" "-inf.0" "+nan.0"
-                      "+inf.f" "-inf.f" "+nan.f")
+                      "+inf.0" "-inf.0" "+nan.0" "-nan.0"
+                      "+inf.f" "-inf.f" "+nan.f" "-nan.f")
                      'symbols)
        . racket-selfeval-face)
 
