@@ -88,8 +88,8 @@
          (seq symbol-start
               (or "#t" "#T" "#true" "#f" "#F" "#false"
                   (seq (any "-+")
-                       (or "inf" "inF" "iNf" "iNF" "Inf" "InF" "INf" "INF"
-                           "nan" "naN" "nAn" "nAN" "Nan" "NaN" "NAn" "NAN")
+                       (or (regexp "[iI][nN][fF]")
+                           (regexp "[nN][aA][nN]"))
                        "." (any "0fFtT")))
               symbol-end))
        . racket-selfeval-face)
