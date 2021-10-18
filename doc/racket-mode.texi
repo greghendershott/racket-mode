@@ -238,7 +238,8 @@ Faces
 All
 
 * racket-keyword-argument-face::
-* racket-selfeval-face::
+* racket-reader-quoted-symbol-face::
+* racket-reader-syntax-quoted-symbol-face::
 * racket-here-string-face::
 * racket-xp-def-face::
 * racket-xp-use-face::
@@ -3030,7 +3031,8 @@ to hide the interesting span in the buffer.
 
 @menu
 * racket-keyword-argument-face::
-* racket-selfeval-face::
+* racket-reader-quoted-symbol-face::
+* racket-reader-syntax-quoted-symbol-face::
 * racket-here-string-face::
 * racket-xp-def-face::
 * racket-xp-use-face::
@@ -3051,10 +3053,25 @@ to hide the interesting span in the buffer.
 
 Face for @code{#:keyword} arguments.
 
-@node racket-selfeval-face
-@subsection racket-selfeval-face
+@node racket-reader-quoted-symbol-face
+@subsection racket-reader-quoted-symbol-face
 
-Face for self-evaluating expressions like numbers, symbols, strings.
+Face for symbols quoted using ' or `.
+
+This face is given only to symbols directly quoted using the
+reader shorthands ' or `. All other directly quoted values,
+including symbols quoted using ``quote'' or ``quasiquote'', get
+the face @code{font-lock-constant-face}.
+
+@node racket-reader-syntax-quoted-symbol-face
+@subsection racket-reader-syntax-quoted-symbol-face
+
+Face for symbols quoted using #' or #`.
+
+This face is given only to symbols directly quoted using the
+reader shorthands #' or #`. All other directly quoted values,
+including symbols quoted using ``syntax'' or ``quasisyntax'', get
+the face @code{font-lock-constant-face}.
 
 @node racket-here-string-face
 @subsection racket-here-string-face

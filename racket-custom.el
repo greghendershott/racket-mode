@@ -579,10 +579,31 @@ to hide the interesting span in the buffer."
  "Instead use the `paren-face' package: <https://melpa.org/#/paren-face>."
  "2017-06-13")
 
-(defface-racket racket-selfeval-face
-  '((t (:foreground "SeaGreen")))
-  "Face for self-evaluating expressions like numbers, symbols, strings."
-  "Selfeval Face")
+(define-obsolete-face-alias
+  'racket-selfeval-face
+  "Instead customize font-lock-string-face, font-lock-constant-face,
+  and racket-reader-quoted-symbol-face."
+  "2021-10-20")
+
+(defface-racket racket-reader-quoted-symbol-face
+  '((t (:inherit font-lock-constant-face)))
+  "Face for symbols quoted using ' or `.
+
+This face is given only to symbols directly quoted using the
+reader shorthands ' or `. All other directly quoted values,
+including symbols quoted using \"quote\" or \"quasiquote\", get
+the face `font-lock-constant-face'."
+  "Reader Quoted Symbol Face")
+
+(defface-racket racket-reader-syntax-quoted-symbol-face
+  '((t (:inherit default)))
+  "Face for symbols quoted using #' or #`.
+
+This face is given only to symbols directly quoted using the
+reader shorthands #' or #`. All other directly quoted values,
+including symbols quoted using \"syntax\" or \"quasisyntax\", get
+the face `font-lock-constant-face'."
+  "Reader Syntax Quoted Symbol Face")
 
 (defface-racket racket-here-string-face
   '((t (:inherit sh-heredoc)))
@@ -630,12 +651,12 @@ to hide the interesting span in the buffer."
   "Racket Debug Break Face")
 
 (defface-racket racket-debug-locals-face
-  '((t (:inherit racket-selfeval-face :box (:line-width -1) :slant italic)))
+  '((t (:inherit font-lock-constant-face :box (:line-width -1) :slant italic)))
   "Face for `racket-debug-mode' local variables."
   "Racket Debug Locals Face")
 
 (defface-racket racket-debug-result-face
-  '((t (:inherit racket-selfeval-face :box (:line-width -1) :slant italic :weight bold)))
+  '((t (:inherit font-lock-constant-face :box (:line-width -1) :slant italic :weight bold)))
   "Face for `racket-debug-mode' result values."
   "Racket Debug Result Face")
 

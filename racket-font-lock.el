@@ -21,8 +21,7 @@
 (require 'racket-ppss)
 (require 'racket-util)
 
-
-;; Define 3 levels of font-lock, as documented in 23.6.5 "Levels of
+;; Define 4 levels of font-lock, as documented in 23.6.5 "Levels of
 ;; Font Lock". User may control using `font-lock-maximum-decoration'.
 
 ;; Note: font-lock iterates by matcher, doing an re-search-forward
@@ -37,8 +36,7 @@
 
 (defconst racket-font-lock-keywords-0
   (eval-when-compile
-    `(
-      ;; #shebang
+    `(;; #shebang
       (,(rx bol "#!" (+ nonl) eol) . font-lock-comment-face)
 
       ;; #lang
@@ -66,136 +64,143 @@
 
 (defconst racket-font-lock-keywords-1
   (eval-when-compile
-    `(
-      ;; keyword argument
+    `(;; Keyword arguments
       (,(rx "#:" (1+ (or (syntax word) (syntax symbol) (syntax punctuation))))
        . racket-keyword-argument-face)
+      ;; Character literals
+      (,(rx (seq "#\\" (1+ (or (syntax word) (syntax symbol) (syntax punctuation)))))
+       . font-lock-constant-face)
 
-      ;; Various things for racket-selfeval-face
-      (,(rx (or
-             ;; symbol
-             (seq ?' ?| (+ any) ?|)
-             (seq ?' (1+ (or (syntax word) (syntax symbol) (syntax punctuation))))
-             (seq "#\\" (1+ (or (syntax word) (syntax symbol) (syntax punctuation))))))
-       . racket-selfeval-face)
-
-      ;; #rx #px
+      ;; Regular expression literals
       (,(rx (group (or "#rx" "#px")) ?\")
-       1 racket-selfeval-face)
+       1 font-lock-constant-face)
 
-      ;; Some self-eval constants
+      ;; Misc reader literals
       (,(rx
-         (seq symbol-start
-              (or "#t" "#T" "#true" "#f" "#F" "#false"
-                  (seq (any "-+")
-                       (or (regexp "[iI][nN][fF]")
-                           (regexp "[nN][aA][nN]"))
-                       "." (any "0fFtT")))
-              symbol-end))
-       . racket-selfeval-face)
+         symbol-start
+         (or "#t" "#T" "#true"
+             "#f" "#F" "#false"
+             (seq (any "-+")
+                  (or (regexp "[iI][nN][fF]")
+                      (regexp "[nN][aA][nN]"))
+                  "." (any "0fFtT")))
+         symbol-end)
+       . font-lock-constant-face)
 
-      ;; Numeric literals including Racket reader hash prefixes.
+      ;; Numeric literals
       (,(rx
-         (seq symbol-start
-              (or
-               ;; #d #e #i or no hash prefix
-               (seq (? "#" (any "dDeEiI"))
-                    (? (any "-+"))
-                    (1+ digit)
-                    (? (any "./") (1+ digit))
-                    (? (any "eEfF")
-                       (? (any "-+"))
-                       (1+ digit))
-                    (? (any "-+")
-                       (1+ digit)
-                       (? (any "./") (1+ digit))
-                       (? (any "eEfF")
-                          (? (any "-+"))
-                          (1+ digit))
-                       (any "iI")))
-               ;; #x
-               (seq "#" (any "xX")
-                    (? (any "-+"))
-                    (1+ hex-digit)
-                    (? (any "./") (1+ hex-digit))
-                    (? (any "-+")
-                       (1+ hex-digit)
-                       (? (any "./") (1+ hex-digit))
-                       (any "iI")))
-               ;; #b
-               (seq "#" (any "bB")
-                    (? (any "-+"))
-                    (1+ (any "01"))
-                    (? (any "./") (1+ (any "01")))
-                    (? (any "eEfF")
-                       (? (any "-+"))
-                       (1+ (any "01")))
-                    (? (any "-+")
-                       (1+ (any "01"))
-                       (? (any "./") (1+ (any "01")))
-                       (? (any "eEfF")
-                          (? (any "-+"))
-                          (1+ (any "01")))
-                       (any "iI")))
-               ;; #o
-               (seq "#" (any "oO")
-                    (? (any "-+"))
-                    (1+ (any "0-7"))
-                    (? (any "./") (1+ (any "0-7")))
-                    (? (any "eEfF")
-                       (? (any "-+"))
-                       (1+ (any "0-7")))
-                    (? (any "-+")
-                       (1+ (any "0-7"))
-                       (? (any "./") (1+ (any "0-7")))
-                       (? (any "eEfF")
-                          (? (any "-+"))
-                          (1+ (any "0-7")))
-                       (any "iI")))
+         symbol-start
+         (or
+          ;; #d #e #i or no hash prefix
+          (seq (? "#" (any "dDeEiI"))
+               (? (any "-+"))
+               (1+ digit)
+               (? (any "./") (1+ digit))
+               (? (any "eEfF")
+                  (? (any "-+"))
+                  (1+ digit))
+               (? (any "-+")
+                  (1+ digit)
+                  (? (any "./") (1+ digit))
+                  (? (any "eEfF")
+                     (? (any "-+"))
+                     (1+ digit))
+                  (any "iI")))
+          ;; #x
+          (seq "#" (any "xX")
+               (? (any "-+"))
+               (1+ hex-digit)
+               (? (any "./") (1+ hex-digit))
+               (? (any "-+")
+                  (1+ hex-digit)
+                  (? (any "./") (1+ hex-digit))
+                  (any "iI")))
+          ;; #b
+          (seq "#" (any "bB")
+               (? (any "-+"))
+               (1+ (any "01"))
+               (? (any "./") (1+ (any "01")))
+               (? (any "eEfF")
+                  (? (any "-+"))
+                  (1+ (any "01")))
+               (? (any "-+")
+                  (1+ (any "01"))
+                  (? (any "./") (1+ (any "01")))
+                  (? (any "eEfF")
+                     (? (any "-+"))
+                     (1+ (any "01")))
+                  (any "iI")))
+          ;; #o
+          (seq "#" (any "oO")
+               (? (any "-+"))
+               (1+ (any "0-7"))
+               (? (any "./") (1+ (any "0-7")))
+               (? (any "eEfF")
+                  (? (any "-+"))
+                  (1+ (any "0-7")))
+               (? (any "-+")
+                  (1+ (any "0-7"))
+                  (? (any "./") (1+ (any "0-7")))
+                  (? (any "eEfF")
+                     (? (any "-+"))
+                     (1+ (any "0-7")))
+                  (any "iI")))
+          ;; extflonum
+          (or
+           ;; #d or no hash prefix
+           (seq (? "#" (any "dD"))
+                (? (any "-+"))
+                (1+ digit)
+                (? (any "./") (1+ digit))
+                (any "tT")
+                (? (any "-+"))
+                (1+ digit))
+           ;; #x
+           (seq "#" (any "xX")
+                (? (any "-+"))
+                (1+ hex-digit)
+                (? (any "./") (1+ hex-digit))
+                (any "tT")
+                (? (any "-+"))
+                (1+ hex-digit))
+           ;; #b
+           (seq "#" (any "bB")
+                (? (any "-+"))
+                (1+ (any "01"))
+                (? (any "./") (1+ (any "01")))
+                (any "tT")
+                (? (any "-+"))
+                (1+ (any "01")))
+           ;; #o
+           (seq "#" (any "oO")
+                (? (any "-+"))
+                (1+ (any "0-7"))
+                (? (any "./") (1+ (any "0-7")))
+                (any "tT")
+                (? (any "-+"))
+                (1+ (any "0-7")))))
+         symbol-end)
+       . font-lock-constant-face)
 
-               ;;; extflonum
-               ;; #d or no hash prefix
-               (seq (? "#" (any "dD"))
-                    (? (any "-+"))
-                    (1+ digit)
-                    (? (any "./") (1+ digit))
-                    (any "tT")
-                    (? (any "-+"))
-                    (1+ digit))
-               ;; #x
-               (seq "#" (any "xX")
-                    (? (any "-+"))
-                    (1+ hex-digit)
-                    (? (any "./") (1+ hex-digit))
-                    (any "tT")
-                    (? (any "-+"))
-                    (1+ hex-digit))
-               ;; #b
-               (seq "#" (any "bB")
-                    (? (any "-+"))
-                    (1+ (any "01"))
-                    (? (any "./") (1+ (any "01")))
-                    (any "tT")
-                    (? (any "-+"))
-                    (1+ (any "01")))
-               ;; #o
-               (seq "#" (any "oO")
-                    (? (any "-+"))
-                    (1+ (any "0-7"))
-                    (? (any "./") (1+ (any "0-7")))
-                    (any "tT")
-                    (? (any "-+"))
-                    (1+ (any "0-7"))))
-              symbol-end))
-       . racket-selfeval-face)
+      ;; (quasi)syntax reader shorthand for symbols only
+      (,(rx ?#
+            (or ?` ?')
+            (or
+             (seq ?| (+ any) ?|)
+             (seq (1+ (or (syntax word) (syntax symbol) (syntax punctuation))))))
+       . racket-reader-syntax-quoted-symbol-face)
 
-      ))
-  "Self-evals")
+      ;; (quasi)quote reader shorthand for symbols only
+      (,(rx (or ?` ?')
+            (or
+             (seq ?| (+ any) ?|)
+             (seq (1+ (or (syntax word) (syntax symbol) (syntax punctuation))))))
+       . racket-reader-quoted-symbol-face)))
+  "Symbols, constants, regular expressions")
 
 (defconst racket-font-lock-keywords-2
   (eval-when-compile
-    `(
-      ;; def* -- variables
+    `(;; def* -- variables
       (,(rx (syntax open-parenthesis)
             "def" (0+ (or (syntax word) (syntax symbol) (syntax punctuation)))
             (1+ space)
@@ -236,14 +241,12 @@
             (1+ space)
             (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation)))))
        (1 font-lock-keyword-face nil t)
-       (2 font-lock-function-name-face nil t))
-      ))
+       (2 font-lock-function-name-face nil t))))
   "Parens, modules, function/variable identifiers, syntax-")
 
 (defconst racket-font-lock-keywords-3
   (eval-when-compile
-    `(
-      (,(regexp-opt racket-keywords 'symbols) . font-lock-keyword-face)
+    `((,(regexp-opt racket-keywords 'symbols) . font-lock-keyword-face)
       (,(regexp-opt racket-builtins-1-of-2 'symbols) . font-lock-builtin-face)
       (,(regexp-opt racket-builtins-2-of-2 'symbols) . font-lock-builtin-face)
       (,(regexp-opt racket-type-list 'symbols) . font-lock-type-face)
@@ -259,8 +262,7 @@
           (compose-region (match-beginning 1)
                           (match-end       1)
                           racket-lambda-char)))
-       nil t)
-      ))
+       nil t)))
   "Function/variable identifiers, Typed Racket types.
 
 Note: To the extent you use #lang racket or #typed/racket, this
@@ -286,10 +288,7 @@ doesn't really fit that.")
           racket-font-lock-keywords-3))
 
 (defconst racket-font-lock-keywords
-  '(racket-font-lock-keywords-level-0
-    racket-font-lock-keywords-level-1
-    racket-font-lock-keywords-level-2
-    racket-font-lock-keywords-level-3))
+  racket-font-lock-keywords-level-3)
 
 (defun racket-font-lock-syntactic-face-function (state)
   (let ((q (racket--ppss-string-p state)))

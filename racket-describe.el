@@ -193,11 +193,11 @@ anchor. If numberp, move to that position."
 
 (defconst racket--shr-faces
   '(("RktSym"                . font-lock-keyword-face)
-    ("RktVal"                . racket-selfeval-face)
+    ("RktVal"                . font-lock-constant-face)
     ("RktCmt"                . font-lock-comment-face)
     ("RktErr"                . error)
     ("RktOut"                . font-lock-constant-face) ;ad hoc choice
-    ("RktRes"                . racket-selfeval-face)
+    ("RktRes"                . font-lock-constant-face)
     ("RktVar"                . font-lock-variable-name-face)
     ("RktModLink"            . font-lock-keyword-face)
     ("techinside"            . italic)

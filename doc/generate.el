@@ -221,7 +221,8 @@
 
 (defconst racket-generate--faces
   '(racket-keyword-argument-face
-    racket-selfeval-face
+    racket-reader-quoted-symbol-face
+    racket-reader-syntax-quoted-symbol-face
     racket-here-string-face
     racket-xp-def-face
     racket-xp-use-face

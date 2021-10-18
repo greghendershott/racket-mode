@@ -12,9 +12,9 @@
   (a b
    c))
 
-'((«:racket-selfeval-face:1») «:racket-selfeval-face:2» «:racket-selfeval-face:3»
-  («:racket-selfeval-face:3»)
-  «:racket-selfeval-face:4» «:racket-selfeval-face:5»)
+'((«c:1») «c:2» «c:3»
+  («c:3»)
+  «c:4» «c:5»)
 
 «m:;;; »«x:Quasiquoted list (align with head) and unquote or unquote-splicing
 »«m:;;; »«x:(use normal indent rules for the form).
@@ -41,13 +41,13 @@
 #`(«k:for/list» ([x xs])
     x)
 
-#'(«k:#%app» («k:#%app» «b:hasheq» («k:quote» a) («k:quote» «:racket-selfeval-face:42»))
+#'(«k:#%app» («k:#%app» «b:hasheq» («k:quote» a) («k:quote» «c:42»))
          («k:quote» a))
 
-(«k:#%app» («k:#%app» «b:hasheq» («k:quote» a) («k:quote» «:racket-selfeval-face:42»))
+(«k:#%app» («k:#%app» «b:hasheq» («k:quote» a) («k:quote» «c:42»))
        («k:quote» a))
 
-#'(foo («k:#%app» «b:hasheq» («k:quote» a) («k:quote» «:racket-selfeval-face:42»))
+#'(foo («k:#%app» «b:hasheq» («k:quote» a) («k:quote» «c:42»))
        («k:quote» a))
 
 «m:;;; »«x:Rackjure style dictionary (when racket-indent-curly-as-sequence is t).
@@ -91,29 +91,29 @@
  b
  c)
 
-(«b:call-with-values» («k:lambda» () («b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»))
+(«b:call-with-values» («k:lambda» () («b:values» «c:1» «c:2»))
                   «b:+»)
 
 («b:call-with-values»
- («k:lambda» () («b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»))
+ («k:lambda» () («b:values» «c:1» «c:2»))
  «b:+»)
 
 «m:;;; »«x:Forms with special indentation
 »
-(«k:let» ([«v:x» «:racket-selfeval-face:0»])
+(«k:let» ([«v:x» «c:0»])
   x)
 
 «m:;; »«x:indent 2
 »
 («k:syntax-case» stx ()
-  [(«k:_» x) #«:racket-selfeval-face:'#f»]
-  [(«k:_» x y) #«:racket-selfeval-face:'#t»])
+  [(«k:_» x) #'«c:#f»]
+  [(«k:_» x y) #'«c:#t»])
 
 «m:;; »«x:indent 3
 »
 («k:syntax-case*» stx () x
-  [(«k:_» x) #«:racket-selfeval-face:'#f»]
-  [(«k:_» x y) #«:racket-selfeval-face:'#t»])
+  [(«k:_» x) #'«c:#f»]
+  [(«k:_» x y) #'«c:#t»])
 
 («k:syntax-case*»
     stx
@@ -127,23 +127,23 @@
      «k:struct»
      «k:define-struct»)
     x
-  [(«k:_» x) #«:racket-selfeval-face:'#f»]
-  [(«k:_» x y) #«:racket-selfeval-face:'#t»])
+  [(«k:_» x) #'«c:#f»]
+  [(«k:_» x y) #'«c:#t»])
 
 «m:;; »«x:begin and cond have 0 style
 »(«k:begin»
-  «:racket-selfeval-face:0»
-  «:racket-selfeval-face:0»)
+  «c:0»
+  «c:0»)
 
-(«k:begin» «:racket-selfeval-face:0»
-       «:racket-selfeval-face:0»)
+(«k:begin» «c:0»
+       «c:0»)
 
-(«k:cond» [«:racket-selfeval-face:1» «:racket-selfeval-face:2»]
-      [«:racket-selfeval-face:3» «:racket-selfeval-face:4»])
+(«k:cond» [«c:1» «c:2»]
+      [«c:3» «c:4»])
 
 («k:cond»
-  [«:racket-selfeval-face:1» «:racket-selfeval-face:2»]
-  [«:racket-selfeval-face:3» «:racket-selfeval-face:4»])
+  [«c:1» «c:2»]
+  [«c:3» «c:4»])
 
 («k:if» a
     x
@@ -151,12 +151,12 @@
 
 «m:;; »«x:begin*
 »
-(begin-for-foo «:racket-selfeval-face:0»
-               «:racket-selfeval-face:0»)
+(begin-for-foo «c:0»
+               «c:0»)
 
 (begin-for-foo
-  «:racket-selfeval-face:0»
-  «:racket-selfeval-face:0»)
+  «c:0»
+  «c:0»)
 
 («k:with-handlers» ([x y])
   a b c)
@@ -170,12 +170,12 @@
   ())
 
 («b:match-define» («b:list» x y)
-  («b:list» «:racket-selfeval-face:1» «:racket-selfeval-face:2»))
+  («b:list» «c:1» «c:2»))
 
-(«k:with-output-to-file» path «:racket-keyword-argument-face:#:mode» «:racket-selfeval-face:'text» «:racket-keyword-argument-face:#:exists» «:racket-selfeval-face:'replace»
+(«k:with-output-to-file» path «:racket-keyword-argument-face:#:mode» «:racket-reader-quoted-symbol-face:'text» «:racket-keyword-argument-face:#:exists» «:racket-reader-quoted-symbol-face:'replace»
   («k:λ» () («b:display» «s:"Hello, world."»)))
 
-(«k:call-with-output-file» path «:racket-keyword-argument-face:#:mode» «:racket-selfeval-face:'text» «:racket-keyword-argument-face:#:exists» «:racket-selfeval-face:'replace»
+(«k:call-with-output-file» path «:racket-keyword-argument-face:#:mode» «:racket-reader-quoted-symbol-face:'text» «:racket-keyword-argument-face:#:exists» «:racket-reader-quoted-symbol-face:'replace»
   («k:λ» (out) («b:display» «s:"Hello, world."» out)))
 
 
@@ -184,60 +184,60 @@
 »
 «m:;; »«x:module has indent 2
 »
-(«k:module» «:racket-selfeval-face:1»
-    «:racket-selfeval-face:2»
-  «:racket-selfeval-face:3»
-  «:racket-selfeval-face:4»
-  «:racket-selfeval-face:5»)
+(«k:module» «c:1»
+    «c:2»
+  «c:3»
+  «c:4»
+  «c:5»)
 
 «m:;; »«x:Normal case
-»(«k:module» «:racket-selfeval-face:1» «:racket-selfeval-face:2»
-  «:racket-selfeval-face:3»
-  «:racket-selfeval-face:4»
-  «:racket-selfeval-face:5»)
+»(«k:module» «c:1» «c:2»
+  «c:3»
+  «c:4»
+  «c:5»)
 
 «m:;; »«x:Weird case -- but this is how scheme-mode indents it.
-»(«k:module» «:racket-selfeval-face:1» «:racket-selfeval-face:2» «:racket-selfeval-face:3»
-        «:racket-selfeval-face:4»
-        «:racket-selfeval-face:5»)
+»(«k:module» «c:1» «c:2» «c:3»
+        «c:4»
+        «c:5»)
 
 «m:;; »«x:Weird case -- but this is how scheme-mode indents it.
-»(«k:module» «:racket-selfeval-face:1» «:racket-selfeval-face:2» «:racket-selfeval-face:3» «:racket-selfeval-face:4»
-        «:racket-selfeval-face:5»)
+»(«k:module» «c:1» «c:2» «c:3» «c:4»
+        «c:5»)
 
 «m:;;; »«x:for/fold
 »
 «m:;; »«x:for/fold untyped, accum on same line
-»(«k:for/fold» ([a «:racket-selfeval-face:0»]
-           [b «:racket-selfeval-face:0»])
-          ([x «:racket-selfeval-face:0»]
-           [y «:racket-selfeval-face:0»])
-  «:racket-selfeval-face:#t»)
+»(«k:for/fold» ([a «c:0»]
+           [b «c:0»])
+          ([x «c:0»]
+           [y «c:0»])
+  «c:#t»)
 
 «m:;; »«x:for/fold untyped, accum on different line
 »(«k:for/fold»
-    ([a «:racket-selfeval-face:0»]
-     [b «:racket-selfeval-face:0»])
-    ([x «:racket-selfeval-face:0»]
-     [y «:racket-selfeval-face:0»])
-  «:racket-selfeval-face:#t»)
+    ([a «c:0»]
+     [b «c:0»])
+    ([x «c:0»]
+     [y «c:0»])
+  «c:#t»)
 
 «m:;; »«x:for/fold typed, type on same line
 »(«k:for/fold» «b::» T
-    ([a «:racket-selfeval-face:0»]
-     [b «:racket-selfeval-face:0»])
-    ([x «:racket-selfeval-face:0»]
-     [y «:racket-selfeval-face:0»])
-  «:racket-selfeval-face:#t»)
+    ([a «c:0»]
+     [b «c:0»])
+    ([x «c:0»]
+     [y «c:0»])
+  «c:#t»)
 
 «m:;; »«x:for/fold typed, type on different line
 »(«k:for/fold»
     «b::» T
-    ([a «:racket-selfeval-face:0»]
-     [b «:racket-selfeval-face:0»])
-    ([x «:racket-selfeval-face:0»]
-     [y «:racket-selfeval-face:0»])
-  «:racket-selfeval-face:#t»)
+    ([a «c:0»]
+     [b «c:0»])
+    ([x «c:0»]
+     [y «c:0»])
+  «c:#t»)
 
 «m:;;; »«x:Bug #50
 »
@@ -259,43 +259,43 @@
     [(«k:_» id:id (field:id «k:...»))
      («k:with-syntax» ([(accessor «k:...»)
                     («k:for/list» ([fld («k:in-list» («b:syntax->list» #'(«b:field» «k:...»)))])
-                      («b:format-id» stx «s:"~a-~a"» («b:syntax->datum» #«:racket-selfeval-face:'id») fld))])
+                      («b:format-id» stx «s:"~a-~a"» («b:syntax->datum» «:racket-reader-syntax-quoted-symbol-face:#'id») fld))])
        #'(serializable-struct
           id («b:field» «k:...») «:racket-keyword-argument-face:#:transparent»
           «:racket-keyword-argument-face:#:property» «b:prop:procedure»
           («k:lambda» (self . args)
             («b:match» args
-              [(«b:list» «:racket-selfeval-face:'field») (accessor self)] «k:...»
-              [(«b:list» («b:list» «:racket-selfeval-face:'field»)) (accessor self)] «k:...»
-              [(«b:list» (list-rest «:racket-selfeval-face:'field» fields)) ((accessor self) fields)] «k:...»
-              [(list-rest «:racket-selfeval-face:'field» f args)
+              [(«b:list» «:racket-reader-quoted-symbol-face:'field») (accessor self)] «k:...»
+              [(«b:list» («b:list» «:racket-reader-quoted-symbol-face:'field»)) (accessor self)] «k:...»
+              [(«b:list» (list-rest «:racket-reader-quoted-symbol-face:'field» fields)) ((accessor self) fields)] «k:...»
+              [(list-rest «:racket-reader-quoted-symbol-face:'field» f args)
                («k:struct-copy» id self
                             [«b:field» («k:apply» f (accessor self) args)])] «k:...»
-              [(list-rest («b:list» «:racket-selfeval-face:'field») f args)  «m:;»«x:<-- THIS SEXPR IS INDENTED TOO FAR
+              [(list-rest («b:list» «:racket-reader-quoted-symbol-face:'field») f args)  «m:;»«x:<-- THIS SEXPR IS INDENTED TOO FAR
 »               («k:struct-copy» id self
                             [«b:field» («k:apply» f (accessor self) args)])] «k:...»
-              [(list-rest (list-rest «:racket-selfeval-face:'field» fields) args)
+              [(list-rest (list-rest «:racket-reader-quoted-symbol-face:'field» fields) args)
                («k:struct-copy» id self
                             [«b:field» («k:apply» (accessor self) fields args)])] «k:...»))))]))
 
 «m:;; »«x:Bug #123
 »
 #hash([a . (#hash()
-            «:racket-selfeval-face:0»)]
+            «c:0»)]
       [b . (#hasheq()
-            «:racket-selfeval-face:0»)]
-      [c . (#fx(«:racket-selfeval-face:0» «:racket-selfeval-face:1» «:racket-selfeval-face:2»)
-            «:racket-selfeval-face:0»)]
-      [d . (#fx3(«:racket-selfeval-face:0» «:racket-selfeval-face:1» «:racket-selfeval-face:2»)
-            «:racket-selfeval-face:0»)]
-      [e . (#fl(«:racket-selfeval-face:0.0» «:racket-selfeval-face:1.0» «:racket-selfeval-face:2.0»)
-            «:racket-selfeval-face:0»)]
-      [f . (#fl3(«:racket-selfeval-face:0.0» «:racket-selfeval-face:1.0» «:racket-selfeval-face:2.0»)
-            «:racket-selfeval-face:0»)]
+            «c:0»)]
+      [c . (#fx(«c:0» «c:1» «c:2»)
+            «c:0»)]
+      [d . (#fx3(«c:0» «c:1» «c:2»)
+            «c:0»)]
+      [e . (#fl(«c:0.0» «c:1.0» «c:2.0»)
+            «c:0»)]
+      [f . (#fl3(«c:0.0» «c:1.0» «c:2.0»)
+            «c:0»)]
       [g . (#s(foo x)
-            «:racket-selfeval-face:0»)]
-      [h . (#3(«:racket-selfeval-face:0» «:racket-selfeval-face:1» «:racket-selfeval-face:2»)
-            «:racket-selfeval-face:0»)])
+            «c:0»)]
+      [h . (#3(«c:0» «c:1» «c:2»)
+            «c:0»)])
 
 «m:;; »«x:Bug #136
 »
@@ -303,14 +303,14 @@
         #;2
         3)»
 
-(«b:list» «:racket-selfeval-face:1»
+(«b:list» «c:1»
       «m:#;»«x:(list 1
               (let ([x 2]
                     #;[y 3])
                 x)
               3)»
-      «:racket-selfeval-face:2»
-      «:racket-selfeval-face:3»)
+      «c:2»
+      «c:3»)
 
 «m:;; »«x:Bug #243
 »(«k:cond» [x y
@@ -327,12 +327,12 @@
 «m:;; »«x:Issue #516
 »(«k:lambda» (f [a «b::» «t:Number»]
            [b «b::» «t:Number»]) «b::» «t:Number»
-  «:racket-selfeval-face:10»)
+  «c:10»)
 
 («k:lambda» (f [a «b::» «t:Number»]
            [b «b::» «t:Number»])
         «b::» «t:Number»
-  «:racket-selfeval-face:10»)
+  «c:10»)
 
 «m:;; »«x:Issue #521
 »(define-judgment-form «v:L»
@@ -351,12 +351,12 @@
 «m:;; »«x:Issue 558
 »(«k:module+» «f:test»
   («b:+»
-   «:racket-selfeval-face:1»
+   «c:1»
    «:racket-here-string-face:#<<EOF
 ()
 EOF
 »   )
-  «:racket-selfeval-face:1»)
+  «c:1»)
 
 (foo (bar «s:"
 (abc)"»

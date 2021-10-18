@@ -414,3 +414,45 @@ BAR
 
 ;; Issue 546
 'C# (add1 1)
+
+;; Examples of quoted expressions that should receive
+;; font-lock-string-face, font-lock-constant-face,
+;; racket-reader-quoted-symbol-face, or none of those.
+'"string"
+'#px"regexp"
+'1234
+'#x1234
+'#t
+'+NaN.0
+'#\A
+'symbol
+`symbol
+'1symbol ;legal Racket identifier
+`1symbol
+'+
+'Noon.0
+'|foo bar|
+'|foo \| bar|
+'("string" 1 symbol) ;symbol not directly quoted
+'(a b c)
+
+;; Examples of quoted expressions that should receive
+;; font-lock-string-face, font-lock-constant-face,
+;; racket-reader-syntax-quoted-symbol-face, or none of those.
+#'"string"
+#'#px"regexp"
+#'1234
+#'#x1234
+#'#t
+#'+NaN.0
+#'#\A
+#'symbol
+#`symbol
+#'1symbol ;legal Racket identifier
+#`1symbol
+#'+
+#'Noon.0
+#'|foo bar|
+#'|foo \| bar|
+#'("string" 1 symbol) ;symbol not directly quoted
+#'(a b c)

@@ -14,58 +14,58 @@
 «m:;; »«x:Various def* forms are font-locked:
 »
 («k:define» («f:function» foo)
-  «:racket-selfeval-face:#t»)
+  «c:#t»)
 
 («k:define» ((«f:curried-function» x) y)
   («b:list» x y))
 
-(«k:define» «v:a-var» «:racket-selfeval-face:10»)
+(«k:define» «v:a-var» «c:10»)
 
 («b:define/contract» («f:f2» x)
   («b:any/c» . «b:->» . «b:any»)
-  «:racket-selfeval-face:#t»)
+  «c:#t»)
 
-(«k:define-values» («v:1st-var 2nd-var») («b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»))
+(«k:define-values» («v:1st-var 2nd-var») («b:values» «c:1» «c:2»))
 
 (define-thing «v:foo»)  «m:;»«x:bug 276
 »
 «m:;; »«x:let: font-lock identifiers
 »
-(«k:let» ([«v:foo» «:racket-selfeval-face:10»]
-      [«v:bar» «:racket-selfeval-face:20»])
+(«k:let» ([«v:foo» «c:10»]
+      [«v:bar» «c:20»])
   foo)
 
-(«k:let» «f:loop» ([«v:x» «:racket-selfeval-face:10»])
+(«k:let» «f:loop» ([«v:x» «c:10»])
   («k:unless» («b:zero?» x)
     (loop («b:sub1» x))))
 
-(«k:let*» ([«v:foo» «:racket-selfeval-face:10»]
-       [«v:bar» «:racket-selfeval-face:20»])
+(«k:let*» ([«v:foo» «c:10»]
+       [«v:bar» «c:20»])
   foo)
 
-(«k:let-values» ([(«v:a» «v:b») («b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»)])
+(«k:let-values» ([(«v:a» «v:b») («b:values» «c:1» «c:2»)])
   («b:values» a b))
 
-(«k:let*-values» ([(«v:a» «v:b») («b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»)])
+(«k:let*-values» ([(«v:a» «v:b») («b:values» «c:1» «c:2»)])
   («b:values» a b))
 
-(«k:letrec-values» ([(«v:a» «v:b») («b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»)])
+(«k:letrec-values» ([(«v:a» «v:b») («b:values» «c:1» «c:2»)])
   («b:values» a b))
 
-(«k:let-syntax» ([«v:foo» #«:racket-selfeval-face:'foo»])
+(«k:let-syntax» ([«v:foo» «:racket-reader-syntax-quoted-symbol-face:#'foo»])
   foo)
 
-(«k:letrec-syntax» ([«v:foo» #«:racket-selfeval-face:'foo»])
+(«k:letrec-syntax» ([«v:foo» «:racket-reader-syntax-quoted-symbol-face:#'foo»])
   foo)
 
-(«k:let-syntaxes» ([(«v:foo») #«:racket-selfeval-face:'foo»])
+(«k:let-syntaxes» ([(«v:foo») «:racket-reader-syntax-quoted-symbol-face:#'foo»])
   foo)
 
-(«k:letrec-syntaxes» ([(«v:foo») #«:racket-selfeval-face:'foo»])
+(«k:letrec-syntaxes» ([(«v:foo») «:racket-reader-syntax-quoted-symbol-face:#'foo»])
   foo)
 
-(«k:letrec-syntaxes+values» ([(«v:foo») #«:racket-selfeval-face:'foo»])
-                        ([(a b) («b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»)])
+(«k:letrec-syntaxes+values» ([(«v:foo») «:racket-reader-syntax-quoted-symbol-face:#'foo»])
+                        ([(a b) («b:values» «c:1» «c:2»)])
   foo)
 
 «m:;; »«x:for/fold is indented correctly:
@@ -74,28 +74,28 @@
   («b:string-append» str ss))
 
 «m:;; »«x:Auto-converts word `lambda` to `λ`:
-»(«k:lambda» (x) «:racket-selfeval-face:#t»)
+»(«k:lambda» (x) «c:#t»)
 
 «m:;; »«x:Or use M-C-y to insert to insert `λ` char.
 »
 «m:;; »«x:Smart indentation for quoted lists:
-»'(«:racket-selfeval-face:1» «:racket-selfeval-face:2»
-  «:racket-selfeval-face:3» «:racket-selfeval-face:4»)
+»'(«c:1» «c:2»
+  «c:3» «c:4»)
 
 «m:;; »«x:Smart indentation for vector literals:
-»#(«:racket-selfeval-face:1» «:racket-selfeval-face:2»
-  «:racket-selfeval-face:3» «:racket-selfeval-face:4»)
+»#(«c:1» «c:2»
+  «c:3» «c:4»)
 
 «m:;; »«x:Smart indentation for Rackjure dict literals:
 »(«k:module» «f:x» «v:rackjure»
-  {«:racket-selfeval-face:'a» «:racket-selfeval-face:0»
-   «:racket-selfeval-face:'b» «:racket-selfeval-face:2»})
+  {«:racket-reader-quoted-symbol-face:'a» «c:0»
+   «:racket-reader-quoted-symbol-face:'b» «c:2»})
 
 «m:;; »«x:Silly test submodule example.
 »«m:;; »«x:Try using C-c C-f to Fold (hide) it, and C-c C-u to Unfold it.
 »(«k:module+» «f:test»
   («k:require» rackunit)
-  (check-true «:racket-selfeval-face:#t»))
+  (check-true «c:#t»))
 
 «m:;; »«x:Single line comment
 »
@@ -116,20 +116,20 @@ comment
 
 «m:;; »«x:Nested sexpr comments
 »
-(«b:list» «:racket-selfeval-face:2»
+(«b:list» «c:2»
       «m:#;»«x:2»)
 
-(«b:list» «:racket-selfeval-face:1»
+(«b:list» «c:1»
       «m:#;»«x:4»
       «m:#;»«x:(3)»)
 
 («k:let» («m:#;»«x:[x #;1]»
-      [«v:y» «:racket-selfeval-face:2»])
+      [«v:y» «c:2»])
   y)
 
 «m:;; »«x:Issue 388
-»«:racket-selfeval-face:1» «m:; »«x:#;
-»«:racket-selfeval-face:2»
+»«c:1» «m:; »«x:#;
+»«c:2»
 
 «m:;; »«x:Issue 408
 »
@@ -140,20 +140,20 @@ comment
 
 «m:;; »«x:Issue 432
 »
-«m:#;» «m:#;» «x:'comment-me» «x:'comment-me» «:racket-selfeval-face:'but-not-me»
+«m:#;» «m:#;» «x:'comment-me» «x:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
 
-«m:#;#;» «x:'comment-me» «x:'comment-me» «:racket-selfeval-face:'but-not-me»
+«m:#;#;» «x:'comment-me» «x:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
 
-«m:#;» «m:#;» «m:#;» «x:'comment-me» «x:'comment-me» «x:'comment-me» «:racket-selfeval-face:'but-not-me»
+«m:#;» «m:#;» «m:#;» «x:'comment-me» «x:'comment-me» «x:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
 
-«m:#;#;#;» «x:'comment-me» «x:'comment-me» «x:'comment-me» «:racket-selfeval-face:'but-not-me»
+«m:#;#;#;» «x:'comment-me» «x:'comment-me» «x:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
 
 «m:#;» «m:;; »«x:comment
 »«m:;; »«x:comment
 »«m:#;» «x:#| comment |#»
 «x:'comment-me»
 «x:'comment-me»
-«:racket-selfeval-face:'but-not-me»
+«:racket-reader-quoted-symbol-face:'but-not-me»
 
 
 («k:define» «v:x» «:racket-here-string-face:#<<FOO
@@ -176,20 +176,20 @@ BAR
 
 | #|no comment|# |
 
-(«k:define» («f:a-function» x «:racket-keyword-argument-face:#:keyword» [y «:racket-selfeval-face:0»])
-  («k:and» («b:append» («b:car» '(«:racket-selfeval-face:1» «:racket-selfeval-face:2» «:racket-selfeval-face:3»))))
-  («b:regexp-match?» «:racket-selfeval-face:#rx»«s:"foobar"» «s:"foobar"»)
-  («b:regexp-match?» «:racket-selfeval-face:#px»«s:"foobar"» «s:"foobar"»)
-  («k:define» «v:a» «:racket-selfeval-face:1»)
+(«k:define» («f:a-function» x «:racket-keyword-argument-face:#:keyword» [y «c:0»])
+  («k:and» («b:append» («b:car» '(«c:1» «c:2» «c:3»))))
+  («b:regexp-match?» «c:#rx»«s:"foobar"» «s:"foobar"»)
+  («b:regexp-match?» «c:#px»«s:"foobar"» «s:"foobar"»)
+  («k:define» «v:a» «c:1»)
   («k:let» ([«v:a» «s:"foo"»]
         [«v:b» «s:"bar"»])
     («b:displayln» b))
   («k:let*» ([«v:a» «s:"foo"»]
          [«v:b» «s:"bar"»])
     («b:displayln» b))
-  («k:let-values» ([(«v:a» «v:b») («b:values» «:racket-selfeval-face:1» «:racket-selfeval-face:2»)])
-    «:racket-selfeval-face:#t»)
-  («k:for/list» ([x («k:in-list» («b:list» «:racket-selfeval-face:1» «:racket-selfeval-face:2» («b:list» «:racket-selfeval-face:3» «:racket-selfeval-face:4»)))])
+  («k:let-values» ([(«v:a» «v:b») («b:values» «c:1» «c:2»)])
+    «c:#t»)
+  («k:for/list» ([x («k:in-list» («b:list» «c:1» «c:2» («b:list» «c:3» «c:4»)))])
     («k:cond» [(«b:pair?» x) («b:car» x)]
           [«k:else» x])))
 
@@ -203,172 +203,172 @@ BAR
 »(«k:define» «v:||» (|list|))
 
 («k:define» («f:foo»)
-  («k:let» ([«v:x» «:racket-selfeval-face:10»])
-    «:racket-selfeval-face:#t»)
+  («k:let» ([«v:x» «c:10»])
+    «c:#t»)
 
-  («k:let» ([«v:x» «:racket-selfeval-face:1»]
-        [«v:y» «:racket-selfeval-face:2»])
-    «:racket-selfeval-face:#t»)
+  («k:let» ([«v:x» «c:1»]
+        [«v:y» «c:2»])
+    «c:#t»)
 
-  («k:define» «v:1/2-the-way» «:racket-selfeval-face:0»)
-  («k:define» «v:less-than-1/2» «:racket-selfeval-face:0»)
+  («k:define» «v:1/2-the-way» «c:0»)
+  («k:define» «v:less-than-1/2» «c:0»)
 
   «m:;; »«x:Self-eval examples
 »  («b:values»
    1/2-the-way                            «m:;»«x:should NOT be self-eval
 »   less-than-1/2                          «m:;»«x:should NOT be self-eval
-»   «:racket-selfeval-face:+inf.0» «:racket-selfeval-face:-inf.0» «:racket-selfeval-face:+inf.f» «:racket-selfeval-face:-inf.f» «:racket-selfeval-face:+inf.t» «:racket-selfeval-face:-inf.t»
-   «:racket-selfeval-face:+nan.0» «:racket-selfeval-face:-nan.0» «:racket-selfeval-face:+nan.f» «:racket-selfeval-face:-nan.f» «:racket-selfeval-face:+nan.t» «:racket-selfeval-face:-nan.t»
-   «:racket-selfeval-face:#t» «:racket-selfeval-face:#T» «:racket-selfeval-face:#true»
-   «:racket-selfeval-face:#f» «:racket-selfeval-face:#F» «:racket-selfeval-face:#false»
-   «:racket-selfeval-face:1»
-   «:racket-selfeval-face:1.0»
-   «:racket-selfeval-face:1/2»
-   «:racket-selfeval-face:-1/2»
-   «:racket-selfeval-face:#b100»
-   «:racket-selfeval-face:#o123»
-   «:racket-selfeval-face:#d123»
-   «:racket-selfeval-face:#x7f7f»
-   «:racket-selfeval-face:'symbol»
-   «:racket-selfeval-face:'|symbol with spaces|»
-   «:racket-selfeval-face:'|;no comment|»
-   «:racket-selfeval-face:'| #|no comment|# |»
-   «:racket-selfeval-face:'symbol-with-no-alpha/numeric-chars»
-   «:racket-selfeval-face:#\c»
-   «:racket-selfeval-face:#\space»
-   «:racket-selfeval-face:#\newline»
+»   «c:+inf.0» «c:-inf.0» «c:+inf.f» «c:-inf.f» «c:+inf.t» «c:-inf.t»
+   «c:+nan.0» «c:-nan.0» «c:+nan.f» «c:-nan.f» «c:+nan.t» «c:-nan.t»
+   «c:#t» «c:#T» «c:#true»
+   «c:#f» «c:#F» «c:#false»
+   «c:1»
+   «c:1.0»
+   «c:1/2»
+   «c:-1/2»
+   «c:#b100»
+   «c:#o123»
+   «c:#d123»
+   «c:#x7f7f»
+   «:racket-reader-quoted-symbol-face:'symbol»
+   «:racket-reader-quoted-symbol-face:'|symbol with spaces|»
+   «:racket-reader-quoted-symbol-face:'|;no comment|»
+   «:racket-reader-quoted-symbol-face:'| #|no comment|# |»
+   «:racket-reader-quoted-symbol-face:'symbol-with-no-alpha/numeric-chars»
+   «c:#\c»
+   «c:#\space»
+   «c:#\newline»
 
    «m:;; »«x:Literal number examples
 »
    «m:;; »«x:#b
-»   «:racket-selfeval-face:#b1.1»
-   «:racket-selfeval-face:#b-1.1»
-   «:racket-selfeval-face:#b1e1»
-   «:racket-selfeval-face:#b0/1»
-   «:racket-selfeval-face:#b1/1»
-   «:racket-selfeval-face:#b1e-1»
-   «:racket-selfeval-face:#b101»
+»   «c:#b1.1»
+   «c:#b-1.1»
+   «c:#b1e1»
+   «c:#b0/1»
+   «c:#b1/1»
+   «c:#b1e-1»
+   «c:#b101»
 
    «m:;; »«x:#d
-»   «:racket-selfeval-face:#d-1.23»
-   «:racket-selfeval-face:#d1.123»
-   «:racket-selfeval-face:#d1e3»
-   «:racket-selfeval-face:#d1e-22»
-   «:racket-selfeval-face:#d1/2»
-   «:racket-selfeval-face:#d-1/2»
-   «:racket-selfeval-face:#d1»
-   «:racket-selfeval-face:#d-1»
+»   «c:#d-1.23»
+   «c:#d1.123»
+   «c:#d1e3»
+   «c:#d1e-22»
+   «c:#d1/2»
+   «c:#d-1/2»
+   «c:#d1»
+   «c:#d-1»
 
    «m:;; »«x:No # reader prefix -- same as #d
-»   «:racket-selfeval-face:-1.23»
-   «:racket-selfeval-face:1.123»
-   «:racket-selfeval-face:1e3»
-   «:racket-selfeval-face:1e-22»
-   «:racket-selfeval-face:1/2»
-   «:racket-selfeval-face:-1/2»
-   «:racket-selfeval-face:1»
-   «:racket-selfeval-face:-1»
+»   «c:-1.23»
+   «c:1.123»
+   «c:1e3»
+   «c:1e-22»
+   «c:1/2»
+   «c:-1/2»
+   «c:1»
+   «c:-1»
 
    «m:;; »«x:#e
-»   «:racket-selfeval-face:#e-1.23»
-   «:racket-selfeval-face:#e1.123»
-   «:racket-selfeval-face:#e1e3»
-   «:racket-selfeval-face:#e1e-22»
-   «:racket-selfeval-face:#e1»
-   «:racket-selfeval-face:#e-1»
-   «:racket-selfeval-face:#e1/2»
-   «:racket-selfeval-face:#e-1/2»
+»   «c:#e-1.23»
+   «c:#e1.123»
+   «c:#e1e3»
+   «c:#e1e-22»
+   «c:#e1»
+   «c:#e-1»
+   «c:#e1/2»
+   «c:#e-1/2»
 
    «m:;; »«x:#i always float
-»   «:racket-selfeval-face:#i-1.23»
-   «:racket-selfeval-face:#i1.123»
-   «:racket-selfeval-face:#i1e3»
-   «:racket-selfeval-face:#i1e-22»
-   «:racket-selfeval-face:#i1/2»
-   «:racket-selfeval-face:#i-1/2»
-   «:racket-selfeval-face:#i1»
-   «:racket-selfeval-face:#i-1»
+»   «c:#i-1.23»
+   «c:#i1.123»
+   «c:#i1e3»
+   «c:#i1e-22»
+   «c:#i1/2»
+   «c:#i-1/2»
+   «c:#i1»
+   «c:#i-1»
 
    «m:;; »«x:#o
-»   «:racket-selfeval-face:#o777.777»
-   «:racket-selfeval-face:#o-777.777»
-   «:racket-selfeval-face:#o777e777»
-   «:racket-selfeval-face:#o777e-777»
-   «:racket-selfeval-face:#o3/7»
-   «:racket-selfeval-face:#o-3/7»
-   «:racket-selfeval-face:#o777»
-   «:racket-selfeval-face:#o-777»
+»   «c:#o777.777»
+   «c:#o-777.777»
+   «c:#o777e777»
+   «c:#o777e-777»
+   «c:#o3/7»
+   «c:#o-3/7»
+   «c:#o777»
+   «c:#o-777»
 
    «m:;; »«x:#x
-»   «:racket-selfeval-face:#x-f.f»
-   «:racket-selfeval-face:#xf.f»
-   «:racket-selfeval-face:#x-f»
-   «:racket-selfeval-face:#xf»
+»   «c:#x-f.f»
+   «c:#xf.f»
+   «c:#x-f»
+   «c:#xf»
 
    «m:;; »«x:complex
-»   «:racket-selfeval-face:-1/10e1+10/1f10i»
-   «:racket-selfeval-face:#d-1/10e1+10/1f10i»
-   «:racket-selfeval-face:#e-1/10e1+10/1f10i»
-   «:racket-selfeval-face:#i-1/10e1+10/1f10i»
-   «:racket-selfeval-face:#x-1/10e1+10/1f10i»
-   «:racket-selfeval-face:#b-1/10e1+10/1f10i»
-   «:racket-selfeval-face:#o-1/10e1+10/1f10i»
+»   «c:-1/10e1+10/1f10i»
+   «c:#d-1/10e1+10/1f10i»
+   «c:#e-1/10e1+10/1f10i»
+   «c:#i-1/10e1+10/1f10i»
+   «c:#x-1/10e1+10/1f10i»
+   «c:#b-1/10e1+10/1f10i»
+   «c:#o-1/10e1+10/1f10i»
 
-   «:racket-selfeval-face:+10.1f10-1.10e1i»
-   «:racket-selfeval-face:#d+10.1f10-1.10e1i»
-   «:racket-selfeval-face:#e+10.1f10-1.10e1i»
-   «:racket-selfeval-face:#i+10.1f10-1.10e1i»
-   «:racket-selfeval-face:#x+10.1f10-1.10e1i»
-   «:racket-selfeval-face:#b+10.1f10-1.10e1i»
-   «:racket-selfeval-face:#o+10.1f10-1.10e1i»
+   «c:+10.1f10-1.10e1i»
+   «c:#d+10.1f10-1.10e1i»
+   «c:#e+10.1f10-1.10e1i»
+   «c:#i+10.1f10-1.10e1i»
+   «c:#x+10.1f10-1.10e1i»
+   «c:#b+10.1f10-1.10e1i»
+   «c:#o+10.1f10-1.10e1i»
 
    «m:;; »«x:exact complex, e.g. issue #445
-»   «:racket-selfeval-face:1+2i»
-   «:racket-selfeval-face:1/2+3/4i»
-   «:racket-selfeval-face:1.0+3.0e7i»
+»   «c:1+2i»
+   «c:1/2+3/4i»
+   «c:1.0+3.0e7i»
 
    «m:;; »«x:negative exponent, e.g. issue #442
-»   «:racket-selfeval-face:2.0e1»
-   «:racket-selfeval-face:-2.0e2»
-   «:racket-selfeval-face:-1e-1»
+»   «c:2.0e1»
+   «c:-2.0e2»
+   «c:-1e-1»
 
    «m:;; »«x:extflonum
-»   «:racket-selfeval-face:10.1t10»
-   «:racket-selfeval-face:#d10.1t10»
-   «:racket-selfeval-face:#x10.1t10»
-   «:racket-selfeval-face:#b10.1t10»
-   «:racket-selfeval-face:#o10.1t10»
+»   «c:10.1t10»
+   «c:#d10.1t10»
+   «c:#x10.1t10»
+   «c:#b10.1t10»
+   «c:#o10.1t10»
    ))
 
-(«b:define/contract» («f:valid-bucket-name?» s «:racket-keyword-argument-face:#:keyword» [dns-compliant? «:racket-selfeval-face:#t»])
+(«b:define/contract» («f:valid-bucket-name?» s «:racket-keyword-argument-face:#:keyword» [dns-compliant? «c:#t»])
   ((«b:string?») («:racket-keyword-argument-face:#:keyword» «b:boolean?») . «b:->*» . «b:boolean?»)
   («k:cond»
     [dns-compliant?
-     («k:and» («b:<=» «:racket-selfeval-face:3» («b:string-length» s)) («b:<=» («b:string-length» s) «:racket-selfeval-face:63»)
-          («b:not» («b:regexp-match» «:racket-selfeval-face:#px»«s:"\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"» s))
-          («k:for/and» ([s («b:regexp-split» «:racket-selfeval-face:#rx»«s:"\\."» s)])
+     («k:and» («b:<=» «c:3» («b:string-length» s)) («b:<=» («b:string-length» s) «c:63»)
+          («b:not» («b:regexp-match» «c:#px»«s:"\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"» s))
+          («k:for/and» ([s («b:regexp-split» «c:#rx»«s:"\\."» s)])
             («k:define» («f:valid-first-or-last?» c)
-              («k:or» («b:char-lower-case?» («b:string-ref» s «:racket-selfeval-face:0»))
-                  («b:char-numeric?» («b:string-ref» s «:racket-selfeval-face:0»))))
+              («k:or» («b:char-lower-case?» («b:string-ref» s «c:0»))
+                  («b:char-numeric?» («b:string-ref» s «c:0»))))
             («k:define» («f:valid-mid?» c)
               («k:or» (valid-first-or-last? c)
-                  («b:equal?» c «:racket-selfeval-face:#\-»)))
+                  («b:equal?» c «c:#\-»)))
             («k:define» «v:len» («b:string-length» s))
-            («k:and» («b:<» «:racket-selfeval-face:0» len)
-                 (valid-first-or-last? («b:string-ref» s «:racket-selfeval-face:0»))
+            («k:and» («b:<» «c:0» len)
+                 (valid-first-or-last? («b:string-ref» s «c:0»))
                  (valid-first-or-last? («b:string-ref» s («b:sub1» len)))
-                 («k:or» («b:<=» len «:racket-selfeval-face:2»)
-                     («k:for/and» ([c («b:substring» s «:racket-selfeval-face:1» («b:sub1» len))])
+                 («k:or» («b:<=» len «c:2»)
+                     («k:for/and» ([c («b:substring» s «c:1» («b:sub1» len))])
                        (valid-mid? c))))))]
     [«k:else»
-     («k:and» («b:<=» («b:string-length» s) «:racket-selfeval-face:255»)
+     («k:and» («b:<=» («b:string-length» s) «c:255»)
           («k:for/and» ([c s])
             («k:or» («b:char-numeric?» c)
                 («b:char-lower-case?» c)
                 («b:char-upper-case?» c)
-                («b:equal?» c «:racket-selfeval-face:#\.»)
-                («b:equal?» c «:racket-selfeval-face:#\-»)
-                («b:equal?» c «:racket-selfeval-face:#\_»))))]))
+                («b:equal?» c «c:#\.»)
+                («b:equal?» c «c:#\-»)
+                («b:equal?» c «c:#\_»))))]))
 
 («b:displayln» «s:"I'm running!"»)
 
@@ -382,35 +382,77 @@ BAR
 (fun «:racket-keyword-argument-face:#:12» #«s:"a"»)
 (fun «:racket-keyword-argument-face:#:123» #«s:"a"»)
 (fun «:racket-keyword-argument-face:#:1234» #«s:"a"»)
-(fun «:racket-keyword-argument-face:#:1» «:racket-selfeval-face:#px»«s:"a"»)
-(fun «:racket-keyword-argument-face:#:12» «:racket-selfeval-face:#px»«s:"a"»)
-(fun «:racket-keyword-argument-face:#:123» «:racket-selfeval-face:#px»«s:"a"»)
-(fun «:racket-keyword-argument-face:#:1234» «:racket-selfeval-face:#px»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:1» «c:#px»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:12» «c:#px»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:123» «c:#px»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:1234» «c:#px»«s:"a"»)
 
 «m:;; »«x:Issue 463
-»(«k:or» («b:equal?» c «:racket-selfeval-face:#\"») («b:equal?» c «:racket-selfeval-face:#\'»))
-«:racket-selfeval-face:#\"» «:racket-selfeval-face:#\"»
-«:racket-selfeval-face:#\"» «m:;»«x:comment
-»«:racket-selfeval-face:#\'» «:racket-selfeval-face:#\'»
-«:racket-selfeval-face:#\'» «m:;»«x:comment
-»«:racket-selfeval-face:#\nul» «:racket-selfeval-face:#\null» «:racket-selfeval-face:#\backspace» «:racket-selfeval-face:#\tab» «:racket-selfeval-face:#\vtab» «:racket-selfeval-face:#\newline» «:racket-selfeval-face:#\linefeed»
-«:racket-selfeval-face:#\page» «:racket-selfeval-face:#\return» «:racket-selfeval-face:#\space» «:racket-selfeval-face:#\rubout»
-«:racket-selfeval-face:#\012»
-«:racket-selfeval-face:#\uF»
-«:racket-selfeval-face:#\uFF»
-«:racket-selfeval-face:#\uFFF»
-«:racket-selfeval-face:#\uFFFF»
-«:racket-selfeval-face:#\Ufffff»
-«:racket-selfeval-face:#\Uffffff»
-«:racket-selfeval-face:#\a» «:racket-selfeval-face:#\z»
-«:racket-selfeval-face:#\λ»
+»(«k:or» («b:equal?» c «c:#\"») («b:equal?» c «c:#\'»))
+«c:#\"» «c:#\"»
+«c:#\"» «m:;»«x:comment
+»«c:#\'» «c:#\'»
+«c:#\'» «m:;»«x:comment
+»«c:#\nul» «c:#\null» «c:#\backspace» «c:#\tab» «c:#\vtab» «c:#\newline» «c:#\linefeed»
+«c:#\page» «c:#\return» «c:#\space» «c:#\rubout»
+«c:#\012»
+«c:#\uF»
+«c:#\uFF»
+«c:#\uFFF»
+«c:#\uFFFF»
+«c:#\Ufffff»
+«c:#\Uffffff»
+«c:#\a» «c:#\z»
+«c:#\λ»
 
 «m:;; »«x:Issue 478
 »(«x:#|blah blah blah|#» «k:begin»)
 
 «m:;; »«x:Issue 534
-»(«k:define» «v:foo‾bar» «:racket-selfeval-face:42»)
-(«k:let» ([«v:foo‾bar» «:racket-selfeval-face:42»]) foo‾bar)
+»(«k:define» «v:foo‾bar» «c:42»)
+(«k:let» ([«v:foo‾bar» «c:42»]) foo‾bar)
 
 «m:;; »«x:Issue 546
-»«:racket-selfeval-face:'C#» («b:add1» «:racket-selfeval-face:1»)
+»«:racket-reader-quoted-symbol-face:'C#» («b:add1» «c:1»)
+
+«m:;; »«x:Examples of quoted expressions that should receive
+»«m:;; »«x:font-lock-string-face, font-lock-constant-face,
+»«m:;; »«x:racket-reader-quoted-symbol-face, or none of those.
+»'«s:"string"»
+'«c:#px»«s:"regexp"»
+'«c:1234»
+'«c:#x1234»
+'«c:#t»
+'«c:+NaN.0»
+'«c:#\A»
+«:racket-reader-quoted-symbol-face:'symbol»
+«:racket-reader-quoted-symbol-face:`symbol»
+«:racket-reader-quoted-symbol-face:'1symbol» «m:;»«x:legal Racket identifier
+»«:racket-reader-quoted-symbol-face:`1symbol»
+«:racket-reader-quoted-symbol-face:'+»
+«:racket-reader-quoted-symbol-face:'Noon.0»
+«:racket-reader-quoted-symbol-face:'|foo bar|»
+«:racket-reader-quoted-symbol-face:'|foo \| bar|»
+'(«s:"string"» «c:1» symbol) «m:;»«x:symbol not directly quoted
+»'(a b c)
+
+«m:;; »«x:Examples of quoted expressions that should receive
+»«m:;; »«x:font-lock-string-face, font-lock-constant-face,
+»«m:;; »«x:racket-reader-syntax-quoted-symbol-face, or none of those.
+»#'«s:"string"»
+#'«c:#px»«s:"regexp"»
+#'«c:1234»
+#'«c:#x1234»
+#'«c:#t»
+#'«c:+NaN.0»
+#'«c:#\A»
+«:racket-reader-syntax-quoted-symbol-face:#'symbol»
+«:racket-reader-syntax-quoted-symbol-face:#`symbol»
+«:racket-reader-syntax-quoted-symbol-face:#'1symbol» «m:;»«x:legal Racket identifier
+»«:racket-reader-syntax-quoted-symbol-face:#`1symbol»
+«:racket-reader-syntax-quoted-symbol-face:#'+»
+«:racket-reader-syntax-quoted-symbol-face:#'Noon.0»
+«:racket-reader-syntax-quoted-symbol-face:#'|foo bar|»
+«:racket-reader-syntax-quoted-symbol-face:#'|foo \| bar|»
+#'(«s:"string"» «c:1» symbol) «m:;»«x:symbol not directly quoted
+»#'(a b c)
