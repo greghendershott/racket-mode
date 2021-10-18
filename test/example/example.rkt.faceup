@@ -217,11 +217,10 @@ BAR
 »  («b:values»
    1/2-the-way                            «m:;»«x:should NOT be self-eval
 »   less-than-1/2                          «m:;»«x:should NOT be self-eval
-»   «:racket-selfeval-face:+inf.0»
-   «:racket-selfeval-face:-inf.0»
-   «:racket-selfeval-face:+nan.0»
-   «:racket-selfeval-face:#t»
-   «:racket-selfeval-face:#f»
+»   «:racket-selfeval-face:+inf.0» «:racket-selfeval-face:-inf.0» «:racket-selfeval-face:+inf.f» «:racket-selfeval-face:-inf.f» «:racket-selfeval-face:+inf.t» «:racket-selfeval-face:-inf.t»
+   «:racket-selfeval-face:+nan.0» «:racket-selfeval-face:-nan.0» «:racket-selfeval-face:+nan.f» «:racket-selfeval-face:-nan.f» «:racket-selfeval-face:+nan.t» «:racket-selfeval-face:-nan.t»
+   «:racket-selfeval-face:#t» «:racket-selfeval-face:#T» «:racket-selfeval-face:#true»
+   «:racket-selfeval-face:#f» «:racket-selfeval-face:#F» «:racket-selfeval-face:#false»
    «:racket-selfeval-face:1»
    «:racket-selfeval-face:1.0»
    «:racket-selfeval-face:1/2»
@@ -306,6 +305,23 @@ BAR
    «:racket-selfeval-face:#x-f»
    «:racket-selfeval-face:#xf»
 
+   «m:;; »«x:complex
+»   «:racket-selfeval-face:-1/10e1+10/1f10i»
+   «:racket-selfeval-face:#d-1/10e1+10/1f10i»
+   «:racket-selfeval-face:#e-1/10e1+10/1f10i»
+   «:racket-selfeval-face:#i-1/10e1+10/1f10i»
+   «:racket-selfeval-face:#x-1/10e1+10/1f10i»
+   «:racket-selfeval-face:#b-1/10e1+10/1f10i»
+   «:racket-selfeval-face:#o-1/10e1+10/1f10i»
+
+   «:racket-selfeval-face:+10.1f10-1.10e1i»
+   «:racket-selfeval-face:#d+10.1f10-1.10e1i»
+   «:racket-selfeval-face:#e+10.1f10-1.10e1i»
+   «:racket-selfeval-face:#i+10.1f10-1.10e1i»
+   «:racket-selfeval-face:#x+10.1f10-1.10e1i»
+   «:racket-selfeval-face:#b+10.1f10-1.10e1i»
+   «:racket-selfeval-face:#o+10.1f10-1.10e1i»
+
    «m:;; »«x:exact complex, e.g. issue #445
 »   «:racket-selfeval-face:1+2i»
    «:racket-selfeval-face:1/2+3/4i»
@@ -315,6 +331,13 @@ BAR
 »   «:racket-selfeval-face:2.0e1»
    «:racket-selfeval-face:-2.0e2»
    «:racket-selfeval-face:-1e-1»
+
+   «m:;; »«x:extflonum
+»   «:racket-selfeval-face:10.1t10»
+   «:racket-selfeval-face:#d10.1t10»
+   «:racket-selfeval-face:#x10.1t10»
+   «:racket-selfeval-face:#b10.1t10»
+   «:racket-selfeval-face:#o10.1t10»
    ))
 
 («b:define/contract» («f:valid-bucket-name?» s «:racket-keyword-argument-face:#:keyword» [dns-compliant? «:racket-selfeval-face:#t»])
