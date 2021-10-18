@@ -84,7 +84,14 @@
        1 racket-selfeval-face)
 
       ;; Some self-eval constants
-      (,(regexp-opt '("#t" "#true" "#f" "#false" "+inf.0" "-inf.0" "+nan.0") 'symbols)
+      (,(rx
+         (seq symbol-start
+              (or "#t" "#T" "#true" "#f" "#F" "#false"
+                  (seq (any "-+")
+                       (or (regexp "[iI][nN][fF]")
+                           (regexp "[nN][aA][nN]"))
+                       "." (any "0fFtT")))
+              symbol-end))
        . racket-selfeval-face)
 
       ;; Numeric literals including Racket reader hash prefixes.
@@ -92,43 +99,93 @@
          (seq symbol-start
               (or
                ;; #d #e #i or no hash prefix
-               (seq (? "#" (any "dei"))
+               (seq (? "#" (any "dDeEiI"))
                     (? (any "-+"))
                     (1+ digit)
                     (? (any "./") (1+ digit))
-                    (? ?e
+                    (? (any "eEfF")
                        (? (any "-+"))
                        (1+ digit))
-                    (? ?+
+                    (? (any "-+")
                        (1+ digit)
                        (? (any "./") (1+ digit))
-                       (? ?e
+                       (? (any "eEfF")
                           (? (any "-+"))
                           (1+ digit))
-                       ?i))
+                       (any "iI")))
                ;; #x
-               (seq "#x"
+               (seq "#" (any "xX")
                     (? (any "-+"))
                     (1+ hex-digit)
-                    (? (any "./") (1+ hex-digit)))
+                    (? (any "./") (1+ hex-digit))
+                    (? (any "-+")
+                       (1+ hex-digit)
+                       (? (any "./") (1+ hex-digit))
+                       (any "iI")))
                ;; #b
-               (seq "#b"
-                    (or (seq (? (any "-+"))
-                             (1+ (any "01"))
-                             (? (any "./") (1+ (any "01"))))
-                        (seq (1+ (any "01"))
-                             ?e
-                             (? (any "-+"))
-                             (1+ (any "01")))))
+               (seq "#" (any "bB")
+                    (? (any "-+"))
+                    (1+ (any "01"))
+                    (? (any "./") (1+ (any "01")))
+                    (? (any "eEfF")
+                       (? (any "-+"))
+                       (1+ (any "01")))
+                    (? (any "-+")
+                       (1+ (any "01"))
+                       (? (any "./") (1+ (any "01")))
+                       (? (any "eEfF")
+                          (? (any "-+"))
+                          (1+ (any "01")))
+                       (any "iI")))
                ;; #o
-               (seq "#o"
-                    (or (seq (? (any "-+"))
-                             (1+ (any "0-7"))
-                             (? (any "./") (1+ (any "0-7"))))
-                        (seq (1+ (any "0-7"))
-                             ?e
-                             (? (any "-+"))
-                             (1+ (any "0-7"))))))
+               (seq "#" (any "oO")
+                    (? (any "-+"))
+                    (1+ (any "0-7"))
+                    (? (any "./") (1+ (any "0-7")))
+                    (? (any "eEfF")
+                       (? (any "-+"))
+                       (1+ (any "0-7")))
+                    (? (any "-+")
+                       (1+ (any "0-7"))
+                       (? (any "./") (1+ (any "0-7")))
+                       (? (any "eEfF")
+                          (? (any "-+"))
+                          (1+ (any "0-7")))
+                       (any "iI")))
+
+               ;;; extflonum
+               ;; #d or no hash prefix
+               (seq (? "#" (any "dD"))
+                    (? (any "-+"))
+                    (1+ digit)
+                    (? (any "./") (1+ digit))
+                    (any "tT")
+                    (? (any "-+"))
+                    (1+ digit))
+               ;; #x
+               (seq "#" (any "xX")
+                    (? (any "-+"))
+                    (1+ hex-digit)
+                    (? (any "./") (1+ hex-digit))
+                    (any "tT")
+                    (? (any "-+"))
+                    (1+ hex-digit))
+               ;; #b
+               (seq "#" (any "bB")
+                    (? (any "-+"))
+                    (1+ (any "01"))
+                    (? (any "./") (1+ (any "01")))
+                    (any "tT")
+                    (? (any "-+"))
+                    (1+ (any "01")))
+               ;; #o
+               (seq "#" (any "oO")
+                    (? (any "-+"))
+                    (1+ (any "0-7"))
+                    (? (any "./") (1+ (any "0-7")))
+                    (any "tT")
+                    (? (any "-+"))
+                    (1+ (any "0-7"))))
               symbol-end))
        . racket-selfeval-face)
 

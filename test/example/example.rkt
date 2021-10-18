@@ -217,11 +217,10 @@ BAR
   (values
    1/2-the-way                            ;should NOT be self-eval
    less-than-1/2                          ;should NOT be self-eval
-   +inf.0
-   -inf.0
-   +nan.0
-   #t
-   #f
+   +inf.0 -inf.0 +inf.f -inf.f +inf.t -inf.t
+   +nan.0 -nan.0 +nan.f -nan.f +nan.t -nan.t
+   #t #T #true
+   #f #F #false
    1
    1.0
    1/2
@@ -306,6 +305,23 @@ BAR
    #x-f
    #xf
 
+   ;; complex
+   -1/10e1+10/1f10i
+   #d-1/10e1+10/1f10i
+   #e-1/10e1+10/1f10i
+   #i-1/10e1+10/1f10i
+   #x-1/10e1+10/1f10i
+   #b-1/10e1+10/1f10i
+   #o-1/10e1+10/1f10i
+
+   +10.1f10-1.10e1i
+   #d+10.1f10-1.10e1i
+   #e+10.1f10-1.10e1i
+   #i+10.1f10-1.10e1i
+   #x+10.1f10-1.10e1i
+   #b+10.1f10-1.10e1i
+   #o+10.1f10-1.10e1i
+
    ;; exact complex, e.g. issue #445
    1+2i
    1/2+3/4i
@@ -315,6 +331,13 @@ BAR
    2.0e1
    -2.0e2
    -1e-1
+
+   ;; extflonum
+   10.1t10
+   #d10.1t10
+   #x10.1t10
+   #b10.1t10
+   #o10.1t10
    ))
 
 (define/contract (valid-bucket-name? s #:keyword [dns-compliant? #t])
