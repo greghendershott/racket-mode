@@ -84,7 +84,7 @@ delete compiled/*.zo files."
                                        (not (and (zerop calls) (zerop msec))))
                                    (or racket--profile-show-non-project
                                        (equal (racket-project-root
-                                               file)
+                                               (racket-file-name-back-to-front file))
                                               racket--profile-project-root))))
                             racket--profile-results))
                  (`(,width-calls ,width-msec ,width-name)
@@ -105,7 +105,8 @@ delete compiled/*.zo files."
                 ("Source" 99           t)]))
       (setq tabulated-list-entries
             (seq-map (pcase-lambda (`(,calls ,msec ,name ,file ,beg ,end))
-                       (let* ((simplified-file
+                       (let* ((file (racket-file-name-back-to-front file))
+                              (simplified-file
                                (if (equal (racket-project-root file)
                                           racket--profile-project-root)
                                    (file-relative-name file racket--profile-project-root)
