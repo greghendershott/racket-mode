@@ -13,6 +13,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'ert)
+(require 'cl-macs)
 (require 'edmacro)
 (require 'faceup)
 (require 'paredit)
@@ -625,9 +626,16 @@ want to use the value of `racket-program' at run time."
 
 ;;; Indentation correctness
 
+(defun racket-tests/indent-region ()
+  "Indent entire current buffer, suppressing progress-reporter messages."
+  (cl-letf (((symbol-function #'make-progress-reporter)   #'ignore)
+            ((symbol-function #'progress-reporter-update) #'ignore)
+            ((symbol-function #'progress-reporter-done)   #'ignore))
+    (indent-region (point-min) (point-max))))
+
 (defun racket-tests/same-indent (file)
   (with-current-buffer (find-file (expand-file-name file racket-tests/here-dir))
-    (indent-region (point-min) (point-max))
+    (racket-tests/indent-region)
     (let ((ok (not (buffer-modified-p))))
       (revert-buffer t t t)  ;revert in case running ERT interactively
       ok)))
@@ -639,21 +647,20 @@ want to use the value of `racket-program' at run time."
 
 ;;; Indentation speed
 
-;; Note: Although these call `indent-region' on large files, the point
-;; is to measure `racket-indent-line'. Indenting huge regions like
-;; entire files isn't a priority use case. We don't even bother to
-;; supply an `indent-region-function'; indeed we rely on that here --
-;; the fact that `indent-region' will therefore call
-;; `racket-indent-line' for every one of the thousands of lines in
-;; these files. TL;DR: We're measuring indent-line by calling it
-;; thousands of times including lines near the end of very large
-;; files.
+;; To measure the performance of `racket-indent-line', these tests
+;; call `indent-region' on some examples of unusually large files.
+;; Re-indenting huge files isn't a priority use case for Racket Mode.
+;; We don't even bother to supply an `indent-region-function'. Indeed
+;; these tests rely on the fact that `indent-region' will therefore
+;; call `racket-indent-line' for every one of the thousands of lines
+;; in these files. The huge example files are just a convenient way to
+;; get a large, varied amount of test data.
 
 (defun racket-tests/indent-time (file)
   (with-current-buffer (find-file (expand-file-name file racket-tests/here-dir))
     (racket-mode)
     (let* ((start (float-time))
-           (_ (indent-region (point-min) (point-max)))
+           (_ (racket-tests/indent-region))
            (finish (float-time))
            (dur (- finish start)))
       (message "indent %s took %s seconds" file dur)
