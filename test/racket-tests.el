@@ -254,8 +254,6 @@ c.rkt. Visit each file, racket-run, and check as expected."
         (racket-tests/should-eventually (get-buffer "*Racket Profile*"))
         (with-current-buffer (get-buffer "*Racket Profile*")
           (racket-tests/should-eventually (eq major-mode 'racket-profile-mode))
-          (racket-tests/should-eventually (equal header-line-format
-                                                 "    Calls   MSEC Name (inferred)                File"))
           (kill-buffer))
 
         (with-current-buffer repl-name
