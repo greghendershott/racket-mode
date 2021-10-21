@@ -92,15 +92,15 @@ tests. Travis CI will also do this automatically on your pull request.
 
 ### FaceUp
 
-`racket-mode` tests the appearance of the code by comparing the contents of
-the `.rkt` file (test indentation) and the corresponding `.faceup` file (test font-face),
+`Racket Mode` tests the appearance of the code by comparing the contents of
+the `.rkt` file (test indentation) and the corresponding `.faceup` file (test font-lock),
 
-When you modify the indentation or font-face customized by rack-mode,
+When you modify the indentation or font-lock customized by `Racket Mode`,
 you may need to refresh the indentation of all `.rkt` files in the example
 directory and then generate corresponding `.faceup` files by `M-x faceup-write-file`.
 
 Notice that before processing the example files, you may need to turn off
 minor modes which may affect the appearance, such as
-`global-paren-face-mode` (affect font-face),
+`global-paren-face-mode` (affect font-lock),
 `prettify-symbols-mode` (affect indentation),
 and so on (don’t forget to check if your own customization will affect it).
