@@ -235,7 +235,7 @@ When span has a title attribute, set help-echo property.
 
 When span has a RktXXX or techinside class, set the face."
   (let ((start (point)))
-    (if-let ((face (racket--describe-dom->face dom)))
+    (if-let (face (racket--describe-dom->face dom))
         (shr-fontize-dom dom face)
       (shr-generic dom))
     (when-let (title (dom-attr dom 'title))
@@ -406,7 +406,7 @@ command does not find documentation."
     (racket-browse-url href)))
 
 (defun racket-describe-mode-revert-buffer (_ignore-auto _noconfirm)
-  (when-let ((page (car racket--describe-here)))
+  (when-let (page (car racket--describe-here))
     (setq racket--describe-here nil)
     (racket--describe-fetch-and-show page (point))))
 
@@ -415,13 +415,13 @@ command does not find documentation."
 
 The anchor is the first one at or before point, if any."
   (interactive)
-  (when-let ((page (car racket--describe-here)))
-    (if-let ((anchor (or (get-text-property (point) 'racket-anchor)
-                         (when-let ((pos (previous-single-property-change
-                                          (point) 'racket-anchor)))
-                           (or (get-text-property pos 'racket-anchor)
-                               (when (< (point-min) pos)
-                                 (get-text-property (1- pos) 'racket-anchor)))))))
+  (when-let (page (car racket--describe-here))
+    (if-let (anchor (or (get-text-property (point) 'racket-anchor)
+                        (when-let (pos (previous-single-property-change
+                                        (point) 'racket-anchor))
+                          (or (get-text-property pos 'racket-anchor)
+                              (when (< (point-min) pos)
+                                (get-text-property (1- pos) 'racket-anchor))))))
         (racket-browse-url (concat page "#" (url-hexify-string anchor)))
       (racket-browse-url page))))
 

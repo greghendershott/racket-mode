@@ -369,7 +369,7 @@ or syntax quoting, because those won't be valid Racket syntax."
         (save-excursion
           (racket--escape-string-or-comment)
           (while t
-            (when-let ((mod-name-sym (racket--looking-at-module-form)))
+            (when-let (mod-name-sym (racket--looking-at-module-form))
               (push mod-name-sym xs))
             (when (racket--looking-at-quoted-form-p)
               (push nil xs))

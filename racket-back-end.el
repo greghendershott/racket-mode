@@ -80,7 +80,7 @@ one."
                          (and (string-match-p regexp path)
                               (equal (file-remote-p path)
                                      (file-remote-p directory))))))
-      (racket-add-back-end (if-let ((str (file-remote-p default-directory)))
+      (racket-add-back-end (if-let (str (file-remote-p default-directory))
                                (substring-no-properties str)
                              "/"))))
 
@@ -412,7 +412,7 @@ FILE the back end's remote prefix."
          (file (if (plist-get back-end :windows)
                    (subst-char-in-string ?\\ ?/ file)
                  file))
-         (file (if-let ((prefix (file-remote-p (plist-get back-end :directory))))
+         (file (if-let (prefix (file-remote-p (plist-get back-end :directory)))
                    (concat (substring-no-properties prefix) file)
                  file)))
     file))

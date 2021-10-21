@@ -118,7 +118,7 @@ people who may have extensive scheme-indent-function settings,
 particularly in the form of file or dir local variables.
 Otherwise prefer putting properties on `racket-indent-function'."
   (interactive)
-  (when-let ((amount (racket--calculate-indent)))
+  (when-let (amount (racket--calculate-indent))
     ;; When point is within the leading whitespace, move it past the
     ;; new indentation whitespace. Otherwise preserve its position
     ;; relative to the original text.
@@ -524,7 +524,7 @@ parses from the start of the buffer. Although `syntax-ppss' uses
 a cache, that is invalidated after any changes to the buffer. As
 a result, the worst case would be to call this function after
 every character is inserted to a buffer."
-  (when-let ((pos (racket--ppss-string/comment-start (syntax-ppss))))
+  (when-let (pos (racket--ppss-string/comment-start (syntax-ppss)))
     (goto-char pos)))
 
 (provide 'racket-indent)
