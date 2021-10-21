@@ -73,7 +73,8 @@ In some cases we resort to returning custom elements for
 `racket-describe' to handle specially."
   (let ((racket--scribble-file file)
         (racket--scribble-base base))
-    (racket--walk-dom dom)))
+    (save-match-data
+      (racket--walk-dom dom))))
 
 (defun racket--walk-dom (dom)
   (pcase dom
@@ -168,13 +169,13 @@ In some cases we resort to returning custom elements for
        ((and href
              (or
               (pred
-               (string-match-p ;as for installed releases
+               (string-match ;as for installed releases
                 "^https?://download.racket-lang.org/releases/[^/]+/doc/local-redirect/index.html[?]\\(.*\\)$"))
               (pred
-               (string-match-p ;as for local builds from source
+               (string-match ;as for local builds from source
                 "^https?://docs.racket-lang.org/local-redirect/index.html[?]\\(.*\\)$"))
               (pred
-               (string-match-p ;as for installed snapshot builds
+               (string-match ;as for installed snapshot builds
                 "^https?://.+?/snapshots/[^/]+/doc/local-redirect/index.html[?]\\(.*\\)$"))))
         (let ((qps (url-parse-query-string (match-string 1 href))))
           (if (assoc "tag" qps)
@@ -191,9 +192,9 @@ In some cases we resort to returning custom elements for
               ;; recur to do our usual path/anchor processing for
               ;; local hrefs
               (racket--walk-dom
-                     `(a ((href  . ,abs-path)
-                          (class . ,(dom-attr dom 'class)))
-                         ,@xs))))))
+               `(a ((href  . ,abs-path)
+                    (class . ,(dom-attr dom 'class)))
+                   ,@xs))))))
        ;; Some other, truly external links
        ((and href (pred (string-match-p "^https?://")))
         `(racket-ext-link ((href  . ,href)
