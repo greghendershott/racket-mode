@@ -3,11 +3,8 @@
 «m:;;; »«x:NOTE: After changing this file you will need to M-x faceup-write-file
 »«m:;;; »«x:to regenerate the .faceup test comparison file.
 »«m:;;;»«x:
-»«m:;;; »«x:NOTE: You may need to disable certain features -- for example
-»«m:;;; »«x:global-paren-face-mode -- during the M-x faceup-write-file.
-»«m:;;;»«x:
-»«m:;;; »«x:NOTE: You may need to set variable `prettify-symbols-alist' to nil
-»«m:;;; »«x:in the current buffer (or simply M-x prettify-symbols-mode to disable it).
+»«m:;;; »«x:NOTE: You may need to disable certain features temporarily while
+»«m:;;; »«x:doing M-x faceup-write-file. See CONTRIBUTING.md for examples.
 »
 «k:#lang» «v:racket»
 
@@ -17,16 +14,16 @@
 «m:;; »«x:Various def* forms are font-locked:
 »
 («k:define» («f:function» foo)
-  «c:#t»)
+«:highlight-indent-guides-character-face: » «c:#t»)
 
 («k:define» ((«f:curried-function» x) y)
-  («b:list» x y))
+«:highlight-indent-guides-character-face: » («b:list» x y))
 
 («k:define» «v:a-var» «c:10»)
 
 («b:define/contract» («f:f2» x)
-  («b:any/c» . «b:->» . «b:any»)
-  «c:#t»)
+«:highlight-indent-guides-character-face: » («b:any/c» . «b:->» . «b:any»)
+«:highlight-indent-guides-character-face: » «c:#t»)
 
 («k:define-values» («v:1st-var 2nd-var») («b:values» «c:1» «c:2»))
 
@@ -35,25 +32,25 @@
 «m:;; »«x:let: font-lock identifiers
 »
 («k:let» ([«v:foo» «c:10»]
-      [«v:bar» «c:20»])
-  foo)
+«:highlight-indent-guides-character-face: »     [«v:bar» «c:20»])
+«:highlight-indent-guides-character-face: » foo)
 
 («k:let» «f:loop» ([«v:x» «c:10»])
-  («k:unless» («b:zero?» x)
-    (loop («b:sub1» x))))
+«:highlight-indent-guides-character-face: » («k:unless» («b:zero?» x)
+«:highlight-indent-guides-character-face: » «:highlight-indent-guides-character-face: » (loop («b:sub1» x))))
 
 («k:let*» ([«v:foo» «c:10»]
-       [«v:bar» «c:20»])
-  foo)
+«:highlight-indent-guides-character-face: »      [«v:bar» «c:20»])
+«:highlight-indent-guides-character-face: » foo)
 
 («k:let-values» ([(«v:a» «v:b») («b:values» «c:1» «c:2»)])
-  («b:values» a b))
+«:highlight-indent-guides-character-face: » («b:values» a b))
 
 («k:let*-values» ([(«v:a» «v:b») («b:values» «c:1» «c:2»)])
-  («b:values» a b))
+«:highlight-indent-guides-character-face: » («b:values» a b))
 
 («k:letrec-values» ([(«v:a» «v:b») («b:values» «c:1» «c:2»)])
-  («b:values» a b))
+«:highlight-indent-guides-character-face: » («b:values» a b))
 
 («k:let-syntax» ([«v:foo» «:racket-reader-syntax-quoted-symbol-face:#'foo»])
   foo)
@@ -73,7 +70,7 @@
 
 «m:;; »«x:for/fold is indented correctly:
 »(«k:for/fold» ([str «s:""»])
-          ([ss '(«s:"a"» «s:"b"» «s:"c"»)])
+          ([ss «:lisp-quote-face:'»(«s:"a"» «s:"b"» «s:"c"»)])
   («b:string-append» str ss))
 
 «m:;; »«x:Auto-converts word `lambda` to `λ`:
@@ -82,7 +79,7 @@
 «m:;; »«x:Or use M-C-y to insert to insert `λ` char.
 »
 «m:;; »«x:Smart indentation for quoted lists:
-»'(«c:1» «c:2»
+»«:lisp-quote-face:'»(«c:1» «c:2»
   «c:3» «c:4»)
 
 «m:;; »«x:Smart indentation for vector literals:
@@ -180,7 +177,7 @@ BAR
 | #|no comment|# |
 
 («k:define» («f:a-function» x «:racket-keyword-argument-face:#:keyword» [y «c:0»])
-  («k:and» («b:append» («b:car» '(«c:1» «c:2» «c:3»))))
+  («k:and» («b:append» («b:car» «:lisp-quote-face:'»(«c:1» «c:2» «c:3»))))
   («b:regexp-match?» «c:#rx»«s:"foobar"» «s:"foobar"»)
   («b:regexp-match?» «c:#px»«s:"foobar"» «s:"foobar"»)
   («k:define» «v:a» «c:1»)
@@ -200,7 +197,7 @@ BAR
 »«s:"@|widget-id|"» @|foo|
 
 «m:;; »«x:Issue 298
-»(«k:define» «v:x» («k:begin» «s:"|"» '\|))
+»(«k:define» «v:x» («k:begin» «s:"|"» «:lisp-quote-face:'»\|))
 
 «m:;; »«x:Issue 376
 »(«k:define» «v:||» (|list|))
@@ -228,15 +225,15 @@ BAR
    «c:1.0»
    «c:1/2»
    «c:-1/2»
-   «c:#b100»
+   «:(:background "#b10"):«:(:foreground "white"):#b10»»«c:0»
    «c:#o123»
-   «c:#d123»
+   «:(:background "#d12"):«:(:foreground "white"):#d12»»«c:3»
    «c:#x7f7f»
    «:racket-reader-quoted-symbol-face:'symbol»
-   «:racket-reader-quoted-symbol-face:'|symbol with spaces|»
-   «:racket-reader-quoted-symbol-face:'|;no comment|»
-   «:racket-reader-quoted-symbol-face:'| #|no comment|# |»
-   «:racket-reader-quoted-symbol-face:'symbol-with-no-alpha/numeric-chars»
+   «:lisp-quote-face:'»|symbol with spaces|
+   «:lisp-quote-face:'»|;no comment|
+   «:lisp-quote-face:'»| #|no comment|# |
+   «:lisp-quote-face:'»symbol-with-no-alpha/numeric-chars
    «c:#\c»
    «c:#\space»
    «c:#\newline»
@@ -246,17 +243,17 @@ BAR
    «m:;; »«x:#b
 »   «c:#b1.1»
    «c:#b-1.1»
-   «c:#b1e1»
+   «:(:background "#b1e"):«:(:foreground "white"):#b1e»»«c:1»
    «c:#b0/1»
    «c:#b1/1»
-   «c:#b1e-1»
-   «c:#b101»
+   «:(:background "#b1e"):«:(:foreground "white"):#b1e»»«c:-1»
+   «:(:background "#b10"):«:(:foreground "white"):#b10»»«c:1»
 
    «m:;; »«x:#d
 »   «c:#d-1.23»
    «c:#d1.123»
-   «c:#d1e3»
-   «c:#d1e-22»
+   «:(:background "#d1e"):«:(:foreground "white"):#d1e»»«c:3»
+   «:(:background "#d1e"):«:(:foreground "white"):#d1e»»«c:-22»
    «c:#d1/2»
    «c:#d-1/2»
    «c:#d1»
@@ -275,8 +272,8 @@ BAR
    «m:;; »«x:#e
 »   «c:#e-1.23»
    «c:#e1.123»
-   «c:#e1e3»
-   «c:#e1e-22»
+   «:(:background "#e1e"):«:(:foreground "white"):#e1e»»«c:3»
+   «:(:background "#e1e"):«:(:foreground "white"):#e1e»»«c:-22»
    «c:#e1»
    «c:#e-1»
    «c:#e1/2»
@@ -325,21 +322,21 @@ BAR
    «c:#b+10.1f10-1.10e1i»
    «c:#o+10.1f10-1.10e1i»
 
-   «m:;; »«x:exact complex, e.g. issue #445
+   «m:;; »«x:exact complex, e.g. issue »«:(:background "#445"):«:(:foreground "white"):#445»»«x:
 »   «c:1+2i»
    «c:1/2+3/4i»
    «c:1.0+3.0e7i»
 
-   «m:;; »«x:negative exponent, e.g. issue #442
+   «m:;; »«x:negative exponent, e.g. issue »«:(:background "#442"):«:(:foreground "white"):#442»»«x:
 »   «c:2.0e1»
    «c:-2.0e2»
    «c:-1e-1»
 
    «m:;; »«x:extflonum
 »   «c:10.1t10»
-   «c:#d10.1t10»
+   «:(:background "#d10"):«:(:foreground "white"):#d10»»«c:.1t10»
    «c:#x10.1t10»
-   «c:#b10.1t10»
+   «:(:background "#b10"):«:(:foreground "white"):#b10»»«c:.1t10»
    «c:#o10.1t10»
    ))
 
@@ -416,46 +413,46 @@ BAR
 («k:let» ([«v:foo‾bar» «c:42»]) foo‾bar)
 
 «m:;; »«x:Issue 546
-»«:racket-reader-quoted-symbol-face:'C#» («b:add1» «c:1»)
+»«:lisp-quote-face:'»C# («b:add1» «c:1»)
 
 «m:;; »«x:Examples of quoted expressions that should receive
 »«m:;; »«x:font-lock-string-face, font-lock-constant-face,
 »«m:;; »«x:racket-reader-quoted-symbol-face, or none of those.
-»'«s:"string"»
-'«c:#px»«s:"regexp"»
-'«c:1234»
-'«c:#x1234»
-'«c:#t»
-'«c:+NaN.0»
-'«c:#\A»
-«:racket-reader-quoted-symbol-face:'symbol»
-«:racket-reader-quoted-symbol-face:`symbol»
-«:racket-reader-quoted-symbol-face:'1symbol» «m:;»«x:legal Racket identifier
-»«:racket-reader-quoted-symbol-face:`1symbol»
-«:racket-reader-quoted-symbol-face:'+»
-«:racket-reader-quoted-symbol-face:'Noon.0»
-«:racket-reader-quoted-symbol-face:'|foo bar|»
-«:racket-reader-quoted-symbol-face:'|foo \| bar|»
-'(«s:"string"» «c:1» symbol) «m:;»«x:symbol not directly quoted
-»'(a b c)
+»«:lisp-quote-face:'»«s:"string"»
+«:lisp-quote-face:'»«c:#px»«s:"regexp"»
+«:lisp-quote-face:'»«c:1234»
+«:lisp-quote-face:'»«c:#x1234»
+«:lisp-quote-face:'»«c:#t»
+«:lisp-quote-face:'»«c:+NaN.0»
+«:lisp-quote-face:'»«c:#\A»
+«:lisp-quote-face:'»symbol
+«:lisp-quote-face:`»symbol
+«:lisp-quote-face:'»1symbol «m:;»«x:legal Racket identifier
+»«:lisp-quote-face:`»1symbol
+«:lisp-quote-face:'»«b:+»
+«:lisp-quote-face:'»Noon.0
+«:lisp-quote-face:'»|foo bar|
+«:lisp-quote-face:'»|foo \| bar|
+«:lisp-quote-face:'»(«s:"string"» «c:1» symbol) «m:;»«x:symbol not directly quoted
+»«:lisp-quote-face:'»(a b c)
 
 «m:;; »«x:Examples of quoted expressions that should receive
 »«m:;; »«x:font-lock-string-face, font-lock-constant-face,
 »«m:;; »«x:racket-reader-syntax-quoted-symbol-face, or none of those.
-»#'«s:"string"»
-#'«c:#px»«s:"regexp"»
-#'«c:1234»
-#'«c:#x1234»
-#'«c:#t»
-#'«c:+NaN.0»
-#'«c:#\A»
+»«:lisp-quote-face:#'»«s:"string"»
+«:lisp-quote-face:#'»«c:#px»«s:"regexp"»
+«:lisp-quote-face:#'»«c:1234»
+«:lisp-quote-face:#'»«c:#x1234»
+«:lisp-quote-face:#'»«c:#t»
+«:lisp-quote-face:#'»«c:+NaN.0»
+«:lisp-quote-face:#'»«c:#\A»
 «:racket-reader-syntax-quoted-symbol-face:#'symbol»
 «:racket-reader-syntax-quoted-symbol-face:#`symbol»
 «:racket-reader-syntax-quoted-symbol-face:#'1symbol» «m:;»«x:legal Racket identifier
 »«:racket-reader-syntax-quoted-symbol-face:#`1symbol»
 «:racket-reader-syntax-quoted-symbol-face:#'+»
 «:racket-reader-syntax-quoted-symbol-face:#'Noon.0»
-«:racket-reader-syntax-quoted-symbol-face:#'|foo bar|»
-«:racket-reader-syntax-quoted-symbol-face:#'|foo \| bar|»
-#'(«s:"string"» «c:1» symbol) «m:;»«x:symbol not directly quoted
-»#'(a b c)
+«:racket-reader-syntax-quoted-symbol-face:#'|foo bar|
+#'|foo \| bar|»
+«:lisp-quote-face:#'»(«s:"string"» «c:1» symbol) «m:;»«x:symbol not directly quoted
+»«:lisp-quote-face:#'»(a b c)
