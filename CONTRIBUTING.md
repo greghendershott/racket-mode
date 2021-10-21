@@ -102,5 +102,5 @@ directory and then generate corresponding `.faceup` files by `M-x faceup-write-f
 Notice that before processing the example files, you may need to turn off
 minor modes which may affect the appearance, such as
 `global-paren-face-mode` (affect font-face),
-`prettify- symbols-mode` (affect indentation),
+`prettify-symbols-mode` (affect indentation),
 and so on (don’t forget to check if your own customization will affect it).
