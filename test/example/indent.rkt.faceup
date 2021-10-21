@@ -5,6 +5,9 @@
 »«m:;;;»«x:
 »«m:;;; »«x:NOTE: You may need to disable certain features -- for example
 »«m:;;; »«x:global-paren-face-mode -- during the M-x faceup-write-file.
+»«m:;;;»«x:
+»«m:;;; »«x:NOTE: You may need to set variable `prettify-symbols-alist' to nil
+»«m:;;; »«x:in the current buffer.
 »
 «m:;;; »«x:Quoted list
 »
