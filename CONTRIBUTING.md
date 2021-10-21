@@ -5,11 +5,11 @@ If you're going to report a bug -- thank you!
 Please use <kbd>M-x racket-bug-report</kbd> to generate a buffer with
 information that will help to reproduce and understand the bug:
 
-- Emacs version
-- value of important Racket Mode variables
-- minor-modes that are active
+- Emacs version.
+- Value of important Racket Mode variables.
+- Minor modes that are active.
 
-Please copy this and paste in your bug report.
+Please copy that and paste in your bug report.
 
 # Making pull requests
 
@@ -19,37 +19,36 @@ Here is some information to help you.
 
 ## Package dependencies
 
-Racket Mode depends on some other packages. In `racket-mode.el` see
-the `Package-Requires:` line.
+For end users, Racket Mode currently has zero dependencies on other
+packages --- in `racket-mode.el` `Package-Requires:` is just:
 
-You can install these manually with <kbd>M-x package-install</kbd>,
-or, run `make deps`. The latter is also used by `.travis.yml`.
+```elisp
+;; Package-Requires: ((emacs "25.1"))
+```
+
+For hacking on Racket Mode and to run tests, a couple packages are
+required. To install them: `make deps`.
 
 The recent trend has been for Racket Mode to depend on fewer packages,
-not more. For example `dash.el` was dropped in favor of using native
-Emacs Lisp constructs. Likewise `s.el`.
+not more. For example `dash.el` and `s.el` were dropped in favor of
+directly using the built-in Emacs functions wrapped by those packages.
 
-Having said that, if your PR truly needs a new package, please make
-sure your PR updates all of:
+Having said that, if your PR proposes adding a dependency on a new
+package that you think is worthwhile, please make sure your PR updates
+both:
 
 1. the `Package-Requires:` line in `racket-mode.el`
 2. the `deps` target in `makefile`
 
 ## Pointing Emacs to your Git clone
 
-After ensuring all dependencies of Racket Mode are installed, it
-suffices to add the path to your local clone of Racket Mode to
-`load-path` and require the package:
+After installing dependencies you should just need to add the path to
+your local clone of Racket Mode to `load-path` and require it:
 
 ```elisp
 (add-to-list 'load-path "/path/to/the/git-clone/dir")
 (require 'racket-mode)
 ```
-
-Note that these lines will override any previous references to Racket
-Mode in your Emacs configuration.  In particular, if you have Racket
-Mode installed as an Emacs package, after evaluating these lines you
-will use Racket Mode from your local Git repository.
 
 If you use `use-package`, you can simply replace
 
@@ -65,42 +64,61 @@ with
     :load-path "/path/to/the/git-clone/dir")
 ```
 
-You might also need to:
+If you have previously been using Racket Mode as a package installed
+from MELPA, you might want to remove that, at least for the duration
+of your hacking:
 
-* run <kbd>M-x package-delete</kbd> <kbd>racket-mode</kbd> so that the
-  ELPA package is not loaded from `.emacs.d/elpa`,
-
-* restart Emacs.
+- `M-x package-delete` and enter `racket-mode`.
+- Restart Emacs.
 
 ## doc/generate.el
 
-We generate reference documentation from doc strings for commands, variables, and faces.
+We generate reference documentation from doc strings for commands,
+variables, and faces.
 
-- If you add a brand-new command, `defcustom`, or `defface`, please
-  also add it to appropriate list in `doc/generate.el`.
+- If you add a brand-new command `defun`, `defcustom`, or `defface`,
+  please also add it to appropriate list in `doc/generate.el`.
 
-- Whenever you edit a doc string for a command, `defcustom`, or
-  `defface`, please `cd doc && make clean && make` and commit the
+- Whenever you edit a doc string for a command `defun`, `defcustom`,
+  or `defface`, please `cd doc && make clean docs`, and commit the
   updated files.
 
 ## Tests
 
 Currently tests are on the light side. More are welcome.
 
-Please do run `make test` to ensure your changes pass the existing
-tests. Travis CI will also do this automatically on your pull request.
+Please do run `make test` locally to ensure your changes pass the
+existing tests.
 
-### FaceUp
+GitHub Actions also does `make test` automatically on your pull
+request.
 
-`Racket Mode` tests the appearance of the code by comparing the contents of
-the `.rkt` file (test indentation) and the corresponding `.faceup` file (test font-lock),
+GitHub branch protection is enabled for the main branch -- merges
+are blocked until tests pass.
 
-When you modify the indentation or font-lock customized by `Racket Mode`,
-you may need to refresh the indentation of all `.rkt` files in the example
-directory and then generate corresponding `.faceup` files by `M-x faceup-write-file`.
+### Example files for indentation and font-lock
 
-Notice that before processing the example files, you may need to turn off
-minor modes which may affect the appearance, such as
-`global-paren-face-mode` (affect font-lock),
-`prettify-symbols-mode` (affect indentation),
-and so on (don’t forget to check if your own customization will affect it).
+Some Racket Mode tests apply indentation and font-lock to the
+`test/example/example.rkt` and `test/example/indent.rkt` files and
+compare the result to corresponding `.faceup` files (generated by the
+`faceup` package).
+
+As a result, if your PR intentionally modifies indentation or
+font-lock, you may need to regenerate the `.faceup` files. To do so:
+
+1. Disable any personal Emacs features that affect font-lock or
+   indentation. For example you may need to `M-x global-paren-mode`
+   and `M-x prettify-symbols-mode` to disable those.
+
+2. For each `.rkt` file:
+
+    - Visit the `.rkt` file.
+
+    - `M-x mark-buffer` and `M-x indent-region`.
+
+    - `M-x save-buffer` to save the `.rkt` file.
+
+    - `M-x faceup-write-file` and answer, yes, replace the existing
+      `.faceup` file.
+
+3. Re-enable any personal features you disabled in step 1.
