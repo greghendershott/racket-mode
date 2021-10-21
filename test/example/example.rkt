@@ -7,7 +7,7 @@
 ;;; global-paren-face-mode -- during the M-x faceup-write-file.
 ;;;
 ;;; NOTE: You may need to set variable `prettify-symbols-alist' to nil
-;;; in the current buffer.
+;;; in the current buffer (or simply M-x prettify-symbols-mode to disable it).
 
 #lang racket
 
