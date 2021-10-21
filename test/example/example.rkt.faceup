@@ -3,8 +3,8 @@
 «m:;;; »«x:NOTE: After changing this file you will need to M-x faceup-write-file
 »«m:;;; »«x:to regenerate the .faceup test comparison file.
 »«m:;;;»«x:
-»«m:;;; »«x:NOTE: You may need to disable certain features -- for example
-»«m:;;; »«x:global-paren-face-mode -- during the M-x faceup-write-file.
+»«m:;;; »«x:NOTE: You may need to disable certain features temporarily while
+»«m:;;; »«x:doing M-x faceup-write-file. See CONTRIBUTING.md for examples.
 »
 «k:#lang» «v:racket»
 
