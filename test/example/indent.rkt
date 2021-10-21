@@ -5,6 +5,9 @@
 ;;;
 ;;; NOTE: You may need to disable certain features -- for example
 ;;; global-paren-face-mode -- during the M-x faceup-write-file.
+;;;
+;;; NOTE: You may need to set variable `prettify-symbols-alist' to nil
+;;; in the current buffer.
 
 ;;; Quoted list
 
