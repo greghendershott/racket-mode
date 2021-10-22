@@ -158,7 +158,9 @@
     racket-repl-buffer-name-project
     racket-project-root
     "Browsing file URLs with anchors"
-    racket-browse-url-using-temporary-file)
+    racket-browse-url-using-temporary-file
+    "Configuring back ends"
+    racket-add-back-end)
   "Configuration functions to include in the Reference.")
 
 (defun racket-generate--configuration-functions ()
@@ -182,7 +184,6 @@
 (defconst racket-generate--variables
   '("General variables"
     racket-program
-    racket-back-end-functions
     racket-command-timeout
     racket-memory-limit
     racket-error-context

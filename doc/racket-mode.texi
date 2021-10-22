@@ -29,6 +29,7 @@
 * Introduction::
 * Install::
 * Configure::
+* Architecture::
 * Reference::
 * Commands::
 * Variables::
@@ -171,7 +172,6 @@ Variables
 General variables
 
 * racket-program::
-* racket-back-end-functions::
 * racket-command-timeout::
 * racket-memory-limit::
 * racket-error-context::
@@ -215,6 +215,7 @@ Configuration functions
 * Showing information: Showing informationx. 
 * Associating edit buffers with REPL buffers::
 * Browsing file URLs with anchors::
+* Configuring back ends::
 
 Showing information
 
@@ -233,6 +234,10 @@ Associating edit buffers with REPL buffers
 Browsing file URLs with anchors
 
 * racket-browse-url-using-temporary-file::
+
+Configuring back ends
+
+* racket-add-back-end::
 Faces
 
 * All::
@@ -290,8 +295,6 @@ Various other modes to support specific features:
 @ref{racket-debug-mode}
 @end itemize
 @end itemize
-
-Racket Mode uses a ``back end server'' written in Racket, which is responsible for running files and implementing commands that cannot be implemented in Emacs Lisp.@footnote{Racket Mode's Racket code is also delivered as part of the Emacs package --- @emph{not} as a Racket package. Delivering both Emacs and Racket code in one Emacs package simplifies installation and updates. The main drawback is that the Racket code is not automatically byte-compiled, as would normally be done by @code{raco pkg install}. To address this: @xref{racket-mode-start-faster}.}
 
 For code, issues, and pull requests, see the @uref{https://github.com/greghendershott/racket-mode,Git repo}.
 
@@ -663,6 +666,77 @@ To automatically enable the @code{racket-unicode} input method in @code{racket-m
 @section Ligatures
 
 Prior to Emacs 28.0.50, things like @code{auto-composition-mode} or @code{ligature-mode} that use @code{composition-function-table} to display ligatures can cause Emacs to freeze. This can happen when an Emacs @code{overlay} displays a string containing such a ligature --- this includes the overlays created by @code{racket-show-pseudo-tooltip}, as used by @code{racket-xp-mode}. The only known work-around is to change the value of @code{racket-show-functions} to something ``boring'' such as @code{(racket-show-echo-area)}.
+
+@node Architecture
+@chapter Architecture
+
+Racket Mode consists of a single Emacs front end, and one or more back ends written in Racket.@footnote{Racket Mode's Racket code is delivered as part of the Emacs package --- @emph{not} as a Racket package. Delivering both Emacs and Racket code in one Emacs package simplifies installation and updates. The main drawback is that the Racket code is not automatically compiled, as would normally be done by @code{raco pkg install}. To address this: @xref{racket-mode-start-faster}.}
+
+A back end is responsible for commands that cannot be implemented in Emacs Lisp, as well as supplying zero or more REPLs.
+
+Although you can start and stop a back end with @code{racket-start-back-end} and @code{racket-stop-back-end}, a back end is normally started automatically when the front end needs to issue some command.
+
+This includes commands that do @emph{not} involve @code{racket-run} or a REPL. For example @code{racket-xp-mode} issues commands to check your code and annotate the buffer, even if you do not run a file.
+
+In other words, a back end hosts zero or more REPLs --- it is not the same thing as a REPL.
+
+In the common case there is only one back end on the local host, and it supplies zero or more REPLs.
+
+@verbatim
+Emacs front end
+
+  Racket back end for /
+    REPL
+    REPL
+    ...
+@end verbatim
+
+To learn more about how many REPLs are used: @xref{racket-repl-buffer-name-function}.
+
+However you can configure using any number of back ends on any number of local or remote hosts.
+
+As one example, you can have multiple back ends on the local host. One back end is used for a project under a specific subdirectory, and the other back end for all else. (Perhaps one project needs Racket built from source, and everything else uses an installed, older version of Racket. Not only will files run using either specific version of Racket, so will commands for documentation or visiting definitions.)
+
+@verbatim
+Emacs front end
+
+  Racket back end for /path/to/project
+    REPL
+    REPL
+    ...
+
+  Racket back end for /
+    REPL
+    REPL
+    ...
+@end verbatim
+
+Furthermore, you could work with a project located on a remote host, whose files you edit the files using TRAMP. You also want the back end to run there, so your files run there.
+
+@verbatim
+Emacs front end
+
+  Racket back end for /path/to/project
+    REPL
+    REPL
+    ...
+
+  Racket back end for /
+    REPL
+    REPL
+    ...
+
+  Racket back end for /ssh:user@host:/
+    REPL
+    REPL
+    ...
+@end verbatim
+
+For a remote host, the Emacs front end will copy the Racket Mode back end source files to the remote when necessary, and run the back end using ssh.
+
+If you need any of these ``fancy'' configurations: @xref{racket-add-back-end}.
+
+However by default a configuration is automatically created for one back end on the local host. For that very common case, you don't need to configure anything.
 
 @node Reference
 @chapter Reference
@@ -2463,7 +2537,6 @@ any border.
 
 @menu
 * racket-program::
-* racket-back-end-functions::
 * racket-command-timeout::
 * racket-memory-limit::
 * racket-error-context::
@@ -2479,197 +2552,9 @@ any border.
 
 Pathname of the Racket executable.
 
-This does @emph{not} add STR to the ``@strong{Messages}'' log buffer.
-
-@node racket-show-header-line
-@subsection racket-show-header-line
-
-@node racket-back-end-functions
-@subsection racket-back-end-functions
-
-Configure multiple simultaneous back ends.
-
-This is a list of @code{functionp} values. Each function is called
-until one returns a non-nil value, which should be a property
-list describing a back end. Typically the function will examine
-@code{default-directory} to determine whether it returns a property
-list and the values therein.
-
-Following is a description of the properties:
-
-@itemize
-@item
-@code{name}
-
-A unique name for the back end.
-
-This name is distinct from @code{host-name} to allow for multiple
-back ends on the same host --- for example each running a
-different version of Racket.
-
-The name is used as a suffix for the names of buffers that are
-not visiting a file. That way there is a unique buffer per back
-end, and, users can easily distinguish them. For example
-@code{*Racket Describe <foo>} and @code{Racket Describe <bar>*} buffers.
-
-The name is also combined with a ``racket-back-end-'' prefix to
-make the name of the Emacs process used to run the back end.
-Normally ``racket-back-end-<name>''. This process name is used
-to determine where to send a command for a back end.
-
-@item
-@code{racket-program}
-
-When not nil we use this, otherwise we use the value of the
-customization variable @ref{racket-program}.
-
-@item
-@code{remote-source-dir}
-
-When @code{host-name} is not ``127.0.0.1'', this is where on a
-remote host we will copy the back end's *.rkt files.
-
-@item
-@code{host-name}
-
-When @code{host-name} is not ``127.0.0.1'', used to start a back end
-on a host via SSH.
-
-Always used to make TCP/IP connections to a back end for REPL
-sesssions.
-
-@item
-@code{user-name}
-
-When @code{host-name} is not ``127.0.0.1'', used to make an SSH
-connection. It may be nil, meaning to use a value from
-~/.ssh/config.
-
-@item
-@code{ssh-port}
-
-When @code{host-name} is not ``127.0.0.1'', used to make an SSH
-connection. Note that this is @code{numberp} not @code{stringp}. It may
-be nil, meaning to use a value from ~/.ssh/config or the
-default value of 22. If you wouldn't include a port when typing
-a tramp file name for @code{find-file}, then set @code{ssh-port} to nil
-(rather than 22).
-
-@item
-@code{repl-tcp-accept-host}
-
-Host from which the back end TCP REPL server will accept
-connections. ``127.0.0.1'' means it will accept only local
-connections. ``0.0.0.0'' means it will accept connections from
-anywhere --- which usually is risky unless the remote is behind
-a firewall that limits connections!
-
-@item
-@code{repl-tcp-port}
-
-The port number the back end TCP REPL server uses to listen for
-connections. When 0, this means the back end chooses an
-available port --- a so-called ``ephemeral'' port. Usually that
-is practical only on a local host. Otherwise a specific port
-number should be used, and, remember to allow that in the
-remote's firewall. Note that this is @code{numberp} not @code{stringp}.
-
-@item
-@code{never-gui}
-
-When this is true: The back end will @emph{not} attempt to load
-racket/gui/base eagerly. This can make sense for a remote back
-end running on a headless server, where the Racket gui-lib
-package is installed but you do @emph{not} want to use it. Keep in
-mind that when @code{never-gui} is true, if you @ref{racket-run} a
-program that requires racket/gui/base (directly or indirectly),
-you cannot run a second such program without Racket complaining
-that racket/gui/base cannot be instantiated more than once. If
-that happens, you must use @code{racket-start-back-end} to restart
-the back end process.
-
-When this is false: The back end @emph{will} attempt to load
-racket/gui/base eagerly. This can make sense for a remote back
-end running on a headless server, where the Racket gui-lib
-package is installed and you @emph{do} want to use it. In this case
-the headless server should have the xvfb package installed, and
-you should set the @code{racket-program} property to something like
-``xvfb-run racket''. Now your programs can use packages that
-depend on @code{gui-lib}, including obvious things like @code{pict} and
-@code{plot}, as well as some unfortunately less-obvious things.
-@end itemize
-
-The @code{racket-back-end-default} property list has values that are
-appropriate for whether a buffer's file is local or remote:
-
-@itemize
-@item
-When the value of the variable @code{default-directory} satisfies
-@code{tramp-tramp-file-p}, it is dissected to set @code{user-name},
-@code{host-name}, and @code{ssh-port}. Furthermore, @code{repl-tcp-port} is
-set to 55555, @code{repl-tcp-accept-host} is set to ``0.0.0.0''
-(accepts connections from anywhere), and @code{gui} is set
-false.
-
-When working with back ends on remote hosts, @strong{remember to check
-your remote host firewall}. The goal here is to make sure
-things work for you --- and only you. Probably you want the
-firewall to limit from where it accepts SSH connections on
-@code{ssh-port}. Also you need the firewall to accept connections on
-@code{repl-tcp-port}, but again, limiting from where --- either in
-the firewall or by setting @code{repl-tcp-accept-host} to a value
-that is @emph{not} ``0.0.0.0''.
-
-@item
-Otherwise, reasonable defaults are used for a local back end.
-For example @code{host-name} is set to ``127.0.0.1'',
-@code{repl-tcp-port} is set to 0 (meaning the back end picks an
-ephemeral port), @code{repl-tcp-accept-host} is set to
-``127.0.0.1'' (meaning the back end only accept TCP
-connections locally), and @code{gui} is set true.
-@end itemize
-
-Although the default values usually ``just work'', you might want
-a special configuration.
-
-For example, you could modify the property list to use a
-locally-built Racket on the local host, and the default installed
-Racket on remote hosts. You could do this by examing the
-@code{host-name} property you are given, and changing the
-@code{racket-program} property accordingly.
-
-For another example, on a specific remote host maybe you need to
-use gui-lib so you want to run racket using xvfb-run, and, you
-need the back end to load racket/gui/base eagerly (to avoid
-Racket giving ``can't instantiate racket/gui/base a second time
-in the same process'' errors).
-
-Here are those two examples:
-
-@lisp
-(defun my-racket-back-end-function ()
-  (let ((v (racket-back-end-default)))
-    (cond
-     ;; locally use Racket built from source
-     ((equal (plist-get v 'host-name) "127.0.0.1")
-      (plist-put v
-		 'racket-program
-		 "~/src/racket-lang/racket/bin/racket"))
-     ;; experiment using xvfb-run on "linode" server
-     ((equal (plist-get v 'host-name) "linode")
-      (let* ((v (plist-put v 'gui            t))
-	     (v (plist-put v 'racket-program "xvfb-run racket")))
-	v))
-     ;; otherwise just use the default
-     (otherwise v))))
-
-(setq racket-back-end-functions
-      (list #'my-racket-back-end-function))
-@end lisp
-
-As another example, you could also specify a different local back
-end for buffers in different project subdirectories, setting the
-@code{racket-program} property to different versions of Racket.
+nNote that a back end configuration can override this with a
+non-nil @code{racket-program} property list value. See
+@ref{racket-add-back-end}.
 
 @node racket-command-timeout
 @subsection racket-command-timeout
@@ -3009,14 +2894,17 @@ get that from the variable @code{racket-repl-buffer-name}.
 @subsection racket-debuggable-files
 
 Used to tell @ref{racket-run} what files may be instrumented for debugging.
-Must be a list of strings that are pathnames, such as from
-@code{racket--buffer-file-name}, -or-, a function that returns such a
-list given the pathname of the file being run. If any path
-strings are relative, they are made absolute using
-@code{expand-file-name} with the directory of the file being run. The
-symbol `run-file may be supplied in the list; it will be replaced
-with the pathname of the file being run. Safe to set as a
-file-local variable.
+
+This isn't yet a defcustom becuase the debugger status is still
+``experimental''.
+
+Must be either a list of file name strings, or, a function that
+takes the name of the file being run and returns a list of file
+names.
+
+Each file name in the list is made absolute using
+@code{expand-file-name} with respect to the file being run and given
+to @code{racket-file-name-front-to-back}.
 
 @node Showing information
 @section Showing information
@@ -3068,6 +2956,7 @@ ignore POS. Examples: @ref{racket-show-echo-area} and
 * Showing information: Showing informationx. 
 * Associating edit buffers with REPL buffers::
 * Browsing file URLs with anchors::
+* Configuring back ends::
 @end menu
 
 @node Showing informationx
@@ -3209,6 +3098,200 @@ you do not need to use this. You can customize the variable
 @ref{racket-browse-url-function} instead to be @code{browse-url}, or
 @code{browse-url-browser-function} in case have have customized that,
 or indeed whatever you want.
+
+@node Configuring back ends
+@section Configuring back ends
+
+@menu
+* racket-add-back-end::
+@end menu
+
+@node racket-add-back-end
+@subsection racket-add-back-end
+
+Add a description of a Racket Mode back end configuration.
+
+When a configuration with the same DIRECTORY already exists it is
+replaced.
+
+DIRECTORY should be a string describing a @code{file-name-absolute-p}
+directory on some local or remote server. It can be a local
+directory like ``/'' or ``/path/to/project''. Also, it can be a
+@code{file-remote-p} directory like ``/ssh:user@@host:'', or
+``/ssh:user@@host:/path/to/project''. Basically it's a path you
+could give to @code{find-file} to successfully access some local or
+remote file. (Some remote file shorthand forms get expanded to at
+least ``/ssh:host:'' -- double-check @code{buffer-file-name} and
+follow its example.)
+
+DIRECTORY is used as a pattern to compare to @code{default-directory}
+for a buffer, to determine whether the back end should be used
+for the buffer.
+
+DIRECTORY also determines:
+
+@itemize
+@item
+Whether the back end is local or remote.
+
+@item
+The host name. Used to make TCP/IP connections to a back end
+for REPL sesssions. When remote used for SSH connections to
+start the back end process.
+
+This may be a Host alias from ~/.ssh/config with a HostName, in
+which case HostName is used as the actual host name for both
+SSH and TCP/IP connections.
+
+@item
+When remote, any explicit user and port used to make SSH
+connections (as opposed to relying on values from
+~/.ssh/config).
+
+@item
+Other properties get reasonable defaults based on whether the
+back end is local or remote, as described below.
+@end itemize
+
+After DIRECTORY, the remainining arguments are optional; they are
+alternating :keywords and values describing some other properties
+of a back end:
+
+@itemize
+@item
+:racket-program
+
+When not nil this is used instead of the value of the
+customization variable @ref{racket-program}.
+
+@item
+:remote-source-dir
+
+Where on a remote host to copy the back end's *.rkt files when
+they do not exist or do not match the digest of the local
+files. This must be @code{file-name-absolute-p} on the remote. Only
+supply the localname there (not a full @code{file-remote-p}). The
+default value is ``/tmp/racket-mode-back-end''.
+
+@item
+:repl-tcp-accept-host
+
+Host from which the back end TCP REPL server will accept
+connections. ``127.0.0.1'' means it will accept only local
+connections. ``0.0.0.0'' means it will accept connections from
+anywhere --- which usually is risky unless the remote is behind
+a firewall that limits connections!
+
+@item
+:repl-tcp-port
+
+The port number the back end TCP REPL server uses to listen for
+connections.
+
+Note that this is @code{numberp} --- not @code{stringp}.
+
+When 0, this means the back end chooses an available port --- a
+so-called ``ephemeral'' port. Usually that is practical only on
+a local host. Otherwise a specific port number should be used,
+and, remember to allow that in the remote's firewall.
+
+@item
+:gui
+
+@itemize
+@item
+When :gui is false: The back end will @emph{not} attempt to load
+racket/gui/base eagerly. This can make sense for a remote
+back end running on a headless server, where the Racket
+gui-lib package is installed, making racket/gui/base
+available, but you do not want to use it. Keep in mind that
+when @code{gui} is false, if you @ref{racket-run} a program that
+@emph{does} require racket/gui/base (directly or indirectly), you
+cannot run a second such program without Racket complaining
+that racket/gui/base cannot be instantiated more than once in
+the same process. If that happens, you must use
+@code{racket-start-back-end} to restart the back end process.
+
+@item
+When :gui is true: The back end @emph{will} attempt to load
+racket/gui/base eagerly. This can make sense for a remote
+back end running on a headless server, where the Racket
+gui-lib package is installed, making racket/gui/base
+available, and you do want to use it. In this case the
+headless server should have the xvfb package installed, and
+you should set the :racket-program property to something like
+``xvfb-run racket''. Now your programs can use modules that
+require racket/gui/base, including obvious things like plot,
+as well as some unfortunately less-obvious things.
+@end itemize
+
+@item
+:windows
+
+Whether the back end uses Windows style path names. Used to do
+translation betwen slashes and backslashes between the Emacs
+front end (which uses slashes even on Windows) and the Racket
+back end (which expects native backslashes on Windows).
+@end itemize
+
+The default property values are appropriate for whether
+DIRECTORY is local or remote:
+
+@itemize
+@item
+When DIRECTORY is remote, :repl-tcp-port is set to 55555,
+:repl-tcp-accept-host is set to ``0.0.0.0'' (accepts
+connections from anywhere), :gui is nil, and :windows is nil.
+
+When working with back ends on remote hosts, @strong{remember to check
+your remote host firewall}. The goal here is to make sure
+things work for you --- and only you. Probably you want the
+firewall to limit from where it accepts SSH connections on
+:ssh-port. Also you need the firewall to accept connections on
+:repl-tcp-port, but again, limiting from where --- either in
+the firewall or by setting :repl-tcp-accept-host to a value
+that is @emph{not} ``0.0.0.0''.
+
+@item
+Otherwise, reasonable defaults are used for a local back end:
+:repl-tcp-port is set to 0 (meaning the back end picks an
+ephemeral port), :repl-tcp-accept-host is set to ``127.0.0.1''
+(meaning the back end only accept TCP connections locally),
+:gui is true, and :windows is set based on @code{system-type}.
+@end itemize
+
+Although the default values usually ``just work'' for local and
+remote back ends, you might want a special configuration. Here
+are a few examples.
+
+@lisp
+;; 1. A back end configuration for "/" is
+;; created automatically and works fine as a default
+;; for buffers visiting local files, so we don't need
+;; to add one here.
+
+;; 2. However assume we want buffers under /var/tmp/8.0
+;; instead to use Racket 8.0.
+(racket-add-back-end "/var/tmp/8.0"
+		     :racket-program "~/racket/8.0/bin/racket")
+
+;; 3. A back end configuration will be created
+;; automatically for buffers visiting file names like
+;; "/ssh:user@@linode", so we don't need to add one here.
+;;
+;; If ~/.ssh/config defines a Host alias named "linode",
+;; with HostName and User settings, a file name as simple as
+;; "/linode:" would work fine with tramp -- and the
+;; automaticlly created back end configuration would work
+;; fine, too.
+
+;; 4. For example's sake, assume for buffers visiting
+;; /ssh:headless:~/gui-project/ we want :racket-program instead
+;; to be "xvfb-run racket" and :gui to be true.
+(racket-add-back-end "/ssh:headless:~/gui-project/"
+		     :racket-program "xvfb-run racket"
+		     :gui            t)
+@end lisp
 
 @node Faces
 @chapter Faces

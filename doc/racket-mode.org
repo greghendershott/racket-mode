@@ -33,13 +33,9 @@ The [[https://www.racket-mode.com/][Racket Mode]] package consists of a variety 
   - {{{ref(racket-profile-mode)}}}
   - {{{ref(racket-debug-mode)}}}
 
-Racket Mode uses a "back end server" written in Racket, which is responsible for running files and implementing commands that cannot be implemented in Emacs Lisp.[fn:pkg]
-
 For code, issues, and pull requests, see the [[https://github.com/greghendershott/racket-mode][Git repo]].
 
 To fund this work, see [[https://github.com/users/greghendershott/sponsorship][GitHub Sponsors]] or [[https://www.paypal.me/greghendershott][PayPal]].
-
-[fn:pkg] Racket Mode's Racket code is also delivered as part of the Emacs package --- /not/ as a Racket package. Delivering both Emacs and Racket code in one Emacs package simplifies installation and updates. The main drawback is that the Racket code is not automatically byte-compiled, as would normally be done by ~raco pkg install~. To address this: {{{see(racket-mode-start-faster)}}}.
 
 * Install
 
@@ -302,6 +298,77 @@ To automatically enable the ~racket-unicode~ input method in ~racket-mode~ and ~
 ** Ligatures
 
 Prior to Emacs 28.0.50, things like ~auto-composition-mode~ or ~ligature-mode~ that use ~composition-function-table~ to display ligatures can cause Emacs to freeze. This can happen when an Emacs ~overlay~ displays a string containing such a ligature --- this includes the overlays created by ~racket-show-pseudo-tooltip~, as used by ~racket-xp-mode~. The only known work-around is to change the value of ~racket-show-functions~ to something "boring" such as ~(racket-show-echo-area)~.
+
+* Architecture
+Racket Mode consists of a single Emacs front end, and one or more back ends written in Racket.[fn:pkg]
+
+A back end is responsible for commands that cannot be implemented in Emacs Lisp, as well as supplying zero or more REPLs.
+
+Although you can start and stop a back end with ~racket-start-back-end~ and ~racket-stop-back-end~, a back end is normally started automatically when the front end needs to issue some command.
+
+This includes commands that do /not/ involve ~racket-run~ or a REPL. For example ~racket-xp-mode~ issues commands to check your code and annotate the buffer, even if you do not run a file.
+
+In other words, a back end hosts zero or more REPLs --- it is not the same thing as a REPL.
+
+In the common case there is only one back end on the local host, and it supplies zero or more REPLs.
+
+#+BEGIN_EXAMPLE
+        Emacs front end
+
+          Racket back end for /
+            REPL
+            REPL
+            ...
+#+END_EXAMPLE
+
+To learn more about how many REPLs are used: {{{see(racket-repl-buffer-name-function)}}}.
+
+However you can configure using any number of back ends on any number of local or remote hosts.
+
+As one example, you can have multiple back ends on the local host. One back end is used for a project under a specific subdirectory, and the other back end for all else. (Perhaps one project needs Racket built from source, and everything else uses an installed, older version of Racket. Not only will files run using either specific version of Racket, so will commands for documentation or visiting definitions.)
+
+#+BEGIN_EXAMPLE
+        Emacs front end
+
+          Racket back end for /path/to/project
+            REPL
+            REPL
+            ...
+
+          Racket back end for /
+            REPL
+            REPL
+            ...
+#+END_EXAMPLE
+
+Furthermore, you could work with a project located on a remote host, whose files you edit using TRAMP. You also want the back end to run there, so your files run there.
+
+#+BEGIN_EXAMPLE
+        Emacs front end
+
+          Racket back end for /path/to/project
+            REPL
+            REPL
+            ...
+
+          Racket back end for /
+            REPL
+            REPL
+            ...
+
+          Racket back end for /ssh:user@host:/
+            REPL
+            REPL
+            ...
+#+END_EXAMPLE
+
+For a remote host, the Emacs front end will copy the Racket Mode back end source files to the remote when necessary, and run the back end using ssh.
+
+If you need any of these "fancy" configurations: {{{see(racket-add-back-end)}}}.
+
+However by default a configuration is automatically created for one back end on the local host. For that very common case, you don't need to configure anything.
+
+[fn:pkg] Racket Mode's Racket code is delivered as part of the Emacs package --- /not/ as a Racket package. Delivering both Emacs and Racket code in one Emacs package simplifies installation and updates. The main drawback is that the Racket code is not automatically compiled, as would normally be done by ~raco pkg install~. To address this: {{{see(racket-mode-start-faster)}}}.
 
 * Reference
 
