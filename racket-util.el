@@ -16,6 +16,7 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'subr-x)
 (require 'racket-custom)
 
 (defun racket--easy-keymap-define (spec)
@@ -96,30 +97,6 @@ When installed as a package, this can be found from the variable
   (expand-file-name "./racket/" racket--el-source-dir)
   "Path to dir of our Racket source files. ")
 
-;;; trace
-
-(defvar racket--trace-enable nil)
-
-(defun racket--trace (p &optional s retval)
-  (when racket--trace-enable
-    (let ((b (get-buffer-create "*Racket Trace*"))
-          (deactivate-mark deactivate-mark))
-      (save-excursion
-        (save-restriction
-          (with-current-buffer b
-            (insert p ": " (if (stringp s) s (format "%S" s)) "\n"))))))
-  retval)
-
-(defun racket--toggle-trace (arg)
-  (interactive "P")
-  (setq racket--trace-enable (or arg (not racket--trace-enable)))
-  (if racket--trace-enable
-      (message "Racket trace on")
-    (message "Racket trace off"))
-  (let ((b (get-buffer-create "*Racket Trace*")))
-    (pop-to-buffer b t t)
-    (setq truncate-lines t)))
-
 (defun racket--restoring-current-buffer (proc)
   "Return a procedure restoring `current-buffer' during the dynamic extent of PROC."
   (let ((buf (current-buffer)))
@@ -127,33 +104,8 @@ When installed as a package, this can be found from the variable
       (with-current-buffer buf
         (apply proc args)))))
 
-;;; string trim
-
-;; "inline" the one thing we used from `s' so we can drop the dep.
-;; TO-DO: Rewrite racket--trim more simply; I just don't want to
-;; detour now.
-
-(defun racket--trim-left (s)
-  "Remove whitespace at the beginning of S."
-  (save-match-data
-    (if (string-match "\\`[ \t\n\r]+" s)
-        (replace-match "" t t s)
-      s)))
-
-(defun racket--trim-right (s)
-  "Remove whitespace at the end of S."
-  (save-match-data
-    (if (string-match "[ \t\n\r]+\\'" s)
-        (replace-match "" t t s)
-      s)))
-
-(defun racket--trim (s)
-  "Remove whitespace at the beginning and end of S."
-  (racket--trim-left (racket--trim-right s)))
-
 (defun racket--non-empty-string-p (v)
-  (and (stringp v)
-       (not (string-match-p "\\`[ \t\n\r]*\\'" v)))) ;`string-blank-p'
+  (and (stringp v) (not (string-blank-p v))))
 
 (defun racket--symbol-at-point-or-prompt (force-prompt-p
                                           prompt
@@ -179,10 +131,10 @@ as if the user had C-g to quit."
                       (completing-read prompt completions nil nil sap)
                     (read-from-minibuffer prompt sap)))
                (s (if s
-                      (racket--trim (substring-no-properties s))
+                      (string-trim (substring-no-properties s))
                     s)))
           (if (or (not s)
-                  (and (not allow-blank-p) (equal "" s)))
+                  (and (not allow-blank-p) (string-blank-p s)))
               nil
             s))
       sap)))
