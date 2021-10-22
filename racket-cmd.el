@@ -90,7 +90,7 @@ even from compiled bytecode.")
            (process-name-stderr (racket--back-end-process-name-stderr back-end))
            (stderr (make-pipe-process
                     :name     process-name-stderr
-                    :buffer   (concat " *" process-name-stderr "*")
+                    :buffer   (concat " " process-name-stderr)
                     :noquery  t
                     :coding   'utf-8
                     :filter   #'racket--cmd-process-stderr-filter
@@ -141,7 +141,7 @@ even from compiled bytecode.")
              :connection-type 'pipe
              :noquery         t
              :coding          'utf-8
-             :buffer          (concat " *" process-name "*")
+             :buffer          (concat " " process-name)
              :stderr          stderr
              :command         command
              :filter          #'racket--cmd-process-filter
@@ -178,8 +178,8 @@ sentinel is `ignore'."
   (message "{%s} %s\n" proc string))
 
 (defun racket--cmd-process-filter (proc string)
-  "Parse complete sexprs from the process output and give them to
-`racket--cmd-dispatch-response'."
+  "Parse complete sexprs from process output and give to
+`racket--cmd-dispatch'."
   (let ((buffer (process-buffer proc)))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
@@ -192,30 +192,28 @@ sentinel is `ignore'."
                            (if (eq (char-after) ?\n)
                                (1+ (point))
                              (point)))
-            (racket--cmd-dispatch-response (process-get proc 'racket-back-end-name)
-                                           sexp)
+            (racket--cmd-dispatch (process-get proc 'racket-back-end-name)
+                                  sexp)
             t))))))
 
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
-  "A hash from nonce to callback function.")
+  "A hash from command nonce to callback function.")
 (defvar racket--cmd-nonce 0
   "Number that increments for each command request we send.")
 
-(defun racket--cmd-dispatch-response (back-end response)
+(defun racket--cmd-dispatch (back-end response)
   "Do something with a sexpr sent to us from the command server.
-Mostly these are responses to command requests. Strictly speaking
-'logger and 'debug-break are \"notifications\", i.e. /not/ in
-direct response to one command request."
+Although mostly these are 1:1 responses to command requests,
+'logger and 'debug-break are notifications."
   (pcase response
     (`(logger ,str)
      (run-at-time 0.001 nil #'racket--logger-on-notify back-end str))
     (`(debug-break . ,response)
      (run-at-time 0.001 nil #'racket--debug-on-break response))
     (`(,nonce . ,response)
-     (let ((callback (gethash nonce racket--cmd-nonce->callback)))
-       (when callback
-         (remhash nonce racket--cmd-nonce->callback)
-         (run-at-time 0.001 nil callback response))))
+     (when-let (callback (gethash nonce racket--cmd-nonce->callback))
+       (remhash nonce racket--cmd-nonce->callback)
+       (run-at-time 0.001 nil callback response)))
     (_ nil)))
 
 (defun racket--cmd/async-raw (repl-session-id command-sexpr &optional callback)
