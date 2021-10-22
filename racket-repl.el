@@ -550,8 +550,7 @@ This does not display the buffer or change the selected window."
   ;; Capture buffer-local values for this buffer, to use in command
   ;; callback below.
   (let ((name racket-repl-buffer-name)
-        (host (pcase (racket--back-end-host+user+port (racket-back-end))
-                (`(,host ,_user ,_port) (racket--remote-file-actual-host host)))))
+        (host (racket--back-end-actual-host)))
     ;; Issue the command to learn the ephemeral TCP port chosen by the
     ;; back end for REPL I/O. As a bonus, this will start the back end
     ;; if necessary.
@@ -620,7 +619,7 @@ This does not display the buffer or change the selected window."
             (let ((kill-buffer-query-functions nil)
                   (kill-buffer-hook nil))
               (kill-buffer)) ;don't leave partially initialized REPL buffer
-            (message "Could not connect to REPL server at %s:%s%s"
+            (message "Could not connect to REPL TCP server at %s:%s%s"
                      host
                      port
                      (if (equal host "127.0.0.1")
