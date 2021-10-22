@@ -76,9 +76,6 @@ We share this among back ends, which is fine. Keep in mind this
 does get freshly initialized each time this .el file is loaded --
 even from compiled bytecode.")
 
-(defvar-local racket--cmd-dispatch-back-end-name nil
-  "Buffer-local in back end process buffer.")
-
 (defun racket--cmd-open ()
   ;; Avoid excess processes/buffers like "racket-process<1>".
   (racket--cmd-close)
@@ -91,10 +88,6 @@ even from compiled bytecode.")
                 (princ (format "back end is %S\n" back-end))))
            (process-name (racket--back-end-process-name back-end))
            (process-name-stderr (racket--back-end-process-name-stderr back-end))
-           (buffer (get-buffer-create (concat " *" process-name "*")))
-           (_ (with-current-buffer buffer
-                (setq-local racket--cmd-dispatch-back-end-name
-                            (racket-back-end-name back-end))))
            (stderr (make-pipe-process
                     :name     process-name-stderr
                     :buffer   (concat " *" process-name-stderr "*")
@@ -148,12 +141,13 @@ even from compiled bytecode.")
              :connection-type 'pipe
              :noquery         t
              :coding          'utf-8
-             :buffer          buffer
+             :buffer          (concat " *" process-name "*")
              :stderr          stderr
              :command         command
              :filter          #'racket--cmd-process-filter
              :sentinel        #'racket--cmd-process-sentinel))
            (status (process-status process)))
+      (process-put process 'racket-back-end-name (racket-back-end-name back-end))
       (unless (eq status 'run)
         (error "%s process status is not \"run\", instead it is %s"
                process-name
@@ -161,20 +155,17 @@ even from compiled bytecode.")
       (run-hooks 'racket-start-back-end-hook))))
 
 (defun racket--cmd-close ()
-  "Delete back end main process/buffer and stderr process/buffer."
-  (cl-flet ((delete-process-and-buffer
+  "Delete back end's main process/buffer and stderr process/buffer."
+  (cl-flet ((delete-process/buffer
              (lambda (process-name)
-               (pcase (and (stringp process-name)
-                           (get-process process-name))
-                 ((and (pred (processp)) proc)
-                  (delete-process proc)
-                  (pcase (get-buffer (process-buffer proc))
-                    ((and (pred (bufferp)) buf)
-                     (kill-buffer buf))))))))
+               (when-let (process (get-process process-name))
+                 (when-let (buffer (get-buffer (process-buffer process)))
+                   (kill-buffer buffer))
+                 (delete-process process)))))
     (when-let (back-end (racket-back-end))
       (run-hooks 'racket-stop-back-end-hook)
-      (delete-process-and-buffer (racket--back-end-process-name back-end))
-      (delete-process-and-buffer (racket--back-end-process-name-stderr back-end)))))
+      (delete-process/buffer (racket--back-end-process-name        back-end))
+      (delete-process/buffer (racket--back-end-process-name-stderr back-end)))))
 
 (defun racket--cmd-process-sentinel (proc event)
   (when (string-match-p "exited abnormally|failed|connection broken" event)
@@ -201,7 +192,7 @@ sentinel is `ignore'."
                            (if (eq (char-after) ?\n)
                                (1+ (point))
                              (point)))
-            (racket--cmd-dispatch-response racket--cmd-dispatch-back-end-name
+            (racket--cmd-dispatch-response (process-get proc 'racket-back-end-name)
                                            sexp)
             t))))))
 
