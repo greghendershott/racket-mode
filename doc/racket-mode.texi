@@ -711,7 +711,7 @@ Emacs front end
     ...
 @end verbatim
 
-Furthermore, you could work with a project located on a remote host, whose files you edit the files using TRAMP. You also want the back end to run there, so your files run there.
+Furthermore, you could work with a project located on a remote host, whose files you edit using TRAMP. You also want the back end to run there, so your files run there.
 
 @verbatim
 Emacs front end
