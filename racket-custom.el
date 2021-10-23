@@ -574,15 +574,10 @@ to hide the interesting span in the buffer."
   "Face for `#:keyword` arguments."
   "Keyword Argument Face")
 
-(define-obsolete-face-alias
- 'racket-paren-face
- "Instead use the `paren-face' package: <https://melpa.org/#/paren-face>."
- "2017-06-13")
+(define-obsolete-face-alias 'racket-paren-face 'paren-face
+  "2017-06-13")
 
-(define-obsolete-face-alias
-  'racket-selfeval-face
-  "Instead customize font-lock-string-face, font-lock-constant-face,
-  and racket-reader-quoted-symbol-face."
+(define-obsolete-face-alias 'racket-selfeval-face 'font-lock-constant-face
   "2021-10-20")
 
 (defface-racket racket-reader-quoted-symbol-face
