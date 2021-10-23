@@ -665,74 +665,40 @@ To automatically enable the @code{racket-unicode} input method in @code{racket-m
 @node Ligatures
 @section Ligatures
 
-Prior to Emacs 28.0.50, things like @code{auto-composition-mode} or @code{ligature-mode} that use @code{composition-function-table} to display ligatures can cause Emacs to freeze. This can happen when an Emacs @code{overlay} displays a string containing such a ligature --- this includes the overlays created by @code{racket-show-pseudo-tooltip}, as used by @code{racket-xp-mode}. The only known work-around is to change the value of @code{racket-show-functions} to something ``boring'' such as @code{(racket-show-echo-area)}.
+Prior to Emacs 28.0.50, things like @code{auto-composition-mode} or @code{ligature-mode} that use @code{composition-function-table} to display ligatures can cause Emacs to freeze. This can happen when an Emacs @emph{overlay} displays a string containing such a ligature. Although the problem is not limited to Racket Mode, it affects the overlays created by @code{racket-show-pseudo-tooltip}, as used by @code{racket-xp-mode}. The only known work-around is to change the value of @code{racket-show-functions} to something ``boring'' such as @code{(racket-show-echo-area)}.
 
 @node Architecture
 @chapter Architecture
 
-Racket Mode consists of a single Emacs front end, and one or more back ends written in Racket.@footnote{Racket Mode's Racket code is delivered as part of the Emacs package --- @emph{not} as a Racket package. Delivering both Emacs and Racket code in one Emacs package simplifies installation and updates. The main drawback is that the Racket code is not automatically compiled, as would normally be done by @code{raco pkg install}. To address this: @xref{racket-mode-start-faster}.}
+Racket Mode consists of a single Emacs front end, and one or more processes running a back end written in Racket.@footnote{Racket Mode's Racket code is delivered as part of the Emacs package --- @emph{not} as a Racket package. Delivering both Emacs and Racket code in one Emacs package simplifies installation and updates. The main drawback is that the Racket code is not automatically compiled, as would normally be done by @code{raco pkg install}. To address this: @xref{racket-mode-start-faster}.}
 
 A back end is responsible for commands that cannot be implemented in Emacs Lisp, as well as supplying zero or more REPLs.
 
-Although you can start and stop a back end with @code{racket-start-back-end} and @code{racket-stop-back-end}, a back end is normally started automatically when the front end needs to issue some command.
+Although you can start and stop a back end with @code{racket-start-back-end} and @code{racket-stop-back-end}, a back end is normally started automatically when the front end needs to issue some command. This includes commands that do @emph{not} involve @code{racket-run} or a REPL. For example @code{racket-xp-mode} issues commands to check your code and annotate the buffer, even if you do not run it. In other words, a back end supplies zero or more REPLs --- a back end is not the same thing as a REPL.
 
-This includes commands that do @emph{not} involve @code{racket-run} or a REPL. For example @code{racket-xp-mode} issues commands to check your code and annotate the buffer, even if you do not run a file.
+To learn more about how @emph{many} REPLs are used: @xref{racket-repl-buffer-name-function}.
 
-In other words, a back end hosts zero or more REPLs --- it is not the same thing as a REPL.
+In the common case there is only one back end, on the same local host as Emacs, and it is used for @code{.rkt} files in any directory.
 
-In the common case there is only one back end on the local host, and it supplies zero or more REPLs.
-
-@verbatim
-Emacs front end
-
-  Racket back end for /
-    REPL
-    REPL
-    ...
-@end verbatim
-
-To learn more about how many REPLs are used: @xref{racket-repl-buffer-name-function}.
+@image{scenario-0,, One local back end}
 
 However you can configure using any number of back ends on any number of local or remote hosts.
 
-As one example, you can have multiple back ends on the local host. One back end is used for a project under a specific subdirectory, and the other back end for all else. (Perhaps one project needs Racket built from source, and everything else uses an installed, older version of Racket. Not only will files run using either specific version of Racket, so will commands for documentation or visiting definitions.)
+As one example, you can have multiple back ends on the local host. One back end is used for a project under a specific subdirectory, and the other back end for all others. (Perhaps one project needs Racket built from source, and everything else uses an installed, older version of Racket. By using different back ends, not only will @code{racket-run} use the desired version of Racket for a file, so will commands for documentation or visiting definitions.)
 
-@verbatim
-Emacs front end
+@image{scenario-1,, Two local back ends}
 
-  Racket back end for /path/to/project
-    REPL
-    REPL
-    ...
+Furthermore, you could work with a project located on a remote host, whose files you edit using TRAMP. You also want the back end to run there. For a remote host, Racket Mode copies its back end source files to the remote when necessary, and runs the back end using ssh.
 
-  Racket back end for /
-    REPL
-    REPL
-    ...
-@end verbatim
+@image{scenario-2,, A back end on a remote host}
 
-Furthermore, you could work with a project located on a remote host, whose files you edit using TRAMP. You also want the back end to run there, so your files run there.
+Of course the remote can also use different back ends for different paths.
 
-@verbatim
-Emacs front end
+@image{scenario-3,, Two back ends on a remote host}
 
-  Racket back end for /path/to/project
-    REPL
-    REPL
-    ...
+And of course you can have multiple remotes.
 
-  Racket back end for /
-    REPL
-    REPL
-    ...
-
-  Racket back end for /ssh:user@host:/
-    REPL
-    REPL
-    ...
-@end verbatim
-
-For a remote host, the Emacs front end will copy the Racket Mode back end source files to the remote when necessary, and run the back end using ssh.
+@image{scenario-4,, Multiple remotes}
 
 If you need any of these ``fancy'' configurations: @xref{racket-add-back-end}.
 

@@ -5,3 +5,4 @@ doc/*.texi~
 doc/*.info
 doc/reference.org
 doc/racket-mode.html
+doc/*.png

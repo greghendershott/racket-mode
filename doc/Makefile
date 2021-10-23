@@ -1,6 +1,6 @@
-.PHONY: doc docs clean deploy
+.PHONY: doc docs images clean deploy
 
-doc: racket-mode.info racket-mode.html
+doc: racket-mode.info racket-mode.html images
 
 docs: doc
 
@@ -8,6 +8,9 @@ clean:
 	-rm reference.org
 	-rm racket-mode.info
 	-rm racket-mode.html
+
+images:
+	racket arch-pict.rkt
 
 reference.org: generate.el
 	emacs --batch -Q --eval '(progn (add-to-list (quote load-path) "${PWD}/../") (package-initialize))' -l generate.el --funcall 'racket-generate-reference.org'
@@ -31,7 +34,12 @@ cfid := E1OG6O4MCHIO1Q
 
 .PHONY: deploy
 
-deploy: racket-mode.html racket-mode.css
+deploy: racket-mode.html racket-mode.css images
 	$(aws) s3 cp racket-mode.html $(dest)/index.html
 	$(aws) s3 cp racket-mode.css  $(dest)/racket-mode.css
+	$(aws) s3 cp scenario-0.png   $(dest)/scenario-0.png
+	$(aws) s3 cp scenario-1.png   $(dest)/scenario-1.png
+	$(aws) s3 cp scenario-2.png   $(dest)/scenario-2.png
+	$(aws) s3 cp scenario-3.png   $(dest)/scenario-3.png
+	$(aws) s3 cp scenario-4.png   $(dest)/scenario-4.png
 	$(aws) cloudfront create-invalidation --distribution-id $(cfid) --paths "/*" > /dev/null
