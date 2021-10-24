@@ -680,25 +680,25 @@ To learn more about how @emph{many} REPLs are used: @xref{racket-repl-buffer-nam
 
 In the common case there is only one back end, on the same local host as Emacs, and it is used for @code{.rkt} files in any directory.
 
-@image{scenario-0,, One local back end}
+@image{scenario-0,,, Emacs front end and one local back end. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.png}
 
 However you can configure using any number of back ends on any number of local or remote hosts.
 
 As one example, you can have multiple back ends on the local host. One back end is used for a project under a specific subdirectory, and the other back end for all others. (Perhaps one project needs Racket built from source, and everything else uses an installed, older version of Racket. By using different back ends, not only will @code{racket-run} use the desired version of Racket for a file, so will commands for documentation or visiting definitions.)
 
-@image{scenario-1,, Two local back ends}
+@image{scenario-1,,, Emacs front end and two local back ends --- one for a project path. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.png}
 
 Furthermore, you could work with a project located on a remote host, whose files you edit using TRAMP. You also want the back end to run there. For a remote host, Racket Mode copies its back end source files to the remote when necessary, and runs the back end using ssh.
 
-@image{scenario-2,, A back end on a remote host}
+@image{scenario-2,,, Emacs front end and a back end on a remote host. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.png}
 
 Of course the remote can also use different back ends for different paths.
 
-@image{scenario-3,, Two back ends on a remote host}
+@image{scenario-3,,, Emacs front end and two back ends on a remote host. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.png}
 
 And of course you can have multiple remotes.
 
-@image{scenario-4,, Multiple remotes}
+@image{scenario-4,,, Emacs front end and two back ends each on two remote hosts. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.png}
 
 If you need any of these ``fancy'' configurations: @xref{racket-add-back-end}.
 
