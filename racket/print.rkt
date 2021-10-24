@@ -41,7 +41,7 @@
     (define (not-found)
       (match (convert-image value)
         [(cons path-name pixel-width)
-         (define char-width (ceiling (/ pixel-width pixels/char)))
+         (define char-width (inexact->exact (ceiling (/ pixel-width pixels/char))))
          (define path+width (cons path-name char-width))
          path+width]
         [#f #f]))
