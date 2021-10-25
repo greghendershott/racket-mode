@@ -235,7 +235,11 @@
     racket-logger-error-face
     racket-logger-warning-face
     racket-logger-info-face
-    racket-logger-debug-face)
+    racket-logger-debug-face
+    racket-doc-link-face
+    racket-ext-link-face
+    racket-doc-output-face
+    racket-doc-litchar-face)
   "Faces to include in the Reference.")
 
 (defun racket-generate--faces ()

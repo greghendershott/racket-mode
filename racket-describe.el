@@ -196,9 +196,10 @@ anchor. If numberp, move to that position."
     ("RktVal"                . font-lock-constant-face)
     ("RktCmt"                . font-lock-comment-face)
     ("RktErr"                . error)
-    ("RktOut"                . font-lock-constant-face) ;ad hoc choice
+    ("RktOut"                . racket-doc-output-face)
     ("RktRes"                . font-lock-constant-face)
     ("RktVar"                . font-lock-variable-name-face)
+    ("RktInBG"               . racket-doc-litchar-face)
     ("RktModLink"            . font-lock-keyword-face)
     ("techinside"            . italic)
     ("RktValLink"            . font-lock-variable-name-face)
@@ -209,8 +210,8 @@ anchor. If numberp, move to that position."
 (defun racket--describe-dom->face (dom)
   (let ((class (dom-attr dom 'class)))
     (if (equal class "RktPn")
-        ;; Keywords get "RktPn" but style sheet tweaks
-        ;; that, so do similar hack here.
+        ;; Scribble gives keyword arguments "RktPn" style and CSS
+        ;; conditionally adjusts. Ugh. Do similar hack here.
         (if (string-match-p "^#:" (dom-text dom))
             'racket-keyword-argument-face
           'parenthesis)

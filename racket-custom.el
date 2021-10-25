@@ -657,7 +657,7 @@ the face `font-lock-constant-face'."
 
 (defface-racket racket-doc-link-face
   '((t (:underline (:color "gray" :style line))))
-  "Face for `racket-describe-mode' doc links to open in `racket-describe-mode'.
+  "Face `racket-describe-mode' uses for links within documentation.
 Note: When some special face is already specified by the
 documentation, then to avoid visual clutter this face is NOT also
 added."
@@ -665,9 +665,19 @@ added."
 
 (defface-racket racket-ext-link-face
   '((t (:underline (:style wave) :slant italic :weight bold)))
-  "Face for `racket-describe-mode' external links.
+  "Face `racket-describe-mode' uses for external links.
 See the variable `racket-browse-url-function'."
   "Racket Ext Link Face")
+
+(defface-racket racket-doc-output-face
+  '((t (:inherit fixed-pitch-serif)))
+  "Face `racket-describe-mode' uses for Scribble @example or @interactions output."
+  "Racket Doc Output Face")
+
+(defface-racket racket-doc-litchar-face
+  '((t (:inherit holiday)))
+  "Face `racket-describe-mode' uses for Scribble @litchar."
+  "Racket Doc Litchar Face")
 
 (provide 'racket-custom)
 

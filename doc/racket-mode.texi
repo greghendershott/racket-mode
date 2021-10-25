@@ -253,6 +253,10 @@ All
 * racket-logger-warning-face::
 * racket-logger-info-face::
 * racket-logger-debug-face::
+* racket-doc-link-face::
+* racket-ext-link-face::
+* racket-doc-output-face::
+* racket-doc-litchar-face::
 @end detailmenu
 @end menu
 
@@ -1979,19 +1983,17 @@ delete compiled/*.zo files.
 
 Major mode for results of @ref{racket-profile}.
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{,} 
-@tab @code{racket-profile-sort}
+@item @kbd{RET} 
+@tab @code{racket-profile-visit}
+@item @kbd{.} 
+@tab @code{racket-profile-visit}
 @item @kbd{f} 
 @tab @code{racket-profile-show-non-project}
 @item @kbd{z} 
 @tab @code{racket-profile-show-zero}
-@item @kbd{p} 
-@tab @code{racket-profile-prev}
-@item @kbd{n} 
-@tab @code{racket-profile-next}
 @item @kbd{g} 
 @tab @code{racket-profile-refresh}
 @item @kbd{q} 
@@ -2001,7 +2003,7 @@ Major mode for results of @ref{racket-profile}.
 
 
 
-In addition to any hooks its parent mode @code{special-mode} might have run,
+In addition to any hooks its parent mode @code{tabulated-list-mode} might have run,
 this mode runs the hook @code{racket-profile-mode-hook}, as the final step
 during initialization.
 
@@ -3046,6 +3048,10 @@ to hide the interesting span in the buffer.
 * racket-logger-warning-face::
 * racket-logger-info-face::
 * racket-logger-debug-face::
+* racket-doc-link-face::
+* racket-ext-link-face::
+* racket-doc-output-face::
+* racket-doc-litchar-face::
 @end menu
 
 @node racket-keyword-argument-face
@@ -3137,6 +3143,30 @@ Face for @ref{racket-logger-mode} info level.
 @subsection racket-logger-debug-face
 
 Face for @ref{racket-logger-mode} debug level.
+
+@node racket-doc-link-face
+@subsection racket-doc-link-face
+
+Face @code{racket-describe-mode} uses for links within documentation.
+Note: When some special face is already specified by the
+documentation, then to avoid visual clutter this face is NOT also
+added.
+
+@node racket-ext-link-face
+@subsection racket-ext-link-face
+
+Face @code{racket-describe-mode} uses for external links.
+See the variable @ref{racket-browse-url-function}.
+
+@node racket-doc-output-face
+@subsection racket-doc-output-face
+
+Face @code{racket-describe-mode} uses for Scribble @@example or @@interactions output.
+
+@node racket-doc-litchar-face
+@subsection racket-doc-litchar-face
+
+Face @code{racket-describe-mode} uses for Scribble @@litchar.
 
 @c Emacs 25.2.2 (Org mode 8.2.10)
 @bye
