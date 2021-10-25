@@ -110,12 +110,10 @@ In some cases we resort to returning custom elements for
            (span ((class . "RktCmt"))
                  ,@(mapcar #'racket--walk-dom xs))))
 
-    ;; Bluebox table: Add following newline
-    ((and `(table ,_ . ,xs)
-          (guard (equal (dom-attr dom 'class) "boxed RBoxed")))
-     `(div ()
-           (table () ,@(mapcar #'racket--walk-dom xs))
-           (p)))
+    ;; Change SIntrapara div to p, which helps shr supply sufficient
+    ;; line-breaks.
+    (`(div ((class . "SIntrapara")) . ,xs)
+     `(p () ,@(mapcar #'racket--walk-dom xs)))
 
     ;; RktValDef|RktStxDef is the name of the thing in the bluebox.
     ;; This is likely also nested in a (span ([class "RktSym"])), so
@@ -260,8 +258,8 @@ In some cases we resort to returning custom elements for
     ;; Otherwise generic HTML
     (`(,tag ,as . ,xs)
      `(,tag ,as ,@(mapcar #'racket--walk-dom xs)))
-    ((and (pred stringp) s) (subst-char-in-string
-                             #xA0 racket--scribble-temp-nbsp s))
+    ((and (pred stringp) s)
+     (subst-char-in-string #xA0 racket--scribble-temp-nbsp s))
     ((and (pred numberp) n) (string n))
     (`() "")
     (sym (racket--html-char-entity-symbol->string sym))))
