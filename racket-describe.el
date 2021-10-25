@@ -174,8 +174,14 @@ anchor. If numberp, move to that position."
     (racket--describe-goto goto)))
 
 (defun racket--describe-goto (goto)
-  "GOTO determines where point is moved: If stringp move to that
-anchor. If numberp, move to that position."
+  "Move point to GOTO.
+
+If `numberp', move to that position.
+
+If `stringp' move to the position after the anchor that is not
+anchor. There could be multiple anchors before some non-anchor
+text. We want point left where `racket-search-describe' can use
+`thing-at-point' to find a symbol."
   (goto-char
    (cond
     ((numberp goto)
@@ -185,7 +191,9 @@ anchor. If numberp, move to that position."
            (cl-loop for i being the intervals
                     if (equal (get-text-property (car i) 'racket-anchor)
                               goto)
-                    return (1+ (car i))))
+                    return (cl-loop for j from (car i) to (point-max)
+                                    if (not (get-text-property j 'racket-anchor))
+                                    return j)))
          (point-min)))
     (t (point-min))))
   (setq racket--describe-here
