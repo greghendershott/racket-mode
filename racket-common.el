@@ -245,7 +245,6 @@ property whose value is STRING. The close | syntax is set by
   ;; -----------------------------------------------------------------
   ;; Indent
   (setq-local indent-line-function #'racket-indent-line)
-  (racket--set-indentation)
   (setq-local indent-tabs-mode nil)
   ;; -----------------------------------------------------------------
   ;;; Misc
