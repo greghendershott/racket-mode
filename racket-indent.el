@@ -54,9 +54,8 @@
   "When `racket--mode-edits-racket-p' instead use `prog-indent-sexp'."
   (apply (if (racket--mode-edits-racket-p) #'prog-indent-sexp orig)
          args))
-(when (fboundp 'advice-add)
-  (advice-add 'lisp-indent-line :around #'racket--lisp-indent-line-advice)
-  (advice-add 'indent-sexp :around #'racket--indent-sexp-advice))
+(advice-add 'lisp-indent-line :around #'racket--lisp-indent-line-advice)
+(advice-add 'indent-sexp      :around #'racket--indent-sexp-advice)
 
 (defun racket-indent-line (&optional _whole-exp)
   "Indent current line as Racket code.
