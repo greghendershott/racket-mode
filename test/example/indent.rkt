@@ -348,7 +348,7 @@
    ------------------------- Application
    (⇓ Γ (e x) Θ v)])
 
-;; Issue 558
+;; Issue #558
 (module+ test
   (+
    1
@@ -363,3 +363,51 @@ EOF
           this
           not
           indented))
+
+;; Issue #569
+
+(for : Void
+     ([i '(1)])
+  (print i))
+
+(for : Void ([i '(1)])
+  (print i))
+
+(for* : Void
+      ([i '(1)])
+  (print i))
+
+(for* : Void ([i '(1)])
+  (print i))
+
+(let #:forall (A) ([x : A 0])
+  x)
+
+(let #:forall (A)
+     ([x : A 0])
+  x)
+
+(let loop ([n 0])
+  (displayln n)
+  (when (< n 5)
+    (loop (add1 n))))
+
+(let loop ([n : Real 1])
+  (if (< n 5)
+      (loop (add1 n))
+      n))
+
+(let loop : (Listof Natural) ([accum : (Listof Natural) null]
+                              [lst   : (Listof Natural) lst])
+  (cond
+    [(null? lst)       accum]
+    [(even? (car lst)) (loop (cons (car lst) accum) (cdr lst))]
+    [else              (loop accum (cdr lst))]))
+
+(let loop : (Listof Natural)
+     ([accum : (Listof Natural) null]
+      [lst   : (Listof Natural) lst])
+  (cond
+    [(null? lst)       accum]
+    [(even? (car lst)) (loop (cons (car lst) accum) (cdr lst))]
+    [else              (loop accum (cdr lst))]))

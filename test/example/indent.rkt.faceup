@@ -348,7 +348,7 @@
    ------------------------- Application
    (⇓ Γ (e x) Θ v)])
 
-«m:;; »«x:Issue 558
+«m:;; »«x:Issue #558
 »(«k:module+» «f:test»
   («b:+»
    «c:1»
@@ -363,3 +363,51 @@ EOF
           «b:this»
           «b:not»
           indented))
+
+«m:;; »«x:Issue #569
+»
+(«k:for» «b::» «t:Void»
+     ([i '(«c:1»)])
+  («b:print» i))
+
+(«k:for» «b::» «t:Void» ([i '(«c:1»)])
+  («b:print» i))
+
+(«k:for*» «b::» «t:Void»
+      ([i '(«c:1»)])
+  («b:print» i))
+
+(«k:for*» «b::» «t:Void» ([i '(«c:1»)])
+  («b:print» i))
+
+(«k:let» «:racket-keyword-argument-face:#:forall» (A) ([x «b::» A «c:0»])
+  x)
+
+(«k:let» «:racket-keyword-argument-face:#:forall» (A)
+     ([x «b::» A «c:0»])
+  x)
+
+(«k:let» «f:loop» ([«v:n» «c:0»])
+  («b:displayln» n)
+  («k:when» («b:<» n «c:5»)
+    (loop («b:add1» n))))
+
+(«k:let» «f:loop» ([«v:n» «b::» «t:Real» «c:1»])
+  («k:if» («b:<» n «c:5»)
+      (loop («b:add1» n))
+      n))
+
+(«k:let» «f:loop» «b::» («t:Listof» «t:Natural») ([accum «b::» («t:Listof» «t:Natural») «b:null»]
+                              [lst   «b::» («t:Listof» «t:Natural») lst])
+  («k:cond»
+    [(«b:null?» lst)       accum]
+    [(«b:even?» («b:car» lst)) (loop («b:cons» («b:car» lst) accum) («b:cdr» lst))]
+    [«k:else»              (loop accum («b:cdr» lst))]))
+
+(«k:let» «f:loop» «b::» («t:Listof» «t:Natural»)
+     ([accum «b::» («t:Listof» «t:Natural») «b:null»]
+      [lst   «b::» («t:Listof» «t:Natural») lst])
+  («k:cond»
+    [(«b:null?» lst)       accum]
+    [(«b:even?» («b:car» lst)) (loop («b:cons» («b:car» lst) accum) («b:cdr» lst))]
+    [«k:else»              (loop accum («b:cdr» lst))]))

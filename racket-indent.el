@@ -290,17 +290,34 @@ To handle nested items, we search `backward-up-list' up to
       (current-column))))
 
 (defun racket--indent-special-form (method indent-point state)
-  "METHOD must be a nonnegative integer -- the number of
-  \"special\" args that get extra indent when not on the first
-  line. Any additinonl args get normal indent."
-  ;; Credit: Substantially borrowed from clojure-mode
-  (let ((containing-column (save-excursion
+  "Indent a special form starting with DISTINGUISHED forms.
+
+METHOD must be an integer, the absolute value of which is the
+number of distinguished forms. When a distinguished form is on
+its own line (not on the first line) it gets special indent:
+
+- When METHOD is positive: Twice `lisp-body-indent',
+  which is the \"classic\" lisp behavior.
+
+- When METHOD is negative: Same as first distinguished form.
+
+Any additional, non-distinguished forms get normal indent."
+  ;; Credit: Substantially borrowed from clojure-mode --- although the
+  ;; concept of the "negative" number of distinguished forms is ours,
+  ;; introduced to handle some Racket forms like for/fold and the
+  ;; optional annotations of Typed Racket's let.
+  (skip-chars-forward " \t\n")
+  (let ((distinguished (abs method))
+        (containing-column (save-excursion
                              (goto-char (racket--ppss-containing-sexp state))
                              (current-column)))
-        (pos -1))
+        (pos -1)
+        (column-of-first-form nil))
     (condition-case nil
         (while (and (<= (point) indent-point)
                     (not (eobp)))
+          (unless column-of-first-form
+            (setq column-of-first-form (current-column)))
           (forward-sexp 1)
           (cl-incf pos))
       ;; If indent-point is _after_ the last sexp in the current sexp,
@@ -308,38 +325,45 @@ To handle nested items, we search `backward-up-list' up to
       ;; should return the indentation as if there were an extra sexp
       ;; at point.
       (scan-error (cl-incf pos)))
-    (cond ((= method pos)               ;first non-distinguished arg
+    (cond ((= distinguished pos)        ;first non-distinguished form
            (+ containing-column lisp-body-indent))
-          ((< method pos)               ;more non-distinguished args
+          ((< distinguished pos)        ;other non-distinguished form
            (racket--normal-indent indent-point state))
-          (t                            ;distinguished args
-           (+ containing-column (* 2 lisp-body-indent))))))
+          (t                            ;distinguished form
+           (if (< 0 method)
+               (+ containing-column (* 2 lisp-body-indent))
+             column-of-first-form)))))
 
-(defun racket--conditional-indent (indent-point state looking-at-regexp true false)
+(defun racket--indent-let (indent-point state)
+  "Indent a let form.
+We handle plain and named let, as well as the grammar for Typed
+Racket let."
   (skip-chars-forward " \t")
-  (let ((n (if (looking-at-p looking-at-regexp) true false)))
-    (racket--indent-special-form n indent-point state)))
-
-(defconst racket--identifier-regexp
-  (rx (or (syntax symbol) (syntax word) (syntax punctuation)))
-  "A regexp matching valid Racket identifiers.")
-
-(defun racket--indent-maybe-named-let (indent-point state)
-  "Indent a let form, handling named let (let <id> <bindings> <expr> ...)"
-  (racket--conditional-indent indent-point state
-                              racket--identifier-regexp
-                              2 1))
+  (let ((distinguished-forms
+         (if (looking-at-p (rx (or "#:forall" "#:∀") (any " \t")))
+             -3
+           (if (looking-at-p (rx (syntax open-parenthesis)))
+               1
+             (save-excursion
+               (forward-sexp 1)
+               (skip-chars-forward " \t\n")
+               (if (looking-at-p (rx ?: (any " \t")))
+                   -4
+                 2))))))
+    (racket--indent-special-form distinguished-forms
+                                 indent-point
+                                 state)))
 
 (defun racket--indent-for (indent-point state)
-  "Indent function for all for/ and for*/ forms EXCEPT
-for/fold and for*/fold.
+  "All for/ and for*/ forms except for/fold and for*/fold.
 
 Checks for either of:
   - maybe-type-ann e.g. (for/list : T ([x xs]) x)
   - for/vector optional length, (for/vector #:length ([x xs]) x)"
-  (racket--conditional-indent indent-point state
-                              (rx (or ?\: ?\#))
-                              3 1))
+  (skip-chars-forward " \t")
+  (racket--indent-special-form (if (looking-at-p (rx (or ?\: ?\#))) -3 1)
+                               indent-point
+                               state))
 
 (defun racket--indent-for/fold (indent-point state)
   "Indent function for for/fold and for*/fold."
@@ -347,35 +371,7 @@ Checks for either of:
   (skip-chars-forward " \t\n")
   (if (looking-at-p ":")
       (racket--indent-special-form 4 indent-point state)
-    (racket--indent-for/fold-untyped indent-point state)))
-
-(defun racket--indent-for/fold-untyped (indent-point state)
-  (let* ((containing-sexp-start  (racket--ppss-containing-sexp state))
-         (_                      (goto-char containing-sexp-start))
-         (containing-sexp-column (current-column))
-         (containing-sexp-line   (line-number-at-pos))
-         (body-indent            (+ containing-sexp-column lisp-body-indent))
-         (clause-indent          nil))
-    ;; Move to the open paren of the first, accumulator sexp
-    (forward-char 1)    ;past the open paren
-    (forward-sexp 2)    ;to the next sexp, past its close paren
-    (backward-sexp 1)   ;back to its open paren
-    ;; If the first, accumulator sexp is not on the same line as
-    ;; `for/fold`, then this is simply specform 2.
-    (if (/= (line-number-at-pos) containing-sexp-line) ;expensive?
-        (racket--indent-special-form 2 indent-point state)
-      (setq clause-indent (current-column))
-      (forward-sexp 1)    ;past close paren
-      ;; Now go back to the beginning of the line holding
-      ;; the indentation point. Count the sexps on the way.
-      (parse-partial-sexp (point) indent-point 1 t)
-      (let ((n 1))
-        (while (and (< (point) indent-point)
-                    (ignore-errors
-                      (cl-incf n)
-                      (forward-sexp 1)
-                      (parse-partial-sexp (point) indent-point 1 t))))
-        (if (= 1 n) clause-indent body-indent)))))
+    (racket--indent-special-form -2 indent-point state)))
 
 (defun racket--get-indent-function-method (head)
   "Get property of racket- or scheme-indent-function.
@@ -419,13 +415,12 @@ ignore a short list defined by scheme-mode itself."
     (do 2)
     (dynamic-wind 0)
     (fn 1)       ;alias for lambda (although not officially in Racket)
-    ;; for/ and for*/ forms default to racket--indent-for unless
-    ;; otherwise specified here
-    (for 1)
-    (for/list racket--indent-for)
+    ;; Note: Things matching (rx bos (or "for/" "for*/")) default to
+    ;; racket--indent-for unless otherwise specified here.
+    (for racket--indent-for) ;so the rx can match more strictly
     (for/lists racket--indent-for/fold)
     (for/fold racket--indent-for/fold)
-    (for* 1)
+    (for* racket--indent-for) ;so the rx can match more strictly
     (for*/lists racket--indent-for/fold)
     (for*/fold racket--indent-for/fold)
     (instantiate 2)
@@ -433,7 +428,7 @@ ignore a short list defined by scheme-mode itself."
     (λ defun)
     (lambda defun)
     (lambda/kw defun)
-    (let racket--indent-maybe-named-let)
+    (let racket--indent-let)
     (let* 1)
     (letrec 1)
     (letrec-values 1)
@@ -444,7 +439,7 @@ ignore a short list defined by scheme-mode itself."
     (let-syntaxes 1)
     (letrec-syntax 1)
     (letrec-syntaxes 1)
-    (letrec-syntaxes+values racket--indent-for/fold-untyped)
+    (letrec-syntaxes+values -2)
     (local 1)
     (let/cc 1)
     (let/ec 1)
@@ -485,7 +480,7 @@ ignore a short list defined by scheme-mode itself."
     (splicing-letrec-syntax 1)
     (splicing-let-syntaxes 1)
     (splicing-letrec-syntaxes 1)
-    (splicing-letrec-syntaxes+values racket--indent-for/fold-untyped)
+    (splicing-letrec-syntaxes+values -2)
     (splicing-local 1)
     (splicing-syntax-parameterize 1)
     (struct defun)
@@ -512,7 +507,7 @@ ignore a short list defined by scheme-mode itself."
   "Set indentation for various Racket forms.
 
 Note that `racket-indent-function' handles some forms -- e.g.
-`begin*`, `def*` `for/*`, `with-*` -- with regexp matches for
+`begin*`, `def*` `for*`, `with-*` -- with regexp matches for
 anything not explicitly listed here.
 
 Note that indentation is set for the symbol as listed, and also
