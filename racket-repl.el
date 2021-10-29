@@ -24,6 +24,7 @@
 (require 'racket-eldoc)
 (require 'racket-custom)
 (require 'racket-common)
+(require 'racket-show)
 (require 'racket-util)
 (require 'racket-visit)
 (require 'racket-cmd)
@@ -699,17 +700,17 @@ without the #; prefix."
                                (point)))
 
 (defun racket-eval-last-sexp ()
-  "Eval the previous sexp asynchronously and `message' the result."
+  "Eval the previous sexp asynchronously and `racket-show' the result."
   (interactive)
   (unless (racket--repl-live-p)
     (user-error "No REPL session available"))
-  (racket--cmd/async
-   (racket--repl-session-id)
-   `(eval
-     ,(buffer-substring-no-properties (racket--repl-last-sexp-start)
-                                      (point)))
-   (lambda (v)
-     (message "%s" v))))
+  (let ((beg (racket--repl-last-sexp-start))
+        (end (point)))
+   (racket--cmd/async
+    (racket--repl-session-id)
+    `(eval ,(buffer-substring-no-properties beg end))
+    (lambda (v)
+      (racket-show (format "%s" v) end t)))))
 
 (defun racket--repl-last-sexp-start ()
   (save-excursion
