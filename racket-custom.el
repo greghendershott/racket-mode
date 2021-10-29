@@ -487,16 +487,24 @@ level quieter. That way you can set the '* topic to a level like
   (list 'racket-show-pseudo-tooltip)
   "A special hook variable to customize `racket-show'.
 
-Example functions include:
+This is a list of one or more functions.
 
-  - `racket-show-pseudo-tooltip'
+Each such function shows a string somewhere, where \"somewhere\"
+is either:
+
+- An absolute location, in which case POS is ignored. Examples:
+
   - `racket-show-echo-area'
-  - `racket-show-pos-tip'
   - `racket-show-header-line'
 
-Each function should accept two arguments: VAL and POS.
+- A specific location POS in the current buffer. Examples:
 
-VAL is:
+  - `racket-show-pseudo-tooltip'
+  - `racket-show-pos-tip'
+
+Each such function should accept two arguments: STR and POS.
+
+STR is one of:
 
   - Non-blank string: Display the string somehow.
 
@@ -505,11 +513,15 @@ VAL is:
   - nil: Hide any persistent UI that might have been created to
     show strings, such as by `racket-show-header-line'.
 
-POS is the buffer position for which to show the message. It may
-be nil only when VAL is nil or a blank string. When the buffer
-content is a span, POS should be the end of the span. That way,
-for example, a function that shows a tooltip can position it not
-to hide the interesting span in the buffer."
+POS may be nil when STR is nil or a blank string. Otherwise POS
+is the buffer position for which to show the non-blank string.
+POS may be ignored if a function shows things in some location
+outside the buffer like the echo area or some fixed location like
+the buffer header. When STR pertains to some buffer content that
+is a span, POS will be the end of the span. That way, for
+example, a function that shows a real or pseudo tooltip can
+position it not to hide the span, for example below and/or to the
+right of POS."
   :tag "Racket Show Functions"
   :type 'hook
   :options '(racket-show-pseudo-tooltip

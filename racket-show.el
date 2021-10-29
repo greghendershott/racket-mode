@@ -22,21 +22,46 @@
 (require 'cl-macs)
 (require 'face-remap)
 
-(defun racket-show (val &optional pos)
-  "See the variable `racket-show-functions' for information about VAL and POS."
-  (dolist (f racket-show-functions)
-    (funcall f val pos)))
+(defun racket-show (str &optional pos transient-p)
+  "Apply STR and POS to functions in the variable `racket-show-functions'.
 
-(defun racket-show-echo-area (v &optional _pos)
+See that for meaning of STR and POS.
+
+When TRANSIENT-P, we automatically hide before the next command
+runs. Otherwise, the UI might remain visible indefinitely --
+depending on how a racket-show function displays --- until a
+subsequent call to `racket-show' to hide or to show a new value.
+Either behavior could be desirable depending on the caller's use
+case. For example `racket-xp-mode' wants the display to remain
+visible, if possible, even when the user chooses a command to
+select another window; only point motion hides or shows a
+different annotation."
+  (unless (string-or-null-p str)
+    (signal 'wrong-type-argument `(string-or-null-p ,str)))
+  (when (racket--non-empty-string-p str)
+    (unless (number-or-marker-p pos)
+      (signal 'wrong-type-argument `(number-or-marker-p ,pos))))
+  (dolist (f racket-show-functions)
+    (funcall f str pos))
+  (if transient-p
+      (add-hook 'pre-command-hook #'racket-show--pre-command-hook nil t)
+    (remove-hook 'pre-command-hook #'racket-show--pre-command-hook t)))
+
+(defun racket-show--pre-command-hook ()
+  "Hide and remove ourselves as a pre-command-hook."
+  (dolist (f racket-show-functions)
+    (funcall f "" nil))
+  (remove-hook 'pre-command-hook #'racket-show--pre-command-hook t))
+
+(defun racket-show-echo-area (str &optional _pos)
   "Show things in the echo area.
 
 A value for the variable `racket-show-functions'."
   (let ((message-log-max nil))
-    (if v
-        (message "%s" v)
-      (message ""))))
+    (when str
+      (message "%s" str))))
 
-(defun racket-show-header-line (v &optional _pos)
+(defun racket-show-header-line (str &optional _pos)
   "Show things using a buffer header line.
 
 A value for the variable `racket-show-functions'.
@@ -46,14 +71,15 @@ way, the buffer below doesn't \"jump up and down\" by a line as
 messages appear and disappear. Only when V is nil do we remove
 the header line."
   (setq-local header-line-format
-              (and v (format "%s" (racket--only-first-line v)))))
+              (and str
+                   (format "%s" (racket--only-first-line str)))))
 
 (defun racket--only-first-line (str)
   (save-match-data
     (string-match (rx (group (* (not (any ?\n))))) str)
     (match-string 1 str)))
 
-(defun racket-show-pos-tip (v &optional pos)
+(defun racket-show-pos-tip (str &optional pos)
   "Show things using `pos-tip-show' if available.
 
 A value for the variable `racket-show-functions'."
@@ -62,13 +88,13 @@ A value for the variable `racket-show-functions'."
              (not (memq window-system (list nil 'pc)))
              (fboundp 'pos-tip-show)
              (fboundp 'pos-tip-hide))
-    (if (racket--non-empty-string-p v)
-        (pos-tip-show v nil pos)
+    (if (racket--non-empty-string-p str)
+        (pos-tip-show str nil pos)
       (pos-tip-hide))))
 
 (defvar-local racket--pseudo-tooltip-overlays nil)
 
-(defun racket-show-pseudo-tooltip (v &optional pos)
+(defun racket-show-pseudo-tooltip (str &optional pos)
   "Show using an overlay that resembles a tooltip.
 
 This is nicer than `racket-show-pos-tip' because it:
@@ -82,9 +108,9 @@ text that spans multiple lines or is too wide to fit the window.
 In that case, we simply left-justify everything and do not draw
 any border."
   (racket--delete-pseudo-tooltip-overlays)
-  (when (racket--non-empty-string-p v)
+  (when (racket--non-empty-string-p str)
     (setq-local racket--pseudo-tooltip-overlays
-                (racket--make-pseudo-tooltip-overlays v pos))))
+                (racket--make-pseudo-tooltip-overlays str pos))))
 
 (defun racket--delete-pseudo-tooltip-overlays ()
   (dolist (ov racket--pseudo-tooltip-overlays)
