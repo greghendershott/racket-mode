@@ -54,10 +54,12 @@ different annotation."
 (defun racket-show-echo-area (str &optional _pos)
   "Show things in the echo area.
 
-A value for the variable `racket-show-functions'."
-  (let ((message-log-max nil))
-    (when str
-      (message "%s" str))))
+A value for the variable `racket-show-functions'.
+
+This does /not/ add STR to the \"*Messages*\" log buffer."
+  (when str
+    (let ((message-log-max nil)) ;don't log
+     (message "%s" str))))
 
 (defun racket-show-header-line (str &optional _pos)
   "Show things using a buffer header line.
