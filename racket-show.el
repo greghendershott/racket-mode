@@ -41,16 +41,14 @@ different annotation."
   (when (racket--non-empty-string-p str)
     (unless (number-or-marker-p pos)
       (signal 'wrong-type-argument `(number-or-marker-p ,pos))))
-  (dolist (f racket-show-functions)
-    (funcall f str pos))
+  (run-hook-with-args 'racket-show-functions str pos)
   (if transient-p
       (add-hook 'pre-command-hook #'racket-show--pre-command-hook nil t)
     (remove-hook 'pre-command-hook #'racket-show--pre-command-hook t)))
 
 (defun racket-show--pre-command-hook ()
   "Hide and remove ourselves as a pre-command-hook."
-  (dolist (f racket-show-functions)
-    (funcall f "" nil))
+  (run-hook-with-args 'racket-show-functions "" nil)
   (remove-hook 'pre-command-hook #'racket-show--pre-command-hook t))
 
 (defun racket-show-echo-area (str &optional _pos)
