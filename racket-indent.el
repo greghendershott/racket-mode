@@ -289,7 +289,7 @@ To handle nested items, we search `backward-up-list' up to
       (current-column))))
 
 (defun racket--indent-special-form (method indent-point state)
-  "Indent a special form starting with DISTINGUISHED forms.
+  "Indent a special form starting with METHOD distinguished forms.
 
 METHOD must be an integer, the absolute value of which is the
 number of distinguished forms. When a distinguished form is on
@@ -305,33 +305,32 @@ Any additional, non-distinguished forms get normal indent."
   ;; concept of the "negative" number of distinguished forms is ours,
   ;; introduced to handle some Racket forms like for/fold and the
   ;; optional annotations of Typed Racket's let.
-  (skip-chars-forward " \t\n")
   (let ((distinguished (abs method))
         (containing-column (save-excursion
                              (goto-char (racket--ppss-containing-sexp state))
                              (current-column)))
-        (pos -1)
-        (column-of-first-form nil))
+        (first-form-column (save-excursion
+                             (skip-chars-forward " \t\n")
+                             (current-column)))
+        (count -1))
     (condition-case nil
         (while (and (<= (point) indent-point)
                     (not (eobp)))
-          (unless column-of-first-form
-            (setq column-of-first-form (current-column)))
           (forward-sexp 1)
-          (cl-incf pos))
+          (cl-incf count))
       ;; If indent-point is _after_ the last sexp in the current sexp,
       ;; we detect that by catching the `scan-error'. In that case, we
       ;; should return the indentation as if there were an extra sexp
       ;; at point.
-      (scan-error (cl-incf pos)))
-    (cond ((= distinguished pos)        ;first non-distinguished form
+      (scan-error (cl-incf count)))
+    (cond ((= distinguished count)      ;first non-distinguished form
            (+ containing-column lisp-body-indent))
-          ((< distinguished pos)        ;other non-distinguished form
+          ((< distinguished count)      ;other non-distinguished form
            (racket--normal-indent indent-point state))
           (t                            ;distinguished form
-           (if (< 0 method)
+           (if (<= 0 method)
                (+ containing-column (* 2 lisp-body-indent))
-             column-of-first-form)))))
+             first-form-column)))))
 
 (defun racket--indent-let (indent-point state)
   "Indent a let form.
