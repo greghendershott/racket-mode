@@ -160,31 +160,6 @@ of a back end:
   a local host. Otherwise a specific port number should be used,
   and, remember to allow that in the remote's firewall.
 
-- :gui
-
-  - When :gui is false: The back end will /not/ attempt to load
-    racket/gui/base eagerly. This can make sense for a remote
-    back end running on a headless server, where the Racket
-    gui-lib package is installed, making racket/gui/base
-    available, but you do not want to use it. Keep in mind that
-    when `gui` is false, if you `racket-run' a program that
-    /does/ require racket/gui/base (directly or indirectly), you
-    cannot run a second such program without Racket complaining
-    that racket/gui/base cannot be instantiated more than once in
-    the same process. If that happens, you must use
-    `racket-start-back-end' to restart the back end process.
-
-  - When :gui is true: The back end /will/ attempt to load
-    racket/gui/base eagerly. This can make sense for a remote
-    back end running on a headless server, where the Racket
-    gui-lib package is installed, making racket/gui/base
-    available, and you do want to use it. In this case the
-    headless server should have the xvfb package installed, and
-    you should set the :racket-program property to something like
-    \"xvfb-run racket\". Now your programs can use modules that
-    require racket/gui/base, including obvious things like plot,
-    as well as some unfortunately less-obvious things.
-
 - :windows
 
   Whether the back end uses Windows style path names. Used to do
@@ -197,7 +172,7 @@ DIRECTORY is local or remote:
 
 - When DIRECTORY is remote, :repl-tcp-port is set to 55555,
   :repl-tcp-accept-host is set to \"0.0.0.0\" (accepts
-  connections from anywhere), :gui is nil, and :windows is nil.
+  connections from anywhere), and :windows is nil.
 
   When working with back ends on remote hosts, *remember to check
   your remote host firewall*. The goal here is to make sure
@@ -212,7 +187,7 @@ DIRECTORY is local or remote:
   :repl-tcp-port is set to 0 (meaning the back end picks an
   ephemeral port), :repl-tcp-accept-host is set to \"127.0.0.1\"
   (meaning the back end only accept TCP connections locally),
-  :gui is true, and :windows is set based on `system-type'.
+  and :windows is set based on `system-type'.
 
 Although the default values usually \"just work\" for local and
 remote back ends, you might want a special configuration. Here
@@ -241,10 +216,9 @@ are a few examples.
 
     ;; 4. For example's sake, assume for buffers visiting
     ;; /ssh:headless:~/gui-project/ we want :racket-program instead
-    ;; to be \"xvfb-run racket\" and :gui to be true.
+    ;; to be \"xvfb-run racket\".
     (racket-add-back-end \"/ssh:headless:~/gui-project/\"
-                         :racket-program \"xvfb-run racket\"
-                         :gui            t)
+                         :racket-program \"xvfb-run racket\")
 #+END_SRC
 "
   (unless (and (stringp directory) (file-name-absolute-p directory))
@@ -265,9 +239,6 @@ are a few examples.
            ;; These booleanp things need to distinguish nil meaning
            ;; "user specififed false" from "user did not specify
            ;; anything".
-           :gui                  (if (memq :gui plist)
-                                     (plist-get plist :gui)
-                                   local-p)
            :windows              (if (memq :windows plist)
                                      (plist-get plist :windows)
                                    (and local-p racket--winp)))))
@@ -295,7 +266,6 @@ are a few examples.
     (when (file-remote-p (plist-get plist :directory))
       (check #'stringp :remote-source-dir)
       (check #'file-name-absolute-p :remote-source-dir))
-    (check #'booleanp :gui)
     (check #'booleanp :windows))
   plist)
 

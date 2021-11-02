@@ -109,8 +109,6 @@ even from compiled bytecode.")
                                        (image-type-available-p 'imagemagick))))
                          "--use-svg"
                        "--do-not-use-svg"))
-           (gui-flag (if (plist-get back-end 'gui)
-                         "--always-gui" "--never-gui"))
            (command (list (or (plist-get back-end :racket-program)
                               racket-program)
                           main-dot-rkt
@@ -120,8 +118,7 @@ even from compiled bytecode.")
                           "--port"        (format "%s"
                                                   (plist-get back-end
                                                              :repl-tcp-port))
-                          svg-flag
-                          gui-flag))
+                          svg-flag))
            (command (if local-p
                         command
                       (pcase-let ((`(,host ,user ,port)

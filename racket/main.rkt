@@ -5,15 +5,15 @@
          version/utils
          "command-server.rkt"
          (only-in "image.rkt" emacs-can-use-svg!)
-         (only-in "gui.rkt" load-racket/gui/base!)
          "repl.rkt")
 
 (module+ main
-  (define expected-version "6.9")
+  (define minimum-version "6.9")
   (define actual-version (version))
-  (unless (version<=? expected-version actual-version)
-    (error 'racket-mode "needs at least Racket ~a but you have ~a"
-           expected-version
+  (unless (version<=? minimum-version actual-version)
+    (error '|Racket Mode back end| "Need Racket ~a or newer but ~a is ~a"
+           minimum-version
+           (find-executable-path (find-system-path 'exec-file))
            actual-version))
 
   (define-values (launch-token accept-host tcp-port)
@@ -22,12 +22,8 @@
                (== "--accept-host") accept-host
                (== "--port")        tcp-port
                (and (or "--use-svg" "--do-not-use-svg")
-                    svg-flag-str)
-               (and (or "--never-gui" "--always-gui")
-                    gui-flag-str))
+                    svg-flag-str))
        (emacs-can-use-svg! svg-flag-str)
-       (when (equal? gui-flag-str "--always-gui")
-         (load-racket/gui/base!))
        (values token accept-host (string->number tcp-port))]
       [v
        (eprintf "Bad command-line arguments:\n~v\n" v)
