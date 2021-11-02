@@ -8,7 +8,6 @@
          "elisp.rkt"
          (only-in "instrument.rkt" get-uncovered get-profile)
          "logger.rkt"
-         "mod.rkt"
          "repl.rkt"
          "repl-session.rkt"
          (only-in "scribble.rkt"
@@ -107,9 +106,7 @@
 
 (define/contract (command sexpr)
   (-> pair? any/c)
-  (define-values (dir file mod-path) (maybe-mod->dir/file/rmp
-                                      (current-session-maybe-mod)))
-  (define path (and dir file (build-path dir file)))
+  (define file (maybe-module-path->file (current-session-maybe-mod)))
   ;; Note: Intentionally no "else" match clause -- let caller handle
   ;; exn and supply a consistent exn response format.
   (match sexpr
@@ -156,11 +153,11 @@
     ;; now?
     [`(run ,what ,subs ,mem ,pp? ,cols ,pix/char ,ctx ,args ,dbg)
      (run what subs mem pp? cols pix/char ctx args dbg)]
-    [`(path)                           (or path 'top)]
+    [`(path)                           (or file 'top)]
     [`(syms)                           (syms)]
     [`(mod ,sym)                       (find-module sym (current-session-maybe-mod))]
     [`(get-profile)                    (get-profile)]
-    [`(get-uncovered)                  (get-uncovered path)]
+    [`(get-uncovered)                  (get-uncovered file)]
     [`(eval ,v)                        (eval-command v)]
     [`(repl-submit? ,str ,eos?)        (repl-submit? str eos?)]
     [`(debug-eval ,src ,l ,c ,p ,code) (debug-eval src l c p code)]

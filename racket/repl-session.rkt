@@ -32,7 +32,7 @@
 (struct session
   (thread           ;thread? the repl manager thread
    repl-msg-chan    ;channel?
-   maybe-mod        ;(or/c #f mod?)
+   maybe-mod        ;(or/c #f module-path?)
    namespace        ;namespace?
    submit-pred)     ;(or/c #f drracket:submit-predicate/c)
   #:transparent)

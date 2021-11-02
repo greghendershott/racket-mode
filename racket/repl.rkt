@@ -2,8 +2,11 @@
 ;; Do NOT use `at-exp` in this file! See issue #290.
 
 (require racket/contract
+         racket/format
          racket/match
+         (only-in racket/path path-only file-name-from-path)
          racket/set
+         (only-in racket/string string-join)
          racket/tcp
          (only-in "debug.rkt" make-debug-eval-handler next-break)
          "elisp.rkt"
@@ -11,7 +14,6 @@
          "gui.rkt"
          "instrument.rkt"
          "interactions.rkt"
-         "mod.rkt"
          "print.rkt"
          "repl-session.rkt"
          "stack-checkpoint.rkt"
@@ -22,7 +24,8 @@
          repl-tcp-port-number
          run
          break-repl-thread
-         repl-zero-column)
+         repl-zero-column
+         maybe-module-path->file)
 
 ;;; Messages to each repl manager thread
 
@@ -56,7 +59,7 @@
   ([in-repl? boolean?]))
 
 (define-struct/contract (run-config repl-manager-thread-message)
-  ([maybe-mod       (or/c #f mod?)]
+  ([maybe-mod       (or/c #f module-path?)]
    [extra-submods   (listof (listof symbol?))]
    [memory-limit    exact-nonnegative-integer?] ;0 = no limit
    [pretty-print?   boolean?]
@@ -102,9 +105,16 @@
   (unless (current-repl-msg-chan)
     (error 'run "current-repl-msg-chan was #f; current-session-id=~v"
            (current-session-id)))
+  (define mod-path
+    (match what
+      [(cons (? complete-path? path-string) submods)
+       (define path (simplify-path (string->path path-string)))
+       (if (null? submods)
+           path
+           (list* 'submod path submods))]))
   (define ready-channel (make-channel))
   (channel-put (current-repl-msg-chan)
-               (run-config (->mod/existing what)
+               (run-config mod-path
                            subs
                            mem
                            (as-racket-bool pp)
@@ -119,6 +129,22 @@
   ;; done and entering a REPL for that module. For example, to compose
   ;; run with get-profile or get-uncovered.
   (sync ready-channel))
+
+(define/contract (maybe-module-path->file m)
+  (-> (or/c #f module-path?) path?)
+  (match m
+    [(? path? p)                   p]
+    [(list* 'submod (? path? p) _) p]
+    [#f                            (current-directory)]))
+
+(define/contract (maybe-module-path->prompt-string m)
+  (-> (or/c #f module-path?) string?)
+  (define (name p)
+    (~a (file-name-from-path p)))
+  (match m
+    [(? path? p)          (name p)]
+    [(list* 'submod p xs) (string-join (cons (name p) (map ~a xs)) "/")]
+    [#f                   ""]))
 
 ;;; REPL session server
 
@@ -201,7 +227,8 @@
                             cmd-line-args
                             debug-files
                             ready-thunk)   cfg)
-  (define-values (dir file mod-path) (maybe-mod->dir/file/rmp maybe-mod))
+  (define file (maybe-module-path->file maybe-mod))
+  (define dir (path-only file))
   ;; Set current-directory -- but not current-load-relative-directory,
   ;; see #492 -- to the source file's directory.
   (current-directory dir)
@@ -241,7 +268,7 @@
     (profiling-enabled (eq? context-level 'profile))
     (test-coverage-enabled (eq? context-level 'coverage))
     ;; If module, require and enter its namespace, etc.
-    (when (and maybe-mod mod-path)
+    (when maybe-mod
       (with-expanded-syntax-caching-evaluator
         (with-handlers (;; When exn during module load, display it,
                         ;; ask the manager thread to re-run, and wait
@@ -253,10 +280,10 @@
                                         (struct-copy run-config cfg [maybe-mod #f]))
                            (sync never-evt))])
           (with-stack-checkpoint
-            (maybe-configure-runtime mod-path) ;FIRST: see #281
-            (namespace-require mod-path)
+            (maybe-configure-runtime maybe-mod) ;FIRST: see #281
+            (namespace-require maybe-mod)
             (for ([submod (in-list extra-submods-to-run)])
-              (define submod-spec `(submod ,(build-path dir file) ,@submod))
+              (define submod-spec `(submod ,file ,@submod))
               (when (module-declared? submod-spec)
                 (dynamic-require submod-spec #f)))
             ;; User's program may have changed current-directory;
@@ -264,8 +291,7 @@
             ;; restore user's value for REPL.
             (current-namespace
              (parameterize ([current-directory dir])
-               (module->namespace mod-path)))
-            (maybe-warn-about-submodules mod-path context-level)
+               (module->namespace maybe-mod)))
             (check-#%top-interaction)))))
     ;; Update information about our session -- now that
     ;; current-namespace is possibly updated, and, it is OK to call
@@ -325,28 +351,26 @@
       [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)
          (get-message)])))
 
-(define/contract ((make-prompt-read m))
-  (-> (or/c #f mod?) (-> any))
-  (begin0 (get-interaction (maybe-mod->prompt-string m))
+(define ((make-prompt-read m))
+  (begin0 (get-interaction (maybe-module-path->prompt-string m))
     ;; let debug-instrumented code break again
     (next-break 'all)))
 
 ;; <https://docs.racket-lang.org/tools/lang-languages-customization.html#(part._.R.E.P.L_.Submit_.Predicate)>
 (define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
 (define/contract (get-repl-submit-predicate m)
-  (-> (or/c #f mod?) (or/c #f drracket:submit-predicate/c))
-  (define-values (dir file rmp) (maybe-mod->dir/file/rmp m))
-  (define path (and dir file (build-path dir file)))
-  (and path rmp
+  (-> (or/c #f module-path?) (or/c #f drracket:submit-predicate/c))
+  (and m
        (or (with-handlers ([exn:fail? (λ _ #f)])
-            (match (with-input-from-file (build-path dir file) read-language)
-              [(? procedure? get-info)
-               (match (get-info 'drracket:submit-predicate #f)
-                 [#f #f]
-                 [v  v])]
-              [_ #f]))
+             (match (with-input-from-file (maybe-module-path->file m)
+                      read-language)
+               [(? procedure? get-info)
+                (match (get-info 'drracket:submit-predicate #f)
+                  [#f #f]
+                  [v  v])]
+               [_ #f]))
            (with-handlers ([exn:fail? (λ _ #f)])
-             (match (module->language-info rmp #t)
+             (match (module->language-info m #t)
                [(vector mp name val)
                 (define get-info ((dynamic-require mp name) val))
                 (get-info 'drracket:submit-predicate #f)]

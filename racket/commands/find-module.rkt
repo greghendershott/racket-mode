@@ -2,18 +2,19 @@
 
 (require racket/contract
          racket/match
+         racket/path
          syntax/modresolve
-         "../mod.rkt")
+         "../repl.rkt")
 
 (provide find-module)
 
 (define/contract (find-module str maybe-mod)
-  (-> string? (or/c #f mod?)
+  (-> string? (or/c #f module-path?)
       (or/c #f (list/c path-string? number? number?)))
-  (define-values (dir _file maybe-rmp) (maybe-mod->dir/file/rmp maybe-mod))
-  (parameterize ([current-load-relative-directory dir])
-    (or (mod-loc str maybe-rmp)
-        (mod-loc (string->symbol str) maybe-rmp))))
+  (define file (maybe-module-path->file maybe-mod))
+  (parameterize ([current-load-relative-directory (path-only file)])
+    (or (mod-loc str maybe-mod)
+        (mod-loc (string->symbol str) maybe-mod))))
 
 (define (mod-loc v maybe-rmp)
   (match (with-handlers ([exn:fail? (λ _ #f)])
@@ -39,7 +40,7 @@
                     (list (== requires.rkt) 1 0))
        (check-match (find-module "racket/string" mod)
                     (list pe-racket/string 1 0))))
-    (let ([mod (->mod/existing (build-path here "describe.rkt"))])
+    (let ([mod (build-path here "describe.rkt")])
       (check-match (find-module "requires.rkt" mod)
                    (list (== requires.rkt) 1 0))
       (check-match (find-module "racket/string" mod)
