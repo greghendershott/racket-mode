@@ -4,10 +4,11 @@
          racket/port
          version/utils
          "command-server.rkt"
-         (only-in "image.rkt" emacs-can-use-svg!)
+         (only-in "image.rkt" set-use-svg?!)
          "repl.rkt")
 
 (module+ main
+  ;; Assert Racket minimum version
   (define minimum-version "6.9")
   (define actual-version (version))
   (unless (version<=? minimum-version actual-version)
@@ -16,18 +17,18 @@
            (find-executable-path (find-system-path 'exec-file))
            actual-version))
 
+  ;; Command-line flags (from Emacs front end invoking us)
   (define-values (launch-token accept-host tcp-port)
     (match (current-command-line-arguments)
-      [(vector (== "--auth")        token
-               (== "--accept-host") accept-host
-               (== "--port")        tcp-port
-               (and (or "--use-svg" "--do-not-use-svg")
-                    svg-flag-str))
-       (emacs-can-use-svg! svg-flag-str)
-       (values token accept-host (string->number tcp-port))]
+      [(vector "--auth"        auth
+               "--accept-host" accept-host
+               "--port"        port
+               (or (and "--use-svg"        (app (λ _ (set-use-svg?! #t)) _))
+                   (and "--do-not-use-svg" (app (λ _ (set-use-svg?! #f)) _))))
+       (values auth accept-host (string->number port))]
       [v
-       (eprintf "Bad command-line arguments:\n~v\n" v)
-       (exit)]))
+       (error '|Racket Mode back end|
+              "Bad command-line arguments:\n~v\n" v)]))
 
   ;; Save original current-{input output}-port to give to
   ;; command-server-loop for command I/O.
