@@ -19,6 +19,11 @@
 (require 'cl-macs)
 (require 'racket-cmd)
 
+(defvar-local racket--hash-lang-generation 1
+  "This is set to 1 when we lexindent create, incremented every
+  time we do a lexindent update, then we supply it for other
+  lexindent operations.")
+
 ;; These are simply to save the original values, to be able to restore
 ;; when the minor mode is disabled:
 (defvar-local racket--hash-lang-orig-font-lock-defaults nil)
@@ -57,57 +62,58 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
 
 (defun racket--hash-lang-mode (mode-var forward-sexp-function-p)
   (if mode-var
-      (racket--cmd/async
-       nil
-       `(lexindent create
-                   ,(racket--buffer-file-name)
-                   ,(save-restriction
-                      (widen)
-                      (buffer-substring-no-properties (point-min) (point-max))))
-       (lambda (tokens)
-         (font-lock-mode -1)
-         (with-silent-modifications
-           (remove-text-properties (point-min) (point-max)
-                                   '(face nil fontified nil syntax-table nil)))
-         (racket--hash-lang-propertize tokens)
+      (progn
+        (setq racket--hash-lang-generation 1)
+        (font-lock-mode -1)
+        (with-silent-modifications
+          (remove-text-properties (point-min) (point-max)
+                                  '(face nil fontified nil syntax-table nil)))
 
-         (setq-local racket--hash-lang-orig-font-lock-defaults
-                     font-lock-defaults)
-         (setq-local font-lock-defaults nil)
+        (setq-local racket--hash-lang-orig-font-lock-defaults
+                    font-lock-defaults)
+        (setq-local font-lock-defaults nil)
 
-         (setq-local racket--hash-lang-orig-syntax-propertize-function
-                     syntax-propertize-function)
-         (setq-local syntax-propertize-function nil)
+        (setq-local racket--hash-lang-orig-syntax-propertize-function
+                    syntax-propertize-function)
+        (setq-local syntax-propertize-function nil)
 
-         (setq-local racket--hash-lang-orig-syntax-table
-                     (syntax-table))
-         ;; Mostly we use 'syntax-table text properties. However some
-         ;; things (e.g. paredit) might do e.g. (char-syntax
-         ;; (char-before)) which will ignore that. So we need some
-         ;; syntax-table with some reasonable default(s). Whitespace
-         ;; seems like a good choice, except that breaks
-         ;; `paredit-delete-leading-whitespace'. Instead let's use
-         ;; symbol. That might cause its own problem, but it's my
-         ;; least-worst idea, for the time being.
-         (set-syntax-table (make-char-table 'syntax-table '(3)))
+        (setq-local racket--hash-lang-orig-syntax-table
+                    (syntax-table))
+        ;; Mostly we use 'syntax-table text properties. However some
+        ;; things (e.g. paredit) might do e.g. (char-syntax
+        ;; (char-before)) which will ignore that. So we need some
+        ;; syntax-table with some reasonable default(s). Whitespace
+        ;; seems like a good choice, except that breaks
+        ;; `paredit-delete-leading-whitespace'. Instead let's use
+        ;; symbol. That might cause its own problem, but it's my
+        ;; least-worst idea, for the time being.
+        (set-syntax-table (make-char-table 'syntax-table '(3)))
 
-         (setq-local racket--hash-lang-orig-indent-line-function
-                     indent-line-function)
-         (setq-local indent-line-function
-                     #'racket-hash-lang-indent-line-function)
+        (setq-local racket--hash-lang-orig-indent-line-function
+                    indent-line-function)
+        (setq-local indent-line-function
+                    #'racket-hash-lang-indent-line-function)
 
-         (setq-local racket--hash-lang-orig-forward-sexp-function
-                     forward-sexp-function)
-         (setq-local forward-sexp-function
-                     (and forward-sexp-function-p
-                          #'racket-hash-lang-forward-sexp-function))
+        (setq-local racket--hash-lang-orig-forward-sexp-function
+                    forward-sexp-function)
+        (setq-local forward-sexp-function
+                    (and forward-sexp-function-p
+                         #'racket-hash-lang-forward-sexp-function))
 
-         (add-hook 'after-change-functions
-                   #'racket--hash-lang-after-change-hook
-                   t t)
-         (add-hook 'kill-buffer-hook
-                   #'racket--hash-lang-delete
-                   t t)))
+        (add-hook 'after-change-functions
+                  #'racket--hash-lang-after-change-hook
+                  t t)
+        (add-hook 'kill-buffer-hook
+                  #'racket--hash-lang-delete
+                  t t)
+        (racket--cmd/async
+         nil
+         `(lexindent create
+                     ,(racket--buffer-file-name)
+                     ,(save-restriction
+                        (widen)
+                        (buffer-substring-no-properties (point-min) (point-max))))
+         #'ignore))
     (setq-local font-lock-defaults
                 racket--hash-lang-orig-font-lock-defaults)
     (setq-local syntax-propertize-function
@@ -140,14 +146,15 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
 (defun racket--hash-lang-after-change-hook (beg end len)
   ;; This might be called as frequently as once per single changed
   ;; character.
-  (racket--hash-lang-propertize
-   (racket--cmd/await ; await = :(
-    nil
-    `(lexindent update
-                ,(racket--buffer-file-name)
-                ,beg
-                ,len
-                ,(buffer-substring-no-properties beg end)))))
+  (racket--cmd/async
+   nil
+   `(lexindent update
+               ,(racket--buffer-file-name)
+               ,(incf racket--hash-lang-generation)
+               ,beg
+               ,len
+               ,(buffer-substring-no-properties beg end))
+   #'ignore))
 
 (defconst racket--string-content-syntax-table
   (let ((st (copy-syntax-table (standard-syntax-table))))
@@ -161,10 +168,14 @@ things like #rx\"blah\" in Racket, which are lexed as one single
 string token, will not give string syntax to the open quote after
 x.")
 
+(defun racket--hash-lang-on-token (id token)
+  (with-current-buffer (find-buffer-visiting id)
+    (racket--hash-lang-propertize (list token))))
+
 (defun racket--hash-lang-propertize (tokens)
   (with-silent-modifications
-    (cl-labels ((put-face (beg end face) (put-text-property beg end 'face face))
-                (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
+    (cl-flet ((put-face (beg end face) (put-text-property beg end 'face face))
+              (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
       (let ((sexp-prefix-ends nil))
         (dolist (token tokens)
           (pcase-let ((`(,beg ,end ,kind ,opposite) token))
@@ -259,6 +270,7 @@ x.")
                   nil
                   `(lexindent indent-amount
                               ,(racket--buffer-file-name)
+                              ,racket--hash-lang-generation
                               ,bol)))
          ;; When point is within the leading whitespace, move it past the
          ;; new indentation whitespace. Otherwise preserve its position
@@ -277,6 +289,7 @@ x.")
           nil
           `(lexindent forward-sexp
                       ,(racket--buffer-file-name)
+                      ,racket--hash-lang-generation
                       ,(point)
                       ,(or arg 1)))
     ((and (pred numberp) pos)
@@ -284,12 +297,6 @@ x.")
     ;; This is important for use of forward-sexp-function by `up-list':
     ((and xs `(,(pred numberp) ,(pred numberp)))
      (signal 'scan-error (cons "no more sexps at this depth" xs)))))
-
-(defun racket-hash-lang-debug ()
-  (interactive)
-  (racket--cmd/async nil
-                     `(lexindent show
-                                 ,(racket--buffer-file-name))))
 
 (provide 'racket-hash-lang)
 

@@ -2,14 +2,12 @@
 
 ;; Bridge to Emacs Lisp to use lexers, token-maps, and indenters.
 
-(require racket/match
-         racket/pretty
-         (rename-in "../token-map/indent-at-exp.rkt"
-                    [indent-amount at-exp:indent-amount])
-         (rename-in "../token-map/indent-sexp.rkt"
-                    [indent-amount sexp:indent-amount])
+(require racket/async-channel
+         racket/match
+         "../token-map/private/indent.rkt"
          (rename-in "../token-map/main.rkt"
                     [create tm:create]
+                    [delete tm:delete]
                     [update! tm:update!]
                     [tokens tm:tokens]
                     [classify tm:classify]
@@ -17,63 +15,96 @@
                     [backward-sexp tm:backward-sexp])
          "../util.rkt")
 
-(provide lexindent)
+(provide lexindent
+         token-notify-channel)
+
+;; TODO:
+;;
+;; - Consider the case where the #lang line changed -- that will
+;; require re-reading things we got from get-info!
+;;
+;; - Separate indent-line and indent-region commands. Read docs
+;; carefully wrt to case where both drracket:range-indent and :indent
+;; are available.
+;;
+;; - Use drracket:quote-matches.
+;;
+;; - Use drracket:grouping-position.
+;;
+;; - Default to module-lexer* not module-lexer ?
 
 (define (lexindent . args)
-  (begin0
-      (match args
-        [`(create ,id ,s)                 (create id s)]
-        [`(delete ,id)                    (delete id)]
-        [`(update ,id ,pos ,old-len ,str) (update id pos old-len str)]
-        [`(indent-amount ,id ,pos)        (indent-amount id pos)]
-        [`(classify ,id ,pos)             (classify id pos)]
-        [`(forward-sexp ,id ,pos ,arg)    (forward-sexp id pos arg)])
-    #;
-    (match args
-      [(list* (or 'create 'delete) _) (void)]
-      [(list* _ id _) (log-racket-mode-debug "~v" (hash-ref ht id))])))
+  (log-racket-mode-debug "~v" args)
+  (match args
+    [`(create ,id ,s)                      (create id s)]
+    [`(delete ,id)                         (delete id)]
+    [`(update ,id ,gen ,pos ,old-len ,str) (update id gen pos old-len str)]
+    [`(indent-amount ,id ,gen ,pos)        (indent-amount id gen pos)]
+    [`(classify ,id ,gen ,pos)             (classify id gen pos)]
+    [`(forward-sexp ,id ,gen ,pos ,arg)    (forward-sexp id gen pos arg)]))
 
-(struct lexindenter (token-map indent) #:transparent)
+(define token-notify-channel (make-async-channel))
+
+(struct lexindenter (token-map indent notify-rx-chan) #:transparent)
 (define ht (make-hash)) ;id => lexindenter?
 
 (define (create id s)
-  (define tm (tm:create s))
-  (hash-set! ht id (lexindenter tm (choose-indenter s tm)))
-  (tokens-as-elisp tm 1 +inf.0))
+  ;; We supply an async-channel to create that we receive here to
+  ;; transform the values to Elisp, as well as attaching the `id` so
+  ;; they can be distributed to the appropriate buffer, before sending
+  ;; them on the token-notify-processor that the command server can
+  ;; sync on just like it does for notify channels for logger and
+  ;; debug.
+  (define ch (make-async-channel))
+  (thread
+   (λ ()
+     (let loop ()
+       (match (async-channel-get ch)
+         ['begin (loop)] ;ignore
+         [(? bounds+token? b+t)
+          (async-channel-put token-notify-channel
+                             (list 'token id (token->elisp b+t)))
+          (loop)]
+         ['end (loop)] ;ignore
+         ['quit (void)]))))
+  (define tm (tm:create s ch))
+  (define indenter (choose-indenter s tm))
+  (hash-set! ht id (lexindenter tm indenter ch)))
 
 (define (delete id)
-  (hash-remove! ht id))
+  (match (hash-ref ht id #f)
+    [(lexindenter tm _ ch)
+     (tm:delete tm)
+     (async-channel-put ch 'quit) ;kill thread
+     (hash-remove! ht id)]
+    [#f (log-racket-mode-warning "delete lexindenter ~v: not found" id)]))
 
-(define (update id pos old-len str)
-  (match-define (lexindenter tm _) (hash-ref ht id))
-  (with-time/log "tm:update"
-    (map token->elisp (tm:update! tm pos old-len str))))
+(define (update id gen pos old-len str)
+  (match-define (lexindenter tm _ _) (hash-ref ht id))
+  (with-time/log "tm:update" (tm:update! tm gen pos old-len str)))
 
-(define (indent-amount id pos)
-  (match-define (lexindenter tm proc) (hash-ref ht id))
-  (with-time/log "tm:indent-amount" (proc tm pos)))
+(define (indent-amount id gen pos)
+  (match-define (lexindenter tm proc _) (hash-ref ht id))
+  (line-amount proc tm gen pos #f))
 
-(define (classify id pos)
-  (match-define (lexindenter tm _) (hash-ref ht id))
-  (token->elisp (tm:classify tm pos)))
+(define (classify id gen pos)
+  (match-define (lexindenter tm _ _) (hash-ref ht id))
+  (token->elisp (tm:classify tm gen pos)))
 
-(define (forward-sexp id pos arg)
-  (match-define (lexindenter tm _) (hash-ref ht id))
+(define (forward-sexp id gen pos arg)
+  (match-define (lexindenter tm _ _) (hash-ref ht id))
   (define (fail pos) (list pos pos)) ;for signal scan-error
   (let loop ([pos pos]
              [arg arg])
     (cond [(zero? arg) pos]
           [(positive? arg)
-           (match (tm:forward-sexp tm pos fail)
+           (match (tm:forward-sexp tm gen pos fail)
              [(? number? v) (loop v (sub1 arg))]
              [v v])]
           [(negative? arg)
-           (match (tm:backward-sexp tm pos fail)
+           (match (tm:backward-sexp tm gen pos fail)
              [(? number? v) (loop v (add1 arg))]
              [v v])])))
-
-(define (tokens-as-elisp tm beg end)
-  (tm:tokens tm beg end token->elisp))
 
 (define (token->elisp b+t)
   (match-define (bounds+token beg end t) b+t)
@@ -88,24 +119,7 @@
                          (read-language (open-input-string string)
                                         (λ _ #f)))
                        (λ (_key default) default)))
-  (or
-   ;; Prefer our proposed indent protocol: 'indent-amount is
-   ;; (-> token-map? indent-position indent-amount).
-   (get-info 'indent-amount #f)
-   ;; If all lexers are Scribble, use our at-exp indenter implemented
-   ;; on token-map. We don't want and can't use the legacy Scribble
-   ;; drracket:indentation implemented on text<%>. Indeed even
-   ;; checking for that with (get-info 'drracket:indentation) would
-   ;; result in a "heavy" instantiation of racket/gui.
-   (match (lexer-names tm)
-     [(list 'scribble-inside-lexer)
-      (log-racket-mode-info "Using our own at-exp indenter, not e.g. drracket:indentation determine-spaces")
-      at-exp:indent-amount]
-     [(and (list* _a _b _more) vs)
-      (log-racket-mode-warning "Multiple lexers: ~v" vs)]
-     [_ #f])
-   ;; Default to our sexp indenter.
-   sexp:indent-amount))
+  (indenter get-info))
 
 (module+ example-0
   (define id 0)

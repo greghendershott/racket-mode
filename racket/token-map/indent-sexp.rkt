@@ -25,16 +25,36 @@
 (module+ test
   (require rackunit))
 
+(module+ test
+  (require racket/async-channel)
+  (define gathering-channel (make-async-channel))
+  (define result-channel (make-async-channel))
+  (void
+   (thread
+    (λ () (let loop ([xs null])
+            (match (async-channel-get gathering-channel)
+              ['begin (loop null)]
+              [(? bounds+token? x) (loop (cons x xs))]
+              ['end
+               (async-channel-put result-channel (reverse xs))
+               (loop null)])))))
+  (define (test-create str)
+    (begin0 (create str gathering-channel)
+      (async-channel-get result-channel)))
+  (define (test-update! tm gen pos old-len str)
+    (update! tm gen pos old-len str)
+    (async-channel-get result-channel)))
+
 ;; token-map? positive-integer? -> nonnegative-integer?
-(define (indent-amount tm indent-pos)
-  (match (with-time/log "backward-up" (backward-up tm indent-pos))
+(define (indent-amount tm gen indent-pos)
+  (match (with-time/log "backward-up" (backward-up tm gen indent-pos))
     [(and (? number? open-pos)
           (app (with-time/log "end-of-hash-literal" (end-of-hash-literal/keyword tm))
                (? number? end)))
-     (- end (beg-of-line tm open-pos))]
+     (- end (beg-of-line tm gen open-pos))]
     [(? number? open-pos)
-     (define id-pos (forward-whitespace tm (add1 open-pos)))
-     (define id-name (token-text tm id-pos))
+     (define id-pos (forward-whitespace tm gen (add1 open-pos)))
+     (define id-name (token-text tm gen id-pos))
      ;; (log-debug "indent-amount id-name is ~v at ~v" id-name id-pos)
      (match (hash-ref ht-methods
                       id-name
@@ -49,12 +69,12 @@
        ['begin
         (special-form tm open-pos id-pos indent-pos 0)]
        ['define
-        (define containing-column (- open-pos (beg-of-line tm open-pos)))
+        (define containing-column (- open-pos (beg-of-line tm gen open-pos)))
         (+ containing-column 2)]
        [(? procedure? proc)
         (proc tm open-pos id-pos indent-pos)]
        [_
-        (with-time/log "default-amount" (default-amount tm id-pos))])]
+        (with-time/log "default-amount" (default-amount tm gen id-pos))])]
     [#f
      ;; (log-debug "indent-amount no containing sexp found")
      0]))
@@ -67,62 +87,62 @@
      end]
     [_ #f]))
 
-(define (default-amount tm id-pos [def #f])
-  (define bol (beg-of-line tm id-pos))
-  (define eol (end-of-line tm id-pos))
-  (define 1st-arg-pos (beg-of-next-sexp tm id-pos))
+(define (default-amount tm gen id-pos [def #f])
+  (define bol (beg-of-line tm gen id-pos))
+  (define eol (end-of-line tm gen id-pos))
+  (define 1st-arg-pos (beg-of-next-sexp tm gen id-pos))
   (if (and 1st-arg-pos (< 1st-arg-pos eol)) ;on same line?
       (- 1st-arg-pos bol)
       (or def (- id-pos bol))))
 
-(define (special-form tm open-pos id-pos indent-pos special-args [special-indent 4])
+(define (special-form tm gen open-pos id-pos indent-pos special-args [special-indent 4])
   ;; Up to special-args get extra indent (+4), the remainder get body
   ;; indent (+2).
-  (define open-column (- open-pos (beg-of-line tm open-pos)))
+  (define open-column (- open-pos (beg-of-line tm gen open-pos)))
   (cond
     [(zero? special-args)
-     (default-amount tm id-pos (+ open-column 2))]
+     (default-amount tm gen id-pos (+ open-column 2))]
     [else
-     (define indent-pos-bol (beg-of-line tm indent-pos))
+     (define indent-pos-bol (beg-of-line tm gen indent-pos))
      (define (first-arg-on-indent-line? pos)
        (= (beg-of-line tm pos) indent-pos-bol))
      (define args
-       (let loop ([arg-end (forward-sexp tm (forward-sexp tm id-pos))]
+       (let loop ([arg-end (forward-sexp tm gen (forward-sexp tm gen id-pos))]
                   [count 0])
          (if (and arg-end
                   (<= arg-end indent-pos))
-             (match (forward-sexp tm arg-end)
+             (match (forward-sexp tm gen arg-end)
                [(? integer? n) #:when (first-arg-on-indent-line? n) (add1 count)]
                [(? integer? n) (loop n (add1 count))]
                [#f (add1 count)])
              count)))
      (+ open-column (if (< args special-args) special-indent 2))]))
 
-(define (indent-maybe-named-let tm open-pos id-pos indent-pos)
-  (special-form tm open-pos id-pos indent-pos
-                (match (classify tm (beg-of-next-sexp tm id-pos))
+(define (indent-maybe-named-let tm gen open-pos id-pos indent-pos)
+  (special-form tm gen open-pos id-pos indent-pos
+                (match (classify tm gen (beg-of-next-sexp tm id-pos))
                   [(bounds+token _beg _end (? token:misc? t))
                    #:when (eq? (token:misc-kind t) 'symbol)
                    2]
                   [_ 1])))
 
 (module+ test
-  (let ([tm (create "#lang racket\n(let ()\n  a\n  b)")])
-    (check-equal? (indent-amount tm 24) 2)
-    (check-equal? (indent-amount tm 28) 2))
-  (let ([tm (create "#lang racket\n(let loop ()\n  a\n  b)")])
-    (check-equal? (indent-amount tm 29) 2)
-    (check-equal? (indent-amount tm 33) 2)))
+  (let ([tm (test-create "#lang racket\n(let ()\n  a\n  b)")])
+    (check-equal? (indent-amount tm 1 24) 2)
+    (check-equal? (indent-amount tm 1 28) 2))
+  (let ([tm (test-create "#lang racket\n(let loop ()\n  a\n  b)")])
+    (check-equal? (indent-amount tm 1 29) 2)
+    (check-equal? (indent-amount tm 1 33) 2)))
 
-(define (indent-for tm open-pos id-pos indent-pos)
+(define (indent-for tm gen open-pos id-pos indent-pos)
   ;; Default indent function for "for/" and "for*/" forms not
   ;; otherwise specified ( such as for/fold and for*/fold).
   ;;
   ;; Checks for either of:
   ;;   - maybe-type-ann e.g. (for/list : T ([x xs]) x)
   ;;   - for/vector optional length, (for/vector #:length ([x xs]) x)
-  (special-form tm open-pos id-pos indent-pos
-                (match (beg-of-next-sexp tm id-pos)
+  (special-form tm gen open-pos id-pos indent-pos
+                (match (beg-of-next-sexp tm gen id-pos)
                   [(bounds+token _beg _end (? token:misc? t))
                    #:when (or (eq? (token:misc-kind t) 'hash-colon-keyword)
                               (and (eq? (token:misc-kind t) 'symbol)
@@ -131,144 +151,146 @@
                   [_ 1])))
 
 (module+ test
-  (let ([tm (create "#lang racket\n(for/list ()\n  a\n b)")])
-    (check-equal? (indent-amount tm 29) 2)
-    (check-equal? (indent-amount tm 32) 2))
-  (let ([tm (create "#lang racket\n(for/list : T ()\n  a\n b)")])
-    (check-equal? (indent-amount tm 33) 2)
-    (check-equal? (indent-amount tm 37) 2))
-  (let ([tm (create "#lang racket\n(for/vector #:length 2 ()\n  a\n b)")])
-    (check-equal? (indent-amount tm 42) 2)
-    (check-equal? (indent-amount tm 45) 2))
-  (let ([tm (create "#lang racket\n(if a\n    (for/list ([x xs])\n      (cond 1\n            2))\n    b)")])
-    (check-equal? (indent-amount tm 24) 4)
-    (check-equal? (indent-amount tm 77) 4))
-  (let ([tm (create "#lang racket\n\n(if a\n    (for/list ([x xs])\n      (cond 1\n            2)))")])
-    (check-equal? (indent-amount tm 73) 4)
-    (check-equal? (indent-amount tm 74) 0)
-    (check-equal? (update! tm 74 0 "\n")
+  (let ([tm (test-create "#lang racket\n(for/list ()\n  a\n b)")])
+    (check-equal? (indent-amount tm 1 29) 2)
+    (check-equal? (indent-amount tm 1 32) 2))
+  (let ([tm (test-create "#lang racket\n(for/list : T ()\n  a\n b)")])
+    (check-equal? (indent-amount tm 1 33) 2)
+    (check-equal? (indent-amount tm 1 37) 2))
+  (let ([tm (test-create "#lang racket\n(for/vector #:length 2 ()\n  a\n b)")])
+    (check-equal? (indent-amount tm 1 42) 2)
+    (check-equal? (indent-amount tm 1 45) 2))
+  (let ([tm (test-create "#lang racket\n(if a\n    (for/list ([x xs])\n      (cond 1\n            2))\n    b)")])
+    (check-equal? (indent-amount tm 1 24) 4)
+    (check-equal? (indent-amount tm 1 77) 4))
+  (let ([tm (test-create "#lang racket\n\n(if a\n    (for/list ([x xs])\n      (cond 1\n            2)))")])
+    (check-equal? (indent-amount tm 1 73) 4)
+    (check-equal? (indent-amount tm 1 74) 0)
+    (check-equal? (test-update! tm 74 0 "\n")
                   (list (bounds+token 74 75 (token:misc "\n" 0 'end-of-line))))
     (local-require (submod "private/core.rkt" test))
-    (check-valid? tm)
-    (check-equal? (indent-amount tm 75) 0)))
+    ;;(check-valid? tm)
+    (check-equal? (indent-amount tm 1 75) 0)))
 
-(define (indent-for/fold tm open-pos id-pos indent-pos)
+(define (indent-for/fold tm gen open-pos id-pos indent-pos)
   ;; check for maybe-type-ann e.g. (for/fold : T ([n 0]) ([x xs]) x)
-  (match (beg-of-next-sexp tm id-pos)
+  (match (beg-of-next-sexp tm gen id-pos)
     [(bounds+token _beg _end (? token:misc? t))
      #:when (or (eq? (token:misc-kind t) 'hash-colon-keyword)
                 (and (eq? (token:misc-kind t) 'symbol)
                      (equal? (token-lexeme t) ":")))
-     (special-form tm open-pos id-pos indent-pos 4)]
-    [_ (indent-for/fold-untyped tm open-pos id-pos indent-pos)]))
+     (special-form tm gen open-pos id-pos indent-pos 4)]
+    [_ (indent-for/fold-untyped tm gen open-pos id-pos indent-pos)]))
 
-(define (indent-for/fold-untyped tm open-pos id-pos indent-pos)
+(define (indent-for/fold-untyped tm gen open-pos id-pos indent-pos)
   ;; If the first, accumulator form is NOT on the same line as id-pos,
   ;; then this is simply special-form with 2 distinguished forms.
   ;; Otherwise, we want to indent the second form with the first (like
   ;; a normal procedure argument) and of course all other forms get
   ;; body indent.
-  (define bol (beg-of-line tm id-pos))
-  (define eol (end-of-line tm id-pos))
-  (define 1st-arg-pos (beg-of-next-sexp tm id-pos))
+  (define bol (beg-of-line tm gen id-pos))
+  (define eol (end-of-line tm gen id-pos))
+  (define 1st-arg-pos (beg-of-next-sexp tm gen id-pos))
   (if (and 1st-arg-pos (< 1st-arg-pos eol)) ;on same line?
-      (special-form tm open-pos id-pos indent-pos 2 (- 1st-arg-pos bol))
-      (special-form tm open-pos id-pos indent-pos 2)))
+      (special-form tm gen open-pos id-pos indent-pos 2 (- 1st-arg-pos bol))
+      (special-form tm gen open-pos id-pos indent-pos 2)))
 
 (module+ test
-  (let ([tm (create "#lang racket\n(for/fold ()\n         ()\n  a)")])
+  (let ([tm (test-create "#lang racket\n(for/fold ()\n         ()\n  a)")])
     ;;               1234567890123 4567890123456 789012345678 9012
     ;;                        1          2          3          4
-    (check-equal? (indent-amount tm 36) 10)
-    (check-equal? (indent-amount tm 41) 2))
-  (let ([tm (create "#lang racket\n(for/fold\n    ()\n    ()\n  a)")])
+    (check-equal? (indent-amount tm 1 36) 10)
+    (check-equal? (indent-amount tm 1 41) 2))
+  (let ([tm (test-create "#lang racket\n(for/fold\n    ()\n    ()\n  a)")])
     ;;               1234567890123 4567890123 4567890 12345678 9012
     ;;                        1          2          3          4
-    (check-equal? (indent-amount tm 28) 4)
-    (check-equal? (indent-amount tm 35) 4)
-    (check-equal? (indent-amount tm 40) 2)))
+    (check-equal? (indent-amount tm 1 28) 4)
+    (check-equal? (indent-amount tm 1 35) 4)
+    (check-equal? (indent-amount tm 1 40) 2)))
 
-(define (beg-of-next-sexp tm pos)
+(define (beg-of-next-sexp tm gen pos)
   (backward-sexp tm
+                 gen
                  (forward-sexp tm
-                               (forward-sexp tm pos))))
+                               gen
+                               (forward-sexp tm gen pos))))
 
 (module+ test
   (let ()
     (define str "#lang racket\n(foo\n  bar\nbaz)\n(foo bar baz\nbap)\n(define (f x)\nx)\n")
     ;;           1234567890123 45678 901234 56789 012345678 901234567 89012345678901 234 56789012 345 67 89
     ;;                    1           2           3          4          5         6           7
-    (define tm (create str))
-    (check-equal? (indent-amount tm  1) 0
+    (define tm (test-create str))
+    (check-equal? (indent-amount tm 1 1) 0
                   "not within any sexpr, should indent 0")
-    (check-equal? (indent-amount tm 14) 0
+    (check-equal? (indent-amount tm 1 14) 0
                   "not within any sexpr, should indent 0")
-    (check-equal? (indent-amount tm 15) 1
+    (check-equal? (indent-amount tm 1 15) 1
                   "should indent with foo")
-    (check-equal? (indent-amount tm 22) 1
+    (check-equal? (indent-amount tm 1 22) 1
                   "bar should indent with foo")
-    (check-equal? (indent-amount tm 25) 1
+    (check-equal? (indent-amount tm 1 25) 1
                   "baz should indent with bar (assumes bar not yet re-indented)")
-    (check-equal? (indent-amount tm 28) 1
+    (check-equal? (indent-amount tm 1 28) 1
                   "close paren after baz is on same line as it, same result")
-    (check-equal? (indent-amount tm 30) 0
+    (check-equal? (indent-amount tm 1 30) 0
                   "not within any sexpr, should indent 0")
-    (check-equal? (indent-amount tm 43) 5
+    (check-equal? (indent-amount tm 1 43) 5
                   "bap should indent with the 2nd sexp on the same line i.e. bar")
-    (check-equal? (indent-amount tm 62) 2
+    (check-equal? (indent-amount tm 1 62) 2
                   "define body should indent 2"))
   (let ()
     (define str "#lang racket\n(begin0\n42\n1\n2)\n")
     ;;           1234567890123 45678901 234 56 789 0
     ;;                    1          2             3
-    (define tm (create str))
-    (check-equal? (indent-amount tm 22) 4
+    (define tm (test-create str))
+    (check-equal? (indent-amount tm 1 22) 4
                   "begin0 result should indent 4")
-    (check-equal? (indent-amount tm 25) 2
+    (check-equal? (indent-amount tm 1 25) 2
                   "begin0 first other expr should indent 2")
-    (update! tm 25 0 "  ") ;actually indent that, for next check...
-    (check-equal? (indent-amount tm 27) 2
+    (test-update! tm 25 0 "  ") ;actually indent that, for next check...
+    (check-equal? (indent-amount tm 1 27) 2
                   "begin0 second other expr should indent same as first other"))
   (let ()
     (define str "#lang racket\n(print 12")
     ;;           1234567890123 4567890123
     ;;                    1           2
-    (define tm (create str))
-    (update! tm 23 0 "\n")
-    (check-equal? (indent-amount tm 22) 7)
-    (check-equal? (indent-amount tm 23) 7))
+    (define tm (test-create str))
+    (test-update! tm 2 23 0 "\n")
+    (check-equal? (indent-amount tm 2 22) 7)
+    (check-equal? (indent-amount tm 2 23) 7))
   (let ()
     (define str "#lang racket\n(if 123\n)\n(do)")
     ;;           1234567890123 45678901 23 456
     ;;                    1          2
-    (define tm (create str))
-    (update! tm 21 0 "\n")
-    (check-equal? (indent-amount tm 22) 4
+    (define tm (test-create str))
+    (test-update! tm 2 21 0 "\n")
+    (check-equal? (indent-amount tm 2 22) 4
                   "position is exactly on close token"))
   (let ()
     (define str "#lang racket\n(cond [#t #t]\n[#f #f])")
     ;;           1234567890123 45678901234567 89012345
     ;;                    1          2          3
-    (check-equal? (indent-amount (create str) 28)
+    (check-equal? (indent-amount (test-create str) 1 28)
                   6
                   "second cond clause indented properly"))
   (let ()
     (define str "#lang racket\n(cond\n  [#t #t]\n  [#f #f])")
     ;;           1234567890123 456789 0123456789 012345
     ;;                    1           2          3
-    (define tm (create str))
-    (check-equal? (indent-amount tm 22)
+    (define tm (test-create str))
+    (check-equal? (indent-amount tm 1 22)
                   2
                   "first cond clause indented properly")
-    (check-equal? (indent-amount tm 32)
+    (check-equal? (indent-amount tm 1 32)
                   2
                   "second cond clause indented properly"))
   (let ()
     (define str "#lang racket\n#hasheq((1 . 2)\n(3. 4))\n")
     ;;           1234567890123 4567890123456789 012345
     ;;                    1          2          3
-    (define tm (create str))
-    (check-equal? (indent-amount tm 30)
+    (define tm (test-create str))
+    (check-equal? (indent-amount 1 tm 30)
                   8
                   "#hasheq indented properly")))
 
@@ -282,9 +304,6 @@
   (update! tm 28 0 "\n")
   tm
   (indent-amount tm 29))
-
-(module+ example-6
-  )
 
 ;;; Hardwired macro indents
 

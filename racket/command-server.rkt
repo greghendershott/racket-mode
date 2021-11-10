@@ -10,6 +10,7 @@
          "debug.rkt"
          "elisp.rkt"
          (only-in "instrument.rkt" get-uncovered get-profile)
+         "commands/lexindent.rkt"
          "logger.rkt"
          "repl.rkt"
          "repl-session.rkt"
@@ -24,7 +25,6 @@
  ["commands/describe.rkt"     (describe type)]
  ["commands/find-module.rkt"  (find-module)]
  ["commands/help.rkt"         (doc)]
- ["commands/lexindent-shim.rkt" (lexindent)]
  ["commands/macro.rkt"        (macro-stepper macro-stepper/next)]
  ["commands/requires.rkt"     (requires/tidy requires/trim requires/base)]
  ["commands/module-names.rkt" (module-names)]
@@ -85,7 +85,8 @@
       (let loop ()
         (elisp-writeln (sync response-channel
                              logger-notify-channel
-                             debug-notify-channel))
+                             debug-notify-channel
+                             token-notify-channel))
         (flush-output)
         (loop))))
 

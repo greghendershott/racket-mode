@@ -23,15 +23,16 @@
 
 (module+ test (require rackunit))
 
-(define navigator/c (-> token-map? (or/c #f position/c)
+(define navigator/c (-> token-map? generation/c (or/c #f position/c)
                         (or/c #f position/c)))
 
-(define navigator/fail/c (->* (token-map? (or/c #f position/c))
+(define navigator/fail/c (->* (token-map? generation/c (or/c #f position/c))
                               ((-> position/c any/c))
                               (or/c (or/c #f position/c)
                                     any/c)))
 
-(define (beg-of-line tm start-pos)
+(define (beg-of-line tm generation start-pos)
+  (block-until-updated-thru tm generation start-pos)
   (let loop ([pos start-pos])
     (match (token-map-ref tm pos)
       [(bounds+token beg end (? token:misc? t))
@@ -43,7 +44,8 @@
       [#f #:when (< 1 pos) (loop (sub1 pos))]
       [#f 1])))
 
-(define (end-of-line tm pos)
+(define (end-of-line tm generation pos)
+  (block-until-updated-thru tm generation max-position)
   (let loop ([pos pos])
     (match (token-map-ref tm pos)
       [(bounds+token _beg end (? token:misc? t))
@@ -53,21 +55,24 @@
        (loop end)]
       [#f (add1 (string-length (token-map-str tm)))])))
 
-(define (backward-up tm pos)
+(define (backward-up tm generation pos)
+  (block-until-updated-thru tm generation pos)
   (let loop ([pos pos])
     (match (backward-sexp tm pos list)
       [(list 1) #f]
       [(list pos) pos]
       [(? number? pos) (loop pos)])))
 
-(define (forward-whitespace tm pos)
+(define (forward-whitespace tm generation pos)
+  (block-until-updated-thru tm generation max-position)
   (match (token-map-ref tm pos)
     [#f #f]
     [(bounds+token beg end (token:misc _lexeme _backup 'white-space))
      (forward-whitespace tm end)]
     [_ pos]))
 
-(define (forward-whitespace/comment tm pos)
+(define (forward-whitespace/comment tm generation pos)
+  (block-until-updated-thru tm generation max-position)
   (match (token-map-ref tm pos)
     [#f #f]
     [(bounds+token beg end (token:misc _lexeme _backup (or 'end-of-line
@@ -77,7 +82,8 @@
      (forward-whitespace/comment tm end)]
     [_ pos]))
 
-(define (backward-whitespace/comment tm pos)
+(define (backward-whitespace/comment tm generation pos)
+  (block-until-updated-thru tm generation pos)
   (match (token-map-ref tm pos)
     [#f #f]
     [(bounds+token beg end (token:misc _lexme _backup (or 'end-of-line
@@ -87,7 +93,8 @@
      (backward-whitespace/comment tm (sub1 beg))]
     [_ pos]))
 
-(define (forward-sexp tm pos [fail (λ (_pos) #f)])
+(define (forward-sexp tm generation pos [fail (λ (_pos) #f)])
+  (block-until-updated-thru tm generation max-position)
   (match (forward-whitespace/comment tm pos)
     [#f (fail pos)]
     [pos
@@ -122,7 +129,8 @@
        [(bounds+token _beg end (? token?))
         end])]))
 
-(define (backward-sexp tm pos [fail (λ (_pos) #f)])
+(define (backward-sexp tm generation pos [fail (λ (_pos) #f)])
+  (block-until-updated-thru tm generation pos)
   (match (and pos
               (< 1 pos)
               (backward-whitespace/comment tm (and pos (sub1 pos))))

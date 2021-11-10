@@ -13,7 +13,8 @@
 
 (require racket/runtime-path)
 
-(provide lexindent)
+(provide lexindent
+         token-notify-channel)
 
 (define (fail-thunk . _)
   (error
@@ -25,3 +26,6 @@
 (define lexindent
   (with-handlers ([exn:fail? fail-thunk])
     (dynamic-require lexindent.rkt 'lexindent fail-thunk)))
+
+(define token-notify-channel
+  (dynamic-require lexindent.rkt 'token-notify-channel (λ () never-evt)))

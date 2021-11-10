@@ -24,6 +24,9 @@
 (declare-function  racket--logger-on-notify "racket-logger" (back-end-name str))
 (autoload         'racket--logger-on-notify "racket-logger")
 
+(declare-function  racket--hash-lang-on-token "racket-hash-lang" (id v))
+(autoload         'racket--hash-lang-on-token "racket-logger")
+
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
   "A hash from nonce to callback function.")
 (defvar racket--cmd-nonce 0
@@ -231,6 +234,8 @@ Although mostly these are 1:1 responses to command requests,
      (run-at-time 0.001 nil #'racket--logger-on-notify back-end str))
     (`(debug-break . ,response)
      (run-at-time 0.001 nil #'racket--debug-on-break response))
+    (`(token ,id ,v)
+     (run-at-time 0.001 nil #'racket--hash-lang-on-token id v))
     (`(,nonce . ,response)
      (when-let (callback (gethash nonce racket--cmd-nonce->callback))
        (remhash nonce racket--cmd-nonce->callback)
