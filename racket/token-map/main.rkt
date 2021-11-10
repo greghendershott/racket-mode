@@ -3,6 +3,7 @@
 (require "private/core.rkt")
 (provide token-map?
          create
+         delete
          update!
          tokens
          classify
@@ -13,7 +14,9 @@
          (struct-out token:open)
          (struct-out token:close)
          (struct-out token:misc)
-         position/c)
+         generation/c
+         position/c
+         max-position)
 
 (require "private/nav.rkt")
 (provide beg-of-line
