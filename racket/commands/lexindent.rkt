@@ -3,16 +3,9 @@
 ;; Bridge to Emacs Lisp to use lexers, token-maps, and indenters.
 
 (require racket/async-channel
+         racket/class
          racket/match
-         "../token-map/private/indent.rkt"
-         (rename-in "../token-map/main.rkt"
-                    [create tm:create]
-                    [delete tm:delete]
-                    [update! tm:update!]
-                    [tokens tm:tokens]
-                    [classify tm:classify]
-                    [forward-sexp tm:forward-sexp]
-                    [backward-sexp tm:backward-sexp])
+         "../token-map/private/core.rkt"
          "../util.rkt")
 
 (provide lexindent
@@ -20,18 +13,15 @@
 
 ;; TODO:
 ;;
-;; - Consider the case where the #lang line changed -- that will
-;; require re-reading things we got from get-info!
+;; - Use drracket:grouping-position. IIUC use this if available for
+;; forward-sexp-function. If it returns "use s-expr" use that. If it's
+;; not available at all then use text%-like {forward backward}-match,
+;; but enhanced to return failure position needed by Emacs.
 ;;
-;; - Separate indent-line and indent-region commands. Read docs
-;; carefully wrt to case where both drracket:range-indent and :indent
-;; are available.
+;; - Use drracket:quote-matches (?).
 ;;
-;; - Use drracket:quote-matches.
-;;
-;; - Use drracket:grouping-position.
-;;
-;; - Default to module-lexer* not module-lexer ?
+;; - Default to module-lexer* not module-lexer?? IIUC the main difference
+;;   is that token type can be a hash-table instead of a symbol.
 
 (define (lexindent . args)
   (log-racket-mode-debug "~v" args)
@@ -45,7 +35,7 @@
 
 (define token-notify-channel (make-async-channel))
 
-(struct lexindenter (token-map indent notify-rx-chan) #:transparent)
+(struct lexindenter (obj notify-rx-chan) #:transparent)
 (define ht (make-hash)) ;id => lexindenter?
 
 (define (create id s)
@@ -67,42 +57,42 @@
           (loop)]
          ['end (loop)] ;ignore
          ['quit (void)]))))
-  (define tm (tm:create s ch))
-  (define indenter (choose-indenter s tm))
-  (hash-set! ht id (lexindenter tm indenter ch)))
+  (define obj (new hash-lang% [notify-chan ch]))
+  (send obj update! 1 1 0 s)
+  (hash-set! ht id (lexindenter obj ch)))
 
 (define (delete id)
   (match (hash-ref ht id #f)
-    [(lexindenter tm _ ch)
-     (tm:delete tm)
+    [(lexindenter obj ch)
+     (send obj delete)
      (async-channel-put ch 'quit) ;kill thread
      (hash-remove! ht id)]
     [#f (log-racket-mode-warning "delete lexindenter ~v: not found" id)]))
 
 (define (update id gen pos old-len str)
-  (match-define (lexindenter tm _ _) (hash-ref ht id))
-  (with-time/log "tm:update" (tm:update! tm gen pos old-len str)))
+  (match-define (lexindenter obj _) (hash-ref ht id))
+  (with-time/log "tm:update" (send obj update! gen pos old-len str)))
 
 (define (indent-amount id gen pos)
-  (match-define (lexindenter tm proc _) (hash-ref ht id))
-  (line-amount proc tm gen pos #f))
+  (match-define (lexindenter obj _) (hash-ref ht id))
+  (send obj indent-line-amount gen pos))
 
 (define (classify id gen pos)
-  (match-define (lexindenter tm _ _) (hash-ref ht id))
-  (token->elisp (tm:classify tm gen pos)))
+  (match-define (lexindenter obj _) (hash-ref ht id))
+  (token->elisp (send obj classify gen pos)))
 
 (define (forward-sexp id gen pos arg)
-  (match-define (lexindenter tm _ _) (hash-ref ht id))
+  (match-define (lexindenter obj _) (hash-ref ht id))
   (define (fail pos) (list pos pos)) ;for signal scan-error
   (let loop ([pos pos]
              [arg arg])
     (cond [(zero? arg) pos]
           [(positive? arg)
-           (match (tm:forward-sexp tm gen pos fail)
+           (match (send obj forward-sexp gen pos fail)
              [(? number? v) (loop v (sub1 arg))]
              [v v])]
           [(negative? arg)
-           (match (tm:backward-sexp tm gen pos fail)
+           (match (send obj backward-sexp gen pos fail)
              [(? number? v) (loop v (add1 arg))]
              [v v])])))
 
@@ -113,29 +103,22 @@
     [(? token:close? t) (list beg end 'close              (token:close-open t))]
     [(? token:misc? t)  (list beg end (token:misc-kind t) #f)]))
 
-
-(define (choose-indenter string tm)
-  (define get-info (or (with-handlers ([values (λ _ #f)])
-                         (read-language (open-input-string string)
-                                        (λ _ #f)))
-                       (λ (_key default) default)))
-  (indenter get-info))
-
 (module+ example-0
   (define id 0)
   (define str "#lang racket\n42 (print \"hello\") @print{Hello} 'foo #:bar")
   (lexindent 'create id str)
-  (lexindent 'update id 14 2 "9999")
-  (lexindent 'classify id 14)
-  (lexindent 'update id 14 4 "")
-  (lexindent 'classify id 14)
-  (lexindent 'classify id 15))
+  (lexindent 'update id 2 14 2 "9999")
+  (lexindent 'classify id 2 14)
+  (lexindent 'update id 3 14 4 "")
+  (lexindent 'classify id 3 14)
+  (lexindent 'classify id 3 15)
+  (lexindent 'forward-sexp id 3 15 1))
 
 (module+ example-1
   (define id 0)
   (define str "#lang at-exp racket\n42 (print \"hello\") @print{Hello (there)} 'foo #:bar")
   (lexindent 'create id str)
-  (lexindent 'classify id (sub1 (string-length str))))
+  (lexindent 'classify id 1 (sub1 (string-length str))))
 
 (module+ example-1.5
   (define id 0)
@@ -152,8 +135,8 @@
   (define id 0)
   (define str "#lang racket\n(λ () #t)")
   (lexindent 'create id str)
-  (lexindent 'classify id 14)
-  (lexindent 'classify id (sub1 (string-length str))))
+  (lexindent 'classify id 1 14)
+  (lexindent 'classify id 1 (sub1 (string-length str))))
 
 (module+ example-4
   (define id 0)
@@ -166,8 +149,6 @@
   ;;           1234567890123 4567 890123456789 0
   ;;                    1           2          3
   (lexindent 'create id str)
-  (hash-ref ht id)
-  (indent-amount id 18)
-  (update id 28 0 "\n")
-  (hash-ref ht id)
-  (indent-amount id 29))
+  (indent-amount id 1 18)
+  (update id 2 28 0 "\n")
+  (indent-amount id 2 29))
