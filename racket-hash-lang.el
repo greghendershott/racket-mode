@@ -20,9 +20,13 @@
 (require 'racket-cmd)
 
 (defvar-local racket--hash-lang-generation 1
-  "This is set to 1 when we lexindent create, incremented every
-  time we do a lexindent update, then we supply it for other
-  lexindent operations.")
+  "Monotonic increasing value for lexindent updates.
+
+This is set to 1 when we lexindent create, incremented every time
+we do a lexindent update, and then supplied for all other, query
+lexindent operations. That way the queries can block if necessary
+until updates have completed sufficiently, i.e. re-tokenized far
+enough.")
 
 ;; These are simply to save the original values, to be able to restore
 ;; when the minor mode is disabled:
@@ -265,24 +269,27 @@ x.")
               (put-face beg end 'font-lock-comment-face))))))))
 
 (defun racket-hash-lang-indent-line-function ()
+  "Use lang indenter if it returns non-nil, else do standard sexp indent."
   (let* ((bol    (save-excursion (beginning-of-line) (point)))
          (amount (racket--cmd/await     ; await = :(
                   nil
                   `(lexindent indent-amount
                               ,(racket--buffer-file-name)
                               ,racket--hash-lang-generation
-                              ,bol)))
-         ;; When point is within the leading whitespace, move it past the
-         ;; new indentation whitespace. Otherwise preserve its position
-         ;; relative to the original text.
-         (pos    (- (point-max) (point))))
-    (goto-char bol)
-    (skip-chars-forward " \t")
-    (unless (= amount (current-column))
-      (delete-region bol (point))
-      (indent-to amount))
-    (when (< (point) (- (point-max) pos))
-      (goto-char (- (point-max) pos)))))
+                              ,bol))))
+    (if amount
+        (let (;; When point is within the leading whitespace, move it
+              ;; past the new indentation whitespace. Otherwise
+              ;; preserve its position relative to the original text.
+              (pos    (- (point-max) (point))))
+          (goto-char bol)
+          (skip-chars-forward " \t")
+          (unless (= amount (current-column))
+            (delete-region bol (point))
+            (indent-to amount))
+          (when (< (point) (- (point-max) pos))
+            (goto-char (- (point-max) pos))))
+      (racket-indent-line))))
 
 (defun racket-hash-lang-forward-sexp-function (&optional arg)
   (pcase (racket--cmd/await             ; await = :(
