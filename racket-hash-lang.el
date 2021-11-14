@@ -16,8 +16,9 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
-(require 'cl-macs)
+(require 'cl-lib)
 (require 'racket-cmd)
+(require 'racket-indent)
 
 (defvar-local racket--hash-lang-generation 1
   "Monotonic increasing value for lexindent updates.
@@ -154,7 +155,7 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
    nil
    `(lexindent update
                ,(racket--buffer-file-name)
-               ,(incf racket--hash-lang-generation)
+               ,(cl-incf racket--hash-lang-generation)
                ,beg
                ,len
                ,(buffer-substring-no-properties beg end))
@@ -270,25 +271,25 @@ x.")
 
 (defun racket-hash-lang-indent-line-function ()
   "Use lang indenter if it returns non-nil, else do standard sexp indent."
-  (if-let (amount (racket--cmd/await ; await = :(
-                   nil
-                   `(lexindent indent-amount
-                               ,(racket--buffer-file-name)
-                               ,racket--hash-lang-generation
-                               ,bol)))
-      ;; When point is within the leading whitespace, move it past the
-      ;; new indentation whitespace. Otherwise preserve its position
-      ;; relative to the original text.
-      (let* ((bol (save-excursion (beginning-of-line) (point)))
-             (pos (- (point-max) (point))))
-        (goto-char bol)
-        (skip-chars-forward " \t")
-        (unless (= amount (current-column))
-          (delete-region bol (point))
-          (indent-to amount))
-        (when (< (point) (- (point-max) pos))
-          (goto-char (- (point-max) pos))))
-    (racket-indent-line)))
+  (let ((bol (save-excursion (beginning-of-line) (point))))
+    (if-let (amount (racket--cmd/await  ; await = :(
+                     nil
+                     `(lexindent indent-amount
+                                 ,(racket--buffer-file-name)
+                                 ,racket--hash-lang-generation
+                                 ,bol)))
+        ;; When point is within the leading whitespace, move it past
+        ;; the new indentation whitespace. Otherwise preserve its
+        ;; position relative to the original text.
+        (let ((pos (- (point-max) (point))))
+          (goto-char bol)
+          (skip-chars-forward " \t")
+          (unless (= amount (current-column))
+            (delete-region bol (point))
+            (indent-to amount))
+          (when (< (point) (- (point-max) pos))
+            (goto-char (- (point-max) pos))))
+      (racket-indent-line))))
 
 ;; TODO: indent-region-function using drracket:range-indentation
 
