@@ -13,11 +13,6 @@
 
 ;; TODO:
 ;;
-;; - Use drracket:grouping-position. IIUC use this if available for
-;; forward-sexp-function. If it returns "use s-expr" use that. If it's
-;; not available at all then use text%-like {forward backward}-match,
-;; but enhanced to return failure position needed by Emacs.
-;;
 ;; - Use drracket:quote-matches (?).
 ;;
 ;; - Default to module-lexer* not module-lexer?? IIUC the main difference
@@ -26,19 +21,20 @@
 (define (lexindent . args)
   (log-racket-mode-debug "~v" args)
   (match args
-    [`(create ,id ,s)                      (create id s)]
-    [`(delete ,id)                         (delete id)]
-    [`(update ,id ,gen ,pos ,old-len ,str) (update id gen pos old-len str)]
-    [`(indent-amount ,id ,gen ,pos)        (indent-amount id gen pos)]
-    [`(classify ,id ,gen ,pos)             (classify id gen pos)]
-    [`(forward-sexp ,id ,gen ,pos ,arg)    (forward-sexp id gen pos arg)]))
+    [`(create ,id ,s)                             (create id s)]
+    [`(delete ,id)                                (delete id)]
+    [`(update ,id ,gen ,pos ,old-len ,str)        (update id gen pos old-len str)]
+    [`(indent-amount ,id ,gen ,pos)               (indent-amount id gen pos)]
+    [`(classify ,id ,gen ,pos)                    (classify id gen pos)]
+    [`(grouping ,id ,gen ,pos ,dir ,limit ,count) (grouping id gen pos dir limit count)]))
 
 (define token-notify-channel (make-async-channel))
 
 (struct lexindenter (obj notify-rx-chan) #:transparent)
 (define ht (make-hash)) ;id => lexindenter?
+(define (get-object id) (lexindenter-obj (hash-ref ht id)))
 
-(define (create id s)
+(define (create id s) ;any/c string? -> void
   ;; We supply an async-channel to create that we receive here to
   ;; transform the values to Elisp, as well as attaching the `id` so
   ;; they can be distributed to the appropriate buffer, before sending
@@ -70,38 +66,21 @@
     [#f (log-racket-mode-warning "delete lexindenter ~v: not found" id)]))
 
 (define (update id gen pos old-len str)
-  (match-define (lexindenter obj _) (hash-ref ht id))
-  (with-time/log "tm:update" (send obj update! gen pos old-len str)))
+  (with-time/log "tm:update"
+    (send (get-object id) update! gen pos old-len str)))
 
 (define (indent-amount id gen pos)
-  (match-define (lexindenter obj _) (hash-ref ht id))
-  (send obj indent-line-amount gen pos))
+  (send (get-object id) indent-line-amount gen pos))
 
 (define (classify id gen pos)
-  (match-define (lexindenter obj _) (hash-ref ht id))
-  (token->elisp (send obj classify gen pos)))
+  (token->elisp (send (get-object id) classify gen pos)))
 
-(define (forward-sexp id gen pos arg)
-  (match-define (lexindenter obj _) (hash-ref ht id))
-  (define (fail pos) (list pos pos)) ;for signal scan-error
-  (let loop ([pos pos]
-             [arg arg])
-    (cond [(zero? arg) pos]
-          [(positive? arg)
-           (match (send obj forward-sexp gen pos fail)
-             [(? number? v) (loop v (sub1 arg))]
-             [v v])]
-          [(negative? arg)
-           (match (send obj backward-sexp gen pos fail)
-             [(? number? v) (loop v (add1 arg))]
-             [v v])])))
+(define (grouping id gen pos dir limit count)
+  (send (get-object id) grouping gen pos dir limit count))
 
 (define (token->elisp b+t)
   (match-define (bounds+token beg end t) b+t)
-  (match t
-    [(? token:open? t)  (list beg end 'open               (token:open-close t))]
-    [(? token:close? t) (list beg end 'close              (token:close-open t))]
-    [(? token:misc? t)  (list beg end (token:misc-kind t) #f)]))
+  (list beg end (token-type t) (token-paren t)))
 
 (module+ example-0
   (define id 0)
@@ -112,7 +91,7 @@
   (lexindent 'update id 3 14 4 "")
   (lexindent 'classify id 3 14)
   (lexindent 'classify id 3 15)
-  (lexindent 'forward-sexp id 3 15 1))
+  (lexindent 'grouping id 3 15 'forward 0 1))
 
 (module+ example-1
   (define id 0)

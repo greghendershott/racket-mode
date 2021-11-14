@@ -45,18 +45,18 @@
     ;; the initial string value. That way we tokenize on the updater
     ;; thread. That way both `new` and `update!` return immediately
     ;; and we are coordinated with subsequent `update!'s.
-    (define str            "")
-    (define generation     0)
-    (define tokens         (make-interval-map))
-    (define modes          (make-interval-map))
-    (define update-chan    (make-async-channel))
-    (define updated-thru   0)
-    (define lexer          default-lexer)
-    (define paren-matches  default-paren-matches)
-    (define quote-matches  default-quote-matches)
-    (define grouper        default-grouping-position)
-    (define line-indenter  default-line-indenter)
-    (define range-indenter default-range-indenter)
+    (define str               "")
+    (define generation        0)
+    (define tokens            (make-interval-map))
+    (define modes             (make-interval-map))
+    (define update-chan       (make-async-channel))
+    (define updated-thru      0)
+    (define lexer             default-lexer)
+    (define paren-matches     default-paren-matches)
+    (define quote-matches     default-quote-matches)
+    (define grouping-position default-grouping-position)
+    (define line-indenter     default-line-indenter)
+    (define range-indenter    default-range-indenter)
 
     ;; This must called from update! because #lang could have changed
     ;; and we may might have new values for all of these. Although it
@@ -71,7 +71,7 @@
       (set! lexer (info 'color-lexer (waive-option module-lexer)))
       (set! paren-matches (info 'drracket:paren-matches default-paren-matches))
       (set! quote-matches (info 'drracket:quote-matches default-quote-matches))
-      (set! grouper (info 'drracket:grouping-position default-grouping-position))
+      (set! grouping-position (info 'drracket:grouping-position default-grouping-position))
       (set! line-indenter (info 'drracket:indentation default-line-indenter))
       (set! range-indenter (info 'drracket:range-indentation default-range-indenter)))
 
@@ -84,7 +84,7 @@
     (define/public (delete)
       (async-channel-put update-chan 'quit))
 
-    (define/private (token-ref pos)
+    (define/public (token-ref pos) ;; temporarily public for debugging
       (and pos
            (let-values ([(beg end token)
                          (interval-map-ref/bounds tokens pos #f)])
@@ -244,18 +244,25 @@
                (get-tokens gen (bounds+token-end b+t) end proc))]
         [_ '()]))
 
-    ;;; Something for Emacs forward-sexp-function.
+    ;;; Something for Emacs forward-sexp-function etc.
 
-    ;; TODO:
-    ;; - If drracket:group-positions NOT available:
-    ;;   Do something similar to {forward backward}-match, albeit
-    ;;   with failure position. Also maybe adjust forward flavor to
-    ;;   increment one past close, as Emacs expects.
-    ;; Else (if drracket:group-positions IS available):
-    ;;    - If it return #t meaning "use s-expression", then return that
-    ;;      to Emacs and use the standard forward-sexp stuff.
-    ;;    - Else use it, returning success/failure and position either way.
-    ;;      Maybe increment success forward position for Emas.
+    (define/public (grouping gen pos dir limit count)
+      (cond
+        [(zero? count) pos]
+        [else
+         (block-until-updated-thru gen
+                                   (case dir
+                                     [(up backward) 1]
+                                     [(down forward) max-position]))
+         (let loop ([pos pos]
+                    [count count])
+           (match (grouping-position this pos limit dir)
+             [#f #f]
+             [#t 'use-default-s-expression]
+             [(? number? new-pos)
+              (if (= count 1)
+                  new-pos
+                  (loop new-pos (sub1 count)))]))]))
 
     ;;; Indent
 
@@ -303,7 +310,8 @@
     (define/private (get-token who pos)
       (let ([pos (add1 pos)])
         (match (or (token-ref pos)
-                   (token-ref (sub1 pos))) ;make end position work
+                   #;(token-ref (sub1 pos))
+                   ) ;make end position work
           [(bounds+token _ _ (? token? token)) token]
           [_ (error who "lookup failed: ~e" (sub1 pos))])))
 
@@ -357,8 +365,29 @@
           (sub1 n)
           (last-position)))
 
+    (define/public (skip-whitespace pos direction comments?)
+      (let loop ([pos pos])
+        (cond [(and (eq? direction 'forward)
+                    (>= pos (last-position)))
+               pos]
+              [(and (eq? direction 'backward)
+                    (<= pos 0))
+               pos]
+              [else
+               (define token-pos (if (eq? direction 'forward) pos (sub1 pos)))
+               (define-values (s e) (get-token-range token-pos))
+               (define type (classify-position token-pos))
+               (cond [(or (eq? type 'white-space)
+                          (and comments? (eq? type 'comment)))
+                      (loop (if (eq? direction 'forward)
+                                e
+                                s))]
+                     [else pos])])))
+
     (define/public (backward-match pos _cutoff)
-      (let loop ([pos (sub1 pos)] [depth -1] [need-close? #t])
+      (let loop ([pos (skip-whitespace (sub1 pos) 'backward #t)]
+                 [depth -1]
+                 [need-close? #t])
         (cond
           [(pos . < . 0) #f]
           [else
@@ -386,7 +415,8 @@
                        (loop (sub1 s) depth #f))])])))
 
     (define/public (forward-match pos _cutoff)
-      (let loop ([pos pos] [depth 0])
+      (let loop ([pos (skip-whitespace pos 'forward #t)]
+                 [depth 0])
         (define-values (s e) (get-token-range pos))
         (cond
           [(not s) #f]
@@ -410,15 +440,11 @@
               (loop e depth)])])))))
 
 (define default-lexer (waive-option module-lexer))
-
 (define default-paren-matches `((,(string->symbol "(") ,(string->symbol ")"))
                                 (,(string->symbol "[") ,(string->symbol "]"))
                                 (,(string->symbol "{") ,(string->symbol "}"))))
-
 (define default-quote-matches '(#\" #\|))
-
 (define (default-grouping-position _obj _start _limit _direction) #t)
-
 (define (default-line-indenter _text-like% _pos) #f)
 (define (default-range-indenter _text-like% _from _upto) #f)
 
@@ -786,20 +812,29 @@
     (define lp (send t last-position))
     (send t insert str lp lp)
     (send t freeze-colorer)
-    (send t thaw-colorer)
-    (send t freeze-colorer))
+    (send t thaw-colorer))
 
   ;; text% interface; note uses 0-based positions
   (let ()
-    (define str "#lang at-exp racket\n(1) #(2) #hash((1 . 2))\n@racket[]{\n#(2)\n}\n")
-    ;;           01234567890123456789012345678901234567
-    ;;                     1         2         3
+    (define str "#lang racket\n(1) #(2) #hash((1 . 2))\n@racket[]{\n#(2)\n}\n")
+    ;;           01234567890123456789 012345678901234567890123 4567890123 456789 01 23456
+    ;;                     1          2         3         4          5           6
     (define o (test-create str))
     (define t (new racket:text%))
     (send t start-colorer symbol->string default-lexer default-paren-matches)
     (insert t str)
     (check-equal? (send o last-position)
                   (send t last-position))
+
+    ;; Test that our implementation of skip-whitespace is equivalent
+    ;; to that of racket:text%.
+    (for ([pos (in-range 0 (string-length str))])
+      (check-equal? (send o skip-whitespace pos 'forward #t)
+                    (send t skip-whitespace pos 'forward #t)
+                    (format "skip-whitespace ~v 'forward" pos))
+      (check-equal? (send o skip-whitespace pos 'backward #t)
+                    (send t skip-whitespace pos 'backward #t)
+                    (format "skip-whitespace ~v 'backward" pos)))
 
     ;; Test that our implementations of {forward backward}-match are
     ;; equivalent to those of racket:text%.
@@ -809,7 +844,6 @@
     ;; indenters, or due to some other problem.
     #;
     (for ([pos (in-range 0 (string-length str))])
-      (send t set-position pos pos)
       (check-equal? (send o forward-match pos lp)
                     (send t forward-match pos lp)
                     (format "forward-match ~v" pos))

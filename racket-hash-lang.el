@@ -270,40 +270,48 @@ x.")
 
 (defun racket-hash-lang-indent-line-function ()
   "Use lang indenter if it returns non-nil, else do standard sexp indent."
-  (let* ((bol    (save-excursion (beginning-of-line) (point)))
-         (amount (racket--cmd/await     ; await = :(
-                  nil
-                  `(lexindent indent-amount
-                              ,(racket--buffer-file-name)
-                              ,racket--hash-lang-generation
-                              ,bol))))
-    (if amount
-        (let (;; When point is within the leading whitespace, move it
-              ;; past the new indentation whitespace. Otherwise
-              ;; preserve its position relative to the original text.
-              (pos    (- (point-max) (point))))
-          (goto-char bol)
-          (skip-chars-forward " \t")
-          (unless (= amount (current-column))
-            (delete-region bol (point))
-            (indent-to amount))
-          (when (< (point) (- (point-max) pos))
-            (goto-char (- (point-max) pos))))
-      (racket-indent-line))))
+  (if-let (amount (racket--cmd/await ; await = :(
+                   nil
+                   `(lexindent indent-amount
+                               ,(racket--buffer-file-name)
+                               ,racket--hash-lang-generation
+                               ,bol)))
+      ;; When point is within the leading whitespace, move it past the
+      ;; new indentation whitespace. Otherwise preserve its position
+      ;; relative to the original text.
+      (let* ((bol (save-excursion (beginning-of-line) (point)))
+             (pos (- (point-max) (point))))
+        (goto-char bol)
+        (skip-chars-forward " \t")
+        (unless (= amount (current-column))
+          (delete-region bol (point))
+          (indent-to amount))
+        (when (< (point) (- (point-max) pos))
+          (goto-char (- (point-max) pos))))
+    (racket-indent-line)))
+
+;; TODO: indent-region-function using drracket:range-indentation
 
 (defun racket-hash-lang-forward-sexp-function (&optional arg)
-  (pcase (racket--cmd/await             ; await = :(
-          nil
-          `(lexindent forward-sexp
-                      ,(racket--buffer-file-name)
-                      ,racket--hash-lang-generation
-                      ,(point)
-                      ,(or arg 1)))
-    ((and (pred numberp) pos)
-     (goto-char pos))
-    ;; This is important for use of forward-sexp-function by `up-list':
-    ((and xs `(,(pred numberp) ,(pred numberp)))
-     (signal 'scan-error (cons "no more sexps at this depth" xs)))))
+  (let ((dir (if (or (not arg) (< 0 arg)) 'forward 'backward))
+        (count (abs arg)))
+    (pcase (racket--cmd/await           ; await = :(
+            nil
+            `(lexindent grouping
+                        ,(racket--buffer-file-name)
+                        ,racket--hash-lang-generation
+                        ,(point)
+                        ,dir
+                        0
+                        ,count))
+      ((and (pred numberp) pos)
+       (goto-char pos))
+      ('use-default-s-expression
+       (let ((forward-sexp-function nil))
+         (forward-sexp arg)))
+      (`() nil))))
+
+;; TODO: Advise e.g. up-list/down-list using drracket:grouping-position, too?
 
 (provide 'racket-hash-lang)
 
