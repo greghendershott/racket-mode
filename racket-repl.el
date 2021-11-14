@@ -372,7 +372,7 @@ See also:
 - `racket-unfold-all-tests'
 "
   (interactive "P")
-  (let ((mod-path (list 'submod (racket--buffer-file-name) 'test))
+  (let ((mod-path (list (racket--buffer-file-name) 'test))
         (buf (current-buffer)))
     (if (not coverage)
         (racket--repl-run mod-path)
