@@ -810,11 +810,9 @@
                   (bounds+token 14 20 (token "#hash(" 'parenthesis '\( 0)))))
 
 ;; Test equivalance of our text%-like methods to those of racket:text%
-;; (which is provided by `framework`, which will give X display error
-;; on CI w/o xvfb, so skip these tests there).
 (module+ test
-  (unless (getenv "CI")
-    (define racket:text% (dynamic-require 'framework 'racket:text%))
+  (require framework)
+  (let ()
     (define str "#lang racket\n(1) #(2) #hash((1 . 2))\n@racket[]{\n#(2)\n}\n")
     (define o (test-create str))
     (define t (new racket:text%))
