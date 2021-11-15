@@ -66,6 +66,7 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
   (racket--hash-lang-mode racket-sexp-hash-lang-mode nil))
 
 (defun racket--hash-lang-mode (mode-var forward-sexp-function-p)
+  "Helper function for both of our mode functions."
   (if mode-var
       (progn
         (setq racket--hash-lang-generation 1)
@@ -165,7 +166,7 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
   (let ((st (copy-syntax-table (standard-syntax-table))))
     (modify-syntax-entry ?\" "w" st)
     ;; FIXME? Should we iterate the entire table looking for string
-    ;; _values_ and set them _all to "w" instead?
+    ;; _values_ and set them _all_ to "w" instead?
     st)
   "A syntax-table property value for _inside_ strings.
 Specifically, do _not_ treat quotes as string syntax. That way,
@@ -175,6 +176,7 @@ x.")
 
 (defun racket--hash-lang-on-token (id token)
   (with-current-buffer (find-buffer-visiting id)
+    (message "%s" token)
     (racket--hash-lang-propertize (list token))))
 
 (defun racket--hash-lang-propertize (tokens)
@@ -183,36 +185,36 @@ x.")
               (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
       (let ((sexp-prefix-ends nil))
         (dolist (token tokens)
-          (pcase-let ((`(,beg ,end ,kind ,opposite) token))
+          (pcase-let ((`(,beg ,end ,kind . ,maybe-paren-data) token))
             (remove-text-properties beg end
                                     '(face nil syntax-table nil))
             (cl-case kind
-              ;; When our forward-sexp-function is in use, ignore open
-              ;; and close tokens. This supports hash-langs with
-              ;; multi-char open and close tokens, both. Emacs paren
-              ;; syntax is /char/ syntax; This won't work. Instead
-              ;; rely on `forward-sexp-function' to the extent that
-              ;; various things support it by using `forward-sexp'.
+              ;; When our forward-sexp-function is in use, ignore
+              ;; parenthesis tokens. This supports hash-langs with
+              ;; multi-char open and close tokens, both. Emacs uses
+              ;; char-syntax -- /char/. This won't work. Instead we
+              ;; must rely on `forward-sexp-function' and hope enough
+              ;; things use it via `forward-sexp'.
               ;;
               ;; Otherwise, assume the tokens are for an sexpr lang,
-              ;; and only open tokens might be multi-char. Handle
-              ;; those as expression-prefix syntax followed by a
-              ;; single open char with open-paren syntax. Although
-              ;; this is less general, it lets more Emacs functions
-              ;; and packages (e.g. paredit) work well even when they
-              ;; do not always use forward-sexp, and instead do things
-              ;; like use `scan-lists' or look for paren syntax
-              ;; directy. :(
-              (open
+              ;; and only open tokens might be multi-char, e.g. "#("
+              ;; or "#hasheq(". Handle those as expression-prefix
+              ;; syntax followed by a single char with open-paren
+              ;; syntax. Although this is less general, it lets more
+              ;; Emacs functions and packages (e.g. paredit) work well
+              ;; even when they do not always use forward-sexp, and
+              ;; instead do things like use `scan-lists' or look for
+              ;; paren char-syntax directy. :(
+              (parenthesis
                (unless (equal forward-sexp-function
                               #'racket-hash-lang-forward-sexp-function)
-                 (when (< 1 (- end beg))
-                   (put-stx beg (- end 1) '(6))) ;expression prefix
-                 (put-stx (- end 1) end (cons 4 (aref opposite 0)))))
-              (close
-               (unless (equal forward-sexp-function
-                              #'racket-hash-lang-forward-sexp-function)
-                 (put-stx beg end (cons 5 (aref opposite 0)))))
+                 (pcase-let ((`(,open-p ,opposite) maybe-paren-data))
+                   (cond (open-p
+                          (when (< 1 (- end beg))
+                            (put-stx beg (- end 1) '(6)))
+                          (put-stx (- end 1) end (cons 4 (aref opposite 0))))
+                         (t
+                          (put-stx beg end (cons 5 (aref opposite 0))))))))
               (comment
                (put-stx beg (1+ beg) '(14)) ;generic comment
                (put-stx (1- end) end '(14))

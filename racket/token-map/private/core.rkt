@@ -190,12 +190,32 @@
                (interval-map-set! tokens beg end token)
                (set! updated-thru end)
                (async-channel-put notify-chan
-                                  (bounds+token beg end token))
+                                  (make-notify-channel-value beg end token))
                #t])) ;continue
       (async-channel-put notify-chan 'begin)
       (tokenize-string! beg set-interval)
       (set! updated-thru max-position)
       (async-channel-put notify-chan 'end))
+
+    ;; Produce a value convenient for Emacs to use as a notification.
+    ;; Specifically parenthesis tokens get extra data: An open? flag
+    ;; and the symbol for the matching open or close.
+    (define/private (make-notify-channel-value beg end token)
+      (define type (token-type token))
+      (define paren (token-paren token))
+      (list* beg
+             end
+             type
+             (if paren
+                 (or (for/or ([pm (in-list paren-matches)])
+                       (match-define (list open close) pm)
+                       (cond [(eq? paren open)
+                              (list #t (symbol->string close))]
+                             [(eq? paren close)
+                              (list #f (symbol->string open))]
+                             [else #f]))
+                     null)
+                 null)))
 
     (define/private (tokenize-string! from set-interval)
       (define in (open-input-string (substring str (sub1 from))))
@@ -226,13 +246,6 @@
       ;; (-> generation/c position/c (or/c #f bounds+token?))
       (block-until-updated-thru gen pos)
       (token-ref pos))
-
-    (define/public (token-text gen pos)
-      ;; (-> generation/c position/c (or/c #f string?))
-      (block-until-updated-thru gen pos)
-      (match (token-ref pos)
-        [(bounds+token _beg _end (token lexeme _ _ _)) lexeme]
-        [#f #f]))
 
     (define/public (get-tokens [gen generation] [beg 1] [end max-position] [proc values])
       ;; (->* (generation/c position/c position/c) (procedure?) any)
@@ -440,9 +453,7 @@
               (loop e depth)])])))))
 
 (define default-lexer (waive-option module-lexer))
-(define default-paren-matches `((,(string->symbol "(") ,(string->symbol ")"))
-                                (,(string->symbol "[") ,(string->symbol "]"))
-                                (,(string->symbol "{") ,(string->symbol "}"))))
+(define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
 (define default-quote-matches '(#\" #\|))
 (define (default-grouping-position _obj _start _limit _direction) #t)
 (define (default-line-indenter _text-like% _pos) #f)
@@ -475,7 +486,7 @@
     (λ () (let loop ([xs null])
             (match (async-channel-get gathering-channel)
               ['begin (loop null)]
-              [(? bounds+token? x) (loop (cons x xs))]
+              [(? list? x) (loop (cons x xs))]
               ['end
                (async-channel-put result-channel (reverse xs))
                (loop null)])))))
@@ -488,10 +499,6 @@
     (async-channel-get result-channel)))
 
 (module+ test
-  (define (sym ch)
-    (string->symbol (string ch))))
-
-(module+ test
   (let* ([str "#lang racket\n42 (print \"hello\") @print{Hello} 'foo #:bar"]
          ;;    1234567890123 45678901234 567890 12345678901234567890123456
          ;;             1          2          3          4         5
@@ -502,16 +509,16 @@
                    (bounds+token 13 14 (token "\n" 'white-space #f 0))
                    (bounds+token 14 16 (token "42" 'constant #f 0))
                    (bounds+token 16 17 (token " " 'white-space #f 0))
-                   (bounds+token 17 18 (token "(" 'parenthesis (sym #\() 0))
+                   (bounds+token 17 18 (token "(" 'parenthesis '\( 0))
                    (bounds+token 18 23 (token "print" 'symbol #f 0))
                    (bounds+token 23 24 (token " " 'white-space #f 0))
                    (bounds+token 24 31 (token "\"hello\"" 'string #f 0))
-                   (bounds+token 31 32 (token ")" 'parenthesis (sym #\)) 0))
+                   (bounds+token 31 32 (token ")" 'parenthesis '\) 0))
                    (bounds+token 32 33 (token " " 'white-space #f 0))
                    (bounds+token 33 39 (token "@print" 'symbol #f 0))
-                   (bounds+token 39 40 (token "{" 'parenthesis (sym #\{) 0))
+                   (bounds+token 39 40 (token "{" 'parenthesis '\{ 0))
                    (bounds+token 40 45 (token "Hello" 'symbol #f 0))
-                   (bounds+token 45 46 (token "}" 'parenthesis (sym #\}) 0))
+                   (bounds+token 45 46 (token "}" 'parenthesis '\} 0))
                    (bounds+token 46 47 (token " " 'white-space #f 0))
                    (bounds+token 47 48 (token "'" 'constant #f 0))
                    (bounds+token 48 51 (token "foo" 'symbol #f 0))
@@ -539,18 +546,15 @@
                     ((51 . 52) . ,racket-lexer)
                     ((52 . 57) . ,racket-lexer)))
     (check-equal? (test-update! tm 2 52 5 "'bar")
-                  (list
-                   (bounds+token 52 53 (token "'" 'constant #f 0))
-                   (bounds+token 53 56 (token "bar" 'symbol #f 0))))
+                  '((52 53 constant)
+                    (53 56 symbol)))
     (check-equal? (test-update! tm 3 47 4 "'bar")
-                  (list (bounds+token 48 51 (token "bar" 'symbol #f 0))))
+                  '((48 51 symbol)))
     (check-equal? (test-update! tm 4 24 7 "'hell")
-                  (list
-                   (bounds+token 24 25 (token "'" 'constant #f 0))
-                   (bounds+token 25 29 (token "hell" 'symbol #f 0))))
+                  '((24 25 constant)
+                    (25 29 symbol)))
     (check-equal? (test-update! tm 5 14 2 "99999")
-                  (list
-                   (bounds+token 14 19 (token "99999" 'constant #f 0))))
+                  '((14 19 constant)))
     ;; Double check final result of the edits
     (check-equal? (send tm -get-string)
                   "#lang racket\n99999 (print 'hell) @print{Hello} 'bar 'bar")
@@ -560,17 +564,17 @@
                    (cons '(13 . 14) (token "\n" 'white-space #f 0))
                    (cons '(14 . 19) (token "99999" 'constant #f 0))
                    (cons '(19 . 20) (token " " 'white-space #f 0))
-                   (cons '(20 . 21) (token "(" 'parenthesis (sym #\() 0))
+                   (cons '(20 . 21) (token "(" 'parenthesis '\( 0))
                    (cons '(21 . 26) (token "print" 'symbol #f 0))
                    (cons '(26 . 27) (token " " 'white-space #f 0))
                    (cons '(27 . 28) (token "'" 'constant #f 0))
                    (cons '(28 . 32) (token "hell" 'symbol #f 0))
-                   (cons '(32 . 33) (token ")" 'parenthesis (sym #\)) 0))
+                   (cons '(32 . 33) (token ")" 'parenthesis '\) 0))
                    (cons '(33 . 34) (token " " 'white-space #f 0))
                    (cons '(34 . 40) (token "@print" 'symbol #f 0))
-                   (cons '(40 . 41) (token "{" 'parenthesis (sym #\{) 0))
+                   (cons '(40 . 41) (token "{" 'parenthesis '\{ 0))
                    (cons '(41 . 46) (token "Hello" 'symbol #f 0))
-                   (cons '(46 . 47) (token "}" 'parenthesis (sym #\}) 0))
+                   (cons '(46 . 47) (token "}" 'parenthesis '\} 0))
                    (cons '(47 . 48) (token " " 'white-space #f 0))
                    (cons '(48 . 49) (token "'" 'constant #f 0))
                    (cons '(49 . 52) (token "bar" 'symbol #f 0))
@@ -611,17 +615,17 @@
                    (bounds+token 20 21 (token "\n" 'white-space #f 0))
                    (bounds+token 21 23 (token "42" 'constant #f 0))
                    (bounds+token 23 24 (token " " 'white-space #f 0))
-                   (bounds+token 24 25 (token "(" 'parenthesis (sym #\() 0))
+                   (bounds+token 24 25 (token "(" 'parenthesis '\( 0))
                    (bounds+token 25 30 (token "print" 'symbol #f 0))
                    (bounds+token 30 31 (token " " 'white-space #f 0))
                    (bounds+token 31 38 (token "\"hello\"" 'string #f 0))
-                   (bounds+token 38 39 (token ")" 'parenthesis (sym #\)) 0))
+                   (bounds+token 38 39 (token ")" 'parenthesis '\) 0))
                    (bounds+token 39 40 (token " " 'white-space #f 0))
                    (bounds+token 40 41 (token "@" 'parenthesis #f 0)) ;;??
                    (bounds+token 41 46 (token "print" 'symbol #f 0))
-                   (bounds+token 46 47 (token "{" 'parenthesis (sym #\{) 0))
+                   (bounds+token 46 47 (token "{" 'parenthesis '\{ 0))
                    (bounds+token 47 60 (token "Hello (there)" 'text #f 0))
-                   (bounds+token 60 61 (token "}" 'parenthesis (sym #\}) 0))
+                   (bounds+token 60 61 (token "}" 'parenthesis '\} 0))
                    (bounds+token 61 62 (token " " 'white-space #f 0))
                    (bounds+token 62 63 (token "'" 'constant #f 0))
                    (bounds+token 63 66 (token "foo" 'symbol #f 0))
@@ -640,17 +644,17 @@
                    (bounds+token 20 21 (token "\n" 'white-space #f 0))
                    (bounds+token 21 27 (token "Hello " 'text #f 0))
                    (bounds+token 27 28 (token "@" 'parenthesis #f 0)) ;;??
-                   (bounds+token 28 29 (token "(" 'parenthesis (sym #\() 0))
+                   (bounds+token 28 29 (token "(" 'parenthesis '\( 0))
                    (bounds+token 29 34 (token "print" 'symbol #f 0))
                    (bounds+token 34 35 (token " " 'white-space #f 0))
                    (bounds+token 35 42 (token "\"hello\"" 'string #f 0))
-                   (bounds+token 42 43 (token ")" 'parenthesis (sym #\)) 0))
+                   (bounds+token 42 43 (token ")" 'parenthesis '\) 0))
                    (bounds+token 43 44 (token " " 'text #f 0))
                    (bounds+token 44 45 (token "@" 'parenthesis #f 0))
                    (bounds+token 45 50 (token "print" 'symbol #f 0))
-                   (bounds+token 50 51 (token "{" 'parenthesis (sym #\{) 0))
+                   (bounds+token 50 51 (token "{" 'parenthesis '\{ 0))
                    (bounds+token 51 64 (token "Hello (there)" 'text #f 0))
-                   (bounds+token 64 65 (token "}" 'parenthesis (sym #\}) 0))
+                   (bounds+token 64 65 (token "}" 'parenthesis '\} 0))
                    (bounds+token 65 81 (token " #:not-a-keyword" 'text #f 0))))
     (check-equal? (send tm -get-string) str)))
 
@@ -660,8 +664,7 @@
     (check-equal? (send tm classify 1 15)
                   (bounds+token 15 16 (token "λ" 'symbol #f 0)))
     (check-equal? (test-update! tm 2 18 0 "a")
-                  (list
-                   (bounds+token 18 19 (token "a" 'symbol #f 0))))
+                  '((18 19 symbol)))
     (check-equal? (send tm classify 2 18)
                   (bounds+token 18 19 (token "a" 'symbol #f 0)))))
 
@@ -673,22 +676,22 @@
                    (bounds+token 13 14 (token "\n" 'white-space #f 0))
                    (bounds+token 14 23 (token "#rx\"1234\"" 'string #f 0))
                    (bounds+token 23 24 (token "\n" 'white-space #f 0))
-                   (bounds+token 24 26 (token "#(" 'parenthesis (sym #\() 0))
+                   (bounds+token 24 26 (token "#(" 'parenthesis '\( 0))
                    (bounds+token 26 27 (token "1" 'constant #f 0))
                    (bounds+token 27 28 (token " " 'white-space #f 0))
                    (bounds+token 28 29 (token "2" 'constant #f 0))
                    (bounds+token 29 30 (token " " 'white-space #f 0))
                    (bounds+token 30 31 (token "3" 'constant #f 0))
-                   (bounds+token 31 32 (token ")" 'parenthesis (sym #\)) 0))
+                   (bounds+token 31 32 (token ")" 'parenthesis '\) 0))
                    (bounds+token 32 33 (token "\n" 'white-space #f 0))
                    (bounds+token 33 35 (token "#'" 'constant #f 0))
-                   (bounds+token 35 36 (token "(" 'parenthesis (sym #\() 0))
+                   (bounds+token 35 36 (token "(" 'parenthesis '\( 0))
                    (bounds+token 36 37 (token "1" 'constant #f 0))
                    (bounds+token 37 38 (token " " 'white-space #f 0))
                    (bounds+token 38 39 (token "2" 'constant #f 0))
                    (bounds+token 39 40 (token " " 'white-space #f 0))
                    (bounds+token 40 41 (token "3" 'constant #f 0))
-                   (bounds+token 41 42 (token ")" 'parenthesis (sym #\)) 0))))))
+                   (bounds+token 41 42 (token ")" 'parenthesis '\) 0))))))
 
 (module+ test
   (let ([o (test-create "#lang racket\n#<<HERE\nblah blah\nblah blah\nHERE\n")])
@@ -782,9 +785,9 @@
                   (list
                    (cons '(1 . 13) (token "#lang racket" 'other #f 0))
                    (cons '(13 . 14) (token "\n" 'white-space #f 0))
-                   (cons '(14 . 15) (token "(" 'parenthesis (sym #\() 0))
+                   (cons '(14 . 15) (token "(" 'parenthesis '\( 0))
                    (cons '(15 . 17) (token "hi" 'symbol #f 0))
-                   (cons '(17 . 18) (token ")" 'parenthesis (sym #\)) 0))))
+                   (cons '(17 . 18) (token ")" 'parenthesis '\) 0))))
     (check-equal? (dict->list (send tm -get-modes))
                   (list
                    (cons '(1 . 13) #f)
@@ -799,10 +802,10 @@
     (check-equal? (send tm classify 1 14)
                   (bounds+token 14 19 (token "#hash" 'error #f 0)))
     (check-equal? (test-update! tm 2 19 0 "(")
-                  (list (bounds+token 14 20 (token "#hash(" 'parenthesis (sym #\() 0)))
+                  '((14 20 parenthesis #t \)))
                   "Adding parens after #hash re-lexes from an error to an open")
     (check-equal? (send tm classify 2 14)
-                  (bounds+token 14 20 (token "#hash(" 'parenthesis (sym #\() 0)))))
+                  (bounds+token 14 20 (token "#hash(" 'parenthesis '\( 0)))))
 
 ;; Test equivalance of our text%-like methods
 (module+ test

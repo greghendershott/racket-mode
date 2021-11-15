@@ -47,9 +47,10 @@
      (let loop ()
        (match (async-channel-get ch)
          ['begin (loop)] ;ignore
-         [(? bounds+token? b+t)
+         [(? list? v)
+          (log-racket-mode-debug "~v" v)
           (async-channel-put token-notify-channel
-                             (list 'token id (token->elisp b+t)))
+                             (list 'token id v))
           (loop)]
          ['end (loop)] ;ignore
          ['quit (void)]))))
@@ -73,14 +74,13 @@
   (send (get-object id) indent-line-amount gen pos))
 
 (define (classify id gen pos)
+  (define (token->elisp b+t)
+    (match-define (bounds+token beg end t) b+t)
+    (list beg end (token-type t) (token-paren t)))
   (token->elisp (send (get-object id) classify gen pos)))
 
 (define (grouping id gen pos dir limit count)
   (send (get-object id) grouping gen pos dir limit count))
-
-(define (token->elisp b+t)
-  (match-define (bounds+token beg end t) b+t)
-  (list beg end (token-type t) (token-paren t)))
 
 (module+ example-0
   (define id 0)
