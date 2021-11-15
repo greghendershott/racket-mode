@@ -46,10 +46,12 @@ jobs:
         run: make show-versions
       - name: Install Emacs Packages
         run: make deps
-      - name: Compile Elisp
+      - name: Compile Emacs Lisp
         run: make compile
-      - name: Run Tests
-        run: make test
+      - name: Run Emacs Lisp Tests
+        run: make test-elisp
+      - name: Run Racket Tests
+        run: xvfb-run make test-racket # xvfb for hash-lang.rkt
 
   windows:
     runs-on: windows-latest
@@ -80,4 +82,3 @@ jobs:
         run: make compile
       - name: Run Tests
         run: make test
-
