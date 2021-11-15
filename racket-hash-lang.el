@@ -21,11 +21,11 @@
 (require 'racket-indent)
 
 (defvar-local racket--hash-lang-generation 1
-  "Monotonic increasing value for lexindent updates.
+  "Monotonic increasing value for hash-lang updates.
 
-This is set to 1 when we lexindent create, incremented every time
-we do a lexindent update, and then supplied for all other, query
-lexindent operations. That way the queries can block if necessary
+This is set to 1 when we hash-lang create, incremented every time
+we do a hash-lang update, and then supplied for all other, query
+hash-lang operations. That way the queries can block if necessary
 until updates have completed sufficiently, i.e. re-tokenized far
 enough.")
 
@@ -114,7 +114,7 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
                   t t)
         (racket--cmd/async
          nil
-         `(lexindent create
+         `(hash-lang create
                      ,(racket--buffer-file-name)
                      ,(save-restriction
                         (widen)
@@ -146,7 +146,7 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
 (defun racket--hash-lang-delete ()
   (racket--cmd/async
    nil
-   `(lexindent delete ,(racket--buffer-file-name))
+   `(hash-lang delete ,(racket--buffer-file-name))
    #'ignore))
 
 (defun racket--hash-lang-after-change-hook (beg end len)
@@ -154,7 +154,7 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
   ;; character.
   (racket--cmd/async
    nil
-   `(lexindent update
+   `(hash-lang update
                ,(racket--buffer-file-name)
                ,(cl-incf racket--hash-lang-generation)
                ,beg
@@ -276,7 +276,7 @@ x.")
   (let ((bol (save-excursion (beginning-of-line) (point))))
     (if-let (amount (racket--cmd/await  ; await = :(
                      nil
-                     `(lexindent indent-amount
+                     `(hash-lang indent-amount
                                  ,(racket--buffer-file-name)
                                  ,racket--hash-lang-generation
                                  ,bol)))
@@ -300,7 +300,7 @@ x.")
         (count (abs arg)))
     (pcase (racket--cmd/await           ; await = :(
             nil
-            `(lexindent grouping
+            `(hash-lang grouping
                         ,(racket--buffer-file-name)
                         ,racket--hash-lang-generation
                         ,(point)

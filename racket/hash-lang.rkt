@@ -41,16 +41,18 @@
   (class object%
     (super-new)
     (init-field notify-chan)
-    ;; We create with `str` empty. Caller should use update! to set
-    ;; the initial string value. That way we tokenize on the updater
-    ;; thread. That way both `new` and `update!` return immediately
-    ;; and we are coordinated with subsequent `update!'s.
+    ;; A new object has an empty string and is at generation 0. The
+    ;; creator should then use update! to set a string value. That way
+    ;; both `new` and `update!` return immediately; all
+    ;; (re)tokenization is handled uniformly on the dedicated updater
+    ;; thread.
     (define str               "")
     (define generation        0)
     (define tokens            (make-interval-map))
     (define modes             (make-interval-map))
     (define update-chan       (make-async-channel))
     (define updated-thru      0)
+    ;; These members correspond to various lang-info items.
     (define lexer             default-lexer)
     (define paren-matches     default-paren-matches)
     (define quote-matches     default-quote-matches)
@@ -61,12 +63,12 @@
     ;; This must called from update! because #lang could have changed
     ;; and we may might have new values for all of these. Although it
     ;; might be unnecessary, and slow, to call this on every single
-    ;; update!, that is the safest thing to do for now.
+    ;; update! -- even beyond the #lang near the very start -- that is
+    ;; the safest thing to do for now.
     (define/private (refresh-lang-info!)
       (define info
         (or (with-handlers ([values (λ _ #f)])
-              (read-language (open-input-string str)
-                             (λ _ #f)))
+              (read-language (open-input-string str) (λ _ #f)))
             (λ (_key default) default)))
       (set! lexer (info 'color-lexer (waive-option module-lexer)))
       (set! paren-matches (info 'drracket:paren-matches default-paren-matches))
@@ -802,30 +804,26 @@
     (check-equal? (send tm classify 1 14)
                   (bounds+token 14 19 (token "#hash" 'error #f 0)))
     (check-equal? (test-update! tm 2 19 0 "(")
-                  '((14 20 parenthesis #t \)))
+                  '((14 20 parenthesis #t ")"))
                   "Adding parens after #hash re-lexes from an error to an open")
     (check-equal? (send tm classify 2 14)
                   (bounds+token 14 20 (token "#hash(" 'parenthesis '\( 0)))))
 
-;; Test equivalance of our text%-like methods
+;; Test equivalance of our text%-like methods to those of racket:text%
+;; (which is provided by `framework`, which will give X display error
+;; on CI w/o xvfb, so skip these tests there).
 (module+ test
-  (require racket/gui/base
-           framework)
-  (define (insert t str)
-    (define lp (send t last-position))
-    (send t insert str lp lp)
-    (send t freeze-colorer)
-    (send t thaw-colorer))
-
-  ;; text% interface; note uses 0-based positions
-  (let ()
+  (unless (getenv "CI")
+    (define racket:text% (dynamic-require 'framework 'racket:text%))
     (define str "#lang racket\n(1) #(2) #hash((1 . 2))\n@racket[]{\n#(2)\n}\n")
-    ;;           01234567890123456789 012345678901234567890123 4567890123 456789 01 23456
-    ;;                     1          2         3         4          5           6
     (define o (test-create str))
     (define t (new racket:text%))
     (send t start-colorer symbol->string default-lexer default-paren-matches)
-    (insert t str)
+    (define lp (send t last-position))
+    (send t insert str lp lp)
+    (send t freeze-colorer)
+    (send t thaw-colorer)
+
     (check-equal? (send o last-position)
                   (send t last-position))
 
@@ -841,10 +839,8 @@
 
     ;; Test that our implementations of {forward backward}-match are
     ;; equivalent to those of racket:text%.
-    (define lp (string-length str))
-    ;; FIXME: These tests currently mostly fail. I'm not yet sure if
-    ;; that's because mflatt did a subset of behavior needed by
-    ;; indenters, or due to some other problem.
+
+    ;; FIXME: These tests currently mostly fail.
     #;
     (for ([pos (in-range 0 (string-length str))])
       (check-equal? (send o forward-match pos lp)
@@ -854,10 +850,10 @@
                     (send t backward-match pos lp)
                     (format "backward-match ~v" pos)))
 
-    ;; Test that we supply enough entire color-text% methods, and that
-    ;; they behave equivalently to from racket-text%, as needed by a
+    ;; Test that we supply enough color-text% methods, and that they
+    ;; behave equivalently to those from racket-text%, as needed by a
     ;; lang-supplied drracket:indentation a.k.a. determine-spaces
-    ;; function. (After all, this is the motivation to provide
+    ;; function. (After all, this is our motivation to provide
     ;; text%-like methods; otherwise we wouldn't bother.)
     (define determine-spaces (send o -get-line-indenter))
     #;
