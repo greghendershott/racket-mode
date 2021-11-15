@@ -16,7 +16,6 @@
          syntax-color/module-lexer)
 
 (provide hash-lang%
-         (struct-out bounds+token)
          (struct-out token)
          generation/c
          position/c
@@ -80,7 +79,6 @@
     ;; These accessor methods really intended just for tests
     (define/public (-get-string) str)
     (define/public (-get-modes) modes)
-    (define/public (-get-tokens) tokens)
     (define/public (-get-line-indenter) line-indenter)
 
     (define/public (delete)
@@ -91,7 +89,7 @@
            (let-values ([(beg end token)
                          (interval-map-ref/bounds tokens pos #f)])
              (and beg end token
-                  (bounds+token beg end token)))))
+                  (list beg end token)))))
 
     ;; The method signature here is similar to that of Emacs'
     ;; after-change functions: Something changed starting at POS. The text
@@ -133,7 +131,7 @@
       ;; with an existing token for preceding character(s).
       (define beg
         (match (token-ref (sub1 pos))
-          [(bounds+token beg _end (token _ _ _ backup)) (- beg backup)]
+          [(list beg _end (token _ _ _ backup)) (- beg backup)]
           [#f pos]))
       ;; Expand/contract the tokens and modes interval-maps.
       (cond [(< 0 diff) (interval-map-expand!   tokens pos (+ pos diff))
@@ -245,18 +243,17 @@
         (block-until-updated-thru gen pos)))
 
     (define/public (classify gen pos)
-      ;; (-> generation/c position/c (or/c #f bounds+token?))
+      ;; (-> generation/c position/c (or/c #f (list/c position/c position/c))
       (block-until-updated-thru gen pos)
       (token-ref pos))
 
-    (define/public (get-tokens [gen generation] [beg 1] [end max-position] [proc values])
-      ;; (->* (generation/c position/c position/c) (procedure?) any)
-      (block-until-updated-thru gen end)
-      (match (token-ref beg)
-        [(? bounds+token? b+t)
-         #:when (< (bounds+token-beg b+t) end)
-         (cons (proc b+t)
-               (get-tokens gen (bounds+token-end b+t) end proc))]
+    (define/public (get-tokens [gen generation] [from 1] [upto max-position] [proc values])
+      (block-until-updated-thru gen upto)
+      (match (token-ref from)
+        [(and v (list beg end _token))
+         #:when (< beg upto)
+         (cons (proc v)
+               (get-tokens gen end upto proc))]
         [_ '()]))
 
     ;;; Something for Emacs forward-sexp-function etc.
@@ -324,10 +321,8 @@
 
     (define/private (get-token who pos)
       (let ([pos (add1 pos)])
-        (match (or (token-ref pos)
-                   #;(token-ref (sub1 pos))
-                   ) ;make end position work
-          [(bounds+token _ _ (? token? token)) token]
+        (match (token-ref pos)
+          [(list _ _ (? token? token)) token]
           [_ (error who "lookup failed: ~e" (sub1 pos))])))
 
     (define/public (classify-position* pos)
@@ -344,7 +339,7 @@
 
     (define/public (get-token-range pos)
       (match (token-ref (add1 pos))
-        [(bounds+token from upto _) (values (sub1 from) (sub1 upto))]
+        [(list from upto _token) (values (sub1 from) (sub1 upto))]
         [_ (values #f #f)]))
 
     (define/public (last-position)
@@ -463,10 +458,6 @@
 
 (struct token (lexeme type paren backup) #:transparent)
 
-;; A bounds+token represents a token in an interval-map -- i.e. it is
-;; interval-map-ref/bounds represented as one value not three.
-(struct bounds+token (beg end token) #:transparent)
-
 (define (mode->lexer-name mode)
   (object-name (match mode
                  [(? procedure? p)          p]
@@ -507,25 +498,25 @@
          [tm (test-create str)])
     (check-equal? (send tm get-tokens)
                   (list
-                   (bounds+token  1 13 (token "#lang racket" 'other #f 0))
-                   (bounds+token 13 14 (token "\n" 'white-space #f 0))
-                   (bounds+token 14 16 (token "42" 'constant #f 0))
-                   (bounds+token 16 17 (token " " 'white-space #f 0))
-                   (bounds+token 17 18 (token "(" 'parenthesis '\( 0))
-                   (bounds+token 18 23 (token "print" 'symbol #f 0))
-                   (bounds+token 23 24 (token " " 'white-space #f 0))
-                   (bounds+token 24 31 (token "\"hello\"" 'string #f 0))
-                   (bounds+token 31 32 (token ")" 'parenthesis '\) 0))
-                   (bounds+token 32 33 (token " " 'white-space #f 0))
-                   (bounds+token 33 39 (token "@print" 'symbol #f 0))
-                   (bounds+token 39 40 (token "{" 'parenthesis '\{ 0))
-                   (bounds+token 40 45 (token "Hello" 'symbol #f 0))
-                   (bounds+token 45 46 (token "}" 'parenthesis '\} 0))
-                   (bounds+token 46 47 (token " " 'white-space #f 0))
-                   (bounds+token 47 48 (token "'" 'constant #f 0))
-                   (bounds+token 48 51 (token "foo" 'symbol #f 0))
-                   (bounds+token 51 52 (token " " 'white-space #f 0))
-                   (bounds+token 52 57 (token "#:bar" 'hash-colon-keyword #f 0))))
+                   (list  1 13 (token "#lang racket" 'other #f 0))
+                   (list 13 14 (token "\n" 'white-space #f 0))
+                   (list 14 16 (token "42" 'constant #f 0))
+                   (list 16 17 (token " " 'white-space #f 0))
+                   (list 17 18 (token "(" 'parenthesis '\( 0))
+                   (list 18 23 (token "print" 'symbol #f 0))
+                   (list 23 24 (token " " 'white-space #f 0))
+                   (list 24 31 (token "\"hello\"" 'string #f 0))
+                   (list 31 32 (token ")" 'parenthesis '\) 0))
+                   (list 32 33 (token " " 'white-space #f 0))
+                   (list 33 39 (token "@print" 'symbol #f 0))
+                   (list 39 40 (token "{" 'parenthesis '\{ 0))
+                   (list 40 45 (token "Hello" 'symbol #f 0))
+                   (list 45 46 (token "}" 'parenthesis '\} 0))
+                   (list 46 47 (token " " 'white-space #f 0))
+                   (list 47 48 (token "'" 'constant #f 0))
+                   (list 48 51 (token "foo" 'symbol #f 0))
+                   (list 51 52 (token " " 'white-space #f 0))
+                   (list 52 57 (token "#:bar" 'hash-colon-keyword #f 0))))
     (check-equal? (send tm -get-string) str)
     (check-equal? (dict->list (send tm -get-modes))
                   `(((1 . 13) . #f)
@@ -560,29 +551,29 @@
     ;; Double check final result of the edits
     (check-equal? (send tm -get-string)
                   "#lang racket\n99999 (print 'hell) @print{Hello} 'bar 'bar")
-    (check-equal? (dict->list (send tm -get-tokens))
+    (check-equal? (dict->list (send tm get-tokens))
                   (list
-                   (cons '(1 . 13)  (token "#lang racket" 'other #f 0))
-                   (cons '(13 . 14) (token "\n" 'white-space #f 0))
-                   (cons '(14 . 19) (token "99999" 'constant #f 0))
-                   (cons '(19 . 20) (token " " 'white-space #f 0))
-                   (cons '(20 . 21) (token "(" 'parenthesis '\( 0))
-                   (cons '(21 . 26) (token "print" 'symbol #f 0))
-                   (cons '(26 . 27) (token " " 'white-space #f 0))
-                   (cons '(27 . 28) (token "'" 'constant #f 0))
-                   (cons '(28 . 32) (token "hell" 'symbol #f 0))
-                   (cons '(32 . 33) (token ")" 'parenthesis '\) 0))
-                   (cons '(33 . 34) (token " " 'white-space #f 0))
-                   (cons '(34 . 40) (token "@print" 'symbol #f 0))
-                   (cons '(40 . 41) (token "{" 'parenthesis '\{ 0))
-                   (cons '(41 . 46) (token "Hello" 'symbol #f 0))
-                   (cons '(46 . 47) (token "}" 'parenthesis '\} 0))
-                   (cons '(47 . 48) (token " " 'white-space #f 0))
-                   (cons '(48 . 49) (token "'" 'constant #f 0))
-                   (cons '(49 . 52) (token "bar" 'symbol #f 0))
-                   (cons '(52 . 53) (token " " 'white-space #f 0))
-                   (cons '(53 . 54) (token "'" 'constant #f 0))
-                   (cons '(54 . 57) (token "bar" 'symbol #f 0))))
+                   (list  1 13 (token "#lang racket" 'other #f 0))
+                   (list 13 14 (token "\n" 'white-space #f 0))
+                   (list 14 19 (token "99999" 'constant #f 0))
+                   (list 19 20 (token " " 'white-space #f 0))
+                   (list 20 21 (token "(" 'parenthesis '\( 0))
+                   (list 21 26 (token "print" 'symbol #f 0))
+                   (list 26 27 (token " " 'white-space #f 0))
+                   (list 27 28 (token "'" 'constant #f 0))
+                   (list 28 32 (token "hell" 'symbol #f 0))
+                   (list 32 33 (token ")" 'parenthesis '\) 0))
+                   (list 33 34 (token " " 'white-space #f 0))
+                   (list 34 40 (token "@print" 'symbol #f 0))
+                   (list 40 41 (token "{" 'parenthesis '\{ 0))
+                   (list 41 46 (token "Hello" 'symbol #f 0))
+                   (list 46 47 (token "}" 'parenthesis '\} 0))
+                   (list 47 48 (token " " 'white-space #f 0))
+                   (list 48 49 (token "'" 'constant #f 0))
+                   (list 49 52 (token "bar" 'symbol #f 0))
+                   (list 52 53 (token " " 'white-space #f 0))
+                   (list 53 54 (token "'" 'constant #f 0))
+                   (list 54 57 (token "bar" 'symbol #f 0))))
     (check-equal? (dict->list (send tm -get-modes))
                   `(((1 . 13) . #f)
                     ((13 . 14) . ,racket-lexer)
@@ -611,98 +602,98 @@
          [tm (test-create str)])
     (check-equal? (send tm get-tokens)
                   (list
-                   (bounds+token  1 13 (token "#lang at-exp" 'other #f 0))
-                   (bounds+token 13 14 (token " " 'white-space #f 0))
-                   (bounds+token 14 20 (token "racket" 'symbol #f 0))
-                   (bounds+token 20 21 (token "\n" 'white-space #f 0))
-                   (bounds+token 21 23 (token "42" 'constant #f 0))
-                   (bounds+token 23 24 (token " " 'white-space #f 0))
-                   (bounds+token 24 25 (token "(" 'parenthesis '\( 0))
-                   (bounds+token 25 30 (token "print" 'symbol #f 0))
-                   (bounds+token 30 31 (token " " 'white-space #f 0))
-                   (bounds+token 31 38 (token "\"hello\"" 'string #f 0))
-                   (bounds+token 38 39 (token ")" 'parenthesis '\) 0))
-                   (bounds+token 39 40 (token " " 'white-space #f 0))
-                   (bounds+token 40 41 (token "@" 'parenthesis #f 0)) ;;??
-                   (bounds+token 41 46 (token "print" 'symbol #f 0))
-                   (bounds+token 46 47 (token "{" 'parenthesis '\{ 0))
-                   (bounds+token 47 60 (token "Hello (there)" 'text #f 0))
-                   (bounds+token 60 61 (token "}" 'parenthesis '\} 0))
-                   (bounds+token 61 62 (token " " 'white-space #f 0))
-                   (bounds+token 62 63 (token "'" 'constant #f 0))
-                   (bounds+token 63 66 (token "foo" 'symbol #f 0))
-                   (bounds+token 66 67 (token " " 'white-space #f 0))
-                   (bounds+token 67 72 (token "#:bar" 'hash-colon-keyword #f 0))))
+                   (list  1 13 (token "#lang at-exp" 'other #f 0))
+                   (list 13 14 (token " " 'white-space #f 0))
+                   (list 14 20 (token "racket" 'symbol #f 0))
+                   (list 20 21 (token "\n" 'white-space #f 0))
+                   (list 21 23 (token "42" 'constant #f 0))
+                   (list 23 24 (token " " 'white-space #f 0))
+                   (list 24 25 (token "(" 'parenthesis '\( 0))
+                   (list 25 30 (token "print" 'symbol #f 0))
+                   (list 30 31 (token " " 'white-space #f 0))
+                   (list 31 38 (token "\"hello\"" 'string #f 0))
+                   (list 38 39 (token ")" 'parenthesis '\) 0))
+                   (list 39 40 (token " " 'white-space #f 0))
+                   (list 40 41 (token "@" 'parenthesis #f 0)) ;;??
+                   (list 41 46 (token "print" 'symbol #f 0))
+                   (list 46 47 (token "{" 'parenthesis '\{ 0))
+                   (list 47 60 (token "Hello (there)" 'text #f 0))
+                   (list 60 61 (token "}" 'parenthesis '\} 0))
+                   (list 61 62 (token " " 'white-space #f 0))
+                   (list 62 63 (token "'" 'constant #f 0))
+                   (list 63 66 (token "foo" 'symbol #f 0))
+                   (list 66 67 (token " " 'white-space #f 0))
+                   (list 67 72 (token "#:bar" 'hash-colon-keyword #f 0))))
     (check-equal? (send tm -get-string) str)
     (check-equal? (send tm classify 1 (sub1 (string-length str)))
-                  (bounds+token 67 72 (token "#:bar" 'hash-colon-keyword #f 0)))))
+                  (list 67 72 (token "#:bar" 'hash-colon-keyword #f 0)))))
 
 (module+ test
   (let* ([str "#lang scribble/text\nHello @(print \"hello\") @print{Hello (there)} #:not-a-keyword"]
          [tm (test-create str)])
     (check-equal? (send tm get-tokens)
                   (list
-                   (bounds+token 1  20 (token "#lang scribble/text" 'text #f 0))
-                   (bounds+token 20 21 (token "\n" 'white-space #f 0))
-                   (bounds+token 21 27 (token "Hello " 'text #f 0))
-                   (bounds+token 27 28 (token "@" 'parenthesis #f 0)) ;;??
-                   (bounds+token 28 29 (token "(" 'parenthesis '\( 0))
-                   (bounds+token 29 34 (token "print" 'symbol #f 0))
-                   (bounds+token 34 35 (token " " 'white-space #f 0))
-                   (bounds+token 35 42 (token "\"hello\"" 'string #f 0))
-                   (bounds+token 42 43 (token ")" 'parenthesis '\) 0))
-                   (bounds+token 43 44 (token " " 'text #f 0))
-                   (bounds+token 44 45 (token "@" 'parenthesis #f 0))
-                   (bounds+token 45 50 (token "print" 'symbol #f 0))
-                   (bounds+token 50 51 (token "{" 'parenthesis '\{ 0))
-                   (bounds+token 51 64 (token "Hello (there)" 'text #f 0))
-                   (bounds+token 64 65 (token "}" 'parenthesis '\} 0))
-                   (bounds+token 65 81 (token " #:not-a-keyword" 'text #f 0))))
+                   (list 1  20 (token "#lang scribble/text" 'text #f 0))
+                   (list 20 21 (token "\n" 'white-space #f 0))
+                   (list 21 27 (token "Hello " 'text #f 0))
+                   (list 27 28 (token "@" 'parenthesis #f 0)) ;;??
+                   (list 28 29 (token "(" 'parenthesis '\( 0))
+                   (list 29 34 (token "print" 'symbol #f 0))
+                   (list 34 35 (token " " 'white-space #f 0))
+                   (list 35 42 (token "\"hello\"" 'string #f 0))
+                   (list 42 43 (token ")" 'parenthesis '\) 0))
+                   (list 43 44 (token " " 'text #f 0))
+                   (list 44 45 (token "@" 'parenthesis #f 0))
+                   (list 45 50 (token "print" 'symbol #f 0))
+                   (list 50 51 (token "{" 'parenthesis '\{ 0))
+                   (list 51 64 (token "Hello (there)" 'text #f 0))
+                   (list 64 65 (token "}" 'parenthesis '\} 0))
+                   (list 65 81 (token " #:not-a-keyword" 'text #f 0))))
     (check-equal? (send tm -get-string) str)))
 
 (module+ test
   (let* ([str "#lang racket\n(λ () #t)"]
          [tm  (test-create str)])
     (check-equal? (send tm classify 1 15)
-                  (bounds+token 15 16 (token "λ" 'symbol #f 0)))
+                  (list 15 16 (token "λ" 'symbol #f 0)))
     (check-equal? (test-update! tm 2 18 0 "a")
                   '((18 19 symbol)))
     (check-equal? (send tm classify 2 18)
-                  (bounds+token 18 19 (token "a" 'symbol #f 0)))))
+                  (list 18 19 (token "a" 'symbol #f 0)))))
 
 (module+ test
   (let ([o (test-create "#lang racket\n#rx\"1234\"\n#(1 2 3)\n#'(1 2 3)")])
     (check-equal? (send o get-tokens)
                   (list
-                   (bounds+token  1 13 (token "#lang racket" 'other #f 0))
-                   (bounds+token 13 14 (token "\n" 'white-space #f 0))
-                   (bounds+token 14 23 (token "#rx\"1234\"" 'string #f 0))
-                   (bounds+token 23 24 (token "\n" 'white-space #f 0))
-                   (bounds+token 24 26 (token "#(" 'parenthesis '\( 0))
-                   (bounds+token 26 27 (token "1" 'constant #f 0))
-                   (bounds+token 27 28 (token " " 'white-space #f 0))
-                   (bounds+token 28 29 (token "2" 'constant #f 0))
-                   (bounds+token 29 30 (token " " 'white-space #f 0))
-                   (bounds+token 30 31 (token "3" 'constant #f 0))
-                   (bounds+token 31 32 (token ")" 'parenthesis '\) 0))
-                   (bounds+token 32 33 (token "\n" 'white-space #f 0))
-                   (bounds+token 33 35 (token "#'" 'constant #f 0))
-                   (bounds+token 35 36 (token "(" 'parenthesis '\( 0))
-                   (bounds+token 36 37 (token "1" 'constant #f 0))
-                   (bounds+token 37 38 (token " " 'white-space #f 0))
-                   (bounds+token 38 39 (token "2" 'constant #f 0))
-                   (bounds+token 39 40 (token " " 'white-space #f 0))
-                   (bounds+token 40 41 (token "3" 'constant #f 0))
-                   (bounds+token 41 42 (token ")" 'parenthesis '\) 0))))))
+                   (list  1 13 (token "#lang racket" 'other #f 0))
+                   (list 13 14 (token "\n" 'white-space #f 0))
+                   (list 14 23 (token "#rx\"1234\"" 'string #f 0))
+                   (list 23 24 (token "\n" 'white-space #f 0))
+                   (list 24 26 (token "#(" 'parenthesis '\( 0))
+                   (list 26 27 (token "1" 'constant #f 0))
+                   (list 27 28 (token " " 'white-space #f 0))
+                   (list 28 29 (token "2" 'constant #f 0))
+                   (list 29 30 (token " " 'white-space #f 0))
+                   (list 30 31 (token "3" 'constant #f 0))
+                   (list 31 32 (token ")" 'parenthesis '\) 0))
+                   (list 32 33 (token "\n" 'white-space #f 0))
+                   (list 33 35 (token "#'" 'constant #f 0))
+                   (list 35 36 (token "(" 'parenthesis '\( 0))
+                   (list 36 37 (token "1" 'constant #f 0))
+                   (list 37 38 (token " " 'white-space #f 0))
+                   (list 38 39 (token "2" 'constant #f 0))
+                   (list 39 40 (token " " 'white-space #f 0))
+                   (list 40 41 (token "3" 'constant #f 0))
+                   (list 41 42 (token ")" 'parenthesis '\) 0))))))
 
 (module+ test
   (let ([o (test-create "#lang racket\n#<<HERE\nblah blah\nblah blah\nHERE\n")])
     (check-equal? (send o get-tokens)
                   (list
-                   (bounds+token  1 13 (token "#lang racket" 'other #f 0))
-                   (bounds+token 13 14 (token "\n" 'white-space #f 0))
-                   (bounds+token 14 46 (token "#<<HERE\nblah blah\nblah blah\nHERE" 'string #f 0))
-                   (bounds+token 46 47 (token "\n" 'white-space #f 0))))))
+                   (list  1 13 (token "#lang racket" 'other #f 0))
+                   (list 13 14 (token "\n" 'white-space #f 0))
+                   (list 14 46 (token "#<<HERE\nblah blah\nblah blah\nHERE" 'string #f 0))
+                   (list 46 47 (token "\n" 'white-space #f 0))))))
 
 (module+ test
   (let ()
@@ -727,11 +718,11 @@
     (test-update! tm 2 14 0 "d")
     (test-update! tm 3 15 0 "o")
     (check-equal? (send tm -get-string) "#lang racket\ndo")
-    (check-equal? (dict->list (send tm -get-tokens))
+    (check-equal? (dict->list (send tm get-tokens))
                   (list
-                   (cons '(1 . 13) (token "#lang racket" 'other #f 0))
-                   (cons '(13 . 14) (token "\n" 'white-space #f 0))
-                   (cons '(14 . 16) (token "do" 'symbol #f 0))))
+                   (list  1 13 (token "#lang racket" 'other #f 0))
+                   (list 13 14 (token "\n" 'white-space #f 0))
+                   (list 14 16 (token "do" 'symbol #f 0))))
     (check-equal? (dict->list (send tm -get-modes))
                   (list
                    (cons '(1 . 13) #f)
@@ -744,11 +735,11 @@
     (test-update! tm 2 14 0 "1") ;initially lexed as 'constant
     (test-update! tm 3 15 0 "x") ;should re-lex "1x" as 'symbol
     (check-equal? (send tm -get-string) "#lang racket\n1x")
-    (check-equal? (dict->list (send tm -get-tokens))
+    (check-equal? (dict->list (send tm get-tokens))
                   (list
-                   (cons '(1 . 13) (token "#lang racket" 'other #f 0))
-                   (cons '(13 . 14) (token "\n" 'white-space #f 0))
-                   (cons '(14 . 16) (token "1x" 'symbol #f 0))))
+                   (list  1 13 (token "#lang racket" 'other #f 0))
+                   (list 13 14 (token "\n" 'white-space #f 0))
+                   (list 14 16 (token "1x" 'symbol #f 0))))
     (check-equal? (dict->list (send tm -get-modes))
                   (list
                    (cons '(1 . 13) #f)
@@ -763,11 +754,11 @@
     (test-update! tm 4 16 0 "1") ;still symbol
     (test-update! tm 5 15 1 "")  ;deleting the "x" should re-lex the "11" as constant
     (check-equal? (send tm -get-string) "#lang racket\n11")
-    (check-equal? (dict->list (send tm -get-tokens))
+    (check-equal? (dict->list (send tm get-tokens))
                   (list
-                   (cons '(1 . 13) (token "#lang racket" 'other #f 0))
-                   (cons '(13 . 14) (token "\n" 'white-space #f 0))
-                   (cons '(14 . 16) (token "11" 'constant #f 0))))
+                   (list  1 13 (token "#lang racket" 'other #f 0))
+                   (list 13 14 (token "\n" 'white-space #f 0))
+                   (list 14 16 (token "11" 'constant #f 0))))
     (check-equal? (dict->list (send tm -get-modes))
                   (list
                    (cons '(1 . 13) #f)
@@ -783,13 +774,13 @@
     (test-update! tm 4 15 0 "h")
     (test-update! tm 5 16 0 "i")
     (check-equal? (send tm -get-string) "#lang racket\n(hi)")
-    (check-equal? (dict->list (send tm -get-tokens))
+    (check-equal? (dict->list (send tm get-tokens))
                   (list
-                   (cons '(1 . 13) (token "#lang racket" 'other #f 0))
-                   (cons '(13 . 14) (token "\n" 'white-space #f 0))
-                   (cons '(14 . 15) (token "(" 'parenthesis '\( 0))
-                   (cons '(15 . 17) (token "hi" 'symbol #f 0))
-                   (cons '(17 . 18) (token ")" 'parenthesis '\) 0))))
+                   (list  1 13 (token "#lang racket" 'other #f 0))
+                   (list 13 14 (token "\n" 'white-space #f 0))
+                   (list 14 15 (token "(" 'parenthesis '\( 0))
+                   (list 15 17 (token "hi" 'symbol #f 0))
+                   (list 17 18 (token ")" 'parenthesis '\) 0))))
     (check-equal? (dict->list (send tm -get-modes))
                   (list
                    (cons '(1 . 13) #f)
@@ -802,12 +793,12 @@
          ;;             1
          [tm (test-create str)])
     (check-equal? (send tm classify 1 14)
-                  (bounds+token 14 19 (token "#hash" 'error #f 0)))
+                  (list 14 19 (token "#hash" 'error #f 0)))
     (check-equal? (test-update! tm 2 19 0 "(")
                   '((14 20 parenthesis #t ")"))
                   "Adding parens after #hash re-lexes from an error to an open")
     (check-equal? (send tm classify 2 14)
-                  (bounds+token 14 20 (token "#hash(" 'parenthesis '\( 0)))))
+                  (list 14 20 (token "#hash(" 'parenthesis '\( 0)))))
 
 ;; Test equivalance of our text%-like methods to those of racket:text%
 (module+ test

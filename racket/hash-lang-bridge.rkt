@@ -21,12 +21,13 @@
 (define (hash-lang . args)
   (log-racket-mode-debug "~v" args)
   (match args
-    [`(create ,id ,s)                             (create id s)]
-    [`(delete ,id)                                (delete id)]
-    [`(update ,id ,gen ,pos ,old-len ,str)        (update id gen pos old-len str)]
-    [`(indent-amount ,id ,gen ,pos)               (indent-amount id gen pos)]
-    [`(classify ,id ,gen ,pos)                    (classify id gen pos)]
-    [`(grouping ,id ,gen ,pos ,dir ,limit ,count) (grouping id gen pos dir limit count)]))
+    [`(create ,id ,s)                              (create id s)]
+    [`(delete ,id)                                 (delete id)]
+    [`(update ,id ,gen ,pos ,old-len ,str)         (update id gen pos old-len str)]
+    [`(indent-amount ,id ,gen ,pos)                (indent-amount id gen pos)]
+    [`(indent-region-amounts ,id ,gen ,from ,upto) (indent-region-amounts id gen from upto)]
+    [`(classify ,id ,gen ,pos)                     (classify id gen pos)]
+    [`(grouping ,id ,gen ,pos ,dir ,limit ,count)  (grouping id gen pos dir limit count)]))
 
 (define token-notify-channel (make-async-channel))
 
@@ -73,11 +74,12 @@
 (define (indent-amount id gen pos)
   (send (get-object id) indent-line-amount gen pos))
 
+(define (indent-region-amounts id gen from upto)
+  (send (get-object id) indent-region-amounts gen from upto))
+
 (define (classify id gen pos)
-  (define (token->elisp b+t)
-    (match-define (bounds+token beg end t) b+t)
-    (list beg end (token-type t) (token-paren t)))
-  (token->elisp (send (get-object id) classify gen pos)))
+  (match-define (list beg end tok) (send (get-object id) classify gen pos))
+  (list beg end (token-type tok) (token-paren tok)))
 
 (define (grouping id gen pos dir limit count)
   (send (get-object id) grouping gen pos dir limit count))

@@ -17,6 +17,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'cl-lib)
+(require 'seq)
 (require 'racket-cmd)
 (require 'racket-indent)
 
@@ -35,6 +36,7 @@ enough.")
 (defvar-local racket--hash-lang-orig-syntax-propertize-function nil)
 (defvar-local racket--hash-lang-orig-syntax-table nil)
 (defvar-local racket--hash-lang-orig-indent-line-function nil)
+(defvar-local racket--hash-lang-orig-indent-region-function nil)
 (defvar-local racket--hash-lang-orig-forward-sexp-function nil)
 
 ;;;###autoload
@@ -100,6 +102,11 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
         (setq-local indent-line-function
                     #'racket-hash-lang-indent-line-function)
 
+        (setq-local racket--hash-lang-orig-indent-region-function
+                    indent-region-function)
+        (setq-local indent-region-function
+                    #'racket-hash-lang-indent-region-function)
+
         (setq-local racket--hash-lang-orig-forward-sexp-function
                     forward-sexp-function)
         (setq-local forward-sexp-function
@@ -127,6 +134,8 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
     (set-syntax-table racket--hash-lang-orig-syntax-table)
     (setq-local indent-line-function
                 racket--hash-lang-orig-indent-line-function)
+    (setq-local indent-region-function
+                racket--hash-lang-orig-indent-region-function)
     (setq-local forward-sexp-function
                 racket--hash-lang-orig-forward-sexp-function)
     (remove-hook 'after-change-functions
@@ -272,7 +281,7 @@ x.")
               (put-face beg end 'font-lock-comment-face))))))))
 
 (defun racket-hash-lang-indent-line-function ()
-  "Use lang indenter if it returns non-nil, else do standard sexp indent."
+  "Maybe use #lang drracket:indentation, else `racket-indent-line'."
   (let ((bol (save-excursion (beginning-of-line) (point))))
     (if-let (amount (racket--cmd/await  ; await = :(
                      nil
@@ -293,9 +302,36 @@ x.")
             (goto-char (- (point-max) pos))))
       (racket-indent-line))))
 
+;; TODO: Actually exercise/test this using some lang like rhombus that
+;; supplies drracket:range-indentation.
+(defun racket-hash-lang-indent-region-function (from upto)
+  "Maybe use #lang drracket:range-indentation, else plain `indent-region'."
+  (if-let (results (racket--cmd/await   ; await = :(
+                    nil
+                    `(hash-lang indent-region-amounts
+                                ,(racket--buffer-file-name)
+                                ,racket--hash-lang-generation
+                                ,from
+                                ,upto)))
+      (save-excursion
+        ;; drracket:range-indent docs say `results` could have more
+        ;; elements than lines in from..upto, and we should ignore
+        ;; extras. Handle that. (Although it could also have fewer, we
+        ;; need no special handling for that here.)
+        (let ((results (seq-take results (count-lines from upto))))
+          (dolist (result results)
+            (pcase-let ((`(,delete-amount ,insert-string) result))
+              (beginning-of-line)
+              (delete-char delete-amount)
+              (insert insert-string)
+              (end-of-line 2)))))
+    (let ((indent-region-function nil))
+      (indent-region from upto))))
+
 ;; TODO: indent-region-function using drracket:range-indentation
 
 (defun racket-hash-lang-forward-sexp-function (&optional arg)
+  "Maybe use #lang drracket:grouping-position, else use sexp motion."
   (let ((dir (if (or (not arg) (< 0 arg)) 'forward 'backward))
         (count (abs arg)))
     (pcase (racket--cmd/await           ; await = :(
