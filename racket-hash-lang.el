@@ -1,6 +1,6 @@
 ;;; racket-hash-lang.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2020 by Greg Hendershott.
+;; Copyright (c) 2020-2021 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -19,6 +19,7 @@
 (require 'cl-lib)
 (require 'seq)
 (require 'racket-cmd)
+(require 'racket-common)
 (require 'racket-indent)
 
 (defvar-local racket--hash-lang-generation 1
@@ -185,7 +186,6 @@ x.")
 
 (defun racket--hash-lang-on-token (id token)
   (with-current-buffer (find-buffer-visiting id)
-    (message "%s" token)
     (racket--hash-lang-propertize (list token))))
 
 (defun racket--hash-lang-propertize (tokens)
@@ -271,8 +271,7 @@ x.")
                (put-stx beg end '(0)))
               (other
                (put-stx beg end (standard-syntax-table)))
-              (otherwise
-               (put-face beg end 'error)))))
+              (otherwise nil))))
         (dolist (sexp-prefix-end sexp-prefix-ends)
           (save-excursion
             (goto-char sexp-prefix-end)
@@ -328,8 +327,6 @@ x.")
     (let ((indent-region-function nil))
       (indent-region from upto))))
 
-;; TODO: indent-region-function using drracket:range-indentation
-
 (defun racket-hash-lang-forward-sexp-function (&optional arg)
   "Maybe use #lang drracket:grouping-position, else use sexp motion."
   (let ((dir (if (or (not arg) (< 0 arg)) 'forward 'backward))
@@ -348,9 +345,47 @@ x.")
       ('use-default-s-expression
        (let ((forward-sexp-function nil))
          (forward-sexp arg)))
-      (`() nil))))
+      (`(,from ,upto)
+       (signal 'scan-error (list (format "Cannot move %s" dir)
+                                 from upto)))
+      (v (error "unexpected grouping-position value %s" v)))))
 
 ;; TODO: Advise e.g. up-list/down-list using drracket:grouping-position, too?
+
+(defun racket-hash-lang-up ()
+  (interactive)
+  (pcase (racket--cmd/await             ; await = :(
+          nil
+          `(hash-lang grouping
+                      ,(racket--buffer-file-name)
+                      ,racket--hash-lang-generation
+                      ,(point)
+                      up
+                      0
+                      1))
+    ((and (pred numberp) pos)
+     (goto-char pos))
+    ('use-default-s-expression
+     (racket-backward-up-list))
+    (_ (user-error "Cannot move up"))))
+
+(defun racket-hash-lang-down ()
+  (interactive)
+  (pcase (racket--cmd/await             ; await = :(
+          nil
+          `(hash-lang grouping
+                      ,(racket--buffer-file-name)
+                      ,racket--hash-lang-generation
+                      ,(point)
+                      down
+                      0
+                      1))
+    ((and (pred numberp) pos)
+     (goto-char pos))
+    ('use-default-s-expression
+     (down-list))
+    (_ (user-error "Cannot move down"))))
+
 
 (provide 'racket-hash-lang)
 
