@@ -34,6 +34,7 @@
 
 ;; Our interface uses 1-based positions -- as do lexers and Emacs.
 (define position/c exact-positive-integer?)
+(define min-position 1)
 (define max-position (sub1 (expt 2 63)))
 
 (define hash-lang%
@@ -79,17 +80,20 @@
     ;; These accessor methods really intended just for tests
     (define/public (-get-string) str)
     (define/public (-get-modes) modes)
+    (define/public (-get-lexer) lexer)
+    (define/public (-get-paren-matches) paren-matches)
     (define/public (-get-line-indenter) line-indenter)
 
     (define/public (delete)
       (async-channel-put update-chan 'quit))
 
-    (define/public (token-ref pos) ;; temporarily public for debugging
+    ;; (or/c #f position/c) -> (or/c #f (list/c position/c position/c token?))
+    (define/private (token-ref pos)
       (and pos
-           (let-values ([(beg end token)
-                         (interval-map-ref/bounds tokens pos #f)])
-             (and beg end token
-                  (list beg end token)))))
+           (let/ec k
+             (call-with-values
+              (λ () (interval-map-ref/bounds tokens pos (λ () (k #f))))
+              list))))
 
     ;; The method signature here is similar to that of Emacs'
     ;; after-change functions: Something changed starting at POS. The text
@@ -98,9 +102,7 @@
       ;;(-> generation/c position/c exact-nonnegative-integer? string? any)
       (unless (< generation gen)
         (raise-argument-error 'update! "valid generation" 0 gen pos old-len new-str))
-      (unless (and (<= 1 pos)
-                   #;
-                   (<= (sub1 pos) (string-length (token-map-str tm))))
+      (unless (<= min-position pos)
         (raise-argument-error 'update! "valid position" 1 gen pos old-len new-str))
       (unless (and (zero? old-len) (equal? new-str ""))
         (async-channel-put update-chan
@@ -201,7 +203,10 @@
     ;; Specifically parenthesis tokens get extra data: An open? flag
     ;; and the symbol for the matching open or close.
     (define/private (make-notify-channel-value beg end token)
-      (define type (token-type token))
+      (define ht-or-type (token-type token))
+      (define type (if (symbol? ht-or-type)
+                       ht-or-type
+                       (hash-ref ht-or-type 'type 'unknown)))
       (define paren (token-paren token))
       (list* beg
              end
@@ -247,7 +252,10 @@
       (block-until-updated-thru gen pos)
       (token-ref pos))
 
-    (define/public (get-tokens [gen generation] [from 1] [upto max-position] [proc values])
+    (define/public (get-tokens [gen generation]
+                               [from min-position]
+                               [upto max-position]
+                               [proc values])
       (block-until-updated-thru gen upto)
       (match (token-ref from)
         [(and v (list beg end _token))
@@ -260,31 +268,33 @@
 
     (define/public (grouping gen pos dir limit count)
       (cond
-        [(zero? count) pos]
+        [(<= count 0) pos]
         [else
          (block-until-updated-thru gen
                                    (case dir
-                                     [(up backward) 1]
+                                     [(up backward) min-position]
                                      [(down forward) max-position]))
-         (let loop ([pos pos]
+         (let loop ([pos (sub1 pos)] ;1.. -> 0..
                     [count count])
+           (define (failure-result) ;can't/didn't move
+             (call-with-values (λ () (get-token-range pos)) list))
            (match (grouping-position this pos limit dir)
-             [#f #f]
+             [#f (failure-result)]
              [#t 'use-default-s-expression]
              [(? number? new-pos)
-              (if (= count 1)
-                  new-pos
-                  (loop new-pos (sub1 count)))]))]))
+              (cond [(< 1 count) (loop new-pos (sub1 count))]
+                    [(= new-pos pos) (failure-result)]
+                    [else (add1 new-pos)])]))])) ;0.. -> 1..
 
     ;;; Indent
 
     (define/public (indent-line-amount gen pos)
       (block-until-updated-thru gen pos)
-      (line-indenter this pos))
+      (line-indenter this (sub1 pos))) ;1.. -> 0..
 
     (define/public (indent-region-amounts gen from upto)
       (block-until-updated-thru gen upto)
-      (range-indenter this from upto))
+      (range-indenter this (sub1 from) (sub1 upto))) ;1.. -> 0..
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;;
@@ -345,35 +355,37 @@
     (define/public (last-position)
       (string-length str))
 
-    ;; FIXME: Move equivalent to `update!`
-    (define/private (temporary-slow-hack)
-      (let loop ([pos 0] [para 0] [pos-para #hasheqv()] [para-pos #hasheqv((0 . 0))])
-        (cond
-          [(= pos (string-length str))
-           (values (hash-set pos-para pos para) para-pos)]
-          [(char=? #\newline (string-ref str pos))
-           (loop (add1 pos) (add1 para)
-                 (hash-set pos-para pos para)
-                 (hash-set para-pos (add1 para) (add1 pos)))]
-          [else
-           (loop (add1 pos) para (hash-set pos-para pos para) para-pos)])))
+    ;; Note: Not attempting to maintain a data structure in do-update!
+    ;; for paragraphs; just calculating on-demand.
 
-    (define/public (position-paragraph pos [eol? #f])
-      (define-values (position-paragraphs _paragraph-starts) (temporary-slow-hack))
-      (or (hash-ref position-paragraphs pos #f)
-          (error 'position-paragraph "lookup failed: ~e" pos)))
+    (define/public (position-paragraph desired-pos [eol? #f])
+      (let loop ([pos 0] [para 0])
+        (cond [(= pos desired-pos) para]
+              [(= pos (string-length str))
+               (error 'position-paragraph "lookup failed: ~e" desired-pos)]
+              [(char=? #\newline (string-ref str pos))
+               (loop (add1 pos) (add1 para))]
+              [else
+               (loop (add1 pos) para)])))
 
-    (define/public (paragraph-start-position para)
-      (define-values (_position-paragraphs paragraph-starts) (temporary-slow-hack))
-      (or (hash-ref paragraph-starts para #f)
-          (error 'paragraph-start-position "lookup failed: ~e" para)))
+    (define/public (paragraph-start-position desired-para)
+      (let loop ([pos 0] [para 0])
+        (cond [(= para desired-para) pos]
+              [(= pos (string-length str))
+               (error 'paragraph-start-position "lookup failed: ~e" desired-para)]
+              [(char=? #\newline (string-ref str pos))
+               (loop (add1 pos) (add1 para))]
+              [else
+               (loop (add1 pos) para)])))
 
-    (define/public (paragraph-end-position para)
-      (define-values (_position-paragraphs paragraph-starts) (temporary-slow-hack))
-      (define n (hash-ref paragraph-starts (add1 para) #f))
-      (if n
-          (sub1 n)
-          (last-position)))
+    (define/public (paragraph-end-position desired-para)
+      (let loop ([pos 0] [para -1])
+        (cond [(= para desired-para) (sub1 pos)]
+              [(= pos (string-length str)) pos]
+              [(char=? #\newline (string-ref str pos))
+               (loop (add1 pos) (add1 para))]
+              [else
+               (loop (add1 pos) para)])))
 
     (define/public (skip-whitespace pos direction comments?)
       (let loop ([pos pos])
@@ -805,6 +817,8 @@
   (require framework)
   (let ()
     (define str "#lang racket\n(1) #(2) #hash((1 . 2))\n@racket[]{\n#(2)\n}\n")
+    ;;           0123456789012 345678901234567890123456 78901234567 89012 345
+    ;;                     1          2         3          4          5
     (define o (test-create str))
     (define t (new racket:text%))
     (send t start-colorer symbol->string default-lexer default-paren-matches)
@@ -817,7 +831,7 @@
                   (send t last-position))
 
     ;; Test that our implementation of skip-whitespace is equivalent
-    ;; to that of racket:text%.
+    ;; to racket:text%.
     (for ([pos (in-range 0 (string-length str))])
       (check-equal? (send o skip-whitespace pos 'forward #t)
                     (send t skip-whitespace pos 'forward #t)
@@ -825,6 +839,27 @@
       (check-equal? (send o skip-whitespace pos 'backward #t)
                     (send t skip-whitespace pos 'backward #t)
                     (format "skip-whitespace ~v 'backward" pos)))
+
+    ;; Test that our implementation of position-paragraph is
+    ;; equivalent to racket:text%.
+    (for ([pos (in-range 0 (string-length str))])
+      (check-equal? (send o position-paragraph pos)
+                    (send t position-paragraph pos)
+                    (format "position-paragraph ~v" pos)))
+
+    ;; Test that our implementation of paragraph-start-position and
+    ;; paragraph-end-position are equivalent to racket:text%.
+    (define num-paras 5)
+    (for ([para (in-range 0 (add1 num-paras))])
+      (check-equal? (send o paragraph-start-position para)
+                    (send t paragraph-start-position para)
+                    (format "paragraph-start-position ~v" para)))
+    (check-exn exn:fail?
+               (λ () (send o paragraph-start-position (add1 num-paras))))
+    (for ([para (in-range 0 (+ num-paras 2))]) ;should work for excess para #s
+      (check-equal? (send o paragraph-end-position para)
+                    (send t paragraph-end-position para)
+                    (format "paragraph-end-position ~v" para)))
 
     ;; Test that our implementations of {forward backward}-match are
     ;; equivalent to those of racket:text%.
@@ -850,4 +885,51 @@
       (check-equal? (determine-spaces o pos)
                     (determine-spaces t pos)
                     (format "~v ~v" determine-spaces pos)))
+    (void))
+
+  (require racket/file)
+  (let ()
+    (define str (file->string "/home/greg/src/shrubbery-rhombus-0/demo.rkt"))
+    (define o (test-create str))
+    (define t (new racket:text%))
+    (send t start-colorer
+          symbol->string
+          (send o -get-lexer)
+          (send o -get-paren-matches))
+    (define lp (send t last-position))
+    (send t insert str lp lp)
+    (send t freeze-colorer)
+    (send t thaw-colorer)
+
+    (check-equal? (send o last-position)
+                  (send t last-position))
+
+    ;; Test that our implementation of skip-whitespace is equivalent
+    ;; to that of racket:text%.
+    (for ([pos (in-range 0 (string-length str))])
+      (check-equal? (send o skip-whitespace pos 'forward #t)
+                    (send t skip-whitespace pos 'forward #t)
+                    (format "skip-whitespace ~v 'forward" pos))
+      (check-equal? (send o skip-whitespace pos 'backward #t)
+                    (send t skip-whitespace pos 'backward #t)
+                    (format "skip-whitespace ~v 'backward" pos)))
+
+    ;; Test that we supply enough color-text% methods, and that they
+    ;; behave equivalently to those from racket-text%, as needed by a
+    ;; lang-supplied drracket:indentation a.k.a. determine-spaces
+    ;; function. (After all, this is our motivation to provide
+    ;; text%-like methods; otherwise we wouldn't bother.)
+    (define determine-spaces (send o -get-line-indenter))
+    ;; FIXME: Some of these fail, for reasons I don't yet understand.
+    #;
+    (for ([pos (in-range 0 (string-length str))])
+      ;; To save time, test only first position and beginning of line
+      ;; positions.
+      (let ([pos (or (and (= 1 pos) pos)
+                     (and (char=? #\newline (string-ref str pos))
+                          (add1 pos)))])
+        (when pos
+          (check-equal? (determine-spaces o pos)
+                        (determine-spaces t pos)
+                        (format "~v ~v" determine-spaces pos)))))
     (void)))
