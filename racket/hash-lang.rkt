@@ -312,26 +312,24 @@
     ;;; drracket:range-indentation supplying this object for these
     ;;; methods.
 
-    ;; NEW: This was not in expeditor like-text% but I found that
-    ;; scribble's determine-spaces calls it.
     (define/public (get-character pos)
       (if (< pos (string-length str))
           (string-ref str pos)
           #\nul))
 
-    ;; NEW: This was not in expeditor like-text% but I found that
-    ;; scribble's determine-spaces calls it.
-    (define/public (find-up-sexp pos)
-      (if (< pos (string-length str))
-          (add1 pos) ;; FIXME
-          #f))
+    ;; ;; I think this is needed by at-exp determine-spaces.
+    ;; (define/public (find-up-sexp pos)
+    ;;   (if (< pos (string-length str))
+    ;;       (add1 pos) ;; FIXME
+    ;;       #f))
 
     (define/public (get-text from upto)
       (substring str from upto))
 
     (define/private (get-token who pos)
       (let ([pos (add1 pos)])
-        (match (token-ref pos)
+        (match (or (token-ref pos)
+                   (token-ref (sub1 pos))) ;make end position work
           [(list _ _ (? token? token)) token]
           [_ (error who "lookup failed: ~e" (sub1 pos))])))
 
@@ -361,8 +359,7 @@
     (define/public (position-paragraph desired-pos [eol? #f])
       (let loop ([pos 0] [para 0])
         (cond [(= pos desired-pos) para]
-              [(= pos (string-length str))
-               (error 'position-paragraph "lookup failed: ~e" desired-pos)]
+              [(= pos (string-length str)) para]
               [(char=? #\newline (string-ref str pos))
                (loop (add1 pos) (add1 para))]
               [else
@@ -387,79 +384,120 @@
               [else
                (loop (add1 pos) para)])))
 
-    (define/public (skip-whitespace pos direction comments?)
-      (let loop ([pos pos])
-        (cond [(and (eq? direction 'forward)
-                    (>= pos (last-position)))
-               pos]
-              [(and (eq? direction 'backward)
-                    (<= pos 0))
-               pos]
-              [else
-               (define token-pos (if (eq? direction 'forward) pos (sub1 pos)))
-               (define-values (s e) (get-token-range token-pos))
-               (define type (classify-position token-pos))
-               (cond [(or (eq? type 'white-space)
-                          (and comments? (eq? type 'comment)))
-                      (loop (if (eq? direction 'forward)
-                                e
-                                s))]
-                     [else pos])])))
+    (define/public (backward-match pos cutoff)
+      (backward-matching-search pos cutoff 'one))
 
-    (define/public (backward-match pos _cutoff)
-      (let loop ([pos (skip-whitespace (sub1 pos) 'backward #t)]
-                 [depth -1]
-                 [need-close? #t])
+    (define/public (backward-containing-sexp pos cutoff)
+      (backward-matching-search pos cutoff 'all))
+
+    (define/private (backward-matching-search init-pos cutoff mode)
+      (define start-pos (if (and (eq? mode 'all)
+                                 (init-pos . <= . cutoff))
+                            cutoff
+                            (sub1 init-pos)))
+      (let loop ([pos start-pos]
+                 [depth (if (eq? mode 'one) -1 0)]
+                 [need-close? (eq? mode 'one)])
         (cond
-          [(pos . < . 0) #f]
+          [(pos . < . cutoff) #f]
           [else
            (define-values (s e) (get-token-range pos))
-           (define category (classify-position pos))
-           (case category
-             [(parenthesis)
-              (define sym (get-paren pos))
+           (define sym (get-paren s))
+           (cond
+             [sym
               (let paren-loop ([parens paren-matches])
                 (cond
                   [(null? parens) #f]
                   [(eq? sym (caar parens))
                    (and (not need-close?)
                         (if (= depth 0)
-                            s
+                            (cond
+                              [(eq? mode 'all)
+                               ;; color:text% method skips back over whitespace, but
+                               ;; doesn't go beyond the starting position
+                               (min (skip-whitespace e 'forward #f)
+                                    init-pos)]
+                              [else s])
                             (loop (sub1 s) (sub1 depth) #f)))]
                   [(eq? sym (cadar parens))
-                   (loop (sub1 s) (add1 depth) #f)]
+                   (cond
+                     [(e . > . init-pos)
+                      ;; started in middle of closer
+                      (if (eq? mode 'one)
+                          s
+                          (loop (sub1 s) depth #f))]
+                     [else (loop (sub1 s) (add1 depth) #f)])]
                   [else
                    (paren-loop (cdr parens))]))]
-             [(whitespace comment)
-              (loop (sub1 s) depth need-close?)]
-             [else (if need-close?
-                       s
-                       (loop (sub1 s) depth #f))])])))
+             [else
+              (define category (classify-position pos))
+              (case category
+                [(white-space comment)
+                 (loop (sub1 s) depth need-close?)]
+                [else (if need-close?
+                          s
+                          (loop (sub1 s) depth #f))])])])))
 
-    (define/public (forward-match pos _cutoff)
-      (let loop ([pos (skip-whitespace pos 'forward #t)]
-                 [depth 0])
+    (define/public (forward-match pos cutoff)
+      (let loop ([pos pos] [depth 0])
         (define-values (s e) (get-token-range pos))
         (cond
           [(not s) #f]
           [else
-           (define category (classify-position pos))
-           (case category
-             [(parenthesis)
-              (define sym (get-paren s))
+           (define sym (get-paren s))
+           (cond
+             [sym
               (let paren-loop ([parens paren-matches])
                 (cond
                   [(null? parens) #f]
                   [(eq? sym (caar parens))
-                   (loop e (add1 depth))]
+                   (if (eqv? pos s) ; don't count the middle of a parenthesis token
+                       (loop e (add1 depth))
+                       e)]
                   [(eq? sym (cadar parens))
-                   (if (depth . <= . 1)
-                       e
-                       (loop e (sub1 depth)))]
+                   (cond
+                     [(depth . <= . 0) #f]
+                     [(depth . = . 1) e]
+                     [else (loop e (sub1 depth))])]
                   [else
                    (paren-loop (cdr parens))]))]
              [else
-              (loop e depth)])])))))
+              (define category (classify-position pos))
+              (case category
+                [(white-space comment) (loop e depth)]
+                [else
+                 (if (zero? depth)
+                     e ;; didn't find paren to match, so finding token end
+                     (loop e depth))])])])))
+
+    (define/public (skip-whitespace pos dir comments?)
+      (define (skip? category)
+        (or (eq? category 'white-space)
+            (and comments? (eq? category 'comment))))
+      (case dir
+        [(forward)
+         (let loop ([pos pos])
+           (define category (classify-position pos))
+           (cond
+             [(skip? category)
+              (define-values (s e) (get-token-range pos))
+              (if e
+                  (loop e)
+                  pos)]
+             [else pos]))]
+        [(backward)
+         (cond
+           [(zero? pos) 0]
+           [else
+            (let loop ([pos (sub1 pos)] [end-pos pos])
+              (define category (classify-position pos))
+              (cond
+                [(skip? category)
+                 (define-values (s e) (get-token-range pos))
+                 (loop (sub1 s) s)]
+                [else end-pos]))])]
+        [else
+         (error 'skip-whitespace "bad direction: ~e" dir)]))))
 
 (define default-lexer (waive-option module-lexer))
 (define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
@@ -814,38 +852,45 @@
 
 ;; Test equivalance of our text%-like methods to those of racket:text%
 (module+ test
-  (require framework)
-  (let ()
-    (define str "#lang racket\n(1) #(2) #hash((1 . 2))\n@racket[]{\n#(2)\n}\n")
-    ;;           0123456789012 345678901234567890123456 78901234567 89012 345
-    ;;                     1          2         3          4          5
+  (require framework
+           racket/file)
+  (define (check-string str
+                        #:check-motion? check-motion?
+                        #:check-indent? check-indent?)
+    (define what (string-append (substring str 0 20) "..."))
+    ;; Create an object of our class.
     (define o (test-create str))
+    ;; Create an object of racket:text%, which also implements the
+    ;; color:text<%> interface. Since our class reads lang info to get
+    ;; things like the initial lexer and paren-matches, give those
+    ;; values from our object to color:text<%> `start-colorer`.
     (define t (new racket:text%))
-    (send t start-colorer symbol->string default-lexer default-paren-matches)
-    (define lp (send t last-position))
-    (send t insert str lp lp)
+    (send t start-colorer symbol->string (send o -get-lexer) (send o -get-paren-matches))
+    (send t insert str)
     (send t freeze-colorer)
     (send t thaw-colorer)
 
+    (define lp (string-length str))
+    (check-equal? (send o last-position)
+                  lp)
     (check-equal? (send o last-position)
                   (send t last-position))
 
     ;; Test that our implementation of skip-whitespace is equivalent
     ;; to racket:text%.
     (for ([pos (in-range 0 (string-length str))])
-      (check-equal? (send o skip-whitespace pos 'forward #t)
-                    (send t skip-whitespace pos 'forward #t)
-                    (format "skip-whitespace ~v 'forward" pos))
-      (check-equal? (send o skip-whitespace pos 'backward #t)
-                    (send t skip-whitespace pos 'backward #t)
-                    (format "skip-whitespace ~v 'backward" pos)))
+      (for* ([dir (in-list '(forward backward))]
+             [comments? (in-list '(#f #t))])
+        (check-equal? (send o skip-whitespace pos dir comments?)
+                      (send t skip-whitespace pos dir comments?)
+                      (format "skip-whitespace ~v ~v ~v in ~a" pos dir comments? what))))
 
     ;; Test that our implementation of position-paragraph is
     ;; equivalent to racket:text%.
     (for ([pos (in-range 0 (string-length str))])
       (check-equal? (send o position-paragraph pos)
                     (send t position-paragraph pos)
-                    (format "position-paragraph ~v" pos)))
+                    (format "position-paragraph ~v in ~a" pos what)))
 
     ;; Test that our implementation of paragraph-start-position and
     ;; paragraph-end-position are equivalent to racket:text%.
@@ -853,83 +898,60 @@
     (for ([para (in-range 0 (add1 num-paras))])
       (check-equal? (send o paragraph-start-position para)
                     (send t paragraph-start-position para)
-                    (format "paragraph-start-position ~v" para)))
+                    (format "paragraph-start-position ~v in ~a" para what)))
     (check-exn exn:fail?
                (λ () (send o paragraph-start-position (add1 num-paras))))
     (for ([para (in-range 0 (+ num-paras 2))]) ;should work for excess para #s
       (check-equal? (send o paragraph-end-position para)
                     (send t paragraph-end-position para)
-                    (format "paragraph-end-position ~v" para)))
+                    (format "paragraph-end-position ~v in ~a" para what)))
 
-    ;; Test that our implementations of {forward backward}-match are
-    ;; equivalent to those of racket:text%.
+    (when check-motion?
+      ;; Test that our implementations of {forward backward}-match and
+      ;; backward-containing-sexp are equivalent to those of
+      ;; racket:text%.
+      (for ([pos (in-range 0 (string-length str))])
+        (send t set-position pos pos)
+        (check-equal? (send o forward-match pos lp)
+                      (send t forward-match pos lp)
+                      (format "forward-match ~v ~v in ~a" pos lp what))
+        (check-equal? (send o backward-match pos 0)
+                      (send t backward-match pos 0)
+                      (format "backward-match ~v ~v in ~a" pos 0 what))
+        (check-equal? (send o backward-containing-sexp pos 0)
+                      (send t backward-containing-sexp pos 0)
+                      (format "backward-containing-sexp ~v ~v in ~a" pos 0 what))))
 
-    ;; FIXME: These tests currently mostly fail.
-    #;
-    (for ([pos (in-range 0 (string-length str))])
-      (check-equal? (send o forward-match pos lp)
-                    (send t forward-match pos lp)
-                    (format "forward-match ~v" pos))
-      (check-equal? (send o backward-match pos lp)
-                    (send t backward-match pos lp)
-                    (format "backward-match ~v" pos)))
+    (when check-indent?
+      ;; Test that we supply enough color-text% methods, and that they
+      ;; behave equivalently to those from racket-text%, as needed by a
+      ;; lang-supplied drracket:indentation a.k.a. determine-spaces
+      ;; function. (After all, this is our motivation to provide
+      ;; text%-like methods; otherwise we wouldn't bother.)
+      (define determine-spaces (send o -get-line-indenter))
+      (for ([pos (in-range 0 (string-length str))])
+        (check-equal? (determine-spaces o pos)
+                      (determine-spaces t pos)
+                      (format "~v ~v in ~a" determine-spaces pos what)))))
 
-    ;; Test that we supply enough color-text% methods, and that they
-    ;; behave equivalently to those from racket-text%, as needed by a
-    ;; lang-supplied drracket:indentation a.k.a. determine-spaces
-    ;; function. (After all, this is our motivation to provide
-    ;; text%-like methods; otherwise we wouldn't bother.)
-    (define determine-spaces (send o -get-line-indenter))
-    #;
-    (for ([pos (in-range 0 (string-length str))])
-      (check-equal? (determine-spaces o pos)
-                    (determine-spaces t pos)
-                    (format "~v ~v" determine-spaces pos)))
-    (void))
+  (let ([str "#lang racket\n(1) #(2) #hash((1 . 2))\n@racket[]{\n#(2)\n}\n"]
+        ;;    0123456789012 345678901234567890123456 78901234567 89012 34
+        ;;              1          2         3          4          5
+        )
+    (check-string str
+                  #:check-motion? #t
+                  #:check-indent? #t))
 
-  (require racket/file)
-  (let ()
-    (define str (file->string "/home/greg/src/shrubbery-rhombus-0/demo.rkt"))
-    (define o (test-create str))
-    (define t (new racket:text%))
-    (send t start-colorer
-          symbol->string
-          (send o -get-lexer)
-          (send o -get-paren-matches))
-    (define lp (send t last-position))
-    (send t insert str lp lp)
-    (send t freeze-colorer)
-    (send t thaw-colorer)
+  (let ([str "#lang at-exp racket\n(1) #(2) #hash((1 . 2))\n@racket[]{\n#(2)\n}\n"]
+        ;;    01234567890123456789 012345678901234567890123 45678901234 56789 01
+        ;;              1          2         3         4          5           6
+        )
+    (check-string str
+                  #:check-motion? #t
+                  ;; This needs a newer at-exp from Racket 8.3.0.8+,
+                  ;; which avoids using the `find-up-sexp` method.
+                  #:check-indent? #t))
 
-    (check-equal? (send o last-position)
-                  (send t last-position))
-
-    ;; Test that our implementation of skip-whitespace is equivalent
-    ;; to that of racket:text%.
-    (for ([pos (in-range 0 (string-length str))])
-      (check-equal? (send o skip-whitespace pos 'forward #t)
-                    (send t skip-whitespace pos 'forward #t)
-                    (format "skip-whitespace ~v 'forward" pos))
-      (check-equal? (send o skip-whitespace pos 'backward #t)
-                    (send t skip-whitespace pos 'backward #t)
-                    (format "skip-whitespace ~v 'backward" pos)))
-
-    ;; Test that we supply enough color-text% methods, and that they
-    ;; behave equivalently to those from racket-text%, as needed by a
-    ;; lang-supplied drracket:indentation a.k.a. determine-spaces
-    ;; function. (After all, this is our motivation to provide
-    ;; text%-like methods; otherwise we wouldn't bother.)
-    (define determine-spaces (send o -get-line-indenter))
-    ;; FIXME: Some of these fail, for reasons I don't yet understand.
-    #;
-    (for ([pos (in-range 0 (string-length str))])
-      ;; To save time, test only first position and beginning of line
-      ;; positions.
-      (let ([pos (or (and (= 1 pos) pos)
-                     (and (char=? #\newline (string-ref str pos))
-                          (add1 pos)))])
-        (when pos
-          (check-equal? (determine-spaces o pos)
-                        (determine-spaces t pos)
-                        (format "~v ~v" determine-spaces pos)))))
-    (void)))
+  (check-string (file->string "/home/greg/src/shrubbery-rhombus-0/demo.rkt")
+                #:check-motion? #f ;huge file, we already exercise motion above
+                #:check-indent? #t))
