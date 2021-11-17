@@ -384,6 +384,24 @@
               [else
                (loop (add1 pos) para)])))
 
+    ;; Faster alternative to the "paragraphs" methods, for use by indenters.
+
+    (define/public (beginning-of-line pos)
+      (define len (string-length str))
+      (let loop ([pos pos])
+        (cond [(<= pos 0) 0]
+              [(<= len pos) (loop (sub1 len))]
+              [(char=? #\newline (string-ref str (sub1 pos))) pos]
+              [else (loop (sub1 pos))])))
+
+    (define/public (end-of-line pos)
+      (define len (string-length str))
+      (let loop ([pos pos])
+        (cond [(< pos 0) (loop 0)]
+              [(<= len pos) (sub1 len)] ;implicit at end
+              [(char=? #\newline (string-ref str pos)) pos]
+              [else (loop (add1 pos))])))
+
     (define/public (backward-match pos cutoff)
       (backward-matching-search pos cutoff 'one))
 
@@ -853,7 +871,8 @@
 ;; Test equivalance of our text%-like methods to those of racket:text%
 (module+ test
   (require framework
-           racket/file)
+           racket/port
+           net/url)
   (define (check-string str
                         #:check-motion? check-motion?
                         #:check-indent? check-indent?)
@@ -894,8 +913,9 @@
 
     ;; Test that our implementation of paragraph-start-position and
     ;; paragraph-end-position are equivalent to racket:text%.
-    (define num-paras 5)
-    (for ([para (in-range 0 (add1 num-paras))])
+    (define num-paras (add1 (for/sum ([c (in-string str)])
+                              (if (char=? c #\newline) 1 0))))
+    (for ([para (in-range 0 num-paras)])
       (check-equal? (send o paragraph-start-position para)
                     (send t paragraph-start-position para)
                     (format "paragraph-start-position ~v in ~a" para what)))
@@ -930,9 +950,11 @@
       ;; text%-like methods; otherwise we wouldn't bother.)
       (define determine-spaces (send o -get-line-indenter))
       (for ([pos (in-range 0 (string-length str))])
-        (check-equal? (determine-spaces o pos)
-                      (determine-spaces t pos)
-                      (format "~v ~v in ~a" determine-spaces pos what)))))
+        (when (or (= pos 0)
+                  (char=? (string-ref str (sub1 pos)) #\newline))
+          (check-equal? (determine-spaces o pos)
+                        (determine-spaces t pos)
+                        (format "~v ~v in ~a" determine-spaces pos what))))))
 
   (let ([str "#lang racket\n(1) #(2) #hash((1 . 2))\n@racket[]{\n#(2)\n}\n"]
         ;;    0123456789012 345678901234567890123456 78901234567 89012 34
@@ -952,6 +974,37 @@
                   ;; which avoids using the `find-up-sexp` method.
                   #:check-indent? #t))
 
-  (check-string (file->string "/home/greg/src/shrubbery-rhombus-0/demo.rkt")
-                #:check-motion? #f ;huge file, we already exercise motion above
+  (check-string (call/input-url (string->url "https://raw.githubusercontent.com/mflatt/shrubbery-rhombus-0/master/demo.rkt") get-pure-port port->string)
+                #:check-motion? #f ;huge file & we already test motion above
                 #:check-indent? #t))
+
+(module+ test
+  (let ()
+    (define o (test-create "0\n234\n6\n8\n\n"))
+    (check-equal? (send o beginning-of-line 0) 0)
+    (check-equal? (send o beginning-of-line 1) 0)
+    (check-equal? (send o beginning-of-line 2) 2)
+    (check-equal? (send o beginning-of-line 3) 2)
+    (check-equal? (send o beginning-of-line 4) 2)
+    (check-equal? (send o beginning-of-line 5) 2)
+    (check-equal? (send o beginning-of-line 6) 6)
+    (check-equal? (send o beginning-of-line 7) 6)
+    (check-equal? (send o beginning-of-line 8) 8)
+    (check-equal? (send o beginning-of-line 9) 8)
+    (check-equal? (send o beginning-of-line 10) 10)
+    (check-equal? (send o beginning-of-line 11) 10)
+    (check-equal? (send o beginning-of-line 1000) 10)
+    (check-equal? (send o end-of-line -1) 1)
+    (check-equal? (send o end-of-line 0) 1)
+    (check-equal? (send o end-of-line 1) 1)
+    (check-equal? (send o end-of-line 2) 5)
+    (check-equal? (send o end-of-line 3) 5)
+    (check-equal? (send o end-of-line 4) 5)
+    (check-equal? (send o end-of-line 5) 5)
+    (check-equal? (send o end-of-line 6) 7)
+    (check-equal? (send o end-of-line 7) 7)
+    (check-equal? (send o end-of-line 8) 9)
+    (check-equal? (send o end-of-line 9) 9)
+    (check-equal? (send o end-of-line 10) 10)
+    (check-equal? (send o end-of-line 11) 10)
+    (check-equal? (send o end-of-line 1000) 10)))
