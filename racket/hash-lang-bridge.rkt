@@ -19,6 +19,8 @@
 ;;   is that token type can be a hash-table instead of a symbol.
 
 (define (hash-lang . args)
+  (unless hash-lang%
+    (error "syntax-color/color-textoid not available; you need a newer version of Racket and/or syntax-color-lib"))
   (log-racket-mode-debug "~v" args)
   (match args
     [`(create ,id ,s)                              (create id s)]
