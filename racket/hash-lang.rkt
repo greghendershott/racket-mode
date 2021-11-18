@@ -298,8 +298,10 @@
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;;
-    ;;; Subset of text% methods needed by drracket:indentation and
-    ;;; drracket:range-indentation.
+    ;;; textoid<%> methods.
+    ;;;
+    ;;; Needed e.g. by drracket:indentation,;;;
+    ;;; drracket:range-indentation, drracket:grouping-positon.
     ;;;
     ;;; 1. These use 0-based positions, not 1-based like the rest of
     ;;; our code.
@@ -353,8 +355,11 @@
     (define/public (last-position)
       (string-length str))
 
+    (define/public (get-backward-navigation-limit pos)
+      0)
+
     ;; Note: Not attempting to maintain a data structure in do-update!
-    ;; for paragraphs; just calculating on-demand.
+    ;; for paragraphs; just calculating on-demand from start position.
 
     (define/public (position-paragraph desired-pos [eol? #f])
       (let loop ([pos 0] [para 0])
@@ -384,7 +389,9 @@
               [else
                (loop (add1 pos) para)])))
 
-    ;; Faster alternative to the "paragraphs" methods, for use by indenters.
+    ;; These next two methods are a faster, simpler alternative to the
+    ;; "paragraphs" methods, for use by indenters. These aren't
+    ;; currently part of textoid<%> but I'm proposing to add them.
 
     (define/public (beginning-of-line pos)
       (define len (string-length str))
