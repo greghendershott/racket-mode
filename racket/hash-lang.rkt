@@ -31,7 +31,9 @@
 ;; generation (b) through that position.
 (define generation/c exact-nonnegative-integer?)
 
-;; Our interface uses 1-based positions -- as do lexers and Emacs.
+;; Most of our interface and implementation uses 1-based positions --
+;; as do lexers and Emacs. However the color-textoid<%> methods use
+;; 0-based positions, and adjust.
 (define position/c exact-positive-integer?)
 (define min-position 1)
 (define max-position (sub1 (expt 2 63)))
@@ -53,7 +55,7 @@
     ;; both `new` and `update!` return immediately; all
     ;; (re)tokenization is handled uniformly on the dedicated updater
     ;; thread.
-    (define str               "")
+    (define content           "")
     (define generation        0)
     (define tokens            (make-interval-map))
     (define modes             (make-interval-map))
@@ -67,15 +69,15 @@
     (define line-indenter     default-line-indenter)
     (define range-indenter    default-range-indenter)
 
-    ;; This must called from update! because #lang could have changed
-    ;; and we may might have new values for all of these. Although it
-    ;; might be unnecessary, and slow, to call this on every single
-    ;; update! -- even beyond the #lang near the very start -- that is
-    ;; the safest thing to do for now.
+    ;; This must be called from update! because the #lang in the
+    ;; source could have changed and we might need new values for all
+    ;; of these. Although it might be unnecessary to call for updates
+    ;; beyond the #lang near the beginning, that is the safest thing
+    ;; to do for now.
     (define/private (refresh-lang-info!)
       (define info
         (or (with-handlers ([values (λ _ #f)])
-              (read-language (open-input-string str) (λ _ #f)))
+              (read-language (open-input-string content) (λ _ #f)))
             (λ (_key default) default)))
       (set! lexer (info 'color-lexer (waive-option module-lexer)))
       (set! paren-matches (info 'drracket:paren-matches default-paren-matches))
@@ -85,7 +87,7 @@
       (set! range-indenter (info 'drracket:range-indentation default-range-indenter)))
 
     ;; These accessor methods really intended just for tests
-    (define/public (-get-string) str)
+    (define/public (-get-content) content)
     (define/public (-get-modes) modes)
     (define/public (-get-lexer) lexer)
     (define/public (-get-paren-matches) paren-matches)
@@ -104,7 +106,7 @@
 
     ;; The method signature here is similar to that of Emacs'
     ;; after-change functions: Something changed starting at POS. The text
-    ;; there used to be OLD-LEN chars long, but is now STR.
+    ;; there used to be OLD-LEN chars long, but is now NEW-STR.
     (define/public (update! gen pos old-len new-str)
       ;;(-> generation/c position/c exact-nonnegative-integer? string? any)
       (unless (< generation gen)
@@ -127,10 +129,10 @@
       (invalidate-paragraph-info)
       (set! generation gen)
       (set! updated-thru pos)
-      (set! str
-            (string-append (substring str 0 (sub1 pos))
+      (set! content
+            (string-append (substring content 0 (sub1 pos))
                            new-str
-                           (substring str (+ (sub1 pos) old-len))))
+                           (substring content (+ (sub1 pos) old-len))))
       (refresh-lang-info!) ;from new value of `str`
       (define diff (- (string-length new-str) old-len))
       ;; From where do we need to re-tokenize? This will be < the pos of
@@ -231,7 +233,7 @@
                  null)))
 
     (define/private (tokenize-string! from set-interval)
-      (define in (open-input-string (substring str (sub1 from))))
+      (define in (open-input-string (substring content (sub1 from))))
       (port-count-lines! in) ;important for Unicode e.g. λ
       (set-port-next-location! in 1 0 from) ;we don't use line/col, just pos
       (let tokenize-port! ([offset from]
@@ -241,7 +243,7 @@
         (unless (eof-object? lexeme)
           (interval-map-set! modes beg end mode)
           ;; Don't trust `lexeme`; instead get from the input string.
-          (let ([lexeme (substring str (sub1 beg) (sub1 end))])
+          (let ([lexeme (substring content (sub1 beg) (sub1 end))])
             (when (set-interval beg end (token lexeme type paren backup))
               (tokenize-port! end new-mode))))))
 
@@ -288,9 +290,9 @@
         (define-values (p-p p-s)
           (let loop ([pos 0] [para 0] [pos-para #hasheqv()] [para-pos #hasheqv((0 . 0))])
             (cond
-              [(= pos (string-length str))
+              [(= pos (string-length content))
                (values (hash-set pos-para pos para) para-pos)]
-              [(char=? #\newline (string-ref str pos))
+              [(char=? #\newline (string-ref content pos))
                (loop (add1 pos) (add1 para)
                      (hash-set pos-para pos para)
                      (hash-set para-pos (add1 para) (add1 pos)))]
@@ -351,12 +353,12 @@
     ;;; methods.
 
     (define/public (get-character pos)
-      (if (< pos (string-length str))
-          (string-ref str pos)
+      (if (< pos (string-length content))
+          (string-ref content pos)
           #\nul))
 
     (define/public (get-text from upto)
-      (substring str from upto))
+      (substring content from upto))
 
     (define/private (get-token who pos)
       (let ([pos (add1 pos)])
@@ -383,7 +385,7 @@
         [_ (values #f #f)]))
 
     (define/public (last-position)
-      (string-length str))
+      (string-length content))
 
     (define/public (get-backward-navigation-limit pos)
       0)
