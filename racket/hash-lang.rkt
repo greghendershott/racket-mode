@@ -47,7 +47,7 @@
 (define (make-hash-lang%-class)
   (class* object% (color-textoid<%>)
     (super-new)
-    (init-field notify-chan)
+    (init-field [on-notify #f]) ;(or/c #f procedure?)
     ;; A new object has an empty string and is at generation 0. The
     ;; creator should then use update! to set a string value. That way
     ;; both `new` and `update!` return immediately; all
@@ -199,38 +199,13 @@
                ;; definitely continue re-lexing.
                (interval-map-set! tokens beg end token)
                (set! updated-thru end)
-               (async-channel-put notify-chan
-                                  (make-notify-channel-value beg end token))
+               (when on-notify
+                 (on-notify paren-matches beg end token))
                #t])) ;continue
-      (async-channel-put notify-chan 'begin)
+      (when on-notify (on-notify 'begin-update))
       (tokenize-string! beg set-interval)
       (set! updated-thru max-position)
-      (async-channel-put notify-chan 'end))
-
-    ;; Produce a value convenient for Emacs to use as a notification.
-    ;; Tokens of type 'parenthesis get extra data -- an open? flag
-    ;; and the symbol for the matching open or close.
-    ;; (or/c (list/c position/c position/c token?)
-    ;;       (list/c position/c position/c token? boolean? string?))
-    (define/public (make-notify-channel-value beg end token)
-      (define ht-or-type (token-type token))
-      (define type (if (symbol? ht-or-type)
-                       ht-or-type
-                       (hash-ref ht-or-type 'type 'unknown)))
-      (define paren (token-paren token))
-      (list* beg
-             end
-             type
-             (if paren
-                 (or (for/or ([pm (in-list paren-matches)])
-                       (match-define (list open close) pm)
-                       (cond [(eq? paren open)
-                              (list #t (symbol->string close))]
-                             [(eq? paren close)
-                              (list #f (symbol->string open))]
-                             [else #f]))
-                     null)
-                 null)))
+      (when on-notify (on-notify 'end-update)))
 
     (define/private (tokenize-string! from set-interval)
       (define in (open-input-string (substring content (sub1 from))))
