@@ -22,26 +22,26 @@
 
 (when hash-lang%
   (displayln "syntax-color/color-textoid is available: running hash-lang tests")
-  ;; Having changed update! not to return updated bounds+tokens but
-  ;; instead put to an async channel --- as well as changing create to
-  ;; start with an empty string followed by an update! --- it's now
-  ;; somewhat awkward to write tests. To do so, we have our notify
-  ;; channel, that we give to the object, gather sequences of ('begin
-  ;; bounds+tokens ... 'end) and post each such list to a result channel
-  ;; for check-equal? to use.
+  ;; To test async notifications from the updater thread, we supply an
+  ;; on-notify that puts them to a "gathering" channel, which
+  ;; accumulates ('begin-update change ... 'end-update) sequences and
+  ;; posts each list of changes to a "result" channel for test-create
+  ;; and test-update to return as value for use with check-equal?.
   (define gathering-channel (make-async-channel))
   (define result-channel (make-async-channel))
   (void
    (thread
     (λ () (let loop ([xs null])
             (match (async-channel-get gathering-channel)
-              ['begin (loop null)]
-              [(? list? x) (loop (cons x xs))]
-              ['end
+              ['(begin-update) (loop null)]
+              ['(end-update)
                (async-channel-put result-channel (reverse xs))
-               (loop null)])))))
+               (loop null)]
+              [(list _paren-matches beg end token)
+               (loop (cons (list beg end (token-type token) (token-paren token))
+                           xs))])))))
   (define (test-create str)
-    (define o (new hash-lang% [notify-chan gathering-channel]))
+    (define o (new hash-lang% [on-notify (λ args (async-channel-put gathering-channel args))]))
     (test-update! o 1 1 0 str)
     o)
   (define (test-update! o gen pos old-len str)
@@ -97,15 +97,15 @@
                     ((51 . 52) . ,racket-lexer)
                     ((52 . 57) . ,racket-lexer)))
     (check-equal? (test-update! tm 2 52 5 "'bar")
-                  '((52 53 constant)
-                    (53 56 symbol)))
+                  '((52 53 constant #f)
+                    (53 56 symbol #f)))
     (check-equal? (test-update! tm 3 47 4 "'bar")
-                  '((48 51 symbol)))
+                  '((48 51 symbol #f)))
     (check-equal? (test-update! tm 4 24 7 "'hell")
-                  '((24 25 constant)
-                    (25 29 symbol)))
+                  '((24 25 constant #f)
+                    (25 29 symbol #f)))
     (check-equal? (test-update! tm 5 14 2 "99999")
-                  '((14 19 constant)))
+                  '((14 19 constant #f)))
     ;; Double check final result of the edits
     (check-equal? (send tm -get-content)
                   "#lang racket\n99999 (print 'hell) @print{Hello} 'bar 'bar")
@@ -212,7 +212,7 @@
     (check-equal? (send tm classify 1 15)
                   (list 15 16 (token "λ" 'symbol #f 0)))
     (check-equal? (test-update! tm 2 18 0 "a")
-                  '((18 19 symbol)))
+                  '((18 19 symbol #f)))
     (check-equal? (send tm classify 2 18)
                   (list 18 19 (token "a" 'symbol #f 0))))
 
@@ -347,7 +347,7 @@
     (check-equal? (send tm classify 1 14)
                   (list 14 19 (token "#hash" 'error #f 0)))
     (check-equal? (test-update! tm 2 19 0 "(")
-                  '((14 20 parenthesis #t ")"))
+                  '((14 20 parenthesis \())
                   "Adding parens after #hash re-lexes from an error to an open")
     (check-equal? (send tm classify 2 14)
                   (list 14 20 (token "#hash(" 'parenthesis '\( 0))))

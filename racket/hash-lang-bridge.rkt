@@ -45,21 +45,49 @@
   ;; sync on just like it does for notify channels for logger and
   ;; debug.
   (define ch (make-async-channel))
+  (define (on-notify . args)
+    (match args
+      [(or 'begin 'end) (void)] ;ignore
+      ['quit (async-channel-put ch 'quit)]
+      ;; Produce a value convenient for Emacs to use as a notification.
+      ;; Tokens of type 'parenthesis get extra data -- an open? flag
+      ;; and the symbol for the matching open or close.
+      ;; (or/c (list/c position/c position/c token?)
+      ;;       (list/c position/c position/c token? boolean? string?))
+      [(list paren-matches beg end token)
+       (define ht-or-type (token-type token))
+       (define type (if (symbol? ht-or-type)
+                        ht-or-type
+                        (hash-ref ht-or-type 'type 'unknown)))
+       (define paren (token-paren token))
+       (async-channel-put
+        ch
+        (list* beg
+               end
+               type
+               (if paren
+                   (or (for/or ([pm (in-list paren-matches)])
+                         (match-define (list open close) pm)
+                         (cond [(eq? paren open)
+                                (list #t (symbol->string close))]
+                               [(eq? paren close)
+                                (list #f (symbol->string open))]
+                               [else #f]))
+                       null)
+                   null)))]))
   (thread
    (λ ()
      (let loop ()
        (match (async-channel-get ch)
-         ['begin (loop)] ;ignore
          [(? list? v)
           (log-racket-mode-debug "~v" v)
           (async-channel-put token-notify-channel
                              (list 'token id v))
           (loop)]
-         ['end (loop)] ;ignore
          ['quit (void)]))))
-  (define obj (new hash-lang% [notify-chan ch]))
-  (send obj update! 1 1 0 s)
-  (hash-set! ht id (obj+chan obj ch)))
+  (define obj (new hash-lang% [on-notify on-notify]))
+  (hash-set! ht id (obj+chan obj ch))
+  (send obj update! 1 1 0 s))
 
 (define (delete id)
   (match (hash-ref ht id #f)
