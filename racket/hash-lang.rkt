@@ -124,6 +124,7 @@
     (thread consume-update-chan)
 
     (define/public (do-update! gen pos old-len new-str)
+      (invalidate-paragraph-info)
       (set! generation gen)
       (set! updated-thru pos)
       (set! str
@@ -271,6 +272,34 @@
                (get-tokens gen end upto proc))]
         [_ '()]))
 
+    ;;; Paragraph/position info
+
+    ;; do-update! calls invalidate-paragraph-info; the textoid
+    ;; paragraph methods call validate-paragraph-info. In other words,
+    ;; we don't attempt to efficiently update it; we throw it away and
+    ;; rebuild if/as/when needed.
+    (define position-paragraphs #f)
+    (define paragraph-starts #f)
+    (define/private (invalidate-paragraph-info)
+      (set! position-paragraphs #f)
+      (set! paragraph-starts #f))
+    (define/public (validate-paragraph-info)
+      (unless (and position-paragraphs paragraph-starts)
+        (define-values (p-p p-s)
+          (let loop ([pos 0] [para 0] [pos-para #hasheqv()] [para-pos #hasheqv((0 . 0))])
+            (cond
+              [(= pos (string-length str))
+               (values (hash-set pos-para pos para) para-pos)]
+              [(char=? #\newline (string-ref str pos))
+               (loop (add1 pos) (add1 para)
+                     (hash-set pos-para pos para)
+                     (hash-set para-pos (add1 para) (add1 pos)))]
+              [else
+               (loop (add1 pos) para (hash-set pos-para pos para) para-pos)])))
+        (set! position-paragraphs p-p)
+        (set! paragraph-starts p-s)))
+
+
     ;;; Something for Emacs forward-sexp-function etc.
 
     (define/public (grouping gen pos dir limit count)
@@ -326,12 +355,6 @@
           (string-ref str pos)
           #\nul))
 
-    ;; ;; I think this is needed by at-exp determine-spaces.
-    ;; (define/public (find-up-sexp pos)
-    ;;   (if (< pos (string-length str))
-    ;;       (add1 pos) ;; FIXME
-    ;;       #f))
-
     (define/public (get-text from upto)
       (substring str from upto))
 
@@ -365,56 +388,22 @@
     (define/public (get-backward-navigation-limit pos)
       0)
 
-    ;; Note: Not attempting to maintain a data structure in do-update!
-    ;; for paragraphs; just calculating on-demand from start position.
+    (define/public (position-paragraph pos [eol? #f])
+      (validate-paragraph-info)
+      (or (hash-ref position-paragraphs pos #f)
+          (error 'position-paragraph "lookup failed: ~e" pos)))
 
-    (define/public (position-paragraph desired-pos [eol? #f])
-      (let loop ([pos 0] [para 0])
-        (cond [(= pos desired-pos) para]
-              [(= pos (string-length str)) para]
-              [(char=? #\newline (string-ref str pos))
-               (loop (add1 pos) (add1 para))]
-              [else
-               (loop (add1 pos) para)])))
+    (define/public (paragraph-start-position para)
+      (validate-paragraph-info)
+      (or (hash-ref paragraph-starts para #f)
+          (error 'paragraph-start-position "lookup failed: ~e" para)))
 
-    (define/public (paragraph-start-position desired-para)
-      (let loop ([pos 0] [para 0])
-        (cond [(= para desired-para) pos]
-              [(= pos (string-length str))
-               (error 'paragraph-start-position "lookup failed: ~e" desired-para)]
-              [(char=? #\newline (string-ref str pos))
-               (loop (add1 pos) (add1 para))]
-              [else
-               (loop (add1 pos) para)])))
-
-    (define/public (paragraph-end-position desired-para)
-      (let loop ([pos 0] [para -1])
-        (cond [(= para desired-para) (sub1 pos)]
-              [(= pos (string-length str)) pos]
-              [(char=? #\newline (string-ref str pos))
-               (loop (add1 pos) (add1 para))]
-              [else
-               (loop (add1 pos) para)])))
-
-    ;; These next two methods are a faster, simpler alternative to the
-    ;; "paragraphs" methods, for use by indenters. These aren't
-    ;; currently part of textoid<%> but I'm proposing to add them.
-
-    (define/public (beginning-of-line pos)
-      (define len (string-length str))
-      (let loop ([pos pos])
-        (cond [(<= pos 0) 0]
-              [(<= len pos) (loop (sub1 len))]
-              [(char=? #\newline (string-ref str (sub1 pos))) pos]
-              [else (loop (sub1 pos))])))
-
-    (define/public (end-of-line pos)
-      (define len (string-length str))
-      (let loop ([pos pos])
-        (cond [(< pos 0) (loop 0)]
-              [(<= len pos) (sub1 len)] ;implicit at end
-              [(char=? #\newline (string-ref str pos)) pos]
-              [else (loop (add1 pos))])))
+    (define/public (paragraph-end-position para)
+      (validate-paragraph-info)
+      (define n (hash-ref paragraph-starts (add1 para) #f))
+      (if n
+          (sub1 n)
+          (last-position)))
 
     (define/public (backward-match pos cutoff)
       (backward-matching-search pos cutoff 'one))
