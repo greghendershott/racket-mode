@@ -20,8 +20,6 @@
          position/c
          max-position)
 
-(module+ test (require rackunit))
-
 ;; To coordinate inter-process updates and queries we use a monotonic
 ;; "generation". A new object is generation 0. Thereafter the client
 ;; should increment the generation for every call to update!. Then,
@@ -210,9 +208,11 @@
       (async-channel-put notify-chan 'end))
 
     ;; Produce a value convenient for Emacs to use as a notification.
-    ;; Specifically parenthesis tokens get extra data: An open? flag
+    ;; Tokens of type 'parenthesis get extra data -- an open? flag
     ;; and the symbol for the matching open or close.
-    (define/private (make-notify-channel-value beg end token)
+    ;; (or/c (list/c position/c position/c token?)
+    ;;       (list/c position/c position/c token? boolean? string?))
+    (define/public (make-notify-channel-value beg end token)
       (define ht-or-type (token-type token))
       (define type (if (symbol? ht-or-type)
                        ht-or-type
@@ -336,10 +336,10 @@
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;;
-    ;;; textoid<%> methods.
+    ;;; color-textoid<%> methods.
     ;;;
-    ;;; Needed e.g. by drracket:indentation,;;;
-    ;;; drracket:range-indentation, drracket:grouping-positon.
+    ;;; Needed by drracket:indentation, drracket:range-indentation,
+    ;;; drracket:grouping-positon.
     ;;;
     ;;; 1. These use 0-based positions, not 1-based like the rest of
     ;;; our code.
@@ -541,9 +541,3 @@
 (define (default-range-indenter _text-like% _from _upto) #f)
 
 (struct token (lexeme type paren backup) #:transparent)
-
-(define (mode->lexer-name mode)
-  (object-name (match mode
-                 [(? procedure? p)          p]
-                 [(cons (? procedure? p) _) p]
-                 [v                         v])))
