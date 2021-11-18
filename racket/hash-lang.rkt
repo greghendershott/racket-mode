@@ -420,12 +420,18 @@
           [(pos . < . cutoff) #f]
           [else
            (define-values (s e) (get-token-range pos))
+           (define (atom)
+             (if need-close?
+                 s
+                 (loop (sub1 s) depth #f)))
            (define sym (get-paren s))
            (cond
              [sym
               (let paren-loop ([parens paren-matches])
                 (cond
-                  [(null? parens) #f]
+                  [(null? parens)
+                   ;; treat an unrecognized parenthesis like an atom
+                   (atom)]
                   [(eq? sym (caar parens))
                    (and (not need-close?)
                         (if (= depth 0)
@@ -452,9 +458,7 @@
               (case category
                 [(white-space comment)
                  (loop (sub1 s) depth need-close?)]
-                [else (if need-close?
-                          s
-                          (loop (sub1 s) depth #f))])])])))
+                [else (atom)])])])))
 
     (define/public (forward-match pos cutoff)
       (let loop ([pos pos] [depth 0])
@@ -463,11 +467,17 @@
           [(not s) #f]
           [else
            (define sym (get-paren s))
+           (define (atom)
+             (if (zero? depth)
+                 e ;; didn't find paren to match, so finding token end
+                 (loop e depth)))
            (cond
              [sym
               (let paren-loop ([parens paren-matches])
                 (cond
-                  [(null? parens) #f]
+                  [(null? parens)
+                   ;; treat an unrecognized parenthesis like an atom
+                   (atom)]
                   [(eq? sym (caar parens))
                    (if (eqv? pos s) ; don't count the middle of a parenthesis token
                        (loop e (add1 depth))
@@ -483,10 +493,7 @@
               (define category (classify-position pos))
               (case category
                 [(white-space comment) (loop e depth)]
-                [else
-                 (if (zero? depth)
-                     e ;; didn't find paren to match, so finding token end
-                     (loop e depth))])])])))
+                [else (atom)])])])))
 
     (define/public (skip-whitespace pos dir comments?)
       (define (skip? category)
