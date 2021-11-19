@@ -90,6 +90,7 @@
     (define/public (-get-lexer) lexer)
     (define/public (-get-paren-matches) paren-matches)
     (define/public (-get-line-indenter) line-indenter)
+    (define/public (-get-range-indenter) range-indenter)
 
     (define/public (delete)
       (async-channel-put update-chan 'quit))
