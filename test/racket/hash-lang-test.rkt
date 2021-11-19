@@ -441,8 +441,24 @@
       (define range-indent (send o -get-range-indenter))
       (when range-indent
         (define len (string-length str))
-         (check-equal? (range-indent o 0 len)
-                       (range-indent t 0 len)))))
+        (check-equal? (range-indent o 0 len)
+                      (range-indent t 0 len)))
+
+      ;; Test speed of ours vs racket:text%, when used for range-indent
+      (define (cpu-time proc)
+        (define-values (_results cpu _real _gc) (time-apply proc null))
+        cpu)
+      (when determine-spaces
+        (define len (string-length str))
+        (define reps 10)
+        (define o-time (cpu-time (λ () (for ([_ reps]) (range-indent o 0 len)))))
+        (define t-time (cpu-time (λ () (for ([_ reps]) (range-indent t 0 len)))))
+        (define factor 3)
+        (check-true (<= o-time (* factor t-time))
+                    (format "cpu-time of range-indenter using our color-textoid<%> is ~v, more than ~vX than when using racket:text% ~v"
+                            o-time
+                            factor
+                            t-time)))))
 
   (let ([str "#lang racket\n(1) #(2) #hash((1 . 2))\n@racket[]{\n#(2)\n}\n"]
         ;;    0123456789012 345678901234567890123456 78901234567 89012 34
