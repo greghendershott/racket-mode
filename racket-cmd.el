@@ -327,7 +327,7 @@ in a specific namespace."
                            command-sexpr
                            (lambda (v) (setq response v)))
     (with-timeout (racket-command-timeout
-                   (error "racket-command process timeout"))
+                   (error "racket-command process timeout: %S" command-sexpr))
       (while (eq response awaiting)
         (accept-process-output nil 0.001))
       (pcase response
