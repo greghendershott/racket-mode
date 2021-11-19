@@ -14,12 +14,10 @@
 ;; hash-lang.rkt will set hash-lang% to #f on a version of Racket
 ;; and/or syntax-color-lib that is too old to support
 ;; color-textoid<%>. In that case we skip tests.
-
 (unless hash-lang%
   (displayln "syntax-color/color-textoid NOT available: SKIPPING hash-lang tests"))
 
 ;; Otherwise hash-lang% is a class.
-
 (when hash-lang%
   (displayln "syntax-color/color-textoid is available: running hash-lang tests")
   ;; To test async notifications from the updater thread, we supply an
@@ -432,12 +430,19 @@
       ;; function. (After all, this is our motivation to provide
       ;; text%-like methods; otherwise we wouldn't bother.)
       (define determine-spaces (send o -get-line-indenter))
-      (for ([pos (in-range 0 (string-length str))])
-        (when (or (= pos 0)
-                  (char=? (string-ref str (sub1 pos)) #\newline))
-          (check-equal? (determine-spaces o pos)
-                        (determine-spaces t pos)
-                        (format "~v ~v in ~a" determine-spaces pos what))))))
+      (when determine-spaces
+        (for ([pos (in-range 0 (string-length str))])
+          (when (or (= pos 0)
+                    (char=? (string-ref str (sub1 pos)) #\newline))
+            (check-equal? (determine-spaces o pos)
+                          (determine-spaces t pos)
+                          (format "~v ~v in ~a" determine-spaces pos what)))))
+      ;; Test range-indent.
+      (define range-indent (send o -get-range-indenter))
+      (when range-indent
+        (define len (string-length str))
+         (check-equal? (range-indent o 0 len)
+                       (range-indent t 0 len)))))
 
   (let ([str "#lang racket\n(1) #(2) #hash((1 . 2))\n@racket[]{\n#(2)\n}\n"]
         ;;    0123456789012 345678901234567890123456 78901234567 89012 34
