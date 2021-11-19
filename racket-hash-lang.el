@@ -40,8 +40,12 @@ enough.")
 (defvar-local racket--hash-lang-orig-indent-region-function nil)
 (defvar-local racket--hash-lang-orig-forward-sexp-function nil)
 
+(defvar racket-hash-lang-mode-map
+  (racket--easy-keymap-define
+   `(("RET" ,#'newline-and-indent))))
+
 ;;;###autoload
-(define-minor-mode racket-hash-lang-mode
+(define-minor-mode racket-hash-lang-mode racket-hash-lang-mode-map
   "Use color-lexer and indenter supplied by the #lang.
 
 This mode allows a #lang to support multi-character open and
@@ -54,26 +58,32 @@ specifically for parentheses -- will not work well. See also
 \\{racket-hash-lang-mode-map}
 "
   :lighter " #lang"
-  (racket--hash-lang-mode racket-hash-lang-mode t))
+  (racket--hash-lang-mode racket-hash-lang-mode nil))
+
+(defvar racket-sexp-hash-lang-mode-map
+  (racket--easy-keymap-define
+   `()))
 
 ;;;###autoload
-(define-minor-mode racket-sexp-hash-lang-mode
+(define-minor-mode racket-sexp-hash-lang-mode racket-sexp-hash-lang-mode
   "Use color-lexer and indenter supplied by the #lang.
 
 When a #lang has a sexp surface syntax, this mode allows more
 Emacs features to work, in contrast to `racket-hash-lang-mode'.
 
-\\{racket-hash-lang-mode-map}
+\\{racket-sexp-hash-lang-mode-map}
 "
   :lighter " #lang()"
-  (racket--hash-lang-mode racket-sexp-hash-lang-mode nil))
+  (racket--hash-lang-mode racket-sexp-hash-lang-mode t))
 
-(defun racket--hash-lang-mode (mode-var forward-sexp-function-p)
+(defun racket--hash-lang-mode (mode-var sexp-lang-p)
   "Helper function for both of our mode functions."
   (if mode-var
       (progn
         (setq racket--hash-lang-generation 1)
         (font-lock-mode -1)
+        (unless sexp-lang-p
+          (electric-indent-local-mode -1))
         (with-silent-modifications
           (remove-text-properties (point-min) (point-max)
                                   '(face nil fontified nil syntax-table nil)))
@@ -111,8 +121,8 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
         (setq-local racket--hash-lang-orig-forward-sexp-function
                     forward-sexp-function)
         (setq-local forward-sexp-function
-                    (and forward-sexp-function-p
-                         #'racket-hash-lang-forward-sexp-function))
+                    (unless sexp-lang-p
+                      #'racket-hash-lang-forward-sexp-function))
 
         (add-hook 'after-change-functions
                   #'racket--hash-lang-after-change-hook
@@ -149,6 +159,8 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
     (with-silent-modifications
       (remove-text-properties (point-min) (point-max)
                               '(face nil fontified nil syntax-table nil)))
+    (unless sexp-lang-p
+      (electric-indent-local-mode 1))
     (font-lock-mode 1)
     (syntax-ppss-flush-cache (point-min))
     (syntax-propertize (point-max))))
