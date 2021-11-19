@@ -316,14 +316,19 @@ x.")
 ;; supplies drracket:range-indentation.
 (defun racket-hash-lang-indent-region-function (from upto)
   "Maybe use #lang drracket:range-indentation, else plain `indent-region'."
-  (if-let (results (racket--cmd/await   ; await = :(
+  (pcase (racket--cmd/await   ; await = :(
                     nil
                     `(hash-lang indent-region-amounts
                                 ,(racket--buffer-file-name)
                                 ,racket--hash-lang-generation
                                 ,from
-                                ,upto)))
-      (save-excursion
+                                ,upto))
+    ('false (let ((indent-region-function nil))
+              (indent-region from upto)))
+    (`() nil)
+    (results
+     (save-excursion
+       (goto-char from)
         ;; drracket:range-indent docs say `results` could have more
         ;; elements than lines in from..upto, and we should ignore
         ;; extras. Handle that. (Although it could also have fewer, we
@@ -332,11 +337,9 @@ x.")
           (dolist (result results)
             (pcase-let ((`(,delete-amount ,insert-string) result))
               (beginning-of-line)
-              (delete-char delete-amount)
-              (insert insert-string)
-              (end-of-line 2)))))
-    (let ((indent-region-function nil))
-      (indent-region from upto))))
+              (when (< 0 delete-amount) (delete-char delete-amount))
+              (unless (equal "" insert-string) (insert insert-string))
+              (end-of-line 2))))))))
 
 (defun racket-hash-lang-forward-sexp-function (&optional arg)
   "Maybe use #lang drracket:grouping-position, else use sexp motion."

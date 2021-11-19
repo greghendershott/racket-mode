@@ -83,14 +83,18 @@
          (hash-remove! ht id)]))
 
 (define (update id gen pos old-len str)
-  (with-time/log "tm:update"
+  (with-time/log "hash-lang update"
     (send (get-object id) update! gen pos old-len str)))
 
 (define (indent-amount id gen pos)
-  (send (get-object id) indent-line-amount gen pos))
+  (with-time/log "hash-lang indent-amount"
+    (send (get-object id) indent-line-amount gen pos)))
 
 (define (indent-region-amounts id gen from upto)
-  (send (get-object id) indent-region-amounts gen from upto))
+  (with-time/log "hash-lang indent-region-amounts"
+    (match (send (get-object id) indent-region-amounts gen from upto)
+      [#f 'false] ;avoid Elisp nil/`() punning problem
+      [v v])))
 
 (define (classify id gen pos)
   (match-define (list beg end tok) (send (get-object id) classify gen pos))
