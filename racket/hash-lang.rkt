@@ -103,28 +103,48 @@
               (λ () (interval-map-ref/bounds tokens pos (λ () (k #f))))
               list))))
 
+    ;; This method is safe to call from various threads.
+    ;;
     ;; The method signature here is similar to that of Emacs'
     ;; after-change functions: Something changed starting at POS. The text
     ;; there used to be OLD-LEN chars long, but is now NEW-STR.
     (define/public (update! gen pos old-len new-str)
       ;;(-> generation/c position/c exact-nonnegative-integer? string? any)
-      (unless (< generation gen)
+      (unless (<= next-update-gen gen)
         (raise-argument-error 'update! "valid generation" 0 gen pos old-len new-str))
       (unless (<= min-position pos)
         (raise-argument-error 'update! "valid position" 1 gen pos old-len new-str))
-      (unless (and (zero? old-len) (equal? new-str ""))
-        (async-channel-put update-chan
-                           (list 'update gen pos old-len new-str))))
+      (async-channel-put update-chan
+                         (list 'update gen pos old-len new-str)))
 
+    ;; This is the entry point of our updater thread.
+    ;;
+    ;; Tolerate update requests arriving with out-of-order generation
+    ;; numbers. This could result from update! being called from
+    ;; various threads. For example Racket Mode commands are each
+    ;; handled on their own thread, much like a web server. As a rough
+    ;; analogy, this is like handling TCP packets arriving possibly
+    ;; out of order.
+    (define next-update-gen 1)
+    (define pending-updates (make-hash))
     (define (consume-update-chan)
       (match (async-channel-get update-chan)
         ['quit null] ;let thread exit/die
         [(list 'update gen pos old-len new-str)
-         (do-update! gen pos old-len new-str)
+         (hash-set! pending-updates gen (list pos old-len new-str))
+         (let loop ()
+           (match (hash-ref pending-updates next-update-gen #f)
+             [(list pos old-len new-str)
+              (hash-remove! pending-updates next-update-gen)
+              (do-update! next-update-gen pos old-len new-str)
+              (set! next-update-gen (add1 next-update-gen))
+              (loop)]
+             [#f #f]))
          (consume-update-chan)]))
     (thread consume-update-chan)
 
-    (define/public (do-update! gen pos old-len new-str)
+    ;; Runs on updater thread.
+    (define/private (do-update! gen pos old-len new-str)
       (invalidate-paragraph-info)
       (set! generation gen)
       (set! updated-thru pos)
@@ -132,7 +152,7 @@
             (string-append (substring content 0 (sub1 pos))
                            new-str
                            (substring content (+ (sub1 pos) old-len))))
-      (refresh-lang-info!) ;from new value of `str`
+      (refresh-lang-info!) ;from new value of `content`
       (define diff (- (string-length new-str) old-len))
       ;; From where do we need to re-tokenize? This will be < the pos of
       ;; the change. Back up to the start of the previous token (plus any
@@ -208,6 +228,7 @@
       (set! updated-thru max-position)
       (when on-notify (on-notify 'end-update)))
 
+    ;; Runs on updater thread.
     (define/private (tokenize-string! from set-interval)
       (define in (open-input-string (substring content (sub1 from))))
       (port-count-lines! in) ;important for Unicode e.g. λ
@@ -223,10 +244,8 @@
             (when (set-interval beg end (token lexeme type paren backup))
               (tokenize-port! end new-mode))))))
 
-    ;; Block until the updater thread has progressed through at least a
-    ;; given generation and also through a given position (although the
-    ;; latter defaults to max-position meaning the entire string has been
-    ;; re-tokenized).
+    ;; Block until the updater thread has progressed through at least
+    ;; a desired generation and also through a desired position.
     (define/public (block-until-updated-thru gen [pos max-position])
       (unless (and (>= generation gen)
                    (>= updated-thru pos))
@@ -276,7 +295,6 @@
                (loop (add1 pos) para (hash-set pos-para pos para) para-pos)])))
         (set! position-paragraphs p-p)
         (set! paragraph-starts p-s)))
-
 
     ;;; Something for Emacs forward-sexp-function etc.
 

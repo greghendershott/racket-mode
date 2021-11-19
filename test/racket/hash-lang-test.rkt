@@ -260,7 +260,6 @@
     (test-update! tm 7 17 0 " ")
     (void))
 
-
   (let* ([str "#lang racket\n"]
          ;;    1234567890123 4
          ;;             1
@@ -278,6 +277,7 @@
                    (cons '(1 . 13) #f)
                    (cons '(13 . 14) racket-lexer)
                    (cons '(14 . 16) racket-lexer))))
+
   (let* ([str "#lang racket\n"]
          ;;    1234567890123 4
          ;;             1
@@ -314,6 +314,7 @@
                    (cons '(1 . 13) #f)
                    (cons '(13 . 14) racket-lexer)
                    (cons '(14 . 16) racket-lexer))))
+
   (let* ([str "#lang racket\n"]
          ;;    1234567890123 4
          ;;             1
@@ -338,6 +339,27 @@
                    (cons '(14 . 15) racket-lexer)
                    (cons '(15 . 17) racket-lexer)
                    (cons '(17 . 18) racket-lexer))))
+
+  ;; Send update! requests with generation numbers out of order, i.e.
+  ;; simulate us getting requests on separate command threads and they
+  ;; do not necesarily arrive in order.
+  (let* ([str "#lang racket\n"]
+         ;;    1234567890123 4
+         ;;             1
+         [o (new hash-lang%)])
+    (send o update! 1 1 0 str)
+    (thread (λ () (send o update! 2 14 0 "(")))
+    (thread (λ () (send o update! 4 15 0 "h")))
+    (thread (λ () (send o update! 5 16 0 "i")))
+    (thread (λ () (send o update! 3 15 0 ")")))
+    (check-equal? (dict->list (send o get-tokens 5))
+                  (list
+                   (list  1 13 (token "#lang racket" 'other #f 0))
+                   (list 13 14 (token "\n" 'white-space #f 0))
+                   (list 14 15 (token "(" 'parenthesis '\( 0))
+                   (list 15 17 (token "hi" 'symbol #f 0))
+                   (list 17 18 (token ")" 'parenthesis '\) 0)))))
+
   (let* ([str "#lang racket\n#hash\n"]
          ;;    1234567890123 456789
          ;;             1
