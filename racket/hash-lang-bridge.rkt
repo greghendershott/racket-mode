@@ -1,6 +1,6 @@
 #lang racket/base
 
-;; Bridge to Emacs Lisp to use lexers, token-maps, and indenters.
+;; Bridge for Emacs to use hash-lang%
 
 (require racket/async-channel
          racket/class
@@ -33,27 +33,18 @@
 
 (define token-notify-channel (make-async-channel))
 
-(struct obj+chan (obj notify-rx-chan) #:transparent)
-(define ht (make-hash)) ;id => lexindenter?
-(define (get-object id) (obj+chan-obj (hash-ref ht id)))
+(define ht (make-hash)) ;id => hash-lang%
+(define (get-object id) (hash-ref ht id))
 
 (define (create id s) ;any/c string? -> void
-  ;; We supply an async-channel to create that we receive here to
-  ;; transform the values to Elisp, as well as attaching the `id` so
-  ;; they can be distributed to the appropriate buffer, before sending
-  ;; them on the token-notify-processor that the command server can
-  ;; sync on just like it does for notify channels for logger and
+  ;; When we create a hash-lang% object we supply an on-notify-proc
+  ;; that transforms to values suitable for the Emacs front end --
+  ;; including attaching the `id` which is probably the buffer name --
+  ;; and puts them to token-notify-channel, which the command server
+  ;; syncs on just like it does for notify channels for logger and
   ;; debug.
-  (define ch (make-async-channel))
   (define (on-notify . args)
     (match args
-      [(or 'begin 'end) (void)] ;ignore
-      ['quit (async-channel-put ch 'quit)]
-      ;; Produce a value convenient for Emacs to use as a notification.
-      ;; Tokens of type 'parenthesis get extra data -- an open? flag
-      ;; and the symbol for the matching open or close.
-      ;; (or/c (list/c position/c position/c token?)
-      ;;       (list/c position/c position/c token? boolean? string?))
       [(list paren-matches beg end token)
        (define ht-or-type (token-type token))
        (define type (if (symbol? ht-or-type)
@@ -61,10 +52,15 @@
                         (hash-ref ht-or-type 'type 'unknown)))
        (define paren (token-paren token))
        (async-channel-put
-        ch
-        (list* beg
+        token-notify-channel
+        (list* 'token
+               id
+               beg
                end
                type
+               ;; Tokens of type 'parenthesis get extra data -- an
+               ;; open? flag and the symbol for the matching open or
+               ;; close.
                (if paren
                    (or (for/or ([pm (in-list paren-matches)])
                          (match-define (list open close) pm)
@@ -74,28 +70,17 @@
                                 (list #f (symbol->string open))]
                                [else #f]))
                        null)
-                   null)))]))
-  (thread
-   (λ ()
-     (let loop ()
-       (match (async-channel-get ch)
-         [(? list? v)
-          (log-racket-mode-debug "~v" v)
-          (async-channel-put token-notify-channel
-                             (list 'token id v))
-          (loop)]
-         ['quit (void)]))))
+                   null)))]
+      [_ null])) ;ignore 'begin-update 'end-update
   (define obj (new hash-lang% [on-notify on-notify]))
-  (hash-set! ht id (obj+chan obj ch))
+  (hash-set! ht id obj)
   (send obj update! 1 1 0 s))
 
 (define (delete id)
   (match (hash-ref ht id #f)
-    [(obj+chan obj ch)
-     (send obj delete)
-     (async-channel-put ch 'quit) ;kill thread
-     (hash-remove! ht id)]
-    [#f (log-racket-mode-warning "delete lexindenter ~v: not found" id)]))
+    [#f (log-racket-mode-warning "hash-lang delete ~v: not found" id)]
+    [obj (send obj delete)
+         (hash-remove! ht id)]))
 
 (define (update id gen pos old-len str)
   (with-time/log "tm:update"

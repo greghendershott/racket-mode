@@ -186,92 +186,91 @@ x.")
 
 (defun racket--hash-lang-on-token (id token)
   (with-current-buffer (find-buffer-visiting id)
-    (racket--hash-lang-propertize (list token))))
+    (racket--hash-lang-propertize token)))
 
-(defun racket--hash-lang-propertize (tokens)
+(defun racket--hash-lang-propertize (token)
   (with-silent-modifications
     (cl-flet ((put-face (beg end face) (put-text-property beg end 'face face))
               (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
       (let ((sexp-prefix-ends nil))
-        (dolist (token tokens)
-          (pcase-let ((`(,beg ,end ,kind . ,maybe-paren-data) token))
-            (remove-text-properties beg end
-                                    '(face nil syntax-table nil))
-            (cl-case kind
-              ;; When our forward-sexp-function is in use, ignore
-              ;; parenthesis tokens. This supports hash-langs with
-              ;; multi-char open and close tokens, both. Emacs uses
-              ;; char-syntax -- /char/. This won't work. Instead we
-              ;; must rely on `forward-sexp-function' and hope enough
-              ;; things use it via `forward-sexp'.
-              ;;
-              ;; Otherwise, assume the tokens are for an sexpr lang,
-              ;; and only open tokens might be multi-char, e.g. "#("
-              ;; or "#hasheq(". Handle those as expression-prefix
-              ;; syntax followed by a single char with open-paren
-              ;; syntax. Although this is less general, it lets more
-              ;; Emacs functions and packages (e.g. paredit) work well
-              ;; even when they do not always use forward-sexp, and
-              ;; instead do things like use `scan-lists' or look for
-              ;; paren char-syntax directy. :(
-              (parenthesis
-               (unless (equal forward-sexp-function
-                              #'racket-hash-lang-forward-sexp-function)
-                 (pcase-let ((`(,open-p ,opposite) maybe-paren-data))
-                   (cond (open-p
-                          (when (< 1 (- end beg))
-                            (put-stx beg (- end 1) '(6)))
-                          (put-stx (- end 1) end (cons 4 (aref opposite 0))))
-                         (t
-                          (put-stx beg end (cons 5 (aref opposite 0))))))))
-              (comment
-               (put-stx beg (1+ beg) '(14)) ;generic comment
-               (put-stx (1- end) end '(14))
-               (let ((beg (1+ beg))    ;comment _contents_ if any
-                     (end (1- end)))
-                 (when (< beg end)
-                   (put-stx beg end (standard-syntax-table))))
-               (put-face beg end 'font-lock-comment-face))
-              (sexp-comment
-               ;; This is just the "#;" prefix not the following sexp.
-               (put-stx beg end '(14)) ;generic comment
-               (put-face beg end 'font-lock-comment-face)
-               ;; Defer until we've applied following tokens and as a
-               ;; result can use e.g. `forward-sexp'.
-               (push end sexp-prefix-ends))
-              (string
-               (put-stx beg (1+ beg) '(15)) ;generic string
-               (put-stx (1- end) end '(15))
-               (let ((beg (+ beg 1))    ;string _contents_ if any
-                     (end (- end 2)))
-                 (when (< beg end)
-                   (put-stx beg end racket--string-content-syntax-table)))
-               (put-face beg end 'font-lock-string-face))
-              (text
-               (put-stx beg end (standard-syntax-table)))
-              (constant
-               (put-stx beg end '(2)) ;word
-               (put-face beg end 'font-lock-constant-face))
-              (error
-               (put-face beg end 'error))
-              (symbol
-               (put-stx beg end '(3)) ;symbol
-               ;; TODO: Consider using default font here, because e.g.
-               ;; racket-lexer almost everything is "symbol" because
-               ;; it is an identifier. Meanwhile, using a non-default
-               ;; face here is helping me spot bugs.
-               (put-face beg end 'font-lock-variable-name-face))
-              (keyword
-               (put-stx beg end '(2)) ;word
-               (put-face beg end 'font-lock-keyword-face))
-              (hash-colon-keyword
-               (put-stx beg end '(2)) ;word
-               (put-face beg end 'racket-keyword-argument-face))
-              (white-space
-               (put-stx beg end '(0)))
-              (other
-               (put-stx beg end (standard-syntax-table)))
-              (otherwise nil))))
+        (pcase-let ((`(,beg ,end ,kind . ,maybe-paren-data) token))
+          (remove-text-properties beg end
+                                  '(face nil syntax-table nil))
+          (cl-case kind
+            ;; When our forward-sexp-function is in use, ignore
+            ;; parenthesis tokens. This supports hash-langs with
+            ;; multi-char open and close tokens, both. Emacs uses
+            ;; char-syntax -- /char/. This won't work. Instead we
+            ;; must rely on `forward-sexp-function' and hope enough
+            ;; things use it via `forward-sexp'.
+            ;;
+            ;; Otherwise, assume the tokens are for an sexpr lang,
+            ;; and only open tokens might be multi-char, e.g. "#("
+            ;; or "#hasheq(". Handle those as expression-prefix
+            ;; syntax followed by a single char with open-paren
+            ;; syntax. Although this is less general, it lets more
+            ;; Emacs functions and packages (e.g. paredit) work well
+            ;; even when they do not always use forward-sexp, and
+            ;; instead do things like use `scan-lists' or look for
+            ;; paren char-syntax directy. :(
+            (parenthesis
+             (unless (equal forward-sexp-function
+                            #'racket-hash-lang-forward-sexp-function)
+               (pcase-let ((`(,open-p ,opposite) maybe-paren-data))
+                 (cond (open-p
+                        (when (< 1 (- end beg))
+                          (put-stx beg (- end 1) '(6)))
+                        (put-stx (- end 1) end (cons 4 (aref opposite 0))))
+                       (t
+                        (put-stx beg end (cons 5 (aref opposite 0))))))))
+            (comment
+             (put-stx beg (1+ beg) '(14)) ;generic comment
+             (put-stx (1- end) end '(14))
+             (let ((beg (1+ beg))    ;comment _contents_ if any
+                   (end (1- end)))
+               (when (< beg end)
+                 (put-stx beg end (standard-syntax-table))))
+             (put-face beg end 'font-lock-comment-face))
+            (sexp-comment
+             ;; This is just the "#;" prefix not the following sexp.
+             (put-stx beg end '(14)) ;generic comment
+             (put-face beg end 'font-lock-comment-face)
+             ;; Defer until we've applied following tokens and as a
+             ;; result can use e.g. `forward-sexp'.
+             (push end sexp-prefix-ends))
+            (string
+             (put-stx beg (1+ beg) '(15)) ;generic string
+             (put-stx (1- end) end '(15))
+             (let ((beg (+ beg 1))    ;string _contents_ if any
+                   (end (- end 2)))
+               (when (< beg end)
+                 (put-stx beg end racket--string-content-syntax-table)))
+             (put-face beg end 'font-lock-string-face))
+            (text
+             (put-stx beg end (standard-syntax-table)))
+            (constant
+             (put-stx beg end '(2)) ;word
+             (put-face beg end 'font-lock-constant-face))
+            (error
+             (put-face beg end 'error))
+            (symbol
+             (put-stx beg end '(3)) ;symbol
+             ;; TODO: Consider using default font here, because e.g.
+             ;; racket-lexer almost everything is "symbol" because
+             ;; it is an identifier. Meanwhile, using a non-default
+             ;; face here is helping me spot bugs.
+             (put-face beg end 'font-lock-variable-name-face))
+            (keyword
+             (put-stx beg end '(2)) ;word
+             (put-face beg end 'font-lock-keyword-face))
+            (hash-colon-keyword
+             (put-stx beg end '(2)) ;word
+             (put-face beg end 'racket-keyword-argument-face))
+            (white-space
+             (put-stx beg end '(0)))
+            (other
+             (put-stx beg end (standard-syntax-table)))
+            (otherwise nil)))
         (dolist (sexp-prefix-end sexp-prefix-ends)
           (save-excursion
             (goto-char sexp-prefix-end)
