@@ -51,8 +51,8 @@
   (let* ([str "#lang racket\n42 (print \"hello\") @print{Hello} 'foo #:bar"]
          ;;    1234567890123 45678901234 567890 12345678901234567890123456
          ;;             1          2          3          4         5
-         [tm (test-create str)])
-    (check-equal? (send tm get-tokens)
+         [o (test-create str)])
+    (check-equal? (send o get-tokens)
                   (list
                    (list  1 13 (token "#lang racket" 'other #f 0))
                    (list 13 14 (token "\n" 'white-space #f 0))
@@ -73,8 +73,8 @@
                    (list 48 51 (token "foo" 'symbol #f 0))
                    (list 51 52 (token " " 'white-space #f 0))
                    (list 52 57 (token "#:bar" 'hash-colon-keyword #f 0))))
-    (check-equal? (send tm -get-content) str)
-    (check-equal? (dict->list (send tm -get-modes))
+    (check-equal? (send o -get-content) str)
+    (check-equal? (dict->list (send o -get-modes))
                   `(((1 . 13) . #f)
                     ((13 . 14) . ,racket-lexer)
                     ((14 . 16) . ,racket-lexer)
@@ -94,20 +94,20 @@
                     ((48 . 51) . ,racket-lexer)
                     ((51 . 52) . ,racket-lexer)
                     ((52 . 57) . ,racket-lexer)))
-    (check-equal? (test-update! tm 2 52 5 "'bar")
+    (check-equal? (test-update! o 2 52 5 "'bar")
                   '((52 53 constant #f)
                     (53 56 symbol #f)))
-    (check-equal? (test-update! tm 3 47 4 "'bar")
+    (check-equal? (test-update! o 3 47 4 "'bar")
                   '((48 51 symbol #f)))
-    (check-equal? (test-update! tm 4 24 7 "'hell")
+    (check-equal? (test-update! o 4 24 7 "'hell")
                   '((24 25 constant #f)
                     (25 29 symbol #f)))
-    (check-equal? (test-update! tm 5 14 2 "99999")
+    (check-equal? (test-update! o 5 14 2 "99999")
                   '((14 19 constant #f)))
     ;; Double check final result of the edits
-    (check-equal? (send tm -get-content)
+    (check-equal? (send o -get-content)
                   "#lang racket\n99999 (print 'hell) @print{Hello} 'bar 'bar")
-    (check-equal? (dict->list (send tm get-tokens))
+    (check-equal? (dict->list (send o get-tokens))
                   (list
                    (list  1 13 (token "#lang racket" 'other #f 0))
                    (list 13 14 (token "\n" 'white-space #f 0))
@@ -130,7 +130,7 @@
                    (list 52 53 (token " " 'white-space #f 0))
                    (list 53 54 (token "'" 'constant #f 0))
                    (list 54 57 (token "bar" 'symbol #f 0))))
-    (check-equal? (dict->list (send tm -get-modes))
+    (check-equal? (dict->list (send o -get-modes))
                   `(((1 . 13) . #f)
                     ((13 . 14) . ,racket-lexer)
                     ((14 . 19) . ,racket-lexer)
@@ -154,8 +154,8 @@
                     ((54 . 57) . ,racket-lexer))))
 
   (let* ([str "#lang at-exp racket\n42 (print \"hello\") @print{Hello (there)} 'foo #:bar"]
-         [tm (test-create str)])
-    (check-equal? (send tm get-tokens)
+         [o (test-create str)])
+    (check-equal? (send o get-tokens)
                   (list
                    (list  1 13 (token "#lang at-exp" 'other #f 0))
                    (list 13 14 (token " " 'white-space #f 0))
@@ -179,13 +179,13 @@
                    (list 63 66 (token "foo" 'symbol #f 0))
                    (list 66 67 (token " " 'white-space #f 0))
                    (list 67 72 (token "#:bar" 'hash-colon-keyword #f 0))))
-    (check-equal? (send tm -get-content) str)
-    (check-equal? (send tm classify 1 (sub1 (string-length str)))
+    (check-equal? (send o -get-content) str)
+    (check-equal? (send o classify 1 (sub1 (string-length str)))
                   (list 67 72 (token "#:bar" 'hash-colon-keyword #f 0))))
 
   (let* ([str "#lang scribble/text\nHello @(print \"hello\") @print{Hello (there)} #:not-a-keyword"]
-         [tm (test-create str)])
-    (check-equal? (send tm get-tokens)
+         [o (test-create str)])
+    (check-equal? (send o get-tokens)
                   (list
                    (list 1  20 (token "#lang scribble/text" 'text #f 0))
                    (list 20 21 (token "\n" 'white-space #f 0))
@@ -203,15 +203,15 @@
                    (list 51 64 (token "Hello (there)" 'text #f 0))
                    (list 64 65 (token "}" 'parenthesis '\} 0))
                    (list 65 81 (token " #:not-a-keyword" 'text #f 0))))
-    (check-equal? (send tm -get-content) str))
+    (check-equal? (send o -get-content) str))
 
   (let* ([str "#lang racket\n(λ () #t)"]
-         [tm  (test-create str)])
-    (check-equal? (send tm classify 1 15)
+         [o  (test-create str)])
+    (check-equal? (send o classify 1 15)
                   (list 15 16 (token "λ" 'symbol #f 0)))
-    (check-equal? (test-update! tm 2 18 0 "a")
+    (check-equal? (test-update! o 2 18 0 "a")
                   '((18 19 symbol #f)))
-    (check-equal? (send tm classify 2 18)
+    (check-equal? (send o classify 2 18)
                   (list 18 19 (token "a" 'symbol #f 0))))
 
   (let ([o (test-create "#lang racket\n#rx\"1234\"\n#(1 2 3)\n#'(1 2 3)")])
@@ -251,28 +251,28 @@
     (define str "#lang racket\n")
     ;;           1234567890123 45678901234 567890 12345678901234567890123456
     ;;                    1          2          3          4         5
-    (define tm (test-create str))
-    (test-update! tm 2 14 0 "()")
-    (test-update! tm 3 15 0 "d")
-    (test-update! tm 4 16 0 "o")
-    (test-update! tm 5 15 0 "1")
-    (test-update! tm 6 16 0 "2")
-    (test-update! tm 7 17 0 " ")
+    (define o (test-create str))
+    (test-update! o 2 14 0 "()")
+    (test-update! o 3 15 0 "d")
+    (test-update! o 4 16 0 "o")
+    (test-update! o 5 15 0 "1")
+    (test-update! o 6 16 0 "2")
+    (test-update! o 7 17 0 " ")
     (void))
 
   (let* ([str "#lang racket\n"]
          ;;    1234567890123 4
          ;;             1
-         [tm (test-create str)])
-    (test-update! tm 2 14 0 "d")
-    (test-update! tm 3 15 0 "o")
-    (check-equal? (send tm -get-content) "#lang racket\ndo")
-    (check-equal? (dict->list (send tm get-tokens))
+         [o (test-create str)])
+    (test-update! o 2 14 0 "d")
+    (test-update! o 3 15 0 "o")
+    (check-equal? (send o -get-content) "#lang racket\ndo")
+    (check-equal? (dict->list (send o get-tokens))
                   (list
                    (list  1 13 (token "#lang racket" 'other #f 0))
                    (list 13 14 (token "\n" 'white-space #f 0))
                    (list 14 16 (token "do" 'symbol #f 0))))
-    (check-equal? (dict->list (send tm -get-modes))
+    (check-equal? (dict->list (send o -get-modes))
                   (list
                    (cons '(1 . 13) #f)
                    (cons '(13 . 14) racket-lexer)
@@ -281,16 +281,16 @@
   (let* ([str "#lang racket\n"]
          ;;    1234567890123 4
          ;;             1
-         [tm (test-create str)])
-    (test-update! tm 2 14 0 "1") ;initially lexed as 'constant
-    (test-update! tm 3 15 0 "x") ;should re-lex "1x" as 'symbol
-    (check-equal? (send tm -get-content) "#lang racket\n1x")
-    (check-equal? (dict->list (send tm get-tokens))
+         [o (test-create str)])
+    (test-update! o 2 14 0 "1") ;initially lexed as 'constant
+    (test-update! o 3 15 0 "x") ;should re-lex "1x" as 'symbol
+    (check-equal? (send o -get-content) "#lang racket\n1x")
+    (check-equal? (dict->list (send o get-tokens))
                   (list
                    (list  1 13 (token "#lang racket" 'other #f 0))
                    (list 13 14 (token "\n" 'white-space #f 0))
                    (list 14 16 (token "1x" 'symbol #f 0))))
-    (check-equal? (dict->list (send tm -get-modes))
+    (check-equal? (dict->list (send o -get-modes))
                   (list
                    (cons '(1 . 13) #f)
                    (cons '(13 . 14) racket-lexer)
@@ -298,18 +298,18 @@
   (let* ([str "#lang racket\n"]
          ;;    1234567890123 4
          ;;             1
-         [tm (test-create str)])
-    (test-update! tm 2 14 0 "1") ;initially lexed as 'constant
-    (test-update! tm 3 15 0 "x") ;should re-lex "1x" as 'symbol
-    (test-update! tm 4 16 0 "1") ;still symbol
-    (test-update! tm 5 15 1 "")  ;deleting the "x" should re-lex the "11" as constant
-    (check-equal? (send tm -get-content) "#lang racket\n11")
-    (check-equal? (dict->list (send tm get-tokens))
+         [o (test-create str)])
+    (test-update! o 2 14 0 "1") ;initially lexed as 'constant
+    (test-update! o 3 15 0 "x") ;should re-lex "1x" as 'symbol
+    (test-update! o 4 16 0 "1") ;still symbol
+    (test-update! o 5 15 1 "")  ;deleting the "x" should re-lex the "11" as constant
+    (check-equal? (send o -get-content) "#lang racket\n11")
+    (check-equal? (dict->list (send o get-tokens))
                   (list
                    (list  1 13 (token "#lang racket" 'other #f 0))
                    (list 13 14 (token "\n" 'white-space #f 0))
                    (list 14 16 (token "11" 'constant #f 0))))
-    (check-equal? (dict->list (send tm -get-modes))
+    (check-equal? (dict->list (send o -get-modes))
                   (list
                    (cons '(1 . 13) #f)
                    (cons '(13 . 14) racket-lexer)
@@ -318,21 +318,21 @@
   (let* ([str "#lang racket\n"]
          ;;    1234567890123 4
          ;;             1
-         [tm (test-create str)])
+         [o (test-create str)])
     ;; as if paredit etc. were enabled
-    (test-update! tm 2 14 0 "(")
-    (test-update! tm 3 15 0 ")")
-    (test-update! tm 4 15 0 "h")
-    (test-update! tm 5 16 0 "i")
-    (check-equal? (send tm -get-content) "#lang racket\n(hi)")
-    (check-equal? (dict->list (send tm get-tokens))
+    (test-update! o 2 14 0 "(")
+    (test-update! o 3 15 0 ")")
+    (test-update! o 4 15 0 "h")
+    (test-update! o 5 16 0 "i")
+    (check-equal? (send o -get-content) "#lang racket\n(hi)")
+    (check-equal? (dict->list (send o get-tokens))
                   (list
                    (list  1 13 (token "#lang racket" 'other #f 0))
                    (list 13 14 (token "\n" 'white-space #f 0))
                    (list 14 15 (token "(" 'parenthesis '\( 0))
                    (list 15 17 (token "hi" 'symbol #f 0))
                    (list 17 18 (token ")" 'parenthesis '\) 0))))
-    (check-equal? (dict->list (send tm -get-modes))
+    (check-equal? (dict->list (send o -get-modes))
                   (list
                    (cons '(1 . 13) #f)
                    (cons '(13 . 14) racket-lexer)
@@ -363,13 +363,13 @@
   (let* ([str "#lang racket\n#hash\n"]
          ;;    1234567890123 456789
          ;;             1
-         [tm (test-create str)])
-    (check-equal? (send tm classify 1 14)
+         [o (test-create str)])
+    (check-equal? (send o classify 1 14)
                   (list 14 19 (token "#hash" 'error #f 0)))
-    (check-equal? (test-update! tm 2 19 0 "(")
+    (check-equal? (test-update! o 2 19 0 "(")
                   '((14 20 parenthesis \())
                   "Adding parens after #hash re-lexes from an error to an open")
-    (check-equal? (send tm classify 2 14)
+    (check-equal? (send o classify 2 14)
                   (list 14 20 (token "#hash(" 'parenthesis '\( 0))))
 
   ;;;
