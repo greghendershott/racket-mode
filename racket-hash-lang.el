@@ -45,7 +45,7 @@ enough.")
    `(("RET" ,#'newline-and-indent))))
 
 ;;;###autoload
-(define-minor-mode racket-hash-lang-mode racket-hash-lang-mode-map
+(define-minor-mode racket-hash-lang-mode
   "Use color-lexer and indenter supplied by the #lang.
 
 This mode allows a #lang to support multi-character open and
@@ -58,14 +58,15 @@ specifically for parentheses -- will not work well. See also
 \\{racket-hash-lang-mode-map}
 "
   :lighter " #lang"
+  :keymap  racket-hash-lang-mode-map
   (racket--hash-lang-mode racket-hash-lang-mode nil))
 
 (defvar racket-sexp-hash-lang-mode-map
   (racket--easy-keymap-define
-   `()))
+   `(("RET" ,#'newline-and-indent))))
 
 ;;;###autoload
-(define-minor-mode racket-sexp-hash-lang-mode racket-sexp-hash-lang-mode
+(define-minor-mode racket-sexp-hash-lang-mode
   "Use color-lexer and indenter supplied by the #lang.
 
 When a #lang has a sexp surface syntax, this mode allows more
@@ -74,6 +75,7 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
 \\{racket-sexp-hash-lang-mode-map}
 "
   :lighter " #lang()"
+  :keymap  racket-sexp-hash-lang-mode-map
   (racket--hash-lang-mode racket-sexp-hash-lang-mode t))
 
 (defun racket--hash-lang-mode (mode-var sexp-lang-p)
@@ -196,11 +198,17 @@ things like #rx\"blah\" in Racket, which are lexed as one single
 string token, will not give string syntax to the open quote after
 x.")
 
-(defun racket--hash-lang-on-token (id token)
+(defun racket--hash-lang-on-notify (id params)
   (with-current-buffer (find-buffer-visiting id)
-    (racket--hash-lang-propertize token)))
+    (pcase params
+      (`(lang  . ,params) (racket--hash-lang-on-new-lang params))
+      (`(token . ,token)  (racket--hash-lang-on-new-token token)))))
 
-(defun racket--hash-lang-propertize (token)
+(defun racket--hash-lang-on-new-lang (params)
+  ;; TODO: set things like indent-line-function and forward-sexp-function
+  (message "new-lang %S" params))
+
+(defun racket--hash-lang-on-new-token (token)
   (with-silent-modifications
     (cl-flet ((put-face (beg end face) (put-text-property beg end 'face face))
               (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))

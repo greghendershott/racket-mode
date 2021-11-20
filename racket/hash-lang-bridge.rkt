@@ -45,7 +45,13 @@
   ;; debug.
   (define (on-notify . args)
     (match args
-      [(list paren-matches beg end token)
+      [(and v (cons 'lang _))
+       (async-channel-put
+        token-notify-channel
+        (list* 'hash-lang
+               id
+               v))]
+      [(list 'token paren-matches beg end token)
        (define ht-or-type (token-type token))
        (define type (if (symbol? ht-or-type)
                         ht-or-type
@@ -53,8 +59,9 @@
        (define paren (token-paren token))
        (async-channel-put
         token-notify-channel
-        (list* 'token
+        (list* 'hash-lang
                id
+               'token
                beg
                end
                type
@@ -71,7 +78,7 @@
                                [else #f]))
                        null)
                    null)))]
-      [_ null])) ;ignore 'begin-update 'end-update
+      [v null])) ;ignore 'begin-update 'end-update
   (define obj (new hash-lang% [on-notify on-notify]))
   (hash-set! ht id obj)
   (send obj update! 1 1 0 s))

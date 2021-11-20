@@ -22,7 +22,7 @@
   (displayln "syntax-color/color-textoid is available: running hash-lang tests")
   ;; To test async notifications from the updater thread, we supply an
   ;; on-notify that puts them to a "gathering" channel, which
-  ;; accumulates ('begin-update change ... 'end-update) sequences and
+  ;; accumulates ('begin-update 'token ... 'end-update) sequences and
   ;; posts each list of changes to a "result" channel for test-create
   ;; and test-update to return as value for use with check-equal?.
   (define gathering-channel (make-async-channel))
@@ -35,11 +35,14 @@
               ['(end-update)
                (async-channel-put result-channel (reverse xs))
                (loop null)]
-              [(list _paren-matches beg end token)
+              [(cons 'lang _) (loop null)]
+              [(list 'token _paren-matches beg end token)
                (loop (cons (list beg end (token-type token) (token-paren token))
                            xs))])))))
   (define (test-create str)
-    (define o (new hash-lang% [on-notify (λ args (async-channel-put gathering-channel args))]))
+    (define o (new hash-lang% [on-notify
+                               (λ args
+                                 (async-channel-put gathering-channel args))]))
     (test-update! o 1 1 0 str)
     o)
   (define (test-update! o gen pos old-len str)
@@ -470,7 +473,7 @@
       (define (cpu-time proc)
         (define-values (_results cpu _real _gc) (time-apply proc null))
         cpu)
-      (when determine-spaces
+      (when range-indent
         (define len (string-length str))
         (define reps 10)
         (define o-time (cpu-time (λ () (for ([_ reps]) (range-indent o 0 len)))))
