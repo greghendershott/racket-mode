@@ -249,17 +249,16 @@
         (set! line-indenter (info 'drracket:indentation #f))
         (set! range-indenter (info 'drracket:range-indentation #f))
         (when on-notify
-          (on-notify 'lang
-                     `([paren-matches .
-                        ,(for/list ([v (in-list paren-matches)])
-                         (cons (symbol->string (car v))
-                               (symbol->string (cadr v))))]
-                       [quote-matches .
-                        ,(for/list ([c (in-list quote-matches)])
-                           (string c))]
-                       [grouping-position . ,(and grouping-position #t)]
-                       [line-indenter . ,(and line-indenter #t)]
-                       [range-indenter . ,(and range-indenter #t)])))))
+          (on-notify
+           'lang
+           'paren-matches     (for/list ([v (in-list paren-matches)])
+                                  (cons (symbol->string (car v))
+                                        (symbol->string (cadr v))))
+           'quote-matches     (for/list ([c (in-list quote-matches)])
+                                  (string c))
+           'grouping-position (and grouping-position #t)
+           'line-indenter     (and line-indenter #t)
+           'range-indenter    (and range-indenter #t)))))
 
     ;; Block until the updater thread has progressed through at least
     ;; a desired generation and also through a desired position.
