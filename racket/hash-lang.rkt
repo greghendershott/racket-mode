@@ -63,32 +63,17 @@
     (define lexer             default-lexer)
     (define paren-matches     default-paren-matches)
     (define quote-matches     default-quote-matches)
-    (define grouping-position default-grouping-position)
-    (define line-indenter     default-line-indenter)
-    (define range-indenter    default-range-indenter)
-
-    ;; This must be called from update! because the #lang in the
-    ;; source could have changed and we might need new values for all
-    ;; of these. Although it might be unnecessary to call for updates
-    ;; beyond the #lang near the beginning, that is the safest thing
-    ;; to do for now.
-    (define/private (refresh-lang-info!)
-      (define info
-        (or (with-handlers ([values (λ _ #f)])
-              (read-language (open-input-string content) (λ _ #f)))
-            (λ (_key default) default)))
-      (set! lexer (info 'color-lexer (waive-option module-lexer)))
-      (set! paren-matches (info 'drracket:paren-matches default-paren-matches))
-      (set! quote-matches (info 'drracket:quote-matches default-quote-matches))
-      (set! grouping-position (info 'drracket:grouping-position default-grouping-position))
-      (set! line-indenter (info 'drracket:indentation default-line-indenter))
-      (set! range-indenter (info 'drracket:range-indentation default-range-indenter)))
+    (define grouping-position #f)
+    (define line-indenter     #f)
+    (define range-indenter    #f)
 
     ;; These accessor methods really intended just for tests
     (define/public (-get-content) content)
     (define/public (-get-modes) modes)
     (define/public (-get-lexer) lexer)
     (define/public (-get-paren-matches) paren-matches)
+    (define/public (-get-quote-matches) quote-matches)
+    (define/public (-get-grouping-position) grouping-position)
     (define/public (-get-line-indenter) line-indenter)
     (define/public (-get-range-indenter) range-indenter)
 
@@ -152,7 +137,7 @@
             (string-append (substring content 0 (sub1 pos))
                            new-str
                            (substring content (+ (sub1 pos) old-len))))
-      (refresh-lang-info!) ;from new value of `content`
+      (maybe-refresh-lang-info content pos) ;from new value of `content`
       (define diff (- (string-length new-str) old-len))
       ;; From where do we need to re-tokenize? This will be < the pos of
       ;; the change. Back up to the start of the previous token (plus any
@@ -221,7 +206,7 @@
                (interval-map-set! tokens beg end token)
                (set! updated-thru end)
                (when on-notify
-                 (on-notify paren-matches beg end token))
+                 (on-notify 'token paren-matches beg end token))
                #t])) ;continue
       (when on-notify (on-notify 'begin-update))
       (tokenize-string! beg set-interval)
@@ -243,6 +228,38 @@
           (let ([lexeme (substring content (sub1 beg) (sub1 end))])
             (when (set-interval beg end (token lexeme type paren backup))
               (tokenize-port! end new-mode))))))
+
+    ;; This must be called from do-update! because the #lang in the
+    ;; source could have changed and we might need new values for all
+    ;; of these.
+    (define last-lang-end-pos 1)
+    (define/private (maybe-refresh-lang-info content pos)
+      (when (<= pos last-lang-end-pos)
+        (define in (open-input-string content))
+        (port-count-lines! in)
+        (define info (or (with-handlers ([values (λ _ #f)])
+                           (read-language in (λ _ #f)))
+                         (λ (_key default) default)))
+        (define-values (_line _col end-pos) (port-next-location in))
+        (set! last-lang-end-pos end-pos)
+        (set! lexer (info 'color-lexer (waive-option module-lexer)))
+        (set! paren-matches (info 'drracket:paren-matches default-paren-matches))
+        (set! quote-matches (info 'drracket:quote-matches default-quote-matches))
+        (set! grouping-position (info 'drracket:grouping-position #f))
+        (set! line-indenter (info 'drracket:indentation #f))
+        (set! range-indenter (info 'drracket:range-indentation #f))
+        (when on-notify
+          (on-notify 'lang
+                     `([paren-matches .
+                        ,(for/list ([v (in-list paren-matches)])
+                         (cons (symbol->string (car v))
+                               (symbol->string (cadr v))))]
+                       [quote-matches .
+                        ,(for/list ([c (in-list quote-matches)])
+                           (string c))]
+                       [grouping-position . ,(and grouping-position #t)]
+                       [line-indenter . ,(and line-indenter #t)]
+                       [range-indenter . ,(and range-indenter #t)])))))
 
     ;; Block until the updater thread has progressed through at least
     ;; a desired generation and also through a desired position.
@@ -300,6 +317,7 @@
 
     (define/public (grouping gen pos dir limit count)
       (cond
+        [(not grouping-position) #f]
         [(<= count 0) pos]
         [else
          (block-until-updated-thru gen
@@ -321,12 +339,16 @@
     ;;; Indent
 
     (define/public (indent-line-amount gen pos)
-      (block-until-updated-thru gen pos)
-      (line-indenter this (sub1 pos))) ;1.. -> 0..
+      (cond [(not line-indenter) #f]
+            [else
+             (block-until-updated-thru gen pos)
+             (line-indenter this (sub1 pos))])) ;1.. -> 0..
 
     (define/public (indent-region-amounts gen from upto)
-      (block-until-updated-thru gen upto)
-      (range-indenter this (sub1 from) (sub1 upto))) ;1.. -> 0..
+      (cond [(not range-indenter) #f]
+            [else
+             (block-until-updated-thru gen upto)
+             (range-indenter this (sub1 from) (sub1 upto))])) ;1.. -> 0..
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;;
@@ -530,8 +552,5 @@
 (define default-lexer (waive-option module-lexer))
 (define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
 (define default-quote-matches '(#\" #\|))
-(define (default-grouping-position _obj _start _limit _direction) #t)
-(define (default-line-indenter _text-like% _pos) #f)
-(define (default-range-indenter _text-like% _from _upto) #f)
 
 (struct token (lexeme type paren backup) #:transparent)
