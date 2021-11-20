@@ -44,51 +44,28 @@ enough.")
   (racket--easy-keymap-define
    `(("RET" ,#'newline-and-indent))))
 
+(defvar-local racket-hash-lang-mode-lighter " #lang")
+
 ;;;###autoload
 (define-minor-mode racket-hash-lang-mode
-  "Use color-lexer and indenter supplied by the #lang.
+  "Use color-lexer and other things supplied by a #lang.
 
-This mode allows a #lang to support multi-character open and
-close tokens, by setting the variable `forward-sexp-function'.
-However this means various Emacs features and packages that do
-not use `forward-sexp' -- and instead use `scan-list' or look
-specifically for parentheses -- will not work well. See also
-`racket-sexp-hash-lang-mode'.
+Some #langs do not supply any special navigation or indent
+functionality, in which case we use \"normal\" s-expression
+navigation or indent.
 
 \\{racket-hash-lang-mode-map}
 "
-  :lighter " #lang"
+  :lighter racket-hash-lang-mode-lighter
   :keymap  racket-hash-lang-mode-map
-  (racket--hash-lang-mode racket-hash-lang-mode nil))
-
-(defvar racket-sexp-hash-lang-mode-map
-  (racket--easy-keymap-define
-   `(("RET" ,#'newline-and-indent))))
-
-;;;###autoload
-(define-minor-mode racket-sexp-hash-lang-mode
-  "Use color-lexer and indenter supplied by the #lang.
-
-When a #lang has a sexp surface syntax, this mode allows more
-Emacs features to work, in contrast to `racket-hash-lang-mode'.
-
-\\{racket-sexp-hash-lang-mode-map}
-"
-  :lighter " #lang()"
-  :keymap  racket-sexp-hash-lang-mode-map
-  (racket--hash-lang-mode racket-sexp-hash-lang-mode t))
-
-(defun racket--hash-lang-mode (mode-var sexp-lang-p)
-  "Helper function for both of our mode functions."
-  (if mode-var
+  (if racket-hash-lang-mode
       (progn
         (setq racket--hash-lang-generation 1)
         (font-lock-mode -1)
-        (unless sexp-lang-p
-          (electric-indent-local-mode -1))
+        (electric-indent-local-mode -1)
         (with-silent-modifications
           (remove-text-properties (point-min) (point-max)
-                                  '(face nil fontified nil syntax-table nil)))
+                                  '(face nil fontified nil syntax-table nil racket-token-type nil)))
 
         (setq-local racket--hash-lang-orig-font-lock-defaults
                     font-lock-defaults)
@@ -100,31 +77,14 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
 
         (setq-local racket--hash-lang-orig-syntax-table
                     (syntax-table))
-        ;; Mostly we use 'syntax-table text properties. However some
-        ;; things (e.g. paredit) might do e.g. (char-syntax
-        ;; (char-before)) which will ignore that. So we need some
-        ;; syntax-table with some reasonable default(s). Whitespace
-        ;; seems like a good choice, except that breaks
-        ;; `paredit-delete-leading-whitespace'. Instead let's use
-        ;; symbol. That might cause its own problem, but it's my
-        ;; least-worst idea, for the time being.
-        (set-syntax-table (make-char-table 'syntax-table '(3)))
+        (set-syntax-table (copy-syntax-table (standard-syntax-table)))
 
         (setq-local racket--hash-lang-orig-indent-line-function
                     indent-line-function)
-        (setq-local indent-line-function
-                    #'racket-hash-lang-indent-line-function)
-
         (setq-local racket--hash-lang-orig-indent-region-function
                     indent-region-function)
-        (setq-local indent-region-function
-                    #'racket-hash-lang-indent-region-function)
-
         (setq-local racket--hash-lang-orig-forward-sexp-function
                     forward-sexp-function)
-        (setq-local forward-sexp-function
-                    (unless sexp-lang-p
-                      #'racket-hash-lang-forward-sexp-function))
 
         (add-hook 'after-change-functions
                   #'racket--hash-lang-after-change-hook
@@ -161,8 +121,7 @@ Emacs features to work, in contrast to `racket-hash-lang-mode'.
     (with-silent-modifications
       (remove-text-properties (point-min) (point-max)
                               '(face nil fontified nil syntax-table nil)))
-    (unless sexp-lang-p
-      (electric-indent-local-mode 1))
+    (electric-indent-local-mode 1)
     (font-lock-mode 1)
     (syntax-ppss-flush-cache (point-min))
     (syntax-propertize (point-max))))
@@ -204,99 +163,98 @@ x.")
       (`(lang  . ,params) (racket--hash-lang-on-new-lang params))
       (`(token . ,token)  (racket--hash-lang-on-new-token token)))))
 
-(defun racket--hash-lang-on-new-lang (params)
-  ;; TODO: set things like indent-line-function and forward-sexp-function
-  (message "new-lang %S" params))
+(defun racket--hash-lang-on-new-lang (plist)
+  "We get this whenever the #lang changes in the user's program, including when we first open it."
+  (message "new-lang %S" plist)
+  (setq-local racket-hash-lang-mode-lighter " #lang")
+  (set-syntax-table (copy-syntax-table (standard-syntax-table)))
+  (dolist (oc (plist-get plist 'paren-matches))
+    (let ((o (car oc))
+          (c (cdr oc)))
+      ;; When the parens are single chars we can set char-syntax in
+      ;; the syntax table. Otherwise a lang will need to supply
+      ;; grouping-positions for us to do any navigation.
+      (when (and (= 1 (length o)) (= 1 (length c)))
+        (modify-syntax-entry (aref o 0) (concat "(" c "  ") (syntax-table))
+        (modify-syntax-entry (aref c 0) (concat ")" o "  ") (syntax-table)))))
+  (dolist (q (plist-get plist 'quote-matches))
+    (when (= 1 (length q)) ;supposed to be always; sanity check
+      (modify-syntax-entry (aref q 0) (concat "\"" q "  ") (syntax-table))))
+  (setq-local forward-sexp-function
+              (when (plist-get plist 'grouping-position)
+                (setq-local racket-hash-lang-mode-lighter
+                            (concat racket-hash-lang-mode-lighter "⤡"))
+                #'racket-hash-lang-forward-sexp-function))
+  (setq-local indent-line-function
+              (if (plist-get plist 'line-indenter)
+                  (progn
+                    (setq-local racket-hash-lang-mode-lighter
+                            (concat racket-hash-lang-mode-lighter "→"))
+                    #'racket-hash-lang-indent-line-function)
+                #'racket-indent-line))
+  (setq-local indent-region-function
+              (when (plist-get plist 'range-indenter)
+                (setq-local racket-hash-lang-mode-lighter
+                            (concat racket-hash-lang-mode-lighter "⇉"))
+                #'racket-hash-lang-indent-region-function)))
 
 (defun racket--hash-lang-on-new-token (token)
   (with-silent-modifications
     (cl-flet ((put-face (beg end face) (put-text-property beg end 'face face))
               (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
-      (let ((sexp-prefix-ends nil))
-        (pcase-let ((`(,beg ,end ,kind . ,maybe-paren-data) token))
-          (remove-text-properties beg end
-                                  '(face nil syntax-table nil))
-          (cl-case kind
-            ;; When our forward-sexp-function is in use, ignore
-            ;; parenthesis tokens. This supports hash-langs with
-            ;; multi-char open and close tokens, both. Emacs uses
-            ;; char-syntax -- /char/. This won't work. Instead we
-            ;; must rely on `forward-sexp-function' and hope enough
-            ;; things use it via `forward-sexp'.
-            ;;
-            ;; Otherwise, assume the tokens are for an sexpr lang,
-            ;; and only open tokens might be multi-char, e.g. "#("
-            ;; or "#hasheq(". Handle those as expression-prefix
-            ;; syntax followed by a single char with open-paren
-            ;; syntax. Although this is less general, it lets more
-            ;; Emacs functions and packages (e.g. paredit) work well
-            ;; even when they do not always use forward-sexp, and
-            ;; instead do things like use `scan-lists' or look for
-            ;; paren char-syntax directy. :(
-            (parenthesis
-             (unless (equal forward-sexp-function
-                            #'racket-hash-lang-forward-sexp-function)
-               (pcase-let ((`(,open-p ,opposite) maybe-paren-data))
-                 (cond (open-p
-                        (when (< 1 (- end beg))
-                          (put-stx beg (- end 1) '(6)))
-                        (put-stx (- end 1) end (cons 4 (aref opposite 0))))
-                       (t
-                        (put-stx beg end (cons 5 (aref opposite 0))))))))
-            (comment
-             (put-stx beg (1+ beg) '(14)) ;generic comment
-             (put-stx (1- end) end '(14))
-             (let ((beg (1+ beg))    ;comment _contents_ if any
-                   (end (1- end)))
-               (when (< beg end)
-                 (put-stx beg end (standard-syntax-table))))
-             (put-face beg end 'font-lock-comment-face))
-            (sexp-comment
-             ;; This is just the "#;" prefix not the following sexp.
-             (put-stx beg end '(14)) ;generic comment
-             (put-face beg end 'font-lock-comment-face)
-             ;; Defer until we've applied following tokens and as a
-             ;; result can use e.g. `forward-sexp'.
-             (push end sexp-prefix-ends))
-            (string
-             (put-stx beg (1+ beg) '(15)) ;generic string
-             (put-stx (1- end) end '(15))
-             (let ((beg (+ beg 1))    ;string _contents_ if any
-                   (end (- end 2)))
-               (when (< beg end)
-                 (put-stx beg end racket--string-content-syntax-table)))
-             (put-face beg end 'font-lock-string-face))
-            (text
-             (put-stx beg end (standard-syntax-table)))
-            (constant
-             (put-stx beg end '(2)) ;word
-             (put-face beg end 'font-lock-constant-face))
-            (error
-             (put-face beg end 'error))
-            (symbol
-             (put-stx beg end '(3)) ;symbol
-             ;; TODO: Consider using default font here, because e.g.
-             ;; racket-lexer almost everything is "symbol" because
-             ;; it is an identifier. Meanwhile, using a non-default
-             ;; face here is helping me spot bugs.
-             (put-face beg end 'font-lock-variable-name-face))
-            (keyword
-             (put-stx beg end '(2)) ;word
-             (put-face beg end 'font-lock-keyword-face))
-            (hash-colon-keyword
-             (put-stx beg end '(2)) ;word
-             (put-face beg end 'racket-keyword-argument-face))
-            (white-space
-             (put-stx beg end '(0)))
-            (other
-             (put-stx beg end (standard-syntax-table)))
-            (otherwise nil)))
-        (dolist (sexp-prefix-end sexp-prefix-ends)
-          (save-excursion
-            (goto-char sexp-prefix-end)
-            (let ((end (progn (forward-sexp  1) (point)))
-                  (beg (progn (forward-sexp -1) (point))))
-              (put-face beg end 'font-lock-comment-face))))))))
+      (pcase-let ((`(,beg ,end ,kind . ,_maybe-paren-data) token))
+        (remove-text-properties beg end
+                                '(face nil syntax-table nil racket-token-type nil))
+        ;; 'racket-token-type is just informational for me for debugging
+        (put-text-property beg end 'racket-token-type (symbol-name kind))
+        (cl-case kind
+          (parenthesis
+           (put-face beg end 'parenthesis))
+          (comment
+           (put-stx beg (1+ beg) '(14)) ;generic comment
+           (put-stx (1- end) end '(14))
+           (let ((beg (1+ beg))    ;comment _contents_ if any
+                 (end (1- end)))
+             (when (< beg end)
+               (put-stx beg end (standard-syntax-table))))
+           (put-face beg end 'font-lock-comment-face))
+          (sexp-comment
+           ;; This is just the "#;" prefix not the following sexp.
+           (put-stx beg end '(14)) ;generic comment
+           (put-face beg end 'font-lock-comment-face))
+          (string
+           (put-stx beg (1+ beg) '(15)) ;generic string
+           (put-stx (1- end) end '(15))
+           (let ((beg (+ beg 1))    ;string _contents_ if any
+                 (end (- end 2)))
+             (when (< beg end)
+               (put-stx beg end racket--string-content-syntax-table)))
+           (put-face beg end 'font-lock-string-face))
+          (text
+           (put-stx beg end (standard-syntax-table)))
+          (constant
+           (put-stx beg end '(2)) ;word
+           (put-face beg end 'font-lock-constant-face))
+          (error
+           (put-face beg end 'error))
+          (symbol
+           (put-stx beg end '(3)) ;symbol
+           ;; TODO: Consider using default font here, because e.g.
+           ;; racket-lexer almost everything is "symbol" because
+           ;; it is an identifier. Meanwhile, using a non-default
+           ;; face here is helping me spot bugs.
+           (put-face beg end 'font-lock-variable-name-face))
+          (keyword
+           (put-stx beg end '(2)) ;word
+           (put-face beg end 'font-lock-keyword-face))
+          (hash-colon-keyword
+           (put-stx beg end '(2)) ;word
+           (put-face beg end 'racket-keyword-argument-face))
+          (white-space
+           (put-stx beg end '(0)))
+          (other
+           (put-stx beg end (standard-syntax-table)))
+          (otherwise nil))))))
 
 (defun racket-hash-lang-indent-line-function ()
   "Maybe use #lang drracket:indentation, else `racket-indent-line'."
