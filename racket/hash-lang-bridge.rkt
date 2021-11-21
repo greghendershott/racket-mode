@@ -46,38 +46,15 @@
   (define (on-notify . args)
     (match args
       [(and v (cons 'lang _))
-       (async-channel-put
-        token-notify-channel
-        (list* 'hash-lang
-               id
-               v))]
-      [(list 'token paren-matches beg end token)
+       (async-channel-put token-notify-channel
+                          (list* 'hash-lang id v))]
+      [(list 'token beg end token)
        (define ht-or-type (token-type token))
        (define type (if (symbol? ht-or-type)
                         ht-or-type
                         (hash-ref ht-or-type 'type 'unknown)))
-       (define paren (token-paren token))
-       (async-channel-put
-        token-notify-channel
-        (list* 'hash-lang
-               id
-               'token
-               beg
-               end
-               type
-               ;; Tokens of type 'parenthesis get extra data -- an
-               ;; open? flag and the symbol for the matching open or
-               ;; close.
-               (if paren
-                   (or (for/or ([pm (in-list paren-matches)])
-                         (match-define (list open close) pm)
-                         (cond [(eq? paren open)
-                                (list #t (symbol->string close))]
-                               [(eq? paren close)
-                                (list #f (symbol->string open))]
-                               [else #f]))
-                       null)
-                   null)))]
+       (async-channel-put token-notify-channel
+                          (list 'hash-lang id 'token beg end type))]
       [v null])) ;ignore 'begin-update 'end-update
   (define obj (new hash-lang% [on-notify on-notify]))
   (hash-set! ht id obj)
@@ -90,8 +67,7 @@
          (hash-remove! ht id)]))
 
 (define (update id gen pos old-len str)
-  (with-time/log "hash-lang update"
-    (send (get-object id) update! gen pos old-len str)))
+  (send (get-object id) update! gen pos old-len str))
 
 (define (indent-amount id gen pos)
   (with-time/log "hash-lang indent-amount"

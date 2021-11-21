@@ -38,11 +38,17 @@ enough.")
 (defvar-local racket--hash-lang-orig-syntax-table nil)
 (defvar-local racket--hash-lang-orig-indent-line-function nil)
 (defvar-local racket--hash-lang-orig-indent-region-function nil)
-(defvar-local racket--hash-lang-orig-forward-sexp-function nil)
+
+(defvar-local racket--hash-lang-grouping-position-p nil
+  "Does the hash-lang supply a grouping-position function?")
 
 (defvar racket-hash-lang-mode-map
   (racket--easy-keymap-define
-   `(("RET" ,#'newline-and-indent))))
+   `(("RET" ,#'newline-and-indent)
+     ("C-M-b" ,#'racket-hash-lang-backward)
+     ("C-M-f" ,#'racket-hash-lang-forward)
+     ("C-M-u" ,#'racket-hash-lang-up)
+     ("C-M-d" ,#'racket-hash-lang-down))))
 
 (defvar-local racket-hash-lang-mode-lighter " #lang")
 
@@ -61,6 +67,7 @@ navigation or indent.
   (if racket-hash-lang-mode
       (progn
         (setq racket--hash-lang-generation 1)
+        (setq racket--hash-lang-grouping-position-p nil)
         (font-lock-mode -1)
         (electric-indent-local-mode -1)
         (with-silent-modifications
@@ -83,8 +90,6 @@ navigation or indent.
                     indent-line-function)
         (setq-local racket--hash-lang-orig-indent-region-function
                     indent-region-function)
-        (setq-local racket--hash-lang-orig-forward-sexp-function
-                    forward-sexp-function)
 
         (add-hook 'after-change-functions
                   #'racket--hash-lang-after-change-hook
@@ -109,8 +114,6 @@ navigation or indent.
                 racket--hash-lang-orig-indent-line-function)
     (setq-local indent-region-function
                 racket--hash-lang-orig-indent-region-function)
-    (setq-local forward-sexp-function
-                racket--hash-lang-orig-forward-sexp-function)
     (remove-hook 'after-change-functions
                  #'racket--hash-lang-after-change-hook
                  t)
@@ -145,18 +148,6 @@ navigation or indent.
                ,(buffer-substring-no-properties beg end))
    #'ignore))
 
-(defconst racket--string-content-syntax-table
-  (let ((st (copy-syntax-table (standard-syntax-table))))
-    (modify-syntax-entry ?\" "w" st)
-    ;; FIXME? Should we iterate the entire table looking for string
-    ;; _values_ and set them _all_ to "w" instead?
-    st)
-  "A syntax-table property value for _inside_ strings.
-Specifically, do _not_ treat quotes as string syntax. That way,
-things like #rx\"blah\" in Racket, which are lexed as one single
-string token, will not give string syntax to the open quote after
-x.")
-
 (defun racket--hash-lang-on-notify (id params)
   (with-current-buffer (find-buffer-visiting id)
     (pcase params
@@ -165,7 +156,11 @@ x.")
 
 (defun racket--hash-lang-on-new-lang (plist)
   "We get this whenever the #lang changes in the user's program, including when we first open it."
-  (message "new-lang %S" plist)
+  ;; Although I'm not sure about the prose here, offer some indication
+  ;; that we'll be doing nothing except coloring differently.
+  (unless (cl-some (lambda (p) (plist-get plist p))
+                   '(grouping-position line-indenter range-indenter))
+    (message "The current #lang does not supply any special motion or indent -- racket-hash-lang-mode is only syntax coloring; you might prefer plain racket-mode"))
   (setq-local racket-hash-lang-mode-lighter " #lang")
   (set-syntax-table (copy-syntax-table (standard-syntax-table)))
   (dolist (oc (plist-get plist 'paren-matches))
@@ -180,11 +175,11 @@ x.")
   (dolist (q (plist-get plist 'quote-matches))
     (when (= 1 (length q)) ;supposed to be always; sanity check
       (modify-syntax-entry (aref q 0) (concat "\"" q "  ") (syntax-table))))
-  (setq-local forward-sexp-function
-              (when (plist-get plist 'grouping-position)
-                (setq-local racket-hash-lang-mode-lighter
-                            (concat racket-hash-lang-mode-lighter "⤡"))
-                #'racket-hash-lang-forward-sexp-function))
+  (setq-local racket--hash-lang-grouping-position-p
+              (plist-get plist 'grouping-position))
+  (when racket--hash-lang-grouping-position-p
+    (setq-local racket-hash-lang-mode-lighter
+                (concat racket-hash-lang-mode-lighter "⤡")))
   (setq-local indent-line-function
               (if (plist-get plist 'line-indenter)
                   (progn
@@ -202,15 +197,15 @@ x.")
   (with-silent-modifications
     (cl-flet ((put-face (beg end face) (put-text-property beg end 'face face))
               (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
-      (pcase-let ((`(,beg ,end ,kind . ,_maybe-paren-data) token))
+      (pcase-let ((`(,beg ,end ,kind) token))
         (remove-text-properties beg end
                                 '(face nil syntax-table nil racket-token-type nil))
         ;; 'racket-token-type is just informational for me for debugging
         (put-text-property beg end 'racket-token-type (symbol-name kind))
-        (cl-case kind
-          (parenthesis
+        (pcase kind
+          ('parenthesis
            (put-face beg end 'parenthesis))
-          (comment
+          ('comment
            (put-stx beg (1+ beg) '(14)) ;generic comment
            (put-stx (1- end) end '(14))
            (let ((beg (1+ beg))    ;comment _contents_ if any
@@ -218,43 +213,37 @@ x.")
              (when (< beg end)
                (put-stx beg end (standard-syntax-table))))
            (put-face beg end 'font-lock-comment-face))
-          (sexp-comment
+          ('sexp-comment
            ;; This is just the "#;" prefix not the following sexp.
            (put-stx beg end '(14)) ;generic comment
            (put-face beg end 'font-lock-comment-face))
-          (string
-           (put-stx beg (1+ beg) '(15)) ;generic string
-           (put-stx (1- end) end '(15))
-           (let ((beg (+ beg 1))    ;string _contents_ if any
-                 (end (- end 2)))
-             (when (< beg end)
-               (put-stx beg end racket--string-content-syntax-table)))
+          ('string
            (put-face beg end 'font-lock-string-face))
-          (text
+          ('text
            (put-stx beg end (standard-syntax-table)))
-          (constant
+          ('constant
            (put-stx beg end '(2)) ;word
            (put-face beg end 'font-lock-constant-face))
-          (error
+          ('error
            (put-face beg end 'error))
-          (symbol
+          ('symbol
            (put-stx beg end '(3)) ;symbol
            ;; TODO: Consider using default font here, because e.g.
            ;; racket-lexer almost everything is "symbol" because
            ;; it is an identifier. Meanwhile, using a non-default
            ;; face here is helping me spot bugs.
            (put-face beg end 'font-lock-variable-name-face))
-          (keyword
+          ('keyword
            (put-stx beg end '(2)) ;word
            (put-face beg end 'font-lock-keyword-face))
-          (hash-colon-keyword
+          ('hash-colon-keyword
            (put-stx beg end '(2)) ;word
            (put-face beg end 'racket-keyword-argument-face))
-          (white-space
-           (put-stx beg end '(0)))
-          (other
-           (put-stx beg end (standard-syntax-table)))
-          (otherwise nil))))))
+          ('white-space
+           ;;(put-stx beg end '(0))
+           nil)
+          ('other
+           (put-stx beg end (standard-syntax-table))))))))
 
 (defun racket-hash-lang-indent-line-function ()
   "Maybe use #lang drracket:indentation, else `racket-indent-line'."
@@ -307,64 +296,44 @@ x.")
               (unless (equal "" insert-string) (insert insert-string))
               (end-of-line 2))))))))
 
-(defun racket-hash-lang-forward-sexp-function (&optional arg)
-  "Maybe use #lang drracket:grouping-position, else use sexp motion."
-  (let ((dir (if (or (not arg) (< 0 arg)) 'forward 'backward))
-        (count (abs arg)))
-    (pcase (racket--cmd/await           ; await = :(
-            nil
-            `(hash-lang grouping
-                        ,(racket--buffer-file-name)
-                        ,racket--hash-lang-generation
-                        ,(point)
-                        ,dir
-                        0
-                        ,count))
+(defun racket-hash-lang-move (direction &optional count)
+  (let ((count (or count 1)))
+    (pcase (if racket--hash-lang-grouping-position-p
+               (racket--cmd/await       ; await = :(
+                nil
+                `(hash-lang grouping
+                            ,(racket--buffer-file-name)
+                            ,racket--hash-lang-generation
+                            ,(point)
+                            ,direction
+                            0
+                            ,count))
+             'use-default-s-expression)
       ((and (pred numberp) pos)
        (goto-char pos))
       ('use-default-s-expression
-       (let ((forward-sexp-function nil))
-         (forward-sexp arg)))
-      (`(,from ,upto)
-       (signal 'scan-error (list (format "Cannot move %s" dir)
-                                 from upto)))
-      (v (error "unexpected grouping-position value %s" v)))))
+       (pcase direction
+         ('backward (backward-sexp    count))
+         ('forward  (forward-sexp     count))
+         ('up       (backward-up-list count))
+         ('down     (down-list        count))))
+      (_ (user-error "Cannot move %s %s times" direction count)))))
 
-;; TODO: Advise e.g. up-list/down-list using drracket:grouping-position, too?
+(defun racket-hash-lang-backward ()
+  (interactive)
+  (racket-hash-lang-move 'backward))
+
+(defun racket-hash-lang-forward ()
+  (interactive)
+  (racket-hash-lang-move 'forward))
 
 (defun racket-hash-lang-up ()
   (interactive)
-  (pcase (racket--cmd/await             ; await = :(
-          nil
-          `(hash-lang grouping
-                      ,(racket--buffer-file-name)
-                      ,racket--hash-lang-generation
-                      ,(point)
-                      up
-                      0
-                      1))
-    ((and (pred numberp) pos)
-     (goto-char pos))
-    ('use-default-s-expression
-     (racket-backward-up-list))
-    (_ (user-error "Cannot move up"))))
+  (racket-hash-lang-move 'up))
 
 (defun racket-hash-lang-down ()
   (interactive)
-  (pcase (racket--cmd/await             ; await = :(
-          nil
-          `(hash-lang grouping
-                      ,(racket--buffer-file-name)
-                      ,racket--hash-lang-generation
-                      ,(point)
-                      down
-                      0
-                      1))
-    ((and (pred numberp) pos)
-     (goto-char pos))
-    ('use-default-s-expression
-     (down-list))
-    (_ (user-error "Cannot move down"))))
+  (racket-hash-lang-move 'down))
 
 
 (provide 'racket-hash-lang)

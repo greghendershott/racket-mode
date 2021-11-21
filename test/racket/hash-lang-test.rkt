@@ -20,6 +20,7 @@
 ;; Otherwise hash-lang% is a class.
 (when hash-lang%
   (displayln "syntax-color/color-textoid is available: running hash-lang tests")
+
   ;; To test async notifications from the updater thread, we supply an
   ;; on-notify that puts them to a "gathering" channel, which
   ;; accumulates ('begin-update 'token ... 'end-update) sequences and
@@ -36,7 +37,7 @@
                (async-channel-put result-channel (reverse xs))
                (loop null)]
               [(cons 'lang _) (loop null)]
-              [(list 'token _paren-matches beg end token)
+              [(list 'token beg end token)
                (loop (cons (list beg end (token-type token) (token-paren token))
                            xs))])))))
   (define (test-create str)
@@ -343,9 +344,8 @@
                    (cons '(15 . 17) racket-lexer)
                    (cons '(17 . 18) racket-lexer))))
 
-  ;; Send update! requests with generation numbers out of order, i.e.
-  ;; simulate us getting requests on separate command threads and they
-  ;; do not necesarily arrive in order.
+  ;; Exercise calling update! from various threads and out-of-order
+  ;; wrt the generation number.
   (let* ([str "#lang racket\n"]
          ;;    1234567890123 4
          ;;             1
@@ -374,6 +374,16 @@
                   "Adding parens after #hash re-lexes from an error to an open")
     (check-equal? (send o classify 2 14)
                   (list 14 20 (token "#hash(" 'parenthesis '\( 0))))
+
+  (let* ([str "#lang racket\n\n(1 2)"]
+         ;;    1234567890123 4 56789
+         ;;             1
+         [o (test-create str)])
+    (check-equal? (test-update! o 2 14 0 "(")
+                  '((14 15 parenthesis \())
+                  "Update that splits an existing token does not produce execessive notifications.")
+    (check-equal? (test-update! o 3 14 0 ")")
+                  '((14 15 parenthesis \)))))
 
   ;;;
   ;;; Test equivalance of our text%-like methods to those of racket:text%

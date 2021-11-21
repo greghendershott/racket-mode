@@ -83,10 +83,9 @@
     ;; (or/c #f position/c) -> (or/c #f (list/c position/c position/c token?))
     (define/private (token-ref pos)
       (and pos
-           (let/ec k
-             (call-with-values
-              (λ () (interval-map-ref/bounds tokens pos (λ () (k #f))))
-              list))))
+           (let-values ([(beg end tok) (interval-map-ref/bounds tokens pos #f)])
+             (and tok
+                  (list beg end tok)))))
 
     ;; This method is safe to call from various threads.
     ;;
@@ -95,14 +94,14 @@
     ;; there used to be OLD-LEN chars long, but is now NEW-STR.
     (define/public (update! gen pos old-len new-str)
       ;;(-> generation/c position/c exact-nonnegative-integer? string? any)
-      (unless (<= next-update-gen gen)
+      (unless (<= generation gen)
         (raise-argument-error 'update! "valid generation" 0 gen pos old-len new-str))
       (unless (<= min-position pos)
         (raise-argument-error 'update! "valid position" 1 gen pos old-len new-str))
       (async-channel-put update-chan
                          (list 'update gen pos old-len new-str)))
 
-    ;; This is the entry point of our updater thread.
+    ;; This is the entry thunk of our updater thread.
     ;;
     ;; Tolerate update requests arriving with out-of-order generation
     ;; numbers. This could result from update! being called from
@@ -110,34 +109,41 @@
     ;; handled on their own thread, much like a web server. As a rough
     ;; analogy, this is like handling TCP packets arriving possibly
     ;; out of order.
-    (define next-update-gen 1)
-    (define pending-updates (make-hash))
-    (define (consume-update-chan)
-      (match (async-channel-get update-chan)
-        ['quit null] ;let thread exit/die
-        [(list 'update gen pos old-len new-str)
-         (hash-set! pending-updates gen (list pos old-len new-str))
-         (let loop ()
-           (match (hash-ref pending-updates next-update-gen #f)
-             [(list pos old-len new-str)
-              (hash-remove! pending-updates next-update-gen)
-              (do-update! next-update-gen pos old-len new-str)
-              (set! next-update-gen (add1 next-update-gen))
-              (loop)]
-             [#f #f]))
-         (consume-update-chan)]))
+    (define consume-update-chan
+      (let ([next-update-gen 1]
+            [pending-updates (make-hash)])
+        (λ ()
+          (match (async-channel-get update-chan)
+            ['quit null] ;exit thread
+            [(list 'update gen pos old-len new-str)
+             (hash-set! pending-updates gen (list pos old-len new-str))
+             (let loop ()
+               (match (hash-ref pending-updates next-update-gen #f)
+                 [(list pos old-len new-str)
+                  (hash-remove! pending-updates next-update-gen)
+                  (do-update! next-update-gen pos old-len new-str)
+                  (set! next-update-gen (add1 next-update-gen))
+                  (loop)]
+                 [#f #f]))
+             (consume-update-chan)]))))
     (thread consume-update-chan)
 
     ;; Runs on updater thread.
     (define/private (do-update! gen pos old-len new-str)
       (invalidate-paragraph-info)
+      (set! updated-thru 0)
       (set! generation gen)
-      (set! updated-thru pos)
       (set! content
             (string-append (substring content 0 (sub1 pos))
                            new-str
                            (substring content (+ (sub1 pos) old-len))))
-      (maybe-refresh-lang-info content pos) ;from new value of `content`
+      ;; FIXME: If new lang here, we need to restart from the
+      ;; beginning. ~= reset content to "" and (do-update! gen
+      ;; min-position 0 new-str). Because a new lang means a new
+      ;; lexer that could potentially tokenize anything and everything
+      ;; differently.
+      (maybe-refresh-lang-info content pos)  ;from new value of `content`
+
       (define diff (- (string-length new-str) old-len))
       ;; From where do we need to re-tokenize? This will be < the pos of
       ;; the change. Back up to the start of the previous token (plus any
@@ -149,8 +155,11 @@
         (match (token-ref (sub1 pos))
           [(list beg _end (token _ _ _ backup)) (- beg backup)]
           [#f pos]))
+      (set! updated-thru (sub1 beg))
+
       ;; Expand/contract the tokens and modes interval-maps.
-      (cond [(< 0 diff) (interval-map-expand!   tokens pos (+ pos diff))
+      (cond [(< 0 diff) (maybe-split-token! pos) ;for old/new compare
+                        (interval-map-expand!   tokens pos (+ pos diff))
                         (define orig-mode (interval-map-ref modes beg #f))
                         (interval-map-expand!   modes  beg (+ beg diff))
                         (interval-map-set!      modes  beg (+ beg diff) orig-mode)]
@@ -204,10 +213,11 @@
                ;; Update the main map, notify this actual change, and
                ;; definitely continue re-lexing.
                (interval-map-set! tokens beg end token)
-               (set! updated-thru end)
+               (set! updated-thru beg) ;not `end`, that's next token
                (when on-notify
-                 (on-notify 'token paren-matches beg end token))
+                 (on-notify 'token beg end token))
                #t])) ;continue
+
       (when on-notify (on-notify 'begin-update))
       (tokenize-string! beg set-interval)
       (set! updated-thru max-position)
@@ -229,36 +239,52 @@
             (when (set-interval beg end (token lexeme type paren backup))
               (tokenize-port! end new-mode))))))
 
+    ;; Runs on update thread; helper for do-update!
+    (define/private (maybe-split-token! pos)
+      (match (token-ref pos)
+        [(list beg end t)
+         (when (< beg pos)
+           (define lexeme (token-lexeme t))
+           (interval-map-set! tokens beg pos
+                              (struct-copy token t
+                                           [lexeme (substring lexeme 0 (- pos beg))]))
+           (interval-map-set! tokens pos end
+                              (struct-copy token t
+                                           [lexeme (substring lexeme (- pos beg))])))]
+        [#f (void)]))
+
     ;; This must be called from do-update! because the #lang in the
     ;; source could have changed and we might need new values for all
     ;; of these.
     (define last-lang-end-pos 1)
     (define/private (maybe-refresh-lang-info content pos)
-      (when (<= pos last-lang-end-pos)
-        (define in (open-input-string content))
-        (port-count-lines! in)
-        (define info (or (with-handlers ([values (λ _ #f)])
-                           (read-language in (λ _ #f)))
-                         (λ (_key default) default)))
-        (define-values (_line _col end-pos) (port-next-location in))
-        (set! last-lang-end-pos end-pos)
-        (set! lexer (info 'color-lexer (waive-option module-lexer)))
-        (set! paren-matches (info 'drracket:paren-matches default-paren-matches))
-        (set! quote-matches (info 'drracket:quote-matches default-quote-matches))
-        (set! grouping-position (info 'drracket:grouping-position #f))
-        (set! line-indenter (info 'drracket:indentation #f))
-        (set! range-indenter (info 'drracket:range-indentation #f))
-        (when on-notify
-          (on-notify
-           'lang
-           'paren-matches     (for/list ([v (in-list paren-matches)])
-                                  (cons (symbol->string (car v))
-                                        (symbol->string (cadr v))))
-           'quote-matches     (for/list ([c (in-list quote-matches)])
-                                  (string c))
-           'grouping-position (and grouping-position #t)
-           'line-indenter     (and line-indenter #t)
-           'range-indenter    (and range-indenter #t)))))
+      (cond [(<= pos last-lang-end-pos)
+             (define in (open-input-string content))
+             (port-count-lines! in)
+             (define info (or (with-handlers ([values (λ _ #f)])
+                                (read-language in (λ _ #f)))
+                              (λ (_key default) default)))
+             (define-values (_line _col end-pos) (port-next-location in))
+             (set! last-lang-end-pos end-pos)
+             (set! lexer (info 'color-lexer (waive-option module-lexer)))
+             (set! paren-matches (info 'drracket:paren-matches default-paren-matches))
+             (set! quote-matches (info 'drracket:quote-matches default-quote-matches))
+             (set! grouping-position (info 'drracket:grouping-position #f))
+             (set! line-indenter (info 'drracket:indentation #f))
+             (set! range-indenter (info 'drracket:range-indentation #f))
+             (when on-notify
+               (on-notify
+                'lang
+                'paren-matches     (for/list ([v (in-list paren-matches)])
+                                     (cons (symbol->string (car v))
+                                           (symbol->string (cadr v))))
+                'quote-matches     (for/list ([c (in-list quote-matches)])
+                                     (string c))
+                'grouping-position (and grouping-position #t)
+                'line-indenter     (and line-indenter #t)
+                'range-indenter    (and range-indenter #t)))
+             #t]
+            [else #f]))
 
     ;; Block until the updater thread has progressed through at least
     ;; a desired generation and also through a desired position.
@@ -325,8 +351,7 @@
                                      [(down forward) max-position]))
          (let loop ([pos (sub1 pos)] ;1.. -> 0..
                     [count count])
-           (define (failure-result) ;can't/didn't move
-             (call-with-values (λ () (get-token-range pos)) list))
+           (define (failure-result) #f) ;can't/didn't move
            (match (grouping-position this pos limit dir)
              [#f (failure-result)]
              [#t 'use-default-s-expression]
@@ -553,3 +578,4 @@
 (define default-quote-matches '(#\" #\|))
 
 (struct token (lexeme type paren backup) #:transparent)
+
