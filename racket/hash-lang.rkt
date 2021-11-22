@@ -12,7 +12,7 @@
          racket/class
          racket/contract/option
          racket/match
-         syntax-color/module-lexer)
+         (only-in syntax-color/module-lexer module-lexer*))
 
 (provide hash-lang%
          (struct-out token)
@@ -230,13 +230,13 @@
       (set-port-next-location! in 1 0 from) ;we don't use line/col, just pos
       (let tokenize-port! ([offset from]
                            [mode   (interval-map-ref modes from #f)])
-        (define-values (lexeme type paren beg end backup new-mode)
+        (define-values (lexeme attribs paren beg end backup new-mode)
           (lexer in offset mode))
         (unless (eof-object? lexeme)
           (interval-map-set! modes beg end mode)
           ;; Don't trust `lexeme`; instead get from the input string.
           (let ([lexeme (substring content (sub1 beg) (sub1 end))])
-            (when (set-interval beg end (token lexeme type paren backup))
+            (when (set-interval beg end (token lexeme attribs paren backup))
               (tokenize-port! end new-mode))))))
 
     ;; Runs on update thread; helper for do-update!
@@ -266,7 +266,7 @@
                               (λ (_key default) default)))
              (define-values (_line _col end-pos) (port-next-location in))
              (set! last-lang-end-pos end-pos)
-             (set! lexer (info 'color-lexer (waive-option module-lexer)))
+             (set! lexer (info 'color-lexer default-lexer))
              (set! paren-matches (info 'drracket:paren-matches default-paren-matches))
              (set! quote-matches (info 'drracket:quote-matches default-quote-matches))
              (set! grouping-position (info 'drracket:grouping-position #f))
@@ -408,7 +408,7 @@
           [_ (error who "lookup failed: ~e" (sub1 pos))])))
 
     (define/public (classify-position* pos)
-      (token-type (get-token 'classify-position* pos)))
+      (token-attribs (get-token 'classify-position* pos)))
 
     (define/public (classify-position pos)
       (define attribs (classify-position* pos))
@@ -573,9 +573,9 @@
   (and color-textoid<%>
        (make-hash-lang%-class)))
 
-(define default-lexer (waive-option module-lexer))
+(define default-lexer (waive-option module-lexer*))
 (define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
 (define default-quote-matches '(#\" #\|))
 
-(struct token (lexeme type paren backup) #:transparent)
+(struct token (lexeme attribs paren backup) #:transparent)
 
