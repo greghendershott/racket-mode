@@ -52,12 +52,15 @@
        (async-channel-put token-notify-channel
                           (list* 'hash-lang id v))]
       [(list 'token beg end token)
-       (define ht-or-type (token-type token))
-       (define type (if (symbol? ht-or-type)
-                        ht-or-type
-                        (hash-ref ht-or-type 'type 'unknown)))
+       (define types
+         (match (token-attribs token)
+           [(? symbol? s) (list s)]
+           [(? hash? ht)  (cons (hash-ref ht 'type 'unknown)
+                                (if (hash-ref ht 'comment? #f)
+                                    '(sexp-comment-body)
+                                    null))]))
        (async-channel-put token-notify-channel
-                          (list 'hash-lang id 'token beg end type))]
+                          (list 'hash-lang id 'token beg end types))]
       [v null])) ;ignore 'begin-update 'end-update
   (define obj (new hash-lang% [on-notify on-notify]))
   (hash-set! ht id obj)
@@ -84,7 +87,7 @@
 
 (define (classify id gen pos)
   (match-define (list beg end tok) (send (get-object id) classify gen pos))
-  (list beg end (token-type tok) (token-paren tok)))
+  (list beg end (token-attribs tok) (token-paren tok)))
 
 (define (grouping id gen pos dir limit count)
   (send (get-object id) grouping gen pos dir limit count))

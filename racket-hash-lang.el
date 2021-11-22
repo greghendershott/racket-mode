@@ -72,7 +72,7 @@ navigation or indent.
         (electric-indent-local-mode -1)
         (with-silent-modifications
           (remove-text-properties (point-min) (point-max)
-                                  '(face nil fontified nil syntax-table nil racket-token-type nil)))
+                                  '(face nil fontified nil syntax-table nil racket-token nil)))
 
         (setq-local racket--hash-lang-orig-font-lock-defaults
                     font-lock-defaults)
@@ -197,53 +197,66 @@ navigation or indent.
   (with-silent-modifications
     (cl-flet ((put-face (beg end face) (put-text-property beg end 'face face))
               (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
-      (pcase-let ((`(,beg ,end ,kind) token))
+      (pcase-let ((`(,beg ,end ,kinds) token))
         (remove-text-properties beg end
-                                '(face nil syntax-table nil racket-token-type nil))
-        ;; 'racket-token-type is just informational for me for debugging
-        (put-text-property beg end 'racket-token-type (symbol-name kind))
-        (pcase kind
-          ('parenthesis
-           (put-face beg end 'parenthesis))
-          ('comment
-           (put-stx beg (1+ beg) '(14)) ;generic comment
-           (put-stx (1- end) end '(14))
-           (let ((beg (1+ beg))    ;comment _contents_ if any
-                 (end (1- end)))
-             (when (< beg end)
-               (put-stx beg end (standard-syntax-table))))
-           (put-face beg end 'font-lock-comment-face))
-          ('sexp-comment
-           ;; This is just the "#;" prefix not the following sexp.
-           (put-stx beg end '(14)) ;generic comment
-           (put-face beg end 'font-lock-comment-face))
-          ('string
-           (put-face beg end 'font-lock-string-face))
-          ('text
-           (put-stx beg end (standard-syntax-table)))
-          ('constant
-           (put-stx beg end '(2)) ;word
-           (put-face beg end 'font-lock-constant-face))
-          ('error
-           (put-face beg end 'error))
-          ('symbol
-           (put-stx beg end '(3)) ;symbol
-           ;; TODO: Consider using default font here, because e.g.
-           ;; racket-lexer almost everything is "symbol" because
-           ;; it is an identifier. Meanwhile, using a non-default
-           ;; face here is helping me spot bugs.
-           (put-face beg end 'font-lock-variable-name-face))
-          ('keyword
-           (put-stx beg end '(2)) ;word
-           (put-face beg end 'font-lock-keyword-face))
-          ('hash-colon-keyword
-           (put-stx beg end '(2)) ;word
-           (put-face beg end 'racket-keyword-argument-face))
-          ('white-space
-           ;;(put-stx beg end '(0))
-           nil)
-          ('other
-           (put-stx beg end (standard-syntax-table))))))))
+                                '(face nil syntax-table nil racket-token nil))
+        ;; 'racket-token is just informational for me for debugging
+        (put-text-property beg end 'racket-token kinds)
+        (dolist (kind kinds)
+          (pcase kind
+            ('parenthesis
+             (put-face beg end 'parenthesis))
+            ('comment
+             ;; This is super important because, unlike paren-matches or
+             ;; quote-matches, where we can set up a char syntax-table
+             ;; entries (at least for single-character paren-matches)
+             ;; there is nothing like a "drracket:comment-matches". As a
+             ;; result, until the lexer applies these, various Emacs
+             ;; commands/modes won't know about comments. This also is a
+             ;; roadblock to changing what we're doing here to be just
+             ;; lazy font-lock instead of eagerly putting face props on
+             ;; the whole buffer.
+             (put-stx beg (1+ beg) '(11)) ;comment-start
+             (put-stx (1- end) end '(12)) ;comment-end
+             (let ((beg (1+ beg))         ;comment _contents_ if any
+                   (end (1- end)))
+               (when (< beg end)
+                 (put-stx beg end '14))) ;generic comment
+             (put-face beg end 'font-lock-comment-face))
+            ('sexp-comment
+             ;; This is just the "#;" prefix not the following sexp.
+             (put-stx beg end '(14))    ;generic comment
+             (put-face beg end 'font-lock-comment-face))
+            ('sexp-comment-body
+             (put-face beg end 'font-lock-comment-face))
+            ('string
+             (put-face beg end 'font-lock-string-face))
+            ('text
+             (put-stx beg end (standard-syntax-table)))
+            ('constant
+             (put-stx beg end '(2))     ;word
+             (put-face beg end 'font-lock-constant-face))
+            ('error
+             (put-face beg end 'error))
+            ('symbol
+             (put-stx beg end '(3))     ;symbol
+             ;; TODO: Consider using default font here, because e.g.
+             ;; racket-lexer almost everything is "symbol" because
+             ;; it is an identifier. Meanwhile, using a non-default
+             ;; face here is helping me spot bugs.
+             (put-face beg end 'font-lock-variable-name-face))
+            ('keyword
+             (put-stx beg end '(2))     ;word
+             (put-face beg end 'font-lock-keyword-face))
+            ('hash-colon-keyword
+             (put-stx beg end '(2))     ;word
+             (put-face beg end 'racket-keyword-argument-face))
+            ('white-space
+             ;;(put-stx beg end '(0))
+             nil)
+            ('other
+             ;;(put-stx beg end (standard-syntax-table))
+             nil)))))))
 
 (defun racket-hash-lang-indent-line-function ()
   "Maybe use #lang drracket:indentation, else `racket-indent-line'."
@@ -267,8 +280,6 @@ navigation or indent.
             (goto-char (- (point-max) pos))))
       (racket-indent-line))))
 
-;; TODO: Actually exercise/test this using some lang like rhombus that
-;; supplies drracket:range-indentation.
 (defun racket-hash-lang-indent-region-function (from upto)
   "Maybe use #lang drracket:range-indentation, else plain `indent-region'."
   (pcase (racket--cmd/await   ; await = :(
@@ -315,7 +326,7 @@ navigation or indent.
        (pcase direction
          ('backward (backward-sexp    count))
          ('forward  (forward-sexp     count))
-         ('up       (backward-up-list count))
+         ('up       (backward-up-list count t))
          ('down     (down-list        count))))
       (_ (user-error "Cannot move %s %s times" direction count)))))
 
