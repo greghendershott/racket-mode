@@ -12,6 +12,7 @@
          racket/class
          racket/contract/option
          racket/match
+         racket/set
          (only-in syntax-color/module-lexer module-lexer*))
 
 (provide hash-lang%
@@ -128,11 +129,38 @@
              (consume-update-chan)]))))
     (thread consume-update-chan)
 
+    ;; Allow threads to wait -- safely and without `sleep`ing -- for
+    ;; the updater thread to progress to a certain gen/pos. [Although
+    ;; I've never worked with "condition variables" that seems ~= the
+    ;; synchronization pattern here?]
+    (struct waiter (sema pred) #:transparent)
+    (define waiters-set (mutable-set)) ;(set/c waiter?)
+    (define waiters-sema (make-semaphore 1)) ;for modifying waiters-set
+    ;; Set the generation and updated-thru fields, and un-block
+    ;; threads waiting for them to reach certain values.
+    (define/private (set/signal-update-progress g p)
+      (call-with-semaphore waiters-sema
+                           (λ ()
+                             (set! generation g)
+                             (set! updated-thru p)
+                             (for ([w (in-set waiters-set)])
+                               (when ((waiter-pred w))
+                                 (semaphore-post (waiter-sema w)))))))
+    ;; Block until the updater thread has progressed through at least
+    ;; a desired generation and also through a desired position.
+    (define/public (block-until-updated-thru gen [pos max-position])
+      (define (pred) (and (<= gen generation) (<= pos updated-thru)))
+      (unless (call-with-semaphore waiters-sema pred)  ;fast path
+        (define pred-sema (make-semaphore 0))
+        (define w (waiter pred-sema pred))
+        (call-with-semaphore waiters-sema set-add! #f waiters-set w)
+        (semaphore-wait pred-sema) ;block
+        (call-with-semaphore waiters-sema set-remove! #f waiters-set w)))
+
     ;; Runs on updater thread.
     (define/private (do-update! gen pos old-len new-str)
       (invalidate-paragraph-info)
-      (set! updated-thru 0)
-      (set! generation gen)
+      (set/signal-update-progress gen 0)
       (set! content
             (string-append (substring content 0 (sub1 pos))
                            new-str
@@ -213,14 +241,13 @@
                ;; Update the main map, notify this actual change, and
                ;; definitely continue re-lexing.
                (interval-map-set! tokens beg end token)
-               (set! updated-thru beg) ;not `end`, that's next token
+               (set/signal-update-progress gen beg) ;not `end`, that's next token
                (when on-notify
                  (on-notify 'token beg end token))
                #t])) ;continue
-
       (when on-notify (on-notify 'begin-update))
       (tokenize-string! beg set-interval)
-      (set! updated-thru max-position)
+      (set/signal-update-progress gen max-position)
       (when on-notify (on-notify 'end-update)))
 
     ;; Runs on updater thread.
@@ -285,14 +312,6 @@
                 'range-indenter    (and range-indenter #t)))
              #t]
             [else #f]))
-
-    ;; Block until the updater thread has progressed through at least
-    ;; a desired generation and also through a desired position.
-    (define/public (block-until-updated-thru gen [pos max-position])
-      (unless (and (>= generation gen)
-                   (>= updated-thru pos))
-        (sleep 0.1) ;meh!
-        (block-until-updated-thru gen pos)))
 
     (define/public (classify gen pos)
       ;; (-> generation/c position/c (or/c #f (list/c position/c position/c))
