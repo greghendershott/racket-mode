@@ -341,7 +341,7 @@
     (define/private (invalidate-paragraph-info)
       (set! position-paragraphs #f)
       (set! paragraph-starts #f))
-    (define/public (validate-paragraph-info)
+    (define/private (validate-paragraph-info)
       (unless (and position-paragraphs paragraph-starts)
         (define-values (p-p p-s)
           (let loop ([pos 0] [para 0] [pos-para #hasheqv()] [para-pos #hasheqv((0 . 0))])
@@ -598,3 +598,67 @@
 
 (struct token (lexeme attribs paren backup) #:transparent)
 
+(module+ bench
+  (require racket/class
+           racket/file
+           framework)
+
+  (define (cpu-time proc)
+    (define-values (_results cpu _real _gc) (time-apply proc null))
+    cpu)
+
+  (define (bench-indent file [str (file->string file)])
+    (displayln "--------------------------------------------")
+    (displayln file)
+    (println (string-append (substring str 0 20) "..."))
+    ;; Create an object of our class.
+    (define o (new hash-lang% [on-notify void]))
+    (send o update! 1 1 0 str)
+    ;; Create an object of racket:text%, which also implements the
+    ;; color:text<%> interface. Since our class reads lang info to get
+    ;; things like the initial lexer and paren-matches, give those
+    ;; values from our object to color:text<%> `start-colorer`.
+    (define t (new racket:text%))
+    (send t start-colorer symbol->string (send o -get-lexer) (send o -get-paren-matches))
+    (send t insert str)
+    (send t freeze-colorer)
+    (send t thaw-colorer)
+
+    ;; Test speed of ours vs. racket:text%, when used for line indent
+    (define line-indent (send o -get-line-indenter))
+    (printf "line-indent: ~v\n" line-indent)
+    (when line-indent
+      (define (indent-all-lines t)
+        (for ([pos (in-range 0 (string-length str))])
+          (when (or (= pos 0)
+                    (char=? (string-ref str (sub1 pos)) #\newline))
+            (line-indent t pos))))
+      (define reps 1)
+      (define len (string-length str))
+      (define o-time (cpu-time (λ () (for ([_ reps]) (indent-all-lines o)))))
+      (define t-time (cpu-time (λ () (for ([_ reps]) (indent-all-lines t)))))
+      (define factor (inexact->exact (ceiling (/ (* 1.0 o-time) t-time))))
+      (printf "~v using our color-textoid<%>\n~v using racket:text%\n~vX\n"
+              o-time
+              t-time
+              factor))
+
+    ;; Test speed of ours vs racket:text%, when used for range indent
+    (define range-indent (send o -get-range-indenter))
+    (printf "range-indent: ~v\n" range-indent)
+    (when range-indent
+      (define len (string-length str))
+      (define reps 10)
+      (define o-time (cpu-time (λ () (for ([_ reps]) (range-indent o 0 len)))))
+      (define t-time (cpu-time (λ () (for ([_ reps]) (range-indent t 0 len)))))
+      (define factor (inexact->exact (ceiling (/ (* 1.0 o-time) t-time))))
+      (printf "~v using our color-textoid<%>\n~v using racket:text%\n~vX\n"
+              o-time
+              t-time
+              factor)))
+
+  (require net/url
+           racket/port)
+  (bench-indent "/home/greg/src/racket-lang/pkgs/racket-doc/scribblings/guide/class.scrbl")
+  (bench-indent "demo.rkt"
+                (call/input-url (string->url "https://raw.githubusercontent.com/mflatt/shrubbery-rhombus-0/master/demo.rkt") get-pure-port port->string)))
