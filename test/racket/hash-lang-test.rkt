@@ -441,19 +441,44 @@
                       (format "backward-containing-sexp ~v ~v in ~a" pos 0 what))))
 
     (when check-indent?
+      (define (cpu-time proc)
+        (define-values (_results cpu _real _gc) (time-apply proc null))
+        cpu)
+
       ;; Test that we supply enough color-text% methods, and that they
       ;; behave equivalently to those from racket-text%, as needed by a
       ;; lang-supplied drracket:indentation a.k.a. determine-spaces
       ;; function. (After all, this is our motivation to provide
       ;; text%-like methods; otherwise we wouldn't bother.)
-      (define determine-spaces (send o -get-line-indenter))
-      (when determine-spaces
+      (define line-indent (send o -get-line-indenter))
+      (when line-indent
         (for ([pos (in-range 0 (string-length str))])
           (when (or (= pos 0)
                     (char=? (string-ref str (sub1 pos)) #\newline))
-            (check-equal? (determine-spaces o pos)
-                          (determine-spaces t pos)
-                          (format "~v ~v in ~a" determine-spaces pos what)))))
+            (check-equal? (line-indent o pos)
+                          (line-indent t pos)
+                          (format "~v ~v in ~a" line-indent pos what)))))
+
+      ;; Test speed of ours vs. racket:text%, when used for line indent
+      (when line-indent
+        (define (indent-all-lines t)
+          (for ([pos (in-range 0 (string-length str))])
+            (when (or (= pos 0)
+                      (char=? (string-ref str (sub1 pos)) #\newline))
+              (line-indent t pos))))
+        (define reps 10)
+        (define len (string-length str))
+        (define o-time (cpu-time (λ () (for ([_ reps]) (indent-all-lines o)))))
+        (define t-time (cpu-time (λ () (for ([_ reps]) (indent-all-lines t)))))
+        (define factor 3)
+        (check-true (<= o-time (* factor t-time))
+                    (format "cpu-time of line-indenter using our color-textoid<%> is ~v vs. ~v using racket:text% -- ~vX but wanted ~vX"
+                            o-time
+                            t-time
+                            (/ (* 1.0 o-time) t-time)
+                            factor)))
+
+
       ;; Test range-indent.
       (define range-indent (send o -get-range-indenter))
       (when range-indent
@@ -461,10 +486,7 @@
         (check-equal? (range-indent o 0 len)
                       (range-indent t 0 len)))
 
-      ;; Test speed of ours vs racket:text%, when used for range-indent
-      (define (cpu-time proc)
-        (define-values (_results cpu _real _gc) (time-apply proc null))
-        cpu)
+      ;; Test speed of ours vs racket:text%, when used for range indent
       (when range-indent
         (define len (string-length str))
         (define reps 10)
@@ -472,10 +494,11 @@
         (define t-time (cpu-time (λ () (for ([_ reps]) (range-indent t 0 len)))))
         (define factor 3)
         (check-true (<= o-time (* factor t-time))
-                    (format "cpu-time of range-indenter using our color-textoid<%> is ~v, more than ~vX than when using racket:text% ~v"
+                    (format "cpu-time of range-indenter using our color-textoid<%> is ~v vs. ~v using racket:text%; ~vX but wanted ~vX"
                             o-time
-                            factor
-                            t-time)))))
+                            t-time
+                            (/ (* 1.0 o-time) t-time)
+                            factor)))))
 
   (let ([str "#lang racket\n(1) #(2) #hash((1 . 2))\n@racket[]{\n#(2)\n}\n"]
         ;;    0123456789012 345678901234567890123456 78901234567 89012 34
