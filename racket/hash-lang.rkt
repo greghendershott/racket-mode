@@ -182,7 +182,7 @@
       ;; with an existing token for preceding character(s).
       (define beg
         (match (token-ref (sub1 pos))
-          [(list beg _end (token _ _ _ backup)) (- beg backup)]
+          [(list beg _end (? token? t)) (- beg (token-backup t))]
           [#f pos]))
       (set! updated-thru (sub1 beg))
 
@@ -262,23 +262,16 @@
           (lexer in offset mode))
         (unless (eof-object? lexeme)
           (interval-map-set! modes beg end mode)
-          ;; Don't trust `lexeme`; instead get from the input string.
-          (let ([lexeme (lines:get-text content (sub1 beg) (sub1 end))])
-            (when (set-interval beg end (token lexeme attribs paren backup))
-              (tokenize-port! end new-mode))))))
+          (when (set-interval beg end (token attribs paren backup))
+            (tokenize-port! end new-mode)))))
 
     ;; Runs on update thread; helper for do-update!
     (define/private (maybe-split-token! pos)
       (match (token-ref pos)
         [(list beg end t)
          (when (< beg pos)
-           (define lexeme (token-lexeme t))
-           (interval-map-set! tokens beg pos
-                              (struct-copy token t
-                                           [lexeme (substring lexeme 0 (- pos beg))]))
-           (interval-map-set! tokens pos end
-                              (struct-copy token t
-                                           [lexeme (substring lexeme (- pos beg))])))]
+           (interval-map-set! tokens beg pos t)
+           (interval-map-set! tokens pos end t))]
         [#f (void)]))
 
     ;; This must be called from do-update! because the #lang in the
@@ -565,5 +558,5 @@
 (define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
 (define default-quote-matches '(#\" #\|))
 
-(struct token (lexeme attribs paren backup) #:transparent)
+(struct token (attribs paren backup) #:transparent)
 
