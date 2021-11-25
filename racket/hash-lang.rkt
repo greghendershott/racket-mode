@@ -13,7 +13,8 @@
          racket/contract/option
          racket/match
          racket/set
-         (only-in syntax-color/module-lexer module-lexer*))
+         (only-in syntax-color/module-lexer module-lexer*)
+         (prefix-in lines: "text-lines.rkt"))
 
 (provide hash-lang%
          (struct-out token)
@@ -54,7 +55,7 @@
     ;; both `new` and `update!` return immediately; all
     ;; (re)tokenization is handled uniformly on the dedicated updater
     ;; thread.
-    (define content           "")
+    (define content           lines:empty-text-lines)
     (define generation        0)
     (define tokens            (make-interval-map))
     (define modes             (make-interval-map))
@@ -69,7 +70,7 @@
     (define range-indenter    #f)
 
     ;; These accessor methods really intended just for tests
-    (define/public (-get-content) content)
+    (define/public (-get-content) (lines:get-text content 0))
     (define/public (-get-modes) modes)
     (define/public (-get-lexer) lexer)
     (define/public (-get-paren-matches) paren-matches)
@@ -159,18 +160,18 @@
 
     ;; Runs on updater thread.
     (define/private (do-update! gen pos old-len new-str)
-      (invalidate-paragraph-info)
       (set/signal-update-progress gen 0)
-      (set! content
-            (string-append (substring content 0 (sub1 pos))
-                           new-str
-                           (substring content (+ (sub1 pos) old-len))))
+      (when (< 0 old-len)
+        (set! content (lines:delete content (sub1 pos) (+ (sub1 pos) old-len))))
+      (when (< 0 (string-length new-str))
+        (set! content (lines:insert content (sub1 pos) new-str)))
+
       ;; FIXME: If new lang here, we need to restart from the
       ;; beginning. ~= reset content to "" and (do-update! gen
       ;; min-position 0 new-str). Because a new lang means a new
       ;; lexer that could potentially tokenize anything and everything
       ;; differently.
-      (maybe-refresh-lang-info content pos)  ;from new value of `content`
+      (maybe-refresh-lang-info pos)  ;from new value of `content`
 
       (define diff (- (string-length new-str) old-len))
       ;; From where do we need to re-tokenize? This will be < the pos of
@@ -252,7 +253,7 @@
 
     ;; Runs on updater thread.
     (define/private (tokenize-string! from set-interval)
-      (define in (open-input-string (substring content (sub1 from))))
+      (define in (open-input-string (lines:get-text content (sub1 from))))
       (port-count-lines! in) ;important for Unicode e.g. λ
       (set-port-next-location! in 1 0 from) ;we don't use line/col, just pos
       (let tokenize-port! ([offset from]
@@ -262,7 +263,7 @@
         (unless (eof-object? lexeme)
           (interval-map-set! modes beg end mode)
           ;; Don't trust `lexeme`; instead get from the input string.
-          (let ([lexeme (substring content (sub1 beg) (sub1 end))])
+          (let ([lexeme (lines:get-text content (sub1 beg) (sub1 end))])
             (when (set-interval beg end (token lexeme attribs paren backup))
               (tokenize-port! end new-mode))))))
 
@@ -284,9 +285,9 @@
     ;; source could have changed and we might need new values for all
     ;; of these.
     (define last-lang-end-pos 1)
-    (define/private (maybe-refresh-lang-info content pos)
+    (define/private (maybe-refresh-lang-info pos)
       (cond [(<= pos last-lang-end-pos)
-             (define in (open-input-string content))
+             (define in (open-input-string (lines:get-text content 0)))
              (port-count-lines! in)
              (define info (or (with-handlers ([values (λ _ #f)])
                                 (read-language in (λ _ #f)))
@@ -329,33 +330,6 @@
          (cons (proc v)
                (get-tokens gen end upto proc))]
         [_ '()]))
-
-    ;;; Paragraph/position info
-
-    ;; do-update! calls invalidate-paragraph-info; the textoid
-    ;; paragraph methods call validate-paragraph-info. In other words,
-    ;; we don't attempt to efficiently update it; we throw it away and
-    ;; rebuild if/as/when needed.
-    (define position-paragraphs #f)
-    (define paragraph-starts #f)
-    (define/private (invalidate-paragraph-info)
-      (set! position-paragraphs #f)
-      (set! paragraph-starts #f))
-    (define/private (validate-paragraph-info)
-      (unless (and position-paragraphs paragraph-starts)
-        (define-values (p-p p-s)
-          (let loop ([pos 0] [para 0] [pos-para #hasheqv()] [para-pos #hasheqv((0 . 0))])
-            (cond
-              [(= pos (string-length content))
-               (values (hash-set pos-para pos para) para-pos)]
-              [(char=? #\newline (string-ref content pos))
-               (loop (add1 pos) (add1 para)
-                     (hash-set pos-para pos para)
-                     (hash-set para-pos (add1 para) (add1 pos)))]
-              [else
-               (loop (add1 pos) para (hash-set pos-para pos para) para-pos)])))
-        (set! position-paragraphs p-p)
-        (set! paragraph-starts p-s)))
 
     ;;; Something for Emacs forward-sexp-function etc.
 
@@ -412,12 +386,12 @@
     ;;; methods.
 
     (define/public (get-character pos)
-      (if (< pos (string-length content))
-          (string-ref content pos)
+      (if (< pos (lines:text-length content))
+          (string-ref (lines:get-text content pos (add1 pos)) 0)
           #\nul))
 
     (define/public (get-text from upto)
-      (substring content from upto))
+      (lines:get-text content from upto))
 
     (define/private (get-token who pos)
       (let ([pos (add1 pos)])
@@ -444,27 +418,22 @@
         [_ (values #f #f)]))
 
     (define/public (last-position)
-      (string-length content))
+      (lines:text-length content))
 
     (define/public (get-backward-navigation-limit pos)
       0)
 
     (define/public (position-paragraph pos [eol? #f])
-      (validate-paragraph-info)
-      (or (hash-ref position-paragraphs pos #f)
-          (error 'position-paragraph "lookup failed: ~e" pos)))
+      (lines:position->line content pos))
 
     (define/public (paragraph-start-position para)
-      (validate-paragraph-info)
-      (or (hash-ref paragraph-starts para #f)
-          (error 'paragraph-start-position "lookup failed: ~e" para)))
+      (lines:line->start content (max 0 (min para (lines:text-line-count content)))))
 
     (define/public (paragraph-end-position para)
-      (validate-paragraph-info)
-      (define n (hash-ref paragraph-starts (add1 para) #f))
-      (if n
-          (sub1 n)
-          (last-position)))
+      (cond [(<= (lines:text-line-count content) (add1 para))
+             (lines:text-length content)]
+            [else
+             (sub1 (lines:line->start content (add1 para)))]))
 
     (define/public (backward-match pos cutoff)
       (backward-matching-search pos cutoff 'one))

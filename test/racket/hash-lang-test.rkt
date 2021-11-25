@@ -493,13 +493,16 @@
     (define-values (_results cpu _real _gc) (time-apply proc null))
     cpu)
 
-  (define (bench-indent file [str (file->string file)])
-    (displayln "Benchmark --------------------------------------------")
-    (displayln file)
+  (define (bench what str)
+    (newline)
+    (displayln (make-string 76 #\-))
+    (printf "BENCHMARK: ~v\n" what)
     (println (string-append (substring str 0 20) "..."))
+
     ;; Create an object of our class.
     (define o (new hash-lang% [on-notify void]))
     (send o update! 1 1 0 str)
+
     ;; Create an object of racket:text%, which also implements the
     ;; color:text<%> interface. Since our class reads lang info to get
     ;; things like the initial lexer and paren-matches, give those
@@ -510,39 +513,90 @@
     (send t freeze-colorer)
     (send t thaw-colorer)
 
-    ;; Test speed of ours vs. racket:text%, when used for line indent
-    (define line-indent (send o -get-line-indenter))
-    (printf "line-indent: ~v\n" line-indent)
-    (when line-indent
-      (define (indent-all-lines t)
-        (for ([pos (in-range 0 (string-length str))])
-          (when (or (= pos 0)
-                    (char=? (string-ref str (sub1 pos)) #\newline))
-            (line-indent t pos))))
-      (define reps 1)
-      (define len (string-length str))
-      (define o-time (cpu-time (λ () (for ([_ reps]) (indent-all-lines o)))))
-      (define t-time (cpu-time (λ () (for ([_ reps]) (indent-all-lines t)))))
-      (define factor (inexact->exact (ceiling (/ (* 1.0 o-time) t-time))))
-      (printf "~v using our color-textoid<%>\n~v using racket:text%\n~vX\n"
-              o-time
-              t-time
+    (define (compare what reps proc)
+      (newline)
+      (displayln what)
+      (define o-time (cpu-time (λ () (for ([_ reps]) (proc o)))))
+      (define t-time (cpu-time (λ () (for ([_ reps]) (proc t)))))
+      (define factor (/ (* 1.0 o-time) t-time))
+      (printf "~v ~v\n~v ~v\n~v times\n"
+              o-time o
+              t-time t
               factor))
 
-    ;; Test speed of ours vs racket:text%, when used for range indent
-    (define range-indent (send o -get-range-indenter))
-    (printf "range-indent: ~v\n" range-indent)
-    (when range-indent
-      (define len (string-length str))
-      (define reps 10)
-      (define o-time (cpu-time (λ () (for ([_ reps]) (range-indent o 0 len)))))
-      (define t-time (cpu-time (λ () (for ([_ reps]) (range-indent t 0 len)))))
-      (define factor (inexact->exact (ceiling (/ (* 1.0 o-time) t-time))))
-      (printf "~v using our color-textoid<%>\n~v using racket:text%\n~vX\n"
-              o-time
-              t-time
-              factor)))
+    (compare "paragraph methods"
+             10
+             (λ (t)
+               (for ([pos (in-range 0 (string-length str))])
+                 (define para (send t position-paragraph pos))
+                 (send t paragraph-start-position para)
+                 (send t paragraph-end-position para))))
 
-  (bench-indent "/home/greg/src/racket-lang/pkgs/racket-doc/scribblings/guide/class.scrbl")
-  (bench-indent "demo.rkt"
-                (call/input-url (string->url "https://raw.githubusercontent.com/mflatt/shrubbery-rhombus-0/master/demo.rkt") get-pure-port port->string)))
+    (compare "classify-position*"
+             10
+             (λ (t)
+               (for ([pos (in-range 0 (string-length str))])
+                 (send t classify-position* pos))))
+
+    (compare "get-token-range"
+             10
+             (λ (t)
+               (for ([pos (in-range 0 (string-length str))])
+                 (send t get-token-range pos))))
+
+    (compare "skip-whitespace 'forward"
+             10
+             (λ (t)
+               (for ([pos (in-range 0 (string-length str))])
+                 (send t skip-whitespace pos 'forward #t))))
+    (compare "skip-whitespace 'backward"
+             10
+             (λ (t)
+               (for ([pos (in-range 0 (string-length str))])
+                 (send t skip-whitespace pos 'backward #t))))
+
+    (compare "backward-match"
+             1
+             (λ (t)
+               (for ([pos (in-range 0 (string-length str))])
+                 (send t backward-match pos 0))))
+    (compare "forward-match"
+             1
+             (λ (t)
+               (define lp (send t last-position))
+               (for ([pos (in-range 0 (string-length str))])
+                 (send t forward-match pos lp))))
+
+    (compare "backward-containing-sexp"
+             1
+             (λ (t)
+               (for ([pos (in-range 0 (string-length str) 1000)])
+                 (send t backward-containing-sexp pos 0))))
+
+    (define line-indent (send o -get-line-indenter))
+    (when line-indent
+      (compare line-indent
+               1
+               (λ (t)
+                 (for ([pos (in-range 0 (string-length str))])
+                   (when (or (= pos 0)
+                             (char=? (string-ref str (sub1 pos)) #\newline))
+                     (line-indent t pos))))))
+
+    (define range-indent (send o -get-range-indenter))
+    (when range-indent
+      (compare range-indent
+               10
+               (λ (t) (range-indent t 0 (string-length str))))))
+
+  (displayln (make-string 76 #\=))
+
+  (let* ([file "/home/greg/src/racket-lang/pkgs/racket-doc/scribblings/guide/class.scrbl"]
+         [str  (file->string file)])
+    (bench file str))
+
+  (let* ([uri "https://raw.githubusercontent.com/mflatt/shrubbery-rhombus-0/master/demo.rkt"]
+         [str (call/input-url (string->url uri) get-pure-port port->string)])
+    (bench uri str))
+
+  (newline))
