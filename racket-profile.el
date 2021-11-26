@@ -94,10 +94,14 @@ delete compiled/*.zo files."
                                       (max width-name  (length name))))
                               filtered
                               `(5 5 4))))
-      (setq tabulated-list-format `[("Calls"  ,width-calls t :right-align t)
-                                    ("Msec"   ,width-msec  t :right-align t)
-                                    ("Name"   ,width-name  t)
-                                    ("Source"  99          t)])
+      (cl-flet ((sort-pred (col) (lambda (a b)
+                                   (< (string-to-number (aref (cadr a) col))
+                                      (string-to-number (aref (cadr b) col))))))
+        (setq tabulated-list-format
+              `[("Calls"  ,width-calls ,(sort-pred 0) :right-align t)
+                ("Msec"   ,width-msec  ,(sort-pred 1) :right-align t)
+                ("Name"   ,width-name  t)
+                ("Source" 99           t)]))
       (setq tabulated-list-entries
             (seq-map (pcase-lambda (`(,calls ,msec ,name ,file ,beg ,end))
                        (let* ((simplified-file
