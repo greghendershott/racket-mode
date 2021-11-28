@@ -1,19 +1,12 @@
 #lang racket/base
 
-(require (only-in data/interval-map
-                  make-interval-map
-                  interval-map-set!
-                  interval-map-ref
-                  interval-map-ref/bounds ;added data-lib 1.1 / Racket 6.12
-                  interval-map-remove!
-                  interval-map-expand!
-                  interval-map-contract!)
-         racket/async-channel
+(require racket/async-channel
          racket/class
          racket/contract/option
          racket/match
          racket/set
          (only-in syntax-color/module-lexer module-lexer*)
+         syntax-color/token-tree
          (prefix-in lines: "text-lines.rkt"))
 
 (provide hash-lang%
@@ -46,6 +39,11 @@
   (with-handlers ([exn:fail? (λ _ #f)])
     (dynamic-require 'syntax-color/color-textoid 'color-textoid<%>)))
 
+;; Some of this inherited from /src/racket-lang/racket/share/pkgs/gui-lib/framework/private
+
+(struct token (attribs paren) #:transparent)
+(struct data token (backup mode) #:transparent)
+
 (define (make-hash-lang%-class)
   (class* object% (color-textoid<%>)
     (super-new)
@@ -57,10 +55,19 @@
     ;; thread.
     (define content           lines:empty-text-lines)
     (define generation        0)
-    (define tokens            (make-interval-map))
-    (define modes             (make-interval-map))
+
+    ;; Instead of multiple lexer-state structs, do one, directly, for now.
+    (define up-to-date? #t)
+    (define tokens (new token-tree%)) ;valid tokens
+    (define invalid-tokens (new token-tree%))
+    (define invalid-tokens-beg max-position)
+    (define invalid-tokens-mode #f)
+    (define current-pos min-position) ;pos of next token to be read
+    (define current-mode #f)
+
     (define update-chan       (make-async-channel))
-    (define updated-thru      0)
+    ;; (define updated-thru      0) instead see invalid-tokens-beg
+
     ;; These members correspond to various lang-info items.
     (define lexer             default-lexer)
     (define paren-matches     default-paren-matches)
@@ -71,7 +78,7 @@
 
     ;; These accessor methods really intended just for tests
     (define/public (-get-content) (lines:get-text content 0))
-    (define/public (-get-modes) modes)
+    (define/public (-get-modes) null)
     (define/public (-get-lexer) lexer)
     (define/public (-get-paren-matches) paren-matches)
     (define/public (-get-quote-matches) quote-matches)
@@ -79,15 +86,25 @@
     (define/public (-get-line-indenter) line-indenter)
     (define/public (-get-range-indenter) range-indenter)
 
+    ;; just for debugging
+    (define/public (-show-tree)
+      (send tokens for-each
+            (λ (beg len dat) (println (vector beg (+ beg len) dat)))))
+
     (define/public (delete)
       (async-channel-put update-chan 'quit))
+
+    (define/private (get-tokens-at-position pos)
+      (send tokens search! pos))
 
     ;; (or/c #f position/c) -> (or/c #f (list/c position/c position/c token?))
     (define/private (token-ref pos)
       (and pos
-           (let-values ([(beg end tok) (interval-map-ref/bounds tokens pos #f)])
-             (and tok
-                  (list beg end tok)))))
+           (begin
+             (send tokens search! pos)
+             (list (send tokens get-root-start-position)
+                         (send tokens get-root-end-position)
+                         (send tokens get-root-data)))))
 
     ;; This method is safe to call from various threads.
     ;;
@@ -130,6 +147,13 @@
              (consume-update-chan)]))))
     (thread consume-update-chan)
 
+    ;;;; NOTE: Probably the semaphore needs to guard ALL reads/writes
+    ;;;; from the token-tree, due to it being a splay tree (any search
+    ;;;; mutates the tree to move an element to the top). So even if
+    ;;;; it was fine (?) to do interval-map-ref for some pos < the
+    ;;;; point where it was being updated, that certainly won't be
+    ;;;; fine for a splay tree.
+
     ;; Allow threads to wait -- safely and without `sleep`ing -- for
     ;; the updater thread to progress to a certain gen/pos. [Although
     ;; I've never worked with "condition variables" that seems ~= the
@@ -143,14 +167,14 @@
       (call-with-semaphore waiters-sema
                            (λ ()
                              (set! generation g)
-                             (set! updated-thru p)
+                             (set! invalid-tokens-beg p)
                              (for ([w (in-set waiters-set)])
                                (when ((waiter-pred w))
                                  (semaphore-post (waiter-sema w)))))))
     ;; Block until the updater thread has progressed through at least
     ;; a desired generation and also through a desired position.
     (define/public (block-until-updated-thru gen [pos max-position])
-      (define (pred) (and (<= gen generation) (<= pos updated-thru)))
+      (define (pred) (and (<= gen generation) (< pos invalid-tokens-beg)))
       (unless (call-with-semaphore waiters-sema pred)  ;fast path
         (define pred-sema (make-semaphore 0))
         (define w (waiter pred-sema pred))
@@ -163,8 +187,10 @@
       (set/signal-update-progress gen 0)
       (when (< 0 old-len)
         (set! content (lines:delete content (sub1 pos) (+ (sub1 pos) old-len))))
-      (when (< 0 (string-length new-str))
+      (define new-len (string-length new-str))
+      (when (< 0 new-len)
         (set! content (lines:insert content (sub1 pos) new-str)))
+      (define diff (- new-len old-len))
 
       ;; FIXME: If new lang here, we need to restart from the
       ;; beginning. ~= reset content to "" and (do-update! gen
@@ -173,106 +199,130 @@
       ;; differently.
       (maybe-refresh-lang-info pos)  ;from new value of `content`
 
-      (define diff (- (string-length new-str) old-len))
-      ;; From where do we need to re-tokenize? This will be < the pos of
-      ;; the change. Back up to the start of the previous token (plus any
-      ;; `backup` amount the lexer may have supplied for that token) to
-      ;; ensure re-lexing enough such that e.g. appending a character does
-      ;; not create a separate token when instead it should be combined
-      ;; with an existing token for preceding character(s).
-      (define beg
-        (match (token-ref (sub1 pos))
-          [(list beg _end (? token? t)) (- beg (token-backup t))]
-          [#f pos]))
-      (set! updated-thru (sub1 beg))
-
-      ;; Expand/contract the tokens and modes interval-maps.
-      (cond [(< 0 diff) (maybe-split-token! pos) ;for old/new compare
-                        (interval-map-expand!   tokens pos (+ pos diff))
-                        (define orig-mode (interval-map-ref modes beg #f))
-                        (interval-map-expand!   modes  beg (+ beg diff))
-                        (interval-map-set!      modes  beg (+ beg diff) orig-mode)]
-            [(< diff 0) (interval-map-contract! tokens pos (- pos diff))
-                        (interval-map-contract! modes  beg (- beg diff))])
-      ;; We want to detect tokens that did not change other than their
-      ;; position being shifted by `diff`. When we've encountered enough
-      ;; of those, we can conclude the re-lex has converged back to the
-      ;; original lex and we need not continue further -- saving
-      ;; potentially a huge amount of time/work.
-      ;;
-      ;; Because we are modifying the tokens interval-map, we can't rely
-      ;; on it to obtain the "old" picture -- maybe we overwrote some of
-      ;; the old. A naive idea is to copy the entire original interval-map
-      ;; to an `old-tokens` map, but this can be extremely slow for large
-      ;; maps.
-      ;;
-      ;; Instead use a "backup on write" approach. Populate `old-tokens`
-      ;; as/when we modify the main map. Then to do `diff`-shift-only
-      ;; compares, consult `old-tokens` first, else use the main map.
-      (define old-tokens (make-interval-map))
-      (define merely-shifted-count 0)
-      (define merely-shifted-goal 3) ;2 b/c beg from prev token; +1 to be safe
-      (define (set-interval beg end token)
-        ;; If the "shadow" old-tokens interval-map has values, use those,
-        ;; else use the main interval-map.
-        (define-values (old-beg old-end old-token)
-          (let-values ([(old-beg old-end old-tok) (interval-map-ref/bounds old-tokens beg #f)])
-            (if (and old-beg old-end old-tok)
-                (values old-beg old-end old-tok)
-                (interval-map-ref/bounds tokens beg #f))))
-        (cond [;; If there's no difference, possibly stop re-lexing.
-               (and old-beg old-end old-token
-                    (= old-beg beg)
-                    (= old-end end)
-                    (equal? old-token token))
-               (set! merely-shifted-count (add1 merely-shifted-count))
-               (define continue? (< merely-shifted-count merely-shifted-goal))
-               continue?]
-              [else
-               ;; "Backup" the original interval(s) in the "shadow"
-               ;; `old-tokens` map. Do so with the positions shifted by
-               ;; `diff`, to simplify lookup and compares, above.
-               (let loop ([n beg])
-                 (define-values (old-beg old-end old-token)
-                   (interval-map-ref/bounds tokens n #f))
-                 (when (and old-beg old-end old-token)
-                   (interval-map-set! old-tokens (+ old-beg diff) (+ old-end diff) old-token)
-                   (when (< old-end end)
-                     (loop old-end))))
-               ;; Update the main map, notify this actual change, and
-               ;; definitely continue re-lexing.
-               (interval-map-set! tokens beg end token)
-               (set/signal-update-progress gen beg) ;not `end`, that's next token
-               (when on-notify
-                 (on-notify 'token beg end token))
-               #t])) ;continue
       (when on-notify (on-notify 'begin-update))
-      (tokenize-string! beg set-interval)
-      (set/signal-update-progress gen max-position)
-      (when on-notify (on-notify 'end-update)))
+      (insert/delete pos (+ pos (max old-len new-len)) diff)
+      (when on-notify (on-notify 'end-update))
+      (set/signal-update-progress gen max-position))
 
     ;; Runs on updater thread.
-    (define/private (tokenize-string! from set-interval)
-      (define in (open-input-string (lines:get-text content (sub1 from))))
-      (port-count-lines! in) ;important for Unicode e.g. λ
-      (set-port-next-location! in 1 0 from) ;we don't use line/col, just pos
-      (let tokenize-port! ([offset from]
-                           [mode   (interval-map-ref modes from #f)])
-        (define-values (lexeme attribs paren beg end backup new-mode)
-          (lexer in offset mode))
-        (unless (eof-object? lexeme)
-          (interval-map-set! modes beg end mode)
-          (when (set-interval beg end (token attribs paren backup))
-            (tokenize-port! end new-mode)))))
+    (define/private (insert/delete edit-start-pos edit-end-pos change-length)
+      (unless up-to-date?
+        (sync-invalid))
+      (cond
+        [up-to-date?
+         (let-values ([(orig-token-start orig-token-end valid-tree invalid-tree orig-data)
+                       (split-backward edit-start-pos tokens)])
+           (set! invalid-tokens invalid-tree)
+           (set! tokens valid-tree)
+           (set! invalid-tokens-beg
+            (if (send invalid-tokens is-empty?)
+                max-position
+                (+ orig-token-end change-length)))
+           (set! invalid-tokens-mode (and orig-data (data-mode orig-data)))
+           (let ([start orig-token-start])
+             (set! current-pos start)
+             (set! current-mode
+                   (if (or (not orig-data) (= start min-position))
+                       #f
+                       (begin
+                         (send valid-tree search-max!)
+                         (data-mode (send valid-tree get-root-data))))))
+           (set! up-to-date? #f)
+           ;;(update-lexer-state-observers)
+           )]
+        [(and (>= edit-end-pos min-position)
+              (> edit-end-pos current-pos))
+         (let-values (((tok-start tok-end valid-tree invalid-tree orig-data)
+                       (split-backward edit-end-pos invalid-tokens)))
+           (set! invalid-tokens invalid-tree)
+           (set! invalid-tokens-beg (+ tok-end change-length))
+           (set! invalid-tokens-mode (and orig-data (data-mode orig-data))))]
+        [(> edit-start-pos min-position)
+         (set! invalid-tokens-beg (+ invalid-tokens-beg change-length))]
+        [else
+         (let-values (((tok-start tok-end valid-tree invalid-tree data)
+                       (split-backward edit-start-pos tokens)))
+           (set! tokens valid-tree)
+           (set! invalid-tokens-beg (+ invalid-tokens-beg change-length))
+           (let ([start tok-start])
+             (set! current-pos start)
+             (set! current-mode
+                   (if (or (not data) (= start min-position))
+                       #f
+                       (begin
+                         (send valid-tree search-max!)
+                         (data-mode (send valid-tree get-root-data)))))))])
+      (re-tokenize))
 
-    ;; Runs on update thread; helper for do-update!
-    (define/private (maybe-split-token! pos)
-      (match (token-ref pos)
-        [(list beg end t)
-         (when (< beg pos)
-           (interval-map-set! tokens beg pos t)
-           (interval-map-set! tokens pos end t))]
-        [#f (void)]))
+    ;; Discard extra tokens at the first of invalid-tokens
+    (define/private (sync-invalid)
+      (when (and (not (send invalid-tokens is-empty?))
+                 (< invalid-tokens-beg current-pos))
+        (send invalid-tokens search-min!)
+        (let* ([length (send invalid-tokens get-root-length)]
+               [data (send invalid-tokens get-root-data)]
+               [_ (println data)]
+               [mode (and data (data-mode data))])
+          (send invalid-tokens remove-root!)
+          (set! invalid-tokens-beg (+ invalid-tokens-beg length))
+          (set! invalid-tokens-mode mode))
+        (sync-invalid)))
+
+    (define/private (split-backward pos valid-tokens)
+      (let loop ([pos pos][valid-tree valid-tokens][old-invalid-tree #f])
+        (let-values (((orig-token-start orig-token-end valid-tree invalid-tree orig-data)
+                      (send valid-tree split/data pos)))
+          (println (list "split-backward loop" orig-token-start orig-token-end valid-tree invalid-tree orig-data))
+          (let ([backup-pos (- pos (data-backup orig-data))]
+                [invalid-tree (or old-invalid-tree invalid-tree)])
+            (if (< backup-pos pos)
+                ;; back up more:
+                (loop pos valid-tree invalid-tree)
+                ;; that was far enough:
+                (values orig-token-start orig-token-end valid-tree invalid-tree orig-data))))))
+
+    (define/private (re-tokenize)
+      ;; FIXME: Same as maybe-refresh-lang-info
+      (define in (open-input-string (lines:get-text content 0)))
+      (port-count-lines! in)
+      (continue-re-tokenize in current-pos current-mode))
+
+    (define/private (continue-re-tokenize in in-start-pos lexer-mode)
+      (define-values (_line1 _col1 pos-before) (port-next-location in))
+      (define-values (lexeme attribs paren new-token-start new-token-end
+                             backup-delta new-lexer-mode)
+        (lexer in in-start-pos lexer-mode))
+      (define-values (_line2 _col2 pos-after) (port-next-location in))
+      (cond
+        [(eq? 'eof attribs)
+         (set! up-to-date? #t)
+         ;;(re-tokenize)
+         ]
+        [else
+         (let ([len (- new-token-end new-token-start)])
+           (set! current-pos (+ current-pos len))
+           (set! current-mode new-lexer-mode)
+           (sync-invalid)
+           ;; insert-last! is 3X slower than insert-last-spec!
+           (insert-last-spec! tokens
+                              len
+                              (data attribs paren backup-delta new-lexer-mode))
+           (when on-notify
+             (on-notify 'token
+                        new-token-start
+                        new-token-end
+                        (token attribs paren backup-delta)))
+           (cond
+             [(and (not (send tokens is-empty?))
+                   (= invalid-tokens-beg current-pos)
+                   (equal? new-lexer-mode invalid-tokens-mode))
+              (send invalid-tokens search-max!)
+              (insert-last! tokens invalid-tokens)
+              (set! invalid-tokens-beg max-position)
+              (set! up-to-date? #t)
+              (re-tokenize)]
+             [else
+              (continue-re-tokenize in in-start-pos new-lexer-mode)]))]))
 
     ;; This must be called from do-update! because the #lang in the
     ;; source could have changed and we might need new values for all
@@ -280,6 +330,9 @@
     (define last-lang-end-pos 1)
     (define/private (maybe-refresh-lang-info pos)
       (cond [(<= pos last-lang-end-pos)
+             ;; FIXME: Don't do lines:get-text into one huge string.
+             ;; Instead, do something like `open-input-text-editor` at
+             ;; line 23 of ~/src/racket-lang/racket/share/pkgs/gui-lib/mred/private/snipfile.rkt.
              (define in (open-input-string (lines:get-text content 0)))
              (port-count-lines! in)
              (define info (or (with-handlers ([values (λ _ #f)])
@@ -558,5 +611,34 @@
 (define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
 (define default-quote-matches '(#\" #\|))
 
-(struct token (attribs paren backup) #:transparent)
+(module+ ex
+  (define t (new hash-lang% [on-notify (λ as (println as))]))
+  (send t update! 1 1 0 "hi")
+  (send t -show-tree)
+  ;(send t update! 2 3 0 "de")
+  )
 
+(module+ m
+  (require syntax-color/token-tree)
+  (define (get-token t pos)
+    (send t search! pos)
+    (values (send t get-root-start-position)
+            (send t get-root-end-position)
+            (send t get-root-data)))
+  (define (show-tree t)
+    (send t for-each (λ (beg len dat) (println (vector beg (+ beg len) dat)))))
+  (define t (new token-tree%))
+  (insert-last-spec! t 10 "foo")
+  (insert-last-spec! t 20 "bar")
+  (insert-last-spec! t 10 "baz")
+  (displayln "=== t ===")
+  (show-tree t)
+  ;;(println (call-with-values (λ () (get-token t 0)) list))
+  (define-values (beg end t1 t2) (send t split 15))
+  (displayln "=== t1 ===")
+  (println beg)
+  (show-tree t1)
+  (displayln "=== t2 ===")
+  (println end)
+  (show-tree t2)
+  )
