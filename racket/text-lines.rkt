@@ -16,6 +16,7 @@
          insert              ; t position str -> t, detecting "\n"
          delete              ; t start-position end-position -> t
          get-text            ; t start-position end-position -> string
+         open-input-text     ; t start-position -> input-port
 
          position->start     ; t position -> position of line start
          position->line      ; t position -> line number
@@ -632,3 +633,35 @@
     (random-create-test))
 
   (void))
+
+;; Provenance: framework/mred/private/snipfile.rkt
+(require (only-in racket/port make-input-port/read-to-peek))
+(define (open-input-text t [start 0])
+  (unless (text-lines? t)
+    (raise-argument-error 'open-input-text "text-lines?" t))
+  (unless (exact-nonnegative-integer? start)
+    (raise-argument-error 'open-input-text "exact-nonnegative-integer?" start))
+  (define end (text-length t))
+  (define-values (pipe-r pipe-w) (make-pipe))
+  (make-input-port/read-to-peek
+   t
+   (lambda (s)
+     (let ([v (read-bytes-avail!* s pipe-r)])
+       (if (eq? v 0)
+           (let ([n (min 4096 (- end start))])
+             (if (zero? n)
+                 (begin
+                   (close-output-port pipe-w)
+                   eof)
+                 (begin
+                   (write-string (get-text t start (+ start n)) pipe-w)
+                   (set! start (+ start n))
+                   (let ([ans (read-bytes-avail!* s pipe-r)])
+                     ans))))
+           v)))
+   (lambda (s skip general-peek)
+     (let ([v (peek-bytes-avail!* s skip #f pipe-r)])
+       (if (eq? v 0)
+           (general-peek s skip)
+           v)))
+   void))

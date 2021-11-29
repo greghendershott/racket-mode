@@ -1,7 +1,5 @@
 #lang racket/base
 
-;; Bridge for Emacs to use hash-lang%
-
 (require racket/async-channel
          racket/class
          racket/match
@@ -11,12 +9,13 @@
 (provide hash-lang
          token-notify-channel)
 
-;; TODO:
+;; Bridge for Emacs to use hash-lang%
 ;;
-;; - Use drracket:quote-matches (?).
+;; - Reference hash-lang% objects by string ID.
 ;;
-;; - Default to module-lexer* not module-lexer?? IIUC the main difference
-;;   is that token type can be a hash-table instead of a symbol.
+;; - Adjust Emacs 1-based positions to/from hash-lang% 0-based.
+;;
+;; - Handle notifications about new #lang and changed tokens.
 
 (define (hash-lang . args)
   (unless hash-lang%
@@ -64,7 +63,7 @@
       [v null])) ;ignore 'begin-update 'end-update
   (define obj (new hash-lang% [on-notify on-notify]))
   (hash-set! ht id obj)
-  (send obj update! 1 1 0 s))
+  (send obj update! 1 0 0 s))
 
 (define (delete id)
   (match (hash-ref ht id #f)
@@ -73,24 +72,26 @@
          (hash-remove! ht id)]))
 
 (define (update id gen pos old-len str)
-  (send (get-object id) update! gen pos old-len str))
+  (send (get-object id) update! gen (sub1 pos) old-len str))
 
 (define (indent-amount id gen pos)
   (with-time/log "hash-lang indent-amount"
-    (send (get-object id) indent-line-amount gen pos)))
+    (send (get-object id) indent-line-amount gen (sub1 pos))))
 
 (define (indent-region-amounts id gen from upto)
   (with-time/log "hash-lang indent-region-amounts"
-    (match (send (get-object id) indent-region-amounts gen from upto)
+    (match (send (get-object id) indent-region-amounts gen (sub1 from) (sub1 upto))
       [#f 'false] ;avoid Elisp nil/`() punning problem
       [v v])))
 
 (define (classify id gen pos)
-  (match-define (list beg end tok) (send (get-object id) classify gen pos))
-  (list beg end (token-attribs tok) (token-paren tok)))
+  (match-define (list beg end tok) (send (get-object id) classify gen (sub1 pos)))
+  (list (add1 beg) (add1 end) (token-attribs tok) (token-paren tok)))
 
 (define (grouping id gen pos dir limit count)
-  (send (get-object id) grouping gen pos dir limit count))
+  (match (send (get-object id) grouping gen (sub1 pos) dir limit count)
+    [(? number? n) (add1 n)]
+    [v v]))
 
 (module+ example-0
   (define id 0)
