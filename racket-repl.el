@@ -1029,8 +1029,9 @@ The command varies based on how many \\[universal-argument] command prefixes you
 
 (defconst racket--compilation-error-regexp-alist
   (list
-   ;; Any apparent file:line[:.]col
-   (list (rx (group-n 1 (+? (not (syntax whitespace))))
+   ;; Any apparent file:line[:.]col optionally prefaced by #<syntax:
+   (list (rx (optional "#<syntax:")
+             (group-n 1 (+? (not (syntax whitespace))))
              ?\:
              (group-n 2 (+ digit))
              (any ?\: ?\.)
