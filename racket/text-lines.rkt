@@ -643,25 +643,30 @@
     (raise-argument-error 'open-input-text "exact-nonnegative-integer?" start))
   (define end (text-length t))
   (define-values (pipe-r pipe-w) (make-pipe))
-  (make-input-port/read-to-peek
-   t
-   (lambda (s)
-     (let ([v (read-bytes-avail!* s pipe-r)])
-       (if (eq? v 0)
-           (let ([n (min 4096 (- end start))])
-             (if (zero? n)
-                 (begin
-                   (close-output-port pipe-w)
-                   eof)
-                 (begin
-                   (write-string (get-text t start (+ start n)) pipe-w)
-                   (set! start (+ start n))
-                   (let ([ans (read-bytes-avail!* s pipe-r)])
-                     ans))))
-           v)))
-   (lambda (s skip general-peek)
-     (let ([v (peek-bytes-avail!* s skip #f pipe-r)])
-       (if (eq? v 0)
-           (general-peek s skip)
-           v)))
-   void))
+  (define in (make-input-port/read-to-peek
+              t
+              (lambda (s)
+                (let ([v (read-bytes-avail!* s pipe-r)])
+                  (if (eq? v 0)
+                      (let ([n (min 4096 (- end start))])
+                        (if (zero? n)
+                            (begin
+                              (close-output-port pipe-w)
+                              eof)
+                            (begin
+                              (write-string (get-text t start (+ start n)) pipe-w)
+                              (set! start (+ start n))
+                              (let ([ans (read-bytes-avail!* s pipe-r)])
+                                ans))))
+                      v)))
+              (lambda (s skip general-peek)
+                (let ([v (peek-bytes-avail!* s skip #f pipe-r)])
+                  (if (eq? v 0)
+                      (general-peek s skip)
+                      v)))
+              void))
+  (port-count-lines! in) ;important for Unicode e.g. λ
+  ;; Set position, which is 1-based. Lazy: Line and column are N/A and
+  ;; always set to 1 and 0.
+  (set-port-next-location! in 1 0 (add1 start))
+  in)
