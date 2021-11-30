@@ -101,20 +101,24 @@
                     (51 5 (,racket-lexer* . ,(void))))
                   "racket-lexer* used for #lang racket")
     (check-equal? (test-update! o 2 51 5 "'bar")
-                  '((51 52 constant #f)
+                  '((50 51 white-space #f)
+                    (51 52 constant #f)
                     (52 55 symbol #f)))
     (check-equal? (test-update! o 3 46 4 "'bar")
                   '()
                   "Although lexeme changed from 'foo' to 'bar', the token bounds did not change nor did the type 'symbol nor the backup")
 
     (check-equal? (test-update! o 4 23 7 "'hell")
-                  '((23 24 constant #f)
+                  '((22 23 white-space #f)
+                    (23 24 constant #f)
                     (24 28 symbol #f)))
     (check-equal? (test-update! o 5 13 2 "99999")
                   '((13 18 constant #f)))
     ;; Double check final result of the edits
     (check-equal? (send o -get-content)
                   "#lang racket\n99999 (print 'hell) @print{Hello} 'bar 'bar")
+    ;;             0123456789012 34567890123456789012345678901234567890123456
+    ;;                       1          2         3         4         5
     (check-equal? (send o get-tokens)
                   (list
                    (list  0 12 (token 'other #f))
@@ -336,23 +340,25 @@
                    (list 16 17 (token 'parenthesis '\))))))
 
   (let* ([str "#lang racket\n#hash\n"]
-         ;;    1234567890123 456789
-         ;;             1
+         ;;    0123456789012 3456789
+         ;;              1
          [o (test-create str)])
-    (check-equal? (send o classify 1 14)
+    (check-equal? (send o classify 1 13)
                   (list 13 18 (token 'error #f)))
     (check-equal? (test-update! o 2 18 0 "(")
-                  '((14 20 parenthesis \())
+                  '((13 19 parenthesis \())
                   "Adding parens after #hash re-lexes from an error to an open")
-    (check-equal? (send o classify 2 14)
-                  (list 14 20 (token 'parenthesis '\())))
+    (check-equal? (send o classify 2 13)
+                  (list 13 19 (token 'parenthesis '\())))
 
   (let* ([str "#lang racket\n\n(1 2)"]
-         ;;    1234567890123 4 56789
-         ;;             1
+         ;;    0123456789012 3 456789
+         ;;              1
          [o (test-create str)])
     (check-equal? (test-update! o 2 13 0 "(")
-                  '((13 14 parenthesis \())
+                  '((12 13 white-space #f)
+                    (13 14 parenthesis \()
+                    (14 15 white-space #f))
                   "Update that splits an existing token does not produce execessive notifications.")
     (check-equal? (test-update! o 3 13 0 ")")
                   '((13 14 parenthesis \)))))

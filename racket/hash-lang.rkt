@@ -86,9 +86,13 @@
     (define/public (-get-range-indenter) range-indenter)
 
     ;; just for debugging
-    (define/public (-show-tree)
-      (send tokens for-each
-            (λ (beg len dat) (println (vector beg (+ beg len) dat)))))
+    (define/public (-show-tree msg t [offset 0])
+      (displayln msg)
+      (send t for-each
+            (λ (-beg len dat)
+              (define beg (+ -beg offset))
+              (define end (+ beg len))
+              (println (vector beg end (lines:get-text content beg end) dat)))))
 
     (define/public (delete)
       (async-channel-put update-chan 'quit))
@@ -188,6 +192,7 @@
       (define new-len (string-length new-str))
       (when (< 0 new-len)
         (set! content (lines:insert content pos new-str)))
+      (define diff (- new-len old-len))
 
       ;; FIXME: If new lang here, we need to restart from the
       ;; beginning. ~= reset content to "" and (do-update! gen
@@ -203,34 +208,61 @@
       ;; not create a separate token when instead it should be combined
       ;; with an existing token for preceding character(s).
       (define-values (tokenize-from mode)
-        (values 0 #f) ;; HACK FOR NOW
-        #;
         (match (token-ref (sub1 pos))
           [(list beg _end (struct* token:private ([backup backup] [mode mode])))
            (values (- beg backup) mode)]
           [#f (values pos #f)]))
       (set! updated-thru (sub1 tokenize-from))
+      (define-values (t1 t2)
+        (call-with-semaphore tokens-sema
+                             (λ ()
+                               (send tokens search! tokenize-from)
+                               (send tokens split-before))))
 
+      ;; (printf "tokenize-from ~v\n" tokenize-from)
+      ;; (printf "diff ~v old-len ~v\n" diff old-len)
+      ;; (-show-tree "t1" t1)
+      ;; (-show-tree "t2" t2)
+
+      (set! tokens t1)
       (define in (lines:open-input-text content tokenize-from))
-      (port-count-lines! in) ;important for Unicode e.g. λ
-      (define file-pos (add1 tokenize-from)) ;port locations are 1..
-      (set-port-next-location! in 1 0 file-pos) ;we don't use line/col, just pos
-      (set! tokens (new token-tree%)) ;; HACK FOR NOW redo from scratch
       (when on-notify (on-notify 'begin-update))
-      (let tokenize ([offset file-pos] [mode mode])
-        (define-values (lexeme attribs paren beg end backup new-mode)
-          (lexer in offset mode))
+      (let tokenize ([pos tokenize-from] [mode mode] [contig-same-count 0])
+        (define pos/port (add1 pos))
+        (define-values (lexeme attribs paren beg/port end/port backup new-mode)
+          (lexer in pos/port mode))
         (unless (eof-object? lexeme)
-          (call-with-semaphore tokens-sema
-                               insert-last-spec!
-                               #f
-                               tokens
-                               (- end beg)
-                               (token:private attribs paren backup new-mode))
-          (when on-notify
-            (on-notify 'token (sub1 beg) (sub1 end) (token attribs paren)))
-          ;; HACK FOR NOW: Don't try to stop early
-          (tokenize end new-mode)))
+          (define new-beg (sub1 beg/port))
+          (define new-end (sub1 end/port))
+          (define new-span (- new-end new-beg))
+          (define new-tok (token:private attribs paren backup new-mode))
+          (call-with-semaphore tokens-sema insert-last-spec! #f
+                               tokens new-span new-tok)
+          (set/signal-update-progress gen (sub1 new-end))
+
+          ;; Detect whether same as before
+          (send t2 search! (- new-beg tokenize-from diff))
+          (define orig-beg (send t2 get-root-start-position))
+          (define orig-end (send t2 get-root-end-position))
+          (define orig-span (- orig-end orig-beg))
+          (define orig-tok (send t2 get-root-data))
+          (define same? (and (equal? new-span orig-span)
+                             (equal? new-tok orig-tok)))
+          (unless same?
+            (when on-notify
+              (on-notify 'token new-beg new-end (token attribs paren))))
+          (cond
+            [(= contig-same-count 3) ;; stop
+             (send t2 search! orig-beg)
+             (define-values (_ tail) (send t2 split-after))
+             ;; (-show-tree "tokens prior to append" tokens)
+             ;; (-show-tree "tail append" tail new-end)
+             (call-with-semaphore tokens-sema insert-last! #f
+                                  tokens tail)]
+            [else ;; continue
+             (tokenize new-end
+                       new-mode
+                       (if same? (add1 contig-same-count) 0))])))
       (when on-notify (on-notify 'end-update))
       (set/signal-update-progress gen max-position))
 
@@ -241,7 +273,6 @@
     (define/private (maybe-refresh-lang-info pos)
       (cond [(<= pos last-lang-end-pos)
              (define in (lines:open-input-text content 0))
-             (port-count-lines! in)
              (define info (or (with-handlers ([values (λ _ #f)])
                                 (read-language in (λ _ #f)))
                               (λ (_key default) default)))
@@ -520,38 +551,9 @@
 (define default-quote-matches '(#\" #\|))
 
 (module+ ex
-  (define t (new hash-lang% [on-notify (λ as (println as))]))
-  (send t update! 1 0 0 "hi")
-  (send t -show-tree)
-  (send t update! 2 2 0 "de")
-  (send t -show-tree)
-  (send t classify 2 0)
-  (send t get-tokens 2)
-  )
+  (define t (new hash-lang% [on-notify (λ as (println (cons 'NOTIFY as)))]))
+  (send t update! 1 0 0 "#lang racket\n\n(1 2)")
+  (send t get-tokens)
+  (send t update! 2 13 0 "(")
+  (send t get-tokens))
 
-(module+ m
-  (require syntax-color/token-tree)
-  (define (get-token t pos)
-    (send t search! pos)
-    (values (send t get-root-start-position)
-            (send t get-root-end-position)
-            (send t get-root-data)))
-  (define (show-tree desc t)
-    (printf "~a: " desc)
-    (send t for-each (λ (beg len dat) (print (vector beg (+ beg len) dat))))
-    (newline))
-  (define t (new token-tree%))
-  (insert-last-spec! t 10 "foo")
-  (insert-last-spec! t 20 "bar")
-  (insert-last-spec! t 10 "baz")
-  (show-tree "t before split" t)
-  (define-values (beg end t1 t2 data) (send t split/data 15))
-  (display "split/data values: ") (println (list beg end t1 t2 data))
-  (show-tree "t after split" t)
-  (show-tree "t1" t1)
-  (show-tree "t2" t2)
-  (insert-last-spec! t1 (- end beg) data)
-  (show-tree "t1 after insert" t1)
-  (insert-last! t1 t2)
-  (show-tree "t1 after insert-last! t2" t1)
-  )
