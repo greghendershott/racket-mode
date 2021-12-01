@@ -7,6 +7,8 @@
          racket/set
          (only-in syntax-color/module-lexer module-lexer*)
          syntax-color/token-tree
+         syntax-color/paren-tree
+         syntax/parse/define
          (prefix-in lines: "text-lines.rkt"))
 
 (provide hash-lang%
@@ -42,6 +44,19 @@
 (struct token (attribs paren) #:transparent) ;public
 (struct token:private token (backup mode) #:transparent) ;private
 
+(define (attribs->type attribs)
+  (if (symbol? attribs)
+      attribs
+      (hash-ref attribs 'type 'unknown)))
+
+(define (attribs->table attribs)
+  (if (symbol? attribs)
+      (hasheq 'type attribs)
+      attribs))
+
+(define-simple-macro (with-semaphore sema e:expr ...+)
+  (call-with-semaphore sema (λ () e ...)))
+
 (define (make-hash-lang%-class)
   (class* object% (color-textoid<%>)
     (super-new)
@@ -55,6 +70,8 @@
     (define content     lines:empty-text-lines)
     (define tokens      (new token-tree%))
     (define tokens-sema (make-semaphore 1))
+    (define parens      (new paren-tree% [matches default-paren-matches]))
+    (define parens-sema (make-semaphore 1))
 
     (define update-chan  (make-async-channel))
     (define updated-thru (sub1 min-position))
@@ -78,6 +95,7 @@
               (set! modes (cons (list beg end (token:private-mode data))
                                 modes))))
       (reverse modes))
+    (define/public (-get-parens) parens)
     (define/public (-get-lexer) lexer)
     (define/public (-get-paren-matches) paren-matches)
     (define/public (-get-quote-matches) quote-matches)
@@ -98,15 +116,14 @@
       (async-channel-put update-chan 'quit))
 
     ;; position/c -> (or/c #f (list/c position/c position/c token?))
+    ;;
+    ;; Note: This is not thread safe without taking tokens-sema.
     (define/private (token-ref pos)
-      (call-with-semaphore
-       tokens-sema
-       (λ ()
-         (send tokens search! pos)
-         (define beg (send tokens get-root-start-position))
-         (define end (send tokens get-root-end-position))
-         (and (<= beg pos) (< pos end)
-              (list beg end (send tokens get-root-data))))))
+      (send tokens search! pos)
+      (define beg (send tokens get-root-start-position))
+      (define end (send tokens get-root-end-position))
+      (and (<= beg pos) (< pos end)
+           (list beg end (send tokens get-root-data))))
 
     ;; This method is safe to call from various threads.
     ;;
@@ -149,13 +166,6 @@
              (consume-update-chan)]))))
     (thread consume-update-chan)
 
-    ;;;; NOTE: Probably the semaphore needs to guard ALL reads/writes
-    ;;;; from the token-tree, due to it being a splay tree (any search
-    ;;;; mutates the tree to move an element to the top). So even if
-    ;;;; it was fine (?) to do interval-map-ref for some pos < the
-    ;;;; point where it was being updated, that certainly won't be
-    ;;;; fine for a splay tree.
-
     ;; Allow threads to wait -- safely and without `sleep`ing -- for
     ;; the updater thread to progress to a certain gen/pos. [Although
     ;; I've never worked with "condition variables" that seems ~= the
@@ -166,13 +176,12 @@
     ;; Set the generation and updated-thru fields, and un-block
     ;; threads waiting for them to reach certain values.
     (define/private (set/signal-update-progress g p)
-      (call-with-semaphore waiters-sema
-                           (λ ()
-                             (set! generation g)
-                             (set! updated-thru p)
-                             (for ([w (in-set waiters-set)])
-                               (when ((waiter-pred w))
-                                 (semaphore-post (waiter-sema w)))))))
+      (with-semaphore waiters-sema
+        (set! generation g)
+        (set! updated-thru p)
+        (for ([w (in-set waiters-set)])
+          (when ((waiter-pred w))
+            (semaphore-post (waiter-sema w))))))
     ;; Block until the updater thread has progressed through at least
     ;; a desired generation and also through a desired position.
     (define/public (block-until-updated-thru gen [pos max-position])
@@ -180,9 +189,9 @@
       (unless (call-with-semaphore waiters-sema pred)  ;fast path
         (define pred-sema (make-semaphore 0))
         (define w (waiter pred-sema pred))
-        (call-with-semaphore waiters-sema set-add! #f waiters-set w)
+        (with-semaphore waiters-sema (set-add! waiters-set w))
         (semaphore-wait pred-sema) ;block
-        (call-with-semaphore waiters-sema set-remove! #f waiters-set w)))
+        (with-semaphore waiters-sema (set-remove! waiters-set w))))
 
     ;; Runs on updater thread.
     (define/private (do-update! gen pos old-len new-str)
@@ -208,23 +217,32 @@
       ;; not create a separate token when instead it should be combined
       ;; with an existing token for preceding character(s).
       (define-values (tokenize-from mode)
-        (match (token-ref (sub1 pos))
+        (match (with-semaphore tokens-sema (token-ref (sub1 pos)))
           [(list beg _end (struct* token:private ([backup backup] [mode mode])))
            (values (- beg backup) mode)]
           [#f (values pos #f)]))
       (set! updated-thru (sub1 tokenize-from))
-      (define-values (t1 t2)
-        (call-with-semaphore tokens-sema
-                             (λ ()
-                               (send tokens search! tokenize-from)
-                               (send tokens split-before))))
-
       ;; (printf "tokenize-from ~v\n" tokenize-from)
       ;; (printf "diff ~v old-len ~v\n" diff old-len)
-      ;; (-show-tree "t1" t1)
-      ;; (-show-tree "t2" t2)
 
-      (set! tokens t1)
+      ;; Split the token and paren trees. We'll definitely keep the
+      ;; first portion, before the update; it becomes our new value
+      ;; for `tokens`. We'll use the second portion to detect whether
+      ;; the update is producing enough same tokens to just keep it
+      ;; from such point to the end.
+      (define old-tokens (with-semaphore tokens-sema
+                           (send tokens search! tokenize-from)
+                           (define-values (t1 t2) (send tokens split-before))
+                           (set! tokens t1)
+                           t2))
+      ;; (-show-tree "tokens" tokens)
+      ;; (-show-tree "old-tokens" old-tokens)
+
+      (with-semaphore parens-sema
+        (send parens split-tree tokenize-from))
+      ;;(local-require racket/pretty)
+      ;;(pretty-print (cons 'parens-after-split (send parens test)))
+
       (define in (lines:open-input-text content tokenize-from))
       (when on-notify (on-notify 'begin-update))
       (let tokenize ([pos tokenize-from] [mode mode] [contig-same-count 0])
@@ -236,33 +254,37 @@
           (define new-end (sub1 end/port))
           (define new-span (- new-end new-beg))
           (define new-tok (token:private attribs paren backup new-mode))
-          (call-with-semaphore tokens-sema insert-last-spec! #f
-                               tokens new-span new-tok)
+          (with-semaphore tokens-sema (insert-last-spec! tokens new-span new-tok))
+          (with-semaphore parens-sema (send parens add-token paren new-span))
           (set/signal-update-progress gen (sub1 new-end))
 
-          ;; Detect whether same as before
-          (send t2 search! (- new-beg tokenize-from diff))
-          (define orig-beg (send t2 get-root-start-position))
-          (define orig-end (send t2 get-root-end-position))
-          (define orig-span (- orig-end orig-beg))
-          (define orig-tok (send t2 get-root-data))
-          (define same? (and (equal? new-span orig-span)
-                             (equal? new-tok orig-tok)))
+          ;; Detect whether same as before (maybe just shifted)
+          (send old-tokens search! (- new-beg tokenize-from diff))
+          (define old-beg (send old-tokens get-root-start-position))
+          (define old-end (send old-tokens get-root-end-position))
+          (define old-span (- old-end old-beg))
+          (define old-tok (send old-tokens get-root-data))
+          (define same? (and (equal? new-span old-span)
+                             (equal? new-tok old-tok)))
           (unless same?
             (when on-notify
               (on-notify 'token new-beg new-end (token attribs paren))))
+          (define contig-same-goal 3)
           (cond
-            [(= contig-same-count 3) ;; stop
-             (send t2 search! orig-beg)
-             (define-values (_ tail) (send t2 split-after))
+            [(= (add1 contig-same-count) contig-same-goal) ;; stop early
+             (send old-tokens search! old-beg)
+             (define-values (_ keep) (send old-tokens split-after))
              ;; (-show-tree "tokens prior to append" tokens)
-             ;; (-show-tree "tail append" tail new-end)
-             (call-with-semaphore tokens-sema insert-last! #f
-                                  tokens tail)]
-            [else ;; continue
-             (tokenize new-end
-                       new-mode
-                       (if same? (add1 contig-same-count) 0))])))
+             ;; (-show-tree "old tokens to append" keep new-end)
+             (with-semaphore tokens-sema (insert-last! tokens keep))
+
+             ;; (pretty-print (cons 'parens-before-merge (send parens test)))
+             (define paren-keep-span (- (last-position) new-end))
+             ;; (printf "paren-keep-span: ~v\n" paren-keep-span)
+             (with-semaphore parens-sema (send parens merge-tree paren-keep-span))
+             ;; (pretty-print (cons 'parens-after-merge (send parens test)))
+             ]
+            [else (tokenize new-end new-mode (+ contig-same-count (if same? 1 0)))])))
       (when on-notify (on-notify 'end-update))
       (set/signal-update-progress gen max-position))
 
@@ -284,6 +306,7 @@
              (set! grouping-position (info 'drracket:grouping-position #f))
              (set! line-indenter (info 'drracket:indentation #f))
              (set! range-indenter (info 'drracket:range-indentation #f))
+             (set! parens (new paren-tree% [matches paren-matches]))
              (when on-notify
                (on-notify
                 'lang
@@ -301,7 +324,7 @@
     (define/public (classify gen pos)
       ;; (-> generation/c position/c (or/c #f (list/c position/c position/c token?))
       (block-until-updated-thru gen pos)
-      (match (token-ref pos)
+      (match (with-semaphore tokens-sema (token-ref pos))
         [(list beg end (token attribs paren)) ;slice off token:private
          (list beg end (token attribs paren))]
         [#f #f]))
@@ -311,13 +334,19 @@
                                [upto max-position])
       (block-until-updated-thru gen upto)
       (let loop ([pos from])
-        (match (token-ref pos)
+        (match (with-semaphore tokens-sema (token-ref pos))
           [(list beg end (token attribs paren))
            (cons (list beg end (token attribs paren))
                  (loop end))]
           [#f null])))
 
-    ;;; Something for Emacs forward-sexp-function etc.
+    ;;; Methods for Emacs navigation and indent.
+    ;;;
+    ;;; These take tokens-sema for the dynamic extent of our call to a
+    ;;; grouper/indenter to which we give ourselves as an instance of
+    ;;; a color-textoid<%>. That way, for speed, the textoid methods
+    ;;; below do NOT take the semaphore when they access the tokens
+    ;;; or parens trees.
 
     (define/public (grouping gen pos dir limit count)
       (cond
@@ -331,7 +360,9 @@
          (let loop ([pos pos]
                     [count count])
            (define (failure-result) #f) ;can't/didn't move
-           (match (grouping-position this pos limit dir)
+           (match (with-semaphore tokens-sema
+                    (with-semaphore parens-sema
+                      (grouping-position this pos limit dir)))
              [#f (failure-result)]
              [#t 'use-default-s-expression]
              [(? number? new-pos)
@@ -339,19 +370,21 @@
                     [(= new-pos pos) (failure-result)]
                     [else new-pos])]))]))
 
-    ;;; Indent
-
     (define/public (indent-line-amount gen pos)
       (cond [(not line-indenter) #f]
             [else
              (block-until-updated-thru gen pos)
-             (line-indenter this pos)]))
+             (with-semaphore tokens-sema
+               (with-semaphore parens-sema
+                 (line-indenter this pos)))]))
 
     (define/public (indent-region-amounts gen from upto)
       (cond [(not range-indenter) #f]
             [else
              (block-until-updated-thru gen upto)
-             (range-indenter this from upto)]))
+             (with-semaphore tokens-sema
+               (with-semaphore parens-sema
+                 (range-indenter this from upto)))]))
 
     ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
     ;;;
@@ -360,16 +393,21 @@
     ;;; Needed by drracket:indentation, drracket:range-indentation,
     ;;; drracket:grouping-positon.
     ;;;
-    ;;; 1. These use 0-based positions, not 1-based like the rest of
-    ;;; our code.
-    ;;;
-    ;;; 2. Obviously these method signatures do not include any
+    ;;; Obviously these method signatures do not include any
     ;;; generation argument. However that should be OK because they're
     ;;; called only indirectly, via indent-line-amount or
     ;;; indent-region-amounts (which do take an expected generation
     ;;; and block if necessary), which call drracket:indentation or
     ;;; drracket:range-indentation supplying this object for these
     ;;; methods.
+    ;;;
+    ;;; Similarly these do not call block-until-updated-thru or take
+    ;;; the tokens or parens semaphores, beause they will be called
+    ;;; only via the dynamic extent of one of the three methods just
+    ;;; above this section.
+
+    (define/public (last-position)
+      (lines:text-length content))
 
     (define/public (get-character pos)
       (if (< pos (lines:text-length content))
@@ -378,35 +416,6 @@
 
     (define/public (get-text from upto)
       (lines:get-text content from upto))
-
-    (define/private (get-token who pos)
-      (match (or (token-ref pos)
-                 (token-ref (sub1 pos))) ;make end position work
-        [(list _ _ (? token? token)) token]
-        [_ (error who "lookup failed: ~e" pos)]))
-
-    (define/public (classify-position* pos)
-      (token-attribs (get-token 'classify-position* pos)))
-
-    (define/public (classify-position pos)
-      (define attribs (classify-position* pos))
-      (if (symbol? attribs)
-          attribs
-          (hash-ref attribs 'type 'unknown)))
-
-    (define/private (get-paren pos)
-      (token-paren (get-token 'get-paren pos)))
-
-    (define/public (get-token-range pos)
-      (match (token-ref pos)
-        [(list from upto _token) (values from upto)]
-        [_ (values #f #f)]))
-
-    (define/public (last-position)
-      (lines:text-length content))
-
-    (define/public (get-backward-navigation-limit pos)
-      0)
 
     (define/public (position-paragraph pos [eol? #f])
       (lines:position->line content pos))
@@ -420,127 +429,115 @@
             [else
              (sub1 (lines:line->start content (add1 para)))]))
 
-    (define/public (backward-match pos cutoff)
-      (backward-matching-search pos cutoff 'one))
+    (define/public (classify-position* position)
+      (send tokens search! position)
+      (match (send tokens get-root-data)
+        [(? token? t) (attribs->table (token-attribs t))]
+        [#f #f]))
 
-    (define/public (backward-containing-sexp pos cutoff)
-      (backward-matching-search pos cutoff 'all))
+    (define/public (classify-position position)
+      (send tokens search! position)
+      (match (send tokens get-root-data)
+        [(? token? t) (attribs->type (token-attribs t))]
+        [#f #f]))
 
-    (define/private (backward-matching-search init-pos cutoff mode)
-      (define start-pos (if (and (eq? mode 'all)
-                                 (init-pos . <= . cutoff))
-                            cutoff
-                            (sub1 init-pos)))
-      (let loop ([pos start-pos]
-                 [depth (if (eq? mode 'one) -1 0)]
-                 [need-close? (eq? mode 'one)])
+    (define/public (get-token-range position)
+      (send tokens search! position)
+      (values (send tokens get-root-start-position)
+              (send tokens get-root-end-position)))
+
+    (define/public (get-backward-navigation-limit pos)
+      0)
+
+    (define/public (backward-match position cutoff)
+      (let ((x (internal-backward-match position cutoff)))
         (cond
-          [(pos . < . cutoff) #f]
-          [else
-           (define-values (s e) (get-token-range pos))
-           (define (atom)
-             (if need-close?
-                 s
-                 (loop (sub1 s) depth #f)))
-           (define sym (get-paren s))
-           (cond
-             [sym
-              (let paren-loop ([parens paren-matches])
-                (cond
-                  [(null? parens)
-                   ;; treat an unrecognized parenthesis like an atom
-                   (atom)]
-                  [(eq? sym (caar parens))
-                   (and (not need-close?)
-                        (if (= depth 0)
-                            (cond
-                              [(eq? mode 'all)
-                               ;; color:text% method skips back over whitespace, but
-                               ;; doesn't go beyond the starting position
-                               (min (skip-whitespace e 'forward #f)
-                                    init-pos)]
-                              [else s])
-                            (loop (sub1 s) (sub1 depth) #f)))]
-                  [(eq? sym (cadar parens))
-                   (cond
-                     [(e . > . init-pos)
-                      ;; started in middle of closer
-                      (if (eq? mode 'one)
-                          s
-                          (loop (sub1 s) depth #f))]
-                     [else (loop (sub1 s) (add1 depth) #f)])]
-                  [else
-                   (paren-loop (cdr parens))]))]
-             [else
-              (define category (classify-position pos))
-              (case category
-                [(white-space comment)
-                 (loop (sub1 s) depth need-close?)]
-                [else (atom)])])])))
+          ((or (eq? x 'open) (eq? x 'beginning)) #f)
+          (else x))))
 
-    (define/public (forward-match pos cutoff)
-      (let loop ([pos pos] [depth 0])
-        (define-values (s e) (get-token-range pos))
+    (define/private (internal-backward-match position cutoff)
+      (let ([position (skip-whitespace position 'backward #t)])
+        (define-values (start end error) (send parens match-backward position))
         (cond
-          [(not s) #f]
+          [(and start end (not error))
+           (let ((match-pos start))
+             (cond
+               ((>= match-pos cutoff) match-pos)
+               (else #f)))]
+          [(and start end error) #f]
           [else
-           (define sym (get-paren s))
-           (define (atom)
-             (if (zero? depth)
-                 e ;; didn't find paren to match, so finding token end
-                 (loop e depth)))
+           (send tokens search! (sub1 position))
+           (define tok-start (send tokens get-root-start-position))
            (cond
-             [sym
-              (let paren-loop ([parens paren-matches])
-                (cond
-                  [(null? parens)
-                   ;; treat an unrecognized parenthesis like an atom
-                   (atom)]
-                  [(eq? sym (caar parens))
-                   (if (eqv? pos s) ; don't count the middle of a parenthesis token
-                       (loop e (add1 depth))
-                       e)]
-                  [(eq? sym (cadar parens))
-                   (cond
-                     [(depth . <= . 0) #f]
-                     [(depth . = . 1) e]
-                     [else (loop e (sub1 depth))])]
-                  [else
-                   (paren-loop (cdr parens))]))]
+             [(send parens is-open-pos? tok-start)
+              'open]
+             [(= tok-start position)
+              'beginning]
              [else
-              (define category (classify-position pos))
-              (case category
-                [(white-space comment) (loop e depth)]
-                [else (atom)])])])))
+              tok-start])])))
 
-    (define/public (skip-whitespace pos dir comments?)
-      (define (skip? category)
-        (or (eq? category 'white-space)
-            (and comments? (eq? category 'comment))))
-      (case dir
-        [(forward)
-         (let loop ([pos pos])
-           (define category (classify-position pos))
+    (define/public (backward-containing-sexp position cutoff)
+      (let loop ((cur-pos position))
+        (let ((p (internal-backward-match cur-pos cutoff)))
+          (cond
+            ((eq? 'open p)
+             ;; Should this function skip backwards past whitespace?
+             ;; the docs seem to indicate it does, but it doesn't
+             ;; really
+             cur-pos)
+            ((eq? 'beginning p) #f)
+            ((not p) #f)
+            (else (loop p))))))
+
+    (define/public (forward-match position cutoff)
+      (do-forward-match position cutoff #t))
+
+    (define/private (do-forward-match position cutoff skip-whitespace?)
+      (let ([position
+             (if skip-whitespace?
+                 (skip-whitespace position 'forward #t)
+                 position)])
+        (define-values (start end error) (send parens match-forward position))
+        (cond
+          [(and start end (not error))
            (cond
-             [(skip? category)
-              (define-values (s e) (get-token-range pos))
-              (if e
-                  (loop e)
-                  pos)]
-             [else pos]))]
-        [(backward)
-         (cond
-           [(zero? pos) 0]
-           [else
-            (let loop ([pos (sub1 pos)] [end-pos pos])
-              (define category (classify-position pos))
-              (cond
-                [(skip? category)
-                 (define-values (s e) (get-token-range pos))
-                 (loop (sub1 s) s)]
-                [else end-pos]))])]
+             [(<= end cutoff) end]
+             [else #f])]
+          [(and start end error) #f]
+          [else
+           (skip-past-token position)])))
+
+    (define/private (skip-past-token position)
+      (send tokens search! position)
+      (define start (send tokens get-root-start-position))
+      (define end (send tokens get-root-end-position))
+      (cond
+        [(or (send parens is-close-pos? start)
+             (= end position))
+         #f]
+        [else end]))
+
+    (define/public (skip-whitespace position direction comments?)
+      (cond
+        [(and (eq? direction 'forward) (>= position (last-position))) position]
+        [(and (eq? direction 'backward) (<= position 0)) position]
         [else
-         (error 'skip-whitespace "bad direction: ~e" dir)]))))
+         (send tokens search! (if (eq? direction 'backward)
+                                  (sub1 position)
+                                  position))
+         (match (send tokens get-root-data)
+           [(? token? tok)
+            (define type (attribs->type (token-attribs tok)))
+            (cond
+              [(or (eq? 'white-space type)
+                   (and comments? (eq? 'comment type)))
+               (skip-whitespace (if (eq? direction 'forward)
+                                    (send tokens get-root-end-position)
+                                    (send tokens get-root-start-position))
+                                direction
+                                comments?)]
+              [else position])]
+           [#f position])]))))
 
 (define hash-lang%
   (and color-textoid<%>
@@ -551,9 +548,63 @@
 (define default-quote-matches '(#\" #\|))
 
 (module+ ex
-  (define t (new hash-lang% [on-notify (λ as (println (cons 'NOTIFY as)))]))
-  (send t update! 1 0 0 "#lang racket\n\n(1 2)")
-  (send t get-tokens)
-  (send t update! 2 13 0 "(")
-  (send t get-tokens))
+  (define t (new hash-lang% [on-notify void #;(λ as (println (cons 'NOTIFY as)))
+                                       ]))
+  (define (match-forward pos)
+    (call-with-values (λ () (send (send t -get-parens) match-forward pos)) list))
+  (define (match-backward pos)
+    (call-with-values (λ () (send (send t -get-parens) match-backward pos)) list))
+  (send t update! 1 0 0 "#lang racket\n(1 3)(fooo bar baz)")
+  ;;                     0123456789012 34567890123456789012
+  ;;                               1          2         3
+  ;;(send t get-tokens)
+  (send t block-until-updated-thru 1) ;;(sleep 1)
+  (match-forward 13)
+  (match-backward 18)
+  (match-forward 18)
+  (match-backward 32)
+  (send t update! 2 15 0 " 2") ;After ( insert 2 non-paren
+  (send t block-until-updated-thru 2) ;;(sleep 1)
+  ;;(send t get-tokens)
+  ;;(send t -get-content)
+  (match-forward 13)
+  (match-backward 20)
+  (match-forward 20)
+  (match-backward 34))
 
+(module+ ex1
+  (require syntax-color/paren-tree)
+  (define t (new paren-tree% [matches default-paren-matches]))
+  (define (match-forward pos) (call-with-values (λ () (send t match-forward pos)) list))
+  (define (match-backward pos) (call-with-values (λ () (send t match-backward pos)) list))
+  ;; "(xx)"
+  (define old-len 4)
+  (send t add-token '\( 1)
+  (send t add-token #f  2)
+  (send t add-token '\) 1)
+  ;; 1 (, 2 #f, 1 )
+  (send t test)
+  (match-forward 0)
+  (match-backward 4)
+
+  (define insert-pos 1)
+  (define insert-len 10)
+  (define new-len (+ old-len insert-len))
+  (printf "insert at ~v a non-paren of len ~v\nold total len was ~v, new total len ~v\n"
+          insert-pos insert-len
+          old-len new-len)
+  (send t split-tree insert-pos)
+  (send t test)
+  ;; before: 1 (
+  ;; after:  2 #f, 1 )
+  (send t add-token #f insert-len)
+  (send t test)
+  ;; before: 1 (, 10 #f
+  ;; after:  2 #f, 1 )
+  (define span-to-keep (- old-len insert-pos))
+  (printf "span-to-keep: ~v\n" span-to-keep)
+  (send t merge-tree span-to-keep)
+  (send t test)
+  (match-forward 0)
+  (match-backward new-len)
+  )

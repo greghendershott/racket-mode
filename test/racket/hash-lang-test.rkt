@@ -500,7 +500,7 @@
   ;;;
   ;;; Benchmarks
   ;;;
-  (when #f
+  (when #t
 
    (define (cpu-time proc)
      (define-values (_results cpu _real _gc) (time-apply proc null))
