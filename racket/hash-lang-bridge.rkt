@@ -7,7 +7,7 @@
          "util.rkt")
 
 (provide hash-lang
-         token-notify-channel)
+         hash-lang-notify-channel)
 
 ;; Bridge for Emacs to use hash-lang%
 ;;
@@ -33,7 +33,7 @@
     [`(classify ,id ,gen ,pos)                     (classify id gen pos)]
     [`(grouping ,id ,gen ,pos ,dir ,limit ,count)  (grouping id gen pos dir limit count)]))
 
-(define token-notify-channel (make-async-channel))
+(define hash-lang-notify-channel (make-async-channel))
 
 (define ht (make-hash)) ;id => hash-lang%
 (define (get-object id) (hash-ref ht id))
@@ -48,17 +48,17 @@
   (define (on-notify . args)
     (match args
       [(and v (cons 'lang _))
-       (async-channel-put token-notify-channel
+       (async-channel-put hash-lang-notify-channel
                           (list* 'hash-lang id v))]
-      [(list 'token beg end token)
+      [(list 'token beg end attribs)
        (define types
-         (match (token-attribs token)
+         (match attribs
            [(? symbol? s) (list s)]
            [(? hash? ht)  (cons (hash-ref ht 'type 'unknown)
                                 (if (hash-ref ht 'comment? #f)
                                     '(sexp-comment-body)
                                     null))]))
-       (async-channel-put token-notify-channel
+       (async-channel-put hash-lang-notify-channel
                           (list 'hash-lang id 'token beg end types))]
       [v null])) ;ignore 'begin-update 'end-update
   (define obj (new hash-lang% [on-notify on-notify]))
@@ -85,8 +85,8 @@
       [v v])))
 
 (define (classify id gen pos)
-  (match-define (list beg end tok) (send (get-object id) classify gen (sub1 pos)))
-  (list (add1 beg) (add1 end) (token-attribs tok) (token-paren tok)))
+  (match-define (list beg end attribs) (send (get-object id) classify gen (sub1 pos)))
+  (list (add1 beg) (add1 end) attribs))
 
 (define (grouping id gen pos dir limit count)
   (match (send (get-object id) grouping gen (sub1 pos) dir limit count)

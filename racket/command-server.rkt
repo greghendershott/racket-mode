@@ -80,18 +80,18 @@
            `(ok ,(call-with-session-context sid command sexp)))))))
     (procedure-rename thk (string->symbol label)))
 
-  (define (write-responses-forever)
+  (define (write-responses-and-notifications)
     (parameterize ([current-output-port out])
       (let loop ()
         (elisp-writeln (sync response-channel
                              logger-notify-channel
                              debug-notify-channel
-                             token-notify-channel))
+                             hash-lang-notify-channel))
         (flush-output)
         (loop))))
 
   ;; With all the pieces defined, let's go:
-  (thread write-responses-forever)
+  (thread write-responses-and-notifications)
   (parameterize ([current-output-port out])
     (elisp-writeln `(ready)))
   (let read-a-command ()
