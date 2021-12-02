@@ -606,9 +606,9 @@
 
    (displayln (make-string 76 #\=))
 
-   (let* ([file "/home/greg/src/racket-lang/pkgs/racket-doc/scribblings/guide/class.scrbl"]
-          [str  (file->string file)])
-     (bench file str))
+   (let* ([uri "https://raw.githubusercontent.com/racket/racket/448b77a6629c68659e1360fbe9f9e1ecea078f9c/pkgs/racket-doc/scribblings/reference/class.scrbl"]
+          [str (call/input-url (string->url uri) get-pure-port port->string)])
+     (bench uri str))
 
    (let* ([uri "https://raw.githubusercontent.com/mflatt/shrubbery-rhombus-0/master/demo.rkt"]
           [str (call/input-url (string->url uri) get-pure-port port->string)])
