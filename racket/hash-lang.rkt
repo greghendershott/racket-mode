@@ -5,14 +5,12 @@
          racket/contract/option
          racket/match
          racket/set
-         (only-in syntax-color/module-lexer module-lexer*)
          syntax-color/token-tree
          syntax-color/paren-tree
          syntax/parse/define
          (prefix-in lines: "text-lines.rkt"))
 
 (provide hash-lang%
-         (struct-out token)
          generation/c
          position/c
          max-position)
@@ -32,18 +30,20 @@
 (define min-position 0)
 (define max-position (sub1 (expt 2 63)))
 
-;; color-textoid<%> added around Racket 8.3.0.8 / syntax-color-lib 1.3.
-;; When running on older versions, this will fail, and we'll also set
-;; hash-lang% to #f for hash-lang-bridge.rkt to notice and give the user
-;; an error message.
+;; color-textoid<%> and module-lexer* were added around Racket 8.3.0.8
+;; / syntax-color-lib 1.3. When running on older versions, these will
+;; be #f, and we'll also set hash-lang% to #f for hash-lang-bridge.rkt
+;; to notice and give the user an error message.
 (define color-textoid<%>
   (with-handlers ([exn:fail? (λ _ #f)])
     (dynamic-require 'syntax-color/color-textoid 'color-textoid<%>)))
+(define module-lexer*
+  (with-handlers ([exn:fail? (λ _ #f)])
+    (dynamic-require 'syntax-color/module-lexer 'module-lexer*)))
 
 ;; Some of this inherited from /src/racket-lang/racket/share/pkgs/gui-lib/framework/private
 
-(struct token (attribs paren) #:transparent) ;public
-(struct token:private token (backup mode) #:transparent) ;private
+(struct token (attribs paren backup mode) #:transparent)
 
 (define (attribs->type attribs)
   (if (symbol? attribs)
@@ -93,7 +93,7 @@
       (send tokens
             for-each
             (λ (beg end data)
-              (set! modes (cons (list beg end (token:private-mode data))
+              (set! modes (cons (list beg end (token-mode data))
                                 modes))))
       (reverse modes))
     (define/public (-get-parens) parens)
@@ -219,7 +219,7 @@
       ;; with an existing token for preceding character(s).
       (define-values (tokenize-from mode)
         (match (with-semaphore tokens-sema (token-ref (sub1 pos)))
-          [(list beg _end (struct* token:private ([backup backup] [mode mode])))
+          [(list beg _end (struct* token ([backup backup] [mode mode])))
            (values (- beg backup) mode)]
           [#f (values pos #f)]))
       (set! updated-thru (sub1 tokenize-from))
@@ -254,7 +254,7 @@
           (define new-beg (sub1 beg/port))
           (define new-end (sub1 end/port))
           (define new-span (- new-end new-beg))
-          (define new-tok (token:private attribs paren backup new-mode))
+          (define new-tok (token attribs paren backup new-mode))
           (with-semaphore tokens-sema (insert-last-spec! tokens new-span new-tok))
           (with-semaphore parens-sema (send parens add-token paren new-span))
           (set/signal-update-progress gen (sub1 new-end))
@@ -269,7 +269,7 @@
                              (equal? new-tok old-tok)))
           (unless same?
             (when on-notify
-              (on-notify 'token new-beg new-end (token attribs paren))))
+              (on-notify 'token new-beg new-end attribs)))
           (define contig-same-goal 3)
           (cond
             [(= (add1 contig-same-count) contig-same-goal) ;; stop early
@@ -326,11 +326,11 @@
 
     ;; Can be called on any command thread.
     (define/public (classify gen pos)
-      ;; (-> generation/c position/c (or/c #f (list/c position/c position/c token?))
+      ;; (-> generation/c position/c (or/c #f (list/c position/c position/c (or/c symbol? hash-eq?))
       (block-until-updated-thru gen pos)
       (match (with-semaphore tokens-sema (token-ref pos))
-        [(list beg end (token attribs paren)) ;slice off token:private
-         (list beg end (token attribs paren))]
+        [(list beg end tok)
+         (list beg end (token-attribs tok))]
         [#f #f]))
 
     ;; Can be called on any command thread.
@@ -340,8 +340,8 @@
       (block-until-updated-thru gen upto)
       (let loop ([pos from])
         (match (with-semaphore tokens-sema (token-ref pos))
-          [(list beg end (token attribs paren))
-           (cons (list beg end (token attribs paren))
+          [(list beg end tok)
+           (cons (list beg end (token-attribs tok))
                  (loop end))]
           [#f null])))
 
@@ -539,6 +539,7 @@
 
 (define hash-lang%
   (and color-textoid<%>
+       module-lexer*
        (make-hash-lang%-class)))
 
 (define default-lexer (waive-option module-lexer*))
