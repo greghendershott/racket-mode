@@ -23,7 +23,8 @@
 ;; when it needs to use some query operation such as classify, it
 ;; supplies both its latest generation and the position. The query op
 ;; will block until/unless we have finished updating (a) that
-;; generation (b) through that position.
+;; generation (b) through at least that position (or possibly a later
+;; position, depending on the op).
 (define generation/c exact-nonnegative-integer?)
 
 ;; We use 0-based positions
@@ -321,6 +322,9 @@
              #t]
             [else #f]))
 
+    ;; Methods for Emacs query commands.
+
+    ;; Can be called on any command thread.
     (define/public (classify gen pos)
       ;; (-> generation/c position/c (or/c #f (list/c position/c position/c token?))
       (block-until-updated-thru gen pos)
@@ -329,6 +333,7 @@
          (list beg end (token attribs paren))]
         [#f #f]))
 
+    ;; Can be called on any command thread.
     (define/public (get-tokens [gen generation]
                                [from min-position]
                                [upto max-position])
@@ -340,14 +345,23 @@
                  (loop end))]
           [#f null])))
 
-    ;;; Methods for Emacs navigation and indent.
-    ;;;
-    ;;; These take tokens-sema for the dynamic extent of our call to a
-    ;;; grouper/indenter to which we give ourselves as an instance of
-    ;;; a color-textoid<%>. That way, for speed, the textoid methods
-    ;;; below do NOT take the semaphore when they access the tokens
-    ;;; or parens trees.
+    ;; Methods for Emacs navigation and indent commands.
+    ;;
+    ;; These command methods work by calling various drracket:xyz
+    ;; functions, supplying `this` as the color-textoid<%> argument.
+    ;; In other words, those functions will "call back" use the
+    ;; textoid methods.
+    ;;
+    ;; These command methods call block-until-updated-thru, to wait
+    ;; until the updater thread has progressed far enough to support
+    ;; the command.
+    ;;
+    ;; These command methods take the tokens and parens semaphores for
+    ;; the dynamic extent the call to the drracket:xyz function. As a result
+    ;; the textoid methods need not. This is signficantly faster (e.g. 2X).
+    ;;
 
+    ;; Can be called on any command thread.
     (define/public (grouping gen pos dir limit count)
       (cond
         [(not grouping-position) #f]
@@ -370,6 +384,7 @@
                     [(= new-pos pos) (failure-result)]
                     [else new-pos])]))]))
 
+    ;; Can be called on any command thread.
     (define/public (indent-line-amount gen pos)
       (cond [(not line-indenter) #f]
             [else
@@ -378,6 +393,7 @@
                (with-semaphore parens-sema
                  (line-indenter this pos)))]))
 
+    ;; Can be called on any command thread.
     (define/public (indent-region-amounts gen from upto)
       (cond [(not range-indenter) #f]
             [else
@@ -386,25 +402,11 @@
                (with-semaphore parens-sema
                  (range-indenter this from upto)))]))
 
-    ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-    ;;;
-    ;;; color-textoid<%> methods.
-    ;;;
-    ;;; Needed by drracket:indentation, drracket:range-indentation,
-    ;;; drracket:grouping-positon.
-    ;;;
-    ;;; Obviously these method signatures do not include any
-    ;;; generation argument. However that should be OK because they're
-    ;;; called only indirectly, via indent-line-amount or
-    ;;; indent-region-amounts (which do take an expected generation
-    ;;; and block if necessary), which call drracket:indentation or
-    ;;; drracket:range-indentation supplying this object for these
-    ;;; methods.
-    ;;;
-    ;;; Similarly these do not call block-until-updated-thru or take
-    ;;; the tokens or parens semaphores, beause they will be called
-    ;;; only via the dynamic extent of one of the three methods just
-    ;;; above this section.
+    ;; color-textoid<%> methods.
+    ;;
+    ;; Warning: As discussed above, these are safe to call only from
+    ;; the dyanamic extent of the `grouping`, `indent-line-amount`, or
+    ;; `indent-region-amounts` methods.
 
     (define/public (last-position)
       (lines:text-length content))
@@ -450,10 +452,10 @@
       0)
 
     (define/public (backward-match position cutoff)
-      (let ((x (internal-backward-match position cutoff)))
+      (let ([x (internal-backward-match position cutoff)])
         (cond
-          ((or (eq? x 'open) (eq? x 'beginning)) #f)
-          (else x))))
+          [(or (eq? x 'open) (eq? x 'beginning)) #f]
+          [else x])))
 
     (define/private (internal-backward-match position cutoff)
       (let ([position (skip-whitespace position 'backward #t)])
@@ -469,34 +471,30 @@
            (send tokens search! (sub1 position))
            (define tok-start (send tokens get-root-start-position))
            (cond
-             [(send parens is-open-pos? tok-start)
-              'open]
-             [(= tok-start position)
-              'beginning]
-             [else
-              tok-start])])))
+             [(send parens is-open-pos? tok-start) 'open]
+             [(= tok-start position)               'beginning]
+             [else                                 tok-start])])))
 
     (define/public (backward-containing-sexp position cutoff)
-      (let loop ((cur-pos position))
-        (let ((p (internal-backward-match cur-pos cutoff)))
+      (let loop ([cur-pos position])
+        (let ([p (internal-backward-match cur-pos cutoff)])
           (cond
-            ((eq? 'open p)
-             ;; Should this function skip backwards past whitespace?
-             ;; the docs seem to indicate it does, but it doesn't
-             ;; really
-             cur-pos)
-            ((eq? 'beginning p) #f)
-            ((not p) #f)
+            [(eq? 'open p)
+             ;; [Comment from color.rkt: "Should this function skip
+             ;; backwards past whitespace? the docs seem to indicate
+             ;; it does, but it doesn't really."]
+             cur-pos]
+            [(eq? 'beginning p) #f]
+            [(not p) #f]
             (else (loop p))))))
 
     (define/public (forward-match position cutoff)
       (do-forward-match position cutoff #t))
 
     (define/private (do-forward-match position cutoff skip-whitespace?)
-      (let ([position
-             (if skip-whitespace?
-                 (skip-whitespace position 'forward #t)
-                 position)])
+      (let ([position (if skip-whitespace?
+                          (skip-whitespace position 'forward #t)
+                          position)])
         (define-values (start end error) (send parens match-forward position))
         (cond
           [(and start end (not error))
