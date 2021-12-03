@@ -296,7 +296,7 @@
     ;; of these.
     (define last-lang-end-pos 1)
     (define/private (maybe-refresh-lang-info pos)
-      (cond [(<= pos last-lang-end-pos)
+      (cond [(< pos last-lang-end-pos)
              (define in (lines:open-input-text content 0))
              (define info (or (with-handlers ([values (λ _ #f)])
                                 (read-language in (λ _ #f)))
