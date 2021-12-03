@@ -15,14 +15,16 @@
          position/c
          max-position)
 
-;; To coordinate inter-process updates and queries we use a monotonic
-;; "generation". A new object is generation 0. Thereafter the client
-;; should increment the generation for every call to update!. Then,
-;; when it needs to use some query operation such as classify, it
-;; supplies both its latest generation and the position. The query op
-;; will block until/unless we have finished updating (a) that
-;; generation (b) through at least that position (or possibly a later
-;; position, depending on the op).
+;; To coordinate inter-process updates and queries we use successive
+;; "generation" numbers. A new object is generation 0. Thereafter the
+;; client should increment the generation for each call to `update!`.
+;; (Clients should not skip generation numbers; strict succession is
+;; used to detect out-of-order update requests.) Then, when it needs
+;; to use some query operation such as classify, it supplies both its
+;; latest generation and the position. The query op will block
+;; until/unless we have finished updating (a) that generation (b)
+;; through at least that position (or possibly a later position,
+;; depending on the op).
 (define generation/c exact-nonnegative-integer?)
 
 ;; We use 0-based positions
