@@ -20,10 +20,6 @@
 (define (hash-lang . args)
   (unless hash-lang%
     (error "syntax-color/color-textoid not available; you need a newer version of Racket and/or syntax-color-lib"))
-  (log-racket-mode-debug "~v"
-                         (if (eq? 'create (car args))
-                             (reverse (cdr (reverse args)))
-                             args))
   (match args
     [`(create ,id ,s)                              (create id s)]
     [`(delete ,id)                                 (delete id)]
@@ -50,7 +46,7 @@
       [(and v (cons 'lang _))
        (async-channel-put hash-lang-notify-channel
                           (list* 'hash-lang id v))]
-      [(list 'token beg end attribs)
+      [(list 'token (app add1 beg) (app add1 end) attribs)
        (define types
          (match attribs
            [(? symbol? s) (list s)]
