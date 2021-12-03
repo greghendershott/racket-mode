@@ -50,6 +50,18 @@ enough.")
      ("C-M-u" ,#'racket-hash-lang-up)
      ("C-M-d" ,#'racket-hash-lang-down))))
 
+(defconst racket--hash-lang-text-properties
+  '(face fontified syntax-table racket-token)
+  "The text properties we use.")
+
+(defun racket--hash-lang-remove-text-properties (beg end)
+  "Remove from region `racket--hash-lang-text-properties'."
+  (remove-text-properties
+   beg end
+   ;; Make a property list like (face nil fontified nil ...)
+   (apply #'append (mapcar (lambda (v) (cons v nil))
+                           racket--hash-lang-text-properties))))
+
 (defvar-local racket-hash-lang-mode-lighter " #lang")
 
 ;;;###autoload
@@ -71,8 +83,7 @@ navigation or indent.
         (font-lock-mode -1)
         (electric-indent-local-mode -1)
         (with-silent-modifications
-          (remove-text-properties (point-min) (point-max)
-                                  '(face nil fontified nil syntax-table nil racket-token nil)))
+          (racket--hash-lang-remove-text-properties (point-min) (point-max)))
 
         (setq-local racket--hash-lang-orig-font-lock-defaults
                     font-lock-defaults)
@@ -122,8 +133,7 @@ navigation or indent.
                  t)
     (racket--hash-lang-delete)
     (with-silent-modifications
-      (remove-text-properties (point-min) (point-max)
-                              '(face nil fontified nil syntax-table nil)))
+      (racket--hash-lang-remove-text-properties (point-min) (point-max)))
     (electric-indent-local-mode 1)
     (font-lock-mode 1)
     (syntax-ppss-flush-cache (point-min))
@@ -156,11 +166,12 @@ navigation or indent.
 
 (defun racket--hash-lang-on-new-lang (plist)
   "We get this whenever the #lang changes in the user's program, including when we first open it."
-  ;; Although I'm not sure about the prose here, offer some indication
-  ;; that we'll be doing nothing except coloring differently.
   (unless (cl-some (lambda (p) (plist-get plist p))
                    '(grouping-position line-indenter range-indenter))
-    (message "The current #lang does not supply any special motion or indent -- racket-hash-lang-mode is only syntax coloring; you might prefer plain racket-mode"))
+    ;; Although I'm not sure about the prose here, offer some
+    ;; indication that we'll be doing nothing except coloring
+    ;; differently.
+    (message "The current #lang does not supply any special motion or indent -- racket-hash-lang-mode will only do syntax coloring; you might prefer plain racket-mode"))
   (setq-local racket-hash-lang-mode-lighter " #lang")
   (set-syntax-table (copy-syntax-table (standard-syntax-table)))
   (dolist (oc (plist-get plist 'paren-matches))
@@ -198,8 +209,7 @@ navigation or indent.
     (cl-flet ((put-face (beg end face) (put-text-property beg end 'face face))
               (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
       (pcase-let ((`(,beg ,end ,kinds) token))
-        (remove-text-properties beg end
-                                '(face nil syntax-table nil racket-token nil))
+        (racket--hash-lang-remove-text-properties beg end)
         ;; 'racket-token is just informational for me for debugging
         (put-text-property beg end 'racket-token kinds)
         (dolist (kind kinds)
