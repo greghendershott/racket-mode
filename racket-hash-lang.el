@@ -166,13 +166,8 @@ navigation or indent.
 
 (defun racket--hash-lang-on-new-lang (plist)
   "We get this whenever the #lang changes in the user's program, including when we first open it."
-  (unless (cl-some (lambda (p) (plist-get plist p))
-                   '(grouping-position line-indenter range-indenter))
-    ;; Although I'm not sure about the prose here, offer some
-    ;; indication that we'll be doing nothing except coloring
-    ;; differently.
-    (message "The current #lang does not supply any special motion or indent -- racket-hash-lang-mode will only do syntax coloring; you might prefer plain racket-mode"))
-  (setq-local racket-hash-lang-mode-lighter " #lang")
+  (with-silent-modifications
+    (racket--hash-lang-remove-text-properties (point-min) (point-max)))
   (set-syntax-table (copy-syntax-table (standard-syntax-table)))
   (dolist (oc (plist-get plist 'paren-matches))
     (let ((o (car oc))
@@ -188,21 +183,27 @@ navigation or indent.
       (modify-syntax-entry (aref q 0) (concat "\"" q "  ") (syntax-table))))
   (setq-local racket--hash-lang-grouping-position-p
               (plist-get plist 'grouping-position))
-  (when racket--hash-lang-grouping-position-p
-    (setq-local racket-hash-lang-mode-lighter
-                (concat racket-hash-lang-mode-lighter "⤡")))
   (setq-local indent-line-function
               (if (plist-get plist 'line-indenter)
-                  (progn
-                    (setq-local racket-hash-lang-mode-lighter
-                            (concat racket-hash-lang-mode-lighter "→"))
-                    #'racket-hash-lang-indent-line-function)
+                  #'racket-hash-lang-indent-line-function
                 #'racket-indent-line))
   (setq-local indent-region-function
               (when (plist-get plist 'range-indenter)
-                (setq-local racket-hash-lang-mode-lighter
-                            (concat racket-hash-lang-mode-lighter "⇉"))
-                #'racket-hash-lang-indent-region-function)))
+                #'racket-hash-lang-indent-region-function))
+  (setq-local racket-hash-lang-mode-lighter
+              (concat " #lang"
+                      (if racket--hash-lang-grouping-position-p "⤡" "")
+                      (cond
+                       ((plist-get plist 'range-indenter) "⇉")
+                       ((plist-get plist 'line-indenter) "→")
+                       (t ""))))
+  (unless (cl-some (lambda (p) (plist-get plist p))
+                   '(grouping-position line-indenter range-indenter))
+    ;; Although I'm not sure about the prose here, offer some
+    ;; indication that we'll be doing nothing except coloring
+    ;; differently.
+    (message "The current #lang does not supply any special motion or indent -- racket-hash-lang-mode will only do syntax coloring; you might prefer plain racket-mode"))
+)
 
 (defun racket--hash-lang-on-new-token (token)
   (with-silent-modifications
