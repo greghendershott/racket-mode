@@ -4,7 +4,6 @@
          framework
          racket/class
          racket/dict
-         racket/file
          racket/async-channel
          racket/match
          racket/port
