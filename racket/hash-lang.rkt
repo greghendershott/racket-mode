@@ -135,7 +135,7 @@
     ;; there used to be OLD-LEN chars long, but is now NEW-STR.
     (define/public (update! gen pos old-len new-str)
       ;;(-> generation/c position/c exact-nonnegative-integer? string? any)
-      (unless (<= generation gen)
+      (unless (< generation gen)
         (raise-argument-error 'update! "valid generation" 0 gen pos old-len new-str))
       (unless (<= min-position pos)
         (raise-argument-error 'update! "valid position" 1 gen pos old-len new-str))
@@ -176,15 +176,18 @@
     (struct waiter (sema pred) #:transparent)
     (define waiters-set (mutable-set)) ;(set/c waiter?)
     (define waiters-sema (make-semaphore 1)) ;for modifying waiters-set
+
     ;; Set the generation and updated-thru fields, and un-block
     ;; threads waiting for them to reach certain values.
-    (define/private (set/signal-update-progress g p)
+    (define/private (set-update-progress #:generation [g generation]
+                                         #:position   p)
       (with-semaphore waiters-sema
         (set! generation g)
         (set! updated-thru p)
         (for ([w (in-set waiters-set)])
           (when ((waiter-pred w))
             (semaphore-post (waiter-sema w))))))
+
     ;; Block until the updater thread has progressed through at least
     ;; a desired generation and also through a desired position.
     (define/public (block-until-updated-thru gen [pos max-position])
@@ -197,28 +200,56 @@
         (with-semaphore waiters-sema (set-remove! waiters-set w))))
 
     ;; Runs on updater thread.
+    (define last-lang-end-pos 1)
     (define/private (do-update! gen pos old-len new-str)
-      (set/signal-update-progress gen 0)
+      (set-update-progress #:generation gen #:position (sub1 min-position))
+
       (when (< 0 old-len)
         (set! content (lines:delete content pos (+ pos old-len))))
       (define new-len (string-length new-str))
       (when (< 0 new-len)
         (set! content (lines:insert content pos new-str)))
-      (define diff (- new-len old-len))
 
-      ;; FIXME: If new lang here, we need to restart from the
-      ;; beginning. ~= reset content to "" and (do-update! gen
-      ;; min-position 0 new-str). Because a new lang means a new
-      ;; lexer that could potentially tokenize anything and everything
-      ;; differently.
-      (maybe-refresh-lang-info pos)  ;from new value of `content`
+      ;; A change before the end of the text for the old #lang must
+      ;; result in us restarting from scratch. A new lexer and other
+      ;; lang info values could result in entirely different tokens
+      ;; and parens.
+      (cond
+        [(< pos last-lang-end-pos)
+         (set! tokens (new token-tree%))
+         (set! parens (new paren-tree% [matches paren-matches]))
+         (define in (lines:open-input-text content 0))
+         (define info (or (with-handlers ([values (λ _ #f)])
+                            (read-language in (λ _ #f)))
+                          (λ (_key default) default)))
+         (define-values (_line _col end-pos) (port-next-location in))
+         (set! last-lang-end-pos end-pos) ;to check next time
+         (set! lexer (info 'color-lexer default-lexer))
+         (set! paren-matches (info 'drracket:paren-matches default-paren-matches))
+         (set! quote-matches (info 'drracket:quote-matches default-quote-matches))
+         (set! grouping-position (info 'drracket:grouping-position #f))
+         (set! line-indenter (info 'drracket:indentation #f))
+         (set! range-indenter (info 'drracket:range-indentation #f))
+         (when on-notify
+           (on-notify
+            'lang
+            'paren-matches     (for/list ([v (in-list paren-matches)])
+                                 (cons (symbol->string (car v))
+                                       (symbol->string (cadr v))))
+            'quote-matches     (for/list ([c (in-list quote-matches)])
+                                 (string c))
+            'grouping-position (and grouping-position #t)
+            'line-indenter     (and line-indenter #t)
+            'range-indenter    (and range-indenter #t)))
+         (update-tokens-and-parens pos new-len)]
+        [else
+         (update-tokens-and-parens pos (- new-len old-len))]))
 
-      ;; From where do we need to re-tokenize? This will be < the pos of
-      ;; the change. Back up to the start of the previous token (plus any
-      ;; `backup` amount the lexer may have supplied for that token) to
-      ;; ensure re-lexing enough such that e.g. appending a character does
-      ;; not create a separate token when instead it should be combined
-      ;; with an existing token for preceding character(s).
+    (define/private (update-tokens-and-parens pos diff)
+      ;; From where do we need to re-tokenize? This will be < the pos
+      ;; of the change. Back up to the start of the previous token,
+      ;; plus any `backup` amount the lexer may have supplied for that
+      ;; token.
       (define-values (tokenize-from mode)
         (match (with-semaphore tokens-sema (token-ref (sub1 pos)))
           [(list beg _end (struct* token ([backup backup] [mode mode])))
@@ -228,11 +259,7 @@
       ;; (printf "tokenize-from ~v\n" tokenize-from)
       ;; (printf "diff ~v old-len ~v\n" diff old-len)
 
-      ;; Split the token and paren trees. We'll definitely keep the
-      ;; first portion, before the update; it becomes our new value
-      ;; for `tokens`. We'll use the second portion to detect whether
-      ;; the update is producing enough same tokens to just keep it
-      ;; from such point to the end.
+      ;; Split the token and paren trees.
       (define old-tokens (with-semaphore tokens-sema
                            (send tokens search! tokenize-from)
                            (define-values (t1 t2) (send tokens split-before))
@@ -259,7 +286,7 @@
           (define new-tok (token attribs paren backup new-mode))
           (with-semaphore tokens-sema (insert-last-spec! tokens new-span new-tok))
           (with-semaphore parens-sema (send parens add-token paren new-span))
-          (set/signal-update-progress gen (sub1 new-end))
+          (set-update-progress #:position (sub1 new-end))
 
           ;; Detect whether same as before (maybe just shifted)
           (send old-tokens search! (- new-beg tokenize-from diff))
@@ -289,40 +316,7 @@
              ]
             [else (tokenize new-end new-mode (+ contig-same-count (if same? 1 0)))])))
       (when on-notify (on-notify 'end-update))
-      (set/signal-update-progress gen max-position))
-
-    ;; This must be called from do-update! because the #lang in the
-    ;; source could have changed and we might need new values for all
-    ;; of these.
-    (define last-lang-end-pos 1)
-    (define/private (maybe-refresh-lang-info pos)
-      (cond [(< pos last-lang-end-pos)
-             (define in (lines:open-input-text content 0))
-             (define info (or (with-handlers ([values (λ _ #f)])
-                                (read-language in (λ _ #f)))
-                              (λ (_key default) default)))
-             (define-values (_line _col end-pos) (port-next-location in))
-             (set! last-lang-end-pos end-pos)
-             (set! lexer (info 'color-lexer default-lexer))
-             (set! paren-matches (info 'drracket:paren-matches default-paren-matches))
-             (set! quote-matches (info 'drracket:quote-matches default-quote-matches))
-             (set! grouping-position (info 'drracket:grouping-position #f))
-             (set! line-indenter (info 'drracket:indentation #f))
-             (set! range-indenter (info 'drracket:range-indentation #f))
-             (set! parens (new paren-tree% [matches paren-matches]))
-             (when on-notify
-               (on-notify
-                'lang
-                'paren-matches     (for/list ([v (in-list paren-matches)])
-                                     (cons (symbol->string (car v))
-                                           (symbol->string (cadr v))))
-                'quote-matches     (for/list ([c (in-list quote-matches)])
-                                     (string c))
-                'grouping-position (and grouping-position #t)
-                'line-indenter     (and line-indenter #t)
-                'range-indenter    (and range-indenter #t)))
-             #t]
-            [else #f]))
+      (set-update-progress #:position max-position))
 
     ;; Methods for Emacs query commands.
 
@@ -559,13 +553,13 @@
   ;;                     0123456789012 34567890123456789012
   ;;                               1          2         3
   ;;(send t get-tokens)
-  (send t block-until-updated-thru 1) ;;(sleep 1)
+  (send t block-until-updated-thru 1)
   (match-forward 13)
   (match-backward 18)
   (match-forward 18)
   (match-backward 32)
   (send t update! 2 15 0 " 2") ;After ( insert 2 non-paren
-  (send t block-until-updated-thru 2) ;;(sleep 1)
+  (send t block-until-updated-thru 2)
   ;;(send t get-tokens)
   ;;(send t -get-content)
   (match-forward 13)
