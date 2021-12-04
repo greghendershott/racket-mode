@@ -202,7 +202,8 @@
     ;; Runs on updater thread.
     (define last-lang-end-pos 1)
     (define/private (do-update! gen pos old-len new-str)
-      (set-update-progress #:generation gen #:position (sub1 min-position))
+      (set-update-progress #:generation gen
+                           #:position (sub1 min-position))
 
       (when (< 0 old-len)
         (set! content (lines:delete content pos (+ pos old-len))))
@@ -210,38 +211,49 @@
       (when (< 0 new-len)
         (set! content (lines:insert content pos new-str)))
 
-      ;; A change before the end of the text for the old #lang must
-      ;; result in us restarting from scratch. A new lexer and other
-      ;; lang info values could result in entirely different tokens
-      ;; and parens.
+      ;; A change before the end of the text for the old #lang might
+      ;; result in new lang info values. If any change, it could
+      ;; result in entirely different tokens and parens, so in that
+      ;; case restart from scratch.
       (cond
         [(< pos last-lang-end-pos)
-         (set! tokens (new token-tree%))
-         (set! parens (new paren-tree% [matches paren-matches]))
          (define in (lines:open-input-text content 0))
          (define info (or (with-handlers ([values (λ _ #f)])
                             (read-language in (λ _ #f)))
                           (λ (_key default) default)))
          (define-values (_line _col end-pos) (port-next-location in))
          (set! last-lang-end-pos end-pos) ;to check next time
-         (set! lexer (info 'color-lexer default-lexer))
-         (set! paren-matches (info 'drracket:paren-matches default-paren-matches))
-         (set! quote-matches (info 'drracket:quote-matches default-quote-matches))
-         (set! grouping-position (info 'drracket:grouping-position #f))
-         (set! line-indenter (info 'drracket:indentation #f))
-         (set! range-indenter (info 'drracket:range-indentation #f))
-         (when on-notify
-           (on-notify
-            'lang
-            'paren-matches     (for/list ([v (in-list paren-matches)])
-                                 (cons (symbol->string (car v))
-                                       (symbol->string (cadr v))))
-            'quote-matches     (for/list ([c (in-list quote-matches)])
-                                 (string c))
-            'grouping-position (and grouping-position #t)
-            'line-indenter     (and line-indenter #t)
-            'range-indenter    (and range-indenter #t)))
-         (update-tokens-and-parens pos new-len)]
+
+         (define any-changed? #f)
+         (define-syntax-rule (set!? var expr)
+           (let ([val expr])
+             (unless (equal? var val)
+               (set! var val)
+               (set! any-changed? #t))))
+         (set!? lexer             (info 'color-lexer default-lexer))
+         (set!? paren-matches     (info 'drracket:paren-matches default-paren-matches))
+         (set!? quote-matches     (info 'drracket:quote-matches default-quote-matches))
+         (set!? grouping-position (info 'drracket:grouping-position #f))
+         (set!? line-indenter     (info 'drracket:indentation #f))
+         (set!? range-indenter    (info 'drracket:range-indentation #f))
+         (cond
+           [any-changed?
+            (when on-notify
+              (on-notify
+               'lang
+               'paren-matches     (for/list ([v (in-list paren-matches)])
+                                    (cons (symbol->string (car v))
+                                          (symbol->string (cadr v))))
+               'quote-matches     (for/list ([c (in-list quote-matches)])
+                                    (string c))
+               'grouping-position (and grouping-position #t)
+               'line-indenter     (and line-indenter #t)
+               'range-indenter    (and range-indenter #t)))
+            (set! tokens (new token-tree%))
+            (set! parens (new paren-tree% [matches paren-matches]))
+            (update-tokens-and-parens min-position (lines:text-length content))]
+           [else
+            (update-tokens-and-parens pos (- new-len old-len))])]
         [else
          (update-tokens-and-parens pos (- new-len old-len))]))
 
