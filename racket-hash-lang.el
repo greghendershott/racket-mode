@@ -34,13 +34,9 @@ enough.")
 ;; These are simply to save the original values, to be able to restore
 ;; when the minor mode is disabled:
 (defvar-local racket--hash-lang-orig-font-lock-defaults nil)
-(defvar-local racket--hash-lang-orig-syntax-propertize-function nil)
 (defvar-local racket--hash-lang-orig-syntax-table nil)
 (defvar-local racket--hash-lang-orig-indent-line-function nil)
 (defvar-local racket--hash-lang-orig-indent-region-function nil)
-
-(defvar-local racket--hash-lang-grouping-position-p nil
-  "Does the hash-lang supply a grouping-position function?")
 
 (defvar racket-hash-lang-mode-map
   (racket--easy-keymap-define
@@ -49,6 +45,11 @@ enough.")
      ("C-M-f" ,#'racket-hash-lang-forward)
      ("C-M-u" ,#'racket-hash-lang-up)
      ("C-M-d" ,#'racket-hash-lang-down))))
+
+(defconst racket--hash-lang-bare-syntax-table
+  (let ((st (make-syntax-table)))
+    (modify-syntax-entry ?\" "w  " st)
+    st))
 
 (defconst racket--hash-lang-text-properties
   '(face fontified syntax-table racket-token)
@@ -79,7 +80,6 @@ navigation or indent.
   (if racket-hash-lang-mode
       (progn
         (setq racket--hash-lang-generation 1)
-        (setq racket--hash-lang-grouping-position-p nil)
         (font-lock-mode -1)
         (electric-indent-local-mode -1)
         (with-silent-modifications
@@ -89,13 +89,9 @@ navigation or indent.
                     font-lock-defaults)
         (setq-local font-lock-defaults nil)
 
-        (setq-local racket--hash-lang-orig-syntax-propertize-function
-                    syntax-propertize-function)
-        (setq-local syntax-propertize-function nil)
-
         (setq-local racket--hash-lang-orig-syntax-table
                     (syntax-table))
-        (set-syntax-table (copy-syntax-table (standard-syntax-table)))
+        (set-syntax-table racket--hash-lang-bare-syntax-table)
 
         (setq-local racket--hash-lang-orig-indent-line-function
                     indent-line-function)
@@ -118,8 +114,6 @@ navigation or indent.
          #'ignore))
     (setq-local font-lock-defaults
                 racket--hash-lang-orig-font-lock-defaults)
-    (setq-local syntax-propertize-function
-                racket--hash-lang-orig-syntax-propertize-function)
     (set-syntax-table racket--hash-lang-orig-syntax-table)
     (setq-local indent-line-function
                 racket--hash-lang-orig-indent-line-function)
@@ -166,49 +160,24 @@ navigation or indent.
 
 (defun racket--hash-lang-on-new-lang (plist)
   "We get this whenever the #lang changes in the user's program, including when we first open it."
-  (with-silent-modifications
+ (with-silent-modifications
     (racket--hash-lang-remove-text-properties (point-min) (point-max)))
-  (set-syntax-table (copy-syntax-table (standard-syntax-table)))
-  (dolist (oc (plist-get plist 'paren-matches))
-    (let ((o (car oc))
-          (c (cdr oc)))
-      ;; When the parens are single chars we can set char-syntax in
-      ;; the syntax table. Otherwise a lang will need to supply
-      ;; grouping-positions for us to do any navigation.
-      (when (and (= 1 (length o)) (= 1 (length c)))
-        (modify-syntax-entry (aref o 0) (concat "(" c "  ") (syntax-table))
-        (modify-syntax-entry (aref c 0) (concat ")" o "  ") (syntax-table)))))
-  (dolist (q (plist-get plist 'quote-matches))
-    (when (= 1 (length q)) ;supposed to be always; sanity check
-      (modify-syntax-entry (aref q 0) (concat "\"" q "  ") (syntax-table))))
-  (setq-local racket--hash-lang-grouping-position-p
-              (plist-get plist 'grouping-position))
   (setq-local indent-line-function
-              (if (plist-get plist 'line-indenter)
-                  #'racket-hash-lang-indent-line-function
-                #'racket-indent-line))
+              #'racket-hash-lang-indent-line-function)
   (setq-local indent-region-function
               (when (plist-get plist 'range-indenter)
                 #'racket-hash-lang-indent-region-function))
   (setq-local racket-hash-lang-mode-lighter
               (concat " #lang"
-                      (if racket--hash-lang-grouping-position-p "⤡" "")
                       (cond
                        ((plist-get plist 'range-indenter) "⇉")
-                       ((plist-get plist 'line-indenter) "→")
-                       (t ""))))
-  (unless (cl-some (lambda (p) (plist-get plist p))
-                   '(grouping-position line-indenter range-indenter))
-    ;; Although I'm not sure about the prose here, offer some
-    ;; indication that we'll be doing nothing except coloring
-    ;; differently.
-    (message "The current #lang does not supply any special motion or indent -- racket-hash-lang-mode will only do syntax coloring; you might prefer plain racket-mode"))
-)
+                       ((plist-get plist 'line-indenter)  "→")
+                       (t "")))))
 
 (defun racket--hash-lang-on-new-token (token)
   (with-silent-modifications
     (cl-flet ((put-face (beg end face) (put-text-property beg end 'face face))
-              (put-stx  (beg end stx ) (put-text-property beg end 'syntax-table stx)))
+              (put-stx  (beg end stx)  (put-text-property beg end 'syntax-table stx)))
       (pcase-let ((`(,beg ,end ,kinds) token))
         (racket--hash-lang-remove-text-properties beg end)
         ;; 'racket-token is just informational for me for debugging
@@ -216,23 +185,23 @@ navigation or indent.
         (dolist (kind kinds)
           (pcase kind
             ('parenthesis
+             ;; Note: We don't attempt to put open/close paren syntax
+             ;; here. The tokens might have span > 1. Also we entirely
+             ;; rely on the lang's "grouping-position" function for
+             ;; navigation. Some things in Emacs ecosystem might not
+             ;; work, e.g. paredit. Too bad. There's no upstream
+             ;; interest in making this work by using e.g.
+             ;; paren-matches to set this up.
              (put-face beg end 'parenthesis))
             ('comment
-             ;; This is super important because, unlike paren-matches or
-             ;; quote-matches, where we can set up a char syntax-table
-             ;; entries (at least for single-character paren-matches)
-             ;; there is nothing like a "drracket:comment-matches". As a
-             ;; result, until the lexer applies these, various Emacs
-             ;; commands/modes won't know about comments. This also is a
-             ;; roadblock to changing what we're doing here to be just
-             ;; lazy font-lock instead of eagerly putting face props on
-             ;; the whole buffer.
+             ;; I'm not sure we even need to do this; see comment about
+             ;; parens above.
              (put-stx beg (1+ beg) '(11)) ;comment-start
              (put-stx (1- end) end '(12)) ;comment-end
              (let ((beg (1+ beg))         ;comment _contents_ if any
                    (end (1- end)))
                (when (< beg end)
-                 (put-stx beg end '14))) ;generic comment
+                 (put-stx beg end '(14)))) ;generic comment
              (put-face beg end 'font-lock-comment-face))
             ('sexp-comment
              ;; This is just the "#;" prefix not the following sexp.
@@ -243,7 +212,8 @@ navigation or indent.
             ('string
              (put-face beg end 'font-lock-string-face))
             ('text
-             (put-stx beg end (standard-syntax-table)))
+             ;(put-stx beg end (standard-syntax-table))
+             nil)
             ('constant
              (put-stx beg end '(2))     ;word
              (put-face beg end 'font-lock-constant-face))
@@ -254,7 +224,7 @@ navigation or indent.
              ;; TODO: Consider using default font here, because e.g.
              ;; racket-lexer almost everything is "symbol" because
              ;; it is an identifier. Meanwhile, using a non-default
-             ;; face here is helping me spot bugs.
+             ;; face here is helping me see behavior and spot bugs.
              (put-face beg end 'font-lock-variable-name-face))
             ('keyword
              (put-stx beg end '(2))     ;word
@@ -320,25 +290,17 @@ navigation or indent.
 
 (defun racket-hash-lang-move (direction &optional count)
   (let ((count (or count 1)))
-    (pcase (if racket--hash-lang-grouping-position-p
-               (racket--cmd/await       ; await = :(
-                nil
-                `(hash-lang grouping
-                            ,(racket--buffer-file-name)
-                            ,racket--hash-lang-generation
-                            ,(point)
-                            ,direction
-                            0
-                            ,count))
-             'use-default-s-expression)
+    (pcase (racket--cmd/await       ; await = :(
+            nil
+            `(hash-lang grouping
+                        ,(racket--buffer-file-name)
+                        ,racket--hash-lang-generation
+                        ,(point)
+                        ,direction
+                        0
+                        ,count))
       ((and (pred numberp) pos)
        (goto-char pos))
-      ('use-default-s-expression
-       (pcase direction
-         ('backward (backward-sexp    count))
-         ('forward  (forward-sexp     count))
-         ('up       (backward-up-list count t))
-         ('down     (down-list        count))))
       (_ (user-error "Cannot move %s %s times" direction count)))))
 
 (defun racket-hash-lang-backward ()
