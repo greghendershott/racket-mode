@@ -247,12 +247,7 @@
             (when on-notify
               (on-notify
                'lang
-               'paren-matches     (for/list ([v (in-list paren-matches)])
-                                    (cons (symbol->string (car v))
-                                          (symbol->string (cadr v))))
-               'quote-matches     (for/list ([c (in-list quote-matches)])
-                                    (string c))
-               'grouping-position (and grouping-position #t)
+               'racket-grouping   (equal? grouping-position racket-grouping-position)
                'line-indenter     (and line-indenter #t)
                'range-indenter    (and range-indenter #t)))
             (set! tokens (new token-tree%))
