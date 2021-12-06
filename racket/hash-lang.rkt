@@ -42,6 +42,12 @@
 (define module-lexer*
   (with-handlers ([exn:fail? (λ _ #f)])
     (dynamic-require 'syntax-color/module-lexer 'module-lexer*)))
+(define racket-amount-to-indent
+  (with-handlers ([exn:fail? (λ _ #f)])
+    (dynamic-require 'syntax-color/racket-indentation 'racket-amount-to-indent)))
+(define racket-grouping-position
+  (with-handlers ([exn:fail? (λ _ #f)])
+    (dynamic-require 'syntax-color/racket-navigation 'racket-grouping-position)))
 
 ;; Some of this inherited from /src/racket-lang/racket/share/pkgs/gui-lib/framework/private
 
@@ -83,8 +89,8 @@
     (define lexer             default-lexer)
     (define paren-matches     default-paren-matches)
     (define quote-matches     default-quote-matches)
-    (define grouping-position #f)
-    (define line-indenter     #f)
+    (define grouping-position racket-grouping-position)
+    (define line-indenter     racket-amount-to-indent)
     (define range-indenter    #f)
 
     ;; These accessor methods really intended just for tests
@@ -233,11 +239,11 @@
          (set!? lexer             (info 'color-lexer default-lexer))
          (set!? paren-matches     (info 'drracket:paren-matches default-paren-matches))
          (set!? quote-matches     (info 'drracket:quote-matches default-quote-matches))
-         (set!? grouping-position (info 'drracket:grouping-position #f))
-         (set!? line-indenter     (info 'drracket:indentation #f))
+         (set!? grouping-position (info 'drracket:grouping-position racket-grouping-position))
+         (set!? line-indenter     (info 'drracket:indentation racket-amount-to-indent))
          (set!? range-indenter    (info 'drracket:range-indentation #f))
          (cond
-           [any-changed?
+           [(or any-changed? (= gen 1))
             (when on-notify
               (on-notify
                'lang
@@ -349,8 +355,10 @@
       (let loop ([pos from])
         (match (with-semaphore tokens-sema (token-ref pos))
           [(list beg end tok)
-           (cons (list beg end (token-attribs tok))
-                 (loop end))]
+           (if (<= end upto)
+               (cons (list beg end (token-attribs tok))
+                     (loop end))
+               null)]
           [#f null])))
 
     ;; Methods for Emacs navigation and indent commands.
@@ -372,7 +380,6 @@
     ;; Can be called on any command thread.
     (define/public (grouping gen pos dir limit count)
       (cond
-        [(not grouping-position) #f]
         [(<= count 0) pos]
         [else
          (block-until-updated-thru gen
@@ -381,15 +388,28 @@
                                      [(down forward) max-position]))
          (let loop ([pos pos]
                     [count count])
-           (define (failure-result) #f) ;can't/didn't move
            (match (with-semaphore tokens-sema
                     (with-semaphore parens-sema
-                      (grouping-position this pos limit dir)))
-             [#f (failure-result)]
-             [#t 'use-default-s-expression]
+                      (match (grouping-position this pos limit dir)
+                        ;; Handle case where it returns #t, meaning
+                        ;; "use default s-expr grouping". That spec
+                        ;; slightly predates the addition of
+                        ;; syntax-color/racket-navigation --- the
+                        ;; availability of which probably means that
+                        ;; this #t value should no longer be returned?
+                        ;; In other words, if a lang wants s-expr nav,
+                        ;; its lang info should either not supply any
+                        ;; drracket:grouping-position at all, or,
+                        ;; supply racket-grouping-position as that?
+                        [#t
+                         (when (equal? grouping-position racket-grouping-position)
+                           (error 'grouping "racket-grouping-position returned #t"))
+                         (racket-grouping-position this pos limit dir)]
+                        [v v])))
+             [#f #f]
              [(? number? new-pos)
               (cond [(< 1 count) (loop new-pos (sub1 count))]
-                    [(= new-pos pos) (failure-result)]
+                    [(= new-pos pos) #f]
                     [else new-pos])]))]))
 
     ;; Can be called on any command thread.
@@ -548,6 +568,8 @@
 (define hash-lang%
   (and color-textoid<%>
        module-lexer*
+       racket-amount-to-indent
+       racket-grouping-position
        (make-hash-lang%-class)))
 
 (define default-lexer (waive-option module-lexer*))
