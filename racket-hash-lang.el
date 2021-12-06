@@ -40,16 +40,25 @@ enough.")
 
 (defvar racket-hash-lang-mode-map
   (racket--easy-keymap-define
-   `(("RET" ,#'newline-and-indent)
+   `(("RET"   ,#'newline-and-indent)
      ("C-M-b" ,#'racket-hash-lang-backward)
      ("C-M-f" ,#'racket-hash-lang-forward)
      ("C-M-u" ,#'racket-hash-lang-up)
      ("C-M-d" ,#'racket-hash-lang-down))))
 
-(defconst racket--hash-lang-bare-syntax-table
-  (let ((st (make-syntax-table)))
-    (modify-syntax-entry ?\" "w  " st)
-    st))
+(defun racket--hash-lang-syntax-table (lang-uses-sexp-nav-p)
+  "Return a suitable syntax-table to use."
+  (if lang-uses-sexp-nav-p
+      (standard-syntax-table) ;TODO: Use racket-mode table instead??
+    (let ((st (make-syntax-table)))
+      ;; Modify entries for characters for parens, strings, and
+      ;; comments, setting them to word syntax instead. (For the
+      ;; numbers, see Emacs Lisp Info: "Syntax Table Internals".)
+      (map-char-table (lambda (key value)
+                        (when (memq (car value) '(4 5 7 10 11 12))
+                          (aset st key '(2))))
+                      st)
+      st)))
 
 (defconst racket--hash-lang-text-properties
   '(face fontified syntax-table racket-token)
@@ -91,7 +100,8 @@ navigation or indent.
 
         (setq-local racket--hash-lang-orig-syntax-table
                     (syntax-table))
-        (set-syntax-table racket--hash-lang-bare-syntax-table)
+        (set-syntax-table (racket--hash-lang-syntax-table t))
+        (syntax-ppss-flush-cache (point-min))
 
         (setq-local racket--hash-lang-orig-indent-line-function
                     indent-line-function)
@@ -160,8 +170,10 @@ navigation or indent.
 
 (defun racket--hash-lang-on-new-lang (plist)
   "We get this whenever the #lang changes in the user's program, including when we first open it."
- (with-silent-modifications
+  (with-silent-modifications
     (racket--hash-lang-remove-text-properties (point-min) (point-max)))
+  (set-syntax-table (racket--hash-lang-syntax-table (plist-get plist 'racket-grouping)))
+  (syntax-ppss-flush-cache (point-min))
   (setq-local indent-line-function
               #'racket-hash-lang-indent-line-function)
   (setq-local indent-region-function
@@ -169,10 +181,9 @@ navigation or indent.
                 #'racket-hash-lang-indent-region-function))
   (setq-local racket-hash-lang-mode-lighter
               (concat " #lang"
-                      (cond
-                       ((plist-get plist 'range-indenter) "⇉")
-                       ((plist-get plist 'line-indenter)  "→")
-                       (t "")))))
+                      (cond ((plist-get plist 'range-indenter) "⇉")
+                            ((plist-get plist 'line-indenter)  "→")
+                            (t "")))))
 
 (defun racket--hash-lang-on-new-token (token)
   (with-silent-modifications
@@ -189,13 +200,13 @@ navigation or indent.
              ;; here. The tokens might have span > 1. Also we entirely
              ;; rely on the lang's "grouping-position" function for
              ;; navigation. Some things in Emacs ecosystem might not
-             ;; work, e.g. paredit. Too bad. There's no upstream
-             ;; interest in making this work by using e.g.
-             ;; paren-matches to set this up.
+             ;; work, e.g. paredit, although they might if the buffer
+             ;; syntax-table is standard-syntax-table; see
+             ;; `racket--hash-lang-syntax-table'.
              (put-face beg end 'parenthesis))
             ('comment
-             ;; I'm not sure we even need to do this; see comment about
-             ;; parens above.
+             ;; I'm not sure we need to put-stx here; see comment
+             ;; about parens above.
              (put-stx beg (1+ beg) '(11)) ;comment-start
              (put-stx (1- end) end '(12)) ;comment-end
              (let ((beg (1+ beg))         ;comment _contents_ if any
@@ -212,7 +223,7 @@ navigation or indent.
             ('string
              (put-face beg end 'font-lock-string-face))
             ('text
-             ;(put-stx beg end (standard-syntax-table))
+             (put-stx beg end (standard-syntax-table))
              nil)
             ('constant
              (put-stx beg end '(2))     ;word
