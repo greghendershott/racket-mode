@@ -24,33 +24,21 @@
   (define racket-lexer* (dynamic-require 'syntax-color/racket-lexer 'racket-lexer*))
 
   ;; To test async notifications from the updater thread, we supply an
-  ;; on-notify that puts them to a "gathering" channel, which
-  ;; accumulates ('begin-update 'token ... 'end-update) sequences and
-  ;; posts each list of changes to a "result" channel for test-create
-  ;; and test-update to return as value for use with check-equal?.
-  (define gathering-channel (make-async-channel))
+  ;; on-notify that puts some of them to a "results" channel.
   (define result-channel (make-async-channel))
-  (void
-   (thread
-    (λ () (let loop ([xs null])
-            (match (async-channel-get gathering-channel)
-              ['(begin-update) (loop null)]
-              ['(end-update)
-               (async-channel-put result-channel (reverse xs))
-               (loop null)]
-              [(cons 'lang _) (loop null)]
-              [(list 'token beg end attribs)
-               (loop (cons (list beg end attribs)
-                           xs))])))))
+  (define (on-notify . args)
+    (match args
+      [(list* 'invalidate _) (async-channel-put result-channel args)]
+      [(list* 'lang _) (void)]))
   (define (test-create str)
-    (define o (new hash-lang% [on-notify
-                               (λ args
-                                 (async-channel-put gathering-channel args))]))
+    (define o (new hash-lang% [on-notify on-notify]))
     (test-update! o 1 0 0 str)
     o)
   (define (test-update! o gen pos old-len str)
     (send o update! gen pos old-len str)
-    (async-channel-get result-channel))
+    (match (async-channel-get result-channel)
+      [(list 'invalidate gen beg end)
+       (send o get-tokens gen beg end)]))
 
   ;;; Various tests of tokenizing and updatng
 
@@ -503,114 +491,114 @@
   ;;;
   (when #t
 
-   (define (cpu-time proc)
-     (define-values (_results cpu _real _gc) (time-apply proc null))
-     cpu)
+    (define (cpu-time proc)
+      (define-values (_results cpu _real _gc) (time-apply proc null))
+      cpu)
 
-   (define (bench what str)
-     (newline)
-     (displayln (make-string 76 #\-))
-     (printf "BENCHMARK: ~v\n" what)
-     (println (string-append (substring str 0 20) "..."))
+    (define (bench what str)
+      (newline)
+      (displayln (make-string 76 #\-))
+      (printf "BENCHMARK: ~v\n" what)
+      (println (string-append (substring str 0 20) "..."))
 
-     ;; Create an object of our class.
-     (define o (new hash-lang% [on-notify void]))
-     (send o update! 1 0 0 str)
+      ;; Create an object of our class.
+      (define o (new hash-lang% [on-notify void]))
+      (send o update! 1 0 0 str)
 
-     ;; Create an object of racket:text%, which also implements the
-     ;; color:text<%> interface. Since our class reads lang info to get
-     ;; things like the initial lexer and paren-matches, give those
-     ;; values from our object to color:text<%> `start-colorer`.
-     (define t (new racket:text%))
-     (send t start-colorer symbol->string (send o -get-lexer) (send o -get-paren-matches))
-     (send t insert str)
-     (send t freeze-colorer)
-     (send t thaw-colorer)
+      ;; Create an object of racket:text%, which also implements the
+      ;; color:text<%> interface. Since our class reads lang info to get
+      ;; things like the initial lexer and paren-matches, give those
+      ;; values from our object to color:text<%> `start-colorer`.
+      (define t (new racket:text%))
+      (send t start-colorer symbol->string (send o -get-lexer) (send o -get-paren-matches))
+      (send t insert str)
+      (send t freeze-colorer)
+      (send t thaw-colorer)
 
-     (define (compare what reps proc)
-       (newline)
-       (displayln what)
-       (define o-time (cpu-time (λ () (for ([_ reps]) (proc o)))))
-       (define t-time (cpu-time (λ () (for ([_ reps]) (proc t)))))
-       (define factor (/ (* 1.0 o-time) t-time))
-       (printf "~v ~v\n~v ~v\n~v times\n"
-               o-time o
-               t-time t
-               factor))
+      (define (compare what reps proc)
+        (newline)
+        (displayln what)
+        (define o-time (cpu-time (λ () (for ([_ reps]) (proc o)))))
+        (define t-time (cpu-time (λ () (for ([_ reps]) (proc t)))))
+        (define factor (/ (* 1.0 o-time) t-time))
+        (printf "~v ~v\n~v ~v\n~v times\n"
+                o-time o
+                t-time t
+                factor))
 
-     (compare "paragraph methods"
-              10
-              (λ (t)
-                (for ([pos (in-range 0 (string-length str))])
-                  (define para (send t position-paragraph pos))
-                  (send t paragraph-start-position para)
-                  (send t paragraph-end-position para))))
+      (compare "paragraph methods"
+               10
+               (λ (t)
+                 (for ([pos (in-range 0 (string-length str))])
+                   (define para (send t position-paragraph pos))
+                   (send t paragraph-start-position para)
+                   (send t paragraph-end-position para))))
 
-     (compare "classify-position*"
-              10
-              (λ (t)
-                (for ([pos (in-range 0 (string-length str))])
-                  (send t classify-position* pos))))
+      (compare "classify-position*"
+               10
+               (λ (t)
+                 (for ([pos (in-range 0 (string-length str))])
+                   (send t classify-position* pos))))
 
-     (compare "get-token-range"
-              10
-              (λ (t)
-                (for ([pos (in-range 0 (string-length str))])
-                  (send t get-token-range pos))))
+      (compare "get-token-range"
+               10
+               (λ (t)
+                 (for ([pos (in-range 0 (string-length str))])
+                   (send t get-token-range pos))))
 
-     (compare "skip-whitespace 'forward"
-              10
-              (λ (t)
-                (for ([pos (in-range 0 (string-length str))])
-                  (send t skip-whitespace pos 'forward #t))))
-     (compare "skip-whitespace 'backward"
-              10
-              (λ (t)
-                (for ([pos (in-range 0 (string-length str))])
-                  (send t skip-whitespace pos 'backward #t))))
+      (compare "skip-whitespace 'forward"
+               10
+               (λ (t)
+                 (for ([pos (in-range 0 (string-length str))])
+                   (send t skip-whitespace pos 'forward #t))))
+      (compare "skip-whitespace 'backward"
+               10
+               (λ (t)
+                 (for ([pos (in-range 0 (string-length str))])
+                   (send t skip-whitespace pos 'backward #t))))
 
-     (compare "backward-match"
-              1
-              (λ (t)
-                (for ([pos (in-range 0 (string-length str))])
-                  (send t backward-match pos 0))))
-     (compare "forward-match"
-              1
-              (λ (t)
-                (define lp (send t last-position))
-                (for ([pos (in-range 0 (string-length str))])
-                  (send t forward-match pos lp))))
+      (compare "backward-match"
+               1
+               (λ (t)
+                 (for ([pos (in-range 0 (string-length str))])
+                   (send t backward-match pos 0))))
+      (compare "forward-match"
+               1
+               (λ (t)
+                 (define lp (send t last-position))
+                 (for ([pos (in-range 0 (string-length str))])
+                   (send t forward-match pos lp))))
 
-     (compare "backward-containing-sexp"
-              1
-              (λ (t)
-                (for ([pos (in-range 0 (string-length str) 1000)])
-                  (send t backward-containing-sexp pos 0))))
+      (compare "backward-containing-sexp"
+               1
+               (λ (t)
+                 (for ([pos (in-range 0 (string-length str) 1000)])
+                   (send t backward-containing-sexp pos 0))))
 
-     (define line-indent (send o -get-line-indenter))
-     (when line-indent
-       (compare line-indent
-                1
-                (λ (t)
-                  (for ([pos (in-range 0 (string-length str))])
-                    (when (or (= pos 0)
-                              (char=? (string-ref str (sub1 pos)) #\newline))
-                      (line-indent t pos))))))
+      (define line-indent (send o -get-line-indenter))
+      (when line-indent
+        (compare line-indent
+                 1
+                 (λ (t)
+                   (for ([pos (in-range 0 (string-length str))])
+                     (when (or (= pos 0)
+                               (char=? (string-ref str (sub1 pos)) #\newline))
+                       (line-indent t pos))))))
 
-     (define range-indent (send o -get-range-indenter))
-     (when range-indent
-       (compare range-indent
-                10
-                (λ (t) (range-indent t 0 (string-length str))))))
+      (define range-indent (send o -get-range-indenter))
+      (when range-indent
+        (compare range-indent
+                 10
+                 (λ (t) (range-indent t 0 (string-length str))))))
 
-   (displayln (make-string 76 #\=))
+    (displayln (make-string 76 #\=))
 
-   (let* ([uri "https://raw.githubusercontent.com/racket/racket/448b77a6629c68659e1360fbe9f9e1ecea078f9c/pkgs/racket-doc/scribblings/reference/class.scrbl"]
-          [str (call/input-url (string->url uri) get-pure-port port->string)])
-     (bench uri str))
+    (let* ([uri "https://raw.githubusercontent.com/racket/racket/448b77a6629c68659e1360fbe9f9e1ecea078f9c/pkgs/racket-doc/scribblings/reference/class.scrbl"]
+           [str (call/input-url (string->url uri) get-pure-port port->string)])
+      (bench uri str))
 
-   (let* ([uri "https://raw.githubusercontent.com/mflatt/shrubbery-rhombus-0/master/demo.rkt"]
-          [str (call/input-url (string->url uri) get-pure-port port->string)])
-     (bench uri str))
+    (let* ([uri "https://raw.githubusercontent.com/mflatt/shrubbery-rhombus-0/master/demo.rkt"]
+           [str (call/input-url (string->url uri) get-pure-port port->string)])
+      (bench uri str))
 
-   (newline)))
+    (newline)))

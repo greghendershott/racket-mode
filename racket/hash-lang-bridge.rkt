@@ -27,7 +27,8 @@
     [`(indent-amount ,id ,gen ,pos)                (indent-amount id gen pos)]
     [`(indent-region-amounts ,id ,gen ,from ,upto) (indent-region-amounts id gen from upto)]
     [`(classify ,id ,gen ,pos)                     (classify id gen pos)]
-    [`(grouping ,id ,gen ,pos ,dir ,limit ,count)  (grouping id gen pos dir limit count)]))
+    [`(grouping ,id ,gen ,pos ,dir ,limit ,count)  (grouping id gen pos dir limit count)]
+    [`(get-tokens ,id ,gen ,from ,upto)            (get-tokens id gen from upto)]))
 
 (define hash-lang-notify-channel (make-async-channel))
 
@@ -46,16 +47,10 @@
       [(and v (cons 'lang _))
        (async-channel-put hash-lang-notify-channel
                           (list* 'hash-lang id v))]
-      [(list 'token (app add1 beg) (app add1 end) attribs)
-       (define types
-         (match attribs
-           [(? symbol? s) (list s)]
-           [(? hash? ht)  (cons (hash-ref ht 'type 'unknown)
-                                (if (hash-ref ht 'comment? #f)
-                                    '(sexp-comment-body)
-                                    null))]))
-       (async-channel-put hash-lang-notify-channel
-                          (list 'hash-lang id 'token beg end types))]
+      [(list 'invalidate gen (app add1 beg) (app add1 end))
+       (when (< beg end)
+         (async-channel-put hash-lang-notify-channel
+                            (list 'hash-lang id 'invalidate gen beg end)))]
       [v null])) ;ignore 'begin-update 'end-update
   (define obj (new hash-lang% [on-notify on-notify]))
   (hash-set! ht id obj)
@@ -88,6 +83,19 @@
   (match (send (get-object id) grouping gen (sub1 pos) dir limit count)
     [(? number? n) (add1 n)]
     [v v]))
+
+(define (get-tokens id gen from upto)
+  (for/list ([tok (in-list (send (get-object id) get-tokens gen (sub1 from) (sub1 upto)))])
+    (match-define (list (app add1 beg) (app add1 end) (app attribs->types types)) tok)
+    (list beg end types)))
+
+(define (attribs->types attribs)
+  (match attribs
+    [(? symbol? s) (list s)]
+    [(? hash? ht)  (cons (hash-ref ht 'type 'unknown)
+                         (if (hash-ref ht 'comment? #f)
+                             '(sexp-comment-body)
+                             null))]))
 
 (module+ example-0
   (define id 0)
