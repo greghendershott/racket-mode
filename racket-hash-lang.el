@@ -34,7 +34,9 @@ enough.")
 ;; These are simply to save the original values, to be able to restore
 ;; when the minor mode is disabled:
 (defvar-local racket--hash-lang-orig-font-lock-defaults nil)
+(defvar-local racket--hash-lang-orig-font-lock-fontify-region-function nil)
 (defvar-local racket--hash-lang-orig-syntax-table nil)
+(defvar-local racket--hash-lang-orig-text-property-default-nonsticky nil)
 (defvar-local racket--hash-lang-orig-indent-line-function nil)
 (defvar-local racket--hash-lang-orig-indent-region-function nil)
 
@@ -46,29 +48,26 @@ enough.")
      ("C-M-u" ,#'racket-hash-lang-up)
      ("C-M-d" ,#'racket-hash-lang-down))))
 
-(defun racket--hash-lang-syntax-table (lang-uses-sexp-nav-p)
-  "Return a suitable syntax-table to use."
-  (if lang-uses-sexp-nav-p
-      (standard-syntax-table) ;TODO: Use racket-mode table instead??
-    (let ((st (make-syntax-table)))
-      ;; Modify entries for characters for parens, strings, and
-      ;; comments, setting them to word syntax instead. (For the
-      ;; numbers, see Emacs Lisp Info: "Syntax Table Internals".)
-      (map-char-table (lambda (key value)
-                        (when (memq (car value) '(4 5 7 10 11 12))
-                          (aset st key '(2))))
-                      st)
-      st)))
+(defconst racket--hash-lang-plain-syntax-table
+  (let ((st (make-syntax-table)))
+    ;; Modify entries for characters for parens, strings, and
+    ;; comments, setting them to word syntax instead. (For the
+    ;; numbers, see Emacs Lisp Info: "Syntax Table Internals".)
+    (map-char-table (lambda (key value)
+                      (when (memq (car value) '(4 5 7 10 11 12))
+                        (aset st key '(2))))
+                    st)
+    st))
 
 (defconst racket--hash-lang-text-properties
-  '(face fontified syntax-table racket-token)
+  '(face syntax-table racket-token)
   "The text properties we use.")
 
 (defun racket--hash-lang-remove-text-properties (beg end)
   "Remove from region `racket--hash-lang-text-properties'."
   (remove-text-properties
    beg end
-   ;; Make a property list like (face nil fontified nil ...)
+   ;; Make a property list like (face nil syntax-table nil ...)
    (apply #'append (mapcar (lambda (v) (cons v nil))
                            racket--hash-lang-text-properties))))
 
@@ -89,19 +88,32 @@ navigation or indent.
   (if racket-hash-lang-mode
       (progn
         (setq racket--hash-lang-generation 1)
-        (font-lock-mode -1)
+
         (electric-indent-local-mode -1)
+
         (with-silent-modifications
           (racket--hash-lang-remove-text-properties (point-min) (point-max)))
 
         (setq-local racket--hash-lang-orig-font-lock-defaults
                     font-lock-defaults)
         (setq-local font-lock-defaults nil)
+        (setq-local racket--hash-lang-orig-font-lock-fontify-region-function
+                    font-lock-fontify-region-function)
+        (setq-local font-lock-fontify-region-function
+                    #'racket--hash-lang-font-lock-fontify-region)
 
         (setq-local racket--hash-lang-orig-syntax-table
                     (syntax-table))
-        (set-syntax-table (racket--hash-lang-syntax-table t))
+        (set-syntax-table (standard-syntax-table))
         (syntax-ppss-flush-cache (point-min))
+
+        (setq-local racket--hash-lang-orig-text-property-default-nonsticky
+                    text-property-default-nonsticky)
+        (setq-local text-property-default-nonsticky
+                    (append (mapcar (lambda (p)
+                                      (cons p t))
+                                    racket--hash-lang-text-properties)
+                            text-property-default-nonsticky))
 
         (setq-local racket--hash-lang-orig-indent-line-function
                     indent-line-function)
@@ -121,10 +133,16 @@ navigation or indent.
                      ,(save-restriction
                         (widen)
                         (buffer-substring-no-properties (point-min) (point-max))))
-         #'ignore))
+         #'ignore)
+        (syntax-ppss-flush-cache (point-min))
+        (font-lock-flush))
     (setq-local font-lock-defaults
                 racket--hash-lang-orig-font-lock-defaults)
+    (setq-local font-lock-fontify-region-function
+                racket--hash-lang-orig-font-lock-fontify-region-function)
     (set-syntax-table racket--hash-lang-orig-syntax-table)
+    (setq-local text-property-default-nonsticky
+                racket--hash-lang-orig-text-property-default-nonsticky)
     (setq-local indent-line-function
                 racket--hash-lang-orig-indent-line-function)
     (setq-local indent-region-function
@@ -139,9 +157,8 @@ navigation or indent.
     (with-silent-modifications
       (racket--hash-lang-remove-text-properties (point-min) (point-max)))
     (electric-indent-local-mode 1)
-    (font-lock-mode 1)
     (syntax-ppss-flush-cache (point-min))
-    (syntax-propertize (point-max))))
+    (font-lock-flush)))
 
 (defun racket--hash-lang-delete ()
   (racket--cmd/async
@@ -165,15 +182,27 @@ navigation or indent.
 (defun racket--hash-lang-on-notify (id params)
   (with-current-buffer (find-buffer-visiting id)
     (pcase params
-      (`(lang  . ,params) (racket--hash-lang-on-new-lang params))
-      (`(token . ,token)  (racket--hash-lang-on-new-token token)))))
+      (`(lang       . ,params)      (racket--hash-lang-on-new-lang params))
+      (`(invalidate ,gen ,beg ,end) (racket--hash-lang-on-invalidate gen beg end)))))
 
 (defun racket--hash-lang-on-new-lang (plist)
   "We get this whenever the #lang changes in the user's program, including when we first open it."
   (with-silent-modifications
     (racket--hash-lang-remove-text-properties (point-min) (point-max)))
-  (set-syntax-table (racket--hash-lang-syntax-table (plist-get plist 'racket-grouping)))
+  ;; If the lang uses racket-grouping-position, i.e. it uses
+  ;; s-expressions, then use standard-syntax-table. That way other
+  ;; Emacs features and packackages are more likel to work. [[TODO:
+  ;; Should this instead be the same syntax-table used by normal
+  ;; racket-mode??]] Otherwise, assume nothing about the lang and set
+  ;; a "plain" syntax table where virtually every character is either
+  ;; whitespace or word syntax (no chars signify e.g. parens,
+  ;; comments, or strings).
+  (set-syntax-table
+   (if (plist-get plist 'racket-grouping)
+       (standard-syntax-table)
+     racket--hash-lang-plain-syntax-table))
   (syntax-ppss-flush-cache (point-min))
+  (font-lock-flush)
   (setq-local indent-line-function
               #'racket-hash-lang-indent-line-function)
   (setq-local indent-region-function
@@ -185,70 +214,90 @@ navigation or indent.
                             ((plist-get plist 'line-indenter)  "→")
                             (t "")))))
 
-(defun racket--hash-lang-on-new-token (token)
+(defun racket--hash-lang-on-invalidate (gen beg end)
+  (message "invalidate %s %s %s" gen beg end)
+  (racket--hash-lang-remove-text-properties beg end)
+  (font-lock-flush beg end))
+
+(defun racket--hash-lang-font-lock-fontify-region (beg end _loudly)
+  ;;(message "fontify-region %s %s" beg end)
+  ;; Go ahead and mark fontified now, to keep font-lock happy.
+  ;; But we'll actually apply face properties async.
+  (put-text-property beg end 'fontified t)
+  (racket--cmd/async
+   nil
+   `(hash-lang get-tokens
+               ,(racket--buffer-file-name)
+               ,racket--hash-lang-generation
+               ,beg
+               ,end)
+   #'racket--hash-lang-on-tokens))
+
+(defun racket--hash-lang-on-tokens (tokens)
   (with-silent-modifications
     (cl-flet ((put-face (beg end face) (put-text-property beg end 'face face))
               (put-stx  (beg end stx)  (put-text-property beg end 'syntax-table stx)))
-      (pcase-let ((`(,beg ,end ,kinds) token))
-        (racket--hash-lang-remove-text-properties beg end)
-        ;; 'racket-token is just informational for me for debugging
-        (put-text-property beg end 'racket-token kinds)
-        (dolist (kind kinds)
-          (pcase kind
-            ('parenthesis
-             ;; Note: We don't attempt to put open/close paren syntax
-             ;; here. The tokens might have span > 1. Also we entirely
-             ;; rely on the lang's "grouping-position" function for
-             ;; navigation. Some things in Emacs ecosystem might not
-             ;; work, e.g. paredit, although they might if the buffer
-             ;; syntax-table is standard-syntax-table; see
-             ;; `racket--hash-lang-syntax-table'.
-             (put-face beg end 'parenthesis))
-            ('comment
-             ;; I'm not sure we need to put-stx here; see comment
-             ;; about parens above.
-             (put-stx beg (1+ beg) '(11)) ;comment-start
-             (put-stx (1- end) end '(12)) ;comment-end
-             (let ((beg (1+ beg))         ;comment _contents_ if any
-                   (end (1- end)))
-               (when (< beg end)
-                 (put-stx beg end '(14)))) ;generic comment
-             (put-face beg end 'font-lock-comment-face))
-            ('sexp-comment
-             ;; This is just the "#;" prefix not the following sexp.
-             (put-stx beg end '(14))    ;generic comment
-             (put-face beg end 'font-lock-comment-face))
-            ('sexp-comment-body
-             (put-face beg end 'font-lock-comment-face))
-            ('string
-             (put-face beg end 'font-lock-string-face))
-            ('text
-             (put-stx beg end (standard-syntax-table))
-             nil)
-            ('constant
-             (put-stx beg end '(2))     ;word
-             (put-face beg end 'font-lock-constant-face))
-            ('error
-             (put-face beg end 'error))
-            ('symbol
-             (put-stx beg end '(3))     ;symbol
-             ;; TODO: Consider using default font here, because e.g.
-             ;; racket-lexer almost everything is "symbol" because
-             ;; it is an identifier. Meanwhile, using a non-default
-             ;; face here is helping me see behavior and spot bugs.
-             (put-face beg end 'font-lock-variable-name-face))
-            ('keyword
-             (put-stx beg end '(2))     ;word
-             (put-face beg end 'font-lock-keyword-face))
-            ('hash-colon-keyword
-             (put-stx beg end '(2))     ;word
-             (put-face beg end 'racket-keyword-argument-face))
-            ('white-space
-             ;;(put-stx beg end '(0))
-             nil)
-            ('other
-             ;;(put-stx beg end (standard-syntax-table))
-             nil)))))))
+      (dolist (token tokens)
+        (pcase-let ((`(,beg ,end ,kinds) token))
+          (racket--hash-lang-remove-text-properties beg end)
+          ;; 'racket-token is just informational for me for debugging
+          (put-text-property beg end 'racket-token kinds)
+          (dolist (kind kinds)
+            (pcase kind
+              ('parenthesis
+               ;; Note: We don't attempt to put open/close paren syntax
+               ;; here. The tokens might have span > 1. Also we entirely
+               ;; rely on the lang's "grouping-position" function for
+               ;; navigation. Some things in Emacs ecosystem might not
+               ;; work, e.g. paredit, although they might if the buffer
+               ;; syntax-table is standard-syntax-table; see
+               ;; `racket--hash-lang-syntax-table'.
+               (put-face beg end 'parenthesis))
+              ('comment
+               ;; I'm not sure we need to put-stx here; see comment
+               ;; about parens above.
+               (put-stx beg (1+ beg) '(11)) ;comment-start
+               (put-stx (1- end) end '(12)) ;comment-end
+               (let ((beg (1+ beg))         ;comment _contents_ if any
+                     (end (1- end)))
+                 (when (< beg end)
+                   (put-stx beg end '(14)))) ;generic comment
+               (put-face beg end 'font-lock-comment-face))
+              ('sexp-comment
+               ;; This is just the "#;" prefix not the following sexp.
+               (put-stx beg end '(14))  ;generic comment
+               (put-face beg end 'font-lock-comment-face))
+              ('sexp-comment-body
+               (put-face beg end 'font-lock-comment-face))
+              ('string
+               (put-face beg end 'font-lock-string-face))
+              ('text
+               (put-stx beg end racket--hash-lang-plain-syntax-table)
+               nil)
+              ('constant
+               (put-stx beg end '(2))   ;word
+               (put-face beg end 'font-lock-constant-face))
+              ('error
+               (put-face beg end 'error))
+              ('symbol
+               (put-stx beg end '(3))   ;symbol
+               ;; TODO: Consider using default font here, because e.g.
+               ;; racket-lexer almost everything is "symbol" because
+               ;; it is an identifier. Meanwhile, using a non-default
+               ;; face here is helping me see behavior and spot bugs.
+               (put-face beg end 'font-lock-variable-name-face))
+              ('keyword
+               (put-stx beg end '(2))   ;word
+               (put-face beg end 'font-lock-keyword-face))
+              ('hash-colon-keyword
+               (put-stx beg end '(2))   ;word
+               (put-face beg end 'racket-keyword-argument-face))
+              ('white-space
+               ;;(put-stx beg end '(0))
+               nil)
+              ('other
+               ;;(put-stx beg end (standard-syntax-table))
+               nil))))))))
 
 (defun racket-hash-lang-indent-line-function ()
   "Maybe use #lang drracket:indentation, else `racket-indent-line'."
@@ -315,18 +364,22 @@ navigation or indent.
       (_ (user-error "Cannot move %s %s times" direction count)))))
 
 (defun racket-hash-lang-backward ()
+  "Like `backward-sexp' but uses #lang supplied navigation."
   (interactive)
   (racket-hash-lang-move 'backward))
 
 (defun racket-hash-lang-forward ()
+  "Like `forward-sexp' but uses #lang supplied navigation."
   (interactive)
   (racket-hash-lang-move 'forward))
 
 (defun racket-hash-lang-up ()
+  "Like `backward-up-list' but uses #lang supplied navigation."
   (interactive)
   (racket-hash-lang-move 'up))
 
 (defun racket-hash-lang-down ()
+  "Like `down-list' but uses #lang supplied navigation."
   (interactive)
   (racket-hash-lang-move 'down))
 

@@ -287,48 +287,58 @@
       ;;(pretty-print (cons 'parens-after-split (send parens test)))
 
       (define in (lines:open-input-text content tokenize-from))
-      (when on-notify (on-notify 'begin-update))
-      (let tokenize ([pos tokenize-from] [mode mode] [contig-same-count 0])
-        (define pos/port (add1 pos))
-        (define-values (lexeme attribs paren beg/port end/port backup new-mode)
-          (lexer in pos/port mode))
-        (unless (eof-object? lexeme)
-          (define new-beg (sub1 beg/port))
-          (define new-end (sub1 end/port))
-          (define new-span (- new-end new-beg))
-          (define new-tok (token attribs paren backup new-mode))
-          (with-semaphore tokens-sema (insert-last-spec! tokens new-span new-tok))
-          (with-semaphore parens-sema (send parens add-token paren new-span))
-          (set-update-progress #:position (sub1 new-end))
-
-          ;; Detect whether same as before (maybe just shifted)
-          (send old-tokens search! (- new-beg tokenize-from diff))
-          (define old-beg (send old-tokens get-root-start-position))
-          (define old-end (send old-tokens get-root-end-position))
-          (define old-span (- old-end old-beg))
-          (define old-tok (send old-tokens get-root-data))
-          (define same? (and (equal? new-span old-span)
-                             (equal? new-tok old-tok)))
-          (unless same?
-            (when on-notify
-              (on-notify 'token new-beg new-end attribs)))
-          (define contig-same-goal 3)
+      (define-values (min-changed-pos max-changed-pos)
+        (let tokenize ([pos tokenize-from]
+                       [mode mode]
+                       [contig-same-count 0]
+                       [min-changed-pos #f]
+                       [max-changed-pos min-position])
+          (define pos/port (add1 pos))
+          (define-values (lexeme attribs paren beg/port end/port backup new-mode)
+            (lexer in pos/port mode))
           (cond
-            [(= (add1 contig-same-count) contig-same-goal) ;; stop early
-             (send old-tokens search! old-beg)
-             (define-values (_ keep) (send old-tokens split-after))
-             ;; (-show-tree "tokens prior to append" tokens)
-             ;; (-show-tree "old tokens to append" keep new-end)
-             (with-semaphore tokens-sema (insert-last! tokens keep))
+            [(eof-object? lexeme)
+             (values min-changed-pos max-changed-pos)]
+            [else
+             (define new-beg (sub1 beg/port))
+             (define new-end (sub1 end/port))
+             (define new-span (- new-end new-beg))
+             (define new-tok (token attribs paren backup new-mode))
+             (with-semaphore tokens-sema (insert-last-spec! tokens new-span new-tok))
+             (with-semaphore parens-sema (send parens add-token paren new-span))
+             (set-update-progress #:position (sub1 new-end))
 
-             ;; (pretty-print (cons 'parens-before-merge (send parens test)))
-             (define paren-keep-span (- (last-position) new-end))
-             ;; (printf "paren-keep-span: ~v\n" paren-keep-span)
-             (with-semaphore parens-sema (send parens merge-tree paren-keep-span))
-             ;; (pretty-print (cons 'parens-after-merge (send parens test)))
-             ]
-            [else (tokenize new-end new-mode (+ contig-same-count (if same? 1 0)))])))
-      (when on-notify (on-notify 'end-update))
+             ;; Detect whether same as before (maybe just shifted)
+             (send old-tokens search! (- new-beg tokenize-from diff))
+             (define old-beg (send old-tokens get-root-start-position))
+             (define old-end (send old-tokens get-root-end-position))
+             (define old-span (- old-end old-beg))
+             (define old-tok (send old-tokens get-root-data))
+             (define same? (and (equal? new-span old-span)
+                                (equal? new-tok old-tok)))
+             (define contig-same-goal 3)
+             (cond
+               [(= (add1 contig-same-count) contig-same-goal) ;; stop early
+                (send old-tokens search! old-beg)
+                (define-values (_ keep) (send old-tokens split-after))
+                ;; (-show-tree "tokens prior to append" tokens)
+                ;; (-show-tree "old tokens to append" keep new-end)
+                (with-semaphore tokens-sema (insert-last! tokens keep))
+
+                ;; (pretty-print (cons 'parens-before-merge (send parens test)))
+                (define paren-keep-span (- (last-position) new-end))
+                ;; (printf "paren-keep-span: ~v\n" paren-keep-span)
+                (with-semaphore parens-sema (send parens merge-tree paren-keep-span))
+                ;; (pretty-print (cons 'parens-after-merge (send parens test)))
+                (values min-changed-pos max-changed-pos)]
+               [else
+                (tokenize new-end
+                          new-mode
+                          (+ contig-same-count (if same? 1 0))
+                          (if same? min-changed-pos (or min-changed-pos new-beg))
+                          (if same? max-changed-pos (max max-changed-pos new-end)))])])))
+      (when on-notify
+        (on-notify 'invalidate generation (or min-changed-pos 0) max-changed-pos))
       (set-update-progress #:position max-position))
 
     ;; Methods for Emacs query commands.
