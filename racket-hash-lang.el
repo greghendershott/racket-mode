@@ -216,7 +216,6 @@ navigation or indent.
 
 (defun racket--hash-lang-on-invalidate (gen beg end)
   (message "invalidate %s %s %s" gen beg end)
-  (racket--hash-lang-remove-text-properties beg end)
   (font-lock-flush beg end))
 
 (defun racket--hash-lang-font-lock-fontify-region (beg end _loudly)
