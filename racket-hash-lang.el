@@ -361,7 +361,8 @@ navigation or indent.
                         ,count))
       ((and (pred numberp) pos)
        (goto-char pos))
-      (_ (user-error "Cannot move %s %s times" direction count)))))
+      (_ (user-error "Cannot move %s" direction (unless (zerop count)
+                                                  (format " %s times" count)))))))
 
 (defun racket-hash-lang-backward ()
   "Like `backward-sexp' but uses #lang supplied navigation."
