@@ -51,7 +51,8 @@
 
 ;; Some of this inherited from /src/racket-lang/racket/share/pkgs/gui-lib/framework/private
 
-(struct token (attribs paren backup mode) #:transparent)
+;; Our data for token-tree%
+(struct data (attribs backup mode) #:transparent)
 
 (define (attribs->type attribs)
   (if (symbol? attribs)
@@ -101,7 +102,7 @@
       (send tokens
             for-each
             (λ (beg end data)
-              (set! modes (cons (list beg end (token-mode data))
+              (set! modes (cons (list beg end (data-mode data))
                                 modes))))
       (reverse modes))
     (define/public (-get-parens) parens)
@@ -259,16 +260,32 @@
          (update-tokens-and-parens pos (- new-len old-len))]))
 
     (define/private (update-tokens-and-parens pos diff)
-      ;; From where do we need to re-tokenize? This will be < the pos
-      ;; of the change. Back up to the start of the previous token,
-      ;; plus any `backup` amount the lexer may have supplied for that
-      ;; token.
+      ;; The position from which we need to start re-tokenizing will
+      ;; be less than the position of the change, `pos`. To find that:
+      ;;
+      ;; Find the beginning of the _previous_ token. If this has a
+      ;; non-zero `backup` amount, back up more; repeating until we
+      ;; find a zero backup. The start of that token is our initial
+      ;; position from which to re-tokenize.
+      ;;
+      ;; However, the lexer mode to use for that position is stored
+      ;; with the previous token (if any). So finally back up one more
+      ;; to get the mode.
       (define-values (tokenize-from mode)
-        (match (with-semaphore tokens-sema (token-ref (sub1 pos)))
-          [(list beg _end (struct* token ([backup backup] [mode mode])))
-           (values (- beg backup) mode)]
-          [#f (values pos #f)]))
-      ;; Everything before this is valid.
+        (let loop ([pos pos] [first? #t])
+          (match (with-semaphore tokens-sema (token-ref pos))
+            [#f (values min-position #f)]
+            [(list beg _end (struct* data ([backup backup])))
+             (cond [(< 0 backup) (loop (- beg backup) #f)]
+                   [first?       (loop (sub1 beg)     #f)]
+                   [else
+                    ;; Get mode from _previous_ token
+                    (match (with-semaphore tokens-sema (token-ref (sub1 beg)))
+                      [#f (values beg #f)]
+                      [(list _beg _end (struct* data ([mode mode])))
+                       (values beg mode)])])])))
+      ;; Everything before this is valid; allow other threads to
+      ;; progress thru that position of this generation.
       (set-update-progress #:position (sub1 tokenize-from))
       ;; (printf "tokenize-from ~v\n" tokenize-from)
       ;; (printf "diff ~v old-len ~v\n" diff old-len)
@@ -304,7 +321,7 @@
              (define new-beg (sub1 beg/port))
              (define new-end (sub1 end/port))
              (define new-span (- new-end new-beg))
-             (define new-tok (token attribs paren backup new-mode))
+             (define new-tok (data attribs backup new-mode))
              (with-semaphore tokens-sema (insert-last-spec! tokens new-span new-tok))
              (with-semaphore parens-sema (send parens add-token paren new-span))
              (set-update-progress #:position (sub1 new-end))
@@ -350,8 +367,8 @@
       ;; (-> generation/c position/c (or/c #f (list/c position/c position/c (or/c symbol? hash-eq?))
       (block-until-updated-thru gen pos)
       (match (with-semaphore tokens-sema (token-ref pos))
-        [(list beg end tok)
-         (list beg end (token-attribs tok))]
+        [(list beg end (struct* data ([attribs attribs])))
+         (list beg end attribs)]
         [#f #f]))
 
     ;; Can be called on any command thread.
@@ -361,9 +378,9 @@
       (block-until-updated-thru gen upto)
       (let loop ([pos from])
         (match (with-semaphore tokens-sema (token-ref pos))
-          [(list beg end tok)
+          [(list beg end (struct* data ([attribs attribs])))
            (if (<= end upto)
-               (cons (list beg end (token-attribs tok))
+               (cons (list beg end attribs)
                      (loop end))
                null)]
           [#f null])))
@@ -471,13 +488,13 @@
     (define/public (classify-position* position)
       (send tokens search! position)
       (match (send tokens get-root-data)
-        [(? token? t) (attribs->table (token-attribs t))]
+        [(struct* data ([attribs (app attribs->table table)])) table]
         [#f #f]))
 
     (define/public (classify-position position)
       (send tokens search! position)
       (match (send tokens get-root-data)
-        [(? token? t) (attribs->type (token-attribs t))]
+        [(struct* data ([attribs (app attribs->type type)])) type]
         [#f #f]))
 
     (define/public (get-token-range position)
@@ -561,8 +578,7 @@
                                   (sub1 position)
                                   position))
          (match (send tokens get-root-data)
-           [(? token? tok)
-            (define type (attribs->type (token-attribs tok)))
+           [(struct* data ([attribs (app attribs->type type)]))
             (cond
               [(or (eq? 'white-space type)
                    (and comments? (eq? 'comment type)))
