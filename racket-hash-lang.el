@@ -33,6 +33,8 @@ enough.")
 
 ;; These are simply to save the original values, to be able to restore
 ;; when the minor mode is disabled:
+(defvar-local racket--hash-lang-orig-electric-indent-inhibit nil)
+(defvar-local racket--hash-lang-orig-blink-paren-function nil)
 (defvar-local racket--hash-lang-orig-font-lock-defaults nil)
 (defvar-local racket--hash-lang-orig-font-lock-fontify-region-function nil)
 (defvar-local racket--hash-lang-orig-syntax-table nil)
@@ -43,6 +45,11 @@ enough.")
 (defvar racket-hash-lang-mode-map
   (racket--easy-keymap-define
    `(("RET"   ,#'newline-and-indent)
+     ;; Disable `racket-insert-closing'; not necessarily appropriate
+     ;; for all langs.
+     (")"     ,#'self-insert-command)
+     ("}"     ,#'self-insert-command)
+     ("]"     ,#'self-insert-command)
      ("C-M-b" ,#'racket-hash-lang-backward)
      ("C-M-f" ,#'racket-hash-lang-forward)
      ("C-M-u" ,#'racket-hash-lang-up)
@@ -90,6 +97,20 @@ navigation or indent.
         (setq racket--hash-lang-generation 1)
 
         (electric-indent-local-mode -1)
+        (setq-local racket--hash-lang-orig-electric-indent-inhibit
+                    electric-indent-inhibit)
+        (setq-local electric-indent-inhibit t)
+
+        ;; The default value of `blink-paren-function',
+        ;; `blink-matching-open', can for closing paren edits cause
+        ;; notifications from the back end to be lost, somehow. Maybe
+        ;; due to its use of `sit-for'? Investigate for general
+        ;; solution, but for now simply disable this. (But also, its
+        ;; implementation heavily relies on Emacs char syntax and
+        ;; likely won't work at all with non-sexp hash-langs.)
+        (setq-local racket--hash-lang-orig-blink-paren-function
+                    blink-paren-function)
+        (setq-local blink-paren-function #'ignore)
 
         (with-silent-modifications
           (racket--hash-lang-remove-text-properties (point-min) (point-max)))
@@ -157,6 +178,10 @@ navigation or indent.
     (with-silent-modifications
       (racket--hash-lang-remove-text-properties (point-min) (point-max)))
     (electric-indent-local-mode 1)
+    (setq-local electric-indent-inhibit
+                racket--hash-lang-orig-electric-indent-inhibit)
+    (setq-local blink-paren-function
+                racket--hash-lang-orig-blink-paren-function)
     (syntax-ppss-flush-cache (point-min))
     (font-lock-flush)))
 
@@ -186,9 +211,17 @@ navigation or indent.
       (`(invalidate ,gen ,beg ,end) (racket--hash-lang-on-invalidate gen beg end)))))
 
 (defun racket--hash-lang-on-new-lang (plist)
-  "We get this whenever the #lang changes in the user's program, including when we first open it."
+  "We get this whenever any #lang supplied attributes have changed.
+
+We do /not/ get notified when a new lang uses exactly the same
+attributes as the old one. For example changing from #lang racket
+to #lang racket/base will /not/ notify us, because none of the
+lang's attributes that care about have changed."
   (with-silent-modifications
-    (racket--hash-lang-remove-text-properties (point-min) (point-max)))
+    (save-restriction
+      (widen)
+      (racket--hash-lang-remove-text-properties (point-min) (point-max))
+      (put-text-property (point-min) (point-max) 'fontified nil)))
   ;; If the lang uses racket-grouping-position, i.e. it uses
   ;; s-expressions, then use standard-syntax-table. That way other
   ;; Emacs features and packackages are more likel to work. [[TODO:
@@ -202,7 +235,6 @@ navigation or indent.
        (standard-syntax-table)
      racket--hash-lang-plain-syntax-table))
   (syntax-ppss-flush-cache (point-min))
-  (font-lock-flush)
   (setq-local indent-line-function
               #'racket-hash-lang-indent-line-function)
   (setq-local indent-region-function
@@ -214,15 +246,17 @@ navigation or indent.
                             ((plist-get plist 'line-indenter)  "→")
                             (t "")))))
 
-(defun racket--hash-lang-on-invalidate (gen beg end)
-  (message "invalidate %s %s %s" gen beg end)
-  (font-lock-flush beg end))
+(defun racket--hash-lang-on-invalidate (_gen beg end)
+  ;;;(message "invalidate %s %s %s" _gen beg end)
+  (with-silent-modifications
+    (save-restriction
+      (widen)
+      (put-text-property beg (min end (point-max)) 'fontified nil))))
 
 (defun racket--hash-lang-font-lock-fontify-region (beg end _loudly)
-  ;;(message "fontify-region %s %s" beg end)
-  ;; Go ahead and mark fontified now, to keep font-lock happy.
-  ;; But we'll actually apply face properties async.
-  (put-text-property beg end 'fontified t)
+  ;;;(message "fontify-region %s %s" beg end)
+  ;; Note: We do this async. Not appropriate to be doing command I/O
+  ;; from jit-lock-mode called from Emacs C redisplay engine.
   (racket--cmd/async
    nil
    `(hash-lang get-tokens

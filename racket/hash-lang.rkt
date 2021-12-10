@@ -268,7 +268,8 @@
           [(list beg _end (struct* token ([backup backup] [mode mode])))
            (values (- beg backup) mode)]
           [#f (values pos #f)]))
-      (set! updated-thru (sub1 tokenize-from))
+      ;; Everything before this is valid.
+      (set-update-progress #:position (sub1 tokenize-from))
       ;; (printf "tokenize-from ~v\n" tokenize-from)
       ;; (printf "diff ~v old-len ~v\n" diff old-len)
 
@@ -341,6 +342,7 @@
         (on-notify 'invalidate generation (or min-changed-pos 0) max-changed-pos))
       (set-update-progress #:position max-position))
 
+    ;; ------------------------------------------------------------
     ;; Methods for Emacs query commands.
 
     ;; Can be called on any command thread.
@@ -366,6 +368,7 @@
                null)]
           [#f null])))
 
+    ;; ------------------------------------------------------------
     ;; Methods for Emacs navigation and indent commands.
     ;;
     ;; These command methods work by calling various drracket:xyz
@@ -435,6 +438,7 @@
                (with-semaphore parens-sema
                  (range-indenter this from upto)))]))
 
+    ;; ------------------------------------------------------------
     ;; color-textoid<%> methods.
     ;;
     ;; Warning: As discussed above, these are safe to call only from

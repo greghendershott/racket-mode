@@ -15,7 +15,7 @@
 ;;
 ;; - Adjust Emacs 1-based positions to/from hash-lang% 0-based.
 ;;
-;; - Handle notifications about new #lang and changed tokens.
+;; - Handle notifications about new #lang and changed token spans.
 
 (define (hash-lang . args)
   (unless hash-lang%
@@ -43,15 +43,13 @@
   ;; syncs on just like it does for notify channels for logger and
   ;; debug.
   (define (on-notify . args)
-    (match args
-      [(and v (cons 'lang _))
-       (async-channel-put hash-lang-notify-channel
-                          (list* 'hash-lang id v))]
-      [(list 'invalidate gen (app add1 beg) (app add1 end))
-       (when (< beg end)
-         (async-channel-put hash-lang-notify-channel
-                            (list 'hash-lang id 'invalidate gen beg end)))]
-      [v null])) ;ignore 'begin-update 'end-update
+    (async-channel-put
+     hash-lang-notify-channel
+     (match args
+       [(cons 'lang more)
+        (list* 'hash-lang id 'lang more)]
+       [(list 'invalidate gen (app add1 beg) (app add1 end))
+        (list 'hash-lang id 'invalidate gen beg end)])))
   (define obj (new hash-lang% [on-notify on-notify]))
   (hash-set! ht id obj)
   (send obj update! 1 0 0 s))

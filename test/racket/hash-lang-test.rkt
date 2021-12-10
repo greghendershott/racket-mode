@@ -367,6 +367,55 @@
                    (list 19 20 '#hash((comment? . #t) (type . constant)))
                    (list 20 21 '#hash((comment? . #t) (type . parenthesis))))))
 
+  (let* ([str "#lang scribble/manual\n\ntext text\ntext text\n"]
+         ;;    0123456789012345678901 2 3456789012 3456789012
+         ;;              1         2           3          4
+         [o (test-create str)])
+    (check-equal? (send o get-tokens 1)
+                  '((0 21 text)
+                    (21 23 white-space)
+                    (23 32 text)
+                    (32 33 white-space)
+                    (33 42 text)
+                    (42 43 white-space))
+                  "#lang scribble/manual: Initial lex is just lines of text tokens.")
+    (check-equal? (test-update! o 2 22 0 "@(1 a 3")
+                  '((21 22 white-space)
+                    (22 23 parenthesis)
+                    (23 24 parenthesis)
+                    (24 25 constant)
+                    (25 26 white-space)
+                    (26 27 symbol)
+                    (27 28 white-space)
+                    (28 29 constant)
+                    (29 30 white-space)
+                    (30 34 symbol)
+                    (34 35 white-space)
+                    (35 39 symbol)
+                    (39 40 white-space)
+                    (40 44 symbol)
+                    (44 45 white-space)
+                    (45 49 symbol)
+                    (49 50 white-space))
+                  "#lang scribble/manual: adding \"@(1 a 3\" with no close paren causes text tokens to become symbol and white-space tokens, i.e. as if part of the new s-expression.")
+    (check-equal? (send o -get-content)
+                  "#lang scribble/manual\n@(1 a 3\ntext text\ntext text\n")
+    ;;             0123456789012345678901 23456789 0123456789 0123456789
+    ;;                       1         2           3          4
+    (check-equal? (test-update! o 3 29 0 ")")
+                  '((29 30 parenthesis)
+                    (30 31 white-space)
+                    (31 40 text)
+                    (40 41 white-space)
+                    (41 50 text)
+                    (50 51 white-space))
+                  "#lang scribble/manual: adding a ) to close an unmatched @( causes things after the ) to be tokenzied back to text.")
+    (check-equal? (send o -get-content)
+                  "#lang scribble/manual\n@(1 a 3)\ntext text\ntext text\n")
+    ;;             0123456789012345678901 234567890 1234567890 1234567890 1
+    ;;                       1         2          3          4          5
+    )
+
   ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
   ;;;
   ;;; Test equivalance of our text%-like methods to those of racket:text%
