@@ -284,7 +284,7 @@ lang's attributes that care about have changed."
                ;; navigation. Some things in Emacs ecosystem might not
                ;; work, e.g. paredit, although they might if the buffer
                ;; syntax-table is standard-syntax-table; see
-               ;; `racket--hash-lang-syntax-table'.
+               ;; `racket--hash-lang-on-new-lang'.
                (put-face beg end 'parenthesis))
               ('comment
                ;; I'm not sure we need to put-stx here; see comment
