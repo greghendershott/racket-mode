@@ -31,18 +31,6 @@ hash-lang operations. That way the queries can block if necessary
 until updates have completed sufficiently, i.e. re-tokenized far
 enough.")
 
-;; These are simply to save the original values, to be able to restore
-;; when the minor mode is disabled:
-(defvar-local racket--hash-lang-orig-electric-indent-inhibit nil)
-(defvar-local racket--hash-lang-orig-blink-paren-function nil)
-(defvar-local racket--hash-lang-orig-syntax-propertize-function nil)
-(defvar-local racket--hash-lang-orig-font-lock-defaults nil)
-(defvar-local racket--hash-lang-orig-font-lock-fontify-region-function nil)
-(defvar-local racket--hash-lang-orig-syntax-table nil)
-(defvar-local racket--hash-lang-orig-text-property-default-nonsticky nil)
-(defvar-local racket--hash-lang-orig-indent-line-function nil)
-(defvar-local racket--hash-lang-orig-indent-region-function nil)
-
 (defvar racket-hash-lang-mode-map
   (racket--easy-keymap-define
    `(("RET"   ,#'newline-and-indent)
@@ -81,6 +69,28 @@ enough.")
 
 (defvar-local racket-hash-lang-mode-lighter " #lang")
 
+;; Upon enabling or disabling our minor mode, we need to set/restore
+;; quite a few variables. Make this less tedious and error-prone.
+(defun racket--hash-lang-set/reset (specs)
+  "Call with SPECS to initially set things.
+Returns new specs to restore the original values. Each spec is
+either (variable-symbol new-value) or ((setter-function
+getter-function) new-value)."
+  (mapcar (lambda (spec)
+            (pcase spec
+              (`((,setter ,getter) ,new-val)
+               (let ((old-val (funcall getter)))
+                 (funcall setter new-val)
+                 `((,setter ,getter) ,old-val)))
+              (`(,sym ,new-val)
+               (let ((old-val (symbol-value sym)))
+                 (make-local-variable sym) ;do equivalent of...
+                 (set sym new-val)         ;..setq-local
+                 `(,sym ,old-val)))))
+          specs))
+(defvar-local racket--hash-lang-changed-vars nil
+  "Where we save spec to restore original values.")
+
 ;;;###autoload
 (define-minor-mode racket-hash-lang-mode
   "Use color-lexer and other things supplied by a #lang.
@@ -93,110 +103,55 @@ navigation or indent.
 "
   :lighter racket-hash-lang-mode-lighter
   :keymap  racket-hash-lang-mode-map
+
+  (with-silent-modifications
+    (save-restriction
+      (widen)
+      (racket--hash-lang-remove-text-properties (point-min) (point-max))
+      (remove-text-properties (point-min) (point-max) 'racket-here-string nil)))
+
   (if racket-hash-lang-mode
       (progn
         (setq racket--hash-lang-generation 1)
-
         (electric-indent-local-mode -1)
-        (setq-local racket--hash-lang-orig-electric-indent-inhibit
-                    electric-indent-inhibit)
-        (setq-local electric-indent-inhibit t)
-
-        ;; The default value of `blink-paren-function',
-        ;; `blink-matching-open', can for closing paren edits cause
-        ;; notifications from the back end to be lost, somehow. Maybe
-        ;; due to its use of `sit-for'? Investigate for general
-        ;; solution, but for now simply disable this. (But also, its
-        ;; implementation heavily relies on Emacs char syntax and
-        ;; likely won't work at all with non-sexp hash-langs.)
-        (setq-local racket--hash-lang-orig-blink-paren-function
-                    blink-paren-function)
-        (setq-local blink-paren-function #'ignore)
-
-        (with-silent-modifications
-          (save-restriction
-            (widen)
-            (racket--hash-lang-remove-text-properties (point-min) (point-max))
-            (remove-text-properties (point-min) (point-max) 'racket-here-string nil)))
-
-        ;; Font lock
-        (setq-local racket--hash-lang-orig-font-lock-defaults
-                    font-lock-defaults)
-        (setq-local font-lock-defaults nil)
-        (setq-local racket--hash-lang-orig-font-lock-fontify-region-function
-                    font-lock-fontify-region-function)
-        (setq-local font-lock-fontify-region-function
-                    #'racket--hash-lang-font-lock-fontify-region)
-        (font-lock-flush)
-
-        ;; Syntax table and propertization
-        (setq-local racket--hash-lang-orig-syntax-table
-                    (syntax-table))
-        (set-syntax-table (standard-syntax-table))
-        (setq-local racket--hash-lang-orig-syntax-propertize-function
-                    syntax-propertize-function)
-        (setq-local syntax-propertize-function nil)
-        (syntax-ppss-flush-cache (point-min))
-
-        (setq-local racket--hash-lang-orig-text-property-default-nonsticky
-                    text-property-default-nonsticky)
-        (setq-local text-property-default-nonsticky
-                    (append (mapcar (lambda (p)
-                                      (cons p t))
-                                    racket--hash-lang-text-properties)
-                            text-property-default-nonsticky))
-
-        (setq-local racket--hash-lang-orig-indent-line-function
-                    indent-line-function)
-        (setq-local racket--hash-lang-orig-indent-region-function
-                    indent-region-function)
-
-        (add-hook 'after-change-functions
-                  #'racket--hash-lang-after-change-hook
-                  t t)
-        (add-hook 'kill-buffer-hook
-                  #'racket--hash-lang-delete
-                  t t)
-        (racket--cmd/async
-         nil
-         `(hash-lang create
-                     ,(racket--buffer-file-name)
-                     ,(save-restriction
-                        (widen)
-                        (buffer-substring-no-properties (point-min) (point-max))))
-         #'ignore))
+        (setq-local
+         racket--hash-lang-changed-vars
+         (racket--hash-lang-set/reset
+          `((electric-indent-inhibit t)
+            (blink-paren-function nil)
+            (font-lock-defaults nil)
+            (font-lock-fontify-region-function ,#'racket--hash-lang-font-lock-fontify-region)
+            ((,#'set-syntax-table ,#'syntax-table) ,(standard-syntax-table))
+            (syntax-propertize-function nil)
+            ;; (text-property-default-non-sticky ,(append (mapcar (lambda (p)
+            ;;                                                      (cons p t))
+            ;;                                                    racket--hash-lang-text-properties)
+            ;;                                            text-property-default-nonsticky))
+            (indent-line-function ,indent-line-function)
+            (indent-region-function ,indent-region-function))))
+        (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
+        (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
+        (racket--hash-lang-create))
     ;; Disable
-    (setq-local font-lock-defaults
-                racket--hash-lang-orig-font-lock-defaults)
-    (setq-local font-lock-fontify-region-function
-                racket--hash-lang-orig-font-lock-fontify-region-function)
-    (set-syntax-table racket--hash-lang-orig-syntax-table)
-    (setq-local text-property-default-nonsticky
-                racket--hash-lang-orig-text-property-default-nonsticky)
-    (setq-local indent-line-function
-                racket--hash-lang-orig-indent-line-function)
-    (setq-local indent-region-function
-                racket--hash-lang-orig-indent-region-function)
-    (remove-hook 'after-change-functions
-                 #'racket--hash-lang-after-change-hook
-                 t)
-    (remove-hook 'kill-buffer-hook
-                 #'racket--hash-lang-delete
-                 t)
     (racket--hash-lang-delete)
-    (with-silent-modifications
-      (save-restriction
-        (widen)
-        (racket--hash-lang-remove-text-properties (point-min) (point-max))))
+    (racket--hash-lang-set/reset racket--hash-lang-changed-vars)
+    (remove-hook 'after-change-functions #'racket--hash-lang-after-change-hook t)
+    (remove-hook 'kill-buffer-hook #'racket--hash-lang-delete t)
     (electric-indent-local-mode 1)
-    (setq-local electric-indent-inhibit
-                racket--hash-lang-orig-electric-indent-inhibit)
-    (setq-local blink-paren-function
-                racket--hash-lang-orig-blink-paren-function)
-    (setq-local racket--hash-lang-orig-syntax-propertize-function
-                syntax-propertize-function)
-    (syntax-ppss-flush-cache (point-min))
-    (font-lock-flush)))
+    (font-lock-flush))
+  ;; Either
+  (syntax-ppss-flush-cache (point-min))
+  (font-lock-flush))
+
+(defun racket--hash-lang-create ()
+  (racket--cmd/async
+   nil
+   `(hash-lang create
+               ,(racket--buffer-file-name)
+               ,(save-restriction
+                  (widen)
+                  (buffer-substring-no-properties (point-min) (point-max))))
+   #'ignore))
 
 (defun racket--hash-lang-delete ()
   (racket--cmd/async
