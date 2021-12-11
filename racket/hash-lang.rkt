@@ -2,6 +2,7 @@
 
 (require racket/async-channel
          racket/class
+         racket/contract/base
          racket/contract/option
          racket/match
          racket/set
@@ -13,7 +14,7 @@
 (provide hash-lang%
          generation/c
          position/c
-         max-position)
+         min-position)
 
 ;; To coordinate inter-process updates and queries we use successive
 ;; "generation" numbers. A new object is generation 0. Thereafter the
@@ -28,9 +29,9 @@
 (define generation/c exact-nonnegative-integer?)
 
 ;; We use 0-based positions
-(define position/c exact-nonnegative-integer?)
 (define min-position 0)
 (define max-position (sub1 (expt 2 63)))
+(define position/c (integer-in min-position max-position))
 
 ;; color-textoid<%> and module-lexer* were added around Racket 8.3.0.8
 ;; / syntax-color-lib 1.3. When running on older versions, these will
@@ -209,9 +210,12 @@
     ;; Runs on updater thread.
     (define last-lang-end-pos 1)
     (define/private (do-update! gen pos old-len new-str)
+      ;; Initial progress for other threads: Nothing yet within this
+      ;; new generation.
       (set-update-progress #:generation gen
                            #:position (sub1 min-position))
 
+      ;; Update the text-lines data structure.
       (when (< 0 old-len)
         (set! content (lines:delete content pos (+ pos old-len))))
       (define new-len (string-length new-str))
@@ -229,7 +233,7 @@
                             (read-language in (λ _ #f)))
                           (λ (_key default) default)))
          (define-values (_line _col end-pos) (port-next-location in))
-         (set! last-lang-end-pos end-pos) ;to check next time
+         (set! last-lang-end-pos end-pos) ;for checking next time
 
          (define any-changed? #f)
          (define-syntax-rule (set!? var expr)
@@ -248,9 +252,9 @@
             (when on-notify
               (on-notify
                'lang
-               'racket-grouping   (equal? grouping-position racket-grouping-position)
-               'line-indenter     (and line-indenter #t)
-               'range-indenter    (and range-indenter #t)))
+               'racket-grouping (equal? grouping-position racket-grouping-position)
+               'line-indenter   (and line-indenter #t)
+               'range-indenter  (and range-indenter #t)))
             (set! tokens (new token-tree%))
             (set! parens (new paren-tree% [matches paren-matches]))
             (update-tokens-and-parens min-position (lines:text-length content))]
