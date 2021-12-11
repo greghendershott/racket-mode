@@ -260,39 +260,41 @@
          (update-tokens-and-parens pos (- new-len old-len))]))
 
     (define/private (update-tokens-and-parens pos diff)
-      ;; The position from which we need to start re-tokenizing will
-      ;; be less than the position of the change, `pos`. To find that:
-      ;;
-      ;; Find the beginning of the _previous_ token. If this has a
-      ;; non-zero `backup` amount, back up more; repeating until we
-      ;; find a zero backup. The start of that token is our initial
-      ;; position from which to re-tokenize.
-      ;;
-      ;; However, the lexer mode to use for that position is stored
-      ;; with the previous token (if any). So finally back up one more
-      ;; to get the mode.
-      (define-values (tokenize-from mode)
-        (let loop ([pos pos] [first? #t])
-          (match (with-semaphore tokens-sema (token-ref pos))
+      ;; Determine the position from which we need to start
+      ;; re-tokenizing (this will be less than the edit position) and
+      ;; the initial lexer mode.
+      (define-values (initial-pos initial-mode)
+        (with-semaphore tokens-sema
+          ;; Find beginning of the token, if any, corresponding to the
+          ;; edit position.
+          (match (token-ref pos)
             [#f (values min-position #f)]
             [(list beg _end (struct* data ([backup backup])))
-             (cond [(< 0 backup) (loop (- beg backup) #f)]
-                   [first?       (loop (sub1 beg)     #f)]
-                   [else
-                    ;; Get mode from _previous_ token
-                    (match (with-semaphore tokens-sema (token-ref (sub1 beg)))
-                      [#f (values beg #f)]
-                      [(list _beg _end (struct* data ([mode mode])))
-                       (values beg mode)])])])))
+             ;; Initially back up by at least 1 (i.e. to the previous
+             ;; token) or by this token's `backup` amount.
+             (let loop ([pos (- beg (max 1 backup))])
+               (match (token-ref pos)
+                 [#f (values min-position #f)]
+                 [(list beg _end (struct* data ([backup backup])))
+                  (if (< 0 backup)
+                      (loop (- beg backup))
+                      ;; Finally, back up one more to get the initial
+                      ;; lexer mode, if any. (Why: The mode stored
+                      ;; with a token is state with which to read the
+                      ;; _next_ token.)
+                      (match (token-ref (sub1 beg))
+                        [#f (values beg #f)]
+                        [(list _beg _end (struct* data ([mode mode])))
+                         (values beg mode)]))]))])))
       ;; Everything before this is valid; allow other threads to
       ;; progress thru that position of this generation.
-      (set-update-progress #:position (sub1 tokenize-from))
+      (set-update-progress #:position (sub1 initial-pos))
       ;; (printf "tokenize-from ~v\n" tokenize-from)
       ;; (printf "diff ~v old-len ~v\n" diff old-len)
 
       ;; Split the token and paren trees.
       (define old-tokens (with-semaphore tokens-sema
-                           (send tokens search! tokenize-from)
+                           (send tokens search! initial-pos)
                            (define-values (t1 t2) (send tokens split-before))
                            (set! tokens t1)
                            t2))
@@ -300,14 +302,14 @@
       ;; (-show-tree "old-tokens" old-tokens)
 
       (with-semaphore parens-sema
-        (send parens split-tree tokenize-from))
+        (send parens split-tree initial-pos))
       ;;(local-require racket/pretty)
       ;;(pretty-print (cons 'parens-after-split (send parens test)))
 
-      (define in (lines:open-input-text content tokenize-from))
+      (define in (lines:open-input-text content initial-pos))
       (define-values (min-changed-pos max-changed-pos)
-        (let tokenize ([pos tokenize-from]
-                       [mode mode]
+        (let tokenize ([pos initial-pos]
+                       [mode initial-mode]
                        [contig-same-count 0]
                        [min-changed-pos #f]
                        [max-changed-pos min-position])
@@ -327,7 +329,7 @@
              (set-update-progress #:position (sub1 new-end))
 
              ;; Detect whether same as before (maybe just shifted)
-             (send old-tokens search! (- new-beg tokenize-from diff))
+             (send old-tokens search! (- new-beg initial-pos diff))
              (define old-beg (send old-tokens get-root-start-position))
              (define old-end (send old-tokens get-root-end-position))
              (define old-span (- old-end old-beg))
