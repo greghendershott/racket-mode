@@ -241,8 +241,10 @@ lang's attributes that care about have changed."
       (dolist (token tokens)
         (pcase-let ((`(,beg ,end ,kinds) token))
           (racket--hash-lang-remove-text-properties beg end)
-          ;; 'racket-token is just informational for me for debugging
-          (put-text-property beg end 'racket-token kinds)
+          ;; Add 'racket-token just for me to examine results using
+          ;; `describe-char'; use vector b/c `describe-property-list'
+          ;; assumes lists of symbols are "widgets".
+          (put-text-property beg end 'racket-token (apply #'vector kinds))
           (dolist (kind kinds)
             (pcase kind
               ('parenthesis
