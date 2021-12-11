@@ -35,6 +35,7 @@ enough.")
 ;; when the minor mode is disabled:
 (defvar-local racket--hash-lang-orig-electric-indent-inhibit nil)
 (defvar-local racket--hash-lang-orig-blink-paren-function nil)
+(defvar-local racket--hash-lang-orig-syntax-propertize-function nil)
 (defvar-local racket--hash-lang-orig-font-lock-defaults nil)
 (defvar-local racket--hash-lang-orig-font-lock-fontify-region-function nil)
 (defvar-local racket--hash-lang-orig-syntax-table nil)
@@ -113,8 +114,12 @@ navigation or indent.
         (setq-local blink-paren-function #'ignore)
 
         (with-silent-modifications
-          (racket--hash-lang-remove-text-properties (point-min) (point-max)))
+          (save-restriction
+            (widen)
+            (racket--hash-lang-remove-text-properties (point-min) (point-max))
+            (remove-text-properties (point-min) (point-max) 'racket-here-string nil)))
 
+        ;; Font lock
         (setq-local racket--hash-lang-orig-font-lock-defaults
                     font-lock-defaults)
         (setq-local font-lock-defaults nil)
@@ -122,10 +127,15 @@ navigation or indent.
                     font-lock-fontify-region-function)
         (setq-local font-lock-fontify-region-function
                     #'racket--hash-lang-font-lock-fontify-region)
+        (font-lock-flush)
 
+        ;; Syntax table and propertization
         (setq-local racket--hash-lang-orig-syntax-table
                     (syntax-table))
         (set-syntax-table (standard-syntax-table))
+        (setq-local racket--hash-lang-orig-syntax-propertize-function
+                    syntax-propertize-function)
+        (setq-local syntax-propertize-function nil)
         (syntax-ppss-flush-cache (point-min))
 
         (setq-local racket--hash-lang-orig-text-property-default-nonsticky
@@ -154,9 +164,8 @@ navigation or indent.
                      ,(save-restriction
                         (widen)
                         (buffer-substring-no-properties (point-min) (point-max))))
-         #'ignore)
-        (syntax-ppss-flush-cache (point-min))
-        (font-lock-flush))
+         #'ignore))
+    ;; Disable
     (setq-local font-lock-defaults
                 racket--hash-lang-orig-font-lock-defaults)
     (setq-local font-lock-fontify-region-function
@@ -176,12 +185,16 @@ navigation or indent.
                  t)
     (racket--hash-lang-delete)
     (with-silent-modifications
-      (racket--hash-lang-remove-text-properties (point-min) (point-max)))
+      (save-restriction
+        (widen)
+        (racket--hash-lang-remove-text-properties (point-min) (point-max))))
     (electric-indent-local-mode 1)
     (setq-local electric-indent-inhibit
                 racket--hash-lang-orig-electric-indent-inhibit)
     (setq-local blink-paren-function
                 racket--hash-lang-orig-blink-paren-function)
+    (setq-local racket--hash-lang-orig-syntax-propertize-function
+                syntax-propertize-function)
     (syntax-ppss-flush-cache (point-min))
     (font-lock-flush)))
 
