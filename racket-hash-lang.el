@@ -35,27 +35,20 @@ until re-tokenization has progressed sufficiently.")
 
 (defvar racket-hash-lang-mode-map
   (racket--easy-keymap-define
-   `(([remap backward-sexp]    ,#'racket-hash-lang-backward)
-     ([remap forward-sexp]     ,#'racket-hash-lang-forward)
-     ([remap backward-up-list] ,#'racket-hash-lang-up)
-     ([remap down-list]        ,#'racket-hash-lang-down)
-     ("RET"                    ,#'newline-and-indent)
-     ;; Disable `racket-insert-closing'. Not necessarily appropriate
-     ;; for all langs. Plus somewhat obsolete in a world of things
-     ;; like paredit or electric-pair-mode.
-     (")"                      ,#'self-insert-command)
-     ("}"                      ,#'self-insert-command)
-     ("]"                      ,#'self-insert-command))))
+   `(("RET"   ,#'newline-and-indent)
+     (")"     ,#'self-insert-command) ;not `racket-insert-closing'
+     ("}"     ,#'self-insert-command) ;not `racket-insert-closing'
+     ("]"     ,#'self-insert-command) ;not `racket-insert-closing'
+     ("C-M-b" ,#'racket-hash-lang-backward)
+     ("C-M-f" ,#'racket-hash-lang-forward)
+     ("C-M-u" ,#'racket-hash-lang-up)
+     ("C-M-d" ,#'racket-hash-lang-down))))
 
 (defvar-local racket-hash-lang-mode-lighter " #lang")
 
 ;;;###autoload
 (define-minor-mode racket-hash-lang-mode
-  "Use color-lexer and other things supplied by a #lang.
-
-Some #langs do not supply any special navigation or indent
-functionality, in which case we use \"normal\" s-expression
-navigation or indent.
+  "Use color-lexer, indent, and navigation supplied by a #lang.
 
 \\{racket-hash-lang-mode-map}
 "
@@ -262,8 +255,8 @@ lang's attributes that care about have changed."
                (put-face beg end 'font-lock-variable-name-face))
               ('keyword (put-face beg end 'font-lock-keyword-face))
               ('hash-colon-keyword (put-face beg end 'racket-keyword-argument-face))
-              ('white-space nil)
-              ('other nil))))))))
+              ('other (put-face beg end 'font-lock-doc-face))
+              ('white-space nil))))))))
 
 (defconst racket--hash-lang-text-properties
   '(face syntax-table racket-token)
@@ -347,29 +340,29 @@ We never use `racket-indent-line' from traditional
                         ,count))
       ((and (pred numberp) pos)
        (goto-char pos))
-      (_ (user-error "Cannot move %s%s" direction (if (zerop count)
+      (_ (user-error "Cannot move %s%s" direction (if (memq count '(-1 0 1))
                                                       ""
                                                     (format " %s times" count)))))))
 
-(defun racket-hash-lang-backward ()
+(defun racket-hash-lang-backward (&optional count)
   "Like `backward-sexp' but uses #lang supplied navigation."
-  (interactive)
-  (racket-hash-lang-move 'backward))
+  (interactive "^p")
+  (racket-hash-lang-move 'backward count))
 
-(defun racket-hash-lang-forward ()
+(defun racket-hash-lang-forward (&optional count)
   "Like `forward-sexp' but uses #lang supplied navigation."
-  (interactive)
-  (racket-hash-lang-move 'forward))
+  (interactive "^p")
+  (racket-hash-lang-move 'forward count))
 
-(defun racket-hash-lang-up ()
+(defun racket-hash-lang-up (&optional count)
   "Like `backward-up-list' but uses #lang supplied navigation."
-  (interactive)
-  (racket-hash-lang-move 'up))
+  (interactive "^p")
+  (racket-hash-lang-move 'up count))
 
-(defun racket-hash-lang-down ()
+(defun racket-hash-lang-down (&optional count)
   "Like `down-list' but uses #lang supplied navigation."
-  (interactive)
-  (racket-hash-lang-move 'down))
+  (interactive "^p")
+  (racket-hash-lang-move 'down count))
 
 
 (provide 'racket-hash-lang)
