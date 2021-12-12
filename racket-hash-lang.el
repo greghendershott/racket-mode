@@ -123,10 +123,11 @@ navigation or indent.
             (font-lock-fontify-region-function ,#'racket--hash-lang-font-lock-fontify-region)
             ((,#'set-syntax-table ,#'syntax-table) ,(standard-syntax-table))
             (syntax-propertize-function nil)
-            ;; (text-property-default-non-sticky ,(append (mapcar (lambda (p)
-            ;;                                                      (cons p t))
-            ;;                                                    racket--hash-lang-text-properties)
-            ;;                                            text-property-default-nonsticky))
+            (text-property-default-nonsticky ,(append
+                                               (mapcar (lambda (p)
+                                                         (cons p t))
+                                                       racket--hash-lang-text-properties)
+                                               text-property-default-nonsticky))
             (indent-line-function ,indent-line-function)
             (indent-region-function ,indent-region-function))))
         (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
@@ -198,10 +199,9 @@ lang's attributes that care about have changed."
   ;; a "plain" syntax table where virtually every character is either
   ;; whitespace or word syntax (no chars signify e.g. parens,
   ;; comments, or strings).
-  (set-syntax-table
-   (if (plist-get plist 'racket-grouping)
-       (standard-syntax-table)
-     racket--hash-lang-plain-syntax-table))
+  (set-syntax-table (if (plist-get plist 'racket-grouping)
+                        (standard-syntax-table)
+                      racket--hash-lang-plain-syntax-table))
   (syntax-ppss-flush-cache (point-min))
   (setq-local indent-line-function
               #'racket-hash-lang-indent-line-function)
