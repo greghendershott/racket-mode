@@ -80,7 +80,7 @@ navigation or indent.
             ((,#'set-syntax-table ,#'syntax-table) ,racket-mode-syntax-table)
             (syntax-propertize-function nil)
             (text-property-default-nonsticky ,(append
-                                               (racket--hash-lang-text-prop-list t)
+                                               (racket--hash-lang-text-prop-list #'cons t)
                                                text-property-default-nonsticky))
             (indent-line-function ,indent-line-function)
             (indent-region-function ,indent-region-function))))
@@ -269,14 +269,15 @@ lang's attributes that care about have changed."
   '(face syntax-table racket-token)
   "The text properties we use.")
 
-(defun racket--hash-lang-text-prop-list (val)
-  "Make a property list from `racket--hash-lang-text-properties' with values all VAL."
-  (apply #'append (mapcar (lambda (p) (cons p val))
-                          racket--hash-lang-text-properties)))
+(defun racket--hash-lang-text-prop-list (f val)
+  (mapcar (lambda (prop-sym) (funcall f prop-sym val))
+          racket--hash-lang-text-properties))
 
 (defun racket--hash-lang-remove-text-properties (beg end)
-  "Remove from region `racket--hash-lang-text-properties'."
-  (remove-text-properties beg end (racket--hash-lang-text-prop-list nil)))
+  "Remove `racket--hash-lang-text-properties' from region BEG..END."
+  (remove-text-properties beg end
+                          (apply #'append
+                                 (racket--hash-lang-text-prop-list #'list nil))))
 
 (defun racket-hash-lang-indent-line-function ()
   "Use drracket:indentation supplied by the lang.
