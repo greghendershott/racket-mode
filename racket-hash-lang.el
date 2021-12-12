@@ -247,18 +247,13 @@ lang's attributes that care about have changed."
           (put-text-property beg end 'racket-token (apply #'vector kinds))
           (dolist (kind kinds)
             (pcase kind
-              ('parenthesis
-               ;; Note: We don't attempt to put open/close paren syntax
-               ;; here. The tokens might have span > 1. Also we entirely
-               ;; rely on the lang's "grouping-position" function for
-               ;; navigation. Some things in Emacs ecosystem might not
-               ;; work, e.g. paredit, although they might if the buffer
-               ;; syntax-table is standard-syntax-table; see
-               ;; `racket--hash-lang-on-new-lang'.
-               (put-face beg end 'parenthesis))
               ('comment
-               ;; I'm not sure we need to put-stx here; see comment
-               ;; about parens above.
+               ;; Although I'm not 100% sure we need to put-stx here I
+               ;; think it might be important to make sure that the
+               ;; buffer's syntax-table does not consider things
+               ;; within comments to be e.g. parens/strings? This may
+               ;; help when people use Emacs features that rely on
+               ;; char syntax.
                (put-stx beg (1+ beg) '(11)) ;comment-start
                (put-stx (1- end) end '(12)) ;comment-end
                (let ((beg (1+ beg))         ;comment _contents_ if any
@@ -266,63 +261,53 @@ lang's attributes that care about have changed."
                  (when (< beg end)
                    (put-stx beg end '(14)))) ;generic comment
                (put-face beg end 'font-lock-comment-face))
-              ('sexp-comment
-               ;; This is just the "#;" prefix not the following sexp.
+              ('sexp-comment ;just the "#;" prefix not following sexp
                (put-stx beg end '(14))  ;generic comment
                (put-face beg end 'font-lock-comment-face))
-              ('sexp-comment-body
-               (put-face beg end 'font-lock-comment-face))
-              ('string
-               (put-face beg end 'font-lock-string-face))
-              ('text
-               (put-stx beg end racket--hash-lang-plain-syntax-table)
-               nil)
-              ('constant
-               (put-stx beg end '(2))   ;word
-               (put-face beg end 'font-lock-constant-face))
-              ('error
-               (put-face beg end 'error))
+              ('sexp-comment-body (put-face beg end 'font-lock-comment-face))
+              ('parenthesis (put-face beg end 'parenthesis))
+              ('string (put-face beg end 'font-lock-string-face))
+              ('text (put-stx beg end racket--hash-lang-plain-syntax-table))
+              ('constant (put-face beg end 'font-lock-constant-face))
+              ('error (put-face beg end 'error))
               ('symbol
-               (put-stx beg end '(3))   ;symbol
                ;; TODO: Consider using default font here, because e.g.
                ;; racket-lexer almost everything is "symbol" because
                ;; it is an identifier. Meanwhile, using a non-default
                ;; face here is helping me see behavior and spot bugs.
                (put-face beg end 'font-lock-variable-name-face))
-              ('keyword
-               (put-stx beg end '(2))   ;word
-               (put-face beg end 'font-lock-keyword-face))
-              ('hash-colon-keyword
-               (put-stx beg end '(2))   ;word
-               (put-face beg end 'racket-keyword-argument-face))
-              ('white-space
-               ;;(put-stx beg end '(0))
-               nil)
-              ('other
-               ;;(put-stx beg end (standard-syntax-table))
-               nil))))))))
+              ('keyword (put-face beg end 'font-lock-keyword-face))
+              ('hash-colon-keyword (put-face beg end 'racket-keyword-argument-face))
+              ('white-space nil)
+              ('other nil))))))))
 
 (defun racket-hash-lang-indent-line-function ()
-  "Maybe use #lang drracket:indentation, else `racket-indent-line'."
-  (let ((bol (save-excursion (beginning-of-line) (point))))
-    (if-let (amount (racket--cmd/await  ; await = :(
-                     nil
-                     `(hash-lang indent-amount
-                                 ,(racket--buffer-file-name)
-                                 ,racket--hash-lang-generation
-                                 ,bol)))
-        ;; When point is within the leading whitespace, move it past
-        ;; the new indentation whitespace. Otherwise preserve its
-        ;; position relative to the original text.
-        (let ((pos (- (point-max) (point))))
-          (goto-char bol)
-          (skip-chars-forward " \t")
-          (unless (= amount (current-column))
-            (delete-region bol (point))
-            (indent-to amount))
-          (when (< (point) (- (point-max) pos))
-            (goto-char (- (point-max) pos))))
-      (racket-indent-line))))
+  "Use drracket:indentation supplied by the lang.
+
+If a lang doesn't supply this, or if the supplied function ever
+returns false, then we always use the standard s-expression
+indenter from syntax-color/racket-indentation.
+
+We never use `racket-indent-line' from traditional
+`racket-mode'."
+  (let* ((bol (save-excursion (beginning-of-line) (point)))
+         (pos (- (point-max) (point)))
+         (col (racket--cmd/await        ; await = :(
+               nil
+               `(hash-lang indent-amount
+                           ,(racket--buffer-file-name)
+                           ,racket--hash-lang-generation
+                           ,(point)))))
+    (goto-char bol)
+    (skip-chars-forward " \t") ;;TODO: Is this reliable for all langs?
+    (unless (= col (current-column))
+      (delete-region bol (point))
+      (indent-to col))
+    ;; When point is within the leading whitespace, move it past the
+    ;; new indentation whitespace. Otherwise preserve its position
+    ;; relative to the original text.
+    (when (< (point) (- (point-max) pos))
+      (goto-char (- (point-max) pos)))))
 
 (defun racket-hash-lang-indent-region-function (from upto)
   "Maybe use #lang drracket:range-indentation, else plain `indent-region'."
