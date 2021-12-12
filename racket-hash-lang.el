@@ -28,46 +28,74 @@
 This is set to 1 when we hash-lang create, incremented every time
 we do a hash-lang update, and then supplied for all other, query
 hash-lang operations. That way the queries can block if necessary
-until updates have completed sufficiently, i.e. re-tokenized far
-enough.")
+until re-tokenization has progressed sufficiently.")
+
+(defvar-local racket--hash-lang-changed-vars nil
+  "Where we save spec to restore original values.")
 
 (defvar racket-hash-lang-mode-map
   (racket--easy-keymap-define
-   `(("RET"   ,#'newline-and-indent)
-     ;; Disable `racket-insert-closing'; not necessarily appropriate
-     ;; for all langs.
-     (")"     ,#'self-insert-command)
-     ("}"     ,#'self-insert-command)
-     ("]"     ,#'self-insert-command)
-     ("C-M-b" ,#'racket-hash-lang-backward)
-     ("C-M-f" ,#'racket-hash-lang-forward)
-     ("C-M-u" ,#'racket-hash-lang-up)
-     ("C-M-d" ,#'racket-hash-lang-down))))
-
-(defconst racket--hash-lang-plain-syntax-table
-  (let ((st (make-syntax-table)))
-    ;; Modify entries for characters for parens, strings, and
-    ;; comments, setting them to word syntax instead. (For the
-    ;; numbers, see Emacs Lisp Info: "Syntax Table Internals".)
-    (map-char-table (lambda (key value)
-                      (when (memq (car value) '(4 5 7 10 11 12))
-                        (aset st key '(2))))
-                    st)
-    st))
-
-(defconst racket--hash-lang-text-properties
-  '(face syntax-table racket-token)
-  "The text properties we use.")
-
-(defun racket--hash-lang-remove-text-properties (beg end)
-  "Remove from region `racket--hash-lang-text-properties'."
-  (remove-text-properties
-   beg end
-   ;; Make a property list like (face nil syntax-table nil ...)
-   (apply #'append (mapcar (lambda (v) (cons v nil))
-                           racket--hash-lang-text-properties))))
+   `(([remap backward-sexp]    ,#'racket-hash-lang-backward)
+     ([remap forward-sexp]     ,#'racket-hash-lang-forward)
+     ([remap backward-up-list] ,#'racket-hash-lang-up)
+     ([remap down-list]        ,#'racket-hash-lang-down)
+     ("RET"                    ,#'newline-and-indent)
+     ;; Disable `racket-insert-closing'. Not necessarily appropriate
+     ;; for all langs. Plus somewhat obsolete in a world of things
+     ;; like paredit or electric-pair-mode.
+     (")"                      ,#'self-insert-command)
+     ("}"                      ,#'self-insert-command)
+     ("]"                      ,#'self-insert-command))))
 
 (defvar-local racket-hash-lang-mode-lighter " #lang")
+
+;;;###autoload
+(define-minor-mode racket-hash-lang-mode
+  "Use color-lexer and other things supplied by a #lang.
+
+Some #langs do not supply any special navigation or indent
+functionality, in which case we use \"normal\" s-expression
+navigation or indent.
+
+\\{racket-hash-lang-mode-map}
+"
+  :lighter racket-hash-lang-mode-lighter
+  :keymap  racket-hash-lang-mode-map
+  (with-silent-modifications
+    (save-restriction
+      (widen)
+      (racket--hash-lang-remove-text-properties (point-min) (point-max))
+      (remove-text-properties (point-min) (point-max) 'racket-here-string nil)))
+  (if racket-hash-lang-mode
+      (progn
+        (setq racket--hash-lang-generation 1)
+        (electric-indent-local-mode -1)
+        (setq-local
+         racket--hash-lang-changed-vars
+         (racket--hash-lang-set/reset
+          `((electric-indent-inhibit t)
+            (blink-paren-function nil)
+            (font-lock-defaults nil)
+            (font-lock-fontify-region-function ,#'racket--hash-lang-font-lock-fontify-region)
+            ((,#'set-syntax-table ,#'syntax-table) ,racket-mode-syntax-table)
+            (syntax-propertize-function nil)
+            (text-property-default-nonsticky ,(append
+                                               (racket--hash-lang-text-prop-list t)
+                                               text-property-default-nonsticky))
+            (indent-line-function ,indent-line-function)
+            (indent-region-function ,indent-region-function))))
+        (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
+        (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
+        (racket--hash-lang-create))
+    ;; Disable
+    (racket--hash-lang-delete)
+    (racket--hash-lang-set/reset racket--hash-lang-changed-vars)
+    (remove-hook 'after-change-functions #'racket--hash-lang-after-change-hook t)
+    (remove-hook 'kill-buffer-hook #'racket--hash-lang-delete t)
+    (electric-indent-local-mode 1)
+    (font-lock-flush))
+  (syntax-ppss-flush-cache (point-min))
+  (font-lock-flush))
 
 ;; Upon enabling or disabling our minor mode, we need to set/restore
 ;; quite a few variables. Make this less tedious and error-prone.
@@ -88,61 +116,6 @@ getter-function) new-value)."
                  (set sym new-val)         ;..setq-local
                  `(,sym ,old-val)))))
           specs))
-(defvar-local racket--hash-lang-changed-vars nil
-  "Where we save spec to restore original values.")
-
-;;;###autoload
-(define-minor-mode racket-hash-lang-mode
-  "Use color-lexer and other things supplied by a #lang.
-
-Some #langs do not supply any special navigation or indent
-functionality, in which case we use \"normal\" s-expression
-navigation or indent.
-
-\\{racket-hash-lang-mode-map}
-"
-  :lighter racket-hash-lang-mode-lighter
-  :keymap  racket-hash-lang-mode-map
-
-  (with-silent-modifications
-    (save-restriction
-      (widen)
-      (racket--hash-lang-remove-text-properties (point-min) (point-max))
-      (remove-text-properties (point-min) (point-max) 'racket-here-string nil)))
-
-  (if racket-hash-lang-mode
-      (progn
-        (setq racket--hash-lang-generation 1)
-        (electric-indent-local-mode -1)
-        (setq-local
-         racket--hash-lang-changed-vars
-         (racket--hash-lang-set/reset
-          `((electric-indent-inhibit t)
-            (blink-paren-function nil)
-            (font-lock-defaults nil)
-            (font-lock-fontify-region-function ,#'racket--hash-lang-font-lock-fontify-region)
-            ((,#'set-syntax-table ,#'syntax-table) ,(standard-syntax-table))
-            (syntax-propertize-function nil)
-            (text-property-default-nonsticky ,(append
-                                               (mapcar (lambda (p)
-                                                         (cons p t))
-                                                       racket--hash-lang-text-properties)
-                                               text-property-default-nonsticky))
-            (indent-line-function ,indent-line-function)
-            (indent-region-function ,indent-region-function))))
-        (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
-        (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
-        (racket--hash-lang-create))
-    ;; Disable
-    (racket--hash-lang-delete)
-    (racket--hash-lang-set/reset racket--hash-lang-changed-vars)
-    (remove-hook 'after-change-functions #'racket--hash-lang-after-change-hook t)
-    (remove-hook 'kill-buffer-hook #'racket--hash-lang-delete t)
-    (electric-indent-local-mode 1)
-    (font-lock-flush))
-  ;; Either
-  (syntax-ppss-flush-cache (point-min))
-  (font-lock-flush))
 
 (defun racket--hash-lang-create ()
   (racket--cmd/async
@@ -179,6 +152,18 @@ navigation or indent.
       (`(lang       . ,params)      (racket--hash-lang-on-new-lang params))
       (`(invalidate ,gen ,beg ,end) (racket--hash-lang-on-invalidate gen beg end)))))
 
+(defconst racket--hash-lang-plain-syntax-table
+  (let ((st (make-syntax-table)))
+    ;; Modify entries for characters for parens, strings, and
+    ;; comments, setting them to word syntax instead. (For the these
+    ;; raw syntax descriptor numbers, see Emacs Lisp Info: "Syntax
+    ;; Table Internals".)
+    (map-char-table (lambda (key value)
+                      (when (memq (car value) '(4 5 7 10 11 12))
+                        (aset st key '(2))))
+                    st)
+    st))
+
 (defun racket--hash-lang-on-new-lang (plist)
   "We get this whenever any #lang supplied attributes have changed.
 
@@ -192,15 +177,13 @@ lang's attributes that care about have changed."
       (racket--hash-lang-remove-text-properties (point-min) (point-max))
       (put-text-property (point-min) (point-max) 'fontified nil)))
   ;; If the lang uses racket-grouping-position, i.e. it uses
-  ;; s-expressions, then use standard-syntax-table. That way other
-  ;; Emacs features and packackages are more likel to work. [[TODO:
-  ;; Should this instead be the same syntax-table used by normal
-  ;; racket-mode??]] Otherwise, assume nothing about the lang and set
-  ;; a "plain" syntax table where virtually every character is either
-  ;; whitespace or word syntax (no chars signify e.g. parens,
-  ;; comments, or strings).
+  ;; s-expressions, then use racket-mode-syntax-table. That way other
+  ;; Emacs features and packackages are more likely to work.
+  ;; Otherwise, assume nothing about the lang and set a "plain" syntax
+  ;; table where virtually every character is either whitespace or
+  ;; word syntax (no chars signify e.g. parens, comments, or strings).
   (set-syntax-table (if (plist-get plist 'racket-grouping)
-                        (standard-syntax-table)
+                        racket-mode-syntax-table
                       racket--hash-lang-plain-syntax-table))
   (syntax-ppss-flush-cache (point-min))
   (setq-local indent-line-function
@@ -210,6 +193,7 @@ lang's attributes that care about have changed."
                 #'racket-hash-lang-indent-region-function))
   (setq-local racket-hash-lang-mode-lighter
               (concat " #lang"
+                      (when (plist-get plist 'racket-grouping) "()")
                       (cond ((plist-get plist 'range-indenter) "⇉")
                             ((plist-get plist 'line-indenter)  "→")
                             (t "")))))
@@ -281,6 +265,19 @@ lang's attributes that care about have changed."
               ('white-space nil)
               ('other nil))))))))
 
+(defconst racket--hash-lang-text-properties
+  '(face syntax-table racket-token)
+  "The text properties we use.")
+
+(defun racket--hash-lang-text-prop-list (val)
+  "Make a property list from `racket--hash-lang-text-properties' with values all VAL."
+  (apply #'append (mapcar (lambda (p) (cons p val))
+                          racket--hash-lang-text-properties)))
+
+(defun racket--hash-lang-remove-text-properties (beg end)
+  "Remove from region `racket--hash-lang-text-properties'."
+  (remove-text-properties beg end (racket--hash-lang-text-prop-list nil)))
+
 (defun racket-hash-lang-indent-line-function ()
   "Use drracket:indentation supplied by the lang.
 
@@ -349,8 +346,9 @@ We never use `racket-indent-line' from traditional
                         ,count))
       ((and (pred numberp) pos)
        (goto-char pos))
-      (_ (user-error "Cannot move %s" direction (unless (zerop count)
-                                                  (format " %s times" count)))))))
+      (_ (user-error "Cannot move %s%s" direction (if (zerop count)
+                                                      ""
+                                                    (format " %s times" count)))))))
 
 (defun racket-hash-lang-backward ()
   "Like `backward-sexp' but uses #lang supplied navigation."
