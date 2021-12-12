@@ -17,9 +17,12 @@
 SPEC is
   (list (list KEY-OR-KEYS DEF) ...)
 
-KEY-OR-KEYS is either a string given to `kbd', or, for the case
-where multiple keys bind to the same command, a list of such
-strings.
+KEY-OR-KEYs is either a single key, or, as a convenience when
+multiple keys bind to the same command, a list of keys.
+
+Each key is either a string, which transformed by `kbd' before
+being given to `define-key', or another value given directly to
+`define-key'. An example of the latter is [remap command-name].
 
 DEF is the same as DEF for `define-key'."
   (let ((m (make-sparse-keymap)))
@@ -29,7 +32,11 @@ DEF is the same as DEF for `define-key'."
                           (list (car x))))
                   (def  (cadr x)))
               (mapc (lambda (key)
-                      (define-key m (kbd key) def))
+                      (define-key m
+                        (if (stringp key)
+                            (kbd key)
+                          key)
+                        def))
                     keys)))
           spec)
     m))
