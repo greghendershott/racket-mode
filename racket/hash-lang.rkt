@@ -445,12 +445,11 @@
 
     ;; Can be called on any command thread.
     (define/public (indent-line-amount gen pos)
-      (cond [(not line-indenter) #f]
-            [else
-             (block-until-updated-thru gen pos)
-             (with-semaphore tokens-sema
-               (with-semaphore parens-sema
-                 (line-indenter this pos)))]))
+      (block-until-updated-thru gen pos)
+      (with-semaphore tokens-sema
+        (with-semaphore parens-sema
+          (or (line-indenter this pos) ;may return #f meaning...
+              (racket-amount-to-indent this pos)))))
 
     ;; Can be called on any command thread.
     (define/public (indent-region-amounts gen from upto)
