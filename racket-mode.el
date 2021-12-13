@@ -37,6 +37,7 @@
 (require 'racket-repl-buffer-name)
 (require 'racket-collection)
 (require 'racket-bug-report)
+(require 'racket-hash-lang)
 (require 'racket-util)
 (require 'easymenu)
 
