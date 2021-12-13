@@ -48,8 +48,8 @@
      (match args
        [(cons 'lang more)
         (list* 'hash-lang id 'lang more)]
-       [(list 'invalidate gen (app add1 beg) (app add1 end))
-        (list 'hash-lang id 'invalidate gen beg end)])))
+       [(list 'update gen (app add1 beg) (app add1 end))
+        (list 'hash-lang id 'update gen beg end)])))
   (define obj (new hash-lang% [on-notify on-notify]))
   (hash-set! ht id obj)
   (send obj update! 1 0 0 s))

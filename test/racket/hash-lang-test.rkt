@@ -28,7 +28,7 @@
   (define result-channel (make-async-channel))
   (define (on-notify . args)
     (match args
-      [(list* 'invalidate _) (async-channel-put result-channel args)]
+      [(list* 'update _) (async-channel-put result-channel args)]
       [(list* 'lang _) (void)]))
   (define (test-create str)
     (define o (new hash-lang% [on-notify on-notify]))
@@ -37,7 +37,7 @@
   (define (test-update! o gen pos old-len str)
     (send o update! gen pos old-len str)
     (match (async-channel-get result-channel)
-      [(list 'invalidate gen beg end)
+      [(list 'update gen beg end)
        (send o get-tokens gen beg end)]))
 
   ;;; Various tests of tokenizing and updatng

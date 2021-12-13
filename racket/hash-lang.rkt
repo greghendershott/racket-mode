@@ -208,7 +208,6 @@
         (with-semaphore waiters-sema (set-remove! waiters-set w))))
 
     ;; Runs on updater thread.
-    (define last-lang-end-pos 1)
     (define/private (do-update! gen pos old-len new-str)
       ;; Initial progress for other threads: Nothing yet within this
       ;; new generation.
@@ -222,46 +221,53 @@
       (when (< 0 new-len)
         (set! content (lines:insert content pos new-str)))
 
-      ;; A change before the end of the text for the old #lang might
-      ;; result in new lang info values. If any change, it could
-      ;; result in entirely different tokens and parens, so in that
-      ;; case restart from scratch.
+      ;; If lang lexer changed, it could result in entirely different
+      ;; tokens and parens, so in that case restart from scratch.
       (cond
-        [(< pos last-lang-end-pos)
-         (define in (lines:open-input-text content 0))
-         (define info (or (with-handlers ([values (λ _ #f)])
-                            (read-language in (λ _ #f)))
-                          (λ (_key default) default)))
-         (define-values (_line _col end-pos) (port-next-location in))
-         (set! last-lang-end-pos end-pos) ;for checking next time
-
-         (define any-changed? #f)
-         (define-syntax-rule (set!? var expr)
-           (let ([val expr])
-             (unless (equal? var val)
-               (set! var val)
-               (set! any-changed? #t))))
-         (set!? lexer             (info 'color-lexer default-lexer))
-         (set!? paren-matches     (info 'drracket:paren-matches default-paren-matches))
-         (set!? quote-matches     (info 'drracket:quote-matches default-quote-matches))
-         (set!? grouping-position (info 'drracket:grouping-position racket-grouping-position))
-         (set!? line-indenter     (info 'drracket:indentation racket-amount-to-indent))
-         (set!? range-indenter    (info 'drracket:range-indentation #f))
-         (cond
-           [(or any-changed? (= gen 1))
-            (when on-notify
-              (on-notify
-               'lang
-               'racket-grouping (equal? grouping-position racket-grouping-position)
-               'line-indenter   (and line-indenter #t)
-               'range-indenter  (and range-indenter #t)))
-            (set! tokens (new token-tree%))
-            (set! parens (new paren-tree% [matches paren-matches]))
-            (update-tokens-and-parens min-position (lines:text-length content))]
-           [else
-            (update-tokens-and-parens pos (- new-len old-len))])]
+        [(check-lang-info/lexer-changed? gen pos)
+          (set! tokens (new token-tree%))
+          (set! parens (new paren-tree% [matches paren-matches]))
+         (update-tokens-and-parens min-position (lines:text-length content))]
         [else
-         (update-tokens-and-parens pos (- new-len old-len))]))
+         (update-tokens-and-parens pos          (- new-len old-len))]))
+
+    ;; Detect whether #lang changed AND ALSO (to avoid excessive
+    ;; notifications and work) whether that actually changed any lang
+    ;; info values we use. Calls on-notify if any changed, or if this
+    ;; is the first generation. Returns true only if the lexer
+    ;; changed. For example this will return false for a change from
+    ;; #lang racket to racket/base.
+    (define last-lang-end-pos 1)
+    (define/private (check-lang-info/lexer-changed? gen pos)
+      (define original-lexer lexer)
+      (when (< pos last-lang-end-pos)
+        (define in (lines:open-input-text content 0))
+        (define info (or (with-handlers ([values (λ _ #f)])
+                           (read-language in (λ _ #f)))
+                         (λ (_key default) default)))
+        (define-values (_line _col end-pos) (port-next-location in))
+        (set! last-lang-end-pos end-pos) ;for checking next time
+
+        (define any-changed? #f)
+        (define-simple-macro (set!? var:id e:expr)
+          (let ([val e])
+            (unless (equal? var val)
+              (set! var val)
+              (set! any-changed? #t))))
+        (set!? lexer             (info 'color-lexer default-lexer))
+        (set!? paren-matches     (info 'drracket:paren-matches default-paren-matches))
+        (set!? quote-matches     (info 'drracket:quote-matches default-quote-matches))
+        (set!? grouping-position (info 'drracket:grouping-position racket-grouping-position))
+        (set!? line-indenter     (info 'drracket:indentation racket-amount-to-indent))
+        (set!? range-indenter    (info 'drracket:range-indentation #f))
+        (when (or any-changed? (= gen 1))
+          (when on-notify
+            (on-notify
+             'lang
+             'racket-grouping (equal? grouping-position racket-grouping-position)
+             'line-indenter   (and line-indenter #t)
+             'range-indenter  (and range-indenter #t)))))
+      (not (equal? original-lexer lexer)))
 
     (define/private (update-tokens-and-parens pos diff)
       ;; Determine the position from which we need to start
@@ -362,7 +368,10 @@
                           (if same? min-changed-pos (or min-changed-pos new-beg))
                           (if same? max-changed-pos (max max-changed-pos new-end)))])])))
       (when on-notify
-        (on-notify 'invalidate generation (or min-changed-pos 0) max-changed-pos))
+        (on-notify 'update
+                   generation
+                   (or min-changed-pos min-position)
+                   max-changed-pos))
       (set-update-progress #:position max-position))
 
     ;; ------------------------------------------------------------

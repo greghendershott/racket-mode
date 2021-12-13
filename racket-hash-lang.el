@@ -142,8 +142,8 @@ getter-function) new-value)."
 (defun racket--hash-lang-on-notify (id params)
   (with-current-buffer (find-buffer-visiting id)
     (pcase params
-      (`(lang       . ,params)      (racket--hash-lang-on-new-lang params))
-      (`(invalidate ,gen ,beg ,end) (racket--hash-lang-on-invalidate gen beg end)))))
+      (`(lang . ,params)        (racket--hash-lang-on-new-lang params))
+      (`(update ,gen ,beg ,end) (racket--hash-lang-on-update gen beg end)))))
 
 (defconst racket--hash-lang-plain-syntax-table
   (let ((st (make-syntax-table)))
@@ -191,8 +191,8 @@ lang's attributes that care about have changed."
                             ((plist-get plist 'line-indenter)  "→")
                             (t "")))))
 
-(defun racket--hash-lang-on-invalidate (_gen beg end)
-  ;;;(message "invalidate %s %s %s" _gen beg end)
+(defun racket--hash-lang-on-update (_gen beg end)
+  ;;;(message "update %s %s %s" _gen beg end)
   (with-silent-modifications
     (save-restriction
       (widen)
