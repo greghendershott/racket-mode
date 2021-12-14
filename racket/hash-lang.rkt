@@ -223,20 +223,21 @@
 
       ;; If lang lexer changed, it could result in entirely different
       ;; tokens and parens, so in that case restart from scratch.
-      (cond
-        [(check-lang-info/lexer-changed? gen pos)
-          (set! tokens (new token-tree%))
-          (set! parens (new paren-tree% [matches paren-matches]))
-         (update-tokens-and-parens min-position (lines:text-length content))]
-        [else
-         (update-tokens-and-parens pos          (- new-len old-len))]))
+      (cond [(check-lang-info/lexer-changed? gen pos)
+             (set! tokens (new token-tree%))
+             (set! parens (new paren-tree% [matches paren-matches]))
+             (update-tokens-and-parens min-position
+                                       (lines:text-length content))]
+            [else
+             (update-tokens-and-parens pos
+                                       (- new-len old-len))]))
 
     ;; Detect whether #lang changed AND ALSO (to avoid excessive
-    ;; notifications and work) whether that actually changed any lang
-    ;; info values we use. Calls on-notify if any changed, or if this
-    ;; is the first generation. Returns true only if the lexer
-    ;; changed. For example this will return false for a change from
-    ;; #lang racket to racket/base.
+    ;; notifications and work) whether that changed any lang info
+    ;; values we use. Calls on-notify if any changed, or if this is
+    ;; the first generation. Returns true IFF the lexer changed. For
+    ;; example this will return false for a change from #lang racket
+    ;; to racket/base.
     (define last-lang-end-pos 1)
     (define/private (check-lang-info/lexer-changed? gen pos)
       (define original-lexer lexer)
@@ -299,8 +300,6 @@
       ;; Everything before this is valid; allow other threads to
       ;; progress thru that position of this generation.
       (set-update-progress #:position (sub1 initial-pos))
-      ;; (printf "tokenize-from ~v\n" tokenize-from)
-      ;; (printf "diff ~v old-len ~v\n" diff old-len)
 
       ;; Split the token and paren trees.
       (define old-tokens (with-semaphore tokens-sema
@@ -308,13 +307,8 @@
                            (define-values (t1 t2) (send tokens split-before))
                            (set! tokens t1)
                            t2))
-      ;; (-show-tree "tokens" tokens)
-      ;; (-show-tree "old-tokens" old-tokens)
-
       (with-semaphore parens-sema
         (send parens split-tree initial-pos))
-      ;;(local-require racket/pretty)
-      ;;(pretty-print (cons 'parens-after-split (send parens test)))
 
       (define in (lines:open-input-text content initial-pos))
       (define-values (min-changed-pos max-changed-pos)
@@ -338,7 +332,7 @@
              (with-semaphore parens-sema (send parens add-token paren new-span))
              (set-update-progress #:position (sub1 new-end))
 
-             ;; Detect whether same as before (maybe just shifted)
+             ;; Detect whether same as before (just shifted by `diff`)
              (send old-tokens search! (- new-beg initial-pos diff))
              (define old-beg (send old-tokens get-root-start-position))
              (define old-end (send old-tokens get-root-end-position))
@@ -346,25 +340,19 @@
              (define old-tok (send old-tokens get-root-data))
              (define same? (and (equal? new-span old-span)
                                 (equal? new-tok old-tok)))
-             (define contig-same-goal 3)
+             (define new-contig-same-count (+ contig-same-count (if same? 1 0)))
              (cond
-               [(= (add1 contig-same-count) contig-same-goal) ;; stop early
+               [(= new-contig-same-count 3)
                 (send old-tokens search! old-beg)
                 (define-values (_ keep) (send old-tokens split-after))
-                ;; (-show-tree "tokens prior to append" tokens)
-                ;; (-show-tree "old tokens to append" keep new-end)
                 (with-semaphore tokens-sema (insert-last! tokens keep))
-
-                ;; (pretty-print (cons 'parens-before-merge (send parens test)))
                 (define paren-keep-span (- (last-position) new-end))
-                ;; (printf "paren-keep-span: ~v\n" paren-keep-span)
                 (with-semaphore parens-sema (send parens merge-tree paren-keep-span))
-                ;; (pretty-print (cons 'parens-after-merge (send parens test)))
                 (values min-changed-pos max-changed-pos)]
                [else
                 (tokenize new-end
                           new-mode
-                          (+ contig-same-count (if same? 1 0))
+                          new-contig-same-count
                           (if same? min-changed-pos (or min-changed-pos new-beg))
                           (if same? max-changed-pos (max max-changed-pos new-end)))])])))
       (when on-notify
