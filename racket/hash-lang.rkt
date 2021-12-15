@@ -20,6 +20,9 @@
          position/c
          min-position)
 
+;; Portions originated from /src/racket-lang/racket/share/pkgs/gui-lib/framework/private
+
+
 ;; To coordinate inter-process updates and queries we use successive
 ;; "generation" numbers. A new object is generation 0. Thereafter the
 ;; client should increment the generation for each call to `update!`.
@@ -37,20 +40,8 @@
 (define max-position (sub1 (expt 2 63)))
 (define position/c (integer-in min-position max-position))
 
-;; Some of this inherited from /src/racket-lang/racket/share/pkgs/gui-lib/framework/private
-
 ;; Our data for token-tree%
-(struct data (attribs backup mode) #:transparent)
-
-(define (attribs->type attribs)
-  (if (symbol? attribs)
-      attribs
-      (hash-ref attribs 'type 'unknown)))
-
-(define (attribs->table attribs)
-  (if (symbol? attribs)
-      (hasheq 'type attribs)
-      attribs))
+(struct data (attribs backup mode) #:transparent #:authentic)
 
 (define-simple-macro (with-semaphore sema e:expr ...+)
   (call-with-semaphore sema (λ () e ...)))
@@ -82,7 +73,7 @@
     (define line-indenter     racket-amount-to-indent)
     (define range-indenter    #f)
 
-    ;; These accessor methods really intended just for tests
+    ;; These methods intended just for tests
     (define/public (-get-content) (lines:get-text content 0))
     (define/public (-get-modes)
       (define modes null)
@@ -93,16 +84,12 @@
               (set! modes (cons (list beg end (data-mode data))
                                 modes))))
       (reverse modes))
-    (define/public (-get-parens) parens)
     (define/public (-get-lexer) lexer)
     (define/public (-get-paren-matches) paren-matches)
-    (define/public (-get-quote-matches) quote-matches)
-    (define/public (-get-grouping-position) grouping-position)
     (define/public (-get-line-indenter) line-indenter)
     (define/public (-get-range-indenter) range-indenter)
-
-    ;; just for debugging
-    (define/public (-show-tree msg t [offset 0])
+    #;
+    (define/private (-show-tree msg t [offset 0])
       (displayln msg)
       (send t for-each
             (λ (-beg len dat)
@@ -110,12 +97,9 @@
               (define end (+ beg len))
               (println (vector beg end (lines:get-text content beg end) dat)))))
 
-    (define/public (delete)
-      (async-channel-put update-chan 'quit))
-
     ;; position/c -> (or/c #f (list/c position/c position/c token?))
     ;;
-    ;; Note: This is not thread safe without taking tokens-sema.
+    ;; Note: To be thread-safe must use tokens-sema.
     (define/private (token-ref pos)
       (send tokens search! pos)
       (define beg (send tokens get-root-start-position))
@@ -123,19 +107,42 @@
       (and (<= beg pos) (< pos end)
            (list beg end (send tokens get-root-data))))
 
-    ;; This method is safe to call from various threads.
+    ;; ----------------------------------------------------------------------
     ;;
-    ;; The method signature here is similar to that of Emacs'
-    ;; after-change functions: Something changed starting at POS. The text
-    ;; there used to be OLD-LEN chars long, but is now NEW-STR.
-    (define/public (update! gen pos old-len new-str)
-      ;;(-> generation/c position/c exact-nonnegative-integer? string? any)
-      (unless (< generation gen)
-        (raise-argument-error 'update! "valid generation" 0 gen pos old-len new-str))
-      (unless (<= min-position pos)
-        (raise-argument-error 'update! "valid position" 1 gen pos old-len new-str))
-      (async-channel-put update-chan
-                         (list 'update gen pos old-len new-str)))
+    ;; Coordinate progress of tokenizing updater thread
+
+    ;; Allow threads to wait -- safely and without `sleep`ing -- for
+    ;; the updater thread to progress to a certain generation and
+    ;; position. [Although I've never worked with "condition
+    ;; variables" that seems ~= the synchronization pattern here?]
+    (struct waiter (sema pred) #:transparent #:authentic)
+    (define waiters-set (mutable-set)) ;(set/c waiter?)
+    (define waiters-sema (make-semaphore 1)) ;for modifying waiters-set
+
+    ;; Called from updater thread.
+    (define/private (set-update-progress #:generation [g generation]
+                                         #:position   p)
+      (with-semaphore waiters-sema
+        (set! generation g)
+        (set! updated-thru p)
+        (for ([w (in-set waiters-set)])
+          (when ((waiter-pred w))
+            (semaphore-post (waiter-sema w))))))
+
+    ;; Called from threads that need to wait for update progress to a
+    ;; certain generation and position.
+    (define/public (block-until-updated-thru gen [pos max-position])
+      (define (pred) (and (<= gen generation) (<= pos updated-thru)))
+      (unless (call-with-semaphore waiters-sema pred)  ;fast path
+        (define pred-sema (make-semaphore 0))
+        (define w (waiter pred-sema pred))
+        (with-semaphore waiters-sema (set-add! waiters-set w))
+        (semaphore-wait pred-sema) ;block
+        (with-semaphore waiters-sema (set-remove! waiters-set w))))
+
+    ;; -----------------------------------------------------------------
+    ;;
+    ;; Tokenizer updater thread
 
     ;; This is the entry thunk of our updater thread.
     ;;
@@ -164,36 +171,6 @@
              (consume-update-chan)]))))
     (thread consume-update-chan)
 
-    ;; Allow threads to wait -- safely and without `sleep`ing -- for
-    ;; the updater thread to progress to a certain gen/pos. [Although
-    ;; I've never worked with "condition variables" that seems ~= the
-    ;; synchronization pattern here?]
-    (struct waiter (sema pred) #:transparent)
-    (define waiters-set (mutable-set)) ;(set/c waiter?)
-    (define waiters-sema (make-semaphore 1)) ;for modifying waiters-set
-
-    ;; Set the generation and updated-thru fields, and un-block
-    ;; threads waiting for them to reach certain values.
-    (define/private (set-update-progress #:generation [g generation]
-                                         #:position   p)
-      (with-semaphore waiters-sema
-        (set! generation g)
-        (set! updated-thru p)
-        (for ([w (in-set waiters-set)])
-          (when ((waiter-pred w))
-            (semaphore-post (waiter-sema w))))))
-
-    ;; Block until the updater thread has progressed through at least
-    ;; a desired generation and also through a desired position.
-    (define/public (block-until-updated-thru gen [pos max-position])
-      (define (pred) (and (<= gen generation) (<= pos updated-thru)))
-      (unless (call-with-semaphore waiters-sema pred)  ;fast path
-        (define pred-sema (make-semaphore 0))
-        (define w (waiter pred-sema pred))
-        (with-semaphore waiters-sema (set-add! waiters-set w))
-        (semaphore-wait pred-sema) ;block
-        (with-semaphore waiters-sema (set-remove! waiters-set w))))
-
     ;; Runs on updater thread.
     (define/private (do-update! gen pos old-len new-str)
       ;; Initial progress for other threads: Nothing yet within this
@@ -221,8 +198,8 @@
 
     ;; Detect whether #lang changed AND ALSO (to avoid excessive
     ;; notifications and work) whether that changed any lang info
-    ;; values we use. Calls on-notify if any changed, or if this is
-    ;; the first generation. Returns true IFF the lexer changed. For
+    ;; values we use. Call on-notify if any changed, or if this is the
+    ;; first generation. Return true IFF the lexer changed. For
     ;; example this will return false for a change from #lang racket
     ;; to racket/base.
     (define last-lang-end-pos 1)
@@ -350,7 +327,25 @@
       (set-update-progress #:position max-position))
 
     ;; ------------------------------------------------------------
-    ;; Methods for Emacs query commands.
+    ;;
+    ;; Public methods for Emacs commands.
+
+    (define/public (delete)
+      (async-channel-put update-chan 'quit))
+
+    ;; This method is safe to call from various threads.
+    ;;
+    ;; The method signature here is similar to that of Emacs'
+    ;; after-change functions: Something changed starting at POS. The
+    ;; text there used to be OLD-LEN chars long, but is now NEW-STR.
+    (define/public (update! gen pos old-len new-str)
+      ;;(-> generation/c position/c exact-nonnegative-integer? string? any)
+      (unless (< generation gen)
+        (raise-argument-error 'update! "valid generation" 0 gen pos old-len new-str))
+      (unless (<= min-position pos)
+        (raise-argument-error 'update! "valid position" 1 gen pos old-len new-str))
+      (async-channel-put update-chan
+                         (list 'update gen pos old-len new-str)))
 
     ;; Can be called on any command thread.
     (define/public (classify gen pos)
@@ -375,7 +370,6 @@
                null)]
           [#f null])))
 
-    ;; ------------------------------------------------------------
     ;; Methods for Emacs navigation and indent commands.
     ;;
     ;; These command methods work by calling various drracket:xyz
@@ -444,7 +438,7 @@
                (with-semaphore parens-sema
                  (range-indenter this from upto)))]))
 
-    ;; ------------------------------------------------------------
+    ;; -----------------------------------------------------------------
     ;; color-textoid<%> methods.
     ;;
     ;; Warning: As discussed above, these are safe to call only from
@@ -583,6 +577,16 @@
 (define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
 (define default-quote-matches '(#\" #\|))
 
+(define (attribs->type attribs)
+  (if (symbol? attribs)
+      attribs
+      (hash-ref attribs 'type 'unknown)))
+
+(define (attribs->table attribs)
+  (if (symbol? attribs)
+      (hasheq 'type attribs)
+      attribs))
+
 (module+ ex
   (define t (new hash-lang% [on-notify void #;(λ as (println (cons 'NOTIFY as)))
                                        ]))
@@ -642,5 +646,4 @@
   (send t merge-tree span-to-keep)
   (send t test)
   (match-forward 0)
-  (match-backward new-len)
-  )
+  (match-backward new-len))
