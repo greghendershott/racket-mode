@@ -61,10 +61,16 @@ test-elisp:
       --eval '(setq racket-program "$(RACKET)")' \
       -f ert-run-tests-batch-and-exit
 
+# Files to test using `raco test -x`.
+test-x-rkt-files := $(wildcard ./racket/*.rkt) $(wildcard ./racket/commands/*.rkt)
+# Exclude hash-lang.rkt because it will fail to eval on older Rackets;
+# normally we only dynamic-require it. Furthermore its tests are in
+# ./test/racket/hash-lang-test.rkt.
+test-x-rkt-files := $(filter-out ./racket/hash-lang.rkt, $(test-x-rkt-files))
+
 test-racket:
+	$(RACKET) -l raco test -x $(test-x-rkt-files)
 	$(RACKET) -l raco test ./test/racket/
-	$(RACKET) -l raco test -x ./racket/*.rkt
-	$(RACKET) -l raco test -x ./racket/commands/*.rkt
 
 test-slow:
 	$(RACKET) -l raco test --submodule slow-test ./racket/imports.rkt
