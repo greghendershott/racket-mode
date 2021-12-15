@@ -3,11 +3,14 @@
 (require racket/async-channel
          racket/class
          racket/match
-         "hash-lang.rkt"
          "util.rkt")
 
 (provide hash-lang
          hash-lang-notify-channel)
+
+(define hash-lang%
+  (with-handlers ([exn:fail:filesystem:missing-module? (λ _ #f)])
+    (dynamic-require "hash-lang.rkt" 'hash-lang%)))
 
 ;; Bridge for Emacs to use hash-lang%
 ;;
