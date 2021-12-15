@@ -187,9 +187,7 @@ lang's attributes that care about have changed."
   (setq-local racket-hash-lang-mode-lighter
               (concat " #lang"
                       (when (plist-get plist 'racket-grouping) "()")
-                      (cond ((plist-get plist 'range-indenter) "⇉")
-                            ((plist-get plist 'line-indenter)  "→")
-                            (t "")))))
+                      (when (plist-get plist 'range-indenter) "⇉"))))
 
 (defun racket--hash-lang-on-update (_gen beg end)
   ;;;(message "update %s %s %s" _gen beg end)

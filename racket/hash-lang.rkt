@@ -49,7 +49,11 @@
 (define hash-lang%
   (class* object% (color-textoid<%>)
     (super-new)
-    (init-field [on-notify #f]) ;(or/c #f procedure?)
+
+    ;; Virtual methods to override for notifications
+    (define/public (on-changed-lang-values) (void))
+    (define/public (on-changed-tokens gen beg end) (void))
+
     ;; A new object has an empty string and is at generation 0. The
     ;; creator should then use update! to set a string value. That way
     ;; both `new` and `update!` return immediately; all
@@ -72,6 +76,11 @@
     (define grouping-position racket-grouping-position)
     (define line-indenter     racket-amount-to-indent)
     (define range-indenter    #f)
+
+    (define/public (racket-grouping-position?)
+      (equal? grouping-position racket-grouping-position))
+    (define/public (range-indenter?)
+      (and range-indenter #t))
 
     ;; These methods intended just for tests
     (define/public (-get-content) (lines:get-text content 0))
@@ -198,10 +207,10 @@
 
     ;; Detect whether #lang changed AND ALSO (to avoid excessive
     ;; notifications and work) whether that changed any lang info
-    ;; values we use. Call on-notify if any changed, or if this is the
-    ;; first generation. Return true IFF the lexer changed. For
-    ;; example this will return false for a change from #lang racket
-    ;; to racket/base.
+    ;; values we use. Notify if any changed, or if this is the first
+    ;; generation. Return true IFF the lexer changed. For example this
+    ;; will return false for a change from #lang racket to
+    ;; racket/base.
     (define last-lang-end-pos 1)
     (define/private (check-lang-info/lexer-changed? gen pos)
       (define original-lexer lexer)
@@ -226,12 +235,7 @@
         (set!? line-indenter     (info 'drracket:indentation racket-amount-to-indent))
         (set!? range-indenter    (info 'drracket:range-indentation #f))
         (when (or any-changed? (= gen 1))
-          (when on-notify
-            (on-notify
-             'lang
-             'racket-grouping (equal? grouping-position racket-grouping-position)
-             'line-indenter   (and line-indenter #t)
-             'range-indenter  (and range-indenter #t)))))
+          (on-changed-lang-values)))
       (not (equal? original-lexer lexer)))
 
     (define/private (update-tokens-and-parens pos diff)
@@ -319,11 +323,9 @@
                           new-contig-same-count
                           (if same? min-changed-pos (or min-changed-pos new-beg))
                           (if same? max-changed-pos (max max-changed-pos new-end)))])])))
-      (when on-notify
-        (on-notify 'update
-                   generation
-                   (or min-changed-pos min-position)
-                   max-changed-pos))
+      (on-changed-tokens generation
+                         (or min-changed-pos min-position)
+                         max-changed-pos)
       (set-update-progress #:position max-position))
 
     ;; ------------------------------------------------------------
@@ -587,63 +589,3 @@
       (hasheq 'type attribs)
       attribs))
 
-(module+ ex
-  (define t (new hash-lang% [on-notify void #;(λ as (println (cons 'NOTIFY as)))
-                                       ]))
-  (define (match-forward pos)
-    (call-with-values (λ () (send (send t -get-parens) match-forward pos)) list))
-  (define (match-backward pos)
-    (call-with-values (λ () (send (send t -get-parens) match-backward pos)) list))
-  (send t update! 1 0 0 "#lang racket\n(1 3)(fooo bar baz)")
-  ;;                     0123456789012 34567890123456789012
-  ;;                               1          2         3
-  ;;(send t get-tokens)
-  (send t block-until-updated-thru 1)
-  (match-forward 13)
-  (match-backward 18)
-  (match-forward 18)
-  (match-backward 32)
-  (send t update! 2 15 0 " 2") ;After ( insert 2 non-paren
-  (send t block-until-updated-thru 2)
-  ;;(send t get-tokens)
-  ;;(send t -get-content)
-  (match-forward 13)
-  (match-backward 20)
-  (match-forward 20)
-  (match-backward 34))
-
-(module+ ex1
-  (require syntax-color/paren-tree)
-  (define t (new paren-tree% [matches default-paren-matches]))
-  (define (match-forward pos) (call-with-values (λ () (send t match-forward pos)) list))
-  (define (match-backward pos) (call-with-values (λ () (send t match-backward pos)) list))
-  ;; "(xx)"
-  (define old-len 4)
-  (send t add-token '\( 1)
-  (send t add-token #f  2)
-  (send t add-token '\) 1)
-  ;; 1 (, 2 #f, 1 )
-  (send t test)
-  (match-forward 0)
-  (match-backward 4)
-
-  (define insert-pos 1)
-  (define insert-len 10)
-  (define new-len (+ old-len insert-len))
-  (printf "insert at ~v a non-paren of len ~v\nold total len was ~v, new total len ~v\n"
-          insert-pos insert-len
-          old-len new-len)
-  (send t split-tree insert-pos)
-  (send t test)
-  ;; before: 1 (
-  ;; after:  2 #f, 1 )
-  (send t add-token #f insert-len)
-  (send t test)
-  ;; before: 1 (, 10 #f
-  ;; after:  2 #f, 1 )
-  (define span-to-keep (- old-len insert-pos))
-  (printf "span-to-keep: ~v\n" span-to-keep)
-  (send t merge-tree span-to-keep)
-  (send t test)
-  (match-forward 0)
-  (match-backward new-len))
