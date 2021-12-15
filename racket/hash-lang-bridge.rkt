@@ -8,17 +8,15 @@
 (provide hash-lang
          hash-lang-notify-channel)
 
-(define hash-lang%
-  (with-handlers ([exn:fail:filesystem:missing-module? (λ _ #f)])
-    (dynamic-require "hash-lang.rkt" 'hash-lang%)))
-
 ;; Bridge for Emacs to use hash-lang%
 ;;
 ;; - Reference hash-lang% objects by string ID.
 ;;
 ;; - Adjust Emacs 1-based positions to/from hash-lang% 0-based.
 ;;
-;; - Handle notifications about new #lang and changed token spans.
+;; - Handle notifications about changed language and token spans,
+;;   putting to an async channel handled in command-server and up in
+;;   Emacs much like the channels used for logging and debugging.
 
 (define (hash-lang . args)
   (unless hash-lang%
@@ -38,22 +36,29 @@
 (define ht (make-hash)) ;id => hash-lang%
 (define (get-object id) (hash-ref ht id))
 
+(define hash-lang%
+  (with-handlers ([exn:fail:filesystem:missing-module? (λ _ #f)])
+    (dynamic-require "hash-lang.rkt" 'hash-lang%)))
+
+(define our-hash-lang%
+  (and
+   hash-lang%
+   (class hash-lang%
+     (super-new)
+     (init-field id)
+     (define/override (on-changed-lang-values)
+       (async-channel-put hash-lang-notify-channel
+                          (list 'hash-lang id
+                                'lang
+                                'racket-grouping (send this racket-grouping-position?)
+                                'range-indenter  (send this range-indenter?))))
+     (define/override (on-changed-tokens gen beg end)
+       (async-channel-put hash-lang-notify-channel
+                          (list 'hash-lang id
+                                'update gen (add1 beg) (add1 end)))))))
+
 (define (create id s) ;any/c string? -> void
-  ;; When we create a hash-lang% object we supply an on-notify-proc
-  ;; that transforms to values suitable for the Emacs front end --
-  ;; including attaching the `id` which is probably the buffer name --
-  ;; and puts them to token-notify-channel, which the command server
-  ;; syncs on just like it does for notify channels for logger and
-  ;; debug.
-  (define (on-notify . args)
-    (async-channel-put
-     hash-lang-notify-channel
-     (match args
-       [(cons 'lang more)
-        (list* 'hash-lang id 'lang more)]
-       [(list 'update gen (app add1 beg) (app add1 end))
-        (list 'hash-lang id 'update gen beg end)])))
-  (define obj (new hash-lang% [on-notify on-notify]))
+  (define obj (new our-hash-lang% [id id]))
   (hash-set! ht id obj)
   (send obj update! 1 0 0 s))
 

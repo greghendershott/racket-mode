@@ -21,21 +21,23 @@
 (define racket-lexer  (dynamic-require 'syntax-color/racket-lexer 'racket-lexer))
 (define racket-lexer* (dynamic-require 'syntax-color/racket-lexer 'racket-lexer*))
 
-;; To test async notifications from the updater thread, we supply an
-;; on-notify that puts some of them to a "results" channel.
+;; To test async updates from the updater thread, we supply an
+;; on-changed-tokens override method that puts some of them to a
+;; "results" channel.
 (define result-channel (make-async-channel))
-(define (on-notify . args)
-  (match args
-    [(list* 'update _) (async-channel-put result-channel args)]
-    [(list* 'lang _) (void)]))
 (define (test-create str)
-  (define o (new hash-lang% [on-notify on-notify]))
+  (define our-hash-lang%
+    (class hash-lang%
+      (super-new)
+      (define/override (on-changed-tokens gen beg end)
+        (async-channel-put result-channel (list gen beg end)))))
+  (define o (new our-hash-lang%))
   (test-update! o 1 0 0 str)
   o)
 (define (test-update! o gen pos old-len str)
   (send o update! gen pos old-len str)
   (match (async-channel-get result-channel)
-    [(list 'update gen beg end)
+    [(list gen beg end)
      (send o get-tokens gen beg end)]))
 
 ;;; Various tests of tokenizing and updatng
@@ -550,7 +552,7 @@
     (println (string-append (substring str 0 20) "..."))
 
     ;; Create an object of our class.
-    (define o (new hash-lang% [on-notify void]))
+    (define o (new hash-lang%))
     (send o update! 1 0 0 str)
 
     ;; Create an object of racket:text%, which also implements the
