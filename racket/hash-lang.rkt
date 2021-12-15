@@ -8,6 +8,10 @@
          racket/set
          syntax-color/token-tree
          syntax-color/paren-tree
+         (only-in syntax-color/color-textoid color-textoid<%>)
+         (only-in syntax-color/module-lexer module-lexer*)
+         (only-in syntax-color/racket-indentation racket-amount-to-indent)
+         (only-in syntax-color/racket-navigation racket-grouping-position)
          syntax/parse/define
          (prefix-in lines: "text-lines.rkt"))
 
@@ -33,23 +37,6 @@
 (define max-position (sub1 (expt 2 63)))
 (define position/c (integer-in min-position max-position))
 
-;; color-textoid<%> and module-lexer* were added around Racket 8.3.0.8
-;; / syntax-color-lib 1.3. When running on older versions, these will
-;; be #f, and we'll also set hash-lang% to #f for hash-lang-bridge.rkt
-;; to notice and give the user an error message.
-(define color-textoid<%>
-  (with-handlers ([exn:fail? (λ _ #f)])
-    (dynamic-require 'syntax-color/color-textoid 'color-textoid<%>)))
-(define module-lexer*
-  (with-handlers ([exn:fail? (λ _ #f)])
-    (dynamic-require 'syntax-color/module-lexer 'module-lexer*)))
-(define racket-amount-to-indent
-  (with-handlers ([exn:fail? (λ _ #f)])
-    (dynamic-require 'syntax-color/racket-indentation 'racket-amount-to-indent)))
-(define racket-grouping-position
-  (with-handlers ([exn:fail? (λ _ #f)])
-    (dynamic-require 'syntax-color/racket-navigation 'racket-grouping-position)))
-
 ;; Some of this inherited from /src/racket-lang/racket/share/pkgs/gui-lib/framework/private
 
 ;; Our data for token-tree%
@@ -68,7 +55,7 @@
 (define-simple-macro (with-semaphore sema e:expr ...+)
   (call-with-semaphore sema (λ () e ...)))
 
-(define (make-hash-lang%-class)
+(define hash-lang%
   (class* object% (color-textoid<%>)
     (super-new)
     (init-field [on-notify #f]) ;(or/c #f procedure?)
@@ -591,13 +578,6 @@
                                 comments?)]
               [else position])]
            [#f position])]))))
-
-(define hash-lang%
-  (and color-textoid<%>
-       module-lexer*
-       racket-amount-to-indent
-       racket-grouping-position
-       (make-hash-lang%-class)))
 
 (define default-lexer (waive-option module-lexer*))
 (define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
