@@ -54,20 +54,19 @@
     (define/public (on-changed-lang-values) (void))
     (define/public (on-changed-tokens gen beg end) (void))
 
-    ;; A new object has an empty string and is at generation 0. The
-    ;; creator should then use update! to set a string value. That way
-    ;; both `new` and `update!` return immediately; all
-    ;; (re)tokenization is handled uniformly on the dedicated updater
-    ;; thread.
-    (define generation  0)
+    ;; A new object has an empty string and is at updated-generation
+    ;; 0. The creator should then use update! to set the initial
+    ;; string value and start the initial tokenization. That way both
+    ;; `new` and `update!` return immediately, and all tokenization is
+    ;; done on the updater thread.
+    (define updated-generation  0)
+    (define updated-position (sub1 min-position))
+
     (define content     lines:empty-text-lines)
     (define tokens      (new token-tree%))
     (define tokens-sema (make-semaphore 1))
     (define parens      (new paren-tree% [matches default-paren-matches]))
     (define parens-sema (make-semaphore 1))
-
-    (define update-chan  (make-async-channel))
-    (define updated-thru (sub1 min-position))
 
     ;; These members correspond to various lang-info items.
     (define lexer             default-lexer)
@@ -77,12 +76,19 @@
     (define line-indenter     racket-amount-to-indent)
     (define range-indenter    #f)
 
+    ;; Some simple public accessors
+    (define/public (get-paren-matches) paren-matches)
+    (define/public (get-quote-matches) quote-matches)
+
+    ;; We don't expose the grouping or indenter functions to be called
+    ;; directly; instead see `grouping` and `indent-x` methods below.
+    ;; These are just boolean flags.
     (define/public (racket-grouping-position?)
       (equal? grouping-position racket-grouping-position))
     (define/public (range-indenter?)
       (and range-indenter #t))
 
-    ;; These methods intended just for tests
+    ;; Some methods intended just for tests
     (define/public (-get-content) (lines:get-text content 0))
     (define/public (-get-modes)
       (define modes null)
@@ -94,7 +100,6 @@
                                 modes))))
       (reverse modes))
     (define/public (-get-lexer) lexer)
-    (define/public (-get-paren-matches) paren-matches)
     (define/public (-get-line-indenter) line-indenter)
     (define/public (-get-range-indenter) range-indenter)
     #;
@@ -120,8 +125,8 @@
     ;;
     ;; Coordinate progress of tokenizing updater thread
 
-    ;; Allow threads to wait -- safely and without `sleep`ing -- for
-    ;; the updater thread to progress to a certain generation and
+    ;; Allow threads to wait -- safely and without polling -- for the
+    ;; updater thread to progress to a certain generation and
     ;; position. [Although I've never worked with "condition
     ;; variables" that seems ~= the synchronization pattern here?]
     (struct waiter (sema pred) #:transparent #:authentic)
@@ -129,11 +134,11 @@
     (define waiters-sema (make-semaphore 1)) ;for modifying waiters-set
 
     ;; Called from updater thread.
-    (define/private (set-update-progress #:generation [g generation]
+    (define/private (set-update-progress #:generation [g updated-generation]
                                          #:position   p)
       (with-semaphore waiters-sema
-        (set! generation g)
-        (set! updated-thru p)
+        (set! updated-generation g)
+        (set! updated-position p)
         (for ([w (in-set waiters-set)])
           (when ((waiter-pred w))
             (semaphore-post (waiter-sema w))))))
@@ -141,7 +146,7 @@
     ;; Called from threads that need to wait for update progress to a
     ;; certain generation and position.
     (define/public (block-until-updated-thru gen [pos max-position])
-      (define (pred) (and (<= gen generation) (<= pos updated-thru)))
+      (define (pred) (and (<= gen updated-generation) (<= pos updated-position)))
       (unless (call-with-semaphore waiters-sema pred)  ;fast path
         (define pred-sema (make-semaphore 0))
         (define w (waiter pred-sema pred))
@@ -153,32 +158,38 @@
     ;;
     ;; Tokenizer updater thread
 
-    ;; This is the entry thunk of our updater thread.
+    ;; Entry thunk of our updater thread, which gets items from the
+    ;; async channel `update-chan`, put there by the public `update!`
+    ;; method.
     ;;
-    ;; Tolerate update requests arriving with out-of-order generation
-    ;; numbers. This could result from update! being called from
-    ;; various threads. For example Racket Mode commands are each
-    ;; handled on their own thread, much like a web server. As a rough
-    ;; analogy, this is like handling TCP packets arriving possibly
-    ;; out of order.
-    (define consume-update-chan
-      (let ([next-update-gen 1]
-            [pending-updates (make-hash)])
-        (λ ()
-          (match (async-channel-get update-chan)
-            ['quit null] ;exit thread
-            [(list 'update gen pos old-len new-str)
-             (hash-set! pending-updates gen (list pos old-len new-str))
-             (let loop ()
-               (match (hash-ref pending-updates next-update-gen #f)
-                 [(list pos old-len new-str)
-                  (hash-remove! pending-updates next-update-gen)
-                  (do-update! next-update-gen pos old-len new-str)
-                  (set! next-update-gen (add1 next-update-gen))
-                  (loop)]
-                 [#f #f]))
-             (consume-update-chan)]))))
-    (thread consume-update-chan)
+    ;; The only complexity here is that we tolerate update requests
+    ;; arriving with out-of-order generation numbers. (This could
+    ;; result from update! being called from various threads. For
+    ;; example Racket Mode commands are each handled on their own
+    ;; thread, much like a web server. As a rough analogy, this is
+    ;; like handling TCP packets arriving possibly out of order.)
+    ;;
+    ;; TODO: Does this complexity belong here in this class, or should
+    ;; it move outside? Strictly speaking this is about coordinating
+    ;; multi-thread calls to our public update! method -- not about
+    ;; coordinating our updater thread with other threads. This could
+    ;; as easily live in e.g. hash-lang-bridge.rkt instead of here.
+    (define update-chan (make-async-channel))
+    (thread
+     (λ ()
+       (define pending-updates (make-hash))
+       (let get ([next-update-gen 1])
+         (match (async-channel-get update-chan)
+           ['quit null] ;exit thread
+           [(list 'update gen pos old-len new-str)
+            (hash-set! pending-updates gen (list pos old-len new-str))
+            (let do-pending ([next-update-gen next-update-gen])
+              (match (hash-ref pending-updates next-update-gen #f)
+                [(list pos old-len new-str)
+                 (hash-remove! pending-updates next-update-gen)
+                 (do-update! next-update-gen pos old-len new-str)
+                 (do-pending (add1 next-update-gen))]
+                [#f (get next-update-gen)]))]))))
 
     ;; Runs on updater thread.
     (define/private (do-update! gen pos old-len new-str)
@@ -323,7 +334,7 @@
                           new-contig-same-count
                           (if same? min-changed-pos (or min-changed-pos new-beg))
                           (if same? max-changed-pos (max max-changed-pos new-end)))])])))
-      (on-changed-tokens generation
+      (on-changed-tokens updated-generation
                          (or min-changed-pos min-position)
                          max-changed-pos)
       (set-update-progress #:position max-position))
@@ -342,7 +353,7 @@
     ;; text there used to be OLD-LEN chars long, but is now NEW-STR.
     (define/public (update! gen pos old-len new-str)
       ;;(-> generation/c position/c exact-nonnegative-integer? string? any)
-      (unless (< generation gen)
+      (unless (< updated-generation gen)
         (raise-argument-error 'update! "valid generation" 0 gen pos old-len new-str))
       (unless (<= min-position pos)
         (raise-argument-error 'update! "valid position" 1 gen pos old-len new-str))
@@ -359,7 +370,7 @@
         [#f #f]))
 
     ;; Can be called on any command thread.
-    (define/public (get-tokens [gen generation]
+    (define/public (get-tokens gen
                                [from min-position]
                                [upto max-position])
       (block-until-updated-thru gen upto)
@@ -588,4 +599,3 @@
   (if (symbol? attribs)
       (hasheq 'type attribs)
       attribs))
-
