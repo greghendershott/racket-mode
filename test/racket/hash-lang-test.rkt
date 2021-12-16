@@ -46,7 +46,7 @@
        ;;    1234567890123 45678901234 567890 12345678901234567890123456
        ;;             1          2          3          4         5
        [o (test-create str)])
-  (check-equal? (send o get-tokens)
+  (check-equal? (send o get-tokens 1)
                 (list
                  (list  0 12 'other)
                  (list 12 13 'white-space)
@@ -108,7 +108,7 @@
                 "#lang racket\n99999 (print 'hell) @print{Hello} 'bar 'bar")
   ;;             0123456789012 34567890123456789012345678901234567890123456
   ;;                       1          2         3         4         5
-  (check-equal? (send o get-tokens)
+  (check-equal? (send o get-tokens 1)
                 (list
                  (list  0 12 'other)
                  (list 12 13 'white-space)
@@ -134,7 +134,7 @@
 
 (let* ([str "#lang at-exp racket\n42 (print \"hello\") @print{Hello (there)} 'foo #:bar"]
        [o (test-create str)])
-  (check-equal? (send o get-tokens)
+  (check-equal? (send o get-tokens 1)
                 (list
                  (list  0 12 'other)
                  (list 12 13 'white-space)
@@ -169,7 +169,7 @@
 
 (let* ([str "#lang scribble/text\nHello @(print \"hello\") @print{Hello (there)} #:not-a-keyword"]
        [o (test-create str)])
-  (check-equal? (send o get-tokens)
+  (check-equal? (send o get-tokens 1)
                 (list
                  (list 0  19 'text)
                  (list 19 20 'white-space)
@@ -206,7 +206,7 @@
                 (list 17 18 'symbol)))
 
 (let ([o (test-create "#lang racket\n#rx\"1234\"\n#(1 2 3)\n#'(1 2 3)")])
-  (check-equal? (send o get-tokens)
+  (check-equal? (send o get-tokens 1)
                 (list
                  (list  0 12 'other)
                  (list 12 13 'white-space)
@@ -230,7 +230,7 @@
                  (list 40 41 'parenthesis))))
 
 (let ([o (test-create "#lang racket\n#<<HERE\nblah blah\nblah blah\nHERE\n")])
-  (check-equal? (send o get-tokens)
+  (check-equal? (send o get-tokens 1)
                 (list
                  (list  0 12 'other)
                  (list 12 13 'white-space)
@@ -258,7 +258,7 @@
   (test-update! o 2 13 0 "d")
   (test-update! o 3 14 0 "o")
   (check-equal? (send o -get-content) "#lang racket\ndo")
-  (check-equal? (send o get-tokens)
+  (check-equal? (send o get-tokens 3)
                 (list
                  (list  0 12 'other)
                  (list 12 13 'white-space)
@@ -271,7 +271,7 @@
   (test-update! o 2 13 0 "1") ;initially lexed as 'constant
   (test-update! o 3 14 0 "x") ;should re-lex "1x" as 'symbol
   (check-equal? (send o -get-content) "#lang racket\n1x")
-  (check-equal? (send o get-tokens)
+  (check-equal? (send o get-tokens 3)
                 (list
                  (list  0 12 'other)
                  (list 12 13 'white-space)
@@ -285,7 +285,7 @@
   (test-update! o 4 15 0 "1") ;still symbol
   (test-update! o 5 14 1 "")  ;deleting the "x" should re-lex the "11" as constant
   (check-equal? (send o -get-content) "#lang racket\n11")
-  (check-equal? (send o get-tokens)
+  (check-equal? (send o get-tokens 5)
                 (list
                  (list  0 12 'other)
                  (list 12 13 'white-space)
@@ -301,7 +301,7 @@
   (test-update! o 4 14 0 "h")
   (test-update! o 5 15 0 "i")
   (check-equal? (send o -get-content) "#lang racket\n(hi)")
-  (check-equal? (send o get-tokens)
+  (check-equal? (send o get-tokens 5)
                 (list
                  (list  0 12 'other)
                  (list 12 13 'white-space)
@@ -356,7 +356,7 @@
        ;;    0123456789012 3 4567890
        ;;              1           2
        [o (test-create str)])
-  (check-equal? (send o get-tokens)
+  (check-equal? (send o get-tokens 1)
                 (list
                  (list  0 12 'other)
                  (list 12 14 'white-space)
@@ -432,7 +432,7 @@
   ;; things like the initial lexer and paren-matches, give those
   ;; values from our object to color:text<%> `start-colorer`.
   (define t (new racket:text%))
-  (send t start-colorer symbol->string (send o -get-lexer) (send o -get-paren-matches))
+  (send t start-colorer symbol->string (send o -get-lexer) (send o get-paren-matches))
   (send t insert str)
   (send t freeze-colorer)
   (send t thaw-colorer)
@@ -560,7 +560,7 @@
     ;; things like the initial lexer and paren-matches, give those
     ;; values from our object to color:text<%> `start-colorer`.
     (define t (new racket:text%))
-    (send t start-colorer symbol->string (send o -get-lexer) (send o -get-paren-matches))
+    (send t start-colorer symbol->string (send o -get-lexer) (send o get-paren-matches))
     (send t insert str)
     (send t freeze-colorer)
     (send t thaw-colorer)
