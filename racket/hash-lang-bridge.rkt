@@ -18,9 +18,31 @@
 ;;   putting to an async channel handled in command-server and up in
 ;;   Emacs much like the channels used for logging and debugging.
 
+(define hash-lang-class-or-error-message
+  (with-handlers ([exn:fail? exn-message])
+    (dynamic-require "hash-lang.rkt" 'hash-lang%)))
+
+(define our-hash-lang%
+  (when (class? hash-lang-class-or-error-message)
+    (class hash-lang-class-or-error-message
+      (super-new)
+      (init-field id)
+      (define/override (on-changed-lang-values)
+        (async-channel-put hash-lang-notify-channel
+                           (list 'hash-lang id
+                                 'lang
+                                 'racket-grouping (send this racket-grouping-position?)
+                                 'range-indenter  (send this range-indenter?))))
+      (define/override (on-changed-tokens gen beg end)
+        (async-channel-put hash-lang-notify-channel
+                           (list 'hash-lang id
+                                 'update gen (add1 beg) (add1 end)))))))
+
 (define (hash-lang . args)
-  (unless hash-lang%
-    (error "syntax-color/color-textoid not available; you need a newer version of Racket and/or syntax-color-lib"))
+  (unless (class? hash-lang-class-or-error-message)
+    (error 'hash-lang
+           (string-append "This feature needs a newer version of syntax-color-lib.\n"
+                          hash-lang-class-or-error-message)))
   (match args
     [`(create ,id ,s)                              (create id s)]
     [`(delete ,id)                                 (delete id)]
@@ -35,27 +57,6 @@
 
 (define ht (make-hash)) ;id => hash-lang%
 (define (get-object id) (hash-ref ht id))
-
-(define hash-lang%
-  (with-handlers ([exn:fail:filesystem:missing-module? (λ _ #f)])
-    (dynamic-require "hash-lang.rkt" 'hash-lang%)))
-
-(define our-hash-lang%
-  (and
-   hash-lang%
-   (class hash-lang%
-     (super-new)
-     (init-field id)
-     (define/override (on-changed-lang-values)
-       (async-channel-put hash-lang-notify-channel
-                          (list 'hash-lang id
-                                'lang
-                                'racket-grouping (send this racket-grouping-position?)
-                                'range-indenter  (send this range-indenter?))))
-     (define/override (on-changed-tokens gen beg end)
-       (async-channel-put hash-lang-notify-channel
-                          (list 'hash-lang id
-                                'update gen (add1 beg) (add1 end)))))))
 
 (define (create id s) ;any/c string? -> void
   (define obj (new our-hash-lang% [id id]))
