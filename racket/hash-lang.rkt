@@ -20,19 +20,69 @@
          position/c
          min-position)
 
-;; Portions originated from /src/racket-lang/racket/share/pkgs/gui-lib/framework/private
+;; Overview
+;;
+;; An instance of a hash-lang% object can be used to represent program
+;; source text and obtain information based on the #lang.
+;;
+;; The hash-lang% `update!` method may be called safely from any
+;; thread to change the program source text (e.g. as the result of a
+;; human editing the text). The `update!` method returns immediately;
+;; the actual updating work is handled by a dedicated thread.
+;; Furthermore the updater minimizes the work done for a change. As a
+;; result it is fine to call `update!` frequently for edits that
+;; insert or delete a single character, as well as for bigger changes.
+;;
+;; Each update! must specify a "generation", which is a strictly
+;; successive increasing exact integer. A new object is generation 0;
+;; the first update! must be generation 1. [It is fine if update!
+;; calls are made from multiple threads and arrive with out-of-order
+;; generation numbers; they are automatically queued and handled in
+;; the correct order.]
+;;
+;; Other public methods -- `classify`, `get-tokens`, `grouping`,
+;; `indent-line`, `indent-range` -- take both a generation and a
+;; position. They automatically block until the updating thread has
+;; progressed through that generation and position.
+;;
+;; The generation number is intended to support "distributed" use
+;; patterns, where the editor might live in a different process or
+;; even on a remote machine.
+;;
+;; As the updater thread works, it may produce "notifications" by
+;; calling the `on-changed-lang-values` and `on-changed-token`
+;; methods. This happens on the updater thread; the recipient should
+;; only queue these (e.g. in an async channel) to handle later in some
+;; other thread, and return immediately.
+;;
+;; `on-changed-lang-values` is called for the generation 1 update, as
+;; well as for updates that change the #lang meaningfully (change lang
+;; info values such as 'color-lexer or 'drracket:indentation).
+;;
+;; `on-changed-tokens` is called when an update! results in different
+;; tokens for some span. The recipient should simply queue this
+;; information in an async channel. What should it do when retrieving
+;; them later? It depends on the program. One approach is to call
+;; `get-tokens` eagerly for the entire invalid span and use the tokens
+;; to color/propertize the entire span. Another approach is to record
+;; the invalid span, but let some other mechanism call `get-tokens`
+;; only if/as/when portions of the invalid span become visible to the
+;; user, such as when they scroll. (The latter approach is what we use
+;; in Emacs: Clear a "fontified" property for the invalid region, and
+;; let the normal font-lock mechanism ask us to fontify visible
+;; non-fontified areas.)
+;;
+;; Although this class implements the color-textoid<%> interface,
+;; those methods are NOT intended to be used directly by a tool ---
+;; for speed they are intentionally NOT thread-safe! Instead the
+;; `grouping` and `indent-x` methods work by supplying these methods
+;; to a lang grouper or indenter, within a single dynamic extent where
+;; it is thread-safe to call them.
+;;
+;;
+;; Portions originated from
+;; /src/racket-lang/racket/share/pkgs/gui-lib/framework/private
 
-
-;; To coordinate inter-process updates and queries we use successive
-;; "generation" numbers. A new object is generation 0. Thereafter the
-;; client should increment the generation for each call to `update!`.
-;; (Clients should not skip generation numbers; strict succession is
-;; used to detect out-of-order update requests.) Then, when it needs
-;; to use some query operation such as classify, it supplies both its
-;; latest generation and the position. The query op will block
-;; until/unless we have finished updating (a) that generation (b)
-;; through at least that position (or possibly a later position,
-;; depending on the op).
 (define generation/c exact-nonnegative-integer?)
 
 ;; We use 0-based positions
