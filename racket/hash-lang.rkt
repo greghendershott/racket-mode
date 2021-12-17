@@ -8,6 +8,7 @@
          racket/set
          syntax-color/token-tree
          syntax-color/paren-tree
+         (only-in syntax-color/lexer-contract dont-stop)
          (only-in syntax-color/color-textoid color-textoid<%>)
          (only-in syntax-color/module-lexer module-lexer*)
          (only-in syntax-color/racket-indentation racket-amount-to-indent)
@@ -343,12 +344,17 @@
       (define-values (min-changed-pos max-changed-pos)
         (let tokenize ([pos initial-pos]
                        [mode initial-mode]
+                       [previous-same? #f]
                        [contig-same-count 0]
                        [min-changed-pos #f]
                        [max-changed-pos min-position])
           (define pos/port (add1 pos))
-          (define-values (lexeme attribs paren beg/port end/port backup new-mode)
+          (define-values (lexeme attribs paren beg/port end/port backup new-mode/ds)
             (lexer in pos/port mode))
+          (define-values (new-mode may-stop?)
+            (match new-mode/ds
+              [(struct* dont-stop ([val v])) (values v #f)]
+              [v                             (values v #t)]))
           (cond
             [(eof-object? lexeme)
              (values min-changed-pos max-changed-pos)]
@@ -369,9 +375,11 @@
              (define old-tok (send old-tokens get-root-data))
              (define same? (and (equal? new-span old-span)
                                 (equal? new-tok old-tok)))
-             (define new-contig-same-count (+ contig-same-count (if same? 1 0)))
+             (define new-contig-same-count (if (and previous-same? same?)
+                                               (add1 contig-same-count)
+                                               0))
              (cond
-               [(= new-contig-same-count 3)
+               [(and may-stop? (= new-contig-same-count 3))
                 (send old-tokens search! old-beg)
                 (define-values (_ keep) (send old-tokens split-after))
                 (with-semaphore tokens-sema (insert-last! tokens keep))
@@ -381,6 +389,7 @@
                [else
                 (tokenize new-end
                           new-mode
+                          same?
                           new-contig-same-count
                           (if same? min-changed-pos (or min-changed-pos new-beg))
                           (if same? max-changed-pos (max max-changed-pos new-end)))])])))
