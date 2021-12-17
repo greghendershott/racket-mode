@@ -3,6 +3,7 @@
 (require racket/async-channel
          racket/class
          racket/match
+         racket/runtime-path
          "util.rkt")
 
 (provide hash-lang
@@ -18,9 +19,11 @@
 ;;   putting to an async channel handled in command-server and up in
 ;;   Emacs much like the channels used for logging and debugging.
 
+(define-runtime-path hash-lang.rkt "hash-lang.rkt")
+
 (define hash-lang-class-or-error-message
   (with-handlers ([exn:fail? exn-message])
-    (dynamic-require "hash-lang.rkt" 'hash-lang%)))
+    (dynamic-require hash-lang.rkt 'hash-lang%)))
 
 (define our-hash-lang%
   (when (class? hash-lang-class-or-error-message)
