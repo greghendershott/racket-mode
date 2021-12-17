@@ -81,7 +81,7 @@
 
 (define (indent-region-amounts id gen from upto)
   (with-time/log "hash-lang indent-region-amounts"
-    (match (send (get-object id) indent-region-amounts gen (sub1 from) (sub1 upto))
+    (match (send (get-object id) indent-range-amounts gen (sub1 from) (sub1 upto))
       [#f 'false] ;avoid Elisp nil/`() punning problem
       [v v])))
 

@@ -443,7 +443,7 @@
               (racket-amount-to-indent this pos)))))
 
     ;; Can be called on any command thread.
-    (define/public (indent-region-amounts gen from upto)
+    (define/public (indent-range-amounts gen from upto)
       (cond [(not range-indenter) #f]
             [else
              (block-until-updated-thru gen upto)
@@ -454,9 +454,9 @@
     ;; -----------------------------------------------------------------
     ;; color-textoid<%> methods.
     ;;
-    ;; Warning: As discussed above, these are safe to call only from
-    ;; the dyanamic extent of the `grouping`, `indent-line-amount`, or
-    ;; `indent-region-amounts` methods.
+    ;; Warning: As discussed above, these are thread-safe to call only
+    ;; from the dyanamic extent of the `grouping`,
+    ;; `indent-line-amount`, or `indent-range-amounts` methods.
 
     (define/public (last-position)
       (lines:text-length content))
