@@ -379,7 +379,13 @@
                                                (add1 contig-same-count)
                                                0))
              (cond
-               [(and may-stop? (= new-contig-same-count 3))
+               [(and may-stop?
+                     ;; If enough same tokens in a row, assume
+                     ;; tokenization has "converged" with old one and
+                     ;; there is no need to continue. Here "3" is a
+                     ;; WAG. [IIUC the framework colorer feels "1" is
+                     ;; enough and relies on lexer dont-stop.]
+                     (>= new-contig-same-count 3))
                 (send old-tokens search! old-beg)
                 (define-values (_ keep) (send old-tokens split-after))
                 (with-semaphore tokens-sema (insert-last! tokens keep))
