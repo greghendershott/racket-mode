@@ -14,12 +14,14 @@
          (only-in syntax-color/racket-indentation racket-amount-to-indent)
          (only-in syntax-color/racket-navigation racket-grouping-position)
          syntax/parse/define
+         "lang-info.rkt"
          (prefix-in lines: "text-lines.rkt"))
 
 (provide hash-lang%
          generation/c
          position/c
-         min-position)
+         min-position
+         (struct-out lang-info))
 
 ;; Overview
 ;;
@@ -51,12 +53,12 @@
 ;; even on a remote machine.
 ;;
 ;; As the updater thread works, it may produce "notifications" by
-;; calling the `on-changed-lang-values` and `on-changed-token`
-;; methods. This happens on the updater thread; the recipient should
-;; only queue these (e.g. in an async channel) to handle later in some
-;; other thread, and return immediately.
+;; calling the `on-changed-lang-info` and `on-changed-token` methods.
+;; This happens on the updater thread; the recipient should only queue
+;; these (e.g. in an async channel) to handle later in some other
+;; thread, and return immediately.
 ;;
-;; `on-changed-lang-values` is called for the generation 1 update, as
+;; `on-changed-lang-info` is called for the generation 1 update, as
 ;; well as for updates that change the #lang meaningfully (change lang
 ;; info values such as 'color-lexer or 'drracket:indentation).
 ;;
@@ -102,7 +104,7 @@
     (super-new)
 
     ;; Virtual methods to override for notifications
-    (define/public (on-changed-lang-values) (void))
+    (define/public (on-changed-lang-info gen li) (void))
     (define/public (on-changed-tokens gen beg end) (void))
 
     ;; A new object has an empty string and is at updated-generation
@@ -119,25 +121,16 @@
     (define parens      (new paren-tree% [matches default-paren-matches]))
     (define parens-sema (make-semaphore 1))
 
-    ;; These members correspond to various lang-info items.
-    (define lexer             default-lexer)
-    (define paren-matches     default-paren-matches)
-    (define quote-matches     default-quote-matches)
-    (define grouping-position racket-grouping-position)
-    (define line-indenter     racket-amount-to-indent)
-    (define range-indenter    #f)
-
-    ;; Some simple public accessors
-    (define/public (get-paren-matches) paren-matches)
-    (define/public (get-quote-matches) quote-matches)
-
-    ;; We don't expose the grouping or indenter functions to be called
-    ;; directly; instead see `grouping` and `indent-x` methods below.
-    ;; These are just boolean flags.
-    (define/public (racket-grouping-position?)
-      (equal? grouping-position racket-grouping-position))
-    (define/public (range-indenter?)
-      (and range-indenter #t))
+    ;; By default the lang is read from `content`, for when that
+    ;; represents a source file containing #lang or a file module.
+    ;; However `other-lang-source` may be a string used instead to
+    ;; read the language, for a REPL buffer that should use the lang
+    ;; from the file for which it is a REPL.
+    (init-field [other-lang-source #f])
+    (define lang-info (if other-lang-source
+                        (read-lang-info (open-input-string other-lang-source))
+                        default-lang-info))
+    (define/public (get-lang-info) lang-info)
 
     ;; Some methods intended just for tests
     (define/public (-get-content) (lines:get-text content 0))
@@ -150,9 +143,6 @@
               (set! modes (cons (list beg end (data-mode data))
                                 modes))))
       (reverse modes))
-    (define/public (-get-lexer) lexer)
-    (define/public (-get-line-indenter) line-indenter)
-    (define/public (-get-range-indenter) range-indenter)
     #;
     (define/private (-show-tree msg t [offset 0])
       (displayln msg)
@@ -256,11 +246,13 @@
       (when (< 0 new-len)
         (set! content (lines:insert content pos new-str)))
 
-      ;; If lang lexer changed, it could result in entirely different
-      ;; tokens and parens, so in that case restart from scratch.
       (cond [(check-lang-info/lexer-changed? gen pos)
+             ;; If lang lexer changed, it could result in entirely
+             ;; different tokens and parens, so in that case restart
+             ;; from scratch.
              (set! tokens (new token-tree%))
-             (set! parens (new paren-tree% [matches paren-matches]))
+             (set! parens (new paren-tree%
+                               [matches (lang-info-paren-matches lang-info)]))
              (update-tokens-and-parens min-position
                                        (lines:text-length content))]
             [else
@@ -275,30 +267,25 @@
     ;; racket/base.
     (define last-lang-end-pos 1)
     (define/private (check-lang-info/lexer-changed? gen pos)
-      (define original-lexer lexer)
-      (when (< pos last-lang-end-pos)
-        (define in (lines:open-input-text content 0))
-        (define info (or (with-handlers ([values (λ _ #f)])
-                           (read-language in (λ _ #f)))
-                         (λ (_key default) default)))
-        (define-values (_line _col end-pos) (port-next-location in))
-        (set! last-lang-end-pos end-pos) ;for checking next time
-
-        (define any-changed? #f)
-        (define-simple-macro (set!? var:id e:expr)
-          (let ([val e])
-            (unless (equal? var val)
-              (set! var val)
-              (set! any-changed? #t))))
-        (set!? lexer             (info 'color-lexer default-lexer))
-        (set!? paren-matches     (info 'drracket:paren-matches default-paren-matches))
-        (set!? quote-matches     (info 'drracket:quote-matches default-quote-matches))
-        (set!? grouping-position (info 'drracket:grouping-position racket-grouping-position))
-        (set!? line-indenter     (info 'drracket:indentation racket-amount-to-indent))
-        (set!? range-indenter    (info 'drracket:range-indentation #f))
-        (when (or any-changed? (= gen 1))
-          (on-changed-lang-values)))
-      (not (equal? original-lexer lexer)))
+      (define new-lang-info
+        (cond
+          [other-lang-source lang-info]
+          [else
+           (cond
+             [(< pos last-lang-end-pos)
+              (define in (lines:open-input-text content 0))
+              (define-values (new-lang-info end-pos) (read-lang-info* in))
+              (set! last-lang-end-pos end-pos) ;for checking next time
+              new-lang-info]
+             [else lang-info])]))
+      (define any-changed? (not (equal? lang-info
+                                        new-lang-info)))
+      (define lexer-changed? (not (equal? (lang-info-lexer lang-info)
+                                          (lang-info-lexer new-lang-info))))
+      (set! lang-info new-lang-info)
+      (when (or any-changed? (= gen 1))
+        (on-changed-lang-info gen new-lang-info))
+      lexer-changed?)
 
     (define/private (update-tokens-and-parens pos diff)
       ;; Determine the position from which we need to start
@@ -350,7 +337,7 @@
                        [max-changed-pos min-position])
           (define pos/port (add1 pos))
           (define-values (lexeme attribs paren beg/port end/port backup new-mode/ds)
-            (lexer in pos/port mode))
+            ((lang-info-lexer lang-info) in pos/port mode))
           (define-values (new-mode may-stop?)
             (match new-mode/ds
               [(struct* dont-stop ([val v])) (values v #f)]
@@ -473,6 +460,7 @@
                                    (case dir
                                      [(up backward) min-position]
                                      [(down forward) max-position]))
+         (define grouping-position (lang-info-grouping-position lang-info))
          (let loop ([pos pos]
                     [count count])
            (match (with-semaphore tokens-sema
@@ -504,11 +492,12 @@
       (block-until-updated-thru gen pos)
       (with-semaphore tokens-sema
         (with-semaphore parens-sema
-          (or (line-indenter this pos) ;may return #f meaning...
+          (or ((lang-info-line-indenter lang-info) this pos) ;may return #f meaning...
               (racket-amount-to-indent this pos)))))
 
     ;; Can be called on any command thread.
     (define/public (indent-range-amounts gen from upto)
+      (define range-indenter (lang-info-range-indenter lang-info))
       (cond [(not range-indenter) #f]
             [else
              (block-until-updated-thru gen upto)
@@ -655,6 +644,31 @@
 (define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
 (define default-quote-matches '(#\" #\|))
 
+(define default-lang-info
+  (lang-info default-lexer
+             default-paren-matches
+             default-quote-matches
+             racket-grouping-position
+             racket-amount-to-indent
+             #f))
+
+(define (read-lang-info* in)
+  (define info (or (with-handlers ([values (λ _ #f)])
+                     (read-language in (λ _ #f)))
+                   (λ (_key default) default)))
+  (define-values (_line _col end-pos) (port-next-location in))
+  (values (lang-info (info 'color-lexer default-lexer)
+                     (info 'drracket:paren-matches default-paren-matches)
+                     (info 'drracket:quote-matches default-quote-matches)
+                     (info 'drracket:grouping-position racket-grouping-position)
+                     (info 'drracket:indentation racket-amount-to-indent)
+                     (info 'drracket:range-indentation #f))
+          end-pos))
+
+(define (read-lang-info in)
+  (define-values (v _pos) (read-lang-info* in))
+  v)
+
 (define (attribs->type attribs)
   (if (symbol? attribs)
       attribs
@@ -664,3 +678,4 @@
   (if (symbol? attribs)
       (hasheq 'type attribs)
       attribs))
+
