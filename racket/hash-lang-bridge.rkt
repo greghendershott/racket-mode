@@ -4,6 +4,8 @@
          racket/class
          racket/match
          racket/runtime-path
+         "lang-info.rkt"
+         "repl-session.rkt"
          "util.rkt")
 
 (provide hash-lang
@@ -30,12 +32,12 @@
     (class hash-lang-class-or-error-message
       (super-new)
       (init-field id)
-      (define/override (on-changed-lang-values)
+      (define/override (on-changed-lang-info _gen li)
         (async-channel-put hash-lang-notify-channel
                            (list 'hash-lang id
                                  'lang
-                                 'racket-grouping (send this racket-grouping-position?)
-                                 'range-indenter  (send this range-indenter?))))
+                                 'racket-grouping (lang-info-grouping-position-is-racket? li)
+                                 'range-indenter  (and (lang-info-range-indenter li) #t))))
       (define/override (on-changed-tokens gen beg end)
         (async-channel-put hash-lang-notify-channel
                            (list 'hash-lang id
@@ -47,7 +49,7 @@
            (string-append "This feature needs a newer version of syntax-color-lib.\n"
                           hash-lang-class-or-error-message)))
   (match args
-    [`(create ,id ,s)                              (create id s)]
+    [`(create ,id ,sid ,str)                       (create id sid str)]
     [`(delete ,id)                                 (delete id)]
     [`(update ,id ,gen ,pos ,old-len ,str)         (update id gen pos old-len str)]
     [`(indent-amount ,id ,gen ,pos)                (indent-amount id gen pos)]
@@ -61,10 +63,19 @@
 (define ht (make-hash)) ;id => hash-lang%
 (define (get-object id) (hash-ref ht id))
 
-(define (create id s) ;any/c string? -> void
-  (define obj (new our-hash-lang% [id id]))
+(define (create id sid str) ;any/c (or/c #f string?) string? -> void
+  (define obj (new our-hash-lang%
+                   [id id]
+                   [other-lang-source (sid->source sid)]))
   (hash-set! ht id obj)
-  (send obj update! 1 0 0 s))
+  (send obj update! 1 0 0 str))
+
+(define (sid->source sid)
+  (and sid
+       (match (get-session sid)
+         [(struct* session ([maybe-mod (? path? file)]))
+          (call-with-input-file file (λ (in) (read-string 4096 in)))]
+         [_ #f]))  )
 
 (define (delete id)
   (match (hash-ref ht id #f)

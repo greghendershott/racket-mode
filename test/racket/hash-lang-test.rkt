@@ -7,7 +7,8 @@
          racket/async-channel
          racket/match
          racket/port
-         net/url)
+         net/url
+         "../../racket/lang-info.rkt")
 
 (define hash-lang%
   (with-handlers ([exn:fail:filesystem:missing-module?
@@ -25,10 +26,10 @@
 ;; on-changed-tokens override method that puts some of them to a
 ;; "results" channel.
 (define result-channel (make-async-channel))
-(define (test-create str)
+(define (test-create str #:other-lang-source [other-lang-source #f])
   (define our-hash-lang%
     (class hash-lang%
-      (super-new)
+      (super-new [other-lang-source other-lang-source])
       (define/override (on-changed-tokens gen beg end)
         (async-channel-put result-channel (list gen beg end)))))
   (define o (new our-hash-lang%))
@@ -416,6 +417,17 @@
   ;;                       1         2          3          4          5
   )
 
+(let* ([o (test-create "" #:other-lang-source "#lang scribble/manual")])
+  (test-update! o 2 0 0 "blah blah blah @racket[x]")
+  (check-equal? (send o get-tokens 1)
+                '((0 15 text) ;; "blah blah blah"
+                  (15 16 parenthesis)
+                  (16 22 symbol)
+                  (22 23 parenthesis)
+                  (23 24 symbol)
+                  (24 25 parenthesis))
+                "other-lang-source used to tokenize using #lang scribble/manual instead of default #lang racket"))
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
 ;;; Test equivalance of our text%-like methods to those of racket:text%
@@ -432,7 +444,9 @@
   ;; things like the initial lexer and paren-matches, give those
   ;; values from our object to color:text<%> `start-colorer`.
   (define t (new racket:text%))
-  (send t start-colorer symbol->string (send o -get-lexer) (send o get-paren-matches))
+  (send t start-colorer symbol->string
+        (lang-info-lexer (send o get-lang-info))
+        (lang-info-paren-matches (send o get-lang-info)))
   (send t insert str)
   (send t freeze-colorer)
   (send t thaw-colorer)
@@ -496,7 +510,7 @@
     ;; lang-supplied drracket:indentation a.k.a. determine-spaces
     ;; function. (After all, this is our motivation to provide
     ;; text%-like methods; otherwise we wouldn't bother.)
-    (define line-indent (send o -get-line-indenter))
+    (define line-indent (lang-info-line-indenter (send o get-lang-info)))
     (when line-indent
       (for ([pos (in-range 0 (string-length str))])
         (when (or (= pos 0)
@@ -506,7 +520,7 @@
                         (format "~v ~v in ~a" line-indent pos what)))))
 
     ;; Test range-indent.
-    (define range-indent (send o -get-range-indenter))
+    (define range-indent (lang-info-range-indenter (send o get-lang-info)))
     (when range-indent
       (define len (string-length str))
       (check-equal? (range-indent o 0 len)
@@ -539,7 +553,7 @@
 ;;; Benchmarks
 ;;;
 
-(when #t
+(when #f
 
   (define (cpu-time proc)
     (define-values (_results cpu _real _gc) (time-apply proc null))
@@ -560,7 +574,9 @@
     ;; things like the initial lexer and paren-matches, give those
     ;; values from our object to color:text<%> `start-colorer`.
     (define t (new racket:text%))
-    (send t start-colorer symbol->string (send o -get-lexer) (send o get-paren-matches))
+    (send t start-colorer symbol->string
+          (lang-info-lexer (send o get-lang-info))
+          (lang-info-paren-matches (send o get-lang-info)))
     (send t insert str)
     (send t freeze-colorer)
     (send t thaw-colorer)
@@ -625,7 +641,7 @@
                (for ([pos (in-range 0 (string-length str) 1000)])
                  (send t backward-containing-sexp pos 0))))
 
-    (define line-indent (send o -get-line-indenter))
+    (define line-indent (lang-info-line-indenter (send o get-lang-info)))
     (when line-indent
       (compare line-indent
                1
@@ -635,7 +651,7 @@
                              (char=? (string-ref str (sub1 pos)) #\newline))
                      (line-indent t pos))))))
 
-    (define range-indent (send o -get-range-indenter))
+    (define range-indent (lang-info-range-indenter (send o get-lang-info)))
     (when range-indent
       (compare range-indent
                10
