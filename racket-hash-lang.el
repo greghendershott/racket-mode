@@ -165,7 +165,7 @@ getter-function) new-value)."
 (defun racket--hash-lang-create ()
   (setq-local racket--hash-lang-id
               (cl-gensym (concat "racket-hash-lang-" (buffer-name) "-")))
-  (racket--cmd/async
+  (racket--cmd/await
    nil
    `(hash-lang create
                ,racket--hash-lang-id
