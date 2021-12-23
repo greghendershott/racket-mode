@@ -201,7 +201,7 @@
 (define (repl-manager-thread-thunk)
   (define session-id (next-session-id!))
   (log-racket-mode-info "start ~v" session-id)
-  (parameterize* ([error-display-handler racket-mode-error-display-handler]
+  (parameterize* ([error-display-handler (make-error-display-handler)]
                   [current-session-id    session-id]
                   [current-repl-msg-chan (make-channel)])
     (do-run
@@ -232,7 +232,7 @@
   ;; Set current-directory -- but not current-load-relative-directory,
   ;; see #492 -- to the source file's directory.
   (current-directory dir)
-  ;; Make src-loc->string provide full pathnames
+  ;; Make srcloc->string provide full pathnames
   (prevent-path-elision-by-srcloc->string)
   ;; Custodian for the REPL.
   (define repl-cust (make-custodian))
@@ -275,7 +275,7 @@
                         ;; for it to shut down our custodian.
                         [exn?
                          (λ (exn)
-                           (display-exn exn)
+                           ((error-display-handler) (exn-message exn) exn)
                            (channel-put (current-repl-msg-chan)
                                         (struct-copy run-config cfg [maybe-mod #f]))
                            (sync never-evt))])
