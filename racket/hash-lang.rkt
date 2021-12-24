@@ -327,13 +327,16 @@
       (with-semaphore parens-sema
         (send parens split-tree initial-pos))
 
+      ;; Run the lexer until it produces sufficient unchanged tokens.
+      ;; Update token-tree and paren-tree. Track bounds of visible
+      ;; changes to notify via on-changed-tokens.
       (define in (lines:open-input-text content initial-pos))
       (define-values (min-changed-pos max-changed-pos)
         (let tokenize ([pos initial-pos]
                        [mode initial-mode]
                        [previous-same? #f]
                        [contig-same-count 0]
-                       [min-changed-pos #f]
+                       [min-changed-pos max-position]
                        [max-changed-pos min-position])
           (define pos/port (add1 pos))
           (define-values (lexeme attribs paren beg/port end/port backup new-mode/ds)
@@ -380,14 +383,27 @@
                 (with-semaphore parens-sema (send parens merge-tree paren-keep-span))
                 (values min-changed-pos max-changed-pos)]
                [else
+                ;; For purposes of notifying clients to re-color we
+                ;; use a stricter sense of "same" than we do for
+                ;; deciding whether to continue lexing. Here we care
+                ;; only whether the span and attributes are the same
+                ;; (not whether backup or mode changed; those are N/A
+                ;; for visible coloring changes).
+                (define same-span/attribs?
+                  (and (equal? new-span old-span)
+                       (equal? (data-attribs new-tok) (data-attribs old-tok))))
                 (tokenize new-end
                           new-mode
                           same?
                           new-contig-same-count
-                          (if same? min-changed-pos (or min-changed-pos new-beg))
-                          (if same? max-changed-pos (max max-changed-pos new-end)))])])))
+                          (if same-span/attribs?
+                              min-changed-pos
+                              (min min-changed-pos new-beg))
+                          (if same-span/attribs?
+                              max-changed-pos
+                              (max max-changed-pos new-end)))])])))
       (on-changed-tokens updated-generation
-                         (or min-changed-pos min-position)
+                         min-changed-pos
                          max-changed-pos)
       (set-update-progress #:position max-position))
 
