@@ -41,10 +41,10 @@
     [(list gen beg end)
      (send o get-tokens gen beg end)]))
 
-;;; Various tests of tokenizing and updatng
+;;; Various tests of tokenizing and updating
 
 (let* ([str "#lang racket\n42 (print \"hello\") @print{Hello} 'foo #:bar"]
-       ;;    1234567890123 45678901234 567890 12345678901234567890123456
+       ;;    0123456789012 345678901234 567890 12345678901234567890123456
        ;;             1          2          3          4         5
        [o (test-create str)])
   (check-equal? (send o get-tokens 1)
@@ -396,8 +396,7 @@
                   (39 40 white-space)
                   (40 44 symbol)
                   (44 45 white-space)
-                  (45 49 symbol)
-                  (49 50 white-space))
+                  (45 49 symbol))
                 "#lang scribble/manual: adding \"@(1 a 3\" with no close paren causes text tokens to become symbol and white-space tokens, i.e. as if part of the new s-expression.")
   (check-equal? (send o -get-content)
                 "#lang scribble/manual\n@(1 a 3\ntext text\ntext text\n")
@@ -408,8 +407,7 @@
                   (30 31 white-space)
                   (31 40 text)
                   (40 41 white-space)
-                  (41 50 text)
-                  (50 51 white-space))
+                  (41 50 text))
                 "#lang scribble/manual: adding a ) to close an unmatched @( causes things after the ) to be tokenzied back to text.")
   (check-equal? (send o -get-content)
                 "#lang scribble/manual\n@(1 a 3)\ntext text\ntext text\n")
@@ -427,6 +425,24 @@
                   (23 24 symbol)
                   (24 25 parenthesis))
                 "other-lang-source used to tokenize using #lang scribble/manual instead of default #lang racket"))
+
+(unless (getenv "CI") ;needs github.com:mflatt/shrubbery-rhombus-0.git
+  (let ([o (test-create "#lang rhombus\n@/{@/{/text} text}")]
+        ;;               01234567890123 45678901234567890123
+        ;;                         1          2         3
+        )
+    (check-equal? (test-update! o 2 19 0 " ")
+                  '((18 19 #hasheq((rhombus-type . operator) (type . operator)))
+                    (19 32 #hasheq((rhombus-type . at-content) (type . text))))
+                  "non-zero backup amounts for tokens are used")))
+
+(let ([o (test-create "#lang scribble/manual\ntext @|foo| @foo|{text}| @;{comment} @;comment")]
+      ;;               0123456789012345678901 23456789012345678901234567890123456789012345678
+      ;;                         1          2         3         4         5         6
+      )
+  (check-equal? (test-update! o 2 38 0 " ")
+                '((38 48 text))
+                "non-zero backup amounts for tokens are used"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;

@@ -39,9 +39,10 @@
                                  'racket-grouping (lang-info-grouping-position-is-racket? li)
                                  'range-indenter  (and (lang-info-range-indenter li) #t))))
       (define/override (on-changed-tokens gen beg end)
-        (async-channel-put hash-lang-notify-channel
-                           (list 'hash-lang id
-                                 'update gen (add1 beg) (add1 end)))))))
+        (when (< beg end)
+          (async-channel-put hash-lang-notify-channel
+                             (list 'hash-lang id
+                                   'update gen (add1 beg) (add1 end))))))))
 
 (define (hash-lang . args)
   (unless (class? hash-lang-class-or-error-message)
