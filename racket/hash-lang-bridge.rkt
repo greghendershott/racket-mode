@@ -72,7 +72,7 @@
   (send obj update! 1 0 0 str))
 
 (define (sid->source sid)
-  (and sid
+  (and sid (not (null? sid)) ;handle Elisp nil/()
        (match (get-session sid)
          [(struct* session ([maybe-mod (? path? file)]))
           (call-with-input-file file (λ (in) (read-string 4096 in)))]
