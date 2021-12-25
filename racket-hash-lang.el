@@ -28,7 +28,8 @@ Although it's tempting to use `buffer-file-name' for the ID, not
 all buffers have files, especially `racket-repl-mode' buffers.
 Although it's tempting to use `buffer-name', buffers can be
 renamed. Although it's tempting to use the buffer object, we
-can't serialize that. So use `gensym' for this.")
+can't serialize that.")
+(defvar racket--hash-lang-next-id 0)
 
 (defvar-local racket--hash-lang-generation 1
   "Monotonic increasing value for hash-lang updates.
@@ -164,7 +165,7 @@ getter-function) new-value)."
 
 (defun racket--hash-lang-create ()
   (setq-local racket--hash-lang-id
-              (cl-gensym (concat "racket-hash-lang-" (buffer-name) "-")))
+              (cl-incf racket--hash-lang-next-id))
   (racket--cmd/await
    nil
    `(hash-lang create
@@ -193,14 +194,15 @@ getter-function) new-value)."
                ,(buffer-substring-no-properties beg end))))
 
 (defun racket--hash-lang-on-notify (id params)
-  (when-let ((buf (cl-some (lambda (b)
-                             (equal (buffer-local-value 'racket--hash-lang-id b)
-                                    id))
-                           (buffer-list))))
-   (with-current-buffer buf
-     (pcase params
-       (`(lang . ,params)        (racket--hash-lang-on-new-lang params))
-       (`(update ,gen ,beg ,end) (racket--hash-lang-on-update gen beg end))))))
+  (when-let (buf (cl-some (lambda (buf)
+                            (when-let (v (buffer-local-value 'racket--hash-lang-id buf))
+                              (when (= v id)
+                                buf)))
+                          (buffer-list)))
+    (with-current-buffer buf
+      (pcase params
+        (`(lang . ,params)        (racket--hash-lang-on-new-lang params))
+        (`(update ,gen ,beg ,end) (racket--hash-lang-on-update gen beg end))))))
 
 (defconst racket--hash-lang-plain-syntax-table
   (let ((st (make-syntax-table)))
