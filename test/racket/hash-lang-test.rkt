@@ -427,14 +427,30 @@
                 "other-lang-source used to tokenize using #lang scribble/manual instead of default #lang racket"))
 
 (unless (getenv "CI") ;needs github.com:mflatt/shrubbery-rhombus-0.git
-  (let ([o (test-create "#lang rhombus\n@/{@/{/text} text}")]
-        ;;               01234567890123 45678901234567890123
-        ;;                         1          2         3
-        )
-    (check-equal? (test-update! o 2 19 0 " ")
-                  '((18 19 #hasheq((rhombus-type . operator) (type . operator)))
-                    (19 32 #hasheq((rhombus-type . at-content) (type . text))))
-                  "non-zero backup amounts for tokens are used")))
+  (let* ([o (test-create "#lang rhombus\n@//{block comment}")]
+         ;;               01234567890123 4567890123456789012
+         ;;                         1          2         3
+         [gen-1-tokens (send o get-tokens 1)])
+    (check-equal? (test-update! o 2 16 0 " ")
+                  '((14 15 #hasheq((rhombus-type . at) (type . at)))
+                    (15 16 #hasheq((rhombus-type . operator) (type . operator)))
+                    (16 17 #hasheq((rhombus-type . whitespace) (type . white-space)))
+                    (17 18 #hasheq((rhombus-type . operator) (type . operator)))
+                    (18 19 #hasheq((rhombus-type . opener) (type . parenthesis)))
+                    (19 24 #hasheq((rhombus-type . identifier) (type . symbol)))
+                    (24 25 #hasheq((rhombus-type . whitespace) (type . white-space)))
+                    (25 32 #hasheq((rhombus-type . identifier) (type . symbol)))
+                    (32 33 #hasheq((rhombus-type . closer) (type . parenthesis))))
+                  "non-zero backup amounts are used: edit removes block comment")
+    (check-equal? (test-update! o 3 16 1 "")
+                  '((14 17 #hasheq((rhombus-type . at-comment) (type . comment)))
+                    (17 18 #hasheq((comment? . #t) (rhombus-type . at-opener) (type . parenthesis)))
+                    (18 31 #hasheq((comment? . #t) (rhombus-type . at-content) (type . text)))
+                    (31 32 #hasheq((comment? . #t) (rhombus-type . at-closer) (type . parenthesis))))
+                  "non-zero backup amounts are used: edit restores block comment")
+    (check-equal? gen-1-tokens
+                  (send o get-tokens 3)
+                  "non-zero backup amounts are used: edits remove and restore block comment")))
 
 (let ([o (test-create "#lang scribble/manual\ntext @|foo| @foo|{text}| @;{comment} @;comment")]
       ;;               0123456789012345678901 23456789012345678901234567890123456789012345678
@@ -442,7 +458,7 @@
       )
   (check-equal? (test-update! o 2 38 0 " ")
                 '((38 48 text))
-                "non-zero backup amounts for tokens are used"))
+                "non-zero backup amounts are used"))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;;
