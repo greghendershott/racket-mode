@@ -72,6 +72,18 @@ The returned string has text properties:
                                (get-text-property 0 'racket-xp-def str)))))))
         (scan-error nil)))))
 
+(defun racket--rkt-or-ss-path (path)
+  "Handle the situation of #575 where .rkt doesn't exist but .ss does."
+  (if (file-exists-p path)
+      path
+    (let ((other-path (concat (file-name-sans-extension path)
+                              (pcase (file-name-extension path)
+                                ("rkt" ".ss")
+                                ("ss"  ".rkt")))))
+      (if (file-exists-p other-path)
+          other-path
+        path))))
+
 (defun racket--pop-to-xref-location (item)
   "Similar to the private function `xref--pop-to-location'.
 

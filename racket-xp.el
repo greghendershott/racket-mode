@@ -766,7 +766,8 @@ evaluation errors that won't be found merely from expansion -- or
         (`(,path ,line ,col)
          (list (xref-make str (xref-make-file-location path line col))))))
      (`relative
-      (let ((path (expand-file-name (substring-no-properties str 1 -1))))
+      (let ((path (racket--rkt-or-ss-path
+                   (expand-file-name (substring-no-properties str 1 -1)))))
         (list (xref-make str (xref-make-file-location path 1 0))))))
    ;; Something annotated for jump-to-definition by drracket/check-syntax
    (pcase (get-text-property 0 'racket-xp-visit str)
