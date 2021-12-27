@@ -110,7 +110,8 @@ Minor mode to enhance `racket-mode' and `racket-repl-mode' buffers.
                                                (racket--hash-lang-text-prop-list #'cons t)
                                                text-property-default-nonsticky))
             (indent-line-function ,indent-line-function)
-            (indent-region-function ,indent-region-function))))
+            (indent-region-function ,indent-region-function)
+            (forward-sexp-function ,forward-sexp-function))))
         (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
         (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
         (racket--hash-lang-create))
@@ -232,15 +233,23 @@ lang's attributes that care about have changed."
                          (point-max)
                          'fontified nil)
       ;; If the lang uses racket-grouping-position, i.e. it uses
-      ;; s-expressions, then use racket-mode-syntax-table. That way other
-      ;; Emacs features and packackages are more likely to work.
-      ;; Otherwise, assume nothing about the lang and set a "plain" syntax
-      ;; table where virtually every character is either whitespace or
-      ;; word syntax (no chars signify e.g. parens, comments, or strings).
-
+      ;; s-expressions, then use racket-mode-syntax-table. That way
+      ;; other Emacs features and packages are more likely to work.
+      ;; Otherwise, assume nothing about the lang and set a "plain"
+      ;; syntax table where no characters are assumed to delimit
+      ;; parens, comments, or strings.
       (set-syntax-table (if (plist-get plist 'racket-grouping)
                             racket-mode-syntax-table
                           racket--hash-lang-plain-syntax-table))
+      ;; Similarly for `forward-sexp-function'. The
+      ;; drracket:grouping-position protocol doesn't support a nuance
+      ;; where a `forward-sexp-function' should signal an exception
+      ;; containing failure positions. Although this is N/A for simple
+      ;; forward/backward scenarios (such as when `prog-indent-sexp'
+      ;; uses `forward-sexp' to set a region), it matters when things
+      ;; like `up-list' use `forward-sexp'.
+      (setq forward-sexp-function (unless (plist-get plist 'racket-grouping)
+                                    #'racket-hash-lang-forward-sexp))
       (syntax-ppss-flush-cache (+ (point-min) racket--hash-lang-offset))
       (setq-local indent-line-function
                   #'racket-hash-lang-indent-line-function)
@@ -431,6 +440,13 @@ We never use `racket-indent-line' from traditional
   "Like `down-list' but uses #lang supplied navigation."
   (interactive "^p")
   (racket-hash-lang-move 'down count))
+
+(defun racket-hash-lang-forward-sexp (&optional arg)
+  "A value for the varabible `forward-sexp-function'."
+  (let* ((arg (or arg 1))
+         (dir (if (< arg 0) 'backward 'forward))
+         (cnt (abs arg)))
+    (racket-hash-lang-move dir cnt)))
 
 (defun racket-hash-lang-return ()
   (interactive)
