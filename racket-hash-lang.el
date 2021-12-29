@@ -68,6 +68,8 @@ create a back end hash-lang% object representing just this
 \"tail\" portion of the buffer. Font-lock and indent within the
 tail use the hash-lang, else defaults.")
 
+(defvar-local racket--hash-lang-submit-predicate-p nil)
+
 ;;;###autoload
 (define-minor-mode racket-hash-lang-mode
   "Use color-lexer, indent, and navigation supplied by a #lang.
@@ -84,9 +86,10 @@ Minor mode to enhance `racket-mode' and `racket-repl-mode' buffers.
       (pcase major-mode
         ('racket-mode      (setq racket--hash-lang-offset 0))
         ('racket-repl-mode (setq racket--hash-lang-offset
-                                 (save-excursion
-                                   (goto-char (point-max))
-                                   (- (field-beginning) (point-max)))))
+                                 (min (save-excursion
+                                        (goto-char (point-max))
+                                        (1- (field-beginning)))
+                                      (point-max))))
         (_ (error "racket-hash-lang-mode only works with racket-mode and racket-repl-mode buffers")))
       (racket--hash-lang-remove-text-properties (+ (point-min) racket--hash-lang-offset)
                                                 (point-max))
@@ -256,6 +259,8 @@ lang's attributes that care about have changed."
       (setq-local indent-region-function
                   (when (plist-get plist 'range-indenter)
                     #'racket-hash-lang-indent-region-function))
+      (setq-local racket--hash-lang-submit-predicate-p
+                  (plist-get plist 'submit-predicate))
       (setq-local racket-hash-lang-mode-lighter
                   (concat " #lang"
                           (when (plist-get plist 'racket-grouping) "()")
@@ -448,11 +453,26 @@ We never use `racket-indent-line' from traditional
          (cnt (abs arg)))
     (racket-hash-lang-move dir cnt)))
 
-(defun racket-hash-lang-return ()
-  (interactive)
-  (if (eq major-mode 'racket-mode)
-      (newline-and-indent)
-    (racket-repl-submit)))
+(defun racket-hash-lang-return (&optional prefix)
+  "A command to bind to RET a.k.a. C-m.
+
+In `racket-mode' buffers: `newline-and-indent'.
+
+In `racket-repl-mode' buffers: `racket-repl-submit' -- unless the
+#lang supplies a drracket:submit-predicate and that says there is
+not a complete expression, in which case `newline-and-indent'."
+  (interactive "P")
+  (if (and (eq major-mode 'racket-repl-mode)
+           (or (not racket--hash-lang-submit-predicate-p)
+               (racket--cmd/await nil
+                                  `(hash-lang
+                                    submit-predicate
+                                    ,racket--hash-lang-id
+                                    ,(substring-no-properties
+                                      (funcall comint-get-old-input))
+                                    t))))
+      (racket-repl-submit prefix)
+    (newline-and-indent)))
 
 (provide 'racket-hash-lang)
 

@@ -521,6 +521,12 @@
                (with-semaphore parens-sema
                  (range-indenter this from upto)))]))
 
+    ;; Can be called on any command thread.
+    (define/public (submit-predicate in eos?)
+      (match (lang-info-submit-predicate lang-info)
+        [(? procedure? p) (p in eos?)]
+        [_ #f]))
+
     ;; -----------------------------------------------------------------
     ;; color-textoid<%> methods.
     ;;
@@ -666,6 +672,7 @@
              default-quote-matches
              racket-grouping-position
              racket-amount-to-indent
+             #f
              #f))
 
 (define (read-lang-info* in)
@@ -678,7 +685,8 @@
                      (info 'drracket:quote-matches default-quote-matches)
                      (info 'drracket:grouping-position racket-grouping-position)
                      (info 'drracket:indentation racket-amount-to-indent)
-                     (info 'drracket:range-indentation #f))
+                     (info 'drracket:range-indentation #f)
+                     (info 'drracket:submit-predicate #f))
           end-pos))
 
 (define (read-lang-info in)
@@ -686,9 +694,10 @@
   v)
 
 (define (attribs->type attribs)
-  (if (symbol? attribs)
-      attribs
-      (hash-ref attribs 'type 'unknown)))
+  (match attribs
+    [(? symbol? s) s]
+    [(? hash? ht) (hash-ref ht 'type 'unknown)]
+    [_ 'unknown]))
 
 (define (attribs->table attribs)
   (if (symbol? attribs)

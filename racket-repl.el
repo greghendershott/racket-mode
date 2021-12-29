@@ -129,10 +129,6 @@ but does not have a live session."
 (defun racket-repl-submit (&optional prefix)
   "Submit your input to the Racket REPL.
 
-If the REPL is running a Racket lang whose language-info has a
-drracket:submit-predicate, that is first called to see if the
-input is valid to be submitted.
-
 \\<racket-repl-mode-map>
 With a prefix argument (e.g. \\[universal-argument] \\[racket-repl-submit]):
 
@@ -140,33 +136,20 @@ After sending your input and a newline, also calls
 `process-send-eof' -- because some langs require EOF to mark the
 end of an interactive expression/statement."
   (interactive "P")
-  (let* ((proc (get-buffer-process (current-buffer)))
-         (_    (unless proc (user-error "Current buffer has no process")))
-         (text (substring-no-properties (funcall comint-get-old-input)))
-         (submitp
-          (if racket-use-repl-submit-predicate
-              (cl-case (racket--cmd/await (racket--repl-session-id)
-                                          `(repl-submit? ,text t))
-                ((t) t)
-                ((nil) (user-error "Not a complete expression, according to the current lang's submit-predicate."))
-                ((default) (racket--repl-submit-p proc)))
-            (racket--repl-submit-p proc))))
-    (cond (submitp
-           (comint-send-input)
-           (remove-text-properties comint-last-input-start
-                                   comint-last-input-end
-                                   '(font-lock-face comint-highlight-input))
-           ;; Hack for datalog/lang
-           (when prefix (process-send-eof proc)))
-          (t
-           (message "Not yet a complete s-expression")
-           (newline-and-indent)))))
+  (pcase (get-buffer-process (current-buffer))
+    ((and (pred processp) proc)
+     (when (racket--repl-complete-sexp-p proc)
+       (comint-send-input)
+       (with-silent-modifications
+         (remove-text-properties comint-last-input-start
+                                 comint-last-input-end
+                                 '(font-lock-face comint-highlight-input)))
+       ;; Hack for datalog/lang
+       (when prefix (process-send-eof proc))))
+    (_ (user-error "current buffer has no process"))))
 
-(defun racket--repl-submit-p (proc)
-  "Is user REPL input ready to submit?
-
-True when there is at least one expression, and, all expressions
-are complete."
+(defun racket--repl-complete-sexp-p (proc)
+  "Is there at least one complete sexp at process-mark?"
   (condition-case nil
       (let* ((beg (marker-position (process-mark proc)))
              (end (save-excursion

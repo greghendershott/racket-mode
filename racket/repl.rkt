@@ -248,7 +248,7 @@
     (set-output-handlers)
     ;; Record as much info about our session as we can, before
     ;; possibly entering module->namespace.
-    (set-session! (current-session-id) maybe-mod #f)
+    (set-session! (current-session-id) maybe-mod)
     ;; Set our initial value for current-namespace. When no module,
     ;; this will be the ns used in the REPL. Otherwise this is simply
     ;; the intial ns used for module->namespace, below, which returns
@@ -281,11 +281,8 @@
           (configure/require/enter maybe-mod extra-submods-to-run dir)
           (check-#%top-interaction))))
     ;; Update information about our session -- now that
-    ;; current-namespace is possibly updated, and, it is OK to call
-    ;; get-repl-submit-predicate.
-    (set-session! (current-session-id)
-                  maybe-mod
-                  (get-repl-submit-predicate maybe-mod))
+    ;; current-namespace is possibly updated.
+    (set-session! (current-session-id) maybe-mod)
     ;; Now that user's program has run, and `sessions` is updated,
     ;; call the ready-thunk. On REPL session startup this lets us
     ;; postpone sending the repl-session-id until `sessions` is
@@ -378,26 +375,6 @@
                              infos))
           (raise-argument-error 'runtime-configure "(listof (vector any any any))" infos))
         (for-each info-load infos)))))
-
-;; <https://docs.racket-lang.org/tools/lang-languages-customization.html#(part._.R.E.P.L_.Submit_.Predicate)>
-(define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
-(define/contract (get-repl-submit-predicate m)
-  (-> (or/c #f module-path?) (or/c #f drracket:submit-predicate/c))
-  (and m
-       (or (with-handlers ([exn:fail? (λ _ #f)])
-             (match (with-input-from-file (maybe-module-path->file m)
-                      read-language)
-               [(? procedure? get-info)
-                (match (get-info 'drracket:submit-predicate #f)
-                  [#f #f]
-                  [v  v])]
-               [_ #f]))
-           (with-handlers ([exn:fail? (λ _ #f)])
-             (match (module->language-info m #t)
-               [(vector mp name val)
-                (define get-info ((dynamic-require mp name) val))
-                (get-info 'drracket:submit-predicate #f)]
-               [_ #f])))))
 
 (define (check-#%top-interaction)
   ;; Check that the lang defines #%top-interaction

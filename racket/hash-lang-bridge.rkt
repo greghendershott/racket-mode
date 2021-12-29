@@ -4,6 +4,7 @@
          racket/class
          racket/match
          racket/runtime-path
+         "elisp.rkt"
          "lang-info.rkt"
          "repl-session.rkt"
          "util.rkt")
@@ -34,10 +35,12 @@
       (init-field id)
       (define/override (on-changed-lang-info _gen li)
         (async-channel-put hash-lang-notify-channel
-                           (list 'hash-lang id
-                                 'lang
-                                 'racket-grouping (lang-info-grouping-position-is-racket? li)
-                                 'range-indenter  (and (lang-info-range-indenter li) #t))))
+                           (list
+                            'hash-lang id
+                            'lang
+                            'racket-grouping (lang-info-grouping-position-is-racket? li)
+                            'range-indenter  (and (lang-info-range-indenter li) #t)
+                            'submit-predicate (and (lang-info-submit-predicate li) #t))))
       (define/override (on-changed-tokens gen beg end)
         (when (< beg end)
           (async-channel-put hash-lang-notify-channel
@@ -57,7 +60,8 @@
     [`(indent-region-amounts ,id ,gen ,from ,upto) (indent-region-amounts id gen from upto)]
     [`(classify ,id ,gen ,pos)                     (classify id gen pos)]
     [`(grouping ,id ,gen ,pos ,dir ,limit ,count)  (grouping id gen pos dir limit count)]
-    [`(get-tokens ,id ,gen ,from ,upto)            (get-tokens id gen from upto)]))
+    [`(get-tokens ,id ,gen ,from ,upto)            (get-tokens id gen from upto)]
+    [`(submit-predicate ,id ,str ,eos?)            (submit-predicate id str eos?)]))
 
 (define hash-lang-notify-channel (make-async-channel))
 
@@ -118,6 +122,11 @@
                          (if (hash-ref ht 'comment? #f)
                              '(sexp-comment-body)
                              null))]))
+
+(define (submit-predicate id str -eos?)
+  (define in (open-input-string str))
+  (define eos (as-racket-bool -eos?))
+  (send (get-object id) submit-predicate in eos))
 
 (module+ example-0
   (define id 0)
