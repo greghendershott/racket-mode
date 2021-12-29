@@ -12,7 +12,8 @@
    quote-matches
    grouping-position
    line-indenter
-   range-indenter)
+   range-indenter
+   submit-predicate)
   #:transparent #:authentic)
 
 (define racket-grouping-position

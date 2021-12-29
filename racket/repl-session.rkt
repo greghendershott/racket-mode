@@ -12,7 +12,6 @@
          current-session-id
          current-repl-msg-chan
          current-session-maybe-mod
-         current-session-submit-pred
          (struct-out session)
          get-session
          set-session!
@@ -36,20 +35,18 @@
   (thread           ;thread? the repl manager thread
    repl-msg-chan    ;channel?
    maybe-mod        ;(or/c #f module-path?)
-   namespace        ;namespace?
-   submit-pred)     ;(or/c #f drracket:submit-predicate/c)
+   namespace)
   #:transparent)
 
 (define (get-session sid)
   (hash-ref sessions sid #f))
 
-(define (set-session! sid maybe-mod repl-submit-predicate)
+(define (set-session! sid maybe-mod)
   (hash-set! sessions sid (session (current-thread)
                                    (current-repl-msg-chan)
                                    maybe-mod
-                                   (current-namespace)
-                                   repl-submit-predicate))
-  (log-racket-mode-debug @~a{(set-session! @~v[sid] @~v[maybe-mod] @~v[repl-submit-predicate]) => sessions: @~v[sessions]}))
+                                   (current-namespace)))
+  (log-racket-mode-debug @~a{(set-session! @~v[sid] @~v[maybe-mod]) => sessions: @~v[sessions]}))
 
 (define (remove-session! sid)
   (hash-remove! sessions sid)
@@ -58,7 +55,6 @@
 (define current-session-id (make-parameter #f))
 (define current-repl-msg-chan (make-parameter #f))
 (define current-session-maybe-mod (make-parameter #f))
-(define current-session-submit-pred (make-parameter #f))
 
 ;; A way to parameterize e.g. commands that need to work with a
 ;; specific REPL session. Called from e.g. a command-server thread.
@@ -69,8 +65,7 @@
      (parameterize ([current-session-id          sid]
                     [current-repl-msg-chan       (session-repl-msg-chan s)]
                     [current-session-maybe-mod   (session-maybe-mod s)]
-                    [current-namespace           (session-namespace s)]
-                    [current-session-submit-pred (session-submit-pred s)])
+                    [current-namespace           (session-namespace s)])
        (apply proc args))]
     [_
      (unless (equal? sid '())
