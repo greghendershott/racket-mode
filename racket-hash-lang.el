@@ -55,19 +55,6 @@ until re-tokenization has progressed sufficiently.")
 
 (defvar-local racket-hash-lang-mode-lighter " #lang")
 
-(defvar-local racket--hash-lang-offset 0
-  "The offset into the buffer that is treated as a hash-lang.
-
-For `racket-mode' buffers this is 0.
-
-For `racket-repl-mode' buffers this is the offset after the last
-'output field -- i.e. where the user starts typing after the last
-REPL prompt. We automatically disable `racket-hash-lang-mode'
-before each run, and enable it after each run. When enabled we
-create a back end hash-lang% object representing just this
-\"tail\" portion of the buffer. Font-lock and indent within the
-tail use the hash-lang, else defaults.")
-
 (defvar-local racket--hash-lang-submit-predicate-p nil)
 
 ;;;###autoload
@@ -83,19 +70,10 @@ Minor mode to enhance `racket-mode' and `racket-repl-mode' buffers.
   (with-silent-modifications
     (save-restriction
       (widen)
-      (pcase major-mode
-        ('racket-mode      (setq racket--hash-lang-offset 0))
-        ('racket-repl-mode (setq racket--hash-lang-offset
-                                 (min (save-excursion
-                                        (goto-char (point-max))
-                                        (1- (field-beginning)))
-                                      (point-max))))
-        (_ (error "racket-hash-lang-mode only works with racket-mode and racket-repl-mode buffers")))
-      (racket--hash-lang-remove-text-properties (+ (point-min) racket--hash-lang-offset)
-                                                (point-max))
-      (remove-text-properties (+ (point-min) racket--hash-lang-offset)
-                              (point-max)
-                              'racket-here-string nil)
+      (unless (memq major-mode '(racket-mode racket-repl-mode))
+        (error "racket-hash-lang-mode only works with racket-mode and racket-repl-mode buffers"))
+      (racket--hash-lang-remove-text-properties (point-min) (point-max))
+      (remove-text-properties (point-min) (point-max) 'racket-here-string nil)
       (cond
        (racket-hash-lang-mode
         (setq-local racket--hash-lang-generation 1)
@@ -115,18 +93,20 @@ Minor mode to enhance `racket-mode' and `racket-repl-mode' buffers.
             (indent-line-function ,indent-line-function)
             (indent-region-function ,indent-region-function)
             (forward-sexp-function ,forward-sexp-function))))
+        (add-hook 'comint-preoutput-filter-functions #'racket--hash-lang-repl-preoutput-filter-function t t)
         (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
         (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
         (racket--hash-lang-create))
        (t                               ;disable
         (racket--hash-lang-delete)
         (racket--hash-lang-set/reset racket--hash-lang-changed-vars)
+        (remove-hook 'comint-preoutput-filter-functions #'racket--hash-lang-repl-preoutput-filter-function t)
         (remove-hook 'after-change-functions #'racket--hash-lang-after-change-hook t)
         (remove-hook 'kill-buffer-hook #'racket--hash-lang-delete t)
         (electric-indent-local-mode 1)))
       (save-restriction
         (widen)
-        (syntax-ppss-flush-cache (+ (point-min) racket--hash-lang-offset)))))
+        (syntax-ppss-flush-cache (point-min)))))
   (font-lock-flush))
 
 ;; Upon enabling or disabling our minor mode, we need to set/restore
@@ -149,23 +129,19 @@ getter-function) new-value)."
                  `(,sym ,old-val)))))
           specs))
 
-;; For racket-repl-mode buffers associated with a racket-mode buffer
-;; using racket-hash-lang-mode, racket-hash-lang-mode is automatically
-;; disabled before and enabled after each run. It is only used at the
-;; end of the repl buffer, for user input for the current interaction;
-;; see `racket--hash-lang-offset'.
-
 (defun racket--hash-lang-before-run-hook ()
-  (with-racket-repl-buffer
-    (when racket-hash-lang-mode
-      (racket-hash-lang-mode -1))))
-(add-hook 'racket--repl-before-run-hook #'racket--hash-lang-before-run-hook)
+  "Enable/disable `racket-hash-lang-mode' in the REPL to match `current-buffer'.
 
-(defun racket--hash-lang-after-run-hook ()
-  (when racket-hash-lang-mode
+The idea here is that a run command happens from a `racket-mode'
+edit buffer, so we can use that opportunity to set
+`racket-repl-mode' to match the use of `racket-hash-lang-mode' or
+not. Intended as a convenience so users needn't set a
+`racket-repl-mode-hook' in addition to a `racket-mode-hook'."
+  (let ((enable racket-hash-lang-mode))
     (with-racket-repl-buffer
-      (racket-hash-lang-mode 1))))
-(add-hook 'racket--repl-after-run-hook #'racket--hash-lang-after-run-hook)
+      (unless (eq racket-hash-lang-mode enable)
+        (racket-hash-lang-mode (if enable 1 -1))))))
+(add-hook 'racket--repl-before-run-hook #'racket--hash-lang-before-run-hook)
 
 (defun racket--hash-lang-create ()
   (setq-local racket--hash-lang-id
@@ -177,13 +153,27 @@ getter-function) new-value)."
                ,(when (eq major-mode 'racket-repl-mode) racket--repl-session-id)
                ,(save-restriction
                   (widen)
-                  (buffer-substring-no-properties (+ (point-min) racket--hash-lang-offset)
-                                                  (point-max))))))
+                  (if (eq major-mode 'racket-repl-mode)
+                      (racket--hash-lang-repl-buffer-string (point-min) (point-max))
+                    (buffer-substring-no-properties (point-min) (point-max)))))))
 
 (defun racket--hash-lang-delete ()
-  (racket--cmd/async
-   nil
-   `(hash-lang delete ,racket--hash-lang-id)))
+  (when racket--hash-lang-id
+    (racket--cmd/async
+     nil
+     `(hash-lang delete ,racket--hash-lang-id))))
+
+(defun racket--hash-lang-repl-preoutput-filter-function (str)
+  "Give output a field property.
+
+Our `racket--hash-lang-after-change-hook' and
+`racket--hash-lang-repl-buffer-string' functions need to see
+field properties. Alas `comint-mode' does an `insert' before
+applying any field properties. Fix: Apply them earlier, here.
+
+Note: This might be unreliable unless it is the last value in
+the `comint-preoutput-filter-functions' list."
+  (propertize str 'field 'output))
 
 (defun racket--hash-lang-after-change-hook (beg end len)
   ;; This might be called as frequently as once per single changed
@@ -193,9 +183,43 @@ getter-function) new-value)."
    `(hash-lang update
                ,racket--hash-lang-id
                ,(cl-incf racket--hash-lang-generation)
-               ,(- beg racket--hash-lang-offset)
+               ,beg
                ,len
-               ,(buffer-substring-no-properties beg end))))
+               ,(if (eq major-mode 'racket-repl-mode)
+                    (racket--hash-lang-repl-buffer-string beg end)
+                  (buffer-substring-no-properties beg end)))))
+
+(defun racket--hash-lang-repl-buffer-string (beg end)
+  "Like `buffer-substring-no-properties' but non-input is whitespace.
+
+A REPL buffer is a \"hopeless\" mix of user input, which we'd
+like a hash-lang to color and indent, as well as user program
+output and REPL prompts, which should be ignored. This function
+replaces output with whitespace --- mostly spaces, but preserves
+newlines for the sake of indent alignment. The only portions not
+affected are input --- text that the user has typed or yanked in
+the REPL buffer."
+  (save-restriction
+    (widen)
+    (let ((pos beg)
+          (result-str ""))
+      (while (< pos end)
+        ;; Handle a chunk sharing same field property value.
+        (let* ((chunk-end (min (or (next-single-property-change pos 'field)
+                                   (point-max))
+                               end))
+               (chunk-str (buffer-substring-no-properties pos chunk-end)))
+          ;; Unless input, replace all non-newline chars with spaces.
+          (unless (null (get-text-property pos 'field))
+            (let ((i 0)
+                  (len (- chunk-end pos)))
+              (while (< i len)
+                (unless (eq ?\n(aref chunk-str i))
+                  (aset chunk-str i 32))
+                (setq i (1+ i)))))
+          (setq result-str (concat result-str chunk-str))
+          (setq pos chunk-end)))
+      result-str)))
 
 (defun racket--hash-lang-on-notify (id params)
   (when-let (buf (cl-some (lambda (buf)
@@ -230,11 +254,8 @@ lang's attributes that care about have changed."
   (with-silent-modifications
     (save-restriction
       (widen)
-      (racket--hash-lang-remove-text-properties (+ (point-min) racket--hash-lang-offset)
-                                                (point-max))
-      (put-text-property (+ (point-min) racket--hash-lang-offset)
-                         (point-max)
-                         'fontified nil)
+      (racket--hash-lang-remove-text-properties (point-min) (point-max))
+      (put-text-property (point-min) (point-max) 'fontified nil)
       ;; If the lang uses racket-grouping-position, i.e. it uses
       ;; s-expressions, then use racket-mode-syntax-table. That way
       ;; other Emacs features and packages are more likely to work.
@@ -253,7 +274,7 @@ lang's attributes that care about have changed."
       ;; like `up-list' use `forward-sexp'.
       (setq forward-sexp-function (unless (plist-get plist 'racket-grouping)
                                     #'racket-hash-lang-forward-sexp))
-      (syntax-ppss-flush-cache (+ (point-min) racket--hash-lang-offset))
+      (syntax-ppss-flush-cache (point-min))
       (setq-local indent-line-function
                   #'racket-hash-lang-indent-line-function)
       (setq-local indent-region-function
@@ -271,25 +292,22 @@ lang's attributes that care about have changed."
   (with-silent-modifications
     (save-restriction
       (widen)
-      (put-text-property (+ beg racket--hash-lang-offset)
+      (put-text-property beg
                          (min end (point-max))
                          'fontified nil))))
 
-(defun racket--hash-lang-font-lock-fontify-region (beg end loudly)
+(defun racket--hash-lang-font-lock-fontify-region (beg end _loudly)
   ;;;(message "fontify-region %s %s" beg end)
-  (if (or (<= end racket--hash-lang-offset)
-          (eq 'output (field-at-pos beg))) ;for racket-repl-mode
-      (font-lock-default-fontify-region beg end loudly)
-    ;; Note: We do this async. Not appropriate to be doing command I/O
-    ;; from jit-lock-mode called from Emacs C redisplay engine.
-    (racket--cmd/async
-     nil
-     `(hash-lang get-tokens
-                 ,racket--hash-lang-id
-                 ,racket--hash-lang-generation
-                 ,(- beg racket--hash-lang-offset)
-                 ,(- end racket--hash-lang-offset))
-     #'racket--hash-lang-on-tokens)))
+  ;; Note: We do this async. Not appropriate to be doing command I/O
+  ;; from jit-lock-mode called from Emacs C redisplay engine.
+  (racket--cmd/async
+   nil
+   `(hash-lang get-tokens
+               ,racket--hash-lang-id
+               ,racket--hash-lang-generation
+               ,beg
+               ,end)
+   #'racket--hash-lang-on-tokens))
 
 (defun racket--hash-lang-on-tokens (tokens)
   (with-silent-modifications
@@ -297,48 +315,46 @@ lang's attributes that care about have changed."
               (put-stx  (beg end stx)  (put-text-property beg end 'syntax-table stx)))
       (dolist (token tokens)
         (pcase-let ((`(,beg ,end ,kinds) token))
-          (let ((beg (+ beg racket--hash-lang-offset))
-                (end (+ end racket--hash-lang-offset)))
-            (racket--hash-lang-remove-text-properties beg end)
-            ;; Add 'racket-token just for me to examine results using
-            ;; `describe-char'; use vector b/c `describe-property-list'
-            ;; assumes lists of symbols are "widgets".
-            (put-text-property beg end 'racket-token (apply #'vector kinds))
-            (dolist (kind kinds)
-              (pcase kind
-                ('comment
-                 ;; Although I'm not 100% sure we need to put-stx here I
-                 ;; think it might be important to make sure that the
-                 ;; buffer's syntax-table does not consider things
-                 ;; within comments to be e.g. parens/strings? This may
-                 ;; help when people use Emacs features that rely on
-                 ;; char syntax.
-                 (put-stx beg (1+ beg) '(11)) ;comment-start
-                 (put-stx (1- end) end '(12)) ;comment-end
-                 (let ((beg (1+ beg))         ;comment _contents_ if any
-                       (end (1- end)))
-                   (when (< beg end)
-                     (put-stx beg end '(14)))) ;generic comment
-                 (put-face beg end 'font-lock-comment-face))
-                ('sexp-comment ;just the "#;" prefix not following sexp
-                 (put-stx beg end '(14))  ;generic comment
-                 (put-face beg end 'font-lock-comment-face))
-                ('sexp-comment-body (put-face beg end 'font-lock-comment-face))
-                ('parenthesis (put-face beg end 'parenthesis))
-                ('string (put-face beg end 'font-lock-string-face))
-                ('text (put-stx beg end racket--hash-lang-plain-syntax-table))
-                ('constant (put-face beg end 'font-lock-constant-face))
-                ('error (put-face beg end 'error))
-                ('symbol
-                 ;; TODO: Consider using default font here, because e.g.
-                 ;; racket-lexer almost everything is "symbol" because
-                 ;; it is an identifier. Meanwhile, using a non-default
-                 ;; face here is helping me see behavior and spot bugs.
-                 (put-face beg end 'font-lock-variable-name-face))
-                ('keyword (put-face beg end 'font-lock-keyword-face))
-                ('hash-colon-keyword (put-face beg end 'racket-keyword-argument-face))
-                ('other (put-face beg end 'font-lock-doc-face))
-                ('white-space nil)))))))))
+          (racket--hash-lang-remove-text-properties beg end)
+          ;; Add 'racket-token just for me to examine results using
+          ;; `describe-char'; use vector b/c `describe-property-list'
+          ;; assumes lists of symbols are "widgets".
+          (put-text-property beg end 'racket-token (apply #'vector kinds))
+          (dolist (kind kinds)
+            (pcase kind
+              ('comment
+               ;; Although I'm not 100% sure we need to put-stx here I
+               ;; think it might be important to make sure that the
+               ;; buffer's syntax-table does not consider things
+               ;; within comments to be e.g. parens/strings? This may
+               ;; help when people use Emacs features that rely on
+               ;; char syntax.
+               (put-stx beg (1+ beg) '(11)) ;comment-start
+               (put-stx (1- end) end '(12)) ;comment-end
+               (let ((beg (1+ beg))         ;comment _contents_ if any
+                     (end (1- end)))
+                 (when (< beg end)
+                   (put-stx beg end '(14)))) ;generic comment
+               (put-face beg end 'font-lock-comment-face))
+              ('sexp-comment ;just the "#;" prefix not following sexp
+               (put-stx beg end '(14))  ;generic comment
+               (put-face beg end 'font-lock-comment-face))
+              ('sexp-comment-body (put-face beg end 'font-lock-comment-face))
+              ('parenthesis (put-face beg end 'parenthesis))
+              ('string (put-face beg end 'font-lock-string-face))
+              ('text (put-stx beg end racket--hash-lang-plain-syntax-table))
+              ('constant (put-face beg end 'font-lock-constant-face))
+              ('error (put-face beg end 'error))
+              ('symbol
+               ;; TODO: Consider using default font here, because e.g.
+               ;; racket-lexer almost everything is "symbol" because
+               ;; it is an identifier. Meanwhile, using a non-default
+               ;; face here is helping me see behavior and spot bugs.
+               (put-face beg end 'font-lock-variable-name-face))
+              ('keyword (put-face beg end 'font-lock-keyword-face))
+              ('hash-colon-keyword (put-face beg end 'racket-keyword-argument-face))
+              ('other (put-face beg end 'font-lock-doc-face))
+              ('white-space nil))))))))
 
 (defconst racket--hash-lang-text-properties
   '(face syntax-table racket-token)
@@ -370,7 +386,7 @@ We never use `racket-indent-line' from traditional
                `(hash-lang indent-amount
                            ,racket--hash-lang-id
                            ,racket--hash-lang-generation
-                           ,(- (point) racket--hash-lang-offset)))))
+                           ,(point)))))
     (goto-char bol)
     (skip-chars-forward " \t") ;;TODO: Is this reliable for all langs?
     (unless (= col (current-column))
@@ -389,8 +405,8 @@ We never use `racket-indent-line' from traditional
                     `(hash-lang indent-region-amounts
                                 ,racket--hash-lang-id
                                 ,racket--hash-lang-generation
-                                ,(- from racket--hash-lang-offset)
-                                ,(- upto racket--hash-lang-offset)))
+                                ,from
+                                ,upto))
     ('false (let ((indent-region-function nil))
               (indent-region from upto)))
     (`() nil)
@@ -416,12 +432,12 @@ We never use `racket-indent-line' from traditional
             `(hash-lang grouping
                         ,racket--hash-lang-id
                         ,racket--hash-lang-generation
-                        ,(- (point) racket--hash-lang-offset)
+                        ,(point)
                         ,direction
                         0
                         ,count))
       ((and (pred numberp) pos)
-       (goto-char (+ pos racket--hash-lang-offset)))
+       (goto-char pos))
       (_ (user-error "Cannot move %s%s" direction (if (memq count '(-1 0 1))
                                                       ""
                                                     (format " %s times" count)))))))
