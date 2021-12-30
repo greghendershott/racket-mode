@@ -138,14 +138,15 @@ end of an interactive expression/statement."
   (interactive "P")
   (pcase (get-buffer-process (current-buffer))
     ((and (pred processp) proc)
-     (when (racket--repl-complete-sexp-p proc)
-       (comint-send-input)
-       (with-silent-modifications
-         (remove-text-properties comint-last-input-start
-                                 comint-last-input-end
-                                 '(font-lock-face comint-highlight-input)))
-       ;; Hack for datalog/lang
-       (when prefix (process-send-eof proc))))
+     (cond ((racket--repl-complete-sexp-p proc)
+            (comint-send-input)
+            (with-silent-modifications
+              (remove-text-properties comint-last-input-start
+                                      comint-last-input-end
+                                      '(font-lock-face comint-highlight-input)))
+            ;; Hack for datalog/lang
+            (when prefix (process-send-eof proc)))
+           (t (newline-and-indent))))
     (_ (user-error "current buffer has no process"))))
 
 (defun racket--repl-complete-sexp-p (proc)
