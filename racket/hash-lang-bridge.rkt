@@ -12,9 +12,10 @@
 (provide hash-lang
          hash-lang-notify-channel)
 
-;; Bridge for Emacs to use hash-lang%
+;; Bridge for Emacs front end to use hash-lang%
 ;;
-;; - Reference hash-lang% objects by string ID.
+;; - Reference hash-lang% objects by a serializable ID supplied by the
+;;   front end.
 ;;
 ;; - Adjust Emacs 1-based positions to/from hash-lang% 0-based.
 ;;
