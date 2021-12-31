@@ -220,17 +220,15 @@
      (λ ()
        (define pending-updates (make-hash))
        (let get ([next-update-gen 1])
-         (match (async-channel-get update-chan)
-           ['quit null] ;exit thread
-           [(list 'update gen pos old-len new-str)
-            (hash-set! pending-updates gen (list pos old-len new-str))
-            (let do-pending ([next-update-gen next-update-gen])
-              (match (hash-ref pending-updates next-update-gen #f)
-                [(list pos old-len new-str)
-                 (hash-remove! pending-updates next-update-gen)
-                 (do-update! next-update-gen pos old-len new-str)
-                 (do-pending (add1 next-update-gen))]
-                [#f (get next-update-gen)]))]))))
+         (match-define (cons gen more) (async-channel-get update-chan))
+         (hash-set! pending-updates gen more)
+         (let do-pending ([next-update-gen next-update-gen])
+           (match (hash-ref pending-updates next-update-gen #f)
+             [(list pos old-len new-str)
+              (hash-remove! pending-updates next-update-gen)
+              (do-update! next-update-gen pos old-len new-str)
+              (do-pending (add1 next-update-gen))]
+             [#f (get next-update-gen)])))))
 
     ;; Runs on updater thread.
     (define/private (do-update! gen pos old-len new-str)
@@ -411,9 +409,6 @@
     ;;
     ;; Public methods for Emacs commands.
 
-    (define/public (delete)
-      (async-channel-put update-chan 'quit))
-
     ;; This method is safe to call from various threads.
     ;;
     ;; The method signature here is similar to that of Emacs'
@@ -426,7 +421,7 @@
       (unless (<= min-position pos)
         (raise-argument-error 'update! "valid position" 1 gen pos old-len new-str))
       (async-channel-put update-chan
-                         (list 'update gen pos old-len new-str)))
+                         (list gen pos old-len new-str)))
 
     ;; Can be called on any command thread.
     (define/public (classify gen pos)
