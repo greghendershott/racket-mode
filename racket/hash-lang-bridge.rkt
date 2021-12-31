@@ -84,10 +84,7 @@
          [_ #f]))  )
 
 (define (delete id)
-  (match (hash-ref ht id #f)
-    [#f (log-racket-mode-warning "hash-lang delete ~v: not found" id)]
-    [obj (send obj delete)
-         (hash-remove! ht id)]))
+  (hash-remove! ht id))
 
 (define (update id gen pos old-len str)
   (send (get-object id) update! gen (sub1 pos) old-len str))
