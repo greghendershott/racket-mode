@@ -619,7 +619,7 @@
       (define o-time (cpu-time (λ () (for ([_ reps]) (proc o)))))
       (define t-time (cpu-time (λ () (for ([_ reps]) (proc t)))))
       (define factor (/ (* 1.0 o-time) t-time))
-      (printf "~v ~v\n~v ~v\n~v times\n"
+      (printf "~v ~v\n~v ~v\n~v\n"
               o-time o
               t-time t
               factor))
