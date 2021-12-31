@@ -232,22 +232,20 @@
 
     ;; Runs on updater thread.
     (define/private (do-update! gen pos old-len new-str)
+      (define new-len (string-length new-str))
       ;; Initial progress for other threads: Nothing yet within this
       ;; new generation.
       (set-update-progress #:generation gen
-                           #:position (sub1 min-position))
-
+                           #:position   (sub1 min-position))
       ;; Update the text-lines data structure.
       (when (< 0 old-len)
         (set! content (lines:delete content pos (+ pos old-len))))
-      (define new-len (string-length new-str))
       (when (< 0 new-len)
         (set! content (lines:insert content pos new-str)))
-
+      ;; Update tokens and parens trees. If lang lexer changed, it
+      ;; could result in entirely different tokens and parens, so in
+      ;; that case restart from scratch.
       (cond [(check-lang-info/lexer-changed? gen pos)
-             ;; If lang lexer changed, it could result in entirely
-             ;; different tokens and parens, so in that case restart
-             ;; from scratch.
              (set! tokens (new token-tree%))
              (set! parens (new paren-tree%
                                [matches (lang-info-paren-matches lang-info)]))
@@ -263,7 +261,7 @@
     ;; generation. Return true IFF the lexer changed. For example this
     ;; will return false for a change from #lang racket to
     ;; racket/base.
-    (define last-lang-end-pos 1)
+    (define last-lang-end-pos (add1 min-position))
     (define/private (check-lang-info/lexer-changed? gen pos)
       (define new-lang-info
         (cond
