@@ -167,33 +167,25 @@
     ;; Coordinate progress of tokenizing updater thread
 
     ;; Allow threads to wait -- safely and without polling -- for the
-    ;; updater thread to progress to a certain generation and
-    ;; position. [Although I've never worked with "condition
-    ;; variables" that seems ~= the synchronization pattern here?]
-    (struct waiter (sema pred) #:transparent #:authentic)
-    (define waiters-set (mutable-set)) ;(set/c waiter?)
-    (define waiters-sema (make-semaphore 1)) ;for modifying waiters-set
+    ;; updater thread to progress to at least a given generation and
+    ;; position.
+    (define monitor (make-monitor))
 
     ;; Called from updater thread.
     (define/private (set-update-progress #:generation [g updated-generation]
                                          #:position   p)
-      (with-semaphore waiters-sema
-        (set! updated-generation g)
-        (set! updated-position p)
-        (for ([w (in-set waiters-set)])
-          (when ((waiter-pred w))
-            (semaphore-post (waiter-sema w))))))
+      (progress monitor
+                (λ ()
+                  (set! updated-generation g)
+                  (set! updated-position p))))
 
     ;; Called from threads that need to wait for update progress to a
     ;; certain generation and position.
     (define/public (block-until-updated-thru gen [pos max-position])
-      (define (pred) (and (<= gen updated-generation) (<= pos updated-position)))
-      (unless (call-with-semaphore waiters-sema pred)  ;fast path
-        (define pred-sema (make-semaphore 0))
-        (define w (waiter pred-sema pred))
-        (with-semaphore waiters-sema (set-add! waiters-set w))
-        (semaphore-wait pred-sema) ;block
-        (with-semaphore waiters-sema (set-remove! waiters-set w))))
+      (wait monitor
+            (λ ()
+              (and (<= gen updated-generation)
+                   (<= pos updated-position)))))
 
     ;; -----------------------------------------------------------------
     ;;
@@ -697,3 +689,93 @@
       (hasheq 'type attribs)
       attribs))
 
+;; This could be moved to its own file.
+(module monitor racket/base
+  (require racket/match
+           syntax/parse/define)
+
+  (provide make-monitor
+           monitor?
+           progress
+           wait
+           wait-evt)
+
+  (struct monitor ([waiters #:mutable] sema) #:authentic)
+
+  (struct waiter (pred sema) #:transparent #:authentic)
+
+  (define (make-monitor)
+    (monitor null (make-semaphore 1)))
+
+  (define-simple-macro (with-semaphore sema e:expr ...+)
+    (call-with-semaphore sema (λ () e ...)))
+
+  ;; To be called by a worker thread, to make progress that might cause
+  ;; some waiter's predicate to become true. The thunk is called within
+  ;; the monitor's semaphore, so it is safe for it to e.g. set! multiple
+  ;; variables.
+  (define (progress m thunk)
+    (with-semaphore (monitor-sema m)
+      (thunk)
+      (set-monitor-waiters!
+       m
+       (let loop ([waiters (monitor-waiters m)])
+         (match waiters
+           [(list) (list)]
+           [(cons w more)
+            (cond [((waiter-pred w))
+                   (semaphore-post (waiter-sema w))
+                   (loop more)] ;remove
+                  [else ;keep
+                   (cons w (loop more))])])))))
+
+  ;; To be called by any number of observer threads, to wait until a
+  ;; predicate becomes true. The predicate is checked initially in case
+  ;; it is already true, but thereafter only whenever a worker thread
+  ;; calls `progress`. The predicate is called within the monitor's
+  ;; semaphore (if the `progress` thunk set!s multiple vars, it's safe
+  ;; for the pred to check them).
+  (define (wait m pred)
+    (unless (call-with-semaphore (monitor-sema m) pred) ;fast path
+      (semaphore-wait (wait-evt m pred))))
+
+  ;; Like `wait` but returns a synchronizable event.
+  (define (wait-evt m pred)
+    (cond [(call-with-semaphore (monitor-sema m) pred) ;fast path
+           always-evt]
+          [else
+           (define pred-sema (make-semaphore 0))
+           (with-semaphore (monitor-sema m)
+             (set-monitor-waiters! m (cons (waiter pred pred-sema)
+                                           (monitor-waiters m))))
+           pred-sema]))
+
+  (module+ example
+    ;; Some variables that a worker thread will increase monotonically.
+    (define i 0)
+    (define j 0)
+    ;; A monitor object
+    (define m (make-monitor))
+    ;; Some threads that want to wait for certain values.
+    (void (thread (λ ()
+                    (define (pred-0) (and (<= 0 i)))
+                    (wait m pred-0)
+                    (displayln "pred-0 became true (fast path)"))))
+    (void (thread (λ ()
+                    (define (pred-i-3-j-6) (and (<= 3 i) (<= 6 j)))
+                    (wait m pred-i-3-j-6)
+                    (displayln "pred-i-3-j-6 became true"))))
+    (void (thread (λ ()
+                    (define (pred-i-5) (<= 5 i))
+                    (wait m pred-i-5)
+                    (displayln "pred-i-5 became true"))))
+    ;; A worker thread.
+    (let loop ()
+      (progress m (λ ()
+                    (set! i (add1 i))
+                    (set! j (add1 j))
+                    (displayln (list i j))))
+      (when (< i 10)
+        (sleep 0.5)
+        (loop)))))
+(require 'monitor)
