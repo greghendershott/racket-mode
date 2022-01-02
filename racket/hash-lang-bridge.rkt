@@ -67,7 +67,10 @@
 (define hash-lang-notify-channel (make-async-channel))
 
 (define ht (make-hash)) ;id => hash-lang%
-(define (get-object id) (hash-ref ht id))
+(define (get-object id)
+  (hash-ref ht id
+            (λ () (error 'hash-lang-bridge
+                         "No hash-lang exists with ID ~v" id))))
 
 (define (create id sid str) ;any/c (or/c #f string?) string? -> void
   (define obj (new our-hash-lang%
