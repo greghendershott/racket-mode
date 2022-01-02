@@ -161,7 +161,8 @@ not. Intended as a convenience so users needn't set a
   (when racket--hash-lang-id
     (racket--cmd/async
      nil
-     `(hash-lang delete ,racket--hash-lang-id))))
+     `(hash-lang delete ,racket--hash-lang-id))
+    (setq racket--hash-lang-id nil)))
 
 (defun racket--hash-lang-repl-preoutput-filter-function (str)
   "Give output a field property.
