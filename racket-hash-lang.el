@@ -296,7 +296,7 @@ lang's attributes that care about have changed."
                          (min end (point-max))
                          'fontified nil))))
 
-(defun racket--hash-lang-font-lock-fontify-region (beg end _loudly)
+(defun racket--hash-lang-font-lock-fontify-region (beg end &optional _loudly)
   ;;;(message "fontify-region %s %s" beg end)
   ;; Note: We do this async. Not appropriate to be doing command I/O
   ;; from jit-lock-mode called from Emacs C redisplay engine.
