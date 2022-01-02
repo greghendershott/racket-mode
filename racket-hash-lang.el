@@ -463,7 +463,14 @@ We never use `racket-indent-line' from traditional
   (racket-hash-lang-move 'down count))
 
 (defun racket-hash-lang-forward-sexp (&optional arg)
-  "A value for the varabible `forward-sexp-function'."
+  "A value for the variable `forward-sexp-function'.
+
+Caveat: This uses drracket:grouping-position, which doesn't have
+a concept of signaling the position of a \"barrier\" that
+prevented navigation forward/backward. Some users of
+`forward-sexp' depend on that signal, for example `up-list'.
+However other users don't need that, so we supply this
+`forward-sexp-function' as \"better than nothing\"."
   (let* ((arg (or arg 1))
          (dir (if (< arg 0) 'backward 'forward))
          (cnt (abs arg)))
