@@ -48,16 +48,22 @@
   ;;
   ;; - Use a thread + channel + sync/timeout so that, if the answer is
   ;;   no because there is only a partial sexp -- e.g. "(+ 1" -- we
-  ;;   don't get stuck here.
+  ;;   don't get stuck inside `read`.
   (define ch (make-channel))
   (thread
    (λ ()
      (channel-put ch
                   (with-handlers ([exn:fail? (λ _ #f)])
+                    ;; A file-stream-buffer-mode of 'none can cause
+                    ;; issue #582. Here we assume it is 'block. (If
+                    ;; for some reason we couldn't do that, then a
+                    ;; (regexp-match-peek #"\n" in) before
+                    ;; peek-bytes-avail!* would also work.)
                     (let* ([buf  (make-bytes 4096 0)]
                            [len  (peek-bytes-avail!* buf 0 #f in)]
                            [bstr (subbytes buf 0 len)]
-                           [v    (read (open-input-bytes bstr))])
+                           [in   (open-input-bytes bstr)]
+                           [v    ((current-read-interaction) #f in)])
                       (not (eof-object? v)))))))
   (sync/timeout 0.01 ch))
 

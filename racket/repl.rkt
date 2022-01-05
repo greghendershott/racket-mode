@@ -182,8 +182,8 @@
         (parameterize ([current-input-port  in]
                        [current-output-port out]
                        [current-error-port  out])
-          (for ([p (in-list (list in out))])
-            (file-stream-buffer-mode p 'none)) ;would 'line be sufficient?
+          (file-stream-buffer-mode in 'block) ;#582
+          (file-stream-buffer-mode out 'none)
           ;; Immediately after connecting, the client must send us
           ;; exactly the same launch token value that it gave us as a
           ;; command line argument when it started us. Else we close
