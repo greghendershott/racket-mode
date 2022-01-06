@@ -23,13 +23,14 @@
 (require 'racket-repl)
 
 (defvar-local racket--hash-lang-id nil
-  "Used to identify the back end hash-lang object.
+  "Unique integer used to identify the back end hash-lang object.
 Although it's tempting to use `buffer-file-name' for the ID, not
 all buffers have files, especially `racket-repl-mode' buffers.
 Although it's tempting to use `buffer-name', buffers can be
 renamed. Although it's tempting to use the buffer object, we
 can't serialize that.")
-(defvar racket--hash-lang-next-id 0)
+(defvar racket--hash-lang-next-id 0
+  "Increment when we need a new id.")
 
 (defvar-local racket--hash-lang-generation 1
   "Monotonic increasing value for hash-lang updates.
@@ -37,7 +38,8 @@ can't serialize that.")
 This is set to 1 when we hash-lang create, incremented every time
 we do a hash-lang update, and then supplied for all other, query
 hash-lang operations. That way the queries can block if necessary
-until re-tokenization has progressed sufficiently.")
+until the back end has handled the update commands and also
+re-tokenization has progressed sufficiently.")
 
 (defvar-local racket--hash-lang-changed-vars nil
   "Where we save spec to restore original values.")
@@ -215,19 +217,22 @@ the REPL buffer."
             (let ((i 0)
                   (len (- chunk-end pos)))
               (while (< i len)
-                (unless (eq ?\n(aref chunk-str i))
+                (unless (eq ?\n (aref chunk-str i))
                   (aset chunk-str i 32))
                 (setq i (1+ i)))))
           (setq result-str (concat result-str chunk-str))
           (setq pos chunk-end)))
       result-str)))
 
+(defun racket--hash-lang-find-buffer (id)
+  "Find the buffer whose local value for `racket--hash-lang-id' is ID."
+  (cl-some (lambda (buf)
+             (when (equal id (buffer-local-value 'racket--hash-lang-id buf))
+               buf))
+           (buffer-list)))
+
 (defun racket--hash-lang-on-notify (id params)
-  (when-let (buf (cl-some (lambda (buf)
-                            (when-let (v (buffer-local-value 'racket--hash-lang-id buf))
-                              (when (= v id)
-                                buf)))
-                          (buffer-list)))
+  (when-let (buf (racket--hash-lang-find-buffer id))
     (with-current-buffer buf
       (pcase params
         (`(lang . ,params)        (racket--hash-lang-on-new-lang params))
