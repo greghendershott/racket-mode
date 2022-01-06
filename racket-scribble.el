@@ -78,12 +78,13 @@ In some cases we resort to returning custom elements for
 
 (defun racket--walk-dom (dom)
   (pcase dom
-    ;; page navigation
+    ;; Page navigation. Obtain from suitable navsettop. Ignore others.
     (`(div ((class . "navsettop"))
            (span ((class . "navleft"))
                  (form . ,_)
                  ,_
-                 (a ((href . ,top) . ,_) . ,_))
+                 (a ((href . ,top) . ,_) . ,_)
+                 . ,_)
            (span ((class . "navright"))
                  ,_
                  ,(or `(a ((href . ,prev) . ,_) . ,_)
@@ -98,6 +99,8 @@ In some cases we resort to returning custom elements for
                    (prev . ,(and prev (expand-file-name prev racket--scribble-base)))
                    (up   . ,(expand-file-name up   racket--scribble-base))
                    (next . ,(and next (expand-file-name next racket--scribble-base))))))
+    (`(div ((class . ,"navsettop")) . ,_)
+     `(span))
     (`(div ((class . ,"navsetbottom")) . ,_)
      `(span))
 
