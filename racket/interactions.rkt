@@ -1,6 +1,7 @@
 #lang racket/base
 
 (require racket/match
+         racket/port
          "stack-checkpoint.rkt"
          "util.rkt")
 
@@ -41,10 +42,16 @@
         v]))))
 
 (define (already-more-to-read? in)
-  ;; Is there already at least one more read-able expression on in?
+  ;; Is there already at least one more expression available to read
+  ;; from the input port?
   ;;
   ;; - Use a "peeking read" so that, if the answer is yes, we don't
   ;;   actually consume it (which could cause #449).
+  ;;
+  ;;   To handle multiple expressions the underlying tcp-input-port
+  ;;   needs block buffer-mode; see issue #582 (it seems to be fine
+  ;;   that racket/gui/base's current-get-interaction-port wrapper for
+  ;;   that underlying tcp port reports #f for the buffer-mode).
   ;;
   ;; - Use a thread + channel + sync/timeout so that, if the answer is
   ;;   no because there is only a partial sexp -- e.g. "(+ 1" -- we
@@ -54,17 +61,9 @@
    (λ ()
      (channel-put ch
                   (with-handlers ([exn:fail? (λ _ #f)])
-                    ;; A file-stream-buffer-mode of 'none can cause
-                    ;; issue #582. Here we assume it is 'block. (If
-                    ;; for some reason we couldn't do that, then a
-                    ;; (regexp-match-peek #"\n" in) before
-                    ;; peek-bytes-avail!* would also work.)
-                    (let* ([buf  (make-bytes 4096 0)]
-                           [len  (peek-bytes-avail!* buf 0 #f in)]
-                           [bstr (subbytes buf 0 len)]
-                           [in   (open-input-bytes bstr)]
-                           [v    ((current-read-interaction) #f in)])
-                      (not (eof-object? v)))))))
+                    (define pin (peeking-input-port in))
+                    (define v ((current-read-interaction) #f pin))
+                    (not (eof-object? v))))))
   (sync/timeout 0.01 ch))
 
 (define (display-prompt str)
