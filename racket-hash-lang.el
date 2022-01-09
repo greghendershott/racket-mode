@@ -63,7 +63,20 @@ re-tokenization has progressed sufficiently.")
 (define-minor-mode racket-hash-lang-mode
   "Use color-lexer, indent, and navigation supplied by a #lang.
 
-Minor mode to enhance `racket-mode' and `racket-repl-mode' buffers.
+Minor mode to modify the default behavior `racket-mode' and
+`racket-repl-mode' buffers.
+
+For `racket-mode' buffers, this needs to be enabled via
+`racket-mode-hook'.
+
+For `racket-repl-mode' buffers, this should not need to be
+configured manually. Instead automatically turns itself on/off,
+for each `racket-run', based on whether the associated
+`racket-mode' buffer is using `racket-hash-lang-mode'.
+
+For `racket-repl-mode' buffers, be aware that only input portions
+of the buffer use coloring/indent/navigation from the hash-lang.
+Output portions are do not; they are treated as whitespace.
 
 \\{racket-hash-lang-mode-map}
 "
