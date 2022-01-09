@@ -576,11 +576,18 @@ ignore POS. Examples: `racket-show-echo-area' and
   "Face for `#:keyword` arguments."
   "Keyword Argument Face")
 
-(define-obsolete-face-alias 'racket-paren-face 'paren-face
-  "2017-06-13")
+;; Note: Don't use `define-obsolete-face-alias'; see issue #583.
+(defface racket-paren-face nil
+  "This face is unused since 2017-06-13.
 
-(define-obsolete-face-alias 'racket-selfeval-face 'font-lock-constant-face
-  "2021-10-20")
+Instead customize the face `paren-face', which is provided by the
+optional package `paren-face'.")
+
+;; Note: Don't use `define-obsolete-face-alias'; see issue #583.
+(defface racket-selfeval-face nil
+  "This face is unused since 2021-10-20.
+
+Instead customize the face `font-lock-constant-face'.")
 
 (defface-racket racket-reader-quoted-symbol-face
   '((t (:inherit font-lock-constant-face)))
