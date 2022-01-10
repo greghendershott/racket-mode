@@ -85,24 +85,25 @@ one."
                              "/"))))
 
 (defun racket-add-back-end (directory &rest plist)
-  "Add a description of a Racket Mode back end configuration.
+  "Add a description of a Racket Mode back end.
 
-When a configuration with the same DIRECTORY already exists it is
-replaced.
+Racket Mode supports one or more back ends, which are Racket
+processes supporting REPLs as well as various other Racket Mode
+features. This function adds a description of a back end.
 
-DIRECTORY should be a string describing a `file-name-absolute-p'
-directory on some local or remote server. It can be a local
-directory like \"/\" or \"/path/to/project\". Also, it can be a
-`file-remote-p' directory like \"/ssh:user@host:\", or
-\"/ssh:user@host:/path/to/project\". Basically it's a path you
-could give to `find-file' to successfully access some local or
-remote file. (Some remote file shorthand forms get expanded to at
-least \"/ssh:host:\" -- double-check `buffer-file-name' and
-follow its example.)
+DIRECTORY is a string describing a `file-name-absolute-p'
+directory on some local or remote server.
 
-DIRECTORY is used as a pattern to compare to `default-directory'
-for a buffer, to determine whether the back end should be used
-for the buffer.
+When a back end's DIRECTORY is a prefix of a buffer's
+`default-directory', that back end is used for the buffer.
+
+DIRECTORY can be a local directory like \"/\" or
+\"/path/to/project\", or a `file-remote-p' directory like
+\"/ssh:user@host:\" or \"/ssh:user@host:/path/to/project\".
+Basically it is a path you could give to `find-file' to
+successfully find some local or remote file. (Some remote file
+shorthand forms get expanded to at least \"/ssh:host:\" -- when
+in doubt check `buffer-file-name' and follow its example.)
 
 DIRECTORY also determines:
 
@@ -175,8 +176,8 @@ DIRECTORY is local or remote:
   connections from anywhere), and :windows is nil.
 
   When working with back ends on remote hosts, *remember to check
-  your remote host firewall*. The goal here is to make sure
-  things work for you --- and only you. Probably you want the
+  your remote host firewall*. Your goal is to make sure things
+  work for you --- but only for you. Probably you want the
   firewall to limit from where it accepts SSH connections on
   :ssh-port. Also you need the firewall to accept connections on
   :repl-tcp-port, but again, limiting from where --- either in
@@ -211,7 +212,7 @@ are a few examples.
     ;; If ~/.ssh/config defines a Host alias named \"linode\",
     ;; with HostName and User settings, a file name as simple as
     ;; \"/linode:\" would work fine with tramp -- and the
-    ;; automaticlly created back end configuration would work
+    ;; automatically created back end configuration would work
     ;; fine, too.
 
     ;; 4. For example's sake, assume for buffers visiting
