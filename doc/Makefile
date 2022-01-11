@@ -1,10 +1,11 @@
 .PHONY: doc docs images clean deploy
 
-doc: racket-mode.info racket-mode.html images
+doc: images racket-mode.info racket-mode.html
 
 docs: doc
 
 clean:
+	-rm scenario*.png
 	-rm reference.org
 	-rm racket-mode.info
 	-rm racket-mode.html
