@@ -2480,26 +2480,8 @@ Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 * Showing information::
 @end menu
 
-@node racket-show-pseudo-tooltip
-@subsection racket-show-pseudo-tooltip
-
-Show using an overlay that resembles a tooltip.
-
-This is nicer than @ref{racket-show-pos-tip} because it:
-
-@itemize
-@item
-Doesn't flicker while navigating.
-@item
-Doesn't disappear after a timeout.
-@item
-Performs well when @code{x-gtk-use-system-tooltips} is nil.
-@end itemize
-
-On the other hand, this does not look as nice when displaying
-text that spans multiple lines or is too wide to fit the window.
-In that case, we simply left-justify everything and do not draw
-any border.
+@node General variables
+@section General variables
 
 @menu
 * racket-program::
@@ -2518,7 +2500,7 @@ any border.
 
 Pathname of the Racket executable.
 
-nNote that a back end configuration can override this with a
+Note that a back end configuration can override this with a
 non-nil @code{racket-program} property list value. See
 @ref{racket-add-back-end}.
 
@@ -2952,8 +2934,9 @@ Performs well when @code{x-gtk-use-system-tooltips} is nil.
 @end itemize
 
 On the other hand, this does not look as nice when displaying
-text that spans multiple lines. In that case, we simply
-left-justify everything and do not draw any border.
+text that spans multiple lines or is too wide to fit the window.
+In that case, we simply left-justify everything and do not draw
+any border.
 
 @node racket-show-echo-area
 @subsection racket-show-echo-area
@@ -2961,6 +2944,8 @@ left-justify everything and do not draw any border.
 Show things in the echo area.
 
 A value for the variable @ref{racket-show-functions}.
+
+This does @emph{not} add STR to the ``@strong{Messages}'' log buffer.
 
 @node racket-show-header-line
 @subsection racket-show-header-line
@@ -3075,24 +3060,25 @@ or indeed whatever you want.
 @node racket-add-back-end
 @subsection racket-add-back-end
 
-Add a description of a Racket Mode back end configuration.
+Add a description of a Racket Mode back end.
 
-When a configuration with the same DIRECTORY already exists it is
-replaced.
+Racket Mode supports one or more back ends, which are Racket
+processes supporting REPLs as well as various other Racket Mode
+features. This function adds a description of a back end.
 
-DIRECTORY should be a string describing a @code{file-name-absolute-p}
-directory on some local or remote server. It can be a local
-directory like ``/'' or ``/path/to/project''. Also, it can be a
-@code{file-remote-p} directory like ``/ssh:user@@host:'', or
-``/ssh:user@@host:/path/to/project''. Basically it's a path you
-could give to @code{find-file} to successfully access some local or
-remote file. (Some remote file shorthand forms get expanded to at
-least ``/ssh:host:'' -- double-check @code{buffer-file-name} and
-follow its example.)
+DIRECTORY is a string describing a @code{file-name-absolute-p}
+directory on some local or remote server.
 
-DIRECTORY is used as a pattern to compare to @code{default-directory}
-for a buffer, to determine whether the back end should be used
-for the buffer.
+When a back end's DIRECTORY is a prefix of a buffer's
+@code{default-directory}, that back end is used for the buffer.
+
+DIRECTORY can be a local directory like ``/'' or
+``/path/to/project'', or a @code{file-remote-p} directory like
+``/ssh:user@@host:'' or ``/ssh:user@@host:/path/to/project''.
+Basically it is a path you could give to @code{find-file} to
+successfully find some local or remote file. (Some remote file
+shorthand forms get expanded to at least ``/ssh:host:'' -- when
+in doubt check @code{buffer-file-name} and follow its example.)
 
 DIRECTORY also determines:
 
@@ -3162,36 +3148,6 @@ a local host. Otherwise a specific port number should be used,
 and, remember to allow that in the remote's firewall.
 
 @item
-:gui
-
-@itemize
-@item
-When :gui is false: The back end will @emph{not} attempt to load
-racket/gui/base eagerly. This can make sense for a remote
-back end running on a headless server, where the Racket
-gui-lib package is installed, making racket/gui/base
-available, but you do not want to use it. Keep in mind that
-when @code{gui} is false, if you @ref{racket-run} a program that
-@emph{does} require racket/gui/base (directly or indirectly), you
-cannot run a second such program without Racket complaining
-that racket/gui/base cannot be instantiated more than once in
-the same process. If that happens, you must use
-@code{racket-start-back-end} to restart the back end process.
-
-@item
-When :gui is true: The back end @emph{will} attempt to load
-racket/gui/base eagerly. This can make sense for a remote
-back end running on a headless server, where the Racket
-gui-lib package is installed, making racket/gui/base
-available, and you do want to use it. In this case the
-headless server should have the xvfb package installed, and
-you should set the :racket-program property to something like
-``xvfb-run racket''. Now your programs can use modules that
-require racket/gui/base, including obvious things like plot,
-as well as some unfortunately less-obvious things.
-@end itemize
-
-@item
 :windows
 
 Whether the back end uses Windows style path names. Used to do
@@ -3207,11 +3163,11 @@ DIRECTORY is local or remote:
 @item
 When DIRECTORY is remote, :repl-tcp-port is set to 55555,
 :repl-tcp-accept-host is set to ``0.0.0.0'' (accepts
-connections from anywhere), :gui is nil, and :windows is nil.
+connections from anywhere), and :windows is nil.
 
 When working with back ends on remote hosts, @strong{remember to check
-your remote host firewall}. The goal here is to make sure
-things work for you --- and only you. Probably you want the
+your remote host firewall}. Your goal is to make sure things
+work for you --- but only for you. Probably you want the
 firewall to limit from where it accepts SSH connections on
 :ssh-port. Also you need the firewall to accept connections on
 :repl-tcp-port, but again, limiting from where --- either in
@@ -3223,7 +3179,7 @@ Otherwise, reasonable defaults are used for a local back end:
 :repl-tcp-port is set to 0 (meaning the back end picks an
 ephemeral port), :repl-tcp-accept-host is set to ``127.0.0.1''
 (meaning the back end only accept TCP connections locally),
-:gui is true, and :windows is set based on @code{system-type}.
+and :windows is set based on @code{system-type}.
 @end itemize
 
 Although the default values usually ``just work'' for local and
@@ -3248,15 +3204,14 @@ are a few examples.
 ;; If ~/.ssh/config defines a Host alias named "linode",
 ;; with HostName and User settings, a file name as simple as
 ;; "/linode:" would work fine with tramp -- and the
-;; automaticlly created back end configuration would work
+;; automatically created back end configuration would work
 ;; fine, too.
 
 ;; 4. For example's sake, assume for buffers visiting
 ;; /ssh:headless:~/gui-project/ we want :racket-program instead
-;; to be "xvfb-run racket" and :gui to be true.
+;; to be "xvfb-run racket".
 (racket-add-back-end "/ssh:headless:~/gui-project/"
-		     :racket-program "xvfb-run racket"
-		     :gui            t)
+		     :racket-program "xvfb-run racket")
 @end lisp
 
 @node Faces
