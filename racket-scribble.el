@@ -18,6 +18,7 @@
 
 (require 'shr)
 (require 'url-util)
+(require 'tramp)
 
 (defconst racket--scribble-temp-nbsp #x2020
   "Character we substitute for #xA0 non-breaking-space.
@@ -46,7 +47,8 @@ the effect of being non-breaking.")
 
 (defun racket--html-file->dom (path)
   (with-temp-buffer
-    (insert-file-contents-literally path)
+    (let ((tramp-verbose 2)) ;avoid excessive messages
+      (insert-file-contents-literally path))
     (libxml-parse-html-region (point-min) (point-max))))
 
 (defun racket--scribble-main-elements (path dom)
