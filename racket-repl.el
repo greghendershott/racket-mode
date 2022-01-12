@@ -1,6 +1,6 @@
 ;;; racket-repl.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2021 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 ;; Image portions Copyright (C) 2012 Jose Antonio Ortega Ruiz.
 

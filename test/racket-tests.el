@@ -1,6 +1,6 @@
 ;;; racket-tests.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 
 ;; License:
 ;; This is free software; you can redistribute it and/or modify it

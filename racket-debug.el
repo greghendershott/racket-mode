@@ -1,6 +1,6 @@
 ;;; racket-debug.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2018-2021 by Greg Hendershott.
+;; Copyright (c) 2018-2022 by Greg Hendershott.
 
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
