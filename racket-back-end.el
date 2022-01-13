@@ -89,23 +89,27 @@ one."
 
 Racket Mode supports one or more back ends, which are Racket
 processes supporting REPLs as well as various other Racket Mode
-features. This function adds a description of a back end.
+features.
 
 DIRECTORY is a string describing a `file-name-absolute-p'
 directory on some local or remote server.
 
-When a back end's DIRECTORY is a prefix of a buffer's
-`default-directory', that back end is used for the buffer.
+When a back end's DIRECTORY is the longest matching prefix of a
+buffer's `default-directory', that back end is used for the
+buffer.
 
 DIRECTORY can be a local directory like \"/\" or
 \"/path/to/project\", or a `file-remote-p' directory like
 \"/ssh:user@host:\" or \"/ssh:user@host:/path/to/project\".
-Basically it is a path you could give to `find-file' to
-successfully find some local or remote file. (Some remote file
-shorthand forms get expanded to at least \"/ssh:host:\" -- when
-in doubt check `buffer-file-name' and follow its example.)
 
-DIRECTORY also determines:
+Practically speaking, DIRECTORY is a path you could give to
+`find-file' to successfully find some local or remote file. (Some
+remote file shorthand forms get expanded to at least
+\"/ssh:host:\". When in doubt check `buffer-file-name' and follow
+its example.)
+
+In addition to being used as a pattern to pick a back end for a
+buffer, DIRECTORY determines:
 
 - Whether the back end is local or remote.
 
