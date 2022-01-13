@@ -100,7 +100,7 @@
     5
     (box #:inset 2
          #:background "black"
-         (colorize (text name '(bold . modern)) "white"))
+         (colorize (text name '(bold . modern) 14) "white"))
     (if (equal? name "localhost")
         (front-end)
         (back-end-source-files))
@@ -140,6 +140,6 @@
   (require file/convertible)
   (for ([(image n) (in-indexed images)])
     (with-output-to-file
-      (format "scenario-~a.png" n)
+      (format "scenario-~a.svg" n)
       #:exists 'replace
-      #:mode 'binary      (λ ()  (display (convert image 'png-bytes))))))
+      #:mode 'binary      (λ ()  (display (convert image 'svg-bytes))))))

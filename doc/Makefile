@@ -6,6 +6,7 @@ docs: doc
 
 clean:
 	-rm scenario*.png
+	-rm scenario*.svg
 	-rm reference.org
 	-rm racket-mode.info
 	-rm racket-mode.html
@@ -38,9 +39,9 @@ cfid := E1OG6O4MCHIO1Q
 deploy: racket-mode.html racket-mode.css images
 	$(aws) s3 cp racket-mode.html $(dest)/index.html
 	$(aws) s3 cp racket-mode.css  $(dest)/racket-mode.css
-	$(aws) s3 cp scenario-0.png   $(dest)/scenario-0.png
-	$(aws) s3 cp scenario-1.png   $(dest)/scenario-1.png
-	$(aws) s3 cp scenario-2.png   $(dest)/scenario-2.png
-	$(aws) s3 cp scenario-3.png   $(dest)/scenario-3.png
-	$(aws) s3 cp scenario-4.png   $(dest)/scenario-4.png
+	$(aws) s3 cp scenario-0.svg   $(dest)/scenario-0.svg
+	$(aws) s3 cp scenario-1.svg   $(dest)/scenario-1.svg
+	$(aws) s3 cp scenario-2.svg   $(dest)/scenario-2.svg
+	$(aws) s3 cp scenario-3.svg   $(dest)/scenario-3.svg
+	$(aws) s3 cp scenario-4.svg   $(dest)/scenario-4.svg
 	$(aws) cloudfront create-invalidation --distribution-id $(cfid) --paths "/*" > /dev/null
