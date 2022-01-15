@@ -164,7 +164,7 @@ at the top, marked with \"->\".
                               racket--orp/keymap
                               nil)
         (when racket--orp/matches
-          (find-file (racket-file-name-front-to-back
+          (find-file (racket-file-name-back-to-front
                       (elt racket--orp/matches racket--orp/match-index)))))
     (setq racket--orp/input "")
     (setq racket--orp/matches nil))
