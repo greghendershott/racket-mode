@@ -109,9 +109,7 @@ even from compiled bytecode.")
                                        (image-type-available-p 'imagemagick))))
                          "--use-svg"
                        "--do-not-use-svg"))
-           (command (list (or (plist-get back-end :racket-program)
-                              racket-program)
-                          main-dot-rkt
+           (args    (list main-dot-rkt
                           "--auth"        racket--back-end-auth-token
                           "--accept-host" (plist-get back-end
                                                      :repl-tcp-accept-host)
@@ -119,19 +117,7 @@ even from compiled bytecode.")
                                                   (plist-get back-end
                                                              :repl-tcp-port))
                           svg-flag))
-           (command (if local-p
-                        command
-                      (pcase-let ((`(,host ,user ,port)
-                                   (racket--back-end-host+user+port back-end)))
-                        `("ssh"
-                          ,@(when port
-                              `("-p" ,(format "%s" port)))
-                          ,(if user
-                               (format "%s@%s"
-                                       user
-                                       host)
-                             host)
-                          ,@command))))
+           (command (racket--back-end-args->command back-end args))
            (process
             (make-process
              :name            process-name

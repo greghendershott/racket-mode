@@ -465,6 +465,26 @@ a possibly slow remote connection."
                  tramp-dir)))
     remote-source-dir))
 
+(defun racket--back-end-args->command (back-end racket-command-args)
+  "Given RACKET-COMMAND-ARGS, prepend path to racket for BACK-END."
+  (if (racket--back-end-local-p back-end)
+      `(,(executable-find racket-program)
+        ,@racket-command-args)
+    (pcase-let ((`(,host ,user ,port)
+                 (racket--back-end-host+user+port back-end)))
+      `("ssh"
+        ,@(when port
+            `("-p" ,(format "%s" port)))
+        ,(if user
+             (format "%s@%s"
+                     user
+                     host)
+           host)
+        ,(or (plist-get back-end :racket-program)
+             racket-program)
+        ,@racket-command-args))))
+
+
 (provide 'racket-back-end)
 
 ;; racket-back-end.el ends here

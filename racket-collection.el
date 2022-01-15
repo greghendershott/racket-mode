@@ -17,6 +17,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'tq)
+(require 'racket-back-end)
 (require 'racket-repl)
 (require 'racket-custom) ;for `racket-program'
 (require 'racket-util)
@@ -81,29 +82,14 @@
 
 (defun racket--orp/make-process ()
   "Start process to run find-module-path-completions.rkt."
-  (let* ((name    "racket-find-module-path-completions")
-         (back-end (racket-back-end))
-         (local-p (racket--back-end-local-p back-end))
-         (rkt     (expand-file-name "find-module-path-completions.rkt"
-                                    (if local-p
-                                        racket--rkt-source-dir
-                                      (plist-get back-end :remote-source-dir))))
-         (command (list (or (plist-get back-end :racket-program)
-                            racket-program)
-                        rkt))
-         (command (if local-p
-                      command
-                    (pcase-let ((`(,host ,user ,port)
-                                 (racket--back-end-host+user+port back-end)))
-                        `("ssh"
-                          ,@(when port
-                              `("-p" ,(format "%s" port)))
-                          ,(if user
-                               (format "%s@%s"
-                                       user
-                                       host)
-                             host)
-                          ,@command)))))
+  (let* ((back-end  (racket-back-end))
+         (name      (concat "racket-find-module-path-completions-"
+                            (racket-back-end-name back-end)))
+         (rkt-file  (expand-file-name "find-module-path-completions.rkt"
+                                      (if (racket--back-end-local-p back-end)
+                                          racket--rkt-source-dir
+                                        (plist-get back-end :remote-source-dir))))
+         (command (racket--back-end-args->command back-end (list rkt-file))))
     (make-process :name            name
                   :connection-type 'pipe
                   :noquery         t
