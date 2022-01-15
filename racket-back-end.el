@@ -33,13 +33,13 @@
 ;; giving non-command-response notifications (logging, debugging),
 ;; which is handled in racket-cmd.el. The back end also accepts
 ;; connections on a TCP port for one or more REPL sessions, which is
-;; handled in racket-repl.el
+;; handled in racket-repl.el.
 ;;
 ;; When some buffer needs a back end, which back end does it use?
 ;; That's the concern of the back end configuration code in this file.
 
 ;; Commands that create buffers that do not visit a file should use
-;; (racket-back-end-name) as a suffix in the buffer name -- enabling a
+;; `racket-back-end-name' as a suffix in the buffer name -- enabling a
 ;; unique buffer per back end as well as making it easy for users to
 ;; distinguish them. See the source for `racket-describe-mode' as an
 ;; example.
