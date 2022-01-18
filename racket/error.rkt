@@ -13,27 +13,24 @@
          "stack-checkpoint.rkt"
          "util.rkt")
 
-(provide make-error-display-handler
+(provide racket-mode-error-display-handler
          prevent-path-elision-by-srcloc->string)
 
 (module+ test
   (require rackunit))
 
-(define (make-error-display-handler)
-  (define out (current-output-port))
-  (define (racket-mode-error-display-handler str v)
-   (parameterize ([current-output-port out])
-     (cond [(exn? v)
-            (unless (equal? "Check failure" (exn-message v)) ;rackunit check fails
-              (display-commented (complete-paths
-                                  (undo-path->relative-string/library str)))
-              (display-srclocs v)
-              (unless (exn:fail:user? v)
-                (display-context v))
-              (maybe-suggest-packages v))]
-           [else
-            (display-commented str)])))
-  racket-mode-error-display-handler)
+(define (racket-mode-error-display-handler str v)
+  (parameterize ([current-output-port (current-error-port)])
+    (cond [(exn? v)
+           (unless (equal? "Check failure" (exn-message v)) ;rackunit check fails
+             (display-commented (complete-paths
+                                 (undo-path->relative-string/library str)))
+             (display-srclocs v)
+             (unless (exn:fail:user? v)
+               (display-context v))
+             (maybe-suggest-packages v))]
+          [else
+           (display-commented str)])))
 
 ;;; srclocs
 
