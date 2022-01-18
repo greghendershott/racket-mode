@@ -18,6 +18,7 @@
 
 ;;; Back end: configuration
 
+(require 'cl-macs)
 (require 'racket-custom)
 (require 'racket-util)
 (require 'subr-x)
@@ -58,31 +59,43 @@
 ;; pieces, only 'localname (and perhaps 'user?) are reliable at least
 ;; in Emacs 25. Instead see `racket--back-end-host+user+port'.
 
+;; Note that we disregard the tramp method (if any) for both
+;; `default-directory' and the :directory item for back end
+;; configurations. The user may have used methods like ssh, sshx, scp,
+;; scpx, or rsync with `find-file', and of course tramp will use those
+;; for file transfers for those buffers. But in all cases our back end
+;; process is started using ssh. Example: If the user has one buffer
+;; with ssh method but another buffer with scp method, for the same
+;; host, we do /not/ want two different back ends on that same host,
+;; solely due to those differing methods; nor do we want the user to
+;; need to configure both.
+
 (defvar racket-back-end-configurations nil
   "A list of property lists, each of which has a unique :directory.
 
-Instead of modifying this directly, use `racket-add-back-end' and
-`racket-remove-back-end'.")
+Instead of modifying this directly, users should
+`racket-add-back-end' and `racket-remove-back-end'.")
 
 (defun racket-back-end ()
   "Return a back end configuration plist for current buffer.
 
 If a configuration does not already exist, automatically add
-one."
-  (or (cl-find default-directory
-               racket-back-end-configurations
-               ;; This relies on `racket-add-back-end' keeping the
-               ;; list sorted from longest to shortest :directory
-               ;; patterns.
-               :test (lambda (path plist)
-                       (let* ((directory (plist-get plist :directory))
-                              (regexp (concat "^" (regexp-quote directory))))
-                         (and (string-match-p regexp path)
-                              (equal (file-remote-p path)
-                                     (file-remote-p directory))))))
-      (racket-add-back-end (if-let (str (file-remote-p default-directory))
-                               (substring-no-properties str)
-                             "/"))))
+one for \"/\" on the host/user/port."
+  (let ((default-directory (racket--file-name-sans-remote-method default-directory)))
+    (or (cl-find default-directory
+                 racket-back-end-configurations
+                 :test
+                 (lambda (dd back-end)
+                   ;; This assumes `racket-add-back-end' keeps the
+                   ;; list sorted from longest to shortest :directory
+                   ;; patterns.
+                   (string-match-p (concat "^"
+                                           (regexp-quote
+                                            (plist-get back-end :directory)))
+                                   dd)))
+        (racket-add-back-end (if-let (str (file-remote-p default-directory))
+                                 (substring-no-properties str)
+                               "/")))))
 
 (defun racket-add-back-end (directory &rest plist)
   "Add a description of a Racket Mode back end.
@@ -100,13 +113,19 @@ buffer.
 
 DIRECTORY can be a local directory like \"/\" or
 \"/path/to/project\", or a `file-remote-p' directory like
-\"/ssh:user@host:\" or \"/ssh:user@host:/path/to/project\".
+\"/user@host:\" or \"/user@host:/path/to/project\".
+
+Note that you need not include a method -- such as the \"ssh\" in
+\"/ssh:user@host:\" -- and if you do it is stripped: A back end
+process is always started using SSH. Even if multiple buffers for
+the same user+host+port use different methods, they will share
+the same back end.
 
 Practically speaking, DIRECTORY is a path you could give to
-`find-file' to successfully find some local or remote file. (Some
-remote file shorthand forms get expanded to at least
-\"/ssh:host:\". When in doubt check `buffer-file-name' and follow
-its example.)
+`find-file' to successfully find some local or remote file, but
+omitting any method. (Some remote file shorthand forms get
+expanded to at least \"/method:host:\". When in doubt check
+`buffer-file-name' and follow its example.)
 
 In addition to being used as a pattern to pick a back end for a
 buffer, DIRECTORY determines:
@@ -229,6 +248,7 @@ are a few examples.
   (unless (and (stringp directory) (file-name-absolute-p directory))
     (error "racket-add-back-end: directory must be file-name-absolute-p"))
   (let* ((local-p (not (file-remote-p directory)))
+         (directory (racket--file-name-sans-remote-method directory))
          (plist
           (list
            :directory            directory
@@ -296,28 +316,54 @@ by \"id\" instead of by value."
 (defun racket--back-end-process-name-stderr (&optional back-end)
   (concat (racket--back-end-process-name back-end) "-stderr"))
 
-(defun racket--back-end-host+user+port (back-end)
+(defun racket--file-name->host+user+port+name (file-name)
   "Although it would be wonderful simply to use `file-remote-p',
 it is unreliable for 'host or 'port, at least on Emacs 25.
 Instead need the following."
-  (let* ((file-name (plist-get back-end :directory))
-         (tfns (and (tramp-tramp-file-p file-name)
+  (let* ((tfns (and (tramp-tramp-file-p file-name)
                     (tramp-dissect-file-name file-name)))
          (host (or (and tfns
-                        (equal "ssh" (tramp-file-name-method tfns))
                         (if (fboundp 'tramp-file-name-real-host)
                             (tramp-file-name-real-host tfns) ;older tramp
                           (tramp-file-name-host tfns)))
                    "127.0.0.1"))
          (user (and tfns
-                    (equal "ssh" (tramp-file-name-method tfns))
                     (tramp-file-name-user tfns)))
          (port (and tfns
-                    (equal "ssh" (tramp-file-name-method tfns))
                     (let ((p (tramp-file-name-port tfns)))
                       (and (not (equal p 22))
-                           p)))))
-    (list host user port)))
+                           p))))
+         (name (or (and tfns
+                        (tramp-file-name-localname tfns))
+                   file-name)))
+    (list host user port name)))
+
+(defun racket--host+user+port+name->file-name (v)
+  "Like `tramp-make-tramp-file-name' but Emacs version independent."
+  (pcase-let ((`(,host ,user ,port ,localname) v))
+    (let ((port (and port (format "%s" port))))
+      (concat tramp-prefix-format
+              user
+              (unless (zerop (length user))
+                tramp-postfix-user-format)
+              (if (string-match-p tramp-ipv6-regexp host)
+                  (concat
+                   tramp-prefix-ipv6-format host tramp-postfix-ipv6-format)
+                host)
+              (unless (zerop (length port))
+                (concat tramp-prefix-port-format port))
+              tramp-postfix-host-format
+              localname))))
+
+(defun racket--file-name-sans-remote-method (file-name)
+  (if (file-remote-p file-name)
+      (racket--host+user+port+name->file-name
+       (racket--file-name->host+user+port+name
+        file-name))
+    file-name))
+;;(racket--file-name-sans-remote-method "/ssh:host:/path/to/foo.rkt")
+;;(racket--file-name-sans-remote-method "/ssh:user@host:/path/to/foo.rkt")
+;;(racket--file-name-sans-remote-method "/ssh:user@host#123:/path/to/foo.rkt")
 
 (defun racket--back-end-actual-host ()
   "Return actual host name, considering possible ~/.ssh/config HostName.
@@ -327,7 +373,9 @@ in ~/.ssh/config, which has a HostName option that is the actual
 host name. The ssh command of course uses that config so we can
 start a back end process just fine. However `racket-repl-mode'
 needs to open a TCP connection at the same host, and needs this."
-  (let ((host (car (racket--back-end-host+user+port (racket-back-end)))))
+  (pcase-let ((`(,host ,_user ,_port _name)
+               (racket--file-name->host+user+port+name
+                (plist-get (racket-back-end) :directory))))
     (condition-case nil
         (with-temp-buffer
           (insert-file-contents-literally "~/.ssh/config")
@@ -468,10 +516,12 @@ a possibly slow remote connection."
 (defun racket--back-end-args->command (back-end racket-command-args)
   "Given RACKET-COMMAND-ARGS, prepend path to racket for BACK-END."
   (if (racket--back-end-local-p back-end)
-      `(,(executable-find racket-program)
+      `(,(or (plist-get back-end :racket-program)
+             (executable-find racket-program))
         ,@racket-command-args)
-    (pcase-let ((`(,host ,user ,port)
-                 (racket--back-end-host+user+port back-end)))
+    (pcase-let ((`(,host ,user ,port ,_name)
+                 (racket--file-name->host+user+port+name
+                  (plist-get back-end :directory))))
       `("ssh"
         ,@(when port
             `("-p" ,(format "%s" port)))
@@ -481,7 +531,7 @@ a possibly slow remote connection."
                      host)
            host)
         ,(or (plist-get back-end :racket-program)
-             racket-program)
+             racket-program) ;can't use `executable-find' remotely
         ,@racket-command-args))))
 
 

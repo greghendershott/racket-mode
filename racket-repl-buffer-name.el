@@ -16,6 +16,7 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'racket-back-end)
 (require 'racket-custom)
 (require 'racket-repl)
 (require 'racket-util)
@@ -56,7 +57,8 @@ The \"project\" is determined by `racket-project-root'."
   (interactive)
   (setq-local racket-repl-buffer-name
               (format "*Racket REPL <%s>*"
-                      (racket-project-root (racket--buffer-file-name)))))
+                      (racket--file-name-sans-remote-method
+                       (racket-project-root (racket--buffer-file-name))))))
 
 (defun racket-mode-maybe-offer-to-kill-repl-buffer ()
   "Maybe offer to kill a `racket-repl-mode' buffer.
