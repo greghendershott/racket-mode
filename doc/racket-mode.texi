@@ -3064,23 +3064,33 @@ Add a description of a Racket Mode back end.
 
 Racket Mode supports one or more back ends, which are Racket
 processes supporting REPLs as well as various other Racket Mode
-features. This function adds a description of a back end.
+features.
 
 DIRECTORY is a string describing a @code{file-name-absolute-p}
 directory on some local or remote server.
 
-When a back end's DIRECTORY is a prefix of a buffer's
-@code{default-directory}, that back end is used for the buffer.
+When a back end's DIRECTORY is the longest matching prefix of a
+buffer's @code{default-directory}, that back end is used for the
+buffer.
 
 DIRECTORY can be a local directory like ``/'' or
 ``/path/to/project'', or a @code{file-remote-p} directory like
-``/ssh:user@@host:'' or ``/ssh:user@@host:/path/to/project''.
-Basically it is a path you could give to @code{find-file} to
-successfully find some local or remote file. (Some remote file
-shorthand forms get expanded to at least ``/ssh:host:'' -- when
-in doubt check @code{buffer-file-name} and follow its example.)
+``/user@@host:'' or ``/user@@host:/path/to/project''.
 
-DIRECTORY also determines:
+Note that you need not include a method -- such as the ``ssh'' in
+``/ssh:user@@host:'' -- and if you do it is stripped: A back end
+process is always started using SSH. Even if multiple buffers for
+the same user+host+port use different methods, they will share
+the same back end.
+
+Practically speaking, DIRECTORY is a path you could give to
+@code{find-file} to successfully find some local or remote file, but
+omitting any method. (Some remote file shorthand forms get
+expanded to at least ``/method:host:''. When in doubt check
+@code{buffer-file-name} and follow its example.)
+
+In addition to being used as a pattern to pick a back end for a
+buffer, DIRECTORY determines:
 
 @itemize
 @item

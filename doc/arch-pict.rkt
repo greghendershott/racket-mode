@@ -70,7 +70,7 @@
      10
      (colorize
       (box #:inset 5 (text "Commands"))
-      (if (regexp-match? #rx"^/ssh:" path) ssh-color pipe-color))
+      (if (regexp-match? #rx"^/[^:]+:" path) ssh-color pipe-color))
      (vl-append
       4
       (colorize (box #:inset 2 (text "REPL 1"))
@@ -126,12 +126,12 @@
    (scenario '("localhost" "/"))
    (scenario '("localhost" "/" "/path/to/project/"))
    (scenario '("localhost" "/" "/path/to/project/")
-             '("remote" "/ssh:user@remote:/"))
+             '("remote" "/user@remote:/"))
    (scenario '("localhost" "/" "/path/to/project/")
-             '("remote" "/ssh:user@remote:/" "/ssh:user@remote:/path/"))
+             '("remote" "/user@remote:/" "/user@remote:/path/"))
    (scenario '("localhost" "/" "/path/to/project/")
-             '("alpha" "/ssh:user@alpha:/" "/ssh:user@alpha:/path/")
-             '("bravo" "/ssh:user@bravo:/" "/ssh:user@bravo:/path/"))))
+             '("alpha" "/user@alpha:/" "/user@alpha:/path/")
+             '("bravo" "/user@bravo:/" "/user@bravo:/path/"))))
 
 (module+ interactive
   images)
