@@ -372,7 +372,7 @@ See also:
 - `racket-unfold-all-tests'
 "
   (interactive "P")
-  (let ((mod-path (list 'submod (racket--buffer-file-name) 'test))
+  (let ((mod-path (list (racket--buffer-file-name) 'test))
         (buf (current-buffer)))
     (if (not coverage)
         (racket--repl-run mod-path)
@@ -977,7 +977,8 @@ something, regardless of whether it has installed documentation
         (`(,path ,line ,col)
          (list (xref-make str (xref-make-file-location path line col))))))
      (`relative
-      (let ((path (expand-file-name (substring-no-properties str 1 -1))))
+      (let ((path (racket--rkt-or-ss-path
+                   (expand-file-name (substring-no-properties str 1 -1)))))
         (list (xref-make str (xref-make-file-location path 1 0))))))
    (pcase (racket--cmd/await racket--repl-session-id `(def namespace ,str))
      (`(,path ,line ,col)
@@ -1029,8 +1030,9 @@ The command varies based on how many \\[universal-argument] command prefixes you
 
 (defconst racket--compilation-error-regexp-alist
   (list
-   ;; Any apparent file:line[:.]col
-   (list (rx (group-n 1 (+? (not (syntax whitespace))))
+   ;; Any apparent file:line[:.]col optionally prefaced by #<syntax:
+   (list (rx (optional "#<syntax:")
+             (group-n 1 (+? (not (syntax whitespace))))
              ?\:
              (group-n 2 (+ digit))
              (any ?\: ?\.)

@@ -264,7 +264,8 @@ the Racket \"Search Manuals\" page."
 (cl-defmethod xref-backend-definitions ((_backend (eql racket-mode-xref)) str)
   (or (pcase (get-text-property 0 'racket-module-path str)
         (`relative
-         (let ((path (expand-file-name (substring-no-properties str 1 -1))))
+         (let ((path (racket--rkt-or-ss-path
+                      (expand-file-name (substring-no-properties str 1 -1)))))
            (list (xref-make str (xref-make-file-location path 1 0))))))
       (list (xref-make str
                        (xref-make-bogus-location

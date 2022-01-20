@@ -182,8 +182,8 @@
         (parameterize ([current-input-port  in]
                        [current-output-port out]
                        [current-error-port  out])
-          (for ([p (in-list (list in out))])
-            (file-stream-buffer-mode p 'none)) ;would 'line be sufficient?
+          (file-stream-buffer-mode in 'block) ;#582
+          (file-stream-buffer-mode out 'none)
           ;; Immediately after connecting, the client must send us
           ;; exactly the same launch token value that it gave us as a
           ;; command line argument when it started us. Else we close
@@ -232,7 +232,7 @@
   ;; Set current-directory -- but not current-load-relative-directory,
   ;; see #492 -- to the source file's directory.
   (current-directory dir)
-  ;; Make src-loc->string provide full pathnames
+  ;; Make srcloc->string provide full pathnames
   (prevent-path-elision-by-srcloc->string)
   ;; Custodian for the REPL.
   (define repl-cust (make-custodian))
@@ -275,7 +275,7 @@
                         ;; for it to shut down our custodian.
                         [exn?
                          (λ (exn)
-                           (display-exn exn)
+                           ((error-display-handler) (exn-message exn) exn)
                            (channel-put (current-repl-msg-chan)
                                         (struct-copy run-config cfg [maybe-mod #f]))
                            (sync never-evt))])
