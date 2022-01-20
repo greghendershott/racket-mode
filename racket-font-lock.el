@@ -207,7 +207,9 @@
             (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation)))))
        1 font-lock-variable-name-face)
       (,(rx (syntax open-parenthesis)
-            "define-values"
+            (or "define-syntaxes"
+                "define-values"
+                "define-values-for-syntax")
             (1+ space)
             (syntax open-parenthesis)
             (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation) space)))
