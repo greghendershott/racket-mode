@@ -200,9 +200,12 @@ DIRECTORY is local or remote:
 
   When working with back ends on remote hosts, *remember to check
   your remote host firewall*. Your goal is to make sure things
-  work for you --- but only for you. Probably you want the
-  firewall to limit from where it accepts SSH connections on
-  :ssh-port. Also you need the firewall to accept connections on
+  work for you --- but only for you.
+
+  Probably you want the firewall to limit from where it accepts
+  SSH connections.
+
+  Also you need the firewall to accept connections on
   :repl-tcp-port, but again, limiting from where --- either in
   the firewall or by setting :repl-tcp-accept-host to a value
   that is /not/ \"0.0.0.0\".
