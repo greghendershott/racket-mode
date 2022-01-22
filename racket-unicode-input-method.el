@@ -142,7 +142,7 @@ can turn it off by setting `input-method-highlight-flag' to nil."
  ("vee "                ["∨"])
  ("wedge "              ["∧"])
  ("follows "            ["∘"])
- ("in "                 ["∈"])
+ ("setin "              ["∈"])
  ("ni "                 ["∋"])
  ("notin "              ["∉"])
  ("sqsubset "           ["⊏"])
