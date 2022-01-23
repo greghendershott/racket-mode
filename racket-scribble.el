@@ -39,16 +39,18 @@ This will ensure that the non-breaking-space chars actually have
 the effect of being non-breaking.")
 
 (defun racket--scribble-path->shr-dom (path)
-  (let* ((base  (file-name-directory path))
-         (dom   (racket--html-file->dom path))
-         (mains (racket--scribble-main-elements path dom))
-         (dom   (racket--massage-scribble-dom path base mains)))
-    dom))
+  (with-temp-message (format "Getting and formatting documentation %s..."
+                             path)
+    (let* ((tramp-verbose 2) ;avoid excessive messages
+           (base  (file-name-directory path))
+           (dom   (racket--html-file->dom path))
+           (mains (racket--scribble-main-elements path dom))
+           (dom   (racket--massage-scribble-dom path base mains)))
+      dom)))
 
 (defun racket--html-file->dom (path)
   (with-temp-buffer
-    (let ((tramp-verbose 2)) ;avoid excessive messages
-      (insert-file-contents-literally path))
+    (insert-file-contents-literally path)
     (libxml-parse-html-region (point-min) (point-max))))
 
 (defun racket--scribble-main-elements (path dom)
