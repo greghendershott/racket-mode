@@ -230,7 +230,8 @@ mistake."
      (if callback
          (lambda (response)
            (pcase response
-             (`(ok ,v)    (with-current-buffer buf (funcall callback v)))
+             (`(ok ,v)    (when (buffer-live-p buf)
+                            (with-current-buffer buf (funcall callback v))))
              (`(error ,m) (message "%s" m))
              (`(break)    nil)
              (v           (let ((print-length nil) ;for %S

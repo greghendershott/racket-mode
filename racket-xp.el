@@ -868,9 +868,10 @@ and might miss a change from before they even started completion
 -- which is not great, but is better than making a mistake
 rescheduling an idle-timer with an amount <= the amount of idle
 time that has already elapsed: see #504."
-  (with-current-buffer buffer
-    (unless (racket--xp-completing-p)
-      (racket--xp-annotate))))
+  (when (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (unless (racket--xp-completing-p)
+        (racket--xp-annotate)))))
 
 (defun racket--xp-completing-p ()
   "Is completion underway?
@@ -885,8 +886,9 @@ This is ad hoc and forensic."
   "Call `racket-xp-annotate' in all `racket-xp-mode' buffers."
   (interactive)
   (let ((buffers (seq-filter (lambda (buffer)
-                               (with-current-buffer buffer
-                                 racket-xp-mode))
+                               (when (buffer-live-p buffer)
+                                 (with-current-buffer buffer
+                                   racket-xp-mode)))
                              (buffer-list))))
     (when (y-or-n-p
            (format "Request re-annotation of %s racket-xp-mode buffers?"
