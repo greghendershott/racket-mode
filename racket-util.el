@@ -148,7 +148,9 @@ The \"project\" is determined by trying, in order:
 - `vc-root-dir'
 - `project-current'
 - `file-name-directory'"
-  (let ((dir (file-name-directory file)))
+  (let ((dir (if file
+                 (file-name-directory file)
+               default-directory)))
     (or (and (fboundp 'projectile-project-root)
              (projectile-project-root dir))
         (and (fboundp 'vc-root-dir)
