@@ -244,6 +244,7 @@ property whose value is STRING. The close | syntax is set by
   (setq-local font-lock-comment-start-skip ";+ *")
   ;; -----------------------------------------------------------------
   ;; Indent
+  (setq-local lisp-indent-function #'racket-indent-function)
   (setq-local indent-line-function #'racket-indent-line)
   (setq-local indent-tabs-mode nil)
   ;; -----------------------------------------------------------------
