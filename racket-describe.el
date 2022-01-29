@@ -182,7 +182,8 @@ If `stringp' move to the position after the anchor that is not
 anchor. There could be multiple anchors before some non-anchor
 text. We want point left where `racket-search-describe' can use
 `thing-at-point' to find a symbol."
-  (goto-char
+  (set-window-point ;in case buffer window isnt' selected; #590
+   (get-buffer-window (current-buffer))
    (cond
     ((numberp goto)
      goto)
