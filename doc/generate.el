@@ -121,19 +121,19 @@
                ((and str (pred stringp))
                 (format "** %s\n\n" s))
                ((and sym (pred symbolp))
-                (racket--generate-from-sym-and-keymap
-                 sym racket-mode-map))
+                (racket-generate--command-or-function sym racket-mode-map))
                (`(,sym ,keymap)
-                (racket--generate-from-sym-and-keymap
-                 sym keymap))))
+                (racket-generate--command-or-function sym keymap))))
            racket-generate--commands)))
 
-(defun racket--generate-from-sym-and-keymap (sym keymap)
+(defun racket-generate--command-or-function (sym keymap)
   (unless (fboundp sym)
     (error "not defined %s" sym))
   (concat (format "*** %s\n" sym)
-          (and (interactive-form sym)
-               (racket-generate--bindings-as-kbd sym keymap))
+          (if keymap
+              (when (interactive-form sym)
+                (racket-generate--bindings-as-kbd sym keymap))
+            (format "~%s~\n" (cons sym (help-function-arglist sym))))
           "\n\n"
           (thread-last (or (documentation sym t)
                            "No documentation.\n\n")
@@ -172,11 +172,7 @@
                ((and str (pred stringp))
                 (format "** %s\n\n" s))
                ((and sym (pred symbolp))
-                (racket--generate-from-sym-and-keymap
-                 sym racket-mode-map))
-               (`(,sym ,keymap)
-                (racket--generate-from-sym-and-keymap
-                 sym keymap))))
+                (racket-generate--command-or-function sym nil))))
            racket-generate--configuration-functions)))
 
 ;;; Variables
@@ -398,22 +394,24 @@
 (defun racket-generate--bracket-command (keymap str)
   ;; \\[COMMAND] stands for a key sequence that will invoke COMMAND,
   ;; or ‘M-x COMMAND’ if COMMAND has no key bindings.
-  (with-temp-buffer
-    (insert str)
-    (goto-char (point-min))
-    (while (re-search-forward (rx (or (seq ?\\
-                                           ?\[
-                                           (group (+ (or (syntax word)
-                                                         (syntax symbol))))
-                                           ?\])))
-                              nil t)
-      (let ((name (match-string-no-properties 1)))
-        (replace-match "")
-        (insert
-         (if (string-equal name "universal-argument")
-             "{{{kbd(C-u)}}}"
-           (racket-generate--bindings-as-kbd (intern-soft name) keymap)))))
-    (buffer-substring-no-properties (point-min) (point-max))))
+  (if keymap
+      (with-temp-buffer
+        (insert str)
+        (goto-char (point-min))
+        (while (re-search-forward (rx (or (seq ?\\
+                                               ?\[
+                                               (group (+ (or (syntax word)
+                                                             (syntax symbol))))
+                                               ?\])))
+                                  nil t)
+          (let ((name (match-string-no-properties 1)))
+            (replace-match "")
+            (insert
+             (if (string-equal name "universal-argument")
+                 "{{{kbd(C-u)}}}"
+               (racket-generate--bindings-as-kbd (intern-soft name) keymap)))))
+        (buffer-substring-no-properties (point-min) (point-max)))
+    str))
 
 (defun racket-generate--bindings-as-kbd (symbol keymap)
   (let* ((bindings (or (racket-generate--where-is-no-menu symbol keymap)

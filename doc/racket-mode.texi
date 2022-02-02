@@ -2920,6 +2920,9 @@ ignore POS. Examples: @ref{racket-show-echo-area} and
 @node racket-show-pseudo-tooltip
 @subsection racket-show-pseudo-tooltip
 
+@code{(racket-show-pseudo-tooltip str &optional pos)}
+
+
 Show using an overlay that resembles a tooltip.
 
 This is nicer than @ref{racket-show-pos-tip} because it:
@@ -2941,6 +2944,9 @@ any border.
 @node racket-show-echo-area
 @subsection racket-show-echo-area
 
+@code{(racket-show-echo-area str &optional _pos)}
+
+
 Show things in the echo area.
 
 A value for the variable @ref{racket-show-functions}.
@@ -2949,6 +2955,9 @@ This does @emph{not} add STR to the ``@strong{Messages}'' log buffer.
 
 @node racket-show-header-line
 @subsection racket-show-header-line
+
+@code{(racket-show-header-line str &optional _pos)}
+
 
 Show things using a buffer header line.
 
@@ -2961,6 +2970,9 @@ the header line.
 
 @node racket-show-pos-tip
 @subsection racket-show-pos-tip
+
+@code{(racket-show-pos-tip str &optional pos)}
+
 
 Show things using @code{pos-tip-show} if available.
 
@@ -2979,7 +2991,8 @@ A value for the variable @ref{racket-show-functions}.
 @node racket-repl-buffer-name-shared
 @subsection racket-repl-buffer-name-shared
 
-@kbd{M-x}  @code{racket-repl-buffer-name-shared}
+@code{(racket-repl-buffer-name-shared)}
+
 
 All @ref{racket-mode} edit buffers share one @ref{racket-repl-mode} buffer per back end.
 
@@ -2988,7 +3001,8 @@ A value for the variable @ref{racket-repl-buffer-name-function}.
 @node racket-repl-buffer-name-unique
 @subsection racket-repl-buffer-name-unique
 
-@kbd{M-x}  @code{racket-repl-buffer-name-unique}
+@code{(racket-repl-buffer-name-unique)}
+
 
 Each @ref{racket-mode} edit buffer gets its own @ref{racket-repl-mode} buffer.
 
@@ -2997,7 +3011,8 @@ A value for the variable @ref{racket-repl-buffer-name-function}.
 @node racket-repl-buffer-name-project
 @subsection racket-repl-buffer-name-project
 
-@kbd{M-x}  @code{racket-repl-buffer-name-project}
+@code{(racket-repl-buffer-name-project)}
+
 
 All @ref{racket-mode} buffers in a project share a @ref{racket-repl-mode} buffer.
 
@@ -3007,6 +3022,9 @@ The ``project'' is determined by @ref{racket-project-root}.
 
 @node racket-project-root
 @subsection racket-project-root
+
+@code{(racket-project-root file)}
+
 
 Given an absolute pathname for FILE, return its project root directory.
 
@@ -3032,6 +3050,9 @@ The ``project'' is determined by trying, in order:
 
 @node racket-browse-url-using-temporary-file
 @subsection racket-browse-url-using-temporary-file
+
+@code{(racket-browse-url-using-temporary-file url &rest _args)}
+
 
 Browse a URL via a temporary HTML file using a meta redirect.
 
@@ -3059,6 +3080,9 @@ or indeed whatever you want.
 
 @node racket-add-back-end
 @subsection racket-add-back-end
+
+@code{(racket-add-back-end directory &rest plist)}
+
 
 Add a description of a Racket Mode back end.
 
