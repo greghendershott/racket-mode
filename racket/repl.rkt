@@ -182,7 +182,9 @@
         (parameterize ([current-input-port  in]
                        [current-output-port out]
                        [current-error-port  out])
-          (file-stream-buffer-mode in 'block) ;#582
+          (file-stream-buffer-mode in (if (eq? (system-type) 'windows)
+                                          'none
+                                          'block)) ;#582
           (file-stream-buffer-mode out 'none)
           ;; Immediately after connecting, the client must send us
           ;; exactly the same launch token value that it gave us as a
