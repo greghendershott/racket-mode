@@ -17,6 +17,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'shr)
+(require 'subr-x)
 (require 'url-util)
 (require 'tramp)
 

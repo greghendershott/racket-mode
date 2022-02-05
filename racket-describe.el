@@ -35,12 +35,8 @@
 (defvar-local racket--describe-stack-forward nil
   "Forward navigation list. Each item is (cons path point).")
 
-(defun racket--do-describe (how
-                            repl-session-id
-                            str
-                            &optional
-                            pop-to-p)
-  "Get or create a `racket-describe-mode' buffer and return it.
+(defun racket--do-describe (how repl-session-id str)
+  "Get or create a `racket-describe-mode' buffer and display it.
 
 HOW is somewhat complicated, due to this function being
 overloaded to handle both showing documentation for an
@@ -60,12 +56,7 @@ signature and/or type. So:
   the \"describe\" back end command. The command can return a few
   kinds of values; see the implementation below. When HOW is
   'namespace then REPL-SESSION-ID should be
-  `racket--repl-session-id'; else may be nil.
-
-POP-TO-P should be non-nil for use by direct user commands like
-`racket-xp-describe' and `racket-repl-describe': the buffer is
-displayed using `pop-to-buffer'. POP-TO-P should be nil for use
-as a :company-doc-buffer function."
+  `racket--repl-session-id'; else may be nil."
   (let ((buf-name (format "*Racket Describe <%s>*"
                           (racket-back-end-name))))
     (with-current-buffer (get-buffer-create buf-name)
@@ -77,14 +68,12 @@ as a :company-doc-buffer function."
         (erase-buffer))
       ;; shr-insert-document seems to misbehave when buffer has no
       ;; window so do this early.
-      (when pop-to-p
-        (pop-to-buffer (current-buffer)))
+      (pop-to-buffer (current-buffer))
       (pcase how
         ;; If HOW is the doc path and anchor (the latter can be nil),
         ;; there's no need to issue a back end describe command.
         (`(,(and path (pred stringp)) . ,anchor)
-         (racket--describe-insert-dom pop-to-p
-                                      path
+         (racket--describe-insert-dom path
                                       anchor
                                       (racket--scribble-path->shr-dom path)))
         ;; If HOW is a string pathname or 'namspace, then we need to
@@ -103,26 +92,22 @@ as a :company-doc-buffer function."
               ;; the case where we knew the path and anchor up-front.
               (`(,(and path (pred stringp)) . ,anchor)
                (let ((path (racket-file-name-back-to-front path)))
-                 (racket--describe-insert-dom pop-to-p
-                                              path
+                 (racket--describe-insert-dom path
                                               anchor
                                               (racket--scribble-path->shr-dom path))))
               ;; STR doesn't have documentation, but it does have a
               ;; signature and/or type, and here is a dom about that
               ;; we can insert.
               (`(shr-dom ,dom)
-               (racket--describe-insert-dom pop-to-p
-                                            nil ;path
+               (racket--describe-insert-dom nil ;path
                                             str ;anchor
                                             dom))
               ;; STR doesn't seem to be an identifier we can describe.
               (`()
-               (racket--describe-insert-dom pop-to-p
-                                            nil ;path
+               (racket--describe-insert-dom nil ;path
                                             str ;anchor
                                             (racket--describe-not-found-dom str)))))))
-        (_ (error "Bad value for `how`: %s" how)))
-      (current-buffer))))
+        (_ (error "Bad value for `how`: %s" how))))))
 
 (defun racket--describe-not-found-dom (str)
   `(div ()
@@ -137,7 +122,7 @@ as a :company-doc-buffer function."
   "The value of the racket-nav element extracted from a page.
 Use `dom-attr' to extract the top, up, prev, next links, if any.")
 
-(defun racket--describe-insert-dom (show-footer-p path goto dom)
+(defun racket--describe-insert-dom (path goto dom)
   "Insert DOM into current buffer, add some buttons, and move point.
 
 GOTO determines where point is moved: If stringp move to that
@@ -171,8 +156,6 @@ anchor. If numberp, move to that position."
     (goto-char (point-min))
     (while (re-search-forward (string racket--scribble-temp-nbsp) nil t)
       (replace-match " " t t))
-    (when show-footer-p
-      (message "Type \"h\" or \"?\" for help"))
     (racket--describe-goto goto)))
 
 (defun racket--describe-goto (goto)
@@ -350,8 +333,7 @@ GOTO is as in `racket--describe-goto'."
                    path)
            'face 'italic))
     (condition-case e
-        (racket--describe-insert-dom t
-                                     path
+        (racket--describe-insert-dom path
                                      goto
                                      (racket--scribble-path->shr-dom path))
       (error
@@ -598,8 +580,7 @@ point if any.
   (racket--do-describe
    (cons path anchor)
    nil
-   term
-   t))
+   term))
 
 (defvar racket-describe-search-mode-map
   (let ((map (racket--easy-keymap-define

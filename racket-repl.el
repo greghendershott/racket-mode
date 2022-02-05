@@ -18,6 +18,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'racket-browse-url)
+(require 'racket-company-doc)
 (require 'racket-complete)
 (require 'racket-describe)
 (require 'racket-doc)
@@ -898,7 +899,7 @@ to supply this quickly enough or at all."
            :company-location #'racket--repl-company-location))))
 
 (defun racket--repl-company-doc-buffer (str)
-  (racket--do-describe 'namespace (racket--repl-session-id) str))
+  (racket--company-doc-buffer 'namespace str))
 
 (defun racket--repl-company-location (str)
   (pcase (racket--cmd/await (racket--repl-session-id)
@@ -980,7 +981,7 @@ something, regardless of whether it has installed documentation
     (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
                                               racket--repl-namespace-symbols)
       ((and (pred stringp) str)
-       (racket--do-describe 'namespace (racket--repl-session-id) str t)))))
+       (racket--do-describe 'namespace (racket--repl-session-id) str)))))
 
 ;;; racket-xref-repl
 

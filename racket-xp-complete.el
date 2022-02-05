@@ -18,6 +18,7 @@
 
 (require 'racket-complete)
 (require 'racket-describe)
+(require 'racket-company-doc)
 
 (defvar racket--xp-binding-completions nil
   "Completion candidates that are bindings.
@@ -113,7 +114,7 @@ that are require transformers."
     (let ((how (racket-how-front-to-back (buffer-file-name))))
       (lambda (str)
         (let ((str (substring-no-properties str)))
-          (racket--do-describe how nil str))))))
+          (racket--company-doc-buffer how str))))))
 
 (provide 'racket-xp-complete)
 

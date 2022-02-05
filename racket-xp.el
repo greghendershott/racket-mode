@@ -368,7 +368,7 @@ press F1 or C-h in its pop up completion list."
        (let ((how (pcase (get-text-property (point) 'racket-xp-doc)
                     (`(,path ,anchor) `(,path . ,anchor))
                     (_                (racket--buffer-file-name)))))
-         (racket--do-describe how nil str t))))))
+         (racket--do-describe how nil str))))))
 
 (defun racket-xp-eldoc-function ()
   "A value for the variable `eldoc-documentation-function'.
