@@ -149,6 +149,10 @@ supplied to it."
       (should (racket-tests/see-back "1\n2\n3\n> "))
       (racket-tests/type&press "\"1\" '2 #(3)" "RET")
       (should (racket-tests/see-back "\"1\"\n2\n'#(3)\n> "))
+      ;; A trailing space should not cause a hang until another
+      ;; expression is entered.
+      (racket-tests/type&press "1 " "RET")
+      (should (racket-tests/see-back "1\n> "))
 
       ;; Smart open bracket
       (let ((typing   "[cond [[values 1] #t] [else #f]]")

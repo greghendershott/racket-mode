@@ -165,22 +165,23 @@ expression/statement."
       (when prefix (process-send-eof proc)))))
 
 (defun racket--repl-complete-sexp-p (proc)
+  "Is there at least one complete sexp at process-mark?"
   (condition-case nil
-      (let* ((beg    (marker-position (process-mark proc)))
-             (end    (save-excursion
-                       (goto-char beg)
-                       (forward-list 1) ;scan-error unless complete sexp
-                       (point)))
-             (blankp (save-excursion
-                       (save-match-data
-                         (goto-char beg)
-                         (equal end
-                                (re-search-forward (rx (1+ (or (syntax whitespace)
-                                                               (syntax comment-start)
-                                                               (syntax comment-end))))
-                                                   end
-                                                   t))))))
-        (not (or (equal beg end) blankp)))
+      (let* ((beg (marker-position (process-mark proc)))
+             (end (save-excursion
+                    (goto-char beg)
+                    ;; This will scan-error unless complete sexp, or
+                    ;; all whitespace.
+                    (forward-list 1)
+                    (point))))
+        (not (or (equal beg end) ;nothing
+                 (string-match-p ;something but all whitespace
+                      (rx bos
+                          (1+ (or (syntax whitespace)
+                                  (syntax comment-start)
+                                  (syntax comment-end)))
+                          eos)
+                      (buffer-substring beg end)))))
     (scan-error nil)))
 
 (defun racket-repl-break ()
