@@ -5,7 +5,6 @@
          racket/contract/base
          racket/contract/option
          racket/match
-         racket/set
          syntax-color/token-tree
          syntax-color/paren-tree
          (only-in syntax-color/lexer-contract dont-stop)
