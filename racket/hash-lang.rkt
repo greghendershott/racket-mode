@@ -645,7 +645,10 @@
                                 direction
                                 comments?)]
               [else position])]
-           [#f position])]))))
+           [#f position])]))
+
+    (define/public (get-regions)
+      '((0 end)))))
 
 (define default-lexer (waive-option module-lexer*))
 (define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
