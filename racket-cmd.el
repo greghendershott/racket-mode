@@ -27,11 +27,6 @@
 (declare-function  racket--hash-lang-on-notify "racket-hash-lang" (id v))
 (autoload         'racket--hash-lang-on-notify "racket-hash-lang")
 
-(defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
-  "A hash from nonce to callback function.")
-(defvar racket--cmd-nonce 0
-  "Number that increments for each command request we send.")
-
 ;;;###autoload
 (defvar racket-start-back-end-hook nil
   "Hook run after `racket-start-back-end' finishes successfully.")
