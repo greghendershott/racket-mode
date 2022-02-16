@@ -22,6 +22,7 @@
 (require 'racket-custom)
 (require 'racket-repl)
 (require 'racket-util)
+(require 'racket-back-end)
 
 ;; Need to define this before racket-stepper-mode
 (defvar racket-stepper-mode-map

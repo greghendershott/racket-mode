@@ -128,6 +128,9 @@
     ["Start Faster" racket-mode-start-faster]
     ["Customize..." customize-mode]))
 
+(declare-function racket-call-racket-repl-buffer-name-function "racket-repl-buffer-name" ())
+(autoload        'racket-call-racket-repl-buffer-name-function "racket-repl-buffer-name")
+
 ;;;###autoload
 (define-derived-mode racket-mode prog-mode
   "Racket"

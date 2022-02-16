@@ -29,6 +29,7 @@
 (require 'racket-util)
 (require 'racket-visit)
 (require 'racket-cmd)
+(require 'racket-back-end)
 (require 'comint)
 (require 'compile)
 (require 'easymenu)
@@ -37,6 +38,9 @@
 (require 'rx)
 (require 'xref)
 (require 'semantic/symref/grep)
+
+(defvar racket--back-end-auth-token)
+(declare-function  racket--what-to-run-p "racket-common" (v))
 
 ;; Don't (require 'racket-debug). Mutual dependency. Instead:
 (declare-function  racket--debug-send-definition "racket-debug" (beg end))

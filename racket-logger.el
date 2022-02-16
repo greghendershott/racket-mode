@@ -20,6 +20,7 @@
 (require 'rx)
 (require 'racket-custom)
 (require 'racket-repl)
+(require 'racket-back-end)
 
 ;; Need to define this before racket-logger-mode
 (defvar racket-logger-mode-map

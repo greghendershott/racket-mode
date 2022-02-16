@@ -24,6 +24,7 @@
 (require 'racket-visit)
 (require 'racket-scribble)
 (require 'racket-browse-url)
+(require 'racket-back-end)
 ;; Don't (require 'racket-repl). Mutual dependency. Instead:
 (declare-function 'racket--repl-session-id "racket-repl")
 (autoload         'racket--repl-session-id "racket-repl")

@@ -20,6 +20,7 @@
 (require 'racket-cmd)
 (require 'racket-custom)
 (require 'racket-util)
+(require 'racket-back-end)
 (declare-function racket--repl-session-id "racket-repl.el" ())
 
 (defun racket--doc-assert-local-back-end ()
