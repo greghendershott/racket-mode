@@ -33,7 +33,7 @@
 (require 'seq)
 (require 'xref)
 
-(declare-function racket-complete-at-point "racket-mode.el")
+(declare-function racket-complete-at-point "racket-edit.el")
 
 ;; TODO: Expose as a defcustom? Or even as commands to turn on/off?
 ;; Also note there are really 3 categories here: 'local 'import

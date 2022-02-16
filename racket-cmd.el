@@ -29,7 +29,7 @@
 (declare-function  racket--debug-on-break "racket-debug" (response))
 (autoload         'racket--debug-on-break "racket-debug")
 
-(declare-function  racket--logger-on-notify "racket-logger" (str))
+(declare-function  racket--logger-on-notify "racket-logger" (back-end-name str))
 (autoload         'racket--logger-on-notify "racket-logger")
 
 ;;;###autoload
