@@ -277,8 +277,11 @@ the Racket \"Search Manuals\" page."
 ;;; Commands that predate `racket-xp-mode'
 
 (defun racket-doc ()
-  "Instead please use `racket-documentation-search', `racket-xp-documentation' or `racket-repl-documentation'.
-See: <https://github.com/greghendershott/racket-mode/issues/439>"
+  "This command is obsolete.
+
+Instead please use `racket-documentation-search',
+`racket-xp-documentation' or `racket-repl-documentation'. See:
+<https://github.com/greghendershott/racket-mode/issues/439>"
   (interactive)
   (describe-function 'racket-doc))
 
