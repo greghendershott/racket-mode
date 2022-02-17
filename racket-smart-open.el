@@ -231,9 +231,9 @@ See `racket-smart-open-bracket-mode'."
 
 (eval-after-load 'paredit
   '(progn
-     (declare-function paredit-open-round  'paredit)
-     (declare-function paredit-open-square 'paredit)
-     (declare-function paredit-open-curly  'paredit)
+     (declare-function paredit-open-round  "paredit" (&optional N) t)
+     (declare-function paredit-open-square "paredit" (&optional N) t)
+     (declare-function paredit-open-curly  "paredit" (&optional N) t)
      (defun racket--paredit-aware-open (prefix ch)
        "A paredit-aware helper for `racket-smart-open-bracket'.
 

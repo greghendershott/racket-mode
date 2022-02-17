@@ -32,7 +32,12 @@ elc-files := $(patsubst %.el,%.elc,$(wildcard *.el))
 clean:
 	-rm $(elc-files) 2> /dev/null
 
-compile: $(elc-files)
+compile: check-declares $(elc-files)
+
+check-declares:
+	$(batch-emacs) \
+      -l check-declare \
+      --eval '(unless (eq system-type (quote windows-nt)) (when (check-declare-directory default-directory) (kill-emacs 1)))'
 
 # Install Emacs packages we depend on for development and/or testing.
 # Intended to be run once per machine by developers, as well as by CI.
