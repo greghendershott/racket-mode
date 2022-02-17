@@ -18,6 +18,7 @@
 
 (require 'racket-custom)
 (require 'racket-cmd)
+(require 'racket-back-end)
 
 (defun racket-browse-url (url &rest args)
   (when url

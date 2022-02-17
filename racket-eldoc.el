@@ -17,6 +17,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'racket-cmd)
+(require 'racket-back-end)
 
 (defun racket--do-eldoc (how repl-session-id)
   (and (racket--cmd-open-p)

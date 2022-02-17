@@ -18,6 +18,7 @@
 
 (require 'shr)
 (require 'racket-describe)
+(require 'racket-back-end)
 
 (defun racket--company-doc-buffer (how str)
   (pcase (racket--cmd/await (racket--repl-session-id)
@@ -44,6 +45,7 @@
            (mains (racket--scribble-mains-for-anchor mains anchor))
            (dom   `(div () ,@mains))
            (dom   (racket--walk-dom dom)))
+      (ignore tramp-verbose)
       (save-excursion
         (let ((shr-use-fonts nil)
               (shr-external-rendering-functions `((span . ,#'racket-render-tag-span)))

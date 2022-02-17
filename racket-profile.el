@@ -18,6 +18,7 @@
 
 (require 'racket-repl)
 (require 'racket-util)
+(require 'racket-back-end)
 
 (defvar-local racket--profile-project-root nil)
 (defvar-local racket--profile-results nil)
