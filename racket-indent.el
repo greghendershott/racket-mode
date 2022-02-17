@@ -39,11 +39,11 @@
 ;; indent, not ours. To address this, advise those two functions to do
 ;; the right thing when one of our major modes is active.
 (defun racket--lisp-indent-line-advice (orig &rest args)
-  "When `racket--mode-edits-racket-p' instead use the variable `indent-line-function'."
+  "If `racket--mode-edits-racket-p' use the variable `indent-line-function'."
   (apply (if (racket--mode-edits-racket-p) indent-line-function orig)
          args))
 (defun racket--indent-sexp-advice (orig &rest args)
-  "When `racket--mode-edits-racket-p' instead use `prog-indent-sexp'."
+  "If `racket--mode-edits-racket-p' use `prog-indent-sexp'."
   (apply (if (racket--mode-edits-racket-p) #'prog-indent-sexp orig)
          args))
 (advice-add 'lisp-indent-line :around #'racket--lisp-indent-line-advice)
