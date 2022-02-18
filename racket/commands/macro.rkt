@@ -158,7 +158,9 @@
   (define after-file  (make-temporary-file-with-text after-text))
   (define out (open-output-string))
   (begin0 (parameterize ([current-output-port out])
-            (system (format "diff -U ~a ~a ~a" -U before-file after-file))
+            (if (eq? (system-type) 'windows)
+                (system (format "diff --strip-trailing-cr -U ~a ~a ~a" -U before-file after-file))
+                (system (format "diff -U ~a ~a ~a" -U before-file after-file)))
             (match (get-output-string out)
               ["" " <empty diff>\n"]
               [(pregexp "\n(@@.+@@\n.+)$" (list _ v)) v]))
