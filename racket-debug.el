@@ -81,7 +81,7 @@ to `racket-file-name-front-to-back'.")
 ;;;###autoload
 (defun racket--debug-on-break (response)
   (pcase response
-    (`((,src . ,pos) ,positions ,locals ,vals)
+    (`((,src . ,pos) ,breakable-positions ,locals ,vals)
      (let ((src (racket-file-name-back-to-front src)))
        (pcase (find-buffer-visiting src)
          (`nil (other-window 1) (find-file src))
@@ -91,7 +91,11 @@ to `racket-file-name-front-to-back'.")
          (`(,_id before)          (message "Break before expression"))
          (`(,_id after (,_ . ,s)) (message "Break after expression: (values %s"
                                            (substring s 1))))
-       (setq racket--debug-break-positions positions)
+       (setq racket--debug-break-positions
+             (mapcar (lambda (path+positions)
+                       (cons (racket-file-name-back-to-front (car path+positions))
+                             (cdr path+positions)))
+                     breakable-positions))
        (setq racket--debug-break-locals locals)
        (setq racket--debug-break-info vals)
        (racket-debug-mode 1)))))
