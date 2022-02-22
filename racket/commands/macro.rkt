@@ -157,13 +157,19 @@
   (define before-file (make-temporary-file-with-text before-text))
   (define after-file  (make-temporary-file-with-text after-text))
   (define out (open-output-string))
-  (begin0 (parameterize ([current-output-port out])
-            (system (format "diff -U ~a ~a ~a" -U before-file after-file))
-            (match (get-output-string out)
-              ["" " <empty diff>\n"]
-              [(pregexp "\n(@@.+@@\n.+)$" (list _ v)) v]))
-    (delete-file before-file)
-    (delete-file after-file)))
+  (dynamic-wind
+    void
+    (λ ()
+      (parameterize ([current-output-port out])
+        (system (format "diff -U ~a ~a ~a" -U before-file after-file))
+        (match (regexp-replace* #rx"\r\n" ;#598
+                                (get-output-string out)
+                                "\n")
+          ["" " <empty diff>\n"]
+          [(pregexp "\n(@@.+@@\n.+)$" (list _ v)) v])))
+    (λ ()
+      (delete-file before-file)
+      (delete-file after-file))))
 
 (define (pretty-format-syntax stx)
   (pretty-format #:mode 'write (syntax->datum stx)))
