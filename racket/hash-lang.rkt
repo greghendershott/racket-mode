@@ -274,7 +274,7 @@
         (on-changed-lang-info gen new-lang-info))
       lexer-changed?)
 
-    (define/private (update-tokens-and-parens pos diff)
+    (define/private (update-tokens-and-parens edit-pos diff)
       ;; Determine the position from which we need to start
       ;; re-tokenizing (this will be less than the edit position) and
       ;; the initial lexer mode.
@@ -282,14 +282,18 @@
         (with-semaphore tokens-sema
           ;; Find beginning of the token, if any, corresponding to the
           ;; edit position.
+          ;;
+          ;; An update at the end can result in token-ref returning #f
+          ;; so make an initial adjustment of edit-pos to give to
+          ;; token-ref.
+          (send tokens search! edit-pos)
+          (define pos (send tokens get-root-start-position))
           (match (token-ref pos)
-            [#f (values min-position #f)]
             [(list beg _end (struct* data ([backup backup])))
              ;; Initially back up by at least 1 (i.e. to the previous
              ;; token) or by this token's `backup` amount.
              (let loop ([pos (- beg (max 1 backup))])
                (match (token-ref pos)
-                 [#f (values min-position #f)]
                  [(list beg _end (struct* data ([backup backup])))
                   (if (< 0 backup)
                       (loop (- beg backup))
@@ -298,9 +302,11 @@
                       ;; with a token is state with which to read the
                       ;; _next_ token.)
                       (match (token-ref (sub1 beg))
-                        [#f (values beg #f)]
                         [(list _beg _end (struct* data ([mode mode])))
-                         (values beg mode)]))]))])))
+                         (values beg mode)]
+                        [#f (values beg #f)]))]
+                 [#f (values min-position #f)]))]
+            [#f (values min-position #f)])))
       ;; Everything before this is valid; allow other threads to
       ;; progress thru that position of this generation.
       (set-update-progress #:position (sub1 initial-pos))
