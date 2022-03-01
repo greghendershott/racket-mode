@@ -192,6 +192,7 @@ the `comint-preoutput-filter-functions' list."
   (propertize str 'field 'output))
 
 (defun racket--hash-lang-after-change-hook (beg end len)
+  ;;;(message "racket--hash-lang-after-change-hook %s %s %s" beg end len)
   ;; This might be called as frequently as once per single changed
   ;; character.
   (racket--cmd/async
@@ -270,6 +271,7 @@ We do /not/ get notified when a new lang uses exactly the same
 attributes as the old one. For example changing from #lang racket
 to #lang racket/base will /not/ notify us, because none of the
 lang's attributes that care about have changed."
+  ;;;(message "racket--hash-lang-on-new-lang %s" plist)
   (with-silent-modifications
     (save-restriction
       (widen)
@@ -307,7 +309,7 @@ lang's attributes that care about have changed."
                           (when (plist-get plist 'range-indenter) "⇉"))))))
 
 (defun racket--hash-lang-on-update (_gen beg end)
-  ;;;(message "update %s %s %s" _gen beg end)
+  ;;;(message "racket--hash-lang-on-update %s %s %s" _gen beg end)
   (with-silent-modifications
     (save-restriction
       (widen)
