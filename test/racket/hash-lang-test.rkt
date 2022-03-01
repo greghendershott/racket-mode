@@ -520,6 +520,18 @@
                   (send t paragraph-end-position para)
                   (format "paragraph-end-position ~v in ~a" para what)))
 
+  ;; Test that the classifications -- token spans and contents -- are
+  ;; identical.
+  (let loop ([pos 0])
+    (define-values (o-beg o-end) (send o get-token-range pos))
+    (define-values (t-beg t-end) (send t get-token-range pos))
+    (check-equal? o-beg t-beg)
+    (check-equal? o-end t-end)
+    (check-equal? (send o classify-position* o-beg)
+                  (send t classify-position* t-beg))
+    (when (< o-end (send o last-position))
+      (loop o-end)))
+
   (when check-motion?
     ;; Test that our implementations of {forward backward}-match and
     ;; backward-containing-sexp are equivalent to those of
