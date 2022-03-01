@@ -635,38 +635,52 @@
   (void))
 
 ;; Provenance: framework/mred/private/snipfile.rkt
-(require (only-in racket/port make-input-port/read-to-peek))
+(require (only-in racket/port make-input-port/read-to-peek)
+         (only-in racket/match match))
 (define (open-input-text t [start 0])
   (unless (text-lines? t)
     (raise-argument-error 'open-input-text "text-lines?" t))
   (unless (exact-nonnegative-integer? start)
     (raise-argument-error 'open-input-text "exact-nonnegative-integer?" start))
-  (define end (text-length t))
   (define-values (pipe-r pipe-w) (make-pipe))
   (define in (make-input-port/read-to-peek
               t
-              (lambda (s)
-                (let ([v (read-bytes-avail!* s pipe-r)])
-                  (if (eq? v 0)
-                      (let ([n (min 4096 (- end start))])
-                        (if (zero? n)
-                            (begin
-                              (close-output-port pipe-w)
-                              eof)
-                            (begin
-                              (write-string (get-text t start (+ start n)) pipe-w)
-                              (set! start (+ start n))
-                              (let ([ans (read-bytes-avail!* s pipe-r)])
-                                ans))))
-                      v)))
-              (lambda (s skip general-peek)
-                (let ([v (peek-bytes-avail!* s skip #f pipe-r)])
-                  (if (eq? v 0)
-                      (general-peek s skip)
-                      v)))
+              ;; read-in
+              (let ([beg start])
+                (λ (s)
+                  (match (read-bytes-avail!* s pipe-r)
+                    [0
+                     (match (min (- (text-length t) beg) 4096)
+                       [0
+                        (close-output-port pipe-w)
+                        eof]
+                       [amt
+                        (define end (+ beg amt))
+                        (write-string (get-text t beg end) pipe-w)
+                        (set! beg end)
+                        (read-bytes-avail!* s pipe-r)])]
+                    [v v])))
+              ;; fast-peek
+              (λ (s skip general-peek)
+                (match (peek-bytes-avail!* s skip #f pipe-r)
+                  [0 (general-peek s skip)]
+                  [v v]))
+              ;; close
               void))
   (port-count-lines! in) ;important for Unicode e.g. λ
-  ;; Set position, which is 1-based. Lazy: Line and column are N/A and
-  ;; always set to 1 and 0.
-  (set-port-next-location! in 1 0 (add1 start))
+  (set-port-next-location! in 1 0 (add1 start)) ;port pos is 1-based
   in)
+
+(module+ test
+  (require rackunit
+           racket/port)
+  (define len 240000)
+  (define (random-char _ix) (integer->char (+ 32 (random 26))))
+  (define str (list->string (build-list len random-char)))
+  (define text (insert empty 0 str))
+  (let loop ([pos 0])
+    (check-equal? (substring str pos) (get-text text pos))
+    (check-equal? (substring str pos) (port->string (open-input-text text pos)))
+    (define next-pos (+ pos 10000))
+    (when (<  next-pos len)
+      (loop next-pos))))
