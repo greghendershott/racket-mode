@@ -536,7 +536,7 @@
       (lines:get-text content from upto))
 
     (define/public (position-paragraph pos [eol? #f])
-      (lines:position->line content pos))
+      (lines:position->line content (min pos (last-position))))
 
     (define/public (paragraph-start-position para)
       (lines:line->start content (max 0 (min para (lines:text-line-count content)))))
