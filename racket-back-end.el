@@ -520,7 +520,11 @@ a possibly slow remote connection."
   "Given RACKET-COMMAND-ARGS, prepend path to racket for BACK-END."
   (if (racket--back-end-local-p back-end)
       `(,(or (plist-get back-end :racket-program)
-             (executable-find racket-program))
+             (executable-find racket-program)
+             (user-error
+              "Cannot find Racket executable\nracket-program: %S\nexec-path: %S"
+              racket-program
+              exec-path))
         ,@racket-command-args)
     (pcase-let ((`(,host ,user ,port ,_name)
                  (racket--file-name->host+user+port+name
