@@ -1,6 +1,6 @@
 ;;; racket-font-lock.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2021 by Greg Hendershott.
+;; Copyright (c) 2013-2022 by Greg Hendershott.
 
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
@@ -16,6 +16,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'cl-lib)
+(require 'color)
 (require 'racket-custom)
 (require 'racket-keywords-and-builtins)
 (require 'racket-ppss)
@@ -46,17 +47,10 @@
        (2 font-lock-keyword-face nil t)
        (3 font-lock-variable-name-face nil t))
 
-      ;; #; sexp comments
-      ;;
-      ;; We don't put any comment syntax on these -- that way things
-      ;; like indent and nav work within the sexp. They are solely
-      ;; font-locked as comments, here.
-      (,#'racket--font-lock-sexp-comments)
-
       ;; #<< here strings
       ;;
       ;; We only handle the opening #<<ID here. The remainder is
-      ;; handled in `racket-font-lock-syntatic-face-function'.
+      ;; handled in `racket-font-lock-syntactic-face-function'.
       (,(rx (group "#<<" (+? (not (any blank ?\n)))) ?\n)
        (1 racket-here-string-face nil t))
     ))
@@ -271,26 +265,37 @@ Note: To the extent you use #lang racket or #typed/racket, this
 may be handy. But Racket is also a tool to make #lang's, and this
 doesn't really fit that.")
 
+(defconst racket-font-lock-keywords-sexp-comments
+  (eval-when-compile
+    `((,#'racket--font-lock-sexp-comments))))
+
 (defconst racket-font-lock-keywords-level-0
-  (append racket-font-lock-keywords-0))
+  (append racket-font-lock-keywords-0
+          racket-font-lock-keywords-sexp-comments))
 
 (defconst racket-font-lock-keywords-level-1
   (append racket-font-lock-keywords-0
-          racket-font-lock-keywords-1))
+          racket-font-lock-keywords-1
+          racket-font-lock-keywords-sexp-comments))
 
 (defconst racket-font-lock-keywords-level-2
   (append racket-font-lock-keywords-0
           racket-font-lock-keywords-1
-          racket-font-lock-keywords-2))
+          racket-font-lock-keywords-2
+          racket-font-lock-keywords-sexp-comments))
 
 (defconst racket-font-lock-keywords-level-3
   (append racket-font-lock-keywords-0
           racket-font-lock-keywords-1
           racket-font-lock-keywords-2
-          racket-font-lock-keywords-3))
+          racket-font-lock-keywords-3
+          racket-font-lock-keywords-sexp-comments))
 
 (defconst racket-font-lock-keywords
-  racket-font-lock-keywords-level-3)
+  (list 'racket-font-lock-keywords-level-0
+        'racket-font-lock-keywords-level-1
+        'racket-font-lock-keywords-level-2
+        'racket-font-lock-keywords-level-3))
 
 (defun racket-font-lock-syntactic-face-function (state)
   (let ((q (racket--ppss-string-p state)))
@@ -337,8 +342,7 @@ of example/example.rkt."
           (dotimes (_ num-prefixes)
             (let ((beg (point)))
               (forward-sexp 1)
-              (racket--region-set-face beg (point)
-                                       'font-lock-comment-face t)
+              (racket--region-transform-faces beg (point) #'racket--sexp-comment-face)
               (forward-comment (buffer-size)))))
         ;; Cover everything from the beginning of the first prefix to
         ;; the end of the last sexp with font-lock-multiline; #443.
@@ -435,6 +439,120 @@ region."
                                 ;;rear-nonsticky (face)
                                 ))))
 
+(defun racket--region-transform-faces (beg end func)
+  (let ((i nil))                        ;make byte-compiler happy
+    (cl-loop for i being the intervals from beg to end
+             do
+             (racket--region-set-face (car i) (cdr i)
+                                      (funcall func
+                                               (or (get-text-property (car i) 'face)
+                                                   'default))
+                                      'force))))
+
+;;; s-expression comment fades
+
+;; Challenges: Emacs doesn't have a face property for alpha
+;; transparency, or even a technique to apply a procedural transform
+;; to an existing face. Furthermore, the user could customize faces
+;; including loading an entire new theme at any time.
+;;
+;; Therefore our approach below:
+;;
+;; The function `racket--sexp-comment-face', given some existing face,
+;; returns the name of a "faded" equivalent face (creating that face
+;; if necessary). The list of non-faded faces for which we've created
+;; faded alternatives, so far, is in the variable
+;; `racket--sexp-commented-faces'. The command
+;; `racket-refresh-sexp-comment-faces' uses that list to update the
+;; specs for the faded faces; it is called automatically after
+;; `load-theme' and after customizing (via the UI) the variable
+;; `racket-sexp-comment-fade'. In other situations the user may need
+;; to run or call `racket-refresh-sexp-comment-faces' manually.
+
+(defvar racket--sexp-commented-faces nil
+  "The list of faces for which we've created faded equivalents.")
+
+(defun racket-refresh-sexp-comment-faces ()
+  "Refresh all alternative \"faded\" faces automatically created so far.
+
+Faces refresh automatically after `load-theme' and after
+customizing the variable `racket-sexp-comment-fade'.
+
+However if you customize a face used in a s-expression comment
+body -- as just one example, the face `font-lock-string-face' --
+you may need to run this command manually to make the faded
+equivalent match."
+  (interactive)
+  (mapc #'racket--sexp-comment-face-spec-set
+        racket--sexp-commented-faces))
+
+(defun racket-sexp-comment-fade-set (sym val)
+  "A target for the :set prop of the variable `racket-sexp-comment-fade'."
+  (unless (and (floatp val) (and (<= 0.0 val) (<= val 1.0)))
+    (user-error "Fade amount must be a float from 0.0 to 1.0 inclusive"))
+  (set sym val)
+  (racket-refresh-sexp-comment-faces))
+
+(defcustom racket-sexp-comment-fade 0.5
+  "How much to fade faces used in s-expression comment bodies.
+
+A number from 0.0 to 1.0, where 0.0 is 0% fade and 1.0 is 100%
+fade (invisible).
+
+This feature works by creating faces that are alternatives for
+faces used in s-expression comments. The alernative faces use a
+faded foreground color. The colors are recalculated automatically
+after you change the value of this customization variable and
+after any `load-theme'. However in other circumstances you might
+need to use `racket-refresh-sexp-comment-faces'."
+  :tag "Racket Sexp Comment Fade"
+  :type 'float
+  :safe t
+  :set #'racket-sexp-comment-fade-set
+  :group 'racket-other)
+
+(defun racket--sexp-comment-face-name (face)
+  (unless (facep face) (error "Not a face name: %s" face))
+  (intern (format "racket--sexp-comment--%s" face)))
+
+(defun racket--sexp-comment-face (face)
+  "Given a `facep' return a possibly different `facep' to use instead."
+  (if (facep face)
+      (let ((sexp-face (racket--sexp-comment-face-name face)))
+        (unless (facep sexp-face) ;create if we haven't yet
+          (racket--sexp-comment-face-spec-set face)
+          (push face racket--sexp-commented-faces))
+        sexp-face)
+    'font-lock-comment-face))
+
+(defun racket--sexp-comment-face-spec-set (face)
+  "Create or refresh a faded variant of FACE."
+  (let* ((fg (if noninteractive "black" (face-foreground face nil 'default)))
+         (bg (if noninteractive "white" (face-background face nil 'default)))
+         (fg-rgb (color-name-to-rgb fg))
+         (bg-rgb (color-name-to-rgb bg))
+         (pct (- 1.0 (color-clamp (or racket-sexp-comment-fade 1.0))))
+         (faded-rgb (cl-mapcar (lambda (fg bg)
+                                 (color-clamp
+                                  (+ (* fg pct)
+                                     (* bg (- 1.0 pct)))))
+                               fg-rgb bg-rgb))
+         (faded (apply #'color-rgb-to-hex faded-rgb))
+         (other-props (apply #'append
+                             (mapcar (pcase-lambda (`(,k . ,v))
+                                       (unless (or (eq k :foreground)
+                                                   (eq k :inherit)
+                                                   (eq v 'unspecified))
+                                         (list k v)))
+                                     (face-all-attributes face))))
+         (spec `((t (:foreground ,faded ,@other-props))))
+         (doc (format "A faded variant of the face `%s'.\nSee the customization variable `racket-sexp-comment-fade'." face))
+         (faded-face-name (racket--sexp-comment-face-name face)))
+    (face-spec-set faded-face-name spec)
+    (set-face-documentation faded-face-name doc)))
+
+(define-advice load-theme (:after (&rest _args) racket-mode)
+  (racket-refresh-sexp-comment-faces))
 
 (provide 'racket-font-lock)
 

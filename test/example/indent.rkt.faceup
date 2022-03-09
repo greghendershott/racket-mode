@@ -299,16 +299,16 @@
 
 «m:;; »«x:Bug #136
 »
-«m:#;»«x:(list 1
-        #;2
-        3)»
+«m:#;»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-builtin-face:list»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-constant-face:1»«:racket--sexp-comment--default:
+        #;»«:racket--sexp-comment--font-lock-constant-face:2»«:racket--sexp-comment--default:
+        »«:racket--sexp-comment--font-lock-constant-face:3»«:racket--sexp-comment--default:)»
 
 («b:list» «c:1»
-      «m:#;»«x:(list 1
-              (let ([x 2]
-                    #;[y 3])
+      «m:#;»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-builtin-face:list»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-constant-face:1»«:racket--sexp-comment--default:
+              (»«:racket--sexp-comment--font-lock-keyword-face:let»«:racket--sexp-comment--default: ([»«:racket--sexp-comment--font-lock-variable-name-face:x»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-constant-face:2»«:racket--sexp-comment--default:]
+                    #;[»«:racket--sexp-comment--font-lock-variable-name-face:y»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-constant-face:3»«:racket--sexp-comment--default:])
                 x)
-              3)»
+              »«:racket--sexp-comment--font-lock-constant-face:3»«:racket--sexp-comment--default:)»
       «c:2»
       «c:3»)
 

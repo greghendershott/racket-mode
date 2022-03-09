@@ -206,6 +206,7 @@
     racket-logger-config
     racket-before-run-hook
     racket-after-run-hook
+    racket-sexp-comment-fade
     "Experimental debugger variables"
     racket-debuggable-files
     "Showing information"

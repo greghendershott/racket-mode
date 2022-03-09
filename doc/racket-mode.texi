@@ -202,6 +202,7 @@ Other variables
 * racket-logger-config::
 * racket-before-run-hook::
 * racket-after-run-hook::
+* racket-sexp-comment-fade::
 
 Experimental debugger variables
 
@@ -2749,6 +2750,7 @@ Use pretty-print instead of print in REPL?
 * racket-logger-config::
 * racket-before-run-hook::
 * racket-after-run-hook::
+* racket-sexp-comment-fade::
 @end menu
 
 @node racket-indent-curly-as-sequence
@@ -2830,6 +2832,21 @@ When hook functions are called, @code{current-buffer} is that of the
 @ref{racket-mode} buffer when the run command was issued. If a hook
 function instead needs the @ref{racket-repl-mode} buffer, it should
 get that from the variable @code{racket-repl-buffer-name}.
+
+@node racket-sexp-comment-fade
+@subsection racket-sexp-comment-fade
+
+How much to fade faces used in s-expression comment bodies.
+
+A number from 0.0 to 1.0, where 0.0 is 0% fade and 1.0 is 100%
+fade (invisible).
+
+This feature works by creating faces that are alternatives for
+faces used in s-expression comments. The alernative faces use a
+faded foreground color. The colors are recalculated automatically
+after you change the value of this customization variable and
+after any @code{load-theme}. However in other circumstances you might
+need to use @code{racket-refresh-sexp-comment-faces}.
 
 @node Experimental debugger variables
 @section Experimental debugger variables

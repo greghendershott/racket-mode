@@ -112,18 +112,18 @@ comment
 
 «x:#|(hello)|#»
 
-«m:#;»«x:(sexpr comment)»
+«m:#;»«:racket--sexp-comment--default:(sexpr comment)»
 
 «m:;; »«x:Nested sexpr comments
 »
 («b:list» «c:2»
-      «m:#;»«x:2»)
+      «m:#;»«:racket--sexp-comment--font-lock-constant-face:2»)
 
 («b:list» «c:1»
-      «m:#;»«x:4»
-      «m:#;»«x:(3)»)
+      «m:#;»«:racket--sexp-comment--font-lock-constant-face:4»
+      «m:#;»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-constant-face:3»«:racket--sexp-comment--default:)»)
 
-(«k:let» («m:#;»«x:[x #;1]»
+(«k:let» («m:#;»«:racket--sexp-comment--default:[»«:racket--sexp-comment--font-lock-variable-name-face:x»«:racket--sexp-comment--default: #;»«:racket--sexp-comment--font-lock-constant-face:1»«:racket--sexp-comment--default:]»
       [«v:y» «c:2»])
   y)
 
@@ -140,19 +140,19 @@ comment
 
 «m:;; »«x:Issue 432
 »
-«m:#;» «m:#;» «x:'comment-me» «x:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
+«m:#;» «m:#;» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
 
-«m:#;#;» «x:'comment-me» «x:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
+«m:#;#;» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
 
-«m:#;» «m:#;» «m:#;» «x:'comment-me» «x:'comment-me» «x:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
+«m:#;» «m:#;» «m:#;» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
 
-«m:#;#;#;» «x:'comment-me» «x:'comment-me» «x:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
+«m:#;#;#;» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
 
 «m:#;» «m:;; »«x:comment
 »«m:;; »«x:comment
 »«m:#;» «x:#| comment |#»
-«x:'comment-me»
-«x:'comment-me»
+«:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me»
+«:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me»
 «:racket-reader-quoted-symbol-face:'but-not-me»
 
 
@@ -163,12 +163,12 @@ asdfasdf
 FOO
 »  )
 
-«m:#;»«x:(define x #<<BAR
+«m:#;»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-keyword-face:define»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-variable-name-face:x»«:racket--sexp-comment--default: »«:racket--sexp-comment--racket-here-string-face:#<<BAR
 asdfasdf
 asdfasdf
 asdfasdf
 BAR
-    )»
+»«:racket--sexp-comment--default:    )»
 
 |identifier with spaces|
 
