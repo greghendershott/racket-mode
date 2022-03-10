@@ -1,6 +1,6 @@
 ;;; racket-hash-lang.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2020-2021 by Greg Hendershott.
+;; Copyright (c) 2020-2022 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -360,7 +360,13 @@ lang's attributes that care about have changed."
               ('sexp-comment ;just the "#;" prefix not following sexp
                (put-stx beg end '(14))  ;generic comment
                (put-face beg end 'font-lock-comment-face))
-              ('sexp-comment-body (put-face beg end 'font-lock-comment-face))
+              ;; Note: This relies on the back end supplying `kinds`
+              ;; with sexp-comment-body last, so that we can modify
+              ;; the face property already set by the previous
+              ;; kind(s).
+              ('sexp-comment-body
+               (put-face beg end (racket--sexp-comment-face
+                                  (get-text-property beg 'face))))
               ('parenthesis (put-face beg end 'parenthesis))
               ('string (put-face beg end 'font-lock-string-face))
               ('text (put-stx beg end racket--hash-lang-plain-syntax-table))
