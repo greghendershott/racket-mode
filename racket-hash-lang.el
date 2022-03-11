@@ -181,17 +181,27 @@ not. Intended as a convenience so users needn't set a
      `(hash-lang delete ,racket--hash-lang-id))
     (setq racket--hash-lang-id nil)))
 
-(defun racket--hash-lang-repl-preoutput-filter-function (str)
-  "Give output a field property.
 
-Our `racket--hash-lang-after-change-hook' and
-`racket--hash-lang-repl-buffer-string' functions need to see
-field properties. Alas `comint-mode' does an `insert' before
-applying any field properties. Fix: Apply them earlier, here.
+(defun racket--hash-lang-find-buffer (id)
+  "Find the buffer whose local value for `racket--hash-lang-id' is ID."
+  (cl-some (lambda (buf)
+             (when (equal id (buffer-local-value 'racket--hash-lang-id buf))
+               buf))
+           (buffer-list)))
 
-Note: This might be unreliable unless it is the last value in
-the `comint-preoutput-filter-functions' list."
-  (propertize str 'field 'output))
+(defconst racket--hash-lang-plain-syntax-table
+  (let ((st (make-syntax-table)))
+    ;; Modify entries for characters for parens, strings, and
+    ;; comments, setting them to word syntax instead. (For the these
+    ;; raw syntax descriptor numbers, see Emacs Lisp Info: "Syntax
+    ;; Table Internals".)
+    (map-char-table (lambda (key value)
+                      (when (memq (car value) '(4 5 7 10 11 12))
+                        (aset st key '(2))))
+                    st)
+    st))
+
+;;; Updates: Front end --> back end
 
 (defun racket--hash-lang-after-change-hook (beg end len)
   ;;;(message "racket--hash-lang-after-change-hook %s %s %s" beg end len)
@@ -208,63 +218,14 @@ the `comint-preoutput-filter-functions' list."
                     (racket--hash-lang-repl-buffer-string beg end)
                   (buffer-substring-no-properties beg end)))))
 
-(defun racket--hash-lang-repl-buffer-string (beg end)
-  "Like `buffer-substring-no-properties' but non-input is whitespace.
-
-A REPL buffer is a \"hopeless\" mix of user input, which we want
-a hash-lang to color and indent, as well as user program output
-and REPL prompts, which we want to ignore. This function replaces
-output with whitespace --- mostly spaces, but preserves newlines
-for the sake of indent alignment. The only portions not affected
-are input --- text that the user has typed or yanked in the REPL
-buffer."
-  (save-restriction
-    (widen)
-    (let ((pos beg)
-          (result-str ""))
-      (while (< pos end)
-        ;; Handle a chunk sharing same field property value.
-        (let* ((chunk-end (min (or (next-single-property-change pos 'field)
-                                   (point-max))
-                               end))
-               (chunk-str (buffer-substring-no-properties pos chunk-end)))
-          ;; Unless input, replace all non-newline chars with spaces.
-          (unless (null (get-text-property pos 'field))
-            (let ((i 0)
-                  (len (- chunk-end pos)))
-              (while (< i len)
-                (unless (eq ?\n (aref chunk-str i))
-                  (aset chunk-str i 32))
-                (setq i (1+ i)))))
-          (setq result-str (concat result-str chunk-str))
-          (setq pos chunk-end)))
-      result-str)))
-
-(defun racket--hash-lang-find-buffer (id)
-  "Find the buffer whose local value for `racket--hash-lang-id' is ID."
-  (cl-some (lambda (buf)
-             (when (equal id (buffer-local-value 'racket--hash-lang-id buf))
-               buf))
-           (buffer-list)))
+;;; Notifications: Front end <-- back end
 
 (defun racket--hash-lang-on-notify (id params)
   (when-let (buf (racket--hash-lang-find-buffer id))
     (with-current-buffer buf
       (pcase params
         (`(lang . ,params)        (racket--hash-lang-on-new-lang params))
-        (`(update ,gen ,beg ,end) (racket--hash-lang-on-update gen beg end))))))
-
-(defconst racket--hash-lang-plain-syntax-table
-  (let ((st (make-syntax-table)))
-    ;; Modify entries for characters for parens, strings, and
-    ;; comments, setting them to word syntax instead. (For the these
-    ;; raw syntax descriptor numbers, see Emacs Lisp Info: "Syntax
-    ;; Table Internals".)
-    (map-char-table (lambda (key value)
-                      (when (memq (car value) '(4 5 7 10 11 12))
-                        (aset st key '(2))))
-                    st)
-    st))
+        (`(update ,gen ,beg ,end) (racket--hash-lang-on-changed-tokens gen beg end))))))
 
 (defun racket--hash-lang-on-new-lang (plist)
   "We get this whenever any #lang supplied attributes have changed.
@@ -310,14 +271,21 @@ lang's attributes that care about have changed."
                           (when (plist-get plist 'racket-grouping) "()")
                           (when (plist-get plist 'range-indenter) "⇉"))))))
 
-(defun racket--hash-lang-on-update (_gen beg end)
-  ;;;(message "racket--hash-lang-on-update %s %s %s" _gen beg end)
+(defun racket--hash-lang-on-changed-tokens (_gen beg end)
+  "The back end has processed a change that resulted in new tokens.
+
+All we do here is mark the span as not fontified, then let the
+usual font-lock machinery do its thing if/when this span ever
+becomes visible."
+  ;;;(message "racket--hash-lang-on-changed-tokens %s %s %s" _gen beg end)
   (with-silent-modifications
     (save-restriction
       (widen)
       (put-text-property beg
                          (min end (point-max))
                          'fontified nil))))
+
+;;; Fontification
 
 (defun racket--hash-lang-font-lock-fontify-region (beg end &optional _loudly)
   ;;;(message "fontify-region %s %s" beg end)
@@ -399,6 +367,55 @@ lang's attributes that care about have changed."
                           (apply #'append
                                  (racket--hash-lang-text-prop-list #'list nil))))
 
+
+;;; Unique to racket-repl-mode
+
+(defun racket--hash-lang-repl-preoutput-filter-function (str)
+  "Give output a field property.
+
+Our `racket--hash-lang-after-change-hook' and
+`racket--hash-lang-repl-buffer-string' functions need to see
+field properties. Alas `comint-mode' does an `insert' before
+applying any field properties. Fix: Apply them earlier, here.
+
+Note: This might be unreliable unless it is the last value in
+the `comint-preoutput-filter-functions' list."
+  (propertize str 'field 'output))
+
+(defun racket--hash-lang-repl-buffer-string (beg end)
+  "Like `buffer-substring-no-properties' but non-input is whitespace.
+
+A REPL buffer is a \"hopeless\" mix of user input, which we want
+a hash-lang to color and indent, as well as user program output
+and REPL prompts, which we want to ignore. This function replaces
+output with whitespace --- mostly spaces, but preserves newlines
+for the sake of indent alignment. The only portions not affected
+are input --- text that the user has typed or yanked in the REPL
+buffer."
+  (save-restriction
+    (widen)
+    (let ((pos beg)
+          (result-str ""))
+      (while (< pos end)
+        ;; Handle a chunk sharing same field property value.
+        (let* ((chunk-end (min (or (next-single-property-change pos 'field)
+                                   (point-max))
+                               end))
+               (chunk-str (buffer-substring-no-properties pos chunk-end)))
+          ;; Unless input, replace all non-newline chars with spaces.
+          (unless (null (get-text-property pos 'field))
+            (let ((i 0)
+                  (len (- chunk-end pos)))
+              (while (< i len)
+                (unless (eq ?\n (aref chunk-str i))
+                  (aset chunk-str i 32))
+                (setq i (1+ i)))))
+          (setq result-str (concat result-str chunk-str))
+          (setq pos chunk-end)))
+      result-str)))
+
+;;; Indent
+
 (defun racket-hash-lang-indent-line-function ()
   "Use drracket:indentation supplied by the lang.
 
@@ -453,6 +470,8 @@ We never use `racket-indent-line' from traditional
               (when (< 0 delete-amount) (delete-char delete-amount))
               (unless (equal "" insert-string) (insert insert-string))
               (end-of-line 2))))))))
+
+;; Motion
 
 (defun racket-hash-lang-move (direction &optional count)
   (let ((count (or count 1)))
