@@ -19,9 +19,10 @@
 ;;
 ;; - Adjust Emacs 1-based positions to/from hash-lang% 0-based.
 ;;
-;; - Handle notifications about changed language and token spans,
-;;   putting to an async channel handled in command-server and up in
-;;   Emacs much like the channels used for logging and debugging.
+;; - Handle notifications about changed languages and tokens, by
+;;   putting values to an async channel that is handled in
+;;   command-server.rkt, and then and up in Emacs, similar to
+;;   notifications used for logging and debugging.
 
 (define-runtime-path hash-lang.rkt "hash-lang.rkt")
 

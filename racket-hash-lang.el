@@ -90,6 +90,7 @@ Output portions are do not; they are treated as whitespace.
       (racket--hash-lang-remove-text-properties (point-min) (point-max))
       (remove-text-properties (point-min) (point-max) 'racket-here-string nil)
       (cond
+       ;; Enable
        (racket-hash-lang-mode
         (setq-local racket--hash-lang-generation 1)
         (electric-indent-local-mode -1)
@@ -112,7 +113,8 @@ Output portions are do not; they are treated as whitespace.
         (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
         (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
         (racket--hash-lang-create))
-       (t                               ;disable
+       ;; Disable
+       (t
         (racket--hash-lang-delete)
         (racket--hash-lang-set/reset racket--hash-lang-changed-vars)
         (remove-hook 'comint-preoutput-filter-functions #'racket--hash-lang-repl-preoutput-filter-function t)
@@ -124,8 +126,8 @@ Output portions are do not; they are treated as whitespace.
         (syntax-ppss-flush-cache (point-min)))))
   (font-lock-flush))
 
-;; Upon enabling or disabling our minor mode, we need to set/restore
-;; quite a few variables. Make this less tedious and error-prone.
+;; Upon enabling/disabling our minor mode, we need to set/reset many
+;; variables. Make this less tedious and error-prone.
 (defun racket--hash-lang-set/reset (specs)
   "Call with SPECS to initially set things.
 Returns new specs to restore the original values. Each spec is
@@ -209,13 +211,13 @@ the `comint-preoutput-filter-functions' list."
 (defun racket--hash-lang-repl-buffer-string (beg end)
   "Like `buffer-substring-no-properties' but non-input is whitespace.
 
-A REPL buffer is a \"hopeless\" mix of user input, which we'd
-like a hash-lang to color and indent, as well as user program
-output and REPL prompts, which should be ignored. This function
-replaces output with whitespace --- mostly spaces, but preserves
-newlines for the sake of indent alignment. The only portions not
-affected are input --- text that the user has typed or yanked in
-the REPL buffer."
+A REPL buffer is a \"hopeless\" mix of user input, which we want
+a hash-lang to color and indent, as well as user program output
+and REPL prompts, which we want to ignore. This function replaces
+output with whitespace --- mostly spaces, but preserves newlines
+for the sake of indent alignment. The only portions not affected
+are input --- text that the user has typed or yanked in the REPL
+buffer."
   (save-restriction
     (widen)
     (let ((pos beg)
