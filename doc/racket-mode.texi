@@ -3205,6 +3205,17 @@ Whether the back end uses Windows style path names. Used to do
 translation betwen slashes and backslashes between the Emacs
 front end (which uses slashes even on Windows) and the Racket
 back end (which expects native backslashes on Windows).
+
+@item
+:restart-watch-directories
+
+A list of @code{directory-name-p} strings. Each directory, and
+recursively its subdirectories, will be watched for file system
+changes. After any changes are detected, the next
+@ref{racket-run} (or @ref{racket-run-module-at-point} etc.) command
+will ask you if it should restart the back end for you. This
+may be helpful when you are changing source files used by the
+back end.
 @end itemize
 
 The default property values are appropriate for whether

@@ -493,6 +493,19 @@ Otherwise if `racket--repl-live-p', send the command."
     (user-error "Only works from a `racket-mode' buffer"))
   (unless (racket--what-to-run-p what)
     (signal 'wrong-type-argument `(racket--what-to-run-p ,what)))
+  (when-let (changes (racket--back-end-watch-read/reset))
+    (when (y-or-n-p (format "Changed: %S -- restart Racket Mode back end %S? "
+                            changes
+                            (racket-back-end-name)))
+      (message "")
+      ;; Starting a new REPL process here seems to be reliable only if
+      ;; we stop the back end and wait for the old REPL process to
+      ;; die.
+      (racket-stop-back-end)
+      (with-temp-message "Waiting for old REPL to terminate..."
+        (while (racket--repl-live-p)
+          (accept-process-output)))
+      (racket-start-back-end)))
   (run-hook-with-args 'racket--repl-before-run-hook) ;ours
   (run-hook-with-args 'racket-before-run-hook)       ;users'
   (pcase-let*
