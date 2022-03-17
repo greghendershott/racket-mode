@@ -1087,8 +1087,12 @@ The command varies based on how many \\[universal-argument] command prefixes you
   (list
    ;; Any apparent file:line[:.]col optionally prefaced by #<syntax:
    (list (rx (optional "#<syntax:")
-             (group-n 1 (+? (not (syntax whitespace))))
-             ?\:
+             (group-n 1
+                      (+? (not (any ". \n\t"))) ;{ no leading "..."
+                      (+? (not (any ". \n\t"))) ;{ (see #604) or
+                      (+? (not (any ". \n\t"))) ;{ whitespace
+                      (+? (not (any " \n\t")))) ;no whitespace
+              ?\:
              (group-n 2 (+ digit))
              (any ?\: ?\.)
              (group-n 3 (+ digit)))
@@ -1116,7 +1120,7 @@ The command varies based on how many \\[universal-argument] command prefixes you
   "Our value for the variable `compilation-error-regexp-alist'.")
 
 (defun racket--adjust-group-1 ()
-  (list (racket-file-name-back-to-front (match-string 1))))
+  (racket-file-name-back-to-front (match-string 1)))
 
 ;;; racket-repl-mode definition per se
 
