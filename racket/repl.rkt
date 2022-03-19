@@ -282,12 +282,22 @@
                                         (struct-copy run-config cfg [maybe-mod #f]))
                            (sync never-evt))])
           (with-stack-checkpoint
-            (maybe-configure-runtime maybe-mod) ;FIRST: see #281
+            ;; First require the module so that if it has any errors
+            ;; we stop here.
             (namespace-require maybe-mod)
+            ;; Require desired extra submodules (e.g. main, test).
             (for ([submod (in-list extra-submods-to-run)])
               (define submod-spec `(submod ,file ,@submod))
               (when (module-declared? submod-spec)
                 (dynamic-require submod-spec #f)))
+            ;; configure-runtime important for e.g. Typed Racket REPL.
+            ;; Do before we set current-namespace; see #281. On the
+            ;; other hand, we don't want to do before
+            ;; namespace-require, or we might get duplicate Typed
+            ;; Racket error messages printed, as a result of it
+            ;; directly calling error-display-handler for each type
+            ;; check fail before raising a single exn:fail:syntax.
+            (maybe-configure-runtime maybe-mod)
             ;; User's program may have changed current-directory;
             ;; use parameterize to set for module->namespace but
             ;; restore user's value for REPL.

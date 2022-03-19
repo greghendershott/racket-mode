@@ -26,7 +26,9 @@
              (display-commented (complete-paths
                                  (undo-path->relative-string/library str)))
              (display-srclocs v)
-             (unless (exn:fail:user? v)
+             (unless (or (exn:fail:syntax? v)
+                         (and (exn:fail:read? v) (not (exn:fail:read:eof? v)))
+                         (exn:fail:user? v))
                (display-context v))
              (maybe-suggest-packages v))]
           [else
