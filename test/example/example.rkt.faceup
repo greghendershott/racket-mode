@@ -73,7 +73,7 @@
           ([ss '(«s:"a"» «s:"b"» «s:"c"»)])
   («b:string-append» str ss))
 
-»(«k:for/foldr» ([str «s:""»])
+(«k:for/foldr» ([str «s:""»])
            ([ss '(«s:"a"» «s:"b"» «s:"c"»)])
   («b:string-append» str ss))
 
