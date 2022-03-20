@@ -425,9 +425,11 @@ ignore a short list defined by scheme-mode itself."
            (for racket--indent-for) ;so the rx can match more strictly
            (for/lists racket--indent-for/fold)
            (for/fold racket--indent-for/fold)
+           (for/foldr racket--indent-for/fold)
            (for* racket--indent-for) ;so the rx can match more strictly
            (for*/lists racket--indent-for/fold)
            (for*/fold racket--indent-for/fold)
+           (for*/foldr racket--indent-for/fold)
            (instantiate 2)
            (interface 1)
            (λ defun)

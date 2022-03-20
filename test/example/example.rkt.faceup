@@ -73,6 +73,10 @@
           ([ss '(«s:"a"» «s:"b"» «s:"c"»)])
   («b:string-append» str ss))
 
+(«k:for/foldr» ([str «s:""»])
+           ([ss '(«s:"a"» «s:"b"» «s:"c"»)])
+  («b:string-append» str ss))
+
 «m:;; »«x:Auto-converts word `lambda` to `λ`:
 »(«k:lambda» (x) «c:#t»)
 

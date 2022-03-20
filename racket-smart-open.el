@@ -127,6 +127,7 @@ the variable `minor-mode-map-alist'."
                          "for/first"
                          "for/last"
                          "for/fold"
+                         "for/foldr"
                          "for/flvector"
                          "for/extflvector"
                          "for/set"
@@ -144,6 +145,7 @@ the variable `minor-mode-map-alist'."
                          "for*/first"
                          "for*/last"
                          "for*/fold"
+                         "for*/foldr"
                          "for*/flvector"
                          "for*/extflvector"
                          "for*/set"
@@ -180,7 +182,9 @@ the variable `minor-mode-map-alist'."
       ;;
       ;; Note: Previous item handles the first, accumulators subform.
       (0 2 ,(rx (seq (or "for/fold"
-                         "for*/fold")
+                         "for*/fold"
+                         "for/foldr"
+                         "for*/foldr")
                      (or space line-end))))
       ;; named-let bindings
       ;;
