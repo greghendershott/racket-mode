@@ -73,6 +73,10 @@
           ([ss '("a" "b" "c")])
   (string-append str ss))
 
+(for/foldr ([str ""])
+           ([ss '("a" "b" "c")])
+  (string-append str ss))
+
 ;; Auto-converts word `lambda` to `λ`:
 (lambda (x) #t)
 
