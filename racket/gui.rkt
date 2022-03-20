@@ -10,21 +10,23 @@
          make-initial-repl-namespace)
 
 ;; Attempt to load racket/gui/base eagerly, instantiating it in our
-;; namespace and under our main custodian (as opposed to those for
-;; user programs). This is our strategy to avoid "racket/gui/base
+;; namespace and under our main custodian (as opposed to those used
+;; for user programs). This is our strategy to avoid "racket/gui/base
 ;; cannot be instantiated more than once per process".
 ;;
-;; The only scenarios where racket/gui/base won't be loaded now:
+;; The only scenarios where racket/gui/base won't be loaded eagerly
+;; here:
 ;;
 ;; - It's not available: we're on a minimal Racket installation
 ;;   where gui-lib is not installed.
 ;;
 ;; - It can't initialize: e.g. gui-lib is installed but errors with
-;;   'Gtk initialization failed for display ":0"', because we're on
-;;   a headless system but our racket process wasn't run using
-;;   xvfb-run. Because this leaves gui-lib in a "semi-initialized"
-;;   state where `gui-available?` returns true but things don't
-;;   actually work, we check using another racket process.
+;;   'Gtk initialization failed for display ":0"', because we're on a
+;;   headless system and our racket process wasn't run using xvfb-run.
+;;   Because this leaves gui-lib in a "semi-initialized" state where
+;;   `gui-available?` returns true but things don't actually work, we
+;;   really want to avoid this, so we check by using another racket
+;;   process.
 (when (parameterize ([current-error-port (open-output-nowhere)])
         (system* (find-executable-path (find-system-path 'exec-file))
                  "-e" "(require racket/gui/base)"))
@@ -46,11 +48,10 @@
 (define (make-initial-repl-namespace)
   (define new-ns (make-base-namespace))
 
-  ;; If load-racket/gui/base! was called, and it was able to load
-  ;; racket/gui/base, then it is important for REPL namespaces
-  ;; initially to have racket/gui/base _attached_, regardless of
-  ;; whether a given user program `require`s it. They might require it
-  ;; in the REPL. See also issue #555.
+  ;; If we loaded racket/gui/base above, then it is important for REPL
+  ;; namespaces initially to have racket/gui/base _attached_,
+  ;; regardless of whether a given user program `require`s it; a user
+  ;; could `require` it at a REPL prompt. See also issue #555.
   (when (gui-available?)
     (namespace-attach-module our-ns 'racket/gui/base new-ns))
 
