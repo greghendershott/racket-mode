@@ -51,14 +51,8 @@
 (define (profile/coverage-level? v) (memq? v profile/coverage-levels))
 (define (debug-level? v)            (eq? v 'debug))
 
-;; The message structs
-
-(define-struct/contract repl-manager-thread-message ())
-
-(define-struct/contract (load-gui repl-manager-thread-message)
-  ([in-repl? boolean?]))
-
-(define-struct/contract (run-config repl-manager-thread-message)
+;; Attributes that may vary for each run.
+(define-struct/contract run-config
   ([maybe-mod       (or/c #f module-path?)]
    [extra-submods   (listof (listof symbol?))]
    [memory-limit    exact-nonnegative-integer?] ;0 = no limit
@@ -335,14 +329,6 @@
         (define thd ((txt/gui (λ _ t/v) eventspace-handler-thread) (current-eventspace)))
         thd)))
 
-  (define (clean-up-and-run some-cfg)
-    (case context-level
-      [(profile)  (clear-profile-info!)]
-      [(coverage) (clear-test-coverage-info!)])
-    (custodian-shutdown-all repl-cust)
-    (fresh-line)
-    (do-run some-cfg))
-
   ;; While the repl thread is in read-eval-print-loop, here on the
   ;; repl session thread we wait for messages via repl-msg-chan. Also
   ;; catch breaks, in which case we (a) break the REPL thread so
@@ -356,7 +342,12 @@
          [e e])
        (λ () (sync (current-repl-msg-chan)))))
     (match message
-      [(? run-config? c) (clean-up-and-run c)]
+      [(? run-config? c) (case context-level
+                           [(profile)  (clear-profile-info!)]
+                           [(coverage) (clear-test-coverage-info!)])
+                         (custodian-shutdown-all repl-cust)
+                         (fresh-line)
+                         (do-run c)]
       [(zero-column ch)  (zero-column!)
                          (channel-put ch 'done)
                          (get-message)]
