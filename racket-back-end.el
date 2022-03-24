@@ -264,13 +264,10 @@ are a few examples.
     (error "racket-add-back-end: directory must be file-name-absolute-p"))
   (let* ((local-p (not (file-remote-p directory)))
          (directory (racket--file-name-sans-remote-method directory))
-         ;; Remove any existing file-notify watches, first
-         (_ (racket-remove-back-end directory))
          (plist
           (list
            :directory            directory
-           :racket-program       (or (plist-get plist :racket-program)
-                                     nil)
+           :racket-program       (plist-get plist :racket-program)
            :remote-source-dir    (or (plist-get plist :remote-source-dir)
                                      (unless local-p
                                        "/tmp/racket-mode-back-end"))
@@ -278,9 +275,7 @@ are a few examples.
                                      (if local-p "127.0.0.1" "0.0.0.0"))
            :repl-tcp-port        (or (plist-get plist :repl-tcp-port)
                                      (if local-p 0 55555))
-           :watch-descriptors    (racket--back-end-add-watches
-                                  (plist-get plist :restart-watch-directories)
-                                  directory)
+           :restart-watch-directories (plist-get plist :restart-watch-directories)
            ;; These booleanp things need to distinguish nil meaning
            ;; "user specififed false" from "user did not specify
            ;; anything".
@@ -288,12 +283,14 @@ are a few examples.
                                      (plist-get plist :windows)
                                    (and local-p racket--winp)))))
     (racket--back-end-validate plist)
-    ;; Add keeping sorted from longest :directory pattern to shortest
+    (racket-remove-back-end directory 'no-refresh-watches)
+    ;; Keep configs sorted from longest :directory pattern to shortest.
     (setq racket-back-end-configurations
           (sort (cons plist racket-back-end-configurations)
                 (lambda (a b)
                   (> (length (plist-get a :directory))
                      (length (plist-get b :directory))))))
+    (racket--back-end-refresh-watches)
     plist))
 
 (defun racket--back-end-validate (plist)
@@ -310,19 +307,20 @@ are a few examples.
     (when (file-remote-p (plist-get plist :directory))
       (check #'stringp :remote-source-dir)
       (check #'file-name-absolute-p :remote-source-dir))
-    (check #'booleanp :windows))
+    (check #'booleanp :windows)
+    (dolist (dir (plist-get plist :restart-watch-directories))
+      (unless (file-directory-p dir)
+        (signal 'wrong-type-argument (list #'file-directory-p :restart-watch-directories dir)))))
   plist)
 
-(defun racket-remove-back-end (directory)
+(defun racket-remove-back-end (directory &optional no-refresh-watches-p)
   (setq racket-back-end-configurations
         (cl-remove-if (lambda (plist)
                         (and (string-equal (plist-get plist :directory)
-                                           directory)
-                             (progn
-                               (mapc #'file-notify-rm-watch
-                                     (plist-get plist :watch-descriptors))
-                               t)))
-                      racket-back-end-configurations)))
+                                           directory)))
+                      racket-back-end-configurations))
+  (unless no-refresh-watches-p
+    (racket--back-end-refresh-watches)))
 
 (defun racket-back-end-name (&optional back-end)
   "Return the \"name\" of a back end.
@@ -415,7 +413,6 @@ needs to open a TCP connection at the same host, and needs this."
                 (search-forward-regexp "hostname[ ]+\\([^ \n]+\\)" limit)
                 (match-string 1)))))
       (error host))))
-
 
 (defun racket--back-end-local-p (&optional back-end)
   (not (file-remote-p (plist-get (or back-end (racket-back-end))
@@ -561,33 +558,29 @@ a possibly slow remote connection."
              racket-program) ;can't use `executable-find' remotely
         ,@racket-command-args))))
 
-;;; Watching
+;;; File system watches
 
-;; Avoid circular require of racket-cmd
-(declare-function racket-start-back-end () "racket-cmd")
+(defvar racket--back-end-watch-descriptors nil)
+
+(defun racket--back-end-refresh-watches ()
+  ;; Remove all our existing watches.
+  (mapc #'file-notify-rm-watch racket--back-end-watch-descriptors)
+  (setq racket--back-end-watch-descriptors nil)
+  ;; Create new watches.
+  (dolist (plist racket-back-end-configurations)
+    (let ((back-end-dir (plist-get plist :directory)))
+      (dolist (watch-dir (plist-get plist :restart-watch-directories))
+        (dolist (file (cons watch-dir
+                            (directory-files-recursively watch-dir ".+" t)))
+          (when (file-directory-p file)
+            (push (file-notify-add-watch (directory-file-name file)
+                                         '(change)
+                                         (apply-partially
+                                          #'racket--back-end-watch-callback
+                                          back-end-dir))
+                  racket--back-end-watch-descriptors)))))))
 
 (defvar racket--back-end-watch-changes (make-hash-table :test #'equal))
-
-(defun racket--back-end-add-watches (watch-dirs back-end-dir)
-  "Establish an auto restart for WATCH-DIR and all its subdirectories.
-
-If any files change in any of the directories, then the back end
-described by BACK-END-DIR will be restarted.
-
-Returns a list of descriptors.
-
-Each descriptor may be given to `file-notify-rm-watch' to cancel the watch."
-  (let ((descriptors nil))
-    (dolist (watch-dir watch-dirs)
-      (dolist (file (cons watch-dir
-                          (directory-files-recursively watch-dir ".+" t)))
-        (when (file-directory-p file)
-          (push (file-notify-add-watch (directory-file-name file)
-                                       '(change)
-                                       (apply-partially #'racket--back-end-watch-callback
-                                                        back-end-dir))
-                descriptors))))
-    descriptors))
 
 (defun racket--back-end-watch-callback (back-end-dir event)
   (pcase-let ((`(,_descriptor ,action ,file . _more) event))
