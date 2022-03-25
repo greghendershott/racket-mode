@@ -34,7 +34,7 @@
 (require 'seq)
 (require 'xref)
 
-(declare-function racket-complete-at-point "racket-edit.el")
+(declare-function racket-complete-at-point "racket-edit" ())
 (declare-function racket-browse-file-url "racket-browse-url" (path anchor))
 
 ;; TODO: Expose as a defcustom? Or even as commands to turn on/off?
