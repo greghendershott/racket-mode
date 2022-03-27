@@ -688,7 +688,7 @@ most recent `racket-mode' buffer, if any."
 
 ;;; send to REPL
 
-(defun racket--send-region-to-repl (start end)
+(defun racket--send-region-to-repl (start end &optional echo-p)
   "Internal function to send the region to the Racket REPL.
 
 Before sending the region, calls `racket-repl' and
@@ -709,6 +709,10 @@ Afterwards displays the buffer in some window."
         (save-excursion
           (goto-char (process-mark proc))
           (insert ?\n)
+          (when echo-p
+            (insert (with-current-buffer source-buffer
+                      (buffer-substring start end)))
+            (insert "\n;; =>\n"))
           (set-marker (process-mark proc) (point))))
       (with-current-buffer source-buffer
         (comint-send-region proc start end)
@@ -733,14 +737,19 @@ Afterwards displays the buffer in some window."
           (racket--debug-send-definition (point) end)
         (racket--send-region-to-repl (point) end)))))
 
-(defun racket-send-last-sexp ()
-  "Send the previous sexp to the Racket REPL.
+(defun racket-send-last-sexp (&optional prefix)
+  "Send the sexp before point to the Racket REPL.
 
-When the previous sexp is a sexp comment the sexp itself is sent,
-without the #; prefix."
-  (interactive)
+When the sexp is a sexp comment the sexp itself is sent, without
+the #; prefix.
+
+With a \\[universal-argument] command prefix, the sexp is copied
+into the REPL, followed by a \";; ->\n\" line, to distinguish it
+from the zero or more values to which it evaluates."
+  (interactive "P")
   (racket--send-region-to-repl (racket--repl-last-sexp-start)
-                               (point)))
+                               (point)
+                               prefix))
 
 (defun racket-eval-last-sexp ()
   "Eval the previous sexp asynchronously and `racket-show' the result."
