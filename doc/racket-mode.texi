@@ -2287,10 +2287,15 @@ Send the current definition to the Racket REPL.
 
 @kbd{C-x C-e} 
 
-Send the previous sexp to the Racket REPL.
+Send the sexp before point to the Racket REPL.
 
-When the previous sexp is a sexp comment the sexp itself is sent,
-without the #; prefix.
+When the sexp is a sexp comment the sexp itself is sent, without
+the #; prefix.
+
+With a @kbd{C-u}  command prefix, the sexp is copied
+into the REPL, followed by a ``;; ->
+" line, to distinguish it
+from the zero or more values to which it evaluates.
 
 @node Collections
 @section Collections
