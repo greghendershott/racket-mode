@@ -19,6 +19,15 @@
 
 #+TEXINFO_PRINTED_TITLE: Racket Mode
 
+* Copying
+:PROPERTIES:
+:COPYING: t
+:END:
+
+Copyright (C) 2013-2022 by Greg Hendershott.
+
+SPDX-License-Identifier: GPL-3.0-or-later
+
 * Introduction
 
 The [[https://www.racket-mode.com/][Racket Mode]] package consists of a variety of Emacs major and minor modes, including:

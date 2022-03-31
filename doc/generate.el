@@ -1,16 +1,7 @@
 ;;; generate.el -*- lexical-binding: t -*-
 
 ;; Copyright (c) 2013-2022 by Greg Hendershott.
-
-;; License:
-;; This is free software; you can redistribute it and/or modify it
-;; under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
-;; any later version. This is distributed in the hope that it will be
-;; useful, but without any warranty; without even the implied warranty
-;; of merchantability or fitness for a particular purpose. See the GNU
-;; General Public License for more details. See
-;; http://www.gnu.org/licenses/ for details.
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;;; Generate a reference.org file from doc strings
 

@@ -7,6 +7,13 @@
 @syncodeindex pg cp
 @c %**end of header
 
+@copying
+
+Copyright (C) 2013-2022 by Greg Hendershott.
+
+SPDX-License-Identifier: GPL-3.0-or-later
+@end copying
+
 @dircategory Emacs
 @direntry
 * Racket Mode: (racket-mode). Edit and REPL major modes for Racket lang.
@@ -16,6 +23,9 @@
 @titlepage
 @title Racket Mode
 @author Greg Hendershott (@email{racket@@greghendershott.com})
+@page
+@vskip 0pt plus 1filll
+@insertcopying
 @end titlepage
 
 @contents
@@ -23,6 +33,7 @@
 @ifnottex
 @node Top
 @top Racket Mode
+@insertcopying
 @end ifnottex
 
 @menu
