@@ -207,9 +207,9 @@ text. We want point left where `racket-search-describe' can use
     (if (equal class "RktPn")
         ;; Scribble gives keyword arguments "RktPn" style and CSS
         ;; conditionally adjusts. Ugh. Do similar hack here.
-        (if (string-match-p "^#:" (dom-text dom))
-            'racket-keyword-argument-face
-          'parenthesis)
+        (cond ((string-match-p "^#:" (dom-text dom)) 'racket-keyword-argument-face)
+              ((facep 'parenthesis)                  'parenthesis)
+              (t                                     'default))
       (cdr (assoc class racket--shr-faces)))))
 
 (defun racket-render-tag-span (dom)
