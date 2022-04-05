@@ -23,7 +23,7 @@
 (provide start-repl-session-server
          repl-tcp-port-number
          run
-         break-repl-thread
+         repl-break
          repl-zero-column
          maybe-module-path->file)
 
@@ -77,13 +77,12 @@
               ready-thunk))
 
 ;; Command. Called from a command-server thread
-(define/contract (break-repl-thread sid kind)
-  (-> any/c (or/c 'break 'hang-up 'terminate) any)
-  (match (get-session sid)
-    [(struct* session ([thread t]))
-     (log-racket-mode-debug "break-repl-thread: ~v ~v" sid kind)
-     (break-thread t (case kind [(hang-up terminate) kind] [else #f]))]
-    [_ (log-racket-mode-error "break-repl-thread: ~v not in `sessions`" sid)]))
+(struct break (kind))
+(define/contract (repl-break kind)
+  (-> (or/c 'break 'hang-up 'terminate) any)
+  (unless (current-repl-msg-chan)
+    (error 'repl-break "No REPL session to break"))
+  (channel-put (current-repl-msg-chan) (break kind)))
 
 ;; Command. Called from a command-server thread
 (struct zero-column (chan))
@@ -330,18 +329,9 @@
         thd)))
 
   ;; While the repl thread is in read-eval-print-loop, here on the
-  ;; repl session thread we wait for messages via repl-msg-chan. Also
-  ;; catch breaks, in which case we (a) break the REPL thread so
-  ;; display-exn runs there, and (b) continue from our break.
+  ;; repl session thread we wait for messages via repl-msg-chan.
   (let get-message ()
-    (define message
-      (call-with-exception-handler
-       (match-lambda
-         [(and (or (? exn:break:terminate?) (? exn:break:hang-up?)) e) e]
-         [(exn:break _msg _marks continue) (break-thread repl-thread) (continue)]
-         [e e])
-       (λ () (sync (current-repl-msg-chan)))))
-    (match message
+    (match (sync (current-repl-msg-chan))
       [(? run-config? c) (case context-level
                            [(profile)  (clear-profile-info!)]
                            [(coverage) (clear-test-coverage-info!)])
@@ -349,10 +339,10 @@
                          (fresh-line)
                          (do-run c)]
       [(zero-column ch)  (zero-column!)
-                         (channel-put ch 'done)
-                         (get-message)]
-      [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)
-         (get-message)])))
+                         (channel-put ch 'done)]
+      [(break kind)      (break-thread repl-thread (if (eq? kind 'break) #f kind))]
+      [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)])
+    (get-message)))
 
 (define ((make-prompt-read m))
   (begin0 (get-interaction (maybe-module-path->prompt-string m))
