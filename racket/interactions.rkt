@@ -55,16 +55,21 @@
   ;;
   ;; - Use a thread + channel + sync/timeout so that, if the answer is
   ;;   no because there is only a partial sexp -- e.g. "(+ 1" -- we
-  ;;   don't get stuck inside `read`.
+  ;;   don't get stuck inside `read`. Use a custodian to ensure that
+  ;;   the thread and peeking port are cleaned up; this seems to
+  ;;   matter on Windows wrt a break, as with issue #609.
   (define ch (make-channel))
-  (thread
-   (λ ()
-     (channel-put ch
-                  (with-handlers ([exn:fail? (λ _ #f)])
-                    (define pin (peeking-input-port in))
-                    (define v ((current-read-interaction) #f pin))
-                    (not (eof-object? v))))))
-  (sync/timeout 0.01 ch))
+  (define cust (make-custodian))
+  (parameterize ([current-custodian cust])
+    (thread
+     (λ ()
+       (channel-put ch
+                    (with-handlers ([values (λ _ #f)])
+                      (define pin (peeking-input-port in))
+                      (define v ((current-read-interaction) #f pin))
+                      (not (eof-object? v)))))))
+  (begin0 (sync/timeout 0.01 ch)
+    (custodian-shutdown-all cust)))
 
 (define (display-prompt str)
   (fresh-line)
