@@ -60,22 +60,16 @@
 (defun racket-indent-line (&optional _whole-exp)
   "Indent current line as Racket code.
 
-Normally you don't need to use this command directly, it is used
+Normally you don't invoke this command directly. Instead, because
+it is used as the value for the variable `indent-line-function'
+in `racket-mode' and `racket-repl-mode' buffers, it is used
 automatically when you press keys like RET or TAB. However you
 might refer to it when configuring custom indentation, explained
 below.
 
-This behaves like `lisp-indent-line', except that whole-line
-comments are treated the same regardless of whether they start
-with single or double semicolons.
-
-- Automatically indents forms that start with \"begin\" in the
-  usual way that \"begin\" is indented.
-
-- Automatically indents forms that start with \"def\" or
-  \"with-\" in the usual way that \"define\" is indented.
-
-- Has rules for many specific standard Racket forms.
+Following the tradition of `lisp-mode' and `scheme-mode', the
+primary way to determine the indentation of a form is to look for
+a rule stored as a `racket-indent-function' property.
 
 To extend, use your Emacs init file to
 
@@ -111,12 +105,44 @@ to this:
       blah)
 #+END_SRC
 
-If `racket-indent-function' has no property for a symbol,
-scheme-indent-function is also considered, although the \"with-\"
-indents defined by scheme-mode are ignored. This is only to help
-people who may have extensive scheme-indent-function settings,
-particularly in the form of file or dir local variables.
-Otherwise prefer putting properties on `racket-indent-function'."
+For backward compatibility, if `racket-indent-function' has no
+property for a symbol, a scheme-indent-function property is also
+considered, although the \"with-\" indents defined by scheme-mode
+are ignored. This is only to help people who may have extensive
+scheme-indent-function settings, particularly in the form of file
+or dir local variables. Otherwise prefer putting properties on
+`racket-indent-function'.
+
+If no explicit rules match, regular expressions are used for a
+couple special cases:
+
+- Forms that start with \"begin\" indent like \"begin\".
+
+- Forms that start with \"def\" or \"with-\" indent like
+  \"define\".
+
+On the one hand this is convenient when you create your own
+\"DRY\" macros; they will indent as expected without you needing
+to make custom indent rules. On the other hand there can be false
+matches; for example a function or form named \"defer\" will
+indent like \"define\". This is a known drawback and is unlikely
+to be fixed unless/until Racket macros someday support a protocol
+to communicate how they should be indented.
+
+There is also automatic handling for:
+
+- Forms that begin with a #:keyword (as found in contracts)
+
+- Literal forms like #hasheq()
+
+- Quoted forms when the variable `racket-indent-sequence-depth'
+  is > 0.
+
+- {} forms when the variable `racket-indent-curly-as-sequence' is
+  not nil.
+
+Finally and otherwise, a form will be indented as if it were a
+procedure application."
   (interactive)
   (when-let (amount (racket--calculate-indent))
     ;; When point is within the leading whitespace, move it past the
