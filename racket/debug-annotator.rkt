@@ -10,17 +10,14 @@
 ;;    matching the syntax it is given. See
 ;;    https://github.com/racket/drracket/issues/230 and below.
 ;;
-;; 1. Our module-annotate disarms/rearms module level expressions. See
-;;    https://github.com/racket/drracket/issues/231 and below.
-;;
-;; 2. "Modernize": Use racket/base not racket/scheme. Don't need
+;; 1. "Modernize": Use racket/base not racket/scheme. Don't need
 ;;    opt-lambda.
 ;;
-;; 3. We remove the record-bound-id and record-top-level-id callbacks
+;; 2. We remove the record-bound-id and record-top-level-id callbacks
 ;;    that we don't use, from annotate-for-single-stepping (but leave
 ;;    them for now in annotate-stx).
 ;;
-;; 4. We remove the source arg that is completely unused (I'm guessing
+;; 3. We remove the source arg that is completely unused (I'm guessing
 ;;    historical).
 
 (provide annotate-for-single-stepping
@@ -98,25 +95,22 @@
       (general-top-level-expr-iterator stx  #f)]))
 
   (define (module-annotate stx)
-    (syntax-case stx ()
+    (syntax-case (disarm stx) ()
       [(_ identifier name mb)
        (syntax-case (disarm #'mb) ()
          [(plain-module-begin . module-level-exprs)
           (with-syntax ([(module . _) stx])
-            (quasisyntax/loc stx
-              (module identifier name
-                #,(rearm
-                   #'mb
-                   #`(plain-module-begin
-                      #,@(map (lambda (e)
-                                ;; https://github.com/racket/drracket/issues/231
-                                (rearm
-                                 e
-                                 (module-level-expr-iterator
-                                  (disarm e)
-                                  (list (syntax-e #'identifier)
-                                        (syntax-source #'identifier)))))
-                              (syntax->list #'module-level-exprs)))))))])]))
+            (rearm
+             stx
+             (quasisyntax/loc stx
+               (module identifier name
+                 #,(rearm
+                    #'mb
+                    #`(plain-module-begin
+                       #,@(map (lambda (e) (module-level-expr-iterator
+                                            e (list (syntax-e #'identifier)
+                                                    (syntax-source #'identifier))))
+                               (syntax->list #'module-level-exprs))))))))])]))
 
   (define (module-level-expr-iterator stx module-name)
     (kernel:kernel-syntax-case
