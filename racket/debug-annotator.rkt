@@ -134,7 +134,9 @@
             (define-values (var ...) #,(annotate #`expr '() #t module-name))
             #,(if (syntax-source stx)
                   #`(begin (#%plain-app
-                            #,record-top-level-id '#,module-name #'var
+                            #,record-top-level-id
+                            '#,module-name
+                            (quote-syntax var)
                             (case-lambda
                               [() var]
                               [(v) (set! var v)])) ...)
