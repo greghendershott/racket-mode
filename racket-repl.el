@@ -43,8 +43,6 @@
 (declare-function  racket--what-to-run-p "racket-common" (v))
 
 ;; Don't (require 'racket-debug). Mutual dependency. Instead:
-(declare-function  racket--debug-send-definition "racket-debug" (beg end))
-(autoload         'racket--debug-send-definition "racket-debug")
 (declare-function  racket--debuggable-files      "racket-debug" (file-to-run))
 (autoload         'racket--debuggable-files      "racket-debug")
 
@@ -726,16 +724,14 @@ Afterwards displays the buffer in some window."
     (user-error "No region"))
   (racket--send-region-to-repl start end))
 
-(defun racket-send-definition (&optional prefix)
+(defun racket-send-definition ()
   "Send the current definition to the Racket REPL."
-  (interactive "P")
+  (interactive)
   (save-excursion
     (end-of-defun)
     (let ((end (point)))
       (beginning-of-defun)
-      (if prefix
-          (racket--debug-send-definition (point) end)
-        (racket--send-region-to-repl (point) end)))))
+      (racket--send-region-to-repl (point) end))))
 
 (defun racket-send-last-sexp (&optional prefix)
   "Send the sexp before point to the Racket REPL.

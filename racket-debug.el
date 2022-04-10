@@ -62,23 +62,6 @@ to `racket-file-name-front-to-back'.")
 ;;                 (list 'after string-of-racket-write-values))))
 
 ;;;###autoload
-(defun racket--debug-send-definition (beg end)
-  (racket--cmd/async
-   (racket--repl-session-id)
-   (save-excursion
-     (goto-char beg)
-     (list 'debug-eval
-           (racket-file-name-front-to-back (racket--buffer-file-name))
-           (line-number-at-pos)
-           (current-column)
-           (point)
-           (buffer-substring-no-properties (point) end)))
-   (lambda (_)
-     ;; TODO: Also set fringe, and/or set marker on function
-     ;; name to show it's debuggable.
-     (message "Now you can call the function in the REPL to step debug it.")))  )
-
-;;;###autoload
 (defun racket--debug-on-break (response)
   (pcase response
     (`((,src . ,pos) ,breakable-positions ,locals ,vals)
@@ -197,51 +180,21 @@ turns out to have too little value and/or too much cost.
 
 How to debug:
 
-1. \"Instrument\" code for step debugging. You can instrument
-   entire files, and also individual functions.
+1. \"Instrument\" code for step debugging.
 
-   a. Entire Files
+   Use two \\[universal-argument] command prefixes for either
+   `racket-run' or `racket-run-module-at-point'.
 
-      Use two \\[universal-argument] command prefixes for either
-      `racket-run' or `racket-run-module-at-point'.
+   The file will be instrumented for step debugging before it is
+   run. Any imported files are also instrumented if they are in
+   the variable `racket-debuggable-files'.
 
-      The file will be instrumented for step debugging before it
-      is run. Also instrumented are files determined by the
-      variable `racket-debuggable-files'.
+   The run will break at the first breakable position.
 
-      The run will break at the first breakable position.
-
-      Tip: After you run to completion and return to a normal
-      REPL prompt, the code remains instrumented. You may enter
-      expressions that evaluate instrumented code and it will
-      break so you can step debug again.
-
-   b. Function Definitions
-
-      Move point inside a function definition form and use
-      \\[universal-argument] \\[racket-send-definition] to
-      \"instrument\" the function for step debugging. Then in the
-      REPL, enter an expression that causes the instrumented
-      function to be run, directly or indirectly.
-
-      You can instrument any number of functions.
-
-      You can even instrument while stopped at a break. For
-      example, to instrument a function you are about to call, so
-      you can \"step into\" it:
-
-        - \\[racket-xp-visit-definition] to visit the definition.
-        - \\[universal-argument] \\[racket-send-definition] to instrument the definition.
-        - \\[racket-unvisit] to return.
-        - Continue stepping.
-
-      Limitation: Instrumenting a function required from another
-      module won't redefine that function. Instead, it attempts
-      to define an instrumented function of the same name, in the
-      module the REPL is inside. The define will fail if it needs
-      definitions visible only in that other module. In that case
-      you'll probably need to use entire-file instrumentation as
-      described above.
+   Tip: After you run to completion and return to a normal
+   REPL prompt, the code remains instrumented. You may enter
+   expressions that evaluate instrumented code and it will
+   break so you can step debug again.
 
 2. When a break occurs, the `racket-repl-mode' prompt changes. In
    this debug REPL, local variables are available for you to use

@@ -160,7 +160,6 @@
     [`(get-uncovered)                  (get-uncovered file)]
     [`(eval ,v)                        (eval-command v)]
     [`(repl-submit? ,str ,eos?)        (repl-submit? str eos?)]
-    [`(debug-eval ,src ,l ,c ,p ,code) (debug-eval src l c p code)]
     [`(debug-resume ,v)                (debug-resume v)]
     [`(debug-disable)                  (debug-disable)]
     [`(break ,kind)                    (repl-break kind)]

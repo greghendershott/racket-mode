@@ -2140,17 +2140,14 @@ How to debug:
 
 @enumerate
 @item
-``Instrument'' code for step debugging. You can instrument
-entire files, and also individual functions.
-
-a. Entire Files
+``Instrument'' code for step debugging.
 
 Use two @kbd{C-u}  command prefixes for either
 @ref{racket-run} or @ref{racket-run-module-at-point}.
 
-The file will be instrumented for step debugging before it
-is run. Also instrumented are files determined by the
-variable @ref{racket-debuggable-files}.
+The file will be instrumented for step debugging before it is
+run. Any imported files are also instrumented if they are in
+the variable @ref{racket-debuggable-files}.
 
 The run will break at the first breakable position.
 
@@ -2158,38 +2155,6 @@ Tip: After you run to completion and return to a normal
 REPL prompt, the code remains instrumented. You may enter
 expressions that evaluate instrumented code and it will
 break so you can step debug again.
-
-b. Function Definitions
-
-Move point inside a function definition form and use
-@kbd{C-u}  @kbd{C-M-x}  to
-``instrument'' the function for step debugging. Then in the
-REPL, enter an expression that causes the instrumented
-function to be run, directly or indirectly.
-
-You can instrument any number of functions.
-
-You can even instrument while stopped at a break. For
-example, to instrument a function you are about to call, so
-you can ``step into'' it:
-
-@itemize
-@item
-@kbd{M-x}  @code{racket-xp-visit-definition} to visit the definition.
-@item
-@kbd{C-u}  @kbd{C-M-x}  to instrument the definition.
-@item
-@kbd{M-x}  @code{racket-unvisit} to return.
-@item
-Continue stepping.
-@end itemize
-Limitation: Instrumenting a function required from another
-module won't redefine that function. Instead, it attempts
-to define an instrumented function of the same name, in the
-module the REPL is inside. The define will fail if it needs
-definitions visible only in that other module. In that case
-you'll probably need to use entire-file instrumentation as
-described above.
 
 @item
 When a break occurs, the @ref{racket-repl-mode} prompt changes. In
@@ -2311,7 +2276,7 @@ Send the current region (if any) to the Racket REPL.
 
 @kbd{C-M-x} 
 
-Send the current definition to the Racket REPL.
+Send the current definition to the Racket REPL..
 
 @node racket-send-last-sexp
 @subsection racket-send-last-sexp
@@ -2423,6 +2388,8 @@ original form is displayed and you can start stepping.
 With @kbd{C-u}  also expands syntax from racket/base
 -- which can result in very many expansion steps.
 
+(fn &optional INTO-BASE)
+
 @node racket-expand-region
 @subsection racket-expand-region
 
@@ -2432,6 +2399,8 @@ Expand the active region using @ref{racket-stepper-mode}.
 
 Uses Racket's @code{expand-once} in the namespace from the most recent
 @ref{racket-run}.
+
+(fn START END &optional INTO-BASE)
 
 @node racket-expand-definition
 @subsection racket-expand-definition
@@ -2443,6 +2412,8 @@ Expand the definition around point using @ref{racket-stepper-mode}.
 Uses Racket's @code{expand-once} in the namespace from the most recent
 @ref{racket-run}.
 
+(fn &optional INTO-BASE)
+
 @node racket-expand-last-sexp
 @subsection racket-expand-last-sexp
 
@@ -2452,6 +2423,8 @@ Expand the sexp before point using @ref{racket-stepper-mode}.
 
 Uses Racket's @code{expand-once} in the namespace from the most recent
 @ref{racket-run}.
+
+(fn &optional INTO-BASE)
 
 @node Other
 @section Other

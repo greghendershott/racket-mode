@@ -18,7 +18,6 @@
   (require rackunit))
 
 (provide (rename-out [on-break-channel debug-notify-channel])
-         debug-eval
          debug-resume
          debug-disable
          make-debug-eval-handler
@@ -41,9 +40,8 @@
   (-> path? pos/c boolean?)
   (set-member? (hash-ref breakable-positions src (seteq)) pos))
 
-(define/contract (annotate stx)
-  (-> syntax? syntax?)
-  (define source (syntax-source stx))
+(define/contract (annotate stx #:source [source (syntax-source stx)])
+  (->* (syntax?) (#:source path?) syntax?)
   (display-commented (format "Debug annotate ~v" source))
   (define-values (annotated breakables)
     (annotate-for-single-stepping stx break? break-before break-after))
@@ -281,19 +279,6 @@
 
 
 ;;; Command interface
-
-;; Intended use is for `code` to be a function definition form. It
-;; will be re-defined annotated for single stepping: When executed it
-;; will call our break?, break-before, and break-after functions.
-(define/contract (debug-eval source-str line col pos code)
-  (-> path-string? pos/c nat/c pos/c string? #t)
-  (define source (string->path source-str))
-  (define in (open-input-string code))
-  (port-count-lines! in)
-  (set-port-next-location! in line col pos)
-  (eval (annotate (expand (read-syntax source in))))
-  (next-break 'all)
-  #t)
 
 (define locals/c (listof (list/c path-string? pos/c pos/c symbol? string?)))
 (define break-vals/c (cons/c break-id/c
