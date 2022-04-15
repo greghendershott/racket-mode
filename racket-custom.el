@@ -415,6 +415,7 @@ set as a file-local variable."
     (module-prefetch         . warning)
     (optimizer               . info)
     (racket/contract         . error)
+    (racket-mode-debugger    . info)
     (sequence-specialization . info)
     (*                       . fatal))
   "Configuration of `racket-logger-mode' topics and levels.
@@ -611,6 +612,11 @@ the face `font-lock-constant-face'."
   '((t (:background "red")))
   "Face for `racket-debug-mode' break position."
   "Racket Debug Break Face")
+
+(defface-racket racket-debug-breakpoint-face
+  '((t (:foreground "red" :weight bold)))
+  "Face for `racket-debug-mode' breakpoint overlays."
+  "Racket Debug Breakpoint Face")
 
 (defface-racket racket-debug-locals-face
   '((t (:inherit font-lock-constant-face :box (:line-width -1) :slant italic)))

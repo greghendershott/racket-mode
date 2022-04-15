@@ -108,6 +108,7 @@
     racket-expand-definition
     racket-expand-last-sexp
     "Other"
+    racket-debug-toggle-breakpoint
     racket-mode-start-faster
     racket-mode-start-slower)
   "Commands to include in the Reference.")

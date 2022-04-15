@@ -159,6 +159,7 @@ Macro expand
 
 Other
 
+* racket-debug-toggle-breakpoint::
 * racket-mode-start-faster::
 * racket-mode-start-slower::
 Variables
@@ -2168,17 +2169,25 @@ position, local variable values, and result values -- and
 provides shortcut keys:
 @end enumerate
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
 @item @kbd{?} 
 @tab @code{racket-debug-help}
 @item @kbd{h} 
 @tab @code{racket-debug-run-to-here}
+@item @kbd{!} 
+@tab @ref{racket-debug-toggle-breakpoint}
+@item @kbd{P} 
+@tab @code{racket-debug-prev-breakpoint}
+@item @kbd{N} 
+@tab @code{racket-debug-next-breakpoint}
 @item @kbd{p} 
 @tab @code{racket-debug-prev-breakable}
 @item @kbd{n} 
 @tab @code{racket-debug-next-breakable}
+@item @kbd{g} 
+@tab @code{racket-debug-go}
 @item @kbd{c} 
 @tab @code{racket-debug-continue}
 @item @kbd{u} 
@@ -2276,7 +2285,7 @@ Send the current region (if any) to the Racket REPL.
 
 @kbd{C-M-x} 
 
-Send the current definition to the Racket REPL..
+Send the current definition to the Racket REPL.
 
 @node racket-send-last-sexp
 @subsection racket-send-last-sexp
@@ -2388,8 +2397,6 @@ original form is displayed and you can start stepping.
 With @kbd{C-u}  also expands syntax from racket/base
 -- which can result in very many expansion steps.
 
-(fn &optional INTO-BASE)
-
 @node racket-expand-region
 @subsection racket-expand-region
 
@@ -2399,8 +2406,6 @@ Expand the active region using @ref{racket-stepper-mode}.
 
 Uses Racket's @code{expand-once} in the namespace from the most recent
 @ref{racket-run}.
-
-(fn START END &optional INTO-BASE)
 
 @node racket-expand-definition
 @subsection racket-expand-definition
@@ -2412,8 +2417,6 @@ Expand the definition around point using @ref{racket-stepper-mode}.
 Uses Racket's @code{expand-once} in the namespace from the most recent
 @ref{racket-run}.
 
-(fn &optional INTO-BASE)
-
 @node racket-expand-last-sexp
 @subsection racket-expand-last-sexp
 
@@ -2424,15 +2427,66 @@ Expand the sexp before point using @ref{racket-stepper-mode}.
 Uses Racket's @code{expand-once} in the namespace from the most recent
 @ref{racket-run}.
 
-(fn &optional INTO-BASE)
-
 @node Other
 @section Other
 
 @menu
+* racket-debug-toggle-breakpoint::
 * racket-mode-start-faster::
 * racket-mode-start-slower::
 @end menu
+
+@node racket-debug-toggle-breakpoint
+@subsection racket-debug-toggle-breakpoint
+
+@kbd{M-x}  @code{racket-debug-toggle-breakpoint}
+
+Add or remove a breakpoint.
+
+Each breakpoint has a condition and a list of actions.
+
+The condition is a Racket expression that is evaluated in a
+context where local variables exist. Examples:
+
+@itemize
+@item
+``#t'' means break always.
+
+@item
+If the code around the breakpoint is something like
+"(for ([n 100]) _)", then a condition like
+"(zero? (modulo n 10))" is every 10 times through the
+loop.
+@end itemize
+
+Actions is a list of symbols; you may specify one or more. The
+action symbols are:
+
+@itemize
+@item
+``break'' causes a break, enabling @ref{racket-debug-mode}.
+
+@item
+``log'' and ``print'' display information about local
+variables to the logger or REPL output, respectively.
+Although @ref{racket-debug-mode} already shows these values ``in
+situ'' when you reach a break, this may be useful if you want
+a history. Specifying ``log'' or ``print'', but not
+``break'', is equivalent to what many debuggers call a
+watchpoint instead of a breakpoint: Output some information
+and automatically resume.
+@end itemize
+
+Note: Although @ref{racket-debug-mode} provides a convenient
+keybinding, you may invoke this command anytime using M-x.
+
+Note: If you're warned that point isn't known to be a breakable
+position, that might be because it truly isn't, or, just because
+you are not in @ref{racket-debug-mode} and the breakable positions
+aren't yet known. Worst case, if you set a breakpoint someplace
+that is not breakable, it is ignored. With a few exceptions --
+such as close paren positions that are tail calls -- most open
+parens and close parens are breakble positions.
 
 @node racket-mode-start-faster
 @subsection racket-mode-start-faster

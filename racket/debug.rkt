@@ -23,6 +23,8 @@
          make-debug-eval-handler
          next-break)
 
+(define-logger racket-mode-debugger)
+
 ;; A gui-debugger/marks "mark" is a thunk that returns a
 ;; full-mark-struct -- although gui-debugger/marks doesn't provide
 ;; that struct. Instead the thunk can be passed to various accessor
@@ -51,27 +53,49 @@
                 (seteq))
   annotated)
 
-;; The first contract is suitable for "edge" with Emacs Lisp. Second
-;; is important for actual `next-break` value so that `break?` compare
-;; of source works; see #425.
-(define break-when/c        (or/c 'all 'none (cons/c path-string? pos/c)))
-(define break-when-strict/c (or/c 'all 'none (cons/c path?        pos/c)))
+;; These contracts are suitable for "edge" with ELisp.
+(define break-point-elisp/c (list/c path-string? pos/c string? string?))
+(define break-when-elisp/c  (or/c 'all 'none (listof break-point-elisp/c)))
+
+;; These contracts are for actual `next-break` value.
+(define break-point/c (list/c path? pos/c any/c (listof symbol?)))
+(define break-when/c  (or/c 'all 'none (listof break-point/c)))
+
+(define (from-elisp-break-when v)
+  (if (list? v)
+      (map from-elisp-break-point v)
+      v))
+
+(define/contract from-elisp-break-point
+  (-> break-point-elisp/c break-point/c)
+  (match-lambda
+    [(list path-str pos condition actions)
+     (list (string->path path-str)
+           pos
+           (read (open-input-string condition))
+           (read (open-input-string actions)))]))
 
 (define/contract next-break
-  (case-> (-> break-when-strict/c)
-          (-> break-when-strict/c void))
+  (case-> (-> break-when/c)
+          (-> break-when/c void))
   (let ([v 'none])
     (case-lambda [() v]
                  [(v!) (set! v v!)])))
 
-;; If this returns #t, either break-before or break-after will be
-;; called next.
+;; Following are the functions we give `annotate-for-single-stepping`,
+;; calls to which it "weaves into" the annotated code. When it calls
+;; `break?` and we return true, next it calls either `break-before` or
+;; `break-after`.
+
 (define ((break? src) pos)
   (match (next-break)
-    ['none                    #f]
-    ['all                     #t]
-    [(cons (== src) (== pos)) #t]
-    [_                        #f]))
+    ['none        #f]
+    ['all         #t]
+    [(? list? xs) (for/or ([x (in-list xs)])
+                    (match x
+                      [(list (== src) (== pos) _condition _actions) x]
+                      [_                                            #f]))]
+    [_            #f]))
 
 (define/contract (break-before top-mark ccm)
   (-> mark/c continuation-mark-set? (or/c #f (listof any/c)))
@@ -90,69 +114,130 @@
   (define pos (case before/after
                 [(before)    (syntax-position stx)]
                 [(after)  (+ (syntax-position stx) (syntax-span stx) -1)]))
-  (define max-width 128)
-  (define limit-marker "⋯")
-  (define locals
-    (for*/list ([binding  (in-list (mark-bindings top-mark))]
-                [stx      (in-value (first binding))]
-                [get/set! (in-value (second binding))]
-                #:when (and (syntax-original? stx) (syntax-source stx)))
-      (list (syntax-source stx)
-            (syntax-position stx)
-            (syntax-span stx)
-            (syntax->datum stx)
-            (~v #:max-width    max-width
-                #:limit-marker limit-marker
-                (get/set!)))))
-  ;; Start a debug repl on its own thread, because below we're going to
-  ;; block indefinitely with (channel-get on-resume-channel), waiting for
-  ;; the Emacs front end to issue a debug-resume command.
-  (define repl-thread (thread (repl src pos top-mark)))
-  ;; The on-break-channel is how we notify the Emacs front-end. This
-  ;; is a synchronous channel-put but it should return fairly quickly,
-  ;; as soon as the command server gets and writes it. In other words,
-  ;; this is sent as a notification, unlike a command response as a
-  ;; result of a request.
-  (define this-break-id (new-break-id))
-  ;; If it is not possible to round-trip serialize/deserialize the
-  ;; values, use the original values when stepping (don't attempt to
-  ;; substitute user-supplied values).
-  (define (maybe-serialized-vals)
-    (let ([str (~s vals)])
-      (if (and (serializable? vals)
-               (<= (string-length str) max-width))
-          (cons #t str)
-          (cons #f (~s #:max-width    max-width
-                       #:limit-marker limit-marker
-                       vals)))))
-  (channel-put on-break-channel
-               (list 'debug-break
-                     (cons src pos)
-                     breakable-positions
-                     locals
-                     (cons this-break-id
-                           (case before/after
-                             [(before) (list 'before)]
-                             [(after)  (list 'after (maybe-serialized-vals))]))))
-  ;; Wait for debug-resume command to put to on-resume-channel. If
-  ;; wrong break ID, ignore and wait again.
-  (let wait ()
-    (begin0
-        (match (channel-get on-resume-channel)
-          [(list break-when (list (== this-break-id) 'before))
-           (next-break (calc-next-break before/after break-when top-mark ccm))
-           #f]
-          [(list break-when (list (== this-break-id) 'before new-vals-str))
-           (next-break (calc-next-break before/after break-when top-mark ccm))
-           (read-str/default new-vals-str vals)]
-          [(list break-when (list (== this-break-id) 'after new-vals-pair))
-           (next-break (calc-next-break before/after break-when top-mark ccm))
-           (match new-vals-pair
-             [(cons #t  new-vals-str) (read-str/default new-vals-str vals)]
-             [(cons '() _)            vals])]
-          [_ (wait)])
-      (kill-thread repl-thread)
-      (newline))))
+
+  ;; What to do depends on whether the break is due to a user
+  ;; breakpoint, and if so, what condition and actions it specifies.
+  (define actions
+    (match ((break? src) pos)
+      [(list _src _pos condition actions)
+       (if (or (equal? condition #t) ;short-cut
+               (with-handlers ([values
+                                (λ (e)
+                                  (display-commented
+                                   (format "~a\nin debugger condition expression:\n  ~v"
+                                           (exn-message e)
+                                           condition))
+                                  #t)]) ;break anyway
+                (eval
+                 (call-with-session-context (current-session-id)
+                                            with-locals
+                                            condition
+                                            (mark-bindings top-mark)))))
+           actions
+           null)]
+      ;; Otherwise, e.g. for a simple step, the default and only
+      ;; action is to break.
+      [_ '(break)]))
+
+  (when (memq 'print actions)
+    (unless (null? (mark-bindings top-mark))
+      (display-commented "Debugger watchpoint; locals:")
+      (for* ([binding  (in-list (reverse (mark-bindings top-mark)))]
+             [stx      (in-value (first binding))]
+             [get/set! (in-value (second binding))]
+             #:when (and (syntax-original? stx) (syntax-source stx)))
+        (display-commented (format " ~a = ~a" stx (~v (get/set!)))))))
+
+  (when (memq 'log actions)
+    (log-racket-mode-debugger-info
+     "watch ~a ~v~a"
+     before/after
+     stx
+     (for*/fold ([str ""])
+                ([binding  (in-list (reverse (mark-bindings top-mark)))]
+                 [stx      (in-value (first binding))]
+                 [get/set! (in-value (second binding))]
+                 #:when (and (syntax-original? stx) (syntax-source stx)))
+       (string-append str (format "\n ~a = ~a" stx (~v (get/set!)))))))
+
+  (cond
+    [(memq 'break actions)
+     ;; Start a debug repl on its own thread, because below we're going to
+     ;; block indefinitely with (channel-get on-resume-channel), waiting for
+     ;; the Emacs front end to issue a debug-resume command.
+     (define repl-thread (thread (repl src pos top-mark)))
+     ;; If it is not possible to round-trip serialize/deserialize the
+     ;; values, use the original values when stepping (don't attempt to
+     ;; substitute user-supplied values).
+     (define (maybe-serialized-vals)
+       (let ([str (~s vals)])
+         (if (and (serializable? vals)
+                  (<= (string-length str) max-width))
+             (cons #t str)
+             (cons #f (~s #:max-width    max-width
+                          #:limit-marker limit-marker
+                          vals)))))
+     ;; The on-break-channel is how we notify the Emacs front-end. This
+     ;; is a synchronous channel-put but it should return fairly quickly,
+     ;; as soon as the command server gets and writes it. In other words,
+     ;; this is sent as a notification, unlike a command response as a
+     ;; result of a request.
+     (define this-break-id (new-break-id))
+     (define max-width 128)
+     (define limit-marker "⋯")
+     (define locals
+       (for*/list ([binding  (in-list (mark-bindings top-mark))]
+                   [stx      (in-value (first binding))]
+                   [get/set! (in-value (second binding))]
+                   #:when (and (syntax-original? stx) (syntax-source stx)))
+         (list (syntax-source stx)
+               (syntax-position stx)
+               (syntax-span stx)
+               (syntax->datum stx)
+               (~v #:max-width    max-width
+                   #:limit-marker limit-marker
+                   (get/set!)))))
+     (channel-put on-break-channel
+                  (list 'debug-break
+                        (cons src pos)
+                        breakable-positions
+                        locals
+                        (cons this-break-id
+                              (case before/after
+                                [(before) (list 'before)]
+                                [(after)  (list 'after (maybe-serialized-vals))]))))
+     ;; Wait for debug-resume command to put to on-resume-channel. If
+     ;; wrong break ID, ignore and wait again.
+     (let wait ()
+       (match (channel-get on-resume-channel)
+         [(list (app from-elisp-break-when break-when)
+                (list* (== this-break-id) before/after more))
+          (next-break (calc-next-break break-when before/after top-mark ccm))
+          (begin0
+              ;; The step annotator needs us to return the values to
+              ;; be used when resuming from before or after step --
+              ;; either the original values, or those the user asked
+              ;; to be substituted.
+              (match* [before/after more]
+                [['before (list)]
+                 #f]
+                [['before (list new-vals-str)]
+                 (read-str/default new-vals-str vals)]
+                [['after (list new-vals-pair)]
+                 (match new-vals-pair
+                   [(cons #t  new-vals-str) (read-str/default new-vals-str vals)]
+                   [(cons '() _)            vals]) ])
+            (kill-thread repl-thread)
+            (newline))]
+         [_ (wait)]))]
+    ;; Otherwise, if we didn't break, we simply need to (a) calculate
+    ;; next-break and (b) tell the annotator to use the original
+    ;; values (no user substitution).
+    [else
+     (next-break (calc-next-break (next-break) before/after top-mark ccm))
+     (case before/after
+       [(before) #f]
+       [(after)  vals])]))
 
 (define (serializable? v)
   (with-handlers ([exn:fail:read? (λ _ #f)])
@@ -177,9 +262,9 @@
   (with-handlers ([exn:fail:read? (λ _ default)])
     (read (open-input-string str))))
 
-(define/contract (calc-next-break before/after break-when top-mark ccm)
-  (-> (or/c 'before 'after) (or/c break-when/c 'over 'out) mark/c continuation-mark-set?
-      break-when-strict/c)
+(define/contract (calc-next-break break-when before/after top-mark ccm)
+  (-> (or/c break-when/c 'over 'out) (or/c 'before 'after) mark/c continuation-mark-set?
+      break-when/c)
   (define (big-step frames)
     (define num-marks (length (debug-marks (current-continuation-marks))))
     (or (for/or ([frame  (in-list frames)]
@@ -191,18 +276,14 @@
                  [right (and left (+ left (syntax-span stx) -1))])
             (and right
                  (breakable-position? src right)
-                 (cons src right))))
+                 (list (list src right #t '(break))))))
         'all))
-  (match* [break-when before/after]
-    [['none _]       'none]
-    [['all  _]       'all]
-    [['out  _]       (big-step                (debug-marks ccm))]
-    [['over 'before] (big-step (cons top-mark (debug-marks ccm)))]
-    [['over 'after]  'all]
-    [[(cons (? path? path)            pos) _]
-     (cons path pos)]
-    [[(cons (? path-string? path-str) pos) _]
-     (cons (string->path path-str) pos)]))
+  (case break-when
+    [(out)  (big-step (debug-marks ccm))]
+    [(over) (case before/after
+              [(before) (big-step (cons top-mark (debug-marks ccm)))]
+              [(after)  'all])]
+    [else break-when])) ;'all, 'none, or user breakpoints
 
 (define break-id/c nat/c)
 (define/contract new-break-id
@@ -285,7 +366,7 @@
                              (or/c (list/c 'before)
                                    (list/c 'after (cons/c boolean? string?)))))
 (define on-break/c (list/c 'debug-break
-                           break-when/c
+                           (cons/c path? pos/c)
                            breakable-positions/c
                            locals/c
                            break-vals/c))
@@ -295,7 +376,7 @@
                               (or/c (list/c 'before)
                                     (list/c 'before string?)
                                     (list/c 'after (cons/c elisp-bool/c string?)))))
-(define on-resume/c (list/c (or/c break-when/c 'out 'over) resume-vals/c))
+(define on-resume/c (list/c (or/c break-when-elisp/c 'out 'over) resume-vals/c))
 (define/contract on-resume-channel (channel/c on-resume/c) (make-channel))
 
 (define/contract (debug-resume resume-info)
