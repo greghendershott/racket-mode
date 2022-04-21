@@ -103,6 +103,12 @@
 (let ([x 0])
   x)
 
+(let/cc cc
+  cc)
+
+(let/cc cc : Any
+  cc)
+
 ;; indent 2
 
 (syntax-case stx ()

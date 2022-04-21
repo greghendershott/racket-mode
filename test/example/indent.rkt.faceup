@@ -103,6 +103,12 @@
 («k:let» ([«v:x» «c:0»])
   x)
 
+(«k:let/cc» cc
+  cc)
+
+(«k:let/cc» cc «b::» «t:Any»
+  cc)
+
 «m:;; »«x:indent 2
 »
 («k:syntax-case» stx ()
