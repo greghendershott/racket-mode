@@ -241,16 +241,14 @@ parens and close parens are breakble positions."
     (when (or (pcase (assoc (racket--buffer-file-name) racket--debug-breakable-positions)
                 (`(,_src . ,ps) (memq (point) ps)))
               (y-or-n-p "Point not known to be a breakable position; set anyway "))
-      (let* ((condition (completing-read "Condition: "
-                                         racket-debug-breakpoint-conditions
-                                         nil nil nil nil
-                                         "#t"))
-             (condition (if (equal condition "") "#t" condition))
-             (actions   (completing-read "Actions: "
-                                         racket-debug-breakpoint-actions
-                                         nil nil nil nil
-                                         "(break)"))
-             (actions   (if (equal actions "") "(break)" actions))
+      (let* ((condition (read-string "Condition expression [RET for \"#t\"]: "
+                                     nil
+                                     'racket-debug-breakpoint-conditions
+                                     "#t"))
+             (actions   (read-string "Actions list [RET for \"(break)\"]: "
+                                     nil
+                                     'racket-debug-breakpoint-actions
+                                     "(break)"))
              (o (make-overlay (point) (1+ (point)) (current-buffer) t nil)))
         (overlay-put o 'name 'racket-debug-breakpoint)
         (overlay-put o 'before-string (propertize
@@ -260,8 +258,10 @@ parens and close parens are breakble positions."
         (overlay-put o 'racket-breakpoint-condition condition)
         (overlay-put o 'racket-breakpoint-actions actions)
         (push o racket--debug-breakpoints)
-        (push condition racket-debug-breakpoint-conditions)
-        (push actions racket-debug-breakpoint-actions)))))
+        (setq racket-debug-breakpoint-conditions
+              (seq-uniq racket-debug-breakpoint-conditions))
+        (setq racket-debug-breakpoint-actions
+              (seq-uniq racket-debug-breakpoint-actions))))))
 
 (defun racket-debug-next-breakpoint ()
   "Move point to the next breakpoint in this buffer."
