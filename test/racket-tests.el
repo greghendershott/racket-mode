@@ -13,6 +13,7 @@
 ;; http://www.gnu.org/licenses/ for details.
 
 (require 'ert)
+(require 'compile)
 (require 'cl-macs)
 (require 'edmacro)
 (require 'faceup)
@@ -716,6 +717,46 @@ FILE is interpreted as relative to this source directory."
     (should (racket-tests/see-back
              ";; blah blah blah blah blah blah\n"))
     (kill-buffer (current-buffer))))
+
+(ert-deftest racket-tests/compilation-mode ()
+  (racket-tests/with-back-end-settings
+    (with-current-buffer (find-file (expand-file-name "example/compilation-mode.rkt"
+                                                      racket-tests/here-dir))
+      (racket-mode)
+      (racket-run)
+      (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
+      (racket-tests/should-eventually (racket--repl-live-p))
+      (with-racket-repl-buffer
+        (should (racket-tests/see-back "'done\ncompilation-mode.rkt> "))
+        (compilation--ensure-parse (point-max))
+        (should (equal (racket-tests/compilation-message 176)
+                       nil)) ;not the printed JSON on prev line
+        (should (equal (racket-tests/compilation-message 286)
+                       (list "/path/to/file.rkt" 2 10)))
+        (should (equal (racket-tests/compilation-message 310)
+                       (list "/path/to/file.rkt" 2 10)))
+        (should (equal (racket-tests/compilation-message 333)
+                       (list "/path/to/file.rkt" 2 10)))
+        (should (equal (racket-tests/compilation-message 367)
+                       (list "/path/to/file.rkt" 2 10)))
+        (should (equal (racket-tests/compilation-message 400)
+                       (list "*unknown*" 2 1)))
+        (should (equal (racket-tests/compilation-message 418)
+                       (list "*unknown*" 2 1)))
+        (should (equal (racket-tests/compilation-message 435)
+                       (list "*unknown*" 2 1)))
+        (racket-repl-exit)
+        (should (racket-tests/see-back
+                 "Process *Racket REPL </>* connection broken by remote peer\n"))
+        (kill-buffer))
+      (kill-buffer))))
+
+(defun racket-tests/compilation-message (pos)
+  (when-let (cm (get-text-property pos 'compilation-message))
+    (save-match-data
+      (pcase (compilation--message->loc cm)
+        (`(,col ,line ((,file . ,_) . ,_) . ,_)
+         (list (substring-no-properties file) line col))))))
 
 (provide 'racket-tests)
 

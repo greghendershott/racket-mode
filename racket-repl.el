@@ -1090,14 +1090,14 @@ The command varies based on how many \\[universal-argument] command prefixes you
 
 (defconst racket--compilation-error-regexp-alist
   (list
-   ;; Any apparent file:line[:.]col optionally prefaced by #<syntax:
+   ;; Any apparent file:line[:.]col optionally prefaced by
+   ;; "#<syntax:".
    (list (rx (optional "#<syntax:")
              (group-n 1
-                      (+? (not (any ". \n\t"))) ;{ no leading "..."
-                      (+? (not (any ". \n\t"))) ;{ (see #604) or
-                      (+? (not (any ". \n\t"))) ;{ whitespace
-                      (+? (not (any " \n\t")))) ;no whitespace
-              ?\:
+                      (+ (not (any " \r\n")))
+                      ?.
+                      (+ (not (any " \r\n"))))
+             ?\:
              (group-n 2 (+ digit))
              (any ?\: ?\.)
              (group-n 3 (+ digit)))
@@ -1116,7 +1116,10 @@ The command varies based on how many \\[universal-argument] command prefixes you
          #'racket--adjust-group-1 2 3 0 1)
    ;; Any htdp check-expect failure message
    (list (rx "In "
-             (group-n 1 (+? (not (syntax whitespace))))
+             (group-n 1
+                      (+ (not (any " \r\n")))
+                      ?.
+                      (+ (not (any " \r\n"))))
              " at line "
              (group-n 2 (+ digit))
              " column "
@@ -1125,7 +1128,11 @@ The command varies based on how many \\[universal-argument] command prefixes you
   "Our value for the variable `compilation-error-regexp-alist'.")
 
 (defun racket--adjust-group-1 ()
-  (racket-file-name-back-to-front (match-string 1)))
+  (let ((file (match-string 1)))
+    (if (string-match-p (rx "...") file) ;#604
+        "*unknown*"
+      (save-match-data
+        (racket-file-name-back-to-front file)))))
 
 ;;; racket-repl-mode definition per se
 
