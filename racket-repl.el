@@ -734,25 +734,32 @@ Afterwards displays the buffer in some window."
       (racket--send-region-to-repl (point) end))))
 
 (defun racket-send-last-sexp (&optional prefix)
-  "Send the sexp before point to the Racket REPL.
+  "Send the expression before point to the Racket REPL.
 
-When the sexp is a sexp comment the sexp itself is sent, without
-the #; prefix.
+The expression may be either an at-expression or an s-expression.
+
+When the expression is a sexp comment, the sexp itself is sent,
+without the #; prefix.
 
 With a \\[universal-argument] command prefix, the sexp is copied
 into the REPL, followed by a \";; ->\n\" line, to distinguish it
 from the zero or more values to which it evaluates."
   (interactive "P")
-  (racket--send-region-to-repl (racket--repl-last-sexp-start)
+  (racket--send-region-to-repl (racket--start-of-previous-expression)
                                (point)
                                prefix))
 
 (defun racket-eval-last-sexp ()
-  "Eval the previous sexp asynchronously and `racket-show' the result."
+  "Eval the expression before point asynchronously.
+
+The eventual results are presented using the variable
+`racket-show-functions'.
+
+The expression may be either an at-expression or an s-expression."
   (interactive)
   (unless (racket--repl-live-p)
     (user-error "No REPL session available"))
-  (let ((beg (racket--repl-last-sexp-start))
+  (let ((beg (racket--start-of-previous-expression))
         (end (point)))
    (racket--cmd/async
     (racket--repl-session-id)
@@ -760,15 +767,23 @@ from the zero or more values to which it evaluates."
     (lambda (v)
       (racket-show (format "%s" v) end t)))))
 
-(defun racket--repl-last-sexp-start ()
+(defun racket--start-of-previous-expression ()
   (save-excursion
-    (condition-case ()
-        (progn
-          (backward-sexp)
-          (if (looking-at-p "#;")
-              (+ (point) 2)
-            (point)))
-      (scan-error (user-error "There isn't a complete s-expression before point")))))
+    (cl-flet* ((back () (and (< (point-min) (point))
+                             (ignore-errors (backward-sexp) t)))
+               (back-to (ch) (and (back)
+                                  (eq (char-after (point)) ch)))
+               (back-to* (&rest chs) (let ((pt (point)))
+                                       (or (seq-every-p #'back-to chs)
+                                           (progn (goto-char pt) nil)))))
+      (or (back-to* ?\{ ?\[ ?@) ;@~a["foo"]{bar}
+          (back-to*     ?\{ ?@) ;@~a{abc}
+          (back-to*     ?\[ ?@) ;@+[1 2]
+          (back)                ;@(+ 1 2) @1 or any s-expression
+          (user-error "No previous s-expression or at-expression"))
+      (if (looking-at-p "#;")
+          (+ (point) 2)
+        (point)))))
 
 (defun racket--repl-forget-errors ()
   "Forget existing errors in the REPL.
