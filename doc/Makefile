@@ -18,7 +18,7 @@ reference.org: generate.el
 	emacs --batch -Q --eval '(progn (add-to-list (quote load-path) "${PWD}/../") (package-initialize))' -l generate.el --funcall 'racket-generate-reference.org'
 
 racket-mode.texi: racket-mode.org reference.org
-	emacs --batch -Q -l ox-texinfo racket-mode.org --eval "(setq indent-tabs-mode nil make-backup-files nil)" --funcall org-texinfo-export-to-texinfo
+	emacs --batch -Q -l ox-texinfo racket-mode.org --eval "(setq indent-tabs-mode nil make-backup-files nil org-src-preserve-indentation t)" --funcall org-texinfo-export-to-texinfo
 
 racket-mode.info: racket-mode.texi
 	makeinfo --no-split $< -o $@

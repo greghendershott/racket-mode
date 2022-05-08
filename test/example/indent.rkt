@@ -213,14 +213,12 @@
 
 ;;; for/fold
 
-;; for/fold untyped, accum on same line
 (for/fold ([a 0]
            [b 0])
           ([x 0]
            [y 0])
   #t)
 
-;; for/fold untyped, accum on different line
 (for/fold
     ([a 0]
      [b 0])
@@ -228,15 +226,13 @@
      [y 0])
   #t)
 
-;; for/fold typed, type on same line
 (for/fold : T
-    ([a 0]
-     [b 0])
-    ([x 0]
-     [y 0])
+          ([a 0]
+           [b 0])
+          ([x 0]
+           [y 0])
   #t)
 
-;; for/fold typed, type on different line
 (for/fold
     : T
     ([a 0]
@@ -244,6 +240,24 @@
     ([x 0]
      [y 0])
   #t)
+
+;;; for/hasheq
+
+(for/hasheq ([i (in-range 1 10)])
+  (values i i))
+
+(for/hasheq
+    ([i (in-range 1 10)])
+  (values i i))
+
+(for/hasheq : (Immutable-HashTable Number Number)
+            ([i (in-range 1 10)])
+  (values i i))
+
+(for/hasheq
+    : (Immutable-HashTable Number Number)
+    ([i (in-range 1 10)])
+  (values i i))
 
 ;;; Bug #50
 

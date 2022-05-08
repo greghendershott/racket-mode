@@ -213,37 +213,51 @@
 
 «m:;;; »«x:for/fold
 »
-«m:;; »«x:for/fold untyped, accum on same line
-»(«k:for/fold» ([a «c:0»]
+(«k:for/fold» ([a «c:0»]
            [b «c:0»])
           ([x «c:0»]
            [y «c:0»])
   «c:#t»)
 
-«m:;; »«x:for/fold untyped, accum on different line
-»(«k:for/fold»
+(«k:for/fold»
     ([a «c:0»]
      [b «c:0»])
     ([x «c:0»]
      [y «c:0»])
   «c:#t»)
 
-«m:;; »«x:for/fold typed, type on same line
-»(«k:for/fold» «b::» T
-    ([a «c:0»]
-     [b «c:0»])
-    ([x «c:0»]
-     [y «c:0»])
+(«k:for/fold» «b::» T
+          ([a «c:0»]
+           [b «c:0»])
+          ([x «c:0»]
+           [y «c:0»])
   «c:#t»)
 
-«m:;; »«x:for/fold typed, type on different line
-»(«k:for/fold»
+(«k:for/fold»
     «b::» T
     ([a «c:0»]
      [b «c:0»])
     ([x «c:0»]
      [y «c:0»])
   «c:#t»)
+
+«m:;;; »«x:for/hasheq
+»
+(«k:for/hasheq» ([i («k:in-range» «c:1» «c:10»)])
+  («b:values» i i))
+
+(«k:for/hasheq»
+    ([i («k:in-range» «c:1» «c:10»)])
+  («b:values» i i))
+
+(«k:for/hasheq» «b::» («t:Immutable-HashTable» «t:Number» «t:Number»)
+            ([i («k:in-range» «c:1» «c:10»)])
+  («b:values» i i))
+
+(«k:for/hasheq»
+    «b::» («t:Immutable-HashTable» «t:Number» «t:Number»)
+    ([i («k:in-range» «c:1» «c:10»)])
+  («b:values» i i))
 
 «m:;;; »«x:Bug #50
 »

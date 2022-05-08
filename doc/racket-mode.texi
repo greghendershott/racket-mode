@@ -327,8 +327,8 @@ Add the following to your @verb{,~/.emacs,} or @verb{,~/.emacs.d/init.el,}:
 @lisp
 (require 'package)
 (add-to-list 'package-archives
-	      '("melpa" . "https://melpa.org/packages/")
-	      t)
+              '("melpa" . "https://melpa.org/packages/")
+              t)
 @end lisp
 
 @itemize
@@ -445,8 +445,8 @@ To customize things like key bindings, you can use @code{racket-mode-hook} in yo
 
 @lisp
 (add-hook 'racket-mode-hook
-	  (lambda ()
-	    (define-key racket-mode-map (kbd "<f5>") 'racket-run)))
+          (lambda ()
+            (define-key racket-mode-map (kbd "<f5>") 'racket-run)))
 @end lisp
 
 Likewise for @code{racket-repl-mode-hook} and @code{racket-repl-mode-map}.
@@ -577,16 +577,16 @@ For example, with @uref{https://melpa.org/#/use-package,@code{use-package}}:
   :ensure t
   :config
   (dolist (m '(emacs-lisp-mode-hook
-	       racket-mode-hook
-	       racket-repl-mode-hook))
+               racket-mode-hook
+               racket-repl-mode-hook))
     (add-hook m #'paredit-mode))
   (bind-keys :map paredit-mode-map
-	     ("@{"   . paredit-open-curly)
-	     ("@}"   . paredit-close-curly))
+             ("@{"   . paredit-open-curly)
+             ("@}"   . paredit-close-curly))
   (unless terminal-frame
     (bind-keys :map paredit-mode-map
-	       ("M-[" . paredit-wrap-square)
-	       ("M-@{" . paredit-wrap-curly))))
+               ("M-[" . paredit-wrap-square)
+               ("M-@{" . paredit-wrap-curly))))
 @end lisp
 
 @node smartparens
@@ -618,11 +618,11 @@ You can customize where the REPL buffer is displayed by adding an item to the Em
 
 @lisp
 (add-to-list 'display-buffer-alist
-	     '("\\`\\*Racket REPL"
-	       (display-buffer-reuse-window
-		display-buffer-pop-up-frame)
-	       (reusable-frames . 0)
-	       (inhibit-same-window . t)))
+             '("\\`\\*Racket REPL"
+               (display-buffer-reuse-window
+                display-buffer-pop-up-frame)
+               (reusable-frames . 0)
+               (inhibit-same-window . t)))
 @end lisp
 
 @node eldoc
@@ -978,36 +978,37 @@ a rule stored as a @code{racket-indent-function} property.
 
 To extend, use your Emacs init file to
 
-@example
-(put SYMBOL 'racket-indent-function INDENT)
-@end example
+@lisp
+    (put SYMBOL 'racket-indent-function INDENT)
+@end lisp
 
 SYMBOL is the name of the Racket form like ``'test-case'' and
 INDENT is an integer or the symbol ``'defun''. When INDENT is an
 integer, the meaning is the same as for lisp-indent-function and
 scheme-indent-function: Indent the first INDENT arguments
-specially and indent any further arguments like a body.
+specially and indent any further arguments like a body. (The
+number may be negative; see discussion below.)
 
 For example:
 
-@example
-(put 'test-case 'racket-indent-function 1)
-@end example
+@lisp
+    (put 'test-case 'racket-indent-function 1)
+@end lisp
 
 This will change the indent of @code{test-case} from this:
 
 @example
-(test-case foo
-	   blah
-	   blah)
+    (test-case foo
+               blah
+               blah)
 @end example
 
 to this:
 
 @example
-(test-case foo
-  blah
-  blah)
+    (test-case foo
+      blah
+      blah)
 @end example
 
 For backward compatibility, if @code{racket-indent-function} has no
@@ -1058,6 +1059,39 @@ not nil.
 
 Finally and otherwise, a form will be indented as if it were a
 procedure application.
+
+--- --- ---
+
+Note: Racket Mode extends the traditional Emacs lisp indent spec
+to allow a @emph{negative} integer, which means that all distinguished
+forms should align with the first one. This style originated with
+``for/fold'', which has two distinguished forms. Traditionally
+those would indent like this:
+
+@example
+    (for/fold ([x xs])
+        ([y ys])            ; twice body indent
+      body)
+@end example
+
+However the popularly desired indent is:
+
+@example
+    (for/fold ([x xs])
+              ([y ys])      ; same as first distingushed form
+      body)
+@end example
+
+This idea extends to optional distinguished forms, such as Typed
+Racket annotation ``prefixes'' in ``for/fold'', ``for/x'', and
+even ``let'' forms:
+
+@example
+    (for/fold : Type
+              ([x xs])
+              ([y ys])      ; same as first distingushed form
+      body)
+@end example
 
 @node racket-smart-open-bracket-mode
 @subsection racket-smart-open-bracket-mode
@@ -1152,8 +1186,8 @@ racket-mode and racket-repl-mode buffers, put the following code
 in your Emacs init file:
 
 @lisp
-(add-hook 'racket-mode-hook #'racket-unicode-input-method-enable)
-(add-hook 'racket-repl-mode-hook #'racket-unicode-input-method-enable)
+    (add-hook 'racket-mode-hook #'racket-unicode-input-method-enable)
+    (add-hook 'racket-repl-mode-hook #'racket-unicode-input-method-enable)
 @end lisp
 
 To temporarily enable this input method for a single buffer you
@@ -1188,15 +1222,15 @@ input method, you may add code like the following example in your
 Emacs init file:
 
 @lisp
-;; Either (require 'racket-mode) here, or, if you use
-;; use-package, put the code below in the :config section.
-(with-temp-buffer
-  (racket-unicode-input-method-enable)
-  (set-input-method "racket-unicode")
-  (let ((quail-current-package (assoc "racket-unicode"
-				      quail-package-alist)))
-    (quail-define-rules ((append . t))
-			("^o" ["ᵒ"]))))
+    ;; Either (require 'racket-mode) here, or, if you use
+    ;; use-package, put the code below in the :config section.
+    (with-temp-buffer
+      (racket-unicode-input-method-enable)
+      (set-input-method "racket-unicode")
+      (let ((quail-current-package (assoc "racket-unicode"
+                                          quail-package-alist)))
+        (quail-define-rules ((append . t))
+                            ("^o" ["ᵒ"]))))
 @end lisp
 
 If you don’t like the highlighting of partially matching tokens you
@@ -1229,26 +1263,26 @@ Each ``val'' moves to the same column and is
 For example with point on the "[" before ``a'':
 
 @example
-Before             After
+    Before             After
 
-(let ([a 12]       (let ([a   12]
-      [bar 23])          [bar 23])
-  ....)              ....)
+    (let ([a 12]       (let ([a   12]
+          [bar 23])          [bar 23])
+      ....)              ....)
 
-'([a . 12]         '([a   . 12]
-  [bar . 23])        [bar . 23])
+    '([a . 12]         '([a   . 12]
+      [bar . 23])        [bar . 23])
 
-(cond [a? #t]      (cond [a?   #t]
-      [b? (f x           [b?   (f x
-	     y)]                  y)]
-      [else #f])         [else #f])
+    (cond [a? #t]      (cond [a?   #t]
+          [b? (f x           [b?   (f x
+                 y)]                  y)]
+          [else #f])         [else #f])
 @end example
 
 Or with point on the quote before ``a'':
 
 @example
-(list 'a 12        (list 'a   12
-      'bar 23)           'bar 23)
+    (list 'a 12        (list 'a   12
+          'bar 23)           'bar 23)
 @end example
 
 If more than one couple is on the same line, none are aligned,
@@ -1257,9 +1291,9 @@ example the following form will not change; @ref{racket-align} will
 display an error message:
 
 @example
-(let ([a 0][b 1]
-      [c 2])       error; unchanged
-  ....)
+    (let ([a 0][b 1]
+          [c 2])       error; unchanged
+      ....)
 @end example
 
 When a couple's sexprs start on different lines, that couple is
@@ -1267,11 +1301,11 @@ ignored. Other, single-line couples in the series are aligned as
 usual. For example:
 
 @example
-(let ([foo         (let ([foo
-       0]                 0]
-      [bar 1]            [bar 1]
-      [x 2])             [x   2])
-  ....)              ....)
+    (let ([foo         (let ([foo
+           0]                 0]
+          [bar 1]            [bar 1]
+          [x 2])             [x   2])
+      ....)              ....)
 @end example
 
 See also: @ref{racket-unalign}.
@@ -1329,8 +1363,8 @@ specific buffer. If you always want to use it, put the following
 code in your Emacs init file:
 
 @lisp
-(require 'racket-xp)
-(add-hook 'racket-mode-hook #'racket-xp-mode)
+    (require 'racket-xp)
+    (add-hook 'racket-mode-hook #'racket-xp-mode)
 @end lisp
 
 Note: This mode won't do anything unless/until the Racket Mode
@@ -1370,12 +1404,12 @@ Note: If you find these point-motion features too distracting
 and/or slow, in your @code{racket-xp-mode-hook} you may disable them:
 
 @lisp
-(require 'racket-xp)
-(add-hook 'racket-xp-mode-hook
-	  (lambda ()
-	    (remove-hook 'pre-redisplay-functions
-			 #'racket-xp-pre-redisplay
-			 t)))
+  (require 'racket-xp)
+  (add-hook 'racket-xp-mode-hook
+            (lambda ()
+              (remove-hook 'pre-redisplay-functions
+                           #'racket-xp-pre-redisplay
+                           t)))
 @end lisp
 
 The remaining features discussed below will still work.
@@ -1399,14 +1433,14 @@ drracket/check-syntax distinguish the various ``x'' bindings, it
 understands the two different imports of ``define'':
 
 @example
-#lang racket/base
-(define x 1)
-x
-(let ([x x])
-  (+ x 1))
-(module m typed/racket/base
-  (define x 2)
-  x)
+  #lang racket/base
+  (define x 1)
+  x
+  (let ([x x])
+    (+ x 1))
+  (module m typed/racket/base
+    (define x 2)
+    x)
 @end example
 
 When point is on the opening parenthesis of an expression in tail
@@ -2237,9 +2271,9 @@ Run the ``test'' submodule.
 Put your tests in a ``test'' submodule. For example:
 
 @example
-(module+ test
-  (require rackunit)
-  (check-true #t))
+    (module+ test
+      (require rackunit)
+      (check-true #t))
 @end example
 
 Any rackunit test failure messages show the location. You may use
@@ -2292,10 +2326,12 @@ Send the current definition to the Racket REPL.
 
 @kbd{C-x C-e} 
 
-Send the sexp before point to the Racket REPL.
+Send the expression before point to the Racket REPL.
 
-When the sexp is a sexp comment the sexp itself is sent, without
-the #; prefix.
+The expression may be either an at-expression or an s-expression.
+
+When the expression is a sexp comment, the sexp itself is sent,
+without the #; prefix.
 
 With a @kbd{C-u}  command prefix, the sexp is copied
 into the REPL, followed by a ``;; ->
@@ -2633,23 +2669,23 @@ This is an Emacs buffer-local variable --- convenient to set as a
 file local variable. For example at the end of your .rkt file:
 
 @lisp
-;; Local Variables:
-;; racket-user-command-line-arguments: ("-f" "bar")
-;; End:
+    ;; Local Variables:
+    ;; racket-user-command-line-arguments: ("-f" "bar")
+    ;; End:
 @end lisp
 
 Set this way, the value must be an @strong{unquoted} list of strings.
 For example:
 
 @lisp
-("-f" "bar")
+    ("-f" "bar")
 @end lisp
 
 The following values will @emph{not} work:
 
 @lisp
-'("-f" "bar")
-(list "-f" "bar")
+    '("-f" "bar")
+    (list "-f" "bar")
 @end lisp
 
 @node racket-browse-url-function
@@ -3315,31 +3351,31 @@ remote back ends, you might want a special configuration. Here
 are a few examples.
 
 @lisp
-;; 1. A back end configuration for "/" is
-;; created automatically and works fine as a default
-;; for buffers visiting local files, so we don't need
-;; to add one here.
+    ;; 1. A back end configuration for "/" is
+    ;; created automatically and works fine as a default
+    ;; for buffers visiting local files, so we don't need
+    ;; to add one here.
 
-;; 2. However assume we want buffers under /var/tmp/8.0
-;; instead to use Racket 8.0.
-(racket-add-back-end "/var/tmp/8.0"
-		     :racket-program "~/racket/8.0/bin/racket")
+    ;; 2. However assume we want buffers under /var/tmp/8.0
+    ;; instead to use Racket 8.0.
+    (racket-add-back-end "/var/tmp/8.0"
+                         :racket-program "~/racket/8.0/bin/racket")
 
-;; 3. A back end configuration will be created
-;; automatically for buffers visiting file names like
-;; "/ssh:user@@linode", so we don't need to add one here.
-;;
-;; If ~/.ssh/config defines a Host alias named "linode",
-;; with HostName and User settings, a file name as simple as
-;; "/linode:" would work fine with tramp -- and the
-;; automatically created back end configuration would work
-;; fine, too.
+    ;; 3. A back end configuration will be created
+    ;; automatically for buffers visiting file names like
+    ;; "/ssh:user@@linode", so we don't need to add one here.
+    ;;
+    ;; If ~/.ssh/config defines a Host alias named "linode",
+    ;; with HostName and User settings, a file name as simple as
+    ;; "/linode:" would work fine with tramp -- and the
+    ;; automatically created back end configuration would work
+    ;; fine, too.
 
-;; 4. For example's sake, assume for buffers visiting
-;; /ssh:headless:~/gui-project/ we want :racket-program instead
-;; to be "xvfb-run racket".
-(racket-add-back-end "/ssh:headless:~/gui-project/"
-		     :racket-program "xvfb-run racket")
+    ;; 4. For example's sake, assume for buffers visiting
+    ;; /ssh:headless:~/gui-project/ we want :racket-program instead
+    ;; to be "xvfb-run racket".
+    (racket-add-back-end "/ssh:headless:~/gui-project/"
+                         :racket-program "xvfb-run racket")
 @end lisp
 
 @node Faces

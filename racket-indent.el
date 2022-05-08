@@ -73,7 +73,7 @@ a rule stored as a `racket-indent-function' property.
 
 To extend, use your Emacs init file to
 
-#+BEGIN_SRC racket
+#+BEGIN_SRC emacs-lisp
     (put SYMBOL 'racket-indent-function INDENT)
 #+END_SRC
 
@@ -81,11 +81,12 @@ SYMBOL is the name of the Racket form like \"'test-case\" and
 INDENT is an integer or the symbol \"'defun\". When INDENT is an
 integer, the meaning is the same as for lisp-indent-function and
 scheme-indent-function: Indent the first INDENT arguments
-specially and indent any further arguments like a body.
+specially and indent any further arguments like a body. (The
+number may be negative; see discussion below.)
 
 For example:
 
-#+BEGIN_SRC racket
+#+BEGIN_SRC emacs-lisp
     (put 'test-case 'racket-indent-function 1)
 #+END_SRC
 
@@ -142,7 +143,41 @@ There is also automatic handling for:
   not nil.
 
 Finally and otherwise, a form will be indented as if it were a
-procedure application."
+procedure application.
+
+--- --- ---
+
+Note: Racket Mode extends the traditional Emacs lisp indent spec
+to allow a /negative/ integer, which means that all distinguished
+forms should align with the first one. This style originated with
+\"for/fold\", which has two distinguished forms. Traditionally
+those would indent like this:
+
+#+BEGIN_SRC racket
+    (for/fold ([x xs])
+        ([y ys])            ; twice body indent
+      body)
+#+END_SRC
+
+However the popularly desired indent is:
+
+#+BEGIN_SRC racket
+    (for/fold ([x xs])
+              ([y ys])      ; same as first distingushed form
+      body)
+#+END_SRC
+
+This idea extends to optional distinguished forms, such as Typed
+Racket annotation \"prefixes\" in \"for/fold\", \"for/x\", and
+even \"let\" forms:
+
+#+BEGIN_SRC racket
+    (for/fold : Type
+              ([x xs])
+              ([y ys])      ; same as first distingushed form
+      body)
+#+END_SRC
+"
   (interactive)
   (when-let (amount (racket--calculate-indent))
     ;; When point is within the leading whitespace, move it past the
@@ -356,7 +391,9 @@ Any additional, non-distinguished forms get normal indent."
           (t                            ;distinguished form
            (if (<= 0 method)
                (+ containing-column (* 2 lisp-body-indent))
-             first-form-column)))))
+             (if (zerop count)          ;this _is_ the first form
+                 (+ containing-column (* 2 lisp-body-indent))
+               first-form-column))))))
 
 (defun racket--indent-let (indent-point state)
   "Indent a let form.
@@ -385,18 +422,20 @@ Racket let."
 Checks for either of:
   - maybe-type-ann e.g. (for/list : T ([x xs]) x)
   - for/vector optional length, (for/vector #:length ([x xs]) x)"
-  (skip-chars-forward " \t")
-  (racket--indent-special-form (if (looking-at-p (rx (or ?\: ?\#))) -3 1)
+  (skip-chars-forward " \t\n")
+  (racket--indent-special-form (if (looking-at-p (rx (or ?\: ?\#))) -3 -1)
                                indent-point
                                state))
 
 (defun racket--indent-for/fold (indent-point state)
-  "Indent function for for/fold and for*/fold."
+  "Indent function for for/fold and for*/fold.
+
+Checks for maybe-type-ann e.g. (for/fold : T ([x xs]) ([y ys]) x) "
   ;; check for maybe-type-ann e.g. (for/fold : T ([n 0]) ([x xs]) x)
   (skip-chars-forward " \t\n")
-  (if (looking-at-p ":")
-      (racket--indent-special-form 4 indent-point state)
-    (racket--indent-special-form -2 indent-point state)))
+  (racket--indent-special-form (if (looking-at-p (rx ?\:)) -4 -2)
+                               indent-point
+                               state))
 
 (defun racket--get-indent-function-method (head)
   "Get property of racket- or scheme-indent-function.
