@@ -353,13 +353,15 @@ If you have installed the minimal Racket distribution (for example by using the 
 raco pkg install --auto drracket
 @end example
 
-If you do @emph{not} plan to use @code{racket-xp-mode}, then a more-targeted approach is instead to install these specific packages and their dependencies:
+A more-targeted approach is instead to install these specific packages and their dependencies:
 
 @example
-raco pkg install --auto data-lib errortrace-lib macro-debugger-text-lib rackunit-lib racket-index scribble-lib
+raco pkg install --auto data-lib errortrace-lib macro-debugger-text-lib rackunit-lib racket-index scribble-lib drracket-tool-text-lib
 @end example
 
-If you @emph{do} want to use @code{racket-xp-mode}, then you would also need to install @code{drracket-tool-lib} --- but since it has many of the same dependencies (including @code{gui-lib}) as @code{drracket} you may well install @code{drracket}.
+If you @emph{not} want to use @code{racket-xp-mode}, then you can omit @code{drracket-tool-text-lib}.
+
+On a headless server, you might want to omit @code{gui-lib}. Unfortunately, @code{racket-doc} depends on @code{gui-lib}. On the one hand, if you uninstall @code{racket-doc} and @code{gui-lib}, you will no longer be able to access documentation when using a Racket Mode back end running there. On the other hand, if you leave @code{gui-lib} installed, you should be careful to run the Racket Mode back end using @code{xvfb-run racket}.
 
 @node Uninstall
 @section Uninstall
