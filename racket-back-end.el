@@ -91,10 +91,7 @@ one for \"/\" on the host/user/port."
                    ;; This assumes `racket-add-back-end' keeps the
                    ;; list sorted from longest to shortest :directory
                    ;; patterns.
-                   (string-match-p (concat "^"
-                                           (regexp-quote
-                                            (plist-get back-end :directory)))
-                                   dd)))
+                   (file-in-directory-p dd (plist-get back-end :directory))))
         (racket-add-back-end (if-let (str (file-remote-p default-directory))
                                  (substring-no-properties str)
                                "/")))))
