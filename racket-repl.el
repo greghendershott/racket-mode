@@ -489,8 +489,6 @@ command via the start callback.the REPL is not live, create it.
 Otherwise if `racket--repl-live-p', send the command."
   (unless (eq major-mode 'racket-mode)
     (user-error "Only works from a `racket-mode' buffer"))
-  (unless (racket--what-to-run-p what)
-    (signal 'wrong-type-argument `(racket--what-to-run-p ,what)))
   (when-let (changes (racket--back-end-watch-read/reset))
     (when (y-or-n-p (format "Changed: %S -- restart Racket Mode back end %S? "
                             changes
@@ -504,8 +502,15 @@ Otherwise if `racket--repl-live-p', send the command."
         (while (racket--repl-live-p)
           (accept-process-output)))
       (racket-start-back-end)))
-  (run-hook-with-args 'racket--repl-before-run-hook) ;ours
-  (run-hook-with-args 'racket-before-run-hook)       ;users'
+  ;; Run our internal before-run hooks.
+  (run-hook-with-args 'racket--repl-before-run-hook)
+  ;; One of those just run was `racket--save-if-changed', so now it's
+  ;; fine to use `racket--what-to-run-p' which checks, among other
+  ;; things, `file-exists-p'.
+  (unless (racket--what-to-run-p what)
+    (signal 'wrong-type-argument `(racket--what-to-run-p ,what)))
+  ;; Run user's before-run hooks.
+  (run-hook-with-args 'racket-before-run-hook)
   (pcase-let*
       ((context-level (or context-level racket-error-context))
        (what (or what (racket--what-to-run)))
