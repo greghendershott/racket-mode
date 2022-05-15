@@ -66,8 +66,6 @@ this to use the names with shell programs or a Racket back end."
                  (not (file-exists-p (buffer-file-name)))))
     (save-buffer)))
 
-(add-hook 'racket--repl-before-run-hook #'racket--save-if-changed)
-
 (defun racket--mode-edits-racket-p ()
   "Return non-nil if the current major mode is one that edits Racket code.
 

@@ -329,13 +329,19 @@ Allows #; to be followed by zero or more space or newline chars."
 
 (defun racket--what-to-run-p (v)
   "Predicate for a \"what-to-run\" value.
+
 Either nil or a list, where the first element of the list is a
-file name and the remainder are `symbolp' submodule names."
+file name and the remainder are `symbolp' submodule names.
+
+Note: Because for non-tramp file names this uses `file-exist-p',
+it's good to `racket--save-if-changed' first, ensuring that a
+new buffer has a file on-disk."
   (pcase v
     (`() t)
     (`(,file . ,subs)
-     (and (or (tramp-file-name-p file)
-              (and (stringp file) (file-exists-p file)))
+     (and (stringp file)
+          (or (tramp-tramp-file-p file)
+              (file-exists-p file))
           (cl-every #'symbolp subs)))
     (_ nil)))
 
