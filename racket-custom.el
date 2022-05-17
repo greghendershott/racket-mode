@@ -95,7 +95,7 @@ and `racket-repl-documentation' should look for the search page.
   properly encoded URL."
   :tag "Documentation Search Location"
   :type '(choice (string :tag "URL")
-                 (const :tag "Local" 'local))
+                 (const :tag "Local" local))
   :safe (lambda (val) (or (stringp val) (eq val 'local)))
   :group 'racket)
 
