@@ -211,6 +211,8 @@ In any case, using the Emacs xref API allows for consistent command names, short
 
 Indentation can be customized in a way similar to lisp-mode and scheme-mode: {{{ref(racket-indent-line)}}}.
 
+(Indentation preserves your line breaks. If you want to use an auto-reformatter --- an expressive pretty printer that chooses line breaks while computing an optimal layout --- the Racket package [[https://docs.racket-lang.org/fmt/][fmt]] is supported by the Emacs package [[https://github.com/lassik/emacs-format-all-the-code][emacs-format-all-the-code]].)
+
 ** paredit
 
 If you use [[https://melpa.org/#/paredit][paredit]], you might want to add keybindings to ~paredit-mode-map~:
@@ -245,6 +247,12 @@ If instead of paredit you prefer [[https://melpa.org/#/smartparens][smartparens]
 #+BEGIN_SRC lisp
 (require 'smartparens-config)
 #+END_SRC
+
+** Appearance of parentheses
+
+If you prefer parentheses to appear "dimmed", see [[https://melpa.org/#/paren-face][paren-face]].
+
+If you prefer the opposite, see [[https://melpa.org/#/rainbow-delimiters][rainbow-delimiters]].
 
 ** Edit buffers and REPL buffers
 

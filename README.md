@@ -30,13 +30,3 @@ Pull requests are welcome; please [read this](CONTRIBUTING.md).
 
 [Quack]: https://www.neilvandyke.org/quack/
 [Geiser]: https://www.nongnu.org/geiser/
-
-## Complementary packages
-
-- Racket Mode includes support for indent while editing, which
-  preserves your line breaks. If you want to use an auto-reformatter
-  --- an expressive pretty printer that chooses line breaks while
-  computing an optimal layout --- the Racket package
-  [fmt](https://docs.racket-lang.org/fmt/) is supported by the Emacs
-  package
-  [emacs-format-all-the-code](https://github.com/lassik/emacs-format-all-the-code).
