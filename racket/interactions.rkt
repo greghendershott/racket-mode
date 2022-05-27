@@ -36,6 +36,8 @@
               ((current-read-interaction) prompt in))
        [(? eof-object?)
         (log-racket-mode-info "get-interaction: eof")
+        (display-commented
+         "Closing REPL session because language's current-read-interaction returned EOF")
         (exit 'get-interaction-eof)]
        [v
         (zero-column!)
