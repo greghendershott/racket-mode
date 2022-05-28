@@ -86,13 +86,13 @@ their response asychronously."
 Where `racket-documentation-search', `racket-xp-documentation'
 and `racket-repl-documentation' should look for the search page.
 
-- If the value of this variable is 'local, open the search page
-  from the local documentation, as with \"raco doc\".
+- If the value of this variable is the symbol 'local, open the
+  search page from the local documentation, as with \"raco doc\".
 
 - Otherwise, the value is a string recognizable by `format', with
-  \"%s\" at the point at which to insert the user's search text.
-  the help desk. Apart from \"%s\", the string should be a
-  properly encoded URL."
+  \"%s\" at the point at which to insert the user's search text
+  after applying `url-hexify-string'. Apart from \"%s\", the
+  string should be a properly encoded URL."
   :tag "Documentation Search Location"
   :type '(choice (string :tag "URL")
                  (const :tag "Local" local))

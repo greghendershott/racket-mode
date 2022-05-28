@@ -16,6 +16,7 @@
 ;; General Public License for more details. See
 ;; http://www.gnu.org/licenses/ for details.
 
+(require 'url-util)
 (require 'racket-browse-url)
 (require 'racket-cmd)
 (require 'racket-custom)
@@ -58,8 +59,10 @@ Centralizes how to issue doc command and handle response correctly."
 (defun racket--search-doc (str)
   "Search docs where the variable `racket-documentation-search-location' says."
   (pcase racket-documentation-search-location
-    ((and (pred stringp) url) (racket-browse-url (format url str)))
-    ('local                   (racket--search-doc-locally str))))
+    ((and (pred stringp) url) (racket-browse-url (format url (url-hexify-string str))))
+    ('local                   (racket--search-doc-locally str))
+    (_ (user-error "Unknown value for `racket-documentation-search-location': %s"
+                   racket-documentation-search-location))))
 
 (defun racket--search-doc-locally (str)
   (racket--doc-assert-local-back-end)
