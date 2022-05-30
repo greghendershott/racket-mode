@@ -852,8 +852,8 @@ A value for the variable `comint-output-filter-functions'."
                                   t)
           (let* ((beg (match-beginning 0))
                  (file (match-string-no-properties 1))
-                 (file (racket-file-name-back-to-front file))
-                 (file (or (file-local-copy file) file)))
+                 (file (save-match-data (racket-file-name-back-to-front file)))
+                 (file (save-match-data (or (file-local-copy file) file))))
             (cond ((and racket-images-inline (display-images-p))
                    (replace-match "")
                    (insert-image
