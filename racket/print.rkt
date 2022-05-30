@@ -34,7 +34,7 @@
 ;; (Note: Although I had tried using the pre-print and post-print
 ;; hooks, they seemed to be called inconsistently.)
 
-(define ht (make-hasheq))
+(define ht (make-weak-hasheq)) ;weak because #624
 
 (define (make-pretty-print-size-hook pixels/char)
   (define (racket-mode-size-hook value _display? _port)
