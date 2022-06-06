@@ -19,20 +19,27 @@
 (module+ test
   (require rackunit))
 
-(define (racket-mode-error-display-handler str v)
+(define (racket-mode-error-display-handler msg v)
   (parameterize ([current-output-port (current-error-port)])
-    (cond [(exn? v)
-           (unless (equal? "Check failure" (exn-message v)) ;rackunit check fails
-             (display-commented (complete-paths
-                                 (undo-path->relative-string/library str)))
-             (display-srclocs v)
-             (unless (or (exn:fail:syntax? v)
-                         (and (exn:fail:read? v) (not (exn:fail:read:eof? v)))
-                         (exn:fail:user? v))
-               (display-context v))
-             (maybe-suggest-packages v))]
+    (cond [(with-handlers ([values (λ _ #f)])
+             ((dynamic-require 'rackunit 'exn:test:check?) v))
+           (displayln msg)]
+          [(exn? v)
+           (define (show msg)
+             (display-commented
+              (complete-paths
+               (undo-path->relative-string/library msg))))
+           (show msg)
+           (unless (member (exn-message v) (list "" msg))
+             (show (exn-message v)))
+           (display-srclocs v)
+           (unless (or (exn:fail:syntax? v)
+                       (and (exn:fail:read? v) (not (exn:fail:read:eof? v)))
+                       (exn:fail:user? v))
+             (display-context v))
+           (maybe-suggest-packages v)]
           [else
-           (display-commented str)])))
+           (display-commented msg)])))
 
 ;;; srclocs
 
