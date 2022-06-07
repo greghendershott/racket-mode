@@ -52,11 +52,11 @@ signature and/or type. So:
   shr-dom, but these days we do it all in the front end.)
   REPL-SESSION-ID and STR are unused and may be nil.
 
-- When HOW is 'namespace or a stringp pathname, we use that as
+- When HOW is \"namespace\" or a stringp pathname, we use that as
   the namespace in which to see if STR is an identifier, using
   the \"describe\" back end command. The command can return a few
   kinds of values; see the implementation below. When HOW is
-  'namespace then REPL-SESSION-ID should be
+  \"namespace\" then REPL-SESSION-ID should be
   `racket--repl-session-id'; else may be nil."
   (let ((buf-name (format "*Racket Describe <%s>*"
                           (racket-back-end-name))))
@@ -323,7 +323,8 @@ for our custom shr handler."
 (defun racket--describe-fetch-and-show (path goto)
   "Get shr dom from back end and insert into current buffer.
 
-PATH is doc path, as in 'racket-doc-link-path.
+PATH is doc path, as in the \"racket-doc-link-path\" button
+property.
 
 GOTO is as in `racket--describe-goto'."
   (if (equal path (car racket--describe-here))

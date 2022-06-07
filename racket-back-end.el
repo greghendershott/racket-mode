@@ -336,7 +336,7 @@ by \"id\" instead of by value."
 
 (defun racket--file-name->host+user+port+name (file-name)
   "Although it would be wonderful simply to use `file-remote-p',
-it is unreliable for 'host or 'port, at least on Emacs 25.
+it is unreliable for \"host\" or \"port\", at least on Emacs 25.
 Instead need the following."
   (let* ((tfns (and (tramp-tramp-file-p file-name)
                     (tramp-dissect-file-name file-name)))

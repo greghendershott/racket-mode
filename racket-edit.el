@@ -238,9 +238,9 @@ typed/racket/base\"."
 (defun racket--module-requires (what &optional outermost-p)
   "Identify all require forms and do WHAT.
 
-When WHAT is 'find, return the require forms.
+When WHAT is \"find\", return the require forms.
 
-When WHAT is 'kill, kill the require forms and return the
+When WHAT is \"kill\", kill the require forms and return the
 position where the first one had started.
 
 OUTERMOST-P says which module's requires: true means the
@@ -366,8 +366,8 @@ For example with point on the \"[\" before \"a\":
           [bar 23])          [bar 23])
       ....)              ....)
 
-    '([a . 12]         '([a   . 12]
-      [bar . 23])        [bar . 23])
+    ([a . 12]          ([a   . 12]
+     [bar . 23])        [bar . 23])
 
     (cond [a? #t]      (cond [a?   #t]
           [b? (f x           [b?   (f x
@@ -378,8 +378,8 @@ For example with point on the \"[\" before \"a\":
 Or with point on the quote before \"a\":
 
 #+BEGIN_SRC racket
-    (list 'a 12        (list 'a   12
-          'bar 23)           'bar 23)
+    (list a 12        (list a   12
+          bar 23)           bar 23)
 #+END_SRC
 
 If more than one couple is on the same line, none are aligned,

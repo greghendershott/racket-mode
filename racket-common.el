@@ -168,7 +168,7 @@ STRING is the actual word used as delimiter (e.g. \"HERE\").
 EOL is the position of the \\n.
 Point is at the beginning of the next line.
 
-This sets the open | syntax and sets a 'racket-here-string
+This sets the open | syntax and sets a \"racket-here-string\"
 property whose value is STRING. The close | syntax is set by
 `racket--syntax-propertize-here-string'."
   (unless (save-excursion

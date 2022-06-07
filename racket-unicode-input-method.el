@@ -32,8 +32,8 @@ racket-mode and racket-repl-mode buffers, put the following code
 in your Emacs init file:
 
 #+BEGIN_SRC elisp
-    (add-hook 'racket-mode-hook #'racket-unicode-input-method-enable)
-    (add-hook 'racket-repl-mode-hook #'racket-unicode-input-method-enable)
+    (add-hook \\='racket-mode-hook #'racket-unicode-input-method-enable)
+    (add-hook \\='racket-repl-mode-hook #'racket-unicode-input-method-enable)
 #+END_SRC
 
 To temporarily enable this input method for a single buffer you
@@ -60,7 +60,7 @@ input method, you may add code like the following example in your
 Emacs init file:
 
 #+BEGIN_SRC elisp
-    ;; Either (require 'racket-mode) here, or, if you use
+    ;; Either (require \\='racket-mode) here, or, if you use
     ;; use-package, put the code below in the :config section.
     (with-temp-buffer
       (racket-unicode-input-method-enable)

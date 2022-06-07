@@ -74,11 +74,11 @@ a rule stored as a `racket-indent-function' property.
 To extend, use your Emacs init file to
 
 #+BEGIN_SRC emacs-lisp
-    (put SYMBOL 'racket-indent-function INDENT)
+    (put SYMBOL \\='racket-indent-function INDENT)
 #+END_SRC
 
-SYMBOL is the name of the Racket form like \"'test-case\" and
-INDENT is an integer or the symbol \"'defun\". When INDENT is an
+SYMBOL is the name of the Racket form like \"test-case\" and
+INDENT is an integer or the symbol \"defun\". When INDENT is an
 integer, the meaning is the same as for lisp-indent-function and
 scheme-indent-function: Indent the first INDENT arguments
 specially and indent any further arguments like a body. (The
@@ -87,7 +87,7 @@ number may be negative; see discussion below.)
 For example:
 
 #+BEGIN_SRC emacs-lisp
-    (put 'test-case 'racket-indent-function 1)
+    (put \\='test-case \\='racket-indent-function 1)
 #+END_SRC
 
 This will change the indent of `test-case` from this:
@@ -287,7 +287,7 @@ Returns nil for #% identifiers like #%app."
 (defun racket--data-sequence-p ()
   "Looking at \"data\" sequences where we align under head item?
 
-These sequences include '() `() #() -- and {} when
+These sequences include \\='() `() #() -- and {} when
 `racket-indent-curly-as-sequence' is t -- but never #'() #`() ,()
 ,@().
 

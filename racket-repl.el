@@ -138,7 +138,7 @@ but does not have a live session."
   "Submit your input to the Racket REPL.
 
 If the REPL is running a Racket lang whose language-info has a
-'drracket:submit-predicate, that is first called to see if the
+drracket:submit-predicate, that is first called to see if the
 input is valid to be submitted.
 
 With \\[universal-argument] after sending your input and a
@@ -336,7 +336,7 @@ Defined as a function so it can be a menu target."
   (racket-run '(4)))
 
 (defun racket-run-with-debugging ()
-  "Run with `racket-error-context' temporarily set to 'debug.
+  "Run with `racket-error-context' temporarily set to \"debug\".
 
 This is equivalent to \\[universal-argument] \\[universal-argument] \\[racket-run].
 
@@ -445,7 +445,7 @@ For example:
 The following values will /not/ work:
 
 #+BEGIN_SRC elisp
-    '(\"-f\" \"bar\")
+    \\='(\"-f\" \"bar\")
     (list \"-f\" \"bar\")
 #+END_SRC
 ")
@@ -472,12 +472,12 @@ WHAT must be `racket--what-to-run-p', where nil defaults to
 `racket--what-to-run'.
 
 EXTRA-SUBMODS should be a list of symbols, names of extra
-submodules to run, e.g. '(test main). This is intended for use by
+submodules to run, e.g. (test main). This is intended for use by
 `racket-run', which more closely emulates DrRacket, as opposed to
 `racket-run-module-at-point'.
 
 CONTEXT-LEVEL should be a valid value for the variable
-`racket-error-context', 'coverage, or 'profile. Or if nil,
+`racket-error-context', \"coverage\", or \"profile\". Or if nil,
 defaults to the variable `racket-error-context'.
 
 CALLBACK is used as the callback for `racket--cmd/async'; it may
@@ -828,7 +828,7 @@ Although they remain clickable they will be ignored by
 
 (defun racket-repl--clean-image-cache ()
   "Clean all except for the last `racket-images-keep-last'
-images in 'racket-image-cache-dir'."
+images in `racket-image-cache-dir'."
   (interactive)
   (dolist (file (butlast (racket-repl--list-image-cache)
                          racket-images-keep-last))
@@ -1265,7 +1265,7 @@ want the REPL buffer to be cleared before each run, much like
 with Dr Racket. To do so you can use `customize', or, add to your
 Emacs init file something like:
 
-  (add-hook 'racket-before-run-hook #'racket-repl-clear)
+  (add-hook \\='racket-before-run-hook #'racket-repl-clear)
 
 See also the command `racket-repl-clear-leaving-last-prompt'."
   ;; This prevents a first blank line, by telling the back end that

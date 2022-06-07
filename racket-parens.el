@@ -28,12 +28,12 @@
   "Simulate a `self-insert-command' of EVENT.
 
 Using this intead of `insert' allows self-insert hooks to run,
-which is important for things like `'electric-pair-mode'.
+which is important for things like `electric-pair-mode'.
 
-A command using this should probably set its 'delete-selection
+A command using this should probably set its delete-selection
 property to t so that `delete-selection-mode' works:
 
-  (put 'racket-command 'delete-selection t)
+  (put \\='racket-command \\='delete-selection t)
 
 If necessary the value of the property can be a function, for
 example `racket--electric-pair-mode-not-active'."
@@ -41,10 +41,10 @@ example `racket--electric-pair-mode-not-active'."
     (self-insert-command (prefix-numeric-value nil))))
 
 (defun racket--electric-pair-mode-not-active ()
-  "A suitable value for the 'delete-selection property of
-commands that insert parens: Inserted text should replace the
-selection unless a mode like `electric-pair-mode' is enabled, in
-which case the selection is to be wrapped in parens."
+  "A suitable value for the delete-selection property of commands
+that insert parens: Inserted text should replace the selection
+unless a mode like `electric-pair-mode' is enabled, in which case
+the selection is to be wrapped in parens."
   (not (and (boundp 'electric-pair-mode)
             electric-pair-mode)))
 

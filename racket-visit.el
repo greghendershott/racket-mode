@@ -25,8 +25,8 @@
 
 The returned string has text properties:
 
-- A 'racket-module-path property whose value is either 'absolute
-  or 'relative.
+- A \"racket-module-path\" property whose value is either
+  \"absolute\" or \"relative\".
 
 - The original properties from the buffer. However if a multi-in
   form, these are only the properties from the suffix, e.g. the
@@ -34,10 +34,10 @@ The returned string has text properties:
   applied only to that portion of the returned string, e.g. the
   \"base\" portion of \"racket/base\".
 
-- Regardless of the preceding point, the original 'racket-xp-def
-  property if any from the buffer is applied to the ENTIRE
-  returned string. That way the caller can simply use an index of
-  0 for `get-text-property'."
+- Regardless of the preceding point, the original
+  \"racket-xp-def\" property if any from the buffer is applied to
+  the ENTIRE returned string. That way the caller can simply use
+  an index of 0 for `get-text-property'."
   (when (racket--in-require-form-p)
     (save-excursion
       (condition-case ()

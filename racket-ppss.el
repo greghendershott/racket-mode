@@ -28,30 +28,30 @@ point."
 
 (defun racket--ppss-containing-sexp (xs)
   "The character position of the start of the innermost parenthetical
-grouping containing the stopping point; ‘nil’ if none."
+grouping containing the stopping point; nil if none."
   (elt xs 1))
 
 (defun racket--ppss-last-sexp (xs)
   "The character position of the start of the last complete
-subexpression terminated; ‘nil’ if none.
+subexpression terminated; nil if none.
 Valid only for `parse-partial-sexp' -- NOT `syntax-ppss'."
   (elt xs 2))
 
 (defun racket--ppss-string-p (xs)
-  "Non-‘nil’ if inside a string.
+  "Non-nil if inside a string.
 More precisely, this is the character that will terminate the
-string, or ‘t’ if a generic string delimiter character should
+string, or t if a generic string delimiter character should
 terminate it."
   (elt xs 3))
 
 (defun racket--ppss-comment-p (xs)
-  "‘t’ if inside a non-nestable comment (of any comment style;
+  "t if inside a non-nestable comment (of any comment style;
 *note Syntax Flags::); or the comment nesting level if inside a
 comment that can be nested."
   (elt xs 4))
 
 (defun racket--ppss-quote-p (xs)
-  "‘t’ if the end point is just after a quote character."
+  "t if the end point is just after a quote character."
   (elt xs 5))
 
 (defun racket--ppss-min-paren-depth (xs)
@@ -60,9 +60,9 @@ Valid only for `parse-partial-sexp' -- NOT `syntax-ppss'."
   (elt xs 6))
 
 (defun racket--ppss-comment-type (xs)
-  "What kind of comment is active: ‘nil’ if not in a comment or
-in a comment of style ‘a’; 1 for a comment of style ‘b’; 2 for a
-comment of style ‘c’; and ‘syntax-table’ for a comment that
+  "What kind of comment is active: nil if not in a comment or
+in a comment of style a; 1 for a comment of style b; 2 for a
+comment of style c; and syntax-table for a comment that
 should be ended by a generic comment delimiter character."
   (elt xs 7))
 
@@ -71,7 +71,7 @@ should be ended by a generic comment delimiter character."
 While inside a comment, this is the position where the comment
 began; while inside a string, this is the position where the
 string began. When outside of strings and comments, this element
-is ‘nil’."
+is nil."
   (elt xs 8))
 
 (provide 'racket-ppss)

@@ -86,7 +86,7 @@ their response asychronously."
 Where `racket-documentation-search', `racket-xp-documentation'
 and `racket-repl-documentation' should look for the search page.
 
-- If the value of this variable is the symbol 'local, open the
+- If the value of this variable is the symbol \"local\", open the
   search page from the local documentation, as with \"raco doc\".
 
 - Otherwise, the value is a string recognizable by `format', with
@@ -363,7 +363,7 @@ This is safe to set as a file-local variable."
 (defcustom racket-indent-sequence-depth 0
   "To what depth should `racket-indent-line' search.
 
-This affects the indentation of forms like '() `() #() --
+This affects the indentation of forms like \\='() `() #() --
 and {} if `racket-indent-curly-as-sequence' is t --- but not
 #'() #`() ,() ,@(). A zero value disables, giving the normal
 indent behavior of DrRacket or Emacs `lisp-mode' derived modes
@@ -420,19 +420,19 @@ set as a file-local variable."
     (*                       . fatal))
   "Configuration of `racket-logger-mode' topics and levels.
 
-The topic '* respresents the default level used for topics not
+The topic \"*\" respresents the default level used for topics not
 assigned a level. Otherwise, the topic symbols are the same as
 used by Racket's `define-logger`.
 
-The levels are those used by Racket's logging system: 'debug,
-'info, 'warning, 'error, 'fatal.
+The levels are those used by Racket's logging system: \"debug\",
+\"info\", \"warning\", \"error\", \"fatal\".
 
 For more information see:
   <https://docs.racket-lang.org/reference/logging.html>
 
 The default value sets some known \"noisy\" topics to be one
-level quieter. That way you can set the '* topic to a level like
-'debug and not get overhwelmed by these noisy topics."
+level quieter. That way you can set the \"*\" topic to a level
+like \"debug\" and not get overhwelmed by these noisy topics."
   :tag "Logger Configuration"
   :type '(alist :key-type symbol :value-type symbol)
   :safe (lambda (xs)

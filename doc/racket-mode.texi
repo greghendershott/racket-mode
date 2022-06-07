@@ -995,8 +995,8 @@ To extend, use your Emacs init file to
     (put SYMBOL 'racket-indent-function INDENT)
 @end lisp
 
-SYMBOL is the name of the Racket form like ``'test-case'' and
-INDENT is an integer or the symbol ``'defun''. When INDENT is an
+SYMBOL is the name of the Racket form like ``test-case'' and
+INDENT is an integer or the symbol ``defun''. When INDENT is an
 integer, the meaning is the same as for lisp-indent-function and
 scheme-indent-function: Indent the first INDENT arguments
 specially and indent any further arguments like a body. (The
@@ -1282,8 +1282,8 @@ For example with point on the "[" before ``a'':
           [bar 23])          [bar 23])
       ....)              ....)
 
-    '([a . 12]         '([a   . 12]
-      [bar . 23])        [bar . 23])
+    ([a . 12]          ([a   . 12]
+     [bar . 23])        [bar . 23])
 
     (cond [a? #t]      (cond [a?   #t]
           [b? (f x           [b?   (f x
@@ -1294,8 +1294,8 @@ For example with point on the "[" before ``a'':
 Or with point on the quote before ``a'':
 
 @example
-    (list 'a 12        (list 'a   12
-          'bar 23)           'bar 23)
+    (list a 12        (list a   12
+          bar 23)           bar 23)
 @end example
 
 If more than one couple is on the same line, none are aligned,
@@ -2730,7 +2730,7 @@ and @ref{racket-repl-documentation} should look for the search page.
 
 @itemize
 @item
-If the value of this variable is the symbol `local, open the
+If the value of this variable is the symbol ``local'', open the
 search page from the local documentation, as with ``raco doc''.
 
 @item
@@ -2908,19 +2908,19 @@ and/or @code{racket-repl-mode-map} keymaps.
 
 Configuration of @ref{racket-logger-mode} topics and levels.
 
-The topic `* respresents the default level used for topics not
+The topic ``*'' respresents the default level used for topics not
 assigned a level. Otherwise, the topic symbols are the same as
 used by Racket's @code{define-logger}.
 
-The levels are those used by Racket's logging system: `debug,
-`info, `warning, `error, `fatal.
+The levels are those used by Racket's logging system: ``debug'',
+``info'', ``warning'', ``error'', ``fatal''.
 
 For more information see:
   @uref{https://docs.racket-lang.org/reference/logging.html}
 
 The default value sets some known ``noisy'' topics to be one
-level quieter. That way you can set the `* topic to a level like
-`debug and not get overhwelmed by these noisy topics.
+level quieter. That way you can set the ``*'' topic to a level
+like ``debug'' and not get overhwelmed by these noisy topics.
 
 @node racket-before-run-hook
 @subsection racket-before-run-hook

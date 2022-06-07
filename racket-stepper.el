@@ -132,11 +132,13 @@ Uses Racket's `expand-once` in the namespace from the most recent
 
 (defvar racket--stepper-repl-session-id nil
   "The REPL session used when stepping.
-May be nil for 'file stepping, but must be valid for 'expr stepping.")
+
+May be nil for \"file\" stepping, but must be valid for \"expr\"
+stepping.")
 
 (defun racket-stepper--start (which str into-base)
   "Ensure buffer and issue initial command.
-WHICH should be 'expr or 'file.
+WHICH should be \"expr\" or \"file\".
 STR should be the expression or pathname.
 INTO-BASE is treated as a raw command prefix arg and converted to boolp."
   (unless (eq major-mode 'racket-mode)

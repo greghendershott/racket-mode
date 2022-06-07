@@ -419,7 +419,7 @@ similar, it will already be there."
     (error nil)))
 
 (defun racket--sexp-set-face (face &optional forcep)
-  "Set 'face prop to FACE, rear-nonsticky, for the sexp starting at point.
+  "Set \"face\" prop to FACE, rear-nonsticky, for the sexp starting at point.
 Unless FORCEP is t, does so only if not already set in the
 region.
 
@@ -430,7 +430,7 @@ Moves point to the end of the sexp."
                            forcep))
 
 (defun racket--region-set-face (beg end face &optional forcep)
-  "Set 'face prop to FACE, rear-nonsticky, in the region BEG..END.
+  "Set \"face\" prop to FACE, rear-nonsticky, in the region BEG..END.
 Unless FORCEP is t, does so only if not already set in the
 region."
   (when (or forcep (not (text-property-not-all beg end 'face nil)))

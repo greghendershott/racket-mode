@@ -187,7 +187,7 @@ sentinel is `ignore'."
 (defun racket--cmd-dispatch (back-end response)
   "Do something with a sexpr sent to us from the command server.
 Although mostly these are 1:1 responses to command requests,
-'logger and 'debug-break are notifications."
+\"logger\" and \"debug-break\" are notifications."
   (pcase response
     (`(logger ,str)
      (run-at-time 0.001 nil #'racket--logger-on-notify back-end str))
@@ -237,10 +237,10 @@ form. See `racket--restoring-current-buffer'."
 REPL-SESSION-ID may be nil for commands that do not need to run
 in a specific namespace.
 
-CALLBACK is only called for 'ok responses, with (ok v ...)
+CALLBACK is only called for \"ok\" responses, with (ok v ...)
 unwrapped to (v ...).
 
-'error responses are handled here. Note: We use `message' not
+\"error\" responses are handled here. Note: We use `message' not
 `error' here because:
 
   1. It would show \"error running timer:\" which, although true,
@@ -249,7 +249,7 @@ unwrapped to (v ...).
   2. More simply, we don't need to escape any call stack, we only
      need to ... not call the callback!
 
-'break responses are handled here, too. This is used when a
+\"break\" responses are handled here, too. This is used when a
 command is somehow canceled, with no useful response except the
 indication we should clean up the pending callback as usual.
 
@@ -274,7 +274,7 @@ mistake."
        #'ignore))))
 
 (defun racket--cmd/await (repl-session-id command-sexpr)
-  "Send COMMAND-SEXPR. Await and return an 'ok response value, or raise `error'.
+  "Send COMMAND-SEXPR. Await and return an \"ok\" response value, or raise `error'.
 
 REPL-SESSION-ID may be nil for commands that do not need to run
 in a specific namespace."

@@ -142,7 +142,8 @@
             racket-generate--angle-mapvar
             (racket-generate--bracket-command keymap)
             racket-generate--linkify
-            racket-generate--quotes-to-tildes)
+            racket-generate--quotes-to-tildes
+            racket-generate--remove-backslash-equal)
           "\n\n"))
 
 ;;; Configuration functions
@@ -235,7 +236,8 @@
                   racket-generate--angle-mapvar
                   (racket-generate--bracket-command racket-mode-map)
                   racket-generate--linkify
-                  racket-generate--quotes-to-tildes)
+                  racket-generate--quotes-to-tildes
+                  racket-generate--remove-backslash-equal)
                 "\n\n")))
            racket-generate--variables)))
 
@@ -276,7 +278,8 @@
                   (or (documentation-property symbol 'face-documentation t)
                       "No documentation.\n\n")
                 racket-generate--linkify
-                racket-generate--quotes-to-tildes)
+                racket-generate--quotes-to-tildes
+                racket-generate--remove-backslash-equal)
               "\n\n"))
            racket-generate--faces)))
 
@@ -436,5 +439,16 @@
 (defun racket-generate--where-is-no-menu (symbol keymap)
   (cl-remove-if (lambda (binding) (eq (aref binding 0) 'menu-bar))
                 (where-is-internal symbol keymap)))
+
+(defun racket-generate--remove-backslash-equal (s)
+  ;; "\\=" is a prefix meaning "use the next character literally". We
+  ;; use it to prefix ' in sample code, to keep Emacs 29+ byte
+  ;; compiler from complaining about misuse of single quotation marks.
+  (with-temp-buffer
+    (insert s)
+    (goto-char (point-min))
+    (while (re-search-forward (rx ?\\ ?=) nil t)
+      (replace-match ""))
+    (buffer-substring-no-properties (point-min) (point-max))))
 
 ;;; generate.el ends here

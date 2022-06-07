@@ -122,8 +122,8 @@ specific buffer. If you always want to use it, put the following
 code in your Emacs init file:
 
 #+BEGIN_SRC elisp
-    (require 'racket-xp)
-    (add-hook 'racket-mode-hook #'racket-xp-mode)
+    (require \\='racket-xp)
+    (add-hook \\='racket-mode-hook #'racket-xp-mode)
 #+END_SRC
 
 Note: This mode won't do anything unless/until the Racket Mode
@@ -157,10 +157,10 @@ Note: If you find these point-motion features too distracting
 and/or slow, in your `racket-xp-mode-hook' you may disable them:
 
 #+BEGIN_SRC elisp
-  (require 'racket-xp)
-  (add-hook 'racket-xp-mode-hook
+  (require \\='racket-xp)
+  (add-hook \\='racket-xp-mode-hook
             (lambda ()
-              (remove-hook 'pre-redisplay-functions
+              (remove-hook \\='pre-redisplay-functions
                            #'racket-xp-pre-redisplay
                            t)))
 #+END_SRC
