@@ -321,7 +321,7 @@ for our custom shr handler."
   (racket--describe-nav 'next))
 
 (defun racket--describe-fetch-and-show (path goto)
-  "Get shr dom from back end and insert into current buffer.
+  "Insert shr dom for PATH and move point to GOTO.
 
 PATH is doc path, as in the \"racket-doc-link-path\" button
 property.
