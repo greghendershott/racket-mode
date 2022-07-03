@@ -488,10 +488,17 @@ command via the start callback.the REPL is not live, create it.
 
 Otherwise if `racket--repl-live-p', send the command."
   (unless (eq major-mode 'racket-mode)
-    (user-error "Only works from a `racket-mode' buffer"))
+    (user-error "Racket Mode run command only works from a `racket-mode' buffer"))
+  ;; When buffer-file-name is nil, as in #626, use a temp file.
+  (unless buffer-file-name
+    (setq buffer-file-name (make-temp-file "racket-org-edit-" nil ".rkt"))
+    (write-region nil nil buffer-file-name)
+    (set-buffer-modified-p nil)
+    (setq what (list (racket--buffer-file-name))))
   (unless (progn (racket--save-if-changed)
                  (racket--what-to-run-p what))
     (signal 'wrong-type-argument `(racket--what-to-run-p ,what)))
+  ;; Handle the restart-watch-directories feature; #602
   (when-let (changes (racket--back-end-watch-read/reset))
     (when (y-or-n-p (format "Changed: %S -- restart Racket Mode back end %S? "
                             changes
