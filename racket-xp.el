@@ -437,9 +437,25 @@ or `racket-repl-describe'."
         (set-window-parameter window 'racket-xp-point point)
         (pcase (get-text-property point 'help-echo)
           ((and s (pred racket--non-empty-string-p))
-           (racket-show s
-                        (or (next-single-property-change point 'help-echo)
-                            (point-max))))
+           (racket-show
+            s
+            ;; Because some `racket-show' flavors present a tooltip, a
+            ;; position after the end of the span is preferable: less
+            ;; likely to hide the target of the annotation.
+            (pcase (or (next-single-property-change point 'help-echo)
+                       (point-max))
+              ((and end (guard (pos-visible-in-window-p end window))) end)
+              ;; But if end isn't visible (#629) prefer beginning.
+              (end
+               (pcase (or (previous-single-property-change end 'help-echo)
+                          (point-min))
+                 ((and beg (guard (pos-visible-in-window-p beg window))) beg)
+                 ;; But if neither beginning nor end are visible, just
+                 ;; show starting at top line of window.
+                 (_ (save-excursion
+                      (goto-char (window-start window))
+                      (forward-line -1)
+                      (point))))))))
           (_ (racket-show "")))
         (let ((def (get-text-property point 'racket-xp-def))
               (use (get-text-property point 'racket-xp-use)))
