@@ -489,12 +489,29 @@ command via the start callback.the REPL is not live, create it.
 Otherwise if `racket--repl-live-p', send the command."
   (unless (eq major-mode 'racket-mode)
     (user-error "Racket Mode run command only works from a `racket-mode' buffer"))
-  ;; When buffer-file-name is nil, as in #626, use a temp file.
-  (unless buffer-file-name
-    (setq buffer-file-name (make-temp-file "racket-org-edit-" nil ".rkt"))
-    (write-region nil nil buffer-file-name)
-    (set-buffer-modified-p nil)
-    (setq what (list (racket--buffer-file-name))))
+  ;; Support running buffers created by `org-edit-src-coode': see
+  ;; issues #626, #630.
+  (when (bound-and-true-p org-src-mode)
+    (unless buffer-file-name
+      ;; Give the buffer a temp file we can run. The correct thing to
+      ;; use is `set-visited-file-name', which handles many things
+      ;; besides setting `buffer-file-name'. Some we want, e.g.
+      ;; setting the buffer-modified flag. Some we don't, e.g.
+      ;; renaming the buffer, which we rename back to the original
+      ;; because org-src does things with regexps on these buffer
+      ;; names.
+      (let ((orig-buffer-name (buffer-name)))
+        (set-visited-file-name (make-temp-file "racket-org-edit-" nil ".rkt"))
+        (rename-buffer orig-buffer-name))
+      (setq what (list (racket--buffer-file-name)))
+      ;; org-src adds to `write-contents-functions' a hook that
+      ;; prevents `save-buffer' actually writing to file; instead it
+      ;; copies contents back to the main org buffer. Accommodate that
+      ;; by prepending our own hook, which actually writes to file. It
+      ;; returns nil to mean other hooks should still be run, so this
+      ;; doesn't interfere with org's hook.
+      (add-hook 'write-contents-functions #'racket--write-contents nil t)))
+  ;; Save buffer and validate WHAT to run.
   (unless (progn (racket--save-if-changed)
                  (racket--what-to-run-p what))
     (signal 'wrong-type-argument `(racket--what-to-run-p ,what)))
@@ -557,6 +574,10 @@ Otherwise if `racket--repl-live-p', send the command."
                   (error "No REPL session"))
                 (racket--cmd/async (racket--repl-session-id) cmd after)
                 (display-buffer racket-repl-buffer-name))))))))
+
+(defun racket--write-contents ()
+  (write-region nil nil buffer-file-name)
+  nil)
 
 (defun racket--char-pixel-width ()
   (with-temp-buffer
