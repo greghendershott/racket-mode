@@ -489,7 +489,7 @@ command via the start callback.the REPL is not live, create it.
 Otherwise if `racket--repl-live-p', send the command."
   (unless (eq major-mode 'racket-mode)
     (user-error "Racket Mode run command only works from a `racket-mode' buffer"))
-  ;; Support running buffers created by `org-edit-src-coode': see
+  ;; Support running buffers created by `org-edit-src-code': see
   ;; issues #626, #630.
   (when (bound-and-true-p org-src-mode)
     (unless buffer-file-name
