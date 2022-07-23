@@ -362,7 +362,7 @@ the variable `racket-before-run-hook'."
                       (display-buffer racket-repl-buffer-name)
                       (select-window (get-buffer-window racket-repl-buffer-name t)))))
 
-(defun racket-test (&optional coverage)
+(defun racket-test (&optional prefix)
   "Run the \"test\" submodule.
 
 Put your tests in a \"test\" submodule. For example:
@@ -376,9 +376,12 @@ Put your tests in a \"test\" submodule. For example:
 Any rackunit test failure messages show the location. You may use
 `next-error' to jump to the location of each failing test.
 
-With \\[universal-argument] also runs the tests with coverage
-instrumentation and highlights uncovered code using
-`font-lock-warning-face'.
+With \\[universal-argument] uses errortrace for improved stack traces.
+Otherwise follows the `racket-error-context' setting.
+
+With \\[universal-argument] \\[universal-argument] also runs the
+tests with coverage instrumentation and highlights uncovered code
+using `font-lock-warning-face'.
 
 See also:
 - `racket-fold-all-tests'
@@ -387,32 +390,38 @@ See also:
   (interactive "P")
   (let ((mod-path (list (racket--buffer-file-name) 'test))
         (buf (current-buffer)))
-    (if (not coverage)
-        (racket--repl-run mod-path)
-      (message "Running test submodule with coverage instrumentation...")
-      (racket--repl-run
-       mod-path
-       '()
-       'coverage
-       (lambda ()
-         (message "Getting coverage results...")
-         (racket--cmd/async
-          (racket--repl-session-id)
-          `(get-uncovered)
-          (lambda (xs)
-            (pcase xs
-              (`() (message "Full coverage."))
-              ((and xs `((,beg0 . ,_) . ,_))
-               (message "Missing coverage in %s place(s)." (length xs))
-               (with-current-buffer buf
-                 (with-silent-modifications
-                   (overlay-recenter (point-max))
-                   (dolist (x xs)
-                     (let ((o (make-overlay (car x) (cdr x) buf)))
-                       (overlay-put o 'name 'racket-uncovered-overlay)
-                       (overlay-put o 'priority 100)
-                       (overlay-put o 'face font-lock-warning-face)))
-                   (goto-char beg0))))))))))))
+    ;; Originally this function's single optional argument was a
+    ;; `coverage-p` boolean. For backward compatibility in case anyone
+    ;; has Emacs Lisp calling this function non-interactively, we keep
+    ;; supporting t and nil values.
+    (pcase prefix
+      (`()  (racket--repl-run mod-path))
+      (`(4) (racket--repl-run mod-path nil 'high))
+      ((or '(16) 't)
+       (message "Running test submodule with coverage instrumentation...")
+       (racket--repl-run
+        mod-path
+        nil
+        'coverage
+        (lambda ()
+          (message "Getting coverage results...")
+          (racket--cmd/async
+           (racket--repl-session-id)
+           `(get-uncovered)
+           (lambda (xs)
+             (pcase xs
+               (`() (message "Full coverage."))
+               ((and xs `((,beg0 . ,_) . ,_))
+                (message "Missing coverage in %s place(s)." (length xs))
+                (with-current-buffer buf
+                  (with-silent-modifications
+                    (overlay-recenter (point-max))
+                    (dolist (x xs)
+                      (let ((o (make-overlay (car x) (cdr x) buf)))
+                        (overlay-put o 'name 'racket-uncovered-overlay)
+                        (overlay-put o 'priority 100)
+                        (overlay-put o 'face font-lock-warning-face)))
+                    (goto-char beg0)))))))))))))
 
 (add-hook 'racket--repl-before-run-hook #'racket--remove-coverage-overlays)
 

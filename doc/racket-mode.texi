@@ -2292,9 +2292,12 @@ Put your tests in a ``test'' submodule. For example:
 Any rackunit test failure messages show the location. You may use
 @code{next-error} to jump to the location of each failing test.
 
-With @kbd{C-u}  also runs the tests with coverage
-instrumentation and highlights uncovered code using
-@code{font-lock-warning-face}.
+With @kbd{C-u}  uses errortrace for improved stack traces.
+Otherwise follows the @ref{racket-error-context} setting.
+
+With @kbd{C-u}  @kbd{C-u}  also runs the
+tests with coverage instrumentation and highlights uncovered code
+using @code{font-lock-warning-face}.
 
 See also:
 @itemize
