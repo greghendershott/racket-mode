@@ -141,10 +141,12 @@ If the REPL is running a Racket lang whose language-info has a
 drracket:submit-predicate, that is first called to see if the
 input is valid to be submitted.
 
-With \\[universal-argument] after sending your input and a
-newline, also calls `process-send-eof' -- because some langs
-require EOF to mark the end of an interactive
-expression/statement."
+\\<racket-repl-mode-map>
+With a prefix argument (e.g. \\[universal-argument] \\[racket-repl-submit]):
+
+After sending your input and a newline, also calls
+`process-send-eof' -- because some langs require EOF to mark the
+end of an interactive expression/statement."
   (interactive "P")
   (let* ((proc (get-buffer-process (current-buffer)))
          (_    (unless proc (user-error "Current buffer has no process")))
@@ -203,8 +205,11 @@ If already at the REPL prompt, effectively the same as entering
 \"(exit)\" at the prompt, but works even when the module language
 doesn't provide any binding for \"exit\".
 
-With \\[universal-argument] terminates the entire Racket Mode
-back end process --- the command server and all REPL sessions."
+\\<racket-repl-mode-map>
+With a prefix argument (e.g. \\[universal-argument] \\[racket-repl-exit]):
+
+Terminates the entire Racket Mode back end process --- the
+command server and all REPL sessions."
   (interactive "P")
   (cond (killp
          (message "Killing entire Racket Mode back end process")
@@ -270,12 +275,27 @@ runs the submodules specified by the customization variable
 See also `racket-run-module-at-point', which runs just the
 specific module at point.
 
-With \\[universal-argument] uses errortrace for improved stack traces.
-Otherwise follows the `racket-error-context' setting.
+The command varies based on how many \\[universal-argument]
+prefix arguments you supply.
+\\<racket-mode-map>
 
-With \\[universal-argument] \\[universal-argument] instruments
-code for step debugging. See `racket-debug-mode' and the variable
-`racket-debuggable-files'.
+- \\[racket-run-and-switch-to-repl]
+
+  Follows the `racket-error-context' setting.
+
+- \\[universal-argument] \\[racket-run-and-switch-to-repl]
+
+  Uses errortrace for improved stack traces, as if
+  `racket-error-context' were set to \"high\".
+
+  This lets you keep `racket-error-context' set to a faster
+  value like \"low\" or \"medium\", then conveniently re-run
+  when you need a better strack trace.
+
+- \\[universal-argument] \\[universal-argument] \\[racket-run-and-switch-to-repl]
+
+  Instruments code for step debugging. See `racket-debug-mode'
+  and the variable `racket-debuggable-files'.
 
 Each run occurs within a Racket custodian. Any prior run's
 custodian is shut down, releasing resources like threads and
@@ -329,6 +349,7 @@ simply the outermost, file module."
 (defun racket-run-with-errortrace ()
   "Run with `racket-error-context' temporarily set to \"high\".
 
+\\<racket-mode-map>
 This is equivalent to \\[universal-argument] \\[racket-run].
 
 Defined as a function so it can be a menu target."
@@ -338,6 +359,7 @@ Defined as a function so it can be a menu target."
 (defun racket-run-with-debugging ()
   "Run with `racket-error-context' temporarily set to \"debug\".
 
+\\<racket-mode-map>
 This is equivalent to \\[universal-argument] \\[universal-argument] \\[racket-run].
 
 Defined as a function so it can be a menu target."
@@ -349,6 +371,7 @@ Defined as a function so it can be a menu target."
 
 This is similar to how Dr Racket behaves.
 
+\\<racket-mode-map>
 To make it even more similar, you may add `racket-repl-clear' to
 the variable `racket-before-run-hook'."
   (interactive "P")
@@ -779,9 +802,11 @@ The expression may be either an at-expression or an s-expression.
 When the expression is a sexp comment, the sexp itself is sent,
 without the #; prefix.
 
-With a \\[universal-argument] command prefix, the sexp is copied
-into the REPL, followed by a \";; ->\n\" line, to distinguish it
-from the zero or more values to which it evaluates."
+\\<racket-mode-map>
+With a prefix argument (e.g. \\[universal-argument]
+\\[racket-send-last-sexp]), the sexp is copied into the REPL,
+followed by a \";; ->\n\" line, to distinguish it from the zero
+or more values to which it evaluates."
   (interactive "P")
   (racket--send-region-to-repl (racket--start-of-previous-expression)
                                (point)
@@ -1014,39 +1039,37 @@ A more satisfying experience is to use `racket-repl-describe' or
 ;;; describe
 
 (defun racket-repl-describe (&optional prefix)
-  "Describe the identifier at point in a `*Racket Describe*` buffer.
+  "Describe the identifier at point.
 
-The command varies based on how many \\[universal-argument]
-command prefixes you supply.
+The command varies based on how many \\[universal-argument] prefix arguments you supply.
+\\<racket-repl-mode-map>
 
-0. None.
+- \\[racket-repl-describe]
 
-   Uses the symbol at point. If no such symbol exists, you are
-   prompted enter the identifier, but in this case it only
-   considers definitions or imports at the file's module level --
-   not local bindings nor definitions in submodules.
+  Uses the symbol at point. If no such symbol exists, you are
+  prompted enter the identifier, but in this case it only
+  considers definitions or imports at the file's module level --
+  not local bindings nor definitions in submodules.
 
-   - If the identifier has installed Racket documentation, then a
-     simplified version of the HTML is presented in the buffer,
-     including the \"blue box\", documentation prose, and
-     examples.
+  - If the identifier has installed Racket documentation, then a
+    simplified version of the HTML is presented in the buffer,
+    including the \"blue box\", documentation prose, and
+    examples.
 
-   - Otherwise, if the identifier is a function, then its
-     signature is displayed, for example \"\(name arg-1-name
-     arg-2-name\)\".
+  - Otherwise, if the identifier is a function, then its
+    signature is displayed, for example \"\(name arg-1-name
+    arg-2-name\)\".
 
-1. \\[universal-argument]
+- \\[universal-argument] \\[racket-repl-describe]
 
-   Always prompts you to enter a symbol, defaulting to the symbol
-   at point if any.
+  Always prompts you to enter a symbol, defaulting to the symbol
+  at point if any.
 
-   Otheriwse behaves like 0.
+- \\[universal-argument] \\[universal-argument] \\[racket-repl-describe]
 
-2. \\[universal-argument] \\[universal-argument]
-
-   This is an alias for `racket-describe-search', which uses
-   installed documentation in a `racket-describe-mode' buffer
-   instead of an external web browser.
+  This is an alias for `racket-describe-search', which uses
+  installed documentation in a `racket-describe-mode' buffer
+  instead of an external web browser.
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
@@ -1110,32 +1133,31 @@ something, regardless of whether it has installed documentation
   "View documentation in an external web browser.
 
 The command varies based on how many \\[universal-argument] command prefixes you supply.
+\\<racket-repl-mode-map>
 
-1. None.
+- \\[racket-repl-documentation]
 
-   Uses the symbol at point. Tries to find documentation for an
-   identifer defined in the current namespace.
+  Uses the symbol at point. Tries to find documentation for an
+  identifer defined in the current namespace.
 
-   If no such identifer exists, opens the Search Manuals page. In
-   this case, the variable `racket-documentation-search-location'
-   determines whether the search is done locally as with `raco
-   doc`, or visits a URL.
+  If no such identifer exists, opens the Search Manuals page. In
+  this case, the variable `racket-documentation-search-location'
+  determines whether the search is done locally as with `raco
+  doc`, or visits a URL.
 
-2. \\[universal-argument]
+- \\[universal-argument] \\[racket-repl-documentation]
 
-   Prompts you to enter a symbol, defaulting to the symbol at
-   point if any.
+  Prompts you to enter a symbol, defaulting to the symbol at
+  point if any.
 
-   Otherwise behaves like 1.
+- \\[universal-argument] \\[universal-argument] \\[racket-repl-documentation]
 
-3. \\[universal-argument] \\[universal-argument]
+  Prompts you to enter anything, defaulting to the symbol at
+  point if any.
 
-   Prompts you to enter anything, defaulting to the symbol at
-   point if any.
-
-   Proceeds directly to the Search Manuals page. Use this if you
-   would like to see documentation for all identifiers named
-   \"define\", for example."
+  Proceeds directly to the Search Manuals page. Use this if you
+  would like to see documentation for all identifiers named
+  \"define\", for example."
   (interactive "P")
   (racket--doc prefix 'namespace racket--repl-namespace-symbols))
 

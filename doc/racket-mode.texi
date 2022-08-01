@@ -1573,14 +1573,14 @@ commands directly to whatever keys you prefer.
 
 @kbd{C-c C-.} 
 
-Describe something in a @code{*Racket Describe*} buffer.
+Describe the identifier at point.
 
-The command varies based on how many @kbd{C-u} 
-command prefixes you supply.
+The command varies based on how many @kbd{C-u}  command prefixes you supply.
 
-@enumerate
+
+@itemize
 @item
-None.
+@kbd{C-c C-.} 
 
 Uses the symbol at point. If no such symbol exists, you are
 prompted enter the identifier, but in this case it only
@@ -1601,20 +1601,18 @@ arg-2-name)".
 @end itemize
 
 @item
-@kbd{C-u} 
+@kbd{C-u}  @kbd{C-c C-.} 
 
 Always prompts you to enter a symbol, defaulting to the symbol
 at point if any.
 
-Otheriwse behaves like 0.
-
 @item
-@kbd{C-u}  @kbd{C-u} 
+@kbd{C-u}  @kbd{C-u}  @kbd{C-c C-.} 
 
 This is an alias for @ref{racket-describe-search}, which uses
 installed documentation in a @code{racket-describe-mode} buffer
 instead of an external web browser.
-@end enumerate
+@end itemize
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
@@ -1633,9 +1631,10 @@ View documentation in an external web browser.
 The command varies based on how many @kbd{C-u} 
 command prefixes you supply.
 
-@enumerate
+
+@itemize
 @item
-None.
+@kbd{C-c C-d} 
 
 Uses the symbol at point. Tries to find documentation for an
 identifer defined in the expansion of the current buffer.
@@ -1646,15 +1645,13 @@ determines whether the search is done locally as with `raco
 doc`, or visits a URL.
 
 @item
-@kbd{C-u} 
+@kbd{C-u}  @kbd{C-c C-d} 
 
 Always prompts you to enter a symbol, defaulting to the symbol
 at point if any.
 
-Otherwise behaves like 0.
-
 @item
-@kbd{C-u}  @kbd{C-u} 
+@kbd{C-u}  @kbd{C-u}  @kbd{C-c C-d} 
 
 Always prompts you to enter anything, defaulting to the symbol
 at point if any.
@@ -1662,7 +1659,7 @@ at point if any.
 Proceeds directly to the Search Manuals page. Use this if you
 would like to see documentation for all identifiers named
 ``define'', for example.
-@end enumerate
+@end itemize
 
 @node racket-xp-next-definition
 @subsection racket-xp-next-definition
@@ -1892,12 +1889,32 @@ runs the submodules specified by the customization variable
 See also @ref{racket-run-module-at-point}, which runs just the
 specific module at point.
 
-With @kbd{C-u}  uses errortrace for improved stack traces.
-Otherwise follows the @ref{racket-error-context} setting.
+The command varies based on how many @kbd{C-u} 
+prefix arguments you supply.
 
-With @kbd{C-u}  @kbd{C-u}  instruments
-code for step debugging. See @ref{racket-debug-mode} and the variable
-@ref{racket-debuggable-files}.
+
+@itemize
+@item
+@kbd{<f5>} 
+
+Follows the @ref{racket-error-context} setting.
+
+@item
+@kbd{C-u}  @kbd{<f5>} 
+
+Uses errortrace for improved stack traces, as if
+@ref{racket-error-context} were set to ``high''.
+
+This lets you keep @ref{racket-error-context} set to a faster
+value like ``low'' or ``medium'', then conveniently re-run
+when you need a better strack trace.
+
+@item
+@kbd{C-u}  @kbd{C-u}  @kbd{<f5>} 
+
+Instruments code for step debugging. See @ref{racket-debug-mode}
+and the variable @ref{racket-debuggable-files}.
+@end itemize
 
 Each run occurs within a Racket custodian. Any prior run's
 custodian is shut down, releasing resources like threads and
@@ -1938,6 +1955,7 @@ commands.
 This is @ref{racket-run} followed by selecting the REPL buffer window.
 
 This is similar to how Dr Racket behaves.
+
 
 To make it even more similar, you may add @ref{racket-repl-clear} to
 the variable @ref{racket-before-run-hook}.
@@ -1983,14 +2001,14 @@ Mode's REPL as intended, then consider using a plain Emacs
 
 @kbd{C-c C-.} 
 
-Describe the identifier at point in a @code{*Racket Describe*} buffer.
+Describe the identifier at point.
 
-The command varies based on how many @kbd{C-u} 
-command prefixes you supply.
+The command varies based on how many @kbd{C-u}  prefix arguments you supply.
 
-@enumerate
+
+@itemize
 @item
-None.
+@kbd{C-c C-.} 
 
 Uses the symbol at point. If no such symbol exists, you are
 prompted enter the identifier, but in this case it only
@@ -2011,20 +2029,18 @@ arg-2-name)".
 @end itemize
 
 @item
-@kbd{C-u} 
+@kbd{C-u}  @kbd{C-c C-.} 
 
 Always prompts you to enter a symbol, defaulting to the symbol
 at point if any.
 
-Otheriwse behaves like 0.
-
 @item
-@kbd{C-u}  @kbd{C-u} 
+@kbd{C-u}  @kbd{C-u}  @kbd{C-c C-.} 
 
 This is an alias for @ref{racket-describe-search}, which uses
 installed documentation in a @code{racket-describe-mode} buffer
 instead of an external web browser.
-@end enumerate
+@end itemize
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
@@ -2039,9 +2055,10 @@ View documentation in an external web browser.
 
 The command varies based on how many @kbd{C-u}  command prefixes you supply.
 
-@enumerate
+
+@itemize
 @item
-None.
+@kbd{C-c C-d} 
 
 Uses the symbol at point. Tries to find documentation for an
 identifer defined in the current namespace.
@@ -2052,15 +2069,13 @@ determines whether the search is done locally as with `raco
 doc`, or visits a URL.
 
 @item
-@kbd{C-u} 
+@kbd{C-u}  @kbd{C-c C-d} 
 
 Prompts you to enter a symbol, defaulting to the symbol at
 point if any.
 
-Otherwise behaves like 1.
-
 @item
-@kbd{C-u}  @kbd{C-u} 
+@kbd{C-u}  @kbd{C-u}  @kbd{C-c C-d} 
 
 Prompts you to enter anything, defaulting to the symbol at
 point if any.
@@ -2068,7 +2083,7 @@ point if any.
 Proceeds directly to the Search Manuals page. Use this if you
 would like to see documentation for all identifiers named
 ``define'', for example.
-@end enumerate
+@end itemize
 
 @node racket-racket
 @subsection racket-racket
@@ -2349,10 +2364,12 @@ The expression may be either an at-expression or an s-expression.
 When the expression is a sexp comment, the sexp itself is sent,
 without the #; prefix.
 
-With a @kbd{C-u}  command prefix, the sexp is copied
-into the REPL, followed by a ``;; ->
-" line, to distinguish it
-from the zero or more values to which it evaluates.
+
+With a prefix argument (e.g. @kbd{C-u} 
+@kbd{C-x C-e} ), the sexp is copied into the REPL,
+followed by a ``;; ->
+" line, to distinguish it from the zero
+or more values to which it evaluates.
 
 @node Collections
 @section Collections

@@ -316,39 +316,37 @@ commands directly to whatever keys you prefer.
                       t))))
 
 (defun racket-xp-describe (&optional prefix)
-  "Describe something in a `*Racket Describe*` buffer.
+  "Describe the identifier at point.
 
-The command varies based on how many \\[universal-argument]
-command prefixes you supply.
+The command varies based on how many \\[universal-argument] command prefixes you supply.
+\\<racket-xp-mode-map>
 
-0. None.
+- \\[racket-xp-describe]
 
-   Uses the symbol at point. If no such symbol exists, you are
-   prompted enter the identifier, but in this case it only
-   considers definitions or imports at the file's module level --
-   not local bindings nor definitions in submodules.
+  Uses the symbol at point. If no such symbol exists, you are
+  prompted enter the identifier, but in this case it only
+  considers definitions or imports at the file's module level --
+  not local bindings nor definitions in submodules.
 
-   - If the identifier has installed Racket documentation, then a
-     simplified version of the HTML is presented in the buffer,
-     including the \"blue box\", documentation prose, and
-     examples.
+  - If the identifier has installed Racket documentation, then a
+    simplified version of the HTML is presented in the buffer,
+    including the \"blue box\", documentation prose, and
+    examples.
 
-   - Otherwise, if the identifier is a function, then its
-     signature is displayed, for example \"\(name arg-1-name
-     arg-2-name\)\".
+  - Otherwise, if the identifier is a function, then its
+    signature is displayed, for example \"\(name arg-1-name
+    arg-2-name\)\".
 
-1. \\[universal-argument]
+- \\[universal-argument] \\[racket-xp-describe]
 
-   Always prompts you to enter a symbol, defaulting to the symbol
-   at point if any.
+  Always prompts you to enter a symbol, defaulting to the symbol
+  at point if any.
 
-   Otheriwse behaves like 0.
+- \\[universal-argument] \\[universal-argument] \\[racket-xp-describe]
 
-2. \\[universal-argument] \\[universal-argument]
-
-   This is an alias for `racket-describe-search', which uses
-   installed documentation in a `racket-describe-mode' buffer
-   instead of an external web browser.
+  This is an alias for `racket-describe-search', which uses
+  installed documentation in a `racket-describe-mode' buffer
+  instead of an external web browser.
 
 The intent is to give a quick reminder or introduction to
 something, regardless of whether it has installed documentation
@@ -524,32 +522,31 @@ or `racket-repl-describe'."
 
 The command varies based on how many \\[universal-argument]
 command prefixes you supply.
+\\<racket-xp-mode-map>
 
-0. None.
+- \\[racket-xp-documentation]
 
-   Uses the symbol at point. Tries to find documentation for an
-   identifer defined in the expansion of the current buffer.
+  Uses the symbol at point. Tries to find documentation for an
+  identifer defined in the expansion of the current buffer.
 
-   If no such identifer exists, opens the Search Manuals page. In
-   this case, the variable `racket-documentation-search-location'
-   determines whether the search is done locally as with `raco
-   doc`, or visits a URL.
+  If no such identifer exists, opens the Search Manuals page. In
+  this case, the variable `racket-documentation-search-location'
+  determines whether the search is done locally as with `raco
+  doc`, or visits a URL.
 
-1. \\[universal-argument]
+- \\[universal-argument] \\[racket-xp-documentation]
 
-   Always prompts you to enter a symbol, defaulting to the symbol
-   at point if any.
+  Always prompts you to enter a symbol, defaulting to the symbol
+  at point if any.
 
-   Otherwise behaves like 0.
+- \\[universal-argument] \\[universal-argument] \\[racket-xp-documentation]
 
-2. \\[universal-argument] \\[universal-argument]
+  Always prompts you to enter anything, defaulting to the symbol
+  at point if any.
 
-   Always prompts you to enter anything, defaulting to the symbol
-   at point if any.
-
-   Proceeds directly to the Search Manuals page. Use this if you
-   would like to see documentation for all identifiers named
-   \"define\", for example."
+  Proceeds directly to the Search Manuals page. Use this if you
+  would like to see documentation for all identifiers named
+  \"define\", for example."
   (interactive "P")
   (pcase (get-text-property (point) 'racket-xp-doc)
     ((and `(,path ,anchor) (guard (not prefix)))
