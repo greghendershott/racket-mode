@@ -28,7 +28,7 @@
 (require 'racket-unicode-input-method)
 (require 'racket-smart-open)
 (require 'racket-repl-buffer-name)
-(require 'subr-x)
+(require 'seq)
 
 (defun racket-generate-reference.org ()
   (find-file "reference.org")
@@ -136,14 +136,9 @@
                 (racket-generate--bindings-as-kbd sym keymap))
             (format "~%s~\n" (cons sym (help-function-arglist sym))))
           "\n\n"
-          (thread-last (or (documentation sym t)
-                           "No documentation.\n\n")
-            racket-generate--braces-mapvar
-            racket-generate--angle-mapvar
-            (racket-generate--bracket-command keymap)
-            racket-generate--linkify
-            racket-generate--quotes-to-tildes
-            racket-generate--remove-backslash-equal)
+          (racket-generate--format-doc-string
+           (or (documentation sym t)
+               "No documentation.\n\n"))
           "\n\n"))
 
 ;;; Configuration functions
@@ -226,18 +221,13 @@
                  (error "variable does not exist: %s" s))
                (concat
                 (format "*** %s\n" s)
-                (thread-last
-                    (or (documentation-property s 'variable-documentation t)
-                        ;; Do check for function documentation here,
-                        ;; to support documenting values for
-                        ;; `-functions' variables.
-                        (documentation s t)
-                        "No documentation.\n\n")
-                  racket-generate--angle-mapvar
-                  (racket-generate--bracket-command racket-mode-map)
-                  racket-generate--linkify
-                  racket-generate--quotes-to-tildes
-                  racket-generate--remove-backslash-equal)
+                (racket-generate--format-doc-string
+                 (or (documentation-property s 'variable-documentation t)
+                     ;; Do check for function documentation here,
+                     ;; to support documenting values for
+                     ;; `-functions' variables.
+                     (documentation s t)
+                     "No documentation.\n\n"))
                 "\n\n")))
            racket-generate--variables)))
 
@@ -274,85 +264,87 @@
    (mapcar (lambda (symbol)
              (concat
               (format "*** %s\n" symbol)
-              (thread-last
-                  (or (documentation-property symbol 'face-documentation t)
-                      "No documentation.\n\n")
-                racket-generate--linkify
-                racket-generate--quotes-to-tildes
-                racket-generate--remove-backslash-equal)
+              (racket-generate--format-doc-string
+               (or (documentation-property symbol 'face-documentation t)
+                   "No documentation.\n\n"))
               "\n\n"))
            racket-generate--faces)))
 
 ;;; Utility
 
-(defun racket-generate--linkify (s)
-  (with-temp-buffer
-    (insert s)
-    (goto-char (point-min))
-    (while (re-search-forward (rx ?\`
-                                  (group "racket-" (+ (or (syntax word)
-                                                          (syntax symbol))))
-                                  ?\')
-                              nil t)
-      (let* ((name (match-string-no-properties 1))
-             (sym (intern-soft name)))
-        (when (or (seq-some (lambda (v)
-                              (or (eq v sym)
-                                  (and (listp v)
-                                       (eq (car v) sym))))
-                            racket-generate--commands)
-                  (member sym racket-generate--configuration-functions)
-                  (member sym racket-generate--variables)
-                  (member sym racket-generate--faces))
-          (replace-match (format "@@texinfo:@ref{%s}@@" name)
-                         t t))))
-    (buffer-substring-no-properties (point-min) (point-max))))
+(defun racket-generate--format-doc-string (docstring)
+  "Convert command key references and keymap references
+in DOCSTRING to buttons.
 
-(defun racket-generate--quotes-to-tildes (s)
-  "Change \` \' and \` \` style quotes to ~~ style."
-  (with-temp-buffer
-    (insert s)
-    (goto-char (point-min))
-    (while (re-search-forward (rx (or (seq ?\`
-                                           (group (+? any
-                                                      ;; (or (syntax word)
-                                                      ;;     (syntax symbol)
-                                                      ;;     ?\# ?\'
-                                                      ;;     (syntax whitespace)
-                                                      ))
-                                           (or ?\` ?\'))))
-                              nil t)
-      (let ((name (match-string-no-properties 1)))
-        (replace-match (format "~%s~" name)
-                       t t)))
-    (buffer-substring-no-properties (point-min) (point-max))))
-
-;;(racket-generate--quotes-to-tildes "foo `bar` bazz")
-;;(racket-generate--quotes-to-tildes "foo `bar bazz`")
-;;(racket-generate--quotes-to-tildes "foo `'symbol`")
-;;(racket-generate--quotes-to-tildes "Change from `#lang racket` to `#lang racket/base`.")
-
-(defun racket-generate--braces-mapvar (s)
-  ;; ‘\{MAPVAR}’ stands for a summary of the keymap which is the value
-  ;; of the variable MAPVAR.
-  (with-temp-buffer
-    (insert s)
-    (goto-char (point-min))
-    (while (re-search-forward (rx (or (seq ?\\
-                                           ?\{
-                                           (group (+ (or (syntax word)
-                                                         (syntax symbol))))
-                                           ?\})))
-                              nil t)
-      (let* ((name (match-string-no-properties 1))
-             (sym (intern-soft name))
-             (km (symbol-value sym)))
-        (replace-match "")
-        (insert "|Key|Binding|\n")
-        (mapc #'racket-generate--insert-keymap-table-row
-              (cdr km))
-        (newline)))
-    (buffer-substring-no-properties (point-min) (point-max))))
+Emacs uses \\= to escape \\[ references, so replace that
+unescaping too."
+  ;; Based on helpful--format-command-keys, which in turn is loosely
+  ;; based on `substitute-command-keys'.
+  (let ((keymap nil))
+    (with-temp-buffer
+      (insert docstring)
+      (goto-char (point-min))
+      (while (not (eobp))
+        (cond
+         ((looking-at
+           ;; Text of the form \=X
+           (rx "\\="))
+          ;; Remove the escaping, then step over the escaped char.
+          (delete-region (point) (+ (point) 2))
+          (forward-char 1))
+         ((looking-at
+           ;; Text of the form `racket-XXX'
+           (rx "`" (group "racket-" (+ (or (syntax word) (syntax symbol)))) "'"))
+          (let* ((len (length (match-string 0)))
+                 (name (match-string-no-properties 1))
+                 (sym (intern-soft name)))
+            (delete-region (point) (+ (point) len))
+            (insert (racket-generate--ref-or-code sym))))
+         ((looking-at
+           ;; Text of the form `contents' or `contents`
+           (rx "`" (group (+ (not (in "`'")))) (in "`'")))
+          (let* ((len (length (match-string 0)))
+                 (contents (match-string 1)))
+            (delete-region (point) (+ (point) len))
+            (insert (format "~%s~" contents))))
+         ((looking-at
+           ;; Text of the form \\<foo-keymap>
+           (rx "\\<" (group (+ (not (in ">")))) ">"
+               (? "\n")))
+          (let* ((len (length (match-string 0)))
+                 (symbol-name (match-string 1)))
+            ;; Remove the original string.
+            (delete-region (point) (+ (point) len))
+            ;; Set the new keymap.
+            (setq keymap (symbol-value (intern symbol-name)))))
+         ((looking-at
+           ;; Text of the form \\{foo-mode-map}
+           (rx "\\{" (group (+ (not (in "}")))) "}"))
+          (let ((len (length (match-string 0)))
+                (km (symbol-value (intern (match-string 1)))))
+            ;; Remove the original string.
+            (delete-region (point) (+ (point) len))
+            ;; Insert an org-mode table
+            (when km
+              (insert "|Key|Binding|\n")
+              (mapc #'racket-generate--insert-keymap-table-row
+                    (cdr km))
+              (newline))))
+         ((looking-at
+           ;; Text of the form \\[foo-command]
+           (rx "\\[" (group (+ (not (in "]")))) "]"))
+          (let* ((len (length (match-string 0)))
+                 (name (match-string 1)))
+            ;; Remove the original string.
+            (delete-region (point) (+ (point) len))
+            (insert
+             (if (string-equal name "universal-argument")
+                 "{{{kbd(C-u)}}}"
+               (racket-generate--bindings-as-kbd (intern-soft name) keymap)))))
+         ;; Don't modify other characters.
+         (t
+          (forward-char 1))))
+      (buffer-string))))
 
 (defun racket-generate--insert-keymap-table-row (v &optional keys)
   (pcase v
@@ -363,10 +355,9 @@
              (racket-generate--insert-keymap-table-row v (cons key keys)))
            more))
     (`(,(and key (pred numberp)) . ,(and sym (pred symbolp)))
-     (insert (format "|{{{kbd(%s)}}}|`%s'|\n"
-                     (racket-generate--key-description
-                      (reverse (cons key keys)))
-                     sym)))))
+     (insert (format "|{{{kbd(%s)}}}|%s|\n"
+                     (racket-generate--key-description (reverse (cons key keys)))
+                     (racket-generate--ref-or-code sym))))))
 
 (defun racket-generate--key-description (xs)
   "Like `key-description' but escapes some chars for our \"KBD\" texi macro."
@@ -378,49 +369,11 @@
         (replace-match "")
         (insert (if (equal str "}") "@" "\\"))
         (insert str)))
-    (buffer-substring-no-properties (point-min) (point-max))))
-
-(defun racket-generate--angle-mapvar (s)
-  ;; \\<MAPVAR> stands for no text itself. It is used only for a side
-  ;; effect: it specifies MAPVAR’s value as the keymap for any
-  ;; following ‘\[COMMAND]’ sequences in this documentation string.
-  (with-temp-buffer
-    (insert s)
-    (goto-char (point-min))
-    (while (re-search-forward (rx (or (seq ?\\
-                                           ?\<
-                                           (group (+ (or (syntax word)
-                                                         (syntax symbol))))
-                                           ?\>)))
-                              nil t)
-      (replace-match ""))
-    (buffer-substring-no-properties (point-min) (point-max))))
-
-(defun racket-generate--bracket-command (keymap str)
-  ;; \\[COMMAND] stands for a key sequence that will invoke COMMAND,
-  ;; or ‘M-x COMMAND’ if COMMAND has no key bindings.
-  (if keymap
-      (with-temp-buffer
-        (insert str)
-        (goto-char (point-min))
-        (while (re-search-forward (rx (or (seq ?\\
-                                               ?\[
-                                               (group (+ (or (syntax word)
-                                                             (syntax symbol))))
-                                               ?\])))
-                                  nil t)
-          (let ((name (match-string-no-properties 1)))
-            (replace-match "")
-            (insert
-             (if (string-equal name "universal-argument")
-                 "{{{kbd(C-u)}}}"
-               (racket-generate--bindings-as-kbd (intern-soft name) keymap)))))
-        (buffer-substring-no-properties (point-min) (point-max)))
-    str))
+    (buffer-string)))
 
 (defun racket-generate--bindings-as-kbd (symbol keymap)
-  (let* ((bindings (or (racket-generate--where-is-no-menu symbol keymap)
-                       (racket-generate--where-is-no-menu symbol racket-mode-map)))
+  (let* ((bindings (or (racket-generate--where-is/no-menu symbol keymap)
+                       (racket-generate--where-is/no-menu symbol racket-mode-map)))
          (strs (and
                 bindings
                 (seq-filter
@@ -436,19 +389,21 @@
         (string-join strs " or ")
       (format "{{{kbd(M-x)}}} ~%s~" symbol))))
 
-(defun racket-generate--where-is-no-menu (symbol keymap)
-  (cl-remove-if (lambda (binding) (eq (aref binding 0) 'menu-bar))
-                (where-is-internal symbol keymap)))
+(defun racket-generate--where-is/no-menu (symbol keymap)
+  (seq-filter (lambda (binding) (not (eq (aref binding 0) 'menu-bar)))
+              (where-is-internal symbol keymap)))
 
-(defun racket-generate--remove-backslash-equal (s)
-  ;; "\\=" is a prefix meaning "use the next character literally". We
-  ;; use it to prefix ' in sample code, to keep Emacs 29+ byte
-  ;; compiler from complaining about misuse of single quotation marks.
-  (with-temp-buffer
-    (insert s)
-    (goto-char (point-min))
-    (while (re-search-forward (rx ?\\ ?=) nil t)
-      (replace-match ""))
-    (buffer-substring-no-properties (point-min) (point-max))))
+(defun racket-generate--ref-or-code (sym)
+  "Return either a reference or code formatting for SYM."
+  (if (or (seq-some (lambda (v)
+                      (or (eq v sym)
+                          (and (listp v)
+                               (eq (car v) sym))))
+                    racket-generate--commands)
+          (member sym racket-generate--configuration-functions)
+          (member sym racket-generate--variables)
+          (member sym racket-generate--faces))
+      (format "@@texinfo:@ref{%s}@@" sym)
+    (format "~%s~" sym)))
 
 ;;; generate.el ends here

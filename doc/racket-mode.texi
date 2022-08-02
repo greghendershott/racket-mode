@@ -1577,7 +1577,6 @@ Describe the identifier at point.
 
 The command varies based on how many @kbd{C-u}  command prefixes you supply.
 
-
 @itemize
 @item
 @kbd{C-c C-.} 
@@ -1631,7 +1630,6 @@ View documentation in an external web browser.
 The command varies based on how many @kbd{C-u} 
 command prefixes you supply.
 
-
 @itemize
 @item
 @kbd{C-c C-d} 
@@ -1641,8 +1639,8 @@ identifer defined in the expansion of the current buffer.
 
 If no such identifer exists, opens the Search Manuals page. In
 this case, the variable @ref{racket-documentation-search-location}
-determines whether the search is done locally as with `raco
-doc`, or visits a URL.
+determines whether the search is done locally as with @code{raco
+  doc}, or visits a URL.
 
 @item
 @kbd{C-u}  @kbd{C-c C-d} 
@@ -1892,7 +1890,6 @@ specific module at point.
 The command varies based on how many @kbd{C-u} 
 prefix arguments you supply.
 
-
 @itemize
 @item
 @kbd{<f5>} 
@@ -1956,7 +1953,6 @@ This is @ref{racket-run} followed by selecting the REPL buffer window.
 
 This is similar to how Dr Racket behaves.
 
-
 To make it even more similar, you may add @ref{racket-repl-clear} to
 the variable @ref{racket-before-run-hook}.
 
@@ -2004,7 +2000,6 @@ Mode's REPL as intended, then consider using a plain Emacs
 Describe the identifier at point.
 
 The command varies based on how many @kbd{C-u}  prefix arguments you supply.
-
 
 @itemize
 @item
@@ -2055,7 +2050,6 @@ View documentation in an external web browser.
 
 The command varies based on how many @kbd{C-u}  command prefixes you supply.
 
-
 @itemize
 @item
 @kbd{C-c C-d} 
@@ -2065,8 +2059,8 @@ identifer defined in the current namespace.
 
 If no such identifer exists, opens the Search Manuals page. In
 this case, the variable @ref{racket-documentation-search-location}
-determines whether the search is done locally as with `raco
-doc`, or visits a URL.
+determines whether the search is done locally as with @code{raco
+  doc}, or visits a URL.
 
 @item
 @kbd{C-u}  @kbd{C-c C-d} 
@@ -2155,7 +2149,6 @@ Create the @ref{racket-logger-mode} buffer.
 @kbd{M-x}  @code{racket-logger-mode}
 
 Major mode for Racket logger output.
-
 
 The customization variable @ref{racket-logger-config} determines the
 levels for topics. During a session you may change topic levels
@@ -2364,7 +2357,6 @@ The expression may be either an at-expression or an s-expression.
 When the expression is a sexp comment, the sexp itself is sent,
 without the #; prefix.
 
-
 With a prefix argument (e.g. @kbd{C-u} 
 @kbd{C-x C-e} ), the sexp is copied into the REPL,
 followed by a ``;; ->
@@ -2419,7 +2411,6 @@ C-g aborts.
 @kbd{M-x}  @code{racket-stepper-mode}
 
 Major mode for Racket stepper output.
-
 
 Used by the commands @ref{racket-expand-file},
 @ref{racket-expand-definition}, @ref{racket-expand-region}, and
@@ -2808,7 +2799,6 @@ list, to support submodules nested to any depth.
 This is used by commands that emulate the DrRacket Run command:
 
 
-
 @itemize
 @item
 @ref{racket-run}
@@ -2900,9 +2890,9 @@ To what depth should @ref{racket-indent-line} search.
 
 This affects the indentation of forms like '() `() #() --
 and @{@} if @ref{racket-indent-curly-as-sequence} is t --- but not
-#'() #`() ,() ,@@(). A zero value disables, giving the normal
-indent behavior of DrRacket or Emacs @code{lisp-mode} derived modes
-like @code{scheme-mode}. Setting this to a high value can make
+#'() #`() ,() ,@@(). A zero value disables, giving the
+normal indent behavior of DrRacket or Emacs @code{lisp-mode} derived
+modes like @code{scheme-mode}. Setting this to a high value can make
 indentation noticeably slower. This is safe to set as a
 file-local variable.
 
@@ -3465,9 +3455,9 @@ the face @code{font-lock-constant-face}.
 Face for symbols quoted using #' or #`.
 
 This face is given only to symbols directly quoted using the
-reader shorthands #' or #`. All other directly quoted values,
-including symbols quoted using ``syntax'' or ``quasisyntax'', get
-the face @code{font-lock-constant-face}.
+reader shorthands #' or #`. All other directly quoted
+values, including symbols quoted using ``syntax'' or
+``quasisyntax'', get the face @code{font-lock-constant-face}.
 
 @node racket-here-string-face
 @subsection racket-here-string-face

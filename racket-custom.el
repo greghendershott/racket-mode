@@ -363,11 +363,11 @@ This is safe to set as a file-local variable."
 (defcustom racket-indent-sequence-depth 0
   "To what depth should `racket-indent-line' search.
 
-This affects the indentation of forms like \\='() `() #() --
+This affects the indentation of forms like \\='() \\=`() #() --
 and {} if `racket-indent-curly-as-sequence' is t --- but not
-#'() #`() ,() ,@(). A zero value disables, giving the normal
-indent behavior of DrRacket or Emacs `lisp-mode' derived modes
-like `scheme-mode'. Setting this to a high value can make
+#\\='() #\\=`() ,() ,@(). A zero value disables, giving the
+normal indent behavior of DrRacket or Emacs `lisp-mode' derived
+modes like `scheme-mode'. Setting this to a high value can make
 indentation noticeably slower. This is safe to set as a
 file-local variable."
   :tag "Indent Sequence Depth"
@@ -550,22 +550,22 @@ Instead customize the face `font-lock-constant-face'.")
 
 (defface-racket racket-reader-quoted-symbol-face
   '((t (:inherit font-lock-constant-face)))
-  "Face for symbols quoted using ' or `.
+  "Face for symbols quoted using \\=' or \\=`.
 
 This face is given only to symbols directly quoted using the
-reader shorthands ' or `. All other directly quoted values,
+reader shorthands \\=' or \\=`. All other directly quoted values,
 including symbols quoted using \"quote\" or \"quasiquote\", get
 the face `font-lock-constant-face'."
   "Reader Quoted Symbol Face")
 
 (defface-racket racket-reader-syntax-quoted-symbol-face
   '((t (:inherit default)))
-  "Face for symbols quoted using #' or #`.
+  "Face for symbols quoted using #\\=' or #\\=`.
 
 This face is given only to symbols directly quoted using the
-reader shorthands #' or #`. All other directly quoted values,
-including symbols quoted using \"syntax\" or \"quasisyntax\", get
-the face `font-lock-constant-face'."
+reader shorthands #\\=' or #\\=`. All other directly quoted
+values, including symbols quoted using \"syntax\" or
+\"quasisyntax\", get the face `font-lock-constant-face'."
   "Reader Syntax Quoted Symbol Face")
 
 (defface-racket racket-here-string-face
