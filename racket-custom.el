@@ -444,7 +444,6 @@ like \"debug\" and not get overhwelmed by these noisy topics."
   :set (lambda (var val)
          (set-default var val)
          (when (fboundp 'racket--logger-activate-config)
-           (message "racket-logger-config :set")
            (racket--logger-activate-config)))
   :group 'racket-other)
 
