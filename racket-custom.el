@@ -440,6 +440,12 @@ like \"debug\" and not get overhwelmed by these noisy topics."
                       (and (symbolp (car x))
                            (symbolp (cdr x))))
                     xs))
+  :load "racket-cmd"
+  :set (lambda (var val)
+         (set-default var val)
+         (when (fboundp 'racket--logger-activate-config)
+           (message "racket-logger-config :set")
+           (racket--logger-activate-config)))
   :group 'racket-other)
 
 (defcustom racket-show-functions
