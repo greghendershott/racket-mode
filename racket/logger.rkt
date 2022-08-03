@@ -15,9 +15,16 @@
 (define command-channel (make-channel))
 (define notify-channel (make-channel))
 
-(define (logger-thread)
+;; Go ahead and start our log receiver thread early so we can see our
+;; own racket-mode topic's 'debug level ouput in the front end.
+;;
+;; On the other hand (see #631) set all other topics to the 'fatal
+;; level (least noisy). This avoids sending excessive logger
+;; notifications to the front end, until/unless it gives us the user's
+;; logger configuration, with whatever verbosity they desire.
+(define (racket-mode-log-receiver-thread)
   (let wait ([receiver (make-receiver '((racket-mode . debug)
-                                        (*           . warning)))])
+                                        (*           . fatal)))])
     (sync
      (handle-evt command-channel
                  (λ (v)
@@ -31,10 +38,7 @@
                                         (ensure-topic-in-message topic message)
                                         "\n")))
                     (wait receiver)])))))
-
-;; Go ahead and start this early so we can see our own
-;; log-racket-mode-xxx ouput in the front end.
-(void (thread logger-thread))
+(void (thread racket-mode-log-receiver-thread))
 
 (define (ensure-topic-in-message topic message)
   (match message
