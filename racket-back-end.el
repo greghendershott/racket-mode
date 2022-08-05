@@ -390,26 +390,32 @@ The user may have supplied a tramp file name using a Host defined
 in ~/.ssh/config, which has a HostName option that is the actual
 host name. The ssh command of course uses that config so we can
 start a back end process just fine. However `racket-repl-mode'
-needs to open a TCP connection at the same host, and needs this."
+needs to open a TCP connection at the same host, hence this
+helper function."
   (pcase-let ((`(,host ,_user ,_port _name)
                (racket--file-name->host+user+port+name
                 (plist-get (racket-back-end) :directory))))
-    (condition-case nil
-        (with-temp-buffer
-          (insert-file-contents-literally "~/.ssh/config")
-          (goto-char (point-min))
-          ;; Dumb parsing to find a HostName within the Host block.
-          ;; Does not handle Match blocks except to recognize them
-          ;; ending the desired Host block.
-          (save-match-data
-            (let ((case-fold-search t))
-              (search-forward-regexp (concat "host[ ]+" host "[ \n]"))
-              (let ((limit (save-excursion
-                             (or (search-forward-regexp "\\(host|match\\) " nil t)
-                                 (point-max)))))
-                (search-forward-regexp "hostname[ ]+\\([^ \n]+\\)" limit)
-                (match-string 1)))))
-      (error host))))
+    (racket--back-end-ssh-config-lookup host)))
+
+(defun racket--back-end-ssh-config-lookup (host)
+  "Return HOST or its HostName if any from ~/.ssh/config."
+  (condition-case nil
+      (with-temp-buffer
+        (insert-file-contents-literally "~/.ssh/config")
+        (goto-char (point-min))
+        ;; Dumb parsing with regular expressions:
+        (save-match-data
+          (let ((case-fold-search t))
+            ;; Find start of desired Host block
+            (re-search-forward (concat "host[ ]+" host "[ \n]"))
+            ;; Find start of next Host or Match block, as limit
+            (let ((limit (save-excursion
+                           (or (re-search-forward "\\(?:host\\|match\\) " nil t)
+                               (point-max)))))
+              ;; Find HostName if any
+              (search-forward-regexp "hostname[ ]+\\([^ \n]+\\)" limit)
+              (match-string 1)))))
+    (error host)))
 
 (defun racket--back-end-local-p (&optional back-end)
   (not (file-remote-p (plist-get (or back-end (racket-back-end))
