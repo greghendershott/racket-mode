@@ -758,6 +758,8 @@ the prompt.
 Afterwards displays the buffer in some window."
   (unless (and start end)
     (error "start and end must not be nil"))
+  (unless (racket--repl-live-p)
+    (user-error "No REPL session available; run the file first"))
   ;; Save the current buffer in case something changes it before we
   ;; call `comint-send-region'; see e.g. issue 407.
   (let ((source-buffer (current-buffer)))
@@ -821,7 +823,7 @@ The eventual results are presented using the variable
 The expression may be either an at-expression or an s-expression."
   (interactive)
   (unless (racket--repl-live-p)
-    (user-error "No REPL session available"))
+    (user-error "No REPL session available; run the file first"))
   (let ((beg (racket--start-of-previous-expression))
         (end (point)))
    (racket--cmd/async
