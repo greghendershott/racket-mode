@@ -750,12 +750,14 @@ most recent `racket-mode' buffer, if any."
 (defun racket--send-region-to-repl (start end &optional echo-p)
   "Internal function to send the region to the Racket REPL.
 
-Before sending the region, calls `racket-repl' and
-`racket--repl-forget-errors'. Also inserts a ?\n at the process
-mark so that output goes on a fresh line, not on the same line as
-the prompt.
+Requires the REPL already to be started, e.g. from a run command.
 
-Afterwards displays the buffer in some window."
+Before sending the region, calls `racket--repl-forget-errors'.
+Also inserts a ?\n at the process mark so that output goes on a
+fresh line, not on the same line as the prompt.
+
+Finally, displays the REPL buffer in some window, so the user may
+see the results."
   (unless (and start end)
     (error "start and end must not be nil"))
   (unless (racket--repl-live-p)
@@ -763,7 +765,6 @@ Afterwards displays the buffer in some window."
   ;; Save the current buffer in case something changes it before we
   ;; call `comint-send-region'; see e.g. issue 407.
   (let ((source-buffer (current-buffer)))
-    (racket-repl t)
     (racket--repl-forget-errors)
     (let ((proc (get-buffer-process racket-repl-buffer-name)))
       (with-racket-repl-buffer
@@ -805,10 +806,9 @@ When the expression is a sexp comment, the sexp itself is sent,
 without the #; prefix.
 
 \\<racket-mode-map>
-With a prefix argument (e.g. \\[universal-argument]
-\\[racket-send-last-sexp]), the sexp is copied into the REPL,
-followed by a \";; ->\n\" line, to distinguish it from the zero
-or more values to which it evaluates."
+With a prefix argument (e.g. \\[universal-argument] \\[racket-send-last-sexp]), the sexp is copied
+into the REPL, followed by a \";; ->\\n\" line, to distinguish it
+from the zero or more values to which it evaluates."
   (interactive "P")
   (racket--send-region-to-repl (racket--start-of-previous-expression)
                                (point)
@@ -833,6 +833,7 @@ The expression may be either an at-expression or an s-expression."
       (racket-show (format "%s" v) end t)))))
 
 (defun racket--start-of-previous-expression ()
+  "Handles both s-expressions and at-expressions."
   (save-excursion
     (cl-flet* ((back () (and (< (point-min) (point))
                              (ignore-errors (backward-sexp) t)))
