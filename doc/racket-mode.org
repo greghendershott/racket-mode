@@ -38,13 +38,15 @@ For code, issues, and pull requests, see the [[https://github.com/greghendershot
 
 To fund this work, see [[https://github.com/users/greghendershott/sponsorship][GitHub Sponsors]] or [[https://www.paypal.me/greghendershott][PayPal]].
 
-* Install
+* Install, Update, and Uninstall
 
-The recommended way to use Racket Mode is to install the package from [[https://melpa.org/#/racket-mode][MELPA]].
+The most common way to use Racket Mode is to install the package from MELPA.
+
+Note that Racket Mode is only available on MELPA (_not_ "MELPA Stable").
 
 ** Configure Emacs to use MELPA
 
-To use MELPA:
+Following is a quick guide that may work for you. (For definitive instructions and the latest trouble-shooting tips, please see https://melpa.org/#/getting-started.)
 
 - Add the following to your =~/.emacs= or =~/.emacs.d/init.el=:
 
@@ -53,15 +55,30 @@ To use MELPA:
 (add-to-list 'package-archives
               '("melpa" . "https://melpa.org/packages/")
               t)
+(package-initialze)
 #+END_SRC
 
 - Restart Emacs.
 
 - Type {{{kbd(M-x)}}} ~package-refresh-contents~ {{{kbd(RET)}}}.
 
-** Install Racket Mode
+#+BEGIN_QUOTE
+NOTE: If you get an error message about "contacting a host" or "downloading an archive", the problem is not unique to Racket Mode. Please see https://melpa.org/#/getting-started.
+#+END_QUOTE
 
-When Emacs is configured to use MELPA, simply type {{{kbd(M-x)}}} ~package-install~ {{{kbd(RET)}}} ~racket-mode~ {{{kbd(RET)}}}.
+** Install
+
+When Emacs is configured to use MELPA:
+
+1. Type {{{kbd(M-x)}}} ~package-initialize~ {{{kbd(RET)}}}.
+
+2. Type {{{kbd(M-x)}}} ~package-refresh-contents~ {{{kbd(RET)}}}.
+
+3. Type {{{kbd(M-x)}}} ~package-install~ {{{kbd(RET)}}} ~racket-mode~ {{{kbd(RET)}}}.
+
+#+BEGIN_QUOTE
+NOTE: If you get an error message about "contacting a host" or "downloading an archive", the problem is not unique to Racket Mode. Please see https://melpa.org/#/getting-started.
+#+END_QUOTE
 
 ** Minimal Racket
 
@@ -93,13 +110,21 @@ You should probably also exit and restart Emacs.
 
 The "easy path" provided by Emacs is to update /all/ packages to their latest versions. Although you might not want to do this --- see next section --- here is how to do so:
 
-1. Use {{{kbd(M-x)}}} ~list-packages~. It should display a message like "42 packages can be upgraded; type ‘U’ to mark them for upgrading.".
+0. Use {{{kbd(M-x)}}} ~package-initialize~.
 
-2. Press {{{kbd(U)}}} as suggested to mark them all.
+1. Use {{{kbd(M-x)}}} ~package-refresh-contents~.
 
-3. Press {{{kbd(x)}}} to execute.
+2. Use {{{kbd(M-x)}}} ~list-packages~. It should display a message like "42 packages can be upgraded; type ‘U’ to mark them for upgrading.".
 
-After such a mass update, it might be wise to exist restart Emacs.
+3. Press {{{kbd(U)}}} as suggested to mark them all.
+
+4. Press {{{kbd(x)}}} to execute.
+
+After such a mass update, it might be wise to exit and restart Emacs.
+
+#+BEGIN_QUOTE
+NOTE: If you get an error message about "contacting a host" or "downloading an archive", the problem is not unique to Racket Mode. Please see https://melpa.org/#/getting-started.
+#+END_QUOTE
 
 *** Updating just Racket Mode
 
@@ -107,11 +132,11 @@ Updating all packages sometimes is more than you want. For example, maybe you wi
 
 To update just Racket Mode:
 
-1. Uninstall Racket Mode: {{{kbd(M-x)}}} ~package-delete~ {{{kbd(RET)}}} ~racket-mode~ {{{kbd(RET)}}}.
+1. {{{ref(Uninstall)}}}.
 
 2. Optional but most reliable: Exit and restart Emacs.
 
-3. Install Racket Mode: {{{kbd(M-x)}}} ~package-install~ {{{kbd(RET)}}} ~racket-mode~ {{{kbd(RET)}}}. This will install the latest version.
+3. {{{ref(Install)}}} again. This will install the latest version.
 
 * Configure
 

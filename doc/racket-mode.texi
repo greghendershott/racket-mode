@@ -27,7 +27,7 @@
 
 @menu
 * Introduction::
-* Install::
+* Install, Update, and Uninstall: Install Update and Uninstall. 
 * Configure::
 * Architecture::
 * Reference::
@@ -39,10 +39,10 @@
 @detailmenu
 --- The Detailed Node Listing ---
 
-Install
+Install, Update, and Uninstall
 
 * Configure Emacs to use MELPA::
-* Install Racket Mode::
+* Install::
 * Minimal Racket::
 * Uninstall::
 * Update::
@@ -303,13 +303,15 @@ For code, issues, and pull requests, see the @uref{https://github.com/greghender
 
 To fund this work, see @uref{https://github.com/users/greghendershott/sponsorship,GitHub Sponsors} or @uref{https://www.paypal.me/greghendershott,PayPal}.
 
-@node Install
-@chapter Install
+@node Install Update and Uninstall
+@chapter Install, Update, and Uninstall
 
-The recommended way to use Racket Mode is to install the package from @uref{https://melpa.org/#/racket-mode,MELPA}.
+The most common way to use Racket Mode is to install the package from MELPA.
+
+Note that Racket Mode is only available on MELPA (@math{_not}_ ``MELPA Stable'').
 @menu
 * Configure Emacs to use MELPA::
-* Install Racket Mode::
+* Install::
 * Minimal Racket::
 * Uninstall::
 * Update::
@@ -318,7 +320,7 @@ The recommended way to use Racket Mode is to install the package from @uref{http
 @node Configure Emacs to use MELPA
 @section Configure Emacs to use MELPA
 
-To use MELPA:
+Following is a quick guide that may work for you. (For definitive instructions and the latest trouble-shooting tips, please see @uref{https://melpa.org/#/getting-started}.)
 
 @itemize
 @item
@@ -330,6 +332,7 @@ Add the following to your @verb{,~/.emacs,} or @verb{,~/.emacs.d/init.el,}:
 (add-to-list 'package-archives
               '("melpa" . "https://melpa.org/packages/")
               t)
+(package-initialze)
 @end lisp
 
 @itemize
@@ -340,10 +343,29 @@ Restart Emacs.
 Type @kbd{M-x}  @code{package-refresh-contents} @kbd{RET} .
 @end itemize
 
-@node Install Racket Mode
-@section Install Racket Mode
+@quotation
+NOTE: If you get an error message about ``contacting a host'' or ``downloading an archive'', the problem is not unique to Racket Mode. Please see @uref{https://melpa.org/#/getting-started}.
+@end quotation
 
-When Emacs is configured to use MELPA, simply type @kbd{M-x}  @code{package-install} @kbd{RET}  @code{racket-mode} @kbd{RET} .
+@node Install
+@section Install
+
+When Emacs is configured to use MELPA:
+
+@enumerate
+@item
+Type @kbd{M-x}  @code{package-initialize} @kbd{RET} .
+
+@item
+Type @kbd{M-x}  @code{package-refresh-contents} @kbd{RET} .
+
+@item
+Type @kbd{M-x}  @code{package-install} @kbd{RET}  @code{racket-mode} @kbd{RET} .
+@end enumerate
+
+@quotation
+NOTE: If you get an error message about ``contacting a host'' or ``downloading an archive'', the problem is not unique to Racket Mode. Please see @uref{https://melpa.org/#/getting-started}.
+@end quotation
 
 @node Minimal Racket
 @section Minimal Racket
@@ -386,6 +408,12 @@ The ``easy path'' provided by Emacs is to update @emph{all} packages to their la
 
 @enumerate
 @item
+Use @kbd{M-x}  @code{package-initialize}.
+
+@item
+Use @kbd{M-x}  @code{package-refresh-contents}.
+
+@item
 Use @kbd{M-x}  @code{list-packages}. It should display a message like ``42 packages can be upgraded; type ‘U’ to mark them for upgrading.''.
 
 @item
@@ -395,7 +423,11 @@ Press @kbd{U}  as suggested to mark them all.
 Press @kbd{x}  to execute.
 @end enumerate
 
-After such a mass update, it might be wise to exist restart Emacs.
+After such a mass update, it might be wise to exit and restart Emacs.
+
+@quotation
+NOTE: If you get an error message about ``contacting a host'' or ``downloading an archive'', the problem is not unique to Racket Mode. Please see @uref{https://melpa.org/#/getting-started}.
+@end quotation
 
 @node Updating just Racket Mode
 @subsection Updating just Racket Mode
@@ -406,13 +438,13 @@ To update just Racket Mode:
 
 @enumerate
 @item
-Uninstall Racket Mode: @kbd{M-x}  @code{package-delete} @kbd{RET}  @code{racket-mode} @kbd{RET} .
+@ref{Uninstall}.
 
 @item
 Optional but most reliable: Exit and restart Emacs.
 
 @item
-Install Racket Mode: @kbd{M-x}  @code{package-install} @kbd{RET}  @code{racket-mode} @kbd{RET} . This will install the latest version.
+@ref{Install} again. This will install the latest version.
 @end enumerate
 
 @node Configure
