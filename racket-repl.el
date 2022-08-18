@@ -513,7 +513,7 @@ CONTEXT-LEVEL should be a valid value for the variable
 defaults to the variable `racket-error-context'.
 
 CALLBACK is used as the callback for `racket--cmd/async'; it may
-be nil which is equivalent to #'ignore.
+be nil which is equivalent to #\\='ignore.
 
 If not `racket--repl-live-p', start it and supply the run
 command via the start callback.the REPL is not live, create it.
@@ -1327,7 +1327,7 @@ want the REPL buffer to be cleared before each run, much like
 with Dr Racket. To do so you can use `customize', or, add to your
 Emacs init file something like:
 
-  (add-hook \\='racket-before-run-hook #'racket-repl-clear)
+  (add-hook \\='racket-before-run-hook #\\='racket-repl-clear)
 
 See also the command `racket-repl-clear-leaving-last-prompt'."
   ;; This prevents a first blank line, by telling the back end that

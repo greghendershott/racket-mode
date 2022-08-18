@@ -287,9 +287,9 @@ Returns nil for #% identifiers like #%app."
 (defun racket--data-sequence-p ()
   "Looking at \"data\" sequences where we align under head item?
 
-These sequences include \\='() `() #() -- and {} when
-`racket-indent-curly-as-sequence' is t -- but never #'() #`() ,()
-,@().
+These sequences include \\='() \\=`() #() -- and {} when
+`racket-indent-curly-as-sequence' is t -- but never #\\='()
+#\\=`() ,() ,@().
 
 To handle nested items, we search `backward-up-list' up to
 `racket-indent-sequence-depth' times."

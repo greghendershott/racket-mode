@@ -161,7 +161,7 @@ This function is a suitable element for the list variable
 
 (defun racket--open-paren (back-func)
   "Use BACK-FUNC to find an opening ( [ or { if any.
-BACK-FUNC should be something like #'backward-sexp or #'backward-up-list."
+BACK-FUNC should be something like #\\='backward-sexp or #\\='backward-up-list."
   (save-excursion
     (ignore-errors
       (funcall back-func)

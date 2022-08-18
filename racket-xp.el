@@ -123,7 +123,7 @@ code in your Emacs init file:
 
 #+BEGIN_SRC elisp
     (require \\='racket-xp)
-    (add-hook \\='racket-mode-hook #'racket-xp-mode)
+    (add-hook \\='racket-mode-hook #\\='racket-xp-mode)
 #+END_SRC
 
 Note: This mode won't do anything unless/until the Racket Mode
@@ -161,7 +161,7 @@ and/or slow, in your `racket-xp-mode-hook' you may disable them:
   (add-hook \\='racket-xp-mode-hook
             (lambda ()
               (remove-hook \\='pre-redisplay-functions
-                           #'racket-xp-pre-redisplay
+                           #\\='racket-xp-pre-redisplay
                            t)))
 #+END_SRC
 
