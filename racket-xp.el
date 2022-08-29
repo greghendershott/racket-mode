@@ -938,7 +938,7 @@ manually."
          (dolist (window windows)
            (racket-xp--force-redisplay window)))))))
 
-(defvar racket--xp-imenu-index nil)
+(defvar-local racket--xp-imenu-index nil)
 
 (defun racket--xp-annotate (&optional after-thunk)
   (racket--xp-set-status 'running)
@@ -958,8 +958,8 @@ manually."
               (imenu       . ,imenu)
               (annotations . ,annotations))
             (racket--xp-clear)
-            (setq-local racket--xp-binding-completions completions)
-            (setq-local racket--xp-imenu-index imenu)
+            (setq racket--xp-binding-completions completions)
+            (setq racket--xp-imenu-index imenu)
             (racket--xp-insert annotations)
             (racket--xp-set-status 'ok)
             (when (and annotations after-thunk)
@@ -1056,8 +1056,8 @@ manually."
     (remove-text-properties (point-min) (point-max)
                             (list 'help-echo nil))
     (unless only-errors-p
-      (setq-local racket--xp-binding-completions nil)
-      (setq-local racket--xp-imenu-index nil)
+      (setq racket--xp-binding-completions nil)
+      (setq racket--xp-imenu-index nil)
       (racket--remove-overlays-in-buffer racket-xp-def-face
                                          racket-xp-use-face
                                          racket-xp-unused-face

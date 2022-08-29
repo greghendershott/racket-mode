@@ -20,11 +20,11 @@
 (require 'racket-describe)
 (require 'racket-company-doc)
 
-(defvar racket--xp-binding-completions nil
+(defvar-local racket--xp-binding-completions nil
   "Completion candidates that are bindings.
 Set by `racket-xp-mode'. Used by `racket-xp-complete-at-point'.")
 
-(defvar racket--xp-module-completions nil
+(defvar-local racket--xp-module-completions nil
   "Completion candidates that are available collection module paths.
 Set by `racket-xp-mode'. Used by `racket-xp-complete-at-point'.")
 
