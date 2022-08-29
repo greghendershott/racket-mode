@@ -161,8 +161,7 @@ sentinel is `ignore'."
   (message "{%s} %s\n" proc string))
 
 (defun racket--cmd-process-filter (proc string)
-  "Parse complete sexprs from process output and give to
-`racket--cmd-dispatch'."
+  "Read and dispatch sexprs as they become available from process output."
   (let ((buffer (process-buffer proc)))
     (when (buffer-live-p buffer)
       (with-current-buffer buffer
@@ -170,14 +169,20 @@ sentinel is `ignore'."
         (insert string)
         (goto-char (point-min))
         (while
-          (when-let (sexp (ignore-errors (read buffer)))
-            (delete-region (point-min)
-                           (if (eq (char-after) ?\n)
-                               (1+ (point))
-                             (point)))
-            (racket--cmd-dispatch (process-get proc 'racket-back-end-name)
-                                  sexp)
-            t))))))
+            ;; Avoid `read'-ing sub-expressions of an incomplete sexp:
+            ;; Use `scan-lists' as a pre-check; although somewhat
+            ;; slower average case, much faster worst case.
+            (when-let (sexp (ignore-errors
+                              (progn
+                                (scan-lists (point-min) 1 0)
+                                (read buffer))))
+              (delete-region (point-min)
+                             (if (eq (char-after) ?\n)
+                                 (1+ (point))
+                               (point)))
+              (racket--cmd-dispatch (process-get proc 'racket-back-end-name)
+                                    sexp)
+              t))))))
 
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
   "A hash from command nonce to callback function.")
