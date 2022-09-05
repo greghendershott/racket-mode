@@ -70,7 +70,7 @@
               (path-string? (syntax-source e))
               (complete-path? (syntax-source e))
               (file-exists? (syntax-source e)))
-         (define expanded-stx (expand e))
+         (define expanded-stx (expand-syntax e))
          (define-values (code-str digest) (file->string+digest (syntax-source e)))
          (cache-set! (syntax-source e) code-str e expanded-stx digest)
          (orig-eval expanded-stx)]
