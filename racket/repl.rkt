@@ -17,7 +17,7 @@
          "print.rkt"
          "repl-session.rkt"
          "stack-checkpoint.rkt"
-         (only-in "syntax.rkt" with-expanded-syntax-caching-evaluator)
+         (only-in "syntax.rkt" make-caching-load/use-compiled-handler)
          "util.rkt")
 
 (provide start-repl-session-server
@@ -262,42 +262,42 @@
     (instrumenting-enabled (instrument-level? context-level))
     (profiling-enabled (eq? context-level 'profile))
     (test-coverage-enabled (eq? context-level 'coverage))
+    (current-load/use-compiled (make-caching-load/use-compiled-handler))
     ;; If module, require and enter its namespace, etc.
     (when maybe-mod
-      (with-expanded-syntax-caching-evaluator
-        (with-handlers (;; When exn during module load, display it,
-                        ;; ask the manager thread to re-run, and wait
-                        ;; for it to shut down our custodian.
-                        [exn?
-                         (λ (exn)
-                           ((error-display-handler) (exn-message exn) exn)
-                           (channel-put (current-repl-msg-chan)
-                                        (struct-copy run-config cfg [maybe-mod #f]))
-                           (sync never-evt))])
-          (with-stack-checkpoint
-            ;; First require the module so that if it has any errors
-            ;; we stop here.
-            (namespace-require maybe-mod)
-            ;; Require desired extra submodules (e.g. main, test).
-            (for ([submod (in-list extra-submods-to-run)])
-              (define submod-spec `(submod ,file ,@submod))
-              (when (module-declared? submod-spec)
-                (dynamic-require submod-spec #f)))
-            ;; configure-runtime important for e.g. Typed Racket REPL.
-            ;; Do before we set current-namespace; see #281. On the
-            ;; other hand, we don't want to do before
-            ;; namespace-require, or we might get duplicate Typed
-            ;; Racket error messages printed, as a result of it
-            ;; directly calling error-display-handler for each type
-            ;; check fail before raising a single exn:fail:syntax.
-            (maybe-configure-runtime maybe-mod)
-            ;; User's program may have changed current-directory;
-            ;; use parameterize to set for module->namespace but
-            ;; restore user's value for REPL.
-            (current-namespace
-             (parameterize ([current-directory dir])
-               (module->namespace maybe-mod)))
-            (check-#%top-interaction)))))
+      (with-handlers (;; When exn during module load, display it,
+                      ;; ask the manager thread to re-run, and wait
+                      ;; for it to shut down our custodian.
+                      [exn?
+                       (λ (exn)
+                         ((error-display-handler) (exn-message exn) exn)
+                         (channel-put (current-repl-msg-chan)
+                                      (struct-copy run-config cfg [maybe-mod #f]))
+                         (sync never-evt))])
+        (with-stack-checkpoint
+          ;; First require the module so that if it has any errors
+          ;; we stop here.
+          (namespace-require maybe-mod)
+          ;; Require desired extra submodules (e.g. main, test).
+          (for ([submod (in-list extra-submods-to-run)])
+            (define submod-spec `(submod ,file ,@submod))
+            (when (module-declared? submod-spec)
+              (dynamic-require submod-spec #f)))
+          ;; configure-runtime important for e.g. Typed Racket REPL.
+          ;; Do before we set current-namespace; see #281. On the
+          ;; other hand, we don't want to do before
+          ;; namespace-require, or we might get duplicate Typed
+          ;; Racket error messages printed, as a result of it
+          ;; directly calling error-display-handler for each type
+          ;; check fail before raising a single exn:fail:syntax.
+          (maybe-configure-runtime maybe-mod)
+          ;; User's program may have changed current-directory;
+          ;; use parameterize to set for module->namespace but
+          ;; restore user's value for REPL.
+          (current-namespace
+           (parameterize ([current-directory dir])
+             (module->namespace maybe-mod)))
+          (check-#%top-interaction))))
     ;; Update information about our session -- now that
     ;; current-namespace is possibly updated, and, it is OK to call
     ;; get-repl-submit-predicate.

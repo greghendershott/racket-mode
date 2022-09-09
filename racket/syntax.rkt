@@ -6,10 +6,9 @@
          racket/match
          (only-in racket/path path-only)
          syntax/modread
-         syntax/parse/define
          "online-check-syntax.rkt")
 
-(provide with-expanded-syntax-caching-evaluator
+(provide make-caching-load/use-compiled-handler
          file->syntax
          file->expanded-syntax
          string->expanded-syntax
@@ -56,30 +55,10 @@
 
 ;;; Expanded syntax caching
 
-(define (call-with-expanded-syntax-caching-evaluator thk)
-  (parameterize ([current-eval (make-eval-handler)])
-    (thk)))
-
-(define-simple-macro (with-expanded-syntax-caching-evaluator e:expr ...+)
-  (call-with-expanded-syntax-caching-evaluator (λ () e ...)))
-
-(define ((make-eval-handler [orig-eval (current-eval)]) e)
-  (cond [(and (syntax? e)
-              (not (compiled-expression? (syntax-e e)))
-              (syntax-source e)
-              (path-string? (syntax-source e))
-              (complete-path? (syntax-source e))
-              (file-exists? (syntax-source e)))
-         (define expanded-stx (expand e))
-         (define-values (code-str digest) (file->string+digest (syntax-source e)))
-         (cache-set! (syntax-source e) code-str e expanded-stx digest)
-         (orig-eval expanded-stx)]
-        [else (orig-eval e)]))
-
-(define (->path v)
-  (cond [(path? v) v]
-        [(path-string? v) (string->path v)]
-        [else (error '->path "not path? or path-string?" v)]))
+;; Various functions to obtain syntax or fully-expanded syntax from
+;; files or strings, backed by a cache, as well as a compiled load
+;; handler that warms the cache. Note: The cache stores expansions
+;; from expand ("enriched") -- /not/ from expand-syntax.
 
 ;; Returns the result of applying `k` to the expanded syntax, with the
 ;; correct parameterization of current-namespace and
@@ -187,6 +166,31 @@
        [#f
         (log-racket-mode-syntax-cache-warning "path->existing-expanded-syntax cache MISS ~v (ignoring digest); no code string cached for path, cannot re-expand" path)
         #f])]))
+
+;; Compiled load handler: This is an optimization to warm the cache
+;; with expansions done for loads that need to compile, including
+;; imports that need to compile. Can speed up scenarios like visiting
+;; a definition in a required file.
+(define (make-caching-load/use-compiled-handler)
+  (define old-handler (current-load/use-compiled))
+  (define old-compile (current-compile))
+  (define (new-compile stx immediate?)
+    (match (syntax-source stx)
+      [(? path? file)
+       (define exp-stx (expand stx))
+       (define-values (code-str digest) (file->string+digest file))
+       (cache-set! file code-str stx exp-stx digest)
+       (old-compile exp-stx immediate?)]
+      [_ (old-compile stx immediate?)]))
+  (define (new-handler file mod)
+    (parameterize ([current-compile new-compile])
+      (old-handler file mod)))
+  new-handler)
+
+(define (->path v)
+  (cond [(path? v) v]
+        [(path-string? v) (string->path v)]
+        [else (error '->path "not path? or path-string?" v)]))
 
 (define/contract (file->digest path)
   (-> path? string?)
