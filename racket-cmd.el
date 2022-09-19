@@ -167,22 +167,58 @@ sentinel is `ignore'."
       (with-current-buffer buffer
         (goto-char (point-max))
         (insert string)
-        (goto-char (point-min))
-        (while
-            ;; Avoid `read'-ing sub-expressions of an incomplete sexp:
-            ;; Use `scan-lists' as a pre-check; although somewhat
-            ;; slower average case, much faster worst case.
-            (when-let (sexp (ignore-errors
-                              (progn
-                                (scan-lists (point-min) 1 0)
-                                (read buffer))))
-              (delete-region (point-min)
-                             (if (eq (char-after) ?\n)
-                                 (1+ (point))
-                               (point)))
-              (racket--cmd-dispatch (process-get proc 'racket-back-end-name)
-                                    sexp)
-              t))))))
+        (racket--cmd-read (apply-partially
+                           #'racket--cmd-dispatch
+                           (process-get proc 'racket-back-end-name)))))))
+
+;; The process filter inserts text as it arrives in chunks. So the
+;; challenge here is to read whenever the buffer accumulates one or
+;; more /complete/ top-level sexps. Although it's simple to call
+;; `read' and let it succeed or fail, when a top-level sexp is long
+;; (as for check-syntax) and not yet complete, it's wasteful to
+;; read/allocate sub-expressions, only to fail and discard that work
+;; -- perhaps repeatedly as the long sexp grows in the buffer but
+;; remains incomplete. Using `scan-lists' to check for a complete sexp
+;; is better, but still wasteful to do from `point-min' every time.
+;; Instead we use `parse-partial-sexp' to parse/check incrementally,
+;; saving its parse state between calls, and resuming the parse for
+;; newly added text. We tell it to stop when the depth reaches zero,
+;; meaning we have a complete top-level sexp that can be read.
+(defvar-local racket--cmd-read-state nil)
+(defvar-local racket--cmd-read-from 1)
+(defconst racket--cmd-read-whitespace " \n\r\t")
+(defun racket--cmd-read (on-top-level-sexp)
+  ;; Note: Because top-level sexps from the back end are always nested
+  ;; in parens, all we need is a syntax-table to give them that
+  ;; char-syntax, as does even `fundamental-mode'.
+  (while
+      (when (< racket--cmd-read-from (point-max))
+        (setq racket--cmd-read-state
+              (parse-partial-sexp racket--cmd-read-from
+                                  (point-max)
+                                  0     ;target depth
+                                  nil   ;stop before
+                                  racket--cmd-read-state))
+        (setq racket--cmd-read-from (point))
+        (when (zerop (elt racket--cmd-read-state 0))
+          (goto-char (point-min))
+          (skip-chars-forward racket--cmd-read-whitespace)
+          (when (< (point) (point-max))
+            (funcall on-top-level-sexp (read (current-buffer)))
+            (skip-chars-forward racket--cmd-read-whitespace)
+            (delete-region (point-min) (point))
+            (setq racket--cmd-read-state nil)
+            (setq racket--cmd-read-from (point-min))
+            t)))))
+
+;; (with-temp-buffer
+;;   (dolist (str '("(1 2 3)\n"
+;;                  "(1 2)\n(1 2)\n(1 2 "
+;;                  "3 4"
+;;                  " 5 6)\n"))
+;;     (goto-char (point-max))
+;;     (insert str)
+;;     (racket--cmd-read #'prin1)))
 
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
   "A hash from command nonce to callback function.")

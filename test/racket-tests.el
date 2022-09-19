@@ -20,6 +20,7 @@
 (require 'paredit)
 (require 'racket-mode)
 (require 'racket-xp)
+(require 'racket-cmd)
 (require 'racket-repl)
 (require 'racket-edit)
 (require 'racket-debug)
@@ -757,6 +758,39 @@ FILE is interpreted as relative to this source directory."
       (pcase (compilation--message->loc cm)
         (`(,col ,line ((,file . ,_) . ,_) . ,_)
          (list (substring-no-properties file) line col))))))
+
+(ert-deftest racket-tests/cmd-read ()
+  "Exercise `racket--cmd-read' with randomly generated and chunked sexprs."
+  (dotimes (_ 10)
+    (with-temp-buffer
+      (let* ((num-top-level-sexprs 3000)
+             (orig (mapcar (lambda (_)
+                             (mapcar (lambda (_)
+                                       (if (zerop (random 2))
+                                           (random 1000)
+                                         (make-string (+ 5 (random 10))
+                                                      (+ ?a (random 26)))))
+                                     (make-list (+ 10 (random 90)) nil)))
+                           (make-list num-top-level-sexprs nil)))
+             (orig-as-str (apply #'concat
+                                 (mapcar (lambda (s) (concat s "\n"))
+                                         (mapcar #'prin1-to-string
+                                                 orig))))
+             (results nil))
+        ;; Simulate the process filter getting the text in arbitrary
+        ;; chunks, inserting into the buffer, and calling
+        ;; `racket--cmd-read' to read any available complete top-level
+        ;; sexprs.
+        (cl-flet ((add/read (str)
+                            (goto-char (point-max))
+                            (insert str)
+                            (racket--cmd-read (lambda (v) (push v results)))))
+          (while (< 0 (length orig-as-str))
+            (let ((len (max 1 (random (length orig-as-str)))))
+              (add/read (substring orig-as-str 0 len))
+              (setq orig-as-str (substring orig-as-str len))))
+          (setq results (reverse results))
+          (should (equal orig results)))))))
 
 (provide 'racket-tests)
 
