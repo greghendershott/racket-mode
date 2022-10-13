@@ -18,8 +18,8 @@
 ;; In other words defcustom of racket-foo-bar has a :tag "Foo Bar".
 
 (require 'rx)
-(require 'cl-lib)
 (require 'sh-script) ;for sh-heredoc face
+(require 'comint) ;for comint-simple-send in racket-shell-or-terminal
 
 (defgroup racket nil
   "Modes for the Racket language."
@@ -89,6 +89,24 @@ and `racket-repl-documentation' should look for the search page.
   :type '(choice (string :tag "URL")
                  (const :tag "Local" local))
   :safe (lambda (val) (or (stringp val) (eq val 'local)))
+  :group 'racket)
+
+(defcustom racket-shell-or-terminal-function 'racket-shell
+  "How `racket-racket' and `racket-raco-test' run commands.
+
+The function should accept a command string, not including a
+newline, get or create a suitable buffer, send the command, and
+send a newline or enter.
+
+Predefined choices include `racket-shell', `racket-term',
+`racket-ansi-term', and `racket-vterm'."
+  :tag "Shell or Terminal"
+  :type 'functionp
+  :options '(racket-shell
+             racket-term
+             racket-ansi-term
+             racket-vterm)
+  :safe #'functionp
   :group 'racket)
 
 ;;; Xp Mode

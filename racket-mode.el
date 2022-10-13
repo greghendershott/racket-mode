@@ -29,6 +29,7 @@
 (require 'racket-imenu)
 (require 'racket-profile)
 (require 'racket-logger)
+(require 'racket-shell)
 (require 'racket-stepper)
 (require 'racket-repl)
 (require 'racket-repl-buffer-name)

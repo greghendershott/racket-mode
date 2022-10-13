@@ -148,7 +148,12 @@
     "Browsing file URLs with anchors"
     racket-browse-url-using-temporary-file
     "Configuring back ends"
-    racket-add-back-end)
+    racket-add-back-end
+    "Running racket and raco commands in a shell or terminal"
+    racket-shell
+    racket-term
+    racket-ansi-term
+    racket-vterm)
   "Configuration functions to include in the Reference.")
 
 (defun racket-generate--configuration-functions ()
@@ -198,7 +203,9 @@
     "Experimental debugger variables"
     racket-debuggable-files
     "Showing information"
-    racket-show-functions)
+    racket-show-functions
+    "Running racket and raco commands in a shell or terminal"
+    racket-shell-or-terminal-function)
   "Variables to include in the Reference.")
 
 (defun racket-generate--variables ()

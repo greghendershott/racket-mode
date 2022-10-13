@@ -181,6 +181,7 @@ Variables
 * Other variables::
 * Experimental debugger variables::
 * Showing information::
+* Running racket and raco commands in a shell or terminal::
 
 General variables
 
@@ -224,12 +225,17 @@ Experimental debugger variables
 Showing information
 
 * racket-show-functions::
+
+Running racket and raco commands in a shell or terminal
+
+* racket-shell-or-terminal-function::
 Configuration functions
 
 * Showing information: Showing informationx. 
 * Associating edit buffers with REPL buffers::
 * Browsing file URLs with anchors::
 * Configuring back ends::
+* Running racket and raco commands in a shell or terminal: Running racket and raco commands in a shell or terminalx. 
 
 Showing information
 
@@ -252,6 +258,13 @@ Browsing file URLs with anchors
 Configuring back ends
 
 * racket-add-back-end::
+
+Running racket and raco commands in a shell or terminal
+
+* racket-shell::
+* racket-term::
+* racket-ansi-term::
+* racket-vterm::
 Faces
 
 * All::
@@ -2127,7 +2140,10 @@ would like to see documentation for all identifiers named
 
 @kbd{<C-M-f5>} 
 
-Do ``racket <file>'' in a shell buffer.
+Use command-line racket to run the file.
+
+Uses a shell or terminal buffer as specified by the configuration
+variable @ref{racket-shell-or-terminal-function}.
 
 @node racket-profile
 @subsection racket-profile
@@ -2363,7 +2379,10 @@ See also:
 
 @kbd{M-x}  @code{racket-raco-test}
 
-Do ``raco test -x <file>'' in a shell buffer to run the ``test'' submodule.
+Use command-line raco test to run the ``test'' submodule.
+
+Uses a shell or terminal buffer as specified by the configuration
+variable @ref{racket-shell-or-terminal-function}.
 
 @node Eval
 @section Eval
@@ -2643,6 +2662,7 @@ Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 * Other variables::
 * Experimental debugger variables::
 * Showing information::
+* Running racket and raco commands in a shell or terminal::
 @end menu
 
 @node General variables
@@ -3077,6 +3097,25 @@ A function that shows STR in a fixed location may of course
 ignore POS. Examples: @ref{racket-show-echo-area} and
 @ref{racket-show-header-line}
 
+@node Running racket and raco commands in a shell or terminal
+@section Running racket and raco commands in a shell or terminal
+
+@menu
+* racket-shell-or-terminal-function::
+@end menu
+
+@node racket-shell-or-terminal-function
+@subsection racket-shell-or-terminal-function
+
+How @ref{racket-racket} and @ref{racket-raco-test} run commands.
+
+The function should accept a command string, not including a
+newline, get or create a suitable buffer, send the command, and
+send a newline or enter.
+
+Predefined choices include @ref{racket-shell}, @ref{racket-term},
+@ref{racket-ansi-term}, and @ref{racket-vterm}.
+
 @node Configuration functions
 @chapter Configuration functions
 
@@ -3085,6 +3124,7 @@ ignore POS. Examples: @ref{racket-show-echo-area} and
 * Associating edit buffers with REPL buffers::
 * Browsing file URLs with anchors::
 * Configuring back ends::
+* Running racket and raco commands in a shell or terminal: Running racket and raco commands in a shell or terminalx. 
 @end menu
 
 @node Showing informationx
@@ -3441,6 +3481,56 @@ are a few examples.
     (racket-add-back-end "/ssh:headless:~/gui-project/"
                          :racket-program "xvfb-run racket")
 @end lisp
+
+@node Running racket and raco commands in a shell or terminalx
+@section Running racket and raco commands in a shell or terminal
+
+@menu
+* racket-shell::
+* racket-term::
+* racket-ansi-term::
+* racket-vterm::
+@end menu
+
+@node racket-shell
+@subsection racket-shell
+
+@code{(racket-shell cmd)}
+
+
+Run CMD using @code{shell}.
+
+A value for the variable @ref{racket-shell-or-terminal-function}.
+
+@node racket-term
+@subsection racket-term
+
+@code{(racket-term cmd)}
+
+
+Run CMD using @code{term}.
+
+A value for the variable @ref{racket-shell-or-terminal-function}.
+
+@node racket-ansi-term
+@subsection racket-ansi-term
+
+@code{(racket-ansi-term cmd)}
+
+
+Run CMD using @code{ansi-term}.
+
+A value for the variable @ref{racket-shell-or-terminal-function}.
+
+@node racket-vterm
+@subsection racket-vterm
+
+@code{(racket-vterm cmd)}
+
+
+Run CMD using @code{vterm}, if that package is installed.
+
+A value for the variable @ref{racket-shell-or-terminal-function}.
 
 @node Faces
 @chapter Faces

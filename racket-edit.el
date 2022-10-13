@@ -22,33 +22,6 @@
 (require 'hideshow)
 (require 'xref)
 
-(defun racket-racket ()
-  "Do \"racket <file>\" in a shell buffer."
-  (interactive)
-  (racket--shell (concat (shell-quote-argument racket-program)
-                         " "
-                         (shell-quote-argument (racket--buffer-file-name)))))
-
-(defun racket-raco-test ()
-  "Do \"raco test -x <file>\" in a shell buffer to run the \"test\" submodule."
-  (interactive)
-  (racket--shell (concat (shell-quote-argument racket-program)
-                         " -l raco test -x "
-                         (shell-quote-argument (racket--buffer-file-name)))))
-
-(defun racket--shell (cmd)
-  (racket--save-if-changed)
-  (let ((w (selected-window)))
-    (pcase (get-buffer-window "*shell*" t)
-      (`() (other-window -1))
-      (win (select-window win)))
-    (with-temp-message cmd
-      (shell)
-      (pop-to-buffer-same-window "*shell*")
-      (comint-send-string "*shell*" (concat cmd "\n"))
-      (select-window w)
-      (sit-for 3))))
-
 ;;; code folding
 
 ;;;###autoload
