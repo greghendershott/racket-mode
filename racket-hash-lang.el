@@ -337,7 +337,8 @@ becomes visible."
               ('sexp-comment-body
                (put-face beg end (racket--sexp-comment-face
                                   (get-text-property beg 'face))))
-              ('parenthesis (put-face beg end 'parenthesis))
+              ('parenthesis (when (facep 'parenthesis)
+                              (put-face beg end 'parenthesis)))
               ('string (put-face beg end 'font-lock-string-face))
               ('text (put-stx beg end racket--hash-lang-plain-syntax-table))
               ('constant (put-face beg end 'font-lock-constant-face))
