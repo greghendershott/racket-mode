@@ -274,23 +274,22 @@ lang's attributes that care about have changed."
 (defun racket--hash-lang-on-changed-tokens (_gen beg end)
   "The back end has processed a change that resulted in new tokens.
 
-All we do here is mark the span as not fontified, then let the
-usual font-lock machinery do its thing if/when this span ever
-becomes visible."
+All we do here is mark the span as not fontified, then let
+jit-lock do its thing if/when this span ever becomes visible."
   ;;;(message "racket--hash-lang-on-changed-tokens %s %s %s" _gen beg end)
-  (with-silent-modifications
-    (save-restriction
-      (widen)
-      (put-text-property beg
-                         (min end (point-max))
-                         'fontified nil))))
+  (font-lock-flush beg end))
 
 ;;; Fontification
 
 (defun racket--hash-lang-font-lock-fontify-region (beg end &optional _loudly)
-  ;;;(message "fontify-region %s %s" beg end)
-  ;; Note: We do this async. Not appropriate to be doing command I/O
-  ;; from jit-lock-mode called from Emacs C redisplay engine.
+  "Our value for the variable `font-lock-fontify-region-function'.
+
+We ask the back end for tokens, and handle its response
+asynchronously in `racket--hash-lang-on-tokens' which does the
+actual application of faces and syntax. It wouldn't be
+appropriate to wait for a response while being called from Emacs
+C redisplay engine, as is the case with `jit-lock-mode'."
+  ;;;(message "racket--hash-lang-font-lock-fontify-region %s %s" beg end)
   (racket--cmd/async
    nil
    `(hash-lang get-tokens
