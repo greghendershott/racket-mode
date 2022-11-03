@@ -174,6 +174,20 @@ asdfasdf
 BAR
     )
 
+(define x #<<Hello World
+asdfasdf
+asdfasdf
+asdfasdf
+Hello World
+  )
+
+#;(define x #<<Hi Racket
+asdfasdf
+asdfasdf
+asdfasdf
+Hi Racket
+    )
+
 |identifier with spaces|
 
 |;no comment|

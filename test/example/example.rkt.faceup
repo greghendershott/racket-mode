@@ -174,6 +174,20 @@ asdfasdf
 BAR
 »«:racket--sexp-comment--default:    )»
 
+(«k:define» «v:x» «:racket-here-string-face:#<<Hello World
+asdfasdf
+asdfasdf
+asdfasdf
+Hello World
+»  )
+
+«m:#;»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-keyword-face:define»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-variable-name-face:x»«:racket--sexp-comment--default: »«:racket--sexp-comment--racket-here-string-face:#<<Hi Racket
+asdfasdf
+asdfasdf
+asdfasdf
+Hi Racket
+»«:racket--sexp-comment--default:    )»
+
 |identifier with spaces|
 
 |;no comment|
