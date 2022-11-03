@@ -87,7 +87,7 @@
     ;; char syntax around the "body" so it's treated as a string for
     ;; indent, nav, font-lock. Think of the \n in #<<ID\n as the open
     ;; | quote and the \n in ^ID\n as the close | quote.
-    ((rx "#<<" (group (+? (not (any blank ?\n)))) (group ?\n))
+    ((rx "#<<" (group (+? (not ?\n))) (group ?\n))
      (2 (racket--syntax-propertize-open-here-string
          (match-beginning 0)
          (match-string-no-properties 1)
