@@ -43,7 +43,7 @@
       ;;
       ;; We only handle the opening #<<ID here. The remainder is
       ;; handled in `racket-font-lock-syntactic-face-function'.
-      (,(rx (group "#<<" (+? (not ?\n))) (group ?\n))
+      (,(rx (group "#<<" (+? (not (any ?\n)))) (group ?\n))
        (1 racket-here-string-face nil t))
     ))
   "Strings, comments, #lang.")
