@@ -64,7 +64,7 @@ Following is a quick guide that may work for you. (For definitive instructions a
 (add-to-list 'package-archives
               '("melpa" . "https://melpa.org/packages/")
               t)
-(package-initialze)
+(package-initialize)
 #+END_SRC
 
 - Restart Emacs.

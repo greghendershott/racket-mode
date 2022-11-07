@@ -356,7 +356,7 @@ Add the following to your @verb{,~/.emacs,} or @verb{,~/.emacs.d/init.el,}:
 (add-to-list 'package-archives
               '("melpa" . "https://melpa.org/packages/")
               t)
-(package-initialze)
+(package-initialize)
 @end lisp
 
 @itemize
