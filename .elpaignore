@@ -1,0 +1,17 @@
+.dir-locals.el
+.elpaignore
+.git
+.github
+.gitignore
+Makefile
+racket/compiled
+racket/commands/compiled
+test
+doc/Makefile
+doc/README.org
+doc/arch-pict.rkt
+doc/generate.el
+doc/*.css
+doc/*.html
+doc/*.info
+doc/*.org

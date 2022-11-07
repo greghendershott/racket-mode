@@ -5,7 +5,9 @@
 ;; Package: racket-mode
 ;; Package-Requires: ((emacs "25.1"))
 ;; Author: Greg Hendershott
+;; Maintainer: Greg Hendershott
 ;; URL: https://www.racket-mode.com/
+;; Version: 1
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
