@@ -1,0 +1,16 @@
+* Contributors
+
+Thanks to everyone who has contributed [[https://github.com/greghendershott/racket-mode/graphs/contributors][pull requests]] and [[https://github.com/greghendershott/racket-mode/issues?utf8%3D%25E2%259C%2593&q%3Dis%253Aissue][issues]].
+
+** Acknowledgements
+
+- The existing Emacs Scheme mode and Inferior Scheme mode.
+
+- The source code for for [[http://www.neilvandyke.org/quack/][Quack]] by Neil Van Dyke provided a model for
+  many of the scheme-indent-function settings, smart paren closing,
+  and pretty lambda.
+
+- The source code for [[http://www.nongnu.org/geiser/][Geiser]] by Jose A. Ortega Ruiz helped me
+  understand how to support completions and especially company-mode.
+  In addition, I was able to make heavy use of a pull request to
+  display images in the REPL.
