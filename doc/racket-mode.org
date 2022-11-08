@@ -49,9 +49,17 @@ To fund this work, see [[https://github.com/users/greghendershott/sponsorship][G
 
 * Install, Update, and Uninstall
 
-The most common way to use Racket Mode is to install the package from MELPA.
+The most common way to use Racket Mode is to install from a package archive like MELPA or NonGNU ELPA.
 
-Note that Racket Mode is only available on MELPA (_not_ "MELPA Stable").
+Some people also use a system like [[https://github.com/radian-software/straight.el][straight.el]].
+
+Note that Racket Mode is only available on MELPA (/not/ "MELPA Stable"), and is available as a "rolling release" from NonGNU ELPA.
+
+** Use Emacs 28.1 or newer with NonGNU ELPA
+
+Emacs 28.1 or newer comes configured to use [[https://elpa.nongnu.org][NonGNU ELPA]], in which case you can skip ahead to [[Install]].
+
+With older versions of Emacs, you can use MELPA.
 
 ** Configure Emacs to use MELPA
 
@@ -69,15 +77,13 @@ Following is a quick guide that may work for you. (For definitive instructions a
 
 - Restart Emacs.
 
-- Type {{{kbd(M-x)}}} ~package-refresh-contents~ {{{kbd(RET)}}}.
-
 #+BEGIN_QUOTE
-NOTE: If you get an error message about "contacting a host" or "downloading an archive", the problem is not unique to Racket Mode. Please see https://melpa.org/#/getting-started.
+NOTE: If you ever get an error message about "contacting a host" or "downloading an archive", the problem is not unique to Racket Mode. Please see https://melpa.org/#/getting-started.
 #+END_QUOTE
 
 ** Install
 
-When Emacs is configured to use MELPA:
+When Emacs is configured to use NonGNU ELPA or MELPA:
 
 1. Type {{{kbd(M-x)}}} ~package-initialize~ {{{kbd(RET)}}}.
 
@@ -103,7 +109,7 @@ A more-targeted approach is instead to install these specific packages and their
 raco pkg install --auto data-lib errortrace-lib macro-debugger-text-lib rackunit-lib racket-index scribble-lib drracket-tool-text-lib
 #+END_SRC
 
-If you /not/ want to use ~racket-xp-mode~, then you can omit ~drracket-tool-text-lib~.
+If you do /not/ want to use ~racket-xp-mode~, then you can omit ~drracket-tool-text-lib~.
 
 On a headless server, you might want to omit ~gui-lib~. Unfortunately, ~racket-doc~ depends on ~gui-lib~. On the one hand, if you uninstall ~racket-doc~ and ~gui-lib~, you will no longer be able to access documentation when using a Racket Mode back end running there. On the other hand, if you leave ~gui-lib~ installed, you should be careful to run the Racket Mode back end using ~xvfb-run racket~.
 

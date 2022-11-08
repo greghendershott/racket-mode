@@ -2,6 +2,7 @@
 
 [[https://github.com/greghendershott/racket-mode/actions][https://github.com/greghendershott/racket-mode/workflows/CI/badge.svg]]
 [[https://melpa.org/#/racket-mode][https://melpa.org/packages/racket-mode-badge.svg]]
+[[https://elpa.nongnu.org/nongnu/racket-mode.html][https://elpa.nongnu.org/nongnu/racket-mode.svg]]
 [[https://www.racket-mode.com/][https://img.shields.io/badge/Docs-Documentation-blue.svg]]
 
 This provides a major mode to edit [[https://www.racket-lang.org/][Racket]] source files, as well as a

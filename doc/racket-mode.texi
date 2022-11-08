@@ -52,6 +52,7 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 Install, Update, and Uninstall
 
+* Use Emacs 28.1 or newer with NonGNU ELPA: Use Emacs 281 or newer with NonGNU ELPA. 
 * Configure Emacs to use MELPA::
 * Install::
 * Minimal Racket::
@@ -330,16 +331,26 @@ To fund this work, see @uref{https://github.com/users/greghendershott/sponsorshi
 @node Install Update and Uninstall
 @chapter Install, Update, and Uninstall
 
-The most common way to use Racket Mode is to install the package from MELPA.
+The most common way to use Racket Mode is to install from a package archive like MELPA or NonGNU ELPA.
 
-Note that Racket Mode is only available on MELPA (@math{_not}_ ``MELPA Stable'').
+Some people also use a system like @uref{https://github.com/radian-software/straight.el,straight.el}.
+
+Note that Racket Mode is only available on MELPA (@emph{not} ``MELPA Stable''), and is available as a ``rolling release'' from NonGNU ELPA.
 @menu
+* Use Emacs 28.1 or newer with NonGNU ELPA: Use Emacs 281 or newer with NonGNU ELPA. 
 * Configure Emacs to use MELPA::
 * Install::
 * Minimal Racket::
 * Uninstall::
 * Update::
 @end menu
+
+@node Use Emacs 281 or newer with NonGNU ELPA
+@section Use Emacs 28.1 or newer with NonGNU ELPA
+
+Emacs 28.1 or newer comes configured to use @uref{https://elpa.nongnu.org,NonGNU ELPA}, in which case you can skip ahead to @ref{Install,Install}.
+
+With older versions of Emacs, you can use MELPA.
 
 @node Configure Emacs to use MELPA
 @section Configure Emacs to use MELPA
@@ -362,19 +373,16 @@ Add the following to your @verb{,~/.emacs,} or @verb{,~/.emacs.d/init.el,}:
 @itemize
 @item
 Restart Emacs.
-
-@item
-Type @kbd{M-x}  @code{package-refresh-contents} @kbd{RET} .
 @end itemize
 
 @quotation
-NOTE: If you get an error message about ``contacting a host'' or ``downloading an archive'', the problem is not unique to Racket Mode. Please see @uref{https://melpa.org/#/getting-started}.
+NOTE: If you ever get an error message about ``contacting a host'' or ``downloading an archive'', the problem is not unique to Racket Mode. Please see @uref{https://melpa.org/#/getting-started}.
 @end quotation
 
 @node Install
 @section Install
 
-When Emacs is configured to use MELPA:
+When Emacs is configured to use NonGNU ELPA or MELPA:
 
 @enumerate
 @item
@@ -406,7 +414,7 @@ A more-targeted approach is instead to install these specific packages and their
 raco pkg install --auto data-lib errortrace-lib macro-debugger-text-lib rackunit-lib racket-index scribble-lib drracket-tool-text-lib
 @end example
 
-If you @emph{not} want to use @code{racket-xp-mode}, then you can omit @code{drracket-tool-text-lib}.
+If you do @emph{not} want to use @code{racket-xp-mode}, then you can omit @code{drracket-tool-text-lib}.
 
 On a headless server, you might want to omit @code{gui-lib}. Unfortunately, @code{racket-doc} depends on @code{gui-lib}. On the one hand, if you uninstall @code{racket-doc} and @code{gui-lib}, you will no longer be able to access documentation when using a Racket Mode back end running there. On the other hand, if you leave @code{gui-lib} installed, you should be careful to run the Racket Mode back end using @code{xvfb-run racket}.
 
