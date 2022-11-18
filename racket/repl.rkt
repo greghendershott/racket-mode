@@ -278,28 +278,7 @@
                                       (struct-copy run-config cfg [maybe-mod #f]))
                          (sync never-evt))])
         (with-stack-checkpoint
-          ;; First require the module so that if it has any errors
-          ;; we stop here.
-          (namespace-require maybe-mod)
-          ;; Require desired extra submodules (e.g. main, test).
-          (for ([submod (in-list extra-submods-to-run)])
-            (define submod-spec `(submod ,file ,@submod))
-            (when (module-declared? submod-spec)
-              (dynamic-require submod-spec #f)))
-          ;; configure-runtime important for e.g. Typed Racket REPL.
-          ;; Do before we set current-namespace; see #281. On the
-          ;; other hand, we don't want to do before
-          ;; namespace-require, or we might get duplicate Typed
-          ;; Racket error messages printed, as a result of it
-          ;; directly calling error-display-handler for each type
-          ;; check fail before raising a single exn:fail:syntax.
-          (maybe-configure-runtime maybe-mod)
-          ;; User's program may have changed current-directory;
-          ;; use parameterize to set for module->namespace but
-          ;; restore user's value for REPL.
-          (current-namespace
-           (parameterize ([current-directory dir])
-             (module->namespace maybe-mod)))
+          (configure/require/enter maybe-mod extra-submods-to-run dir)
           (check-#%top-interaction))))
     ;; Update information about our session -- now that
     ;; current-namespace is possibly updated, and, it is OK to call
@@ -352,6 +331,54 @@
     ;; let debug-instrumented code break again
     (next-break 'all)))
 
+;; Change one of our non-false maybe-mod values (for which we use path
+;; objects, not path-strings) into a module-path applied to
+;; module-path-index-join.
+(define (->module-path mod)
+  (match mod
+    [(? path? p)
+     (module-path-index-join `(file ,(path->string p))
+                             #f)]
+    [(list* 'submod (? path? p) subs)
+     (module-path-index-join `(submod "." ,@subs)
+                             (module-path-index-join `(file ,(path->string p))
+                                                     #f))]
+    [_ (error "can't make module path from" mod)]))
+
+(define (configure/require/enter mod extra-submods-to-run dir)
+  (define mp (->module-path mod))
+  (configure-runtime mp)
+  (namespace-require mp)
+  (for ([submod (in-list extra-submods-to-run)]) ;e.g. main, test
+    (define sub-mp (module-path-index-join `(submod "." ,@submod) mp))
+    (when (module-declared? sub-mp)
+      (dynamic-require sub-mp #f)))
+  ;; User's program may have changed current-directory, so
+  ;; parameterize for module->namespace, restoring user value for
+  ;; REPL.
+  (current-namespace (parameterize ([current-directory dir])
+                       (module->namespace mp))))
+
+;; From racket-lang/racket/src/cs/main.sps
+(define (configure-runtime m)
+  ;; New-style configuration through a `configure-runtime` submodule:
+  (let ([config-m (module-path-index-join '(submod "." configure-runtime) m)])
+    (when (module-declared? config-m #t)
+      (dynamic-require config-m #f)))
+  ;; Old-style configuration with module language info:
+  (let ([info (module->language-info m #t)])
+    (when (and (vector? info) (= 3 (vector-length info)))
+      (let* ([info-load (lambda (info)
+                          ((dynamic-require (vector-ref info 0) (vector-ref info 1))
+                           (vector-ref info 2)))]
+             [get (info-load info)]
+             [infos (get 'configure-runtime '())])
+        (unless (and (list? infos)
+                     (andmap (lambda (info) (and (vector? info) (= 3 (vector-length info))))
+                             infos))
+          (raise-argument-error 'runtime-configure "(listof (vector any any any))" infos))
+        (for-each info-load infos)))))
+
 ;; <https://docs.racket-lang.org/tools/lang-languages-customization.html#(part._.R.E.P.L_.Submit_.Predicate)>
 (define drracket:submit-predicate/c (-> input-port? boolean? boolean?))
 (define/contract (get-repl-submit-predicate m)
@@ -371,26 +398,6 @@
                 (define get-info ((dynamic-require mp name) val))
                 (get-info 'drracket:submit-predicate #f)]
                [_ #f])))))
-
-(define (maybe-configure-runtime mod-path)
-  ;; Do configure-runtime when available.
-  ;; Important for langs like Typed Racket.
-  (with-handlers ([exn:fail? void])
-    (match (module->language-info mod-path #t)
-      [(vector mp name val)
-       (define get-info ((dynamic-require mp name) val))
-       (define configs (get-info 'configure-runtime '()))
-       (for ([config (in-list configs)])
-         (match-let ([(vector mp name val) config])
-           ((dynamic-require mp name) val)))]
-      [_ (void)])
-    (define cr-submod `(submod
-                        ,@(match mod-path
-                            [(list 'submod sub-paths ...) sub-paths]
-                            [_ (list mod-path)])
-                        configure-runtime))
-    (when (module-declared? cr-submod)
-      (dynamic-require cr-submod #f))))
 
 (define (check-#%top-interaction)
   ;; Check that the lang defines #%top-interaction
