@@ -5,9 +5,9 @@
 [[https://elpa.nongnu.org/nongnu/racket-mode.html][https://elpa.nongnu.org/nongnu/racket-mode.svg]]
 [[https://www.racket-mode.com/][https://img.shields.io/badge/Docs-Documentation-blue.svg]]
 
-This provides a major mode to edit [[https://www.racket-lang.org/][Racket]] source files, as well as a
-major mode for a Racket REPL. The edit/run experience is similar to
-[[https://docs.racket-lang.org/drracket/][DrRacket]].
+A variety of Emacs major and minor modes for [[https://www.racket-lang.org/][Racket]]: edit, REPL,
+check-syntax, debug, profile, logging, and more. The edit/run
+experience is similar to [[https://docs.racket-lang.org/drracket/][DrRacket]].
 
 Compatible with *Emacs 25.1+* and *Racket 6.9+*.
 
@@ -17,9 +17,11 @@ See the [[https://www.racket-mode.com/][Guide and Reference]].
 
 ** Contributing
 
-Pull requests are welcome; please [[file:CONTRIBUTING.org][read this]].
+Pull requests are welcome; please see [[https://github.com/greghendershott/racket-mode/blob/master/CONTRIBUTING.org][CONTRIBUTING.org]].
 
-[[file:THANKS.org][Acknowledgments]].
+** Acknowledgments
+
+[[https://github.com/greghendershott/racket-mode/blob/master/THANKS.org][THANKS.org]].
 
 ** Alternatives
 
