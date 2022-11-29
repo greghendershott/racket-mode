@@ -149,35 +149,41 @@ end of an interactive expression/statement."
                                           `(repl-submit? ,text t))
                 ((t) t)
                 ((nil) (user-error "Not a complete expression, according to the current lang's submit-predicate."))
-                ((default) (racket--repl-complete-sexp-p proc)))
-            (racket--repl-complete-sexp-p proc))))
-    (if (not submitp)
-        (newline-and-indent)
-      (comint-send-input)
-      (remove-text-properties comint-last-input-start
-                              comint-last-input-end
-                              '(font-lock-face comint-highlight-input))
-      ;; Hack for datalog/lang
-      (when prefix (process-send-eof proc)))))
+                ((default) (racket--repl-submit-p proc)))
+            (racket--repl-submit-p proc))))
+    (cond (submitp
+           (comint-send-input)
+           (remove-text-properties comint-last-input-start
+                                   comint-last-input-end
+                                   '(font-lock-face comint-highlight-input))
+           ;; Hack for datalog/lang
+           (when prefix (process-send-eof proc)))
+          (t
+           (message "Not yet a complete s-expression")
+           (newline-and-indent)))))
 
-(defun racket--repl-complete-sexp-p (proc)
-  "Is there at least one complete sexp at process-mark?"
+(defun racket--repl-submit-p (proc)
+  "Is user REPL input ready to submit?
+
+True when there is at least one expression, and, all expressions
+are complete."
   (condition-case nil
       (let* ((beg (marker-position (process-mark proc)))
              (end (save-excursion
                     (goto-char beg)
-                    ;; This will scan-error unless complete sexp, or
-                    ;; all whitespace.
-                    (forward-list 1)
+                    (while (< (point) (point-max))
+                      ;; This will scan-error unless complete sexp, or
+                      ;; all whitespace.
+                      (forward-list 1))
                     (point))))
-        (not (or (equal beg end) ;nothing
-                 (string-match-p ;something but all whitespace
-                      (rx bos
-                          (1+ (or (syntax whitespace)
-                                  (syntax comment-start)
-                                  (syntax comment-end)))
-                          eos)
-                      (buffer-substring beg end)))))
+        (not (or (equal beg end)        ;nothing
+                 (string-match-p        ;something but all whitespace
+                  (rx bos
+                      (1+ (or (syntax whitespace)
+                              (syntax comment-start)
+                              (syntax comment-end)))
+                      eos)
+                  (buffer-substring beg end)))))
     (scan-error nil)))
 
 (defun racket-repl-break ()
