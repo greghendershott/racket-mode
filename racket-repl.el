@@ -1294,7 +1294,15 @@ identifier bindings and modules from the REPL's namespace.
   (add-hook 'kill-emacs-hook #'racket--repl-save-all-histories nil t)
   (add-hook 'xref-backend-functions #'racket-repl-xref-backend-function nil t)
   (add-to-list 'semantic-symref-filepattern-alist
-               '(racket-repl-mode "*.rkt" "*.rktd" "*.rktl")))
+               '(racket-repl-mode "*.rkt" "*.rktd" "*.rktl"))
+  ;; Handle recent versions of paredit that bind C-m and C-j; #647.
+  (when (boundp 'paredit-mode-map)
+    (let ((m (make-sparse-keymap)))
+      (set-keymap-parent m paredit-mode-map)
+      (dolist (k '("C-m" "C-j"))
+        (define-key m (kbd k) (lookup-key racket-repl-mode-map (kbd k))))
+      (push (cons 'paredit-mode m)
+            minor-mode-overriding-map-alist))))
 
 (defun racket--repl-save-all-histories ()
   "Call comint-write-input-ring for all `racket-repl-mode' buffers.
