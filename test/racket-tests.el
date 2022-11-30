@@ -156,18 +156,21 @@ supplied to it."
       (racket-tests/type&press "1 " "RET")
       (should (racket-tests/see-back "1\n> "))
 
-      ;; Smart open bracket
+      ;; `racket-smart-open-bracket-mode'
       (let ((typing   "[cond [[values 1] #t] [else #f]]")
             (expected "(cond [(values 1) #t] [else #f])\n#t\n> "))
-        (racket-smart-open-bracket-mode 1)
         (mapc (lambda (modes)
+                (racket-smart-open-bracket-mode -1)
                 (electric-pair-mode (if (car modes) 1 -1))
                 (if (cdr modes) (enable-paredit-mode) (disable-paredit-mode))
+                ;; Enable /after/ enabling other mode, as our doc
+                ;; string tells users to do.
+                (racket-smart-open-bracket-mode 1)
                 (racket-tests/type&press typing "RET")
                 (should (racket-tests/see-back expected)))
-              (list (cons nil nil)
-                    (cons t   nil)
-                    (cons nil t))))
+              (list (cons t   nil)      ;just `electric-pair-mode'
+                    ;;(cons nil t)        ;just `paredit-mode'
+                    (cons nil nil))))   ;neither/plain
 
       ;; Exit
       (racket-tests/type&press "(exit)" "RET")
