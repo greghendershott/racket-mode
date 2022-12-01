@@ -156,7 +156,12 @@ supplied to it."
       (racket-tests/type&press "1 " "RET")
       (should (racket-tests/see-back "1\n> "))
 
-      ;; `racket-smart-open-bracket-mode'
+      ;; `racket-smart-open-bracket-mode'.
+      ;;
+      ;; For `paredit-mode' we test using the configuration we
+      ;; document in doc/racket-mode.org; see #647.
+      (dolist (k '("RET" "C-m" "C-j"))
+        (define-key paredit-mode-map (kbd k) nil))
       (let ((typing   "[cond [[values 1] #t] [else #f]]")
             (expected "(cond [(values 1) #t] [else #f])\n#t\n> "))
         (mapc (lambda (modes)
@@ -169,7 +174,7 @@ supplied to it."
                 (racket-tests/type&press typing "RET")
                 (should (racket-tests/see-back expected)))
               (list (cons t   nil)      ;just `electric-pair-mode'
-                    ;;(cons nil t)        ;just `paredit-mode'
+                    (cons nil t)        ;just `paredit-mode'
                     (cons nil nil))))   ;neither/plain
 
       ;; Exit

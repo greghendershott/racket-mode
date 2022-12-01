@@ -659,6 +659,15 @@ For example, with @uref{https://melpa.org/#/use-package,@code{use-package}}:
                ("M-@{" . paredit-wrap-curly))))
 @end lisp
 
+Starting c. November 2022, paredit binds the @kbd{RET}  key to its own command. Unfortunately this is @emph{not} compatible with interactive modes --- including but not limited to @code{racket-repl-mode} --- which expect @kbd{RET}  to be bound to a command to submit your input to the REPL. In other words, if you type an expression and hit @kbd{RET} , nothing will happen and the REPL will seem frozen. You @code{M-x racket-repl-submit} to proceed.
+
+If you want to use paredit with interactive modes, their advice is to remove the binding from @code{paredit-mode-map} (note that this will also disable it for all buffers, including editing buffers). One way you can do this for all related keys:
+
+@lisp
+(dolist (k '("RET" "C-m" "C-j"))
+  (define-key paredit-mode-map (kbd k) nil))
+@end lisp
+
 @node smartparens
 @section smartparens
 
