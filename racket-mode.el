@@ -4,7 +4,7 @@
 
 ;; Package: racket-mode
 ;; Package-Requires: ((emacs "25.1"))
-;; Author: Greg Hendershott
+;; Author: Greg Hendershott <racket-mode-author@greghendershott.com>
 ;; Maintainer: Greg Hendershott
 ;; URL: https://www.racket-mode.com/
 ;; Version: 1
