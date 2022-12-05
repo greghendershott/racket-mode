@@ -7,3 +7,6 @@ doc/reference.org
 doc/racket-mode.html
 doc/*.png
 doc/*.svg
+# ELPA-generated files
+/racket-mode-autoloads.el
+/racket-mode-pkg.el
