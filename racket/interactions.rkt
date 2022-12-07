@@ -19,32 +19,40 @@
 ;; abandoned tcp-input-port. So give up on that, reverting issue #305.
 
 (define (get-interaction prompt)
+  ;; Need to port-count-lines! here -- not sufficient to do once to
+  ;; REPL TCP input port upon connection -- because racket/gui/base
+  ;; sets current-get-interaction-port to wrap the original input
+  ;; port. See issues #519 #556.
+  (define in ((current-get-interaction-input-port)))
+  (port-count-lines! in)
   ;; Using with-handlers here would be a mistake; see #543.
   (call-with-exception-handler
    (λ (e)
-     (cond [(exn:fail:network? e)
-            (log-racket-mode-info "get-interaction: exn:fail:network")
-            (exit 'get-interaction-exn:fail:network)]
-           [else e]))
+     (when (exn:fail:network? e)
+        (log-racket-mode-info "get-interaction: exn:fail:network")
+        (exit 'get-interaction-exn:fail:network))
+     (when (exn:fail:read? e) ;#646
+        (discard-remaining-lines! in)
+        (zero-column!))
+     e)
    (λ ()
-     (define in ((current-get-interaction-input-port)))
-     ;; Need to port-count-lines! here -- not sufficient to do to REPL
-     ;; TCP input port upon connection -- because racket/gui/base sets
-     ;; current-get-interaction-port to wrap the original input port.
-     ;; See issues #519 #556.
-     (port-count-lines! in)
      (unless (already-more-to-read? in) ;#311
        (display-prompt prompt))
-     (match (with-stack-checkpoint
-              ((current-read-interaction) prompt in))
-       [(? eof-object?)
-        (log-racket-mode-info "get-interaction: eof")
-        (display-commented
-         "Closing REPL session because language's current-read-interaction returned EOF")
-        (exit 'get-interaction-eof)]
-       [v
-        (zero-column!)
-        v]))))
+     (define v (with-stack-checkpoint
+                 ((current-read-interaction) prompt in)))
+     (when (eof-object? v)
+       (log-racket-mode-info "get-interaction: eof")
+       (display-commented
+        "Closing REPL session because language's current-read-interaction returned EOF")
+       (exit 'get-interaction-eof))
+     (zero-column!)
+     v)))
+
+(define (discard-remaining-lines! in)
+  (define (f)
+    (void (read-line in))
+    (f))
+  (sync/timeout 0.1 (thread f)))
 
 (define (already-more-to-read? in)
   ;; Is there already at least one more expression available to read
