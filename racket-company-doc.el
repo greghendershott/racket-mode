@@ -8,9 +8,11 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(require 'seq)
 (require 'shr)
-(require 'racket-describe)
 (require 'racket-back-end)
+(require 'racket-describe)
+(require 'racket-scribble)
 
 (defun racket--company-doc-buffer (how str)
   (pcase (racket--cmd/await (racket--repl-session-id)
@@ -33,9 +35,9 @@
                              path anchor)
     (let* ((tramp-verbose 2)            ;avoid excessive messages
            (dom   (racket--html-file->dom path))
-           (mains (racket--scribble-main-elements path dom))
-           (mains (racket--scribble-mains-for-anchor mains anchor))
-           (dom   `(div () ,@mains))
+           (body  (racket--scribble-body dom))
+           (elems (racket--company-elements-for-anchor body anchor))
+           (dom   `(div () ,@elems))
            (dom   (racket--walk-dom dom)))
       (ignore tramp-verbose)
       (save-excursion
@@ -46,18 +48,18 @@
       (while (re-search-forward (string racket--scribble-temp-nbsp) nil t)
         (replace-match " " t t)))))
 
-(defun racket--scribble-mains-for-anchor (mains anchor)
-  "Return the subset of MAINS dom elements pertaining to ANCHOR."
-  (while (and mains (not (racket--anchored-element (car mains) anchor)))
-    (setq mains (cdr mains)))
-  (and mains
+(defun racket--company-elements-for-anchor (xs anchor)
+  "Return the subset of XS dom elements pertaining to ANCHOR."
+  (while (and xs (not (racket--anchored-element (car xs) anchor)))
+    (setq xs (cdr xs)))
+  (and xs
        (let ((result nil))
-         (push (car mains) result)
-         (setq mains (cdr mains))
-         (while (and mains (not (or (racket--heading-element (car mains))
-                                    (racket--anchored-element (car mains)))))
-           (push (car mains) result)
-           (setq mains (cdr mains)))
+         (push (car xs) result)
+         (setq xs (cdr xs))
+         (while (and xs (not (or (racket--heading-element (car xs))
+                                 (racket--anchored-element (car xs)))))
+           (push (car xs) result)
+           (setq xs (cdr xs)))
          (reverse result))))
 
 (defun racket--heading-element (x)
@@ -65,24 +67,10 @@
        (memq (car x) '(h1 h2 h3 h4 h5 h6))))
 
 (defun racket--anchored-element (x &optional name)
-  (cl-labels
-      ((anchor
-        (xs)
-        (cl-some (lambda (x)
-                   (pcase x
-                     (`(a ((name . ,a)) . ,_) (or (not name) (equal name a)))
-                     (`(,_tag ,_as . ,es) (anchor es))))
-                 xs)))
-    (pcase x
-      (`(div ((class . "SIntrapara")) . ,es)
-       (anchor es))
-      ((and `(blockquote ((class . "leftindent"))
-                         (p)
-                         (div ((class . "SIntrapara"))
-                              (blockquote ((class "SVInsetFlow"))
-                                          (table ,as . ,es)))))
-       (when (member '(class . "boxed RBoxed") as)
-         (anchor es))))))
+  (pcase x
+    (`(a ((name . ,a)) . ,_) (or (not name) (equal name a)))
+    (`(,_tag ,_as . ,es) (seq-some (lambda (v) (racket--anchored-element v name))
+                                   es))))
 
 (provide 'racket-company-doc)
 

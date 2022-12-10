@@ -8,6 +8,7 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(require 'seq)
 (require 'shr)
 (require 'subr-x)
 (require 'url-util)
@@ -35,29 +36,38 @@ the effect of being non-breaking.")
   (with-temp-message (format "Getting and formatting documentation %s..."
                              path)
     (let* ((tramp-verbose 2) ;avoid excessive messages
-           (base  (file-name-directory path))
-           (dom   (racket--html-file->dom path))
-           (mains (racket--scribble-main-elements path dom))
-           (dom   (racket--massage-scribble-dom path base mains)))
-      dom)))
+           (base (file-name-directory path))
+           (dom  (racket--html-file->dom path))
+           (body (racket--scribble-body dom))
+           (body (racket--massage-scribble-dom path base body)))
+      `(html ()
+             (head () (base ((href . ,base))))
+             ,body))))
 
 (defun racket--html-file->dom (path)
   (with-temp-buffer
     (insert-file-contents-literally path)
     (libxml-parse-html-region (point-min) (point-max))))
 
-(defun racket--scribble-main-elements (path dom)
-  (pcase dom
-    (`(html ,_
-            (head . ,_)
-            (body ,_
-                  (div ((class . "tocset")) . ,_)
-                  (div ((class . "maincolumn"))
-                       (div ((class . "main")) . ,xs))
-                  . ,_))
-     `(div ()
-           (base ((href . ,(file-name-directory path))))
-           ,@xs))))
+(defun racket--scribble-body (dom)
+  "Return a body with the interesting elements in DOM.
+
+With a normal Racket documentation page produced by Scribble,
+these are only elements from the maincolumn/main div -- not the
+tocset sibling.
+
+With other doc pages, e.g. from r5rs, these are simply all the
+body elements."
+  (pcase (seq-some (lambda (v)
+                     (pcase v (`(body . ,_) v)))
+                   dom)
+    (`(body ,_
+            (div ((class . "tocset")) . ,_)
+            (div ((class . "maincolumn"))
+                 (div ((class . "main")) . ,xs))
+            . ,_)
+     `(body () ,@xs))
+    (body body)))
 
 ;; Dynamically bound (like Racket parameters).
 (defvar racket--scribble-file nil)
