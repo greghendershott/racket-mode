@@ -37,7 +37,7 @@ jobs:
         with:
           version: ${{ matrix.emacs_version }}
       - name: Install Racket
-        uses: Bogdanp/setup-racket@v1.6.1
+        uses: Bogdanp/setup-racket@v1.9
         with:
           architecture: 'x64'
           distribution: 'full'
@@ -69,7 +69,7 @@ jobs:
         with:
           version: ${{ matrix.emacs_version }}
       - name: Install Racket
-        uses: Bogdanp/setup-racket@v1.6.1
+        uses: Bogdanp/setup-racket@v1.9
         with:
           architecture: 'x64'
           distribution: 'full'
