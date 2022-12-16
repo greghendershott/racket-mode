@@ -7,7 +7,7 @@
 
 #+TITLE: Racket Mode
 #+AUTHOR: Greg Hendershott
-#+EMAIL: racket@greghendershott.com
+#+EMAIL: racket-mode-author@greghendershott.com
 #+LANGUAGE: en
 
 #+TEXINFO_FILENAME: racket-mode.info
