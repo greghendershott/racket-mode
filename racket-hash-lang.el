@@ -297,7 +297,8 @@ C redisplay engine, as is the case with `jit-lock-mode'."
                ,racket--hash-lang-generation
                ,beg
                ,end)
-   #'racket--hash-lang-on-tokens))
+   #'racket--hash-lang-on-tokens)
+  `(jit-lock-bounds ,beg . ,end))
 
 (defun racket--hash-lang-on-tokens (tokens)
   (with-silent-modifications
