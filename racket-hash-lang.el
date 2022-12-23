@@ -239,7 +239,7 @@ lang's attributes that care about have changed."
     (save-restriction
       (widen)
       (racket--hash-lang-remove-text-properties (point-min) (point-max))
-      (put-text-property (point-min) (point-max) 'fontified nil)
+      (font-lock-flush (point-min) (point-max))
       ;; If the lang uses racket-grouping-position, i.e. it uses
       ;; s-expressions, then use racket-mode-syntax-table. That way
       ;; other Emacs features and packages are more likely to work.
