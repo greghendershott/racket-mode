@@ -528,7 +528,7 @@ ignore POS. Examples: `racket-show-echo-area' and
   "Error Face")
 
 (defface-racket racket-xp-unused-face
-  '((t (:strike-through t)))
+  '((t (:underline (:color "yellow" :style wave))))
   "Face `racket-xp-mode' uses to highlight unused requires or definitions."
   "Unused Face")
 
