@@ -160,6 +160,9 @@
                                               (add1 use-end))))
                       (set))
         (unless require-arrow?
+          ;; For now assume this means a local binding and add a
+          ;; "defined locally" annotation. Below we'll detect the
+          ;; issue #639 scenario and possibly remove this.
           (send this syncheck:add-mouse-over-status "" use-beg use-end "defined locally"))))
 
     (define/override (syncheck:add-tail-arrow from-src from-pos to-src to-pos)
@@ -297,9 +300,18 @@
           (match-define (cons beg end) beg/end)
           (list* sym (add1 beg) (add1 end) (proc vs))))
       (define (mouse-over-set->result v)
-        (list ;im->list expects a list
-         (string-join (sort (set->list v) string<=?)
-                      "; ")))
+        ;; It is possible for syncheck:add-arrow to be called both
+        ;; with require-arrow? true and false for the same binding.
+        ;; See #639. In that case, assume it's actually imported and
+        ;; remove "defined locally" from the set of annotations.
+        (let ([v (if (and (set-member? v "defined locally")
+                          (for/or ([s (in-set v)])
+                            (regexp-match? #"^imported from" s)))
+                     (set-remove v "defined locally")
+                     v)])
+          (list ;im->list expects a list
+           (string-join (sort (set->list v) string<=?)
+                       "; "))))
       ;; Append all and sort by `beg` position
       (sort (append
              defs/uses
