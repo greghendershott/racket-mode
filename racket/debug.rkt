@@ -411,7 +411,10 @@
                                  (let ([orig (current-load/use-compiled)])
                                    (λ (file mod)
                                      (cond [(set-member? files file)
-                                            (load-module/annotate file mod)]
+                                            (unless (and (pair? mod)
+                                                         (pair? (cdr mod))
+                                                         (module-declared? file #f))
+                                              (load-module/annotate file mod))]
                                            [else
                                             (orig file mod)])))])
                   (eval-syntax (annotate (expand-syntax top-stx))))]
