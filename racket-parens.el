@@ -146,7 +146,7 @@ This function is a suitable element for the list variable
        (insert open)
        (backward-char 1)
        (forward-sexp 1)
-       (backward-delete-char 1)
+       (delete-char -1)
        (insert close))
       (_
        (user-error "Don't know that paren shape")))))
