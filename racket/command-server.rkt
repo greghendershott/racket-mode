@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2023 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -7,6 +7,7 @@
          racket/format
          racket/lazy-require
          racket/match
+         (only-in racket/string string-join)
          "debug.rkt"
          "elisp.rkt"
          (only-in "instrument.rkt" get-uncovered get-profile)
@@ -23,6 +24,12 @@
 
 (lazy-require
  ["commands/check-syntax.rkt" (check-syntax)]
+ ["commands/pdb.rkt"          (pdb-available?
+                               pdb-use->def
+                               pdb-rename-sites
+                               pdb-analyze-path
+                               pdb-point-info
+                               pdb-doc-link)]
  ["commands/describe.rkt"     (describe type)]
  ["commands/find-module.rkt"  (find-module)]
  ["commands/help.rkt"         (doc)]
@@ -75,7 +82,7 @@
        response-channel
        (cons
         nonce
-        (with-handlers ([exn:fail?  (λ (e) `(error ,(exn-message e)))]
+        (with-handlers ([exn:fail?  (λ (e) `(error ,(exn->string e)))]
                         [exn:break? (λ (e) `(break))])
           (with-time/log label
            `(ok ,(call-with-session-context sid command sexp)))))))
@@ -101,6 +108,12 @@
       [(list* nonce sid sexp) (thread (do-command/queue-response nonce sid sexp))
                               (read-a-command)]
       [(? eof-object?)        (void)]))  )
+
+(define (exn->string e)
+  (string-join (cons (exn-message e)
+                     (map ~a (continuation-mark-set->context
+                              (exn-continuation-marks e))))
+               "\n"))
 
 (define (command-invocation-label nonce sid sexp)
   (~v
@@ -146,6 +159,12 @@
     [`(doc-index-names)                (doc-index-names)]
     [`(doc-index-lookup ,str)          (doc-index-lookup str)]
     [`(hash-lang . ,more)              (apply hash-lang more)]
+    [`(pdb-available?)                 (pdb-available?)]
+    [`(pdb-analyze-path ,path ,code)   (pdb-analyze-path path code)]
+    [`(pdb-point-info ,path ,pos ,beg ,end) (pdb-point-info path pos beg end)]
+    [`(pdb-doc-link ,path ,pos)        (pdb-doc-link path pos)]
+    [`(pdb-use->def ,path, pos)        (pdb-use->def path pos)]
+    [`(pdb-rename-sites ,path ,pos)    (pdb-rename-sites path pos)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
     ;; namespace), if their first "how" argument is 'namespace.
