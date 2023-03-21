@@ -120,7 +120,9 @@ Predefined choices include `racket-shell', `racket-term',
 (defcustom racket-xp-after-change-refresh-delay 1
   "Seconds to wait before refreshing `racket-xp-mode' annotations.
 
-Set to nil to disable automatic refresh and manually use `racket-xp-annotate'."
+Set to nil to disable automatic refresh and manually use
+`racket-xp-annotate'."
+  :tag "Racket XP Mode After Change Refresh Delay"
   :type '(choice (integer :tag "Seconds")
                  (const :tag "Off" nil))
   :safe #'integerp)
@@ -201,6 +203,55 @@ String tokens use `font-lock-string-face'. Text tokens, e.g.
 Scribble text, use the face `racket-hash-lang-text'."
   :type '(alist :key-type symbol :value-type face)
   :safe #'listp)
+
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; racket-pdb-mode
+
+(defgroup racket-pdb nil
+  "`racket-pdb-mode' options"
+  :tag "PDB Mode"
+  :group 'racket)
+
+(defcustom racket-pdb-after-change-refresh-delay 1
+  "Seconds to wait after changing a buffer, before `racket-pdb-analyze'.
+
+Set to nil to disable automatic refresh and manually use
+`racket-pdb-analyze'."
+  :tag "Racket PDB Mode After Change Refresh Delay"
+  :type '(choice (integer :tag "Seconds")
+                 (const :tag "Off" nil))
+  :safe #'integerp
+  :group 'racket-pdb)
+
+(defcustom racket-pdb-after-motion-refresh-delay 0.25
+  "Seconds to wait after moving, before querying and redrawing annotations.
+
+After you move point, `racket-pdb-mode' queries pdb for only
+annotations visible on screen, and after the response arrives,
+draws them."
+  :tag "Racket PDB Mode After Motion Refresh Delay"
+  :type '(choice (integer :tag "Seconds"))
+  :safe #'integerp
+  :group 'racket-pdb)
+
+(defcustom racket-pdb-mode-lighter
+  '(:eval (racket--pdb-mode-lighter))
+  "Mode line lighter for `racket-pdb-mode'.
+
+Set to nil to disable the mode line completely."
+  :type 'sexp
+  :risky t
+  :group 'racket-pdb)
+
+(defcustom racket-pdb-highlight-unused-regexp "^[^_]"
+  "Only give `racket-xp-unused-face' to unused bindings that match this regexp.
+
+The default is to highlight identifiers that do not start with
+an underline, which is a common convention."
+  :tag "Racket PDB Mode Do Not Highlight Unused Regexp"
+  :type 'regexp
+  :safe #'stringp
+  :group 'racket-pdp)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; racket-repl group

@@ -30,7 +30,8 @@ The returned string has text properties:
   \"racket-xp-def\" property if any from the buffer is applied to
   the ENTIRE returned string. That way the caller can simply use
   an index of 0 for `get-text-property'."
-  (when (racket--in-require-form-p)
+  (cond
+   ((racket--in-require-form-p)
     (save-excursion
       (condition-case _
           (progn
@@ -62,7 +63,21 @@ The returned string has text properties:
                                (if relative-p 'relative 'absolute)
                                'racket-xp-def
                                (get-text-property 0 'racket-xp-def str)))))))
-        (scan-error nil)))))
+        (scan-error nil))))
+   ;; An absolute modpath in a #lang line?
+   (t
+    (save-excursion
+      (condition-case ()
+          (progn
+            (forward-sexp 1)
+            (backward-sexp 1)
+            (when-let (mod (thing-at-point 'symbol t))
+              (forward-line 0)
+              (when (looking-at-p "#lang ")
+                (propertize mod
+                            'racket-module-path
+                            'absolute))))
+        (scan-error nil))))))
 
 (defun racket--rkt-or-ss-path (path)
   "Handle the situation of #575 where .rkt doesn't exist but .ss does."
