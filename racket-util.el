@@ -153,6 +153,7 @@ The \"project\" is determined by trying, in order:
              (cdr (project-current nil dir)))
         dir)))
 
+<<<<<<< HEAD
 (defun racket--edit-mode-p ()
   (and (seq-some #'derived-mode-p '(racket-mode racket-hash-lang-mode)) t))
 
@@ -166,6 +167,20 @@ The \"project\" is determined by trying, in order:
   (unless (derived-mode-p 'racket-mode)
     (user-error "%S works only in racket-mode edit buffers"
                 this-command)))
+=======
+(defun racket--property-bounds (pos prop)
+  (when-let (val (get-text-property pos prop))
+    (let* ((prev-pos (previous-single-property-change pos prop))
+           (prev-val (get-text-property prev-pos prop))
+           (next-pos (next-single-property-change pos prop))
+           (next-val (get-text-property (- next-pos 1) prop)))
+      (cons (if (equal val prev-val)
+                prev-pos
+              pos) ;pos is first char having prop val
+            (if (equal val next-val)
+                next-pos
+              pos))))) ;pos is last char having prop val
+>>>>>>> Initial commit to use "pdb" when available for check-syntax
 
 (provide 'racket-util)
 
