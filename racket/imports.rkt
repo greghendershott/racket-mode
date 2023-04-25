@@ -65,7 +65,7 @@
   (define (handle-raw-require-spec spec lang)
     (let loop ([spec spec])
       (syntax-case* spec
-          (for-meta for-syntax for-template for-label just-meta for-space just-space)
+          (for-meta for-syntax for-template for-label just-meta for-space just-space portal)
           symbolic-compare?
         [(for-meta _phase specs ...)
          (for ([spec (in-syntax #'(specs ...))])
@@ -88,6 +88,7 @@
         [(just-space _space specs ...)
          (for ([spec (in-syntax #'(specs ...))])
            (loop spec))]
+        [(portal id content) (void)]
         [raw-module-path
          (handle-phaseless-spec #'raw-module-path lang)])))
 
