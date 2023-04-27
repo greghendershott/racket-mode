@@ -65,6 +65,9 @@
   (define response-channel (make-channel))
 
   (define (do-command/queue-response nonce sid sexp)
+    ;; Make "label" for logging. A thread name comes from its thunk ∴
+    ;; renaming the thunk lets us log the thread more informatively.
+    (define label (command-invocation-label nonce sid sexp))
     (define (thk)
       (channel-put
        response-channel
@@ -72,11 +75,8 @@
         nonce
         (with-handlers ([exn:fail?  (λ (e) `(error ,(exn-message e)))]
                         [exn:break? (λ (e) `(break))])
-          `(ok ,(call-with-session-context sid command sexp))))))
-    ;; Make "label" for logging. A thread name comes from its thunk ∴
-    ;; renaming the thunk lets us log the thread more informatively.
-    (define label (command-invocation-label nonce sid sexp))
-    (log-racket-mode-info label)
+          (with-time/log label
+           `(ok ,(call-with-session-context sid command sexp)))))))
     (procedure-rename thk (string->symbol label)))
 
   (define (write-responses-forever)
