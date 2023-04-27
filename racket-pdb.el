@@ -100,9 +100,6 @@ this mode."
   (unless (eq major-mode 'racket-mode)
     (setq racket-pdb-mode nil)
     (user-error "racket-pdb-mode only works with racket-mode buffers"))
-  (unless (racket--cmd/await nil '(pdb-available?))
-    (setq racket-pdb-mode nil)
-    (user-error "The `pdb` package is not available so racket-pdb-mode cannot be used; use racket-xp-mode instead"))
   ;; Enabling both `racket-pdb-mode' and `racket-xp-mode' isn't
   ;; supported so automatically disable latter.
   (when (bound-and-true-p racket-xp-mode)
@@ -128,7 +125,13 @@ this mode."
     (add-hook 'pre-redisplay-functions
               #'racket-pdb-pre-redisplay
               nil t)
-    (racket-pdb-analyze))
+    (racket--cmd/async
+     nil '(pdb-available?)
+     (lambda (response)
+       (unless response
+         (racket-pdb-mode -1)
+         (user-error "The `pdb` package is not available so racket-pdb-mode cannot be used; use racket-xp-mode instead"))
+       (racket-pdb-analyze))))
    (t
     (racket-show nil)
     (racket--pdb-remove-all-face-overlays)
