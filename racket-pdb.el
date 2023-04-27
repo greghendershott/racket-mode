@@ -502,17 +502,20 @@ Uses pdb to query for sites among multiple files."
                                  (racket--buffer-file-name))
                                ,(point)))
      (`(,path ,beg ,_end)
-      ;; TODO: Should we have pdb also store/return line:col
-      ;; coordinates? Meanwhile a bad hack.
-      (save-selected-window
-        (find-file path) ;; BAD
-        (save-excursion
-          (goto-char beg)
-          (list (xref-make str
-                           (xref-make-file-location
-                            (racket-file-name-back-to-front path)
-                            (line-number-at-pos)
-                            (current-column))))))))
+      (let ((file (racket-file-name-back-to-front path)))
+        (with-current-buffer
+            (or (get-file-buffer file)
+                (let ((find-file-suppress-same-file-warnings t))
+                  (find-file-noselect file)))
+          (save-restriction
+            (widen)
+            (save-excursion
+              (goto-char beg)
+              (list (xref-make str
+                               (xref-make-file-location
+                                file
+                                (line-number-at-pos)
+                                (current-column))))))))))
    (pcase (racket--cmd/await nil `(def ,(racket-file-name-front-to-back
                                          (racket--buffer-file-name))
                                        ,(substring-no-properties str)))
@@ -535,16 +538,20 @@ Uses pdb to query for sites among multiple files."
     (dolist (file-and-sites files-and-sites)
       (let ((file (racket-file-name-back-to-front (car file-and-sites)))
             (sites (cdr file-and-sites)))
-        (save-selected-window
-          (find-file file)
-          (save-excursion
-            (dolist (site sites)
-              (goto-char (car site))
-              (push (xref-make (buffer-substring-no-properties (car site) (cdr site))
-                               (xref-make-file-location file
-                                                        (line-number-at-pos)
-                                                        (current-column)))
-                    results))))))
+        (with-current-buffer
+            (or (get-file-buffer file)
+                (let ((find-file-suppress-same-file-warnings t))
+                  (find-file-noselect file)))
+          (save-restriction
+            (widen)
+            (save-excursion
+              (dolist (site sites)
+                (goto-char (car site))
+                (push (xref-make (buffer-substring-no-properties (car site) (cdr site))
+                                 (xref-make-file-location file
+                                                          (line-number-at-pos)
+                                                          (current-column)))
+                      results)))))))
     (reverse results)))
 
 ;;; describe
