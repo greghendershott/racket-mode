@@ -14,7 +14,7 @@
          pdb-analyze-path
          pdb-point-info
          pdb-doc-link
-         pdb-use->def
+         pdb-visit
          pdb-rename-sites)
 
 ;;; pdb checked syntax (if available)
@@ -33,7 +33,7 @@
 
 (define-from-pdb pdb-available?
   [analyze-path get-errors get-completion-candidates
-                get-point-info get-doc-link
+                get-point-info get-doc-link get-require-path
                 use->def rename-sites])
 
 (define (pdb-analyze-path path-str code-str)
@@ -58,12 +58,12 @@
 (define (pdb-doc-link path-str pos)
   (get-doc-link (string->path path-str) pos))
 
-(define (pdb-use->def path-str pos)
-  ;; The front end xref system wants line:col not [beg end) span. :(
-  ;; Maybe pdb should change to store those, also, for arrow ends?
-  ;; Meanwhile the front end finds the line:col using find-file
-  ;; and goto-char.
-  (use->def (string->path path-str) pos))
+(define (pdb-visit path-str pos)
+  (define path (string->path path-str))
+  (or (use->def path pos)
+      (match (get-require-path path pos)
+        [(? path? req-path) (list req-path 1 2)]
+        [#f #f])))
 
 (define (pdb-rename-sites path-str pos)
   (rename-sites (string->path path-str) pos))
