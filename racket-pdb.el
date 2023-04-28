@@ -478,9 +478,8 @@ Uses pdb to query for sites among multiple files."
   'racket-pdb-xref)
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql racket-pdb-xref)))
-  (or (racket--module-path-name-at-point)
-      (propertize (thing-at-point 'symbol)
-                  'racket-pdb-xref-point (point))))
+  (propertize (thing-at-point 'symbol)
+              'racket-pdb-xref-point (point)))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql racket-pdb-xref)))
   (completion-table-dynamic
@@ -488,47 +487,26 @@ Uses pdb to query for sites among multiple files."
      (all-completions prefix racket--xp-binding-completions))))
 
 (cl-defmethod xref-backend-definitions ((_backend (eql racket-pdb-xref)) str)
-  (or
-   (pcase (get-text-property 0 'racket-module-path str)
-     (`absolute
-      (pcase (racket--cmd/await nil `(mod ,(substring-no-properties str)))
-        (`(,path ,line ,col)
-         (list (xref-make str (xref-make-file-location path line col))))))
-     (`relative
-      (let ((path (racket--rkt-or-ss-path
-                   (expand-file-name (substring-no-properties str 1 -1)))))
-        (list (xref-make str (xref-make-file-location path 1 0))))))
-
-   (pcase (racket--cmd/await nil
-                             `(pdb-use->def
-                               ,(racket-file-name-front-to-back
-                                 (racket--buffer-file-name))
-                               ,(point)))
-     (`(,path ,beg ,_end)
-      (let ((file (racket-file-name-back-to-front path)))
-        (with-current-buffer
-            (or (get-file-buffer file)
-                (let ((find-file-suppress-same-file-warnings t))
-                  (find-file-noselect file)))
-          (save-restriction
-            (widen)
-            (save-excursion
-              (goto-char beg)
-              (list (xref-make str
-                               (xref-make-file-location
-                                file
-                                (line-number-at-pos)
-                                (current-column))))))))))
-   (pcase (racket--cmd/await nil `(def ,(racket-file-name-front-to-back
-                                         (racket--buffer-file-name))
-                                       ,(substring-no-properties str)))
-     (`(,path ,line ,col)
-      (list (xref-make str
-                       (xref-make-file-location path line col))))
-     (`kernel
-      (list (xref-make str
-                       (xref-make-bogus-location
-                        "Defined in #%%kernel -- source not available")))))))
+  (pcase (racket--cmd/await nil
+                            `(pdb-visit
+                              ,(racket-file-name-front-to-back
+                                (racket--buffer-file-name))
+                              ,(point)))
+    (`(,path ,beg ,_end)
+     (let ((file (racket-file-name-back-to-front path)))
+       (with-current-buffer
+           (or (get-file-buffer file)
+               (let ((find-file-suppress-same-file-warnings t))
+                 (find-file-noselect file)))
+         (save-restriction
+           (widen)
+           (save-excursion
+             (goto-char beg)
+             (list (xref-make str
+                              (xref-make-file-location
+                               file
+                               (line-number-at-pos)
+                               (current-column)))))))))))
 
 (cl-defmethod xref-backend-references ((_backend (eql racket-pdb-xref)) str)
   (let* ((back-end-path (racket-file-name-front-to-back (racket--buffer-file-name)))
