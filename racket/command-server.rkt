@@ -26,7 +26,7 @@
 (lazy-require
  ["commands/check-syntax.rkt" (check-syntax)]
  ["commands/pdb.rkt"          (pdb-available?
-                               pdb-use->def
+                               pdb-visit
                                pdb-rename-sites
                                pdb-analyze-path
                                pdb-point-info
@@ -169,7 +169,7 @@
     [`(pdb-analyze-path ,path ,code)   (pdb-analyze-path path code)]
     [`(pdb-point-info ,path ,pos ,beg ,end) (pdb-point-info path pos beg end)]
     [`(pdb-doc-link ,path ,pos)        (pdb-doc-link path pos)]
-    [`(pdb-use->def ,path, pos)        (pdb-use->def path pos)]
+    [`(pdb-visit ,path, pos)           (pdb-visit path pos)]
     [`(pdb-rename-sites ,path ,pos)    (pdb-rename-sites path pos)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
