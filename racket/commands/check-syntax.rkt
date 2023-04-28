@@ -127,6 +127,7 @@
     (define ht-imenu (make-hash))
     (define local-completion-candidates (mutable-set))
     (define ht-tails (make-hash))
+    (define im-requires (make-interval-map))
 
     ;; I've seen drracket/check-syntax return bogus positions for e.g.
     ;; add-mouse-over-status so here's some validation.
@@ -272,6 +273,10 @@
       (when (valid-beg/end? beg end)
         (interval-map-set! im-unused-requires beg end (list))))
 
+    (define/override (syncheck:add-require-open-menu _src beg end file)
+      (when (valid-beg/end? beg end)
+        (interval-map-set! im-requires beg end (list file))))
+
     (define/public (get-annotations)
       ;; Obtain any online-check-syntax log message values and treat
       ;; them as mouse-overs.
@@ -319,7 +324,8 @@
              (im->list im-mouse-overs     'info mouse-over-set->result)
              (im->list im-jumps           'jump)
              (im->list im-docs            'doc)
-             (im->list im-unused-requires 'unused-require))
+             (im->list im-unused-requires 'unused-require)
+             (im->list im-requires        'require))
             < #:key cadr))
 
     (define/public (get-local-completion-candidates)

@@ -261,7 +261,8 @@ commands directly to whatever keys you prefer.
                         (racket-xp-tail-position . t)
                         (racket-xp-tail-target . t)
                         (racket-xp-visit . t)
-                        (racket-xp-doc . t))))
+                        (racket-xp-doc . t)
+                        (racket-xp-require . t))))
   (cond (racket-xp-mode
          (if (< (buffer-size) racket-xp-buffer-size-limit)
              (racket--xp-annotate)
@@ -757,8 +758,7 @@ evaluation errors that won't be found merely from expansion -- or
   'racket-xp-xref)
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql racket-xp-xref)))
-  (or (racket--module-path-name-at-point)
-      (thing-at-point 'symbol)))
+  (thing-at-point 'symbol))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql racket-xp-xref)))
   (completion-table-dynamic
@@ -767,15 +767,9 @@ evaluation errors that won't be found merely from expansion -- or
 
 (cl-defmethod xref-backend-definitions ((_backend (eql racket-xp-xref)) str)
   (or
-   (pcase (get-text-property 0 'racket-module-path str)
-     (`absolute
-      (pcase (racket--cmd/await nil `(mod ,(substring-no-properties str)))
-        (`(,path ,line ,col)
-         (list (xref-make str (xref-make-file-location path line col))))))
-     (`relative
-      (let ((path (racket--rkt-or-ss-path
-                   (expand-file-name (substring-no-properties str 1 -1)))))
-        (list (xref-make str (xref-make-file-location path 1 0))))))
+   ;; Something annotated as add-open-reuqire-menu by drracket/check-syntax
+   (when-let (path (get-text-property 0 'racket-xp-require str))
+     (list (xref-make str (xref-make-file-location path 1 0))))
    ;; Something annotated for jump-to-definition by drracket/check-syntax
    (pcase (get-text-property 0 'racket-xp-visit str)
      (`(,path ,subs ,ids)
@@ -998,6 +992,8 @@ manually."
         (`(unused-require ,beg ,end)
          (put-text-property beg end 'help-echo "unused require")
          (racket--add-overlay beg end racket-xp-unused-face))
+        (`(require ,beg ,end ,file)
+         (put-text-property beg end 'racket-xp-require file))
         (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
          (let ((def-beg (copy-marker def-beg t))
                (def-end (copy-marker def-end t))
@@ -1061,7 +1057,8 @@ manually."
                                     'racket-xp-tail-position nil
                                     'racket-xp-tail-target   nil
                                     'racket-xp-visit         nil
-                                    'racket-xp-doc           nil)))))
+                                    'racket-xp-doc           nil
+                                    'racket-xp-require       nil)))))
 
 ;;; Mode line status
 
