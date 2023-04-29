@@ -223,12 +223,14 @@ Set to nil to disable automatic refresh and manually use
   :safe #'integerp
   :group 'racket-pdb)
 
-(defcustom racket-pdb-after-motion-refresh-delay 0.25
+(defcustom racket-pdb-after-motion-refresh-delay 0.5
   "Seconds to wait after moving, before querying and redrawing annotations.
 
-After you move point, `racket-pdb-mode' queries pdb for only
-annotations visible on screen, and after the response arrives,
-draws them."
+Some people tend to move by holding a motion key, and waiting for
+the keyboard's automatic repeat. If you do this, you probably
+want to set this variable to be greater than your keyboard's
+initial repeat delay. Otherwise, you might get one redraw while
+waiting, which might feel like a \"flicker\"."
   :tag "Racket PDB Mode After Motion Refresh Delay"
   :type '(choice (integer :tag "Seconds"))
   :safe #'integerp
