@@ -76,7 +76,7 @@ for each `racket-run', based on whether the associated
 
 For `racket-repl-mode' buffers, be aware that only input portions
 of the buffer use coloring/indent/navigation from the hash-lang.
-Output portions are do not; they are treated as whitespace.
+Output portions are treated as whitespace.
 
 \\{racket-hash-lang-mode-map}
 "
