@@ -364,18 +364,19 @@ new buffer has a file on-disk."
   "List of module names that point is within, from outer to inner.
 Ignores module forms nested (at any depth) in any sort of plain
 or syntax quoting, because those won't be valid Racket syntax."
-  (let ((xs nil))
-    (condition-case ()
-        (save-excursion
-          (racket--escape-string-or-comment)
-          (while t
-            (when-let (mod-name-sym (racket--looking-at-module-form))
-              (push mod-name-sym xs))
-            (when (racket--looking-at-quoted-form-p)
-              (push nil xs))
-            (backward-up-list)))
-      (scan-error xs))
-    (racket--take-while xs #'identity)))
+  (save-excursion
+    (let ((xs nil))
+      (condition-case ()
+          (progn
+            (racket--escape-string-or-comment)
+            (while t
+              (when-let (mod-name-sym (racket--looking-at-module-form))
+                (push mod-name-sym xs))
+              (when (racket--looking-at-quoted-form-p)
+                (push nil xs))
+              (backward-up-list)))
+        ((scan-error user-error) xs))
+      (racket--take-while xs #'identity))))
 
 (defun racket--looking-at-module-form ()
   "When looking at a module form, return the mod name as a symbol."
