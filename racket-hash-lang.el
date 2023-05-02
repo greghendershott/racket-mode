@@ -343,12 +343,7 @@ C redisplay engine, as is the case with `jit-lock-mode'."
               ('text (put-stx beg end racket--hash-lang-plain-syntax-table))
               ('constant (put-face beg end 'font-lock-constant-face))
               ('error (put-face beg end 'error))
-              ('symbol
-               ;; TODO: Consider using default font here, because e.g.
-               ;; racket-lexer almost everything is "symbol" because
-               ;; it is an identifier. Meanwhile, using a non-default
-               ;; face here is helping me see behavior and spot bugs.
-               (put-face beg end 'font-lock-variable-name-face))
+              ('symbol (put-face beg end 'racket-hash-lang-symbol-face))
               ('keyword (put-face beg end 'font-lock-keyword-face))
               ('hash-colon-keyword (put-face beg end 'racket-keyword-argument-face))
               ('other (put-face beg end 'font-lock-doc-face))
