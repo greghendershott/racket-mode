@@ -668,6 +668,19 @@ See the variable `racket-browse-url-function'."
   "Face `racket-describe-mode' uses for Scribble @litchar."
   "Racket Doc Litchar Face")
 
+(defface-racket racket-hash-lang-symbol-face
+  '((t (:inherit default)))
+  "Face `racket-hash-lang-mode' uses for \"symbol\" tokens.
+
+In most Racket languages, tokens for identifiers are lexed as
+\"symbol\", and in many programs, identifiers are a majority of
+the source text. Using the Emacs default face is \"less noisy\"
+and closer to the appearance in Dr Racket. However you could
+plausibly choose something like font-lock-variable-face, which
+would also make it more obvious which portions of a buffer have
+been lexed and font-locked."
+  "Racket Hash Lang Symbol Face")
+
 (provide 'racket-custom)
 
 ;;; racket-custom.el ends here
