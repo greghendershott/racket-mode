@@ -301,53 +301,57 @@ C redisplay engine, as is the case with `jit-lock-mode'."
   `(jit-lock-bounds ,beg . ,end))
 
 (defun racket--hash-lang-on-tokens (tokens)
-  (with-silent-modifications
-    (cl-flet ((put-face (beg end face) (put-text-property beg end 'face face))
-              (put-stx  (beg end stx)  (put-text-property beg end 'syntax-table stx)))
-      (dolist (token tokens)
-        (pcase-let ((`(,beg ,end ,kinds) token))
-          (racket--hash-lang-remove-text-properties beg end)
-          ;; Add 'racket-token just for me to examine results using
-          ;; `describe-char'; use vector b/c `describe-property-list'
-          ;; assumes lists of symbols are "widgets".
-          (put-text-property beg end 'racket-token (apply #'vector kinds))
-          (dolist (kind kinds)
-            (pcase kind
-              ('comment
-               ;; Although I'm not 100% sure we need to put-stx here I
-               ;; think it might be important to make sure that the
-               ;; buffer's syntax-table does not consider things
-               ;; within comments to be e.g. parens/strings? This may
-               ;; help when people use Emacs features that rely on
-               ;; char syntax.
-               (put-stx beg (1+ beg) '(11)) ;comment-start
-               (put-stx (1- end) end '(12)) ;comment-end
-               (let ((beg (1+ beg))         ;comment _contents_ if any
-                     (end (1- end)))
-                 (when (< beg end)
-                   (put-stx beg end '(14)))) ;generic comment
-               (put-face beg end 'font-lock-comment-face))
-              ('sexp-comment ;just the "#;" prefix not following sexp
-               (put-stx beg end '(14))  ;generic comment
-               (put-face beg end 'font-lock-comment-face))
-              ;; Note: This relies on the back end supplying `kinds`
-              ;; with sexp-comment-body last, so that we can modify
-              ;; the face property already set by the previous
-              ;; kind(s).
-              ('sexp-comment-body
-               (put-face beg end (racket--sexp-comment-face
-                                  (get-text-property beg 'face))))
-              ('parenthesis (when (facep 'parenthesis)
-                              (put-face beg end 'parenthesis)))
-              ('string (put-face beg end 'font-lock-string-face))
-              ('text (put-stx beg end racket--hash-lang-plain-syntax-table))
-              ('constant (put-face beg end 'font-lock-constant-face))
-              ('error (put-face beg end 'error))
-              ('symbol (put-face beg end 'racket-hash-lang-symbol-face))
-              ('keyword (put-face beg end 'font-lock-keyword-face))
-              ('hash-colon-keyword (put-face beg end 'racket-keyword-argument-face))
-              ('other (put-face beg end 'font-lock-doc-face))
-              ('white-space nil))))))))
+  (save-restriction
+    (widen)
+    (with-silent-modifications
+      (cl-flet ((put-face (beg end face) (put-text-property beg end 'face face))
+                (put-stx  (beg end stx)  (put-text-property beg end 'syntax-table stx)))
+        (dolist (token tokens)
+          (pcase-let ((`(,beg ,end ,kinds) token))
+            (setq beg (max (point-min) beg))
+            (setq end (min end (point-max)))
+            (racket--hash-lang-remove-text-properties beg end)
+            ;; Add 'racket-token just for me to examine results using
+            ;; `describe-char'; use vector b/c `describe-property-list'
+            ;; assumes lists of symbols are "widgets".
+            (put-text-property beg end 'racket-token (apply #'vector kinds))
+            (dolist (kind kinds)
+              (pcase kind
+                ('comment
+                 ;; Although I'm not 100% sure we need to put-stx here I
+                 ;; think it might be important to make sure that the
+                 ;; buffer's syntax-table does not consider things
+                 ;; within comments to be e.g. parens/strings? This may
+                 ;; help when people use Emacs features that rely on
+                 ;; char syntax.
+                 (put-stx beg (1+ beg) '(11)) ;comment-start
+                 (put-stx (1- end) end '(12)) ;comment-end
+                 (let ((beg (1+ beg))   ;comment _contents_ if any
+                       (end (1- end)))
+                   (when (< beg end)
+                     (put-stx beg end '(14)))) ;generic comment
+                 (put-face beg end 'font-lock-comment-face))
+                ('sexp-comment ;just the "#;" prefix not following sexp
+                 (put-stx beg end '(14)) ;generic comment
+                 (put-face beg end 'font-lock-comment-face))
+                ;; Note: This relies on the back end supplying `kinds`
+                ;; with sexp-comment-body last, so that we can modify
+                ;; the face property already set by the previous
+                ;; kind(s).
+                ('sexp-comment-body
+                 (put-face beg end (racket--sexp-comment-face
+                                    (get-text-property beg 'face))))
+                ('parenthesis (when (facep 'parenthesis)
+                                (put-face beg end 'parenthesis)))
+                ('string (put-face beg end 'font-lock-string-face))
+                ('text (put-stx beg end racket--hash-lang-plain-syntax-table))
+                ('constant (put-face beg end 'font-lock-constant-face))
+                ('error (put-face beg end 'error))
+                ('symbol (put-face beg end 'racket-hash-lang-symbol-face))
+                ('keyword (put-face beg end 'font-lock-keyword-face))
+                ('hash-colon-keyword (put-face beg end 'racket-keyword-argument-face))
+                ('other (put-face beg end 'font-lock-doc-face))
+                ('white-space nil)))))))))
 
 (defconst racket--hash-lang-text-properties
   '(face syntax-table racket-token)
