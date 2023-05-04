@@ -48,7 +48,7 @@
 
 (define (pdb-point-info path-str pos beg end)
   (hash-update (get-point-info (string->path path-str) pos beg end)
-               'mouse-over
+               'point-mouse-over
                (match-lambda
                  [(list beg end texts)
                   (list beg end (string-join (sort (set->list texts) string<=?)
