@@ -172,7 +172,7 @@ this mode."
           (cancel-timer racket--pdb-motion-timer))
         (setq racket--pdb-motion-timer
               (run-with-idle-timer racket-pdb-after-motion-refresh-delay
-                                   nil ;no repeat
+                                   nil  ;no repeat
                                    #'racket--pdb-on-motion-idle-timer
                                    window
                                    point+start+height))))))
@@ -181,57 +181,80 @@ this mode."
   (pcase-let ((generation-of-our-request racket--pdb-motion-generation)
               (`(,point ,start ,height) point+start+height))
     (with-current-buffer (window-buffer window)
-      (racket--cmd/async
-       nil
-       `(pdb-point-info ,(racket-file-name-front-to-back (racket--buffer-file-name))
-                        ,point
-                        ,start
-                        ,(window-end window))
-       (lambda (response) ;called later
-         (when (and (= generation-of-our-request racket--pdb-motion-generation)
-                    (racket--pdb-analysis-is-up-to-date-p))
-           (with-current-buffer (window-buffer window)
-             ;; Still same point+start+height now that the response arrived?
-             (when (and (= point (window-point window))
-                        (= start (window-start window))
-                        (= height (window-height window)))
-               (let ((inhibit-modification-hooks t))
-                 ;; 1. Do racket-show of mouse-over.
-                 (pcase (cdr (assq 'mouse-over response))
-                   (`(,beg ,end ,text)
-                    (racket-show text
-                                 (cond
-                                  ((pos-visible-in-window-p end window)
-                                   end)
-                                  ((pos-visible-in-window-p beg window)
-                                   beg)
-                                  ((save-excursion
-                                     (goto-char (window-start window))
-                                     (forward-line -1)
-                                     (point))))))
-                   (_ (racket-show "")))
+      (when racket-pdb-mode
+        (racket--cmd/async
+         nil
+         `(pdb-point-info ,(racket-file-name-front-to-back (racket--buffer-file-name))
+                          ,point
+                          ,start
+                          ,(window-end window))
+         (lambda (response)             ;called later
+           (when (and (= generation-of-our-request racket--pdb-motion-generation)
+                      (racket--pdb-analysis-is-up-to-date-p))
+             (with-current-buffer (window-buffer window)
+               ;; Still same point+start+height now that the response arrived?
+               (when (and (= point (window-point window))
+                          (= start (window-start window))
+                          (= height (window-height window)))
+                 (let ((inhibit-modification-hooks t))
+                   ;; 1. Do racket-show of mouse-over.
+                   (pcase (cdr (assq 'point-mouse-over response))
+                     (`(,beg ,end ,text)
+                      (racket-show text
+                                   (cond
+                                    ((pos-visible-in-window-p end window)
+                                     end)
+                                    ((pos-visible-in-window-p beg window)
+                                     beg)
+                                    ((save-excursion
+                                       (goto-char (window-start window))
+                                       (forward-line -1)
+                                       (point))))))
+                     (_ (racket-show "")))
 
-                 ;; 2. Add overlays to highlight defs and uses.
-                 (let ((def  (cdr (assq 'def-site response)))
-                       (uses (cdr (assq 'use-sites response))))
-                   (racket--pdb-remove-face-overlays racket-xp-def-face
-                                                     racket-xp-use-face)
-                   (when def
-                     (racket--pdb-add-face-overlay (car def) (cdr def) racket-xp-def-face))
-                   (dolist (use uses)
-                     (racket--pdb-add-face-overlay (car use) (cdr use) racket-xp-use-face)))
+                   ;; 2. Add overlays to highlight defs and uses.
+                   (let ((def  (cdr (assq 'point-def-site response)))
+                         (uses (cdr (assq 'point-use-sites response))))
+                     (when def
+                       (racket--pdb-add-face-overlay (car def) (cdr def) racket-xp-def-face))
+                     (dolist (use uses)
+                       (racket--pdb-add-face-overlay (car use) (cdr use) racket-xp-use-face)))
 
-                 ;; 3. Add overlays to highight tail positions.
-                 ;; TODO.
+                   ;; 3. Add overlays to highight tail positions.
+                   ;; TODO.
 
-                 ;; 4. Add overlays for unused requires and definitions
-                 (dolist (v (cdr (assq 'unused-requires response)))
-                   (racket--pdb-add-face-overlay (car v) (cdr v) racket-xp-unused-face))
-                 (dolist (v (cdr (assq 'unused-bindings response)))
-                   (pcase-let ((`(,beg . ,end) v))
-                     (when (string-match-p racket-pdb-highlight-unused-regexp
-                                           (buffer-substring beg end))
-                       (racket--pdb-add-face-overlay beg end racket-xp-unused-face)))))))))))))
+                   ;; 4. Add overlays for unused requires and bindings.
+                   (dolist (v (cdr (assq 'unused-requires response)))
+                     (racket--pdb-add-face-overlay (car v) (cdr v) racket-xp-unused-face 1))
+                   (dolist (v (cdr (assq 'unused-def-sites response)))
+                     (pcase-let ((`(,beg . ,end) v))
+                       (when (string-match-p racket-pdb-highlight-unused-regexp
+                                             (buffer-substring beg end))
+                         (racket--pdb-add-face-overlay beg end racket-xp-unused-face 1))))
+
+                   ;; 5. Experimental: Add overlays for "semantic
+                   ;; highlighting". One motivation is to enrich
+                   ;; racket-hash-lang's "impoverished" token font-lock,
+                   ;; but this could be useful with racket-mode's
+                   ;; default font-lock, too.
+
+                   ;; We know sites that are the "definition end" of a
+                   ;; lexical arrow. Unforutnatley we don't get this for
+                   ;; definitions that are unused. We also don't get a
+                   ;; distinction between function and variable
+                   ;; definitions (although that's arguably inherent to
+                   ;; Racket or Scheme, it's also true that an analysis
+                   ;; of fully-expanded code could report define-values
+                   ;; where the rhs is lambda, differently). Some people
+                   ;; (I'm one) like to set both names to the same
+                   ;; color, but bold the function names.
+                   (dolist (v (cdr (assq 'def-sites response)))
+                     (racket--pdb-add-face-overlay (car v) (cdr v) 'font-lock-variable-name-face))
+                   ;; Not sure about this one, but in practice so far it
+                   ;; seems to work well to highlight documented items
+                   ;; as "keywords".
+                   (dolist (v (cdr (assq 'doc-sites response)))
+                     (racket--pdb-add-face-overlay (car v) (cdr v) 'font-lock-keyword-face))))))))))))
 
 (defun racket--pdb-show-after-motion (window)
   "Useful when a command doesn't move but wants to force showing."
