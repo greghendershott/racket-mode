@@ -223,38 +223,53 @@ this mode."
                    ;; 3. Add overlays to highight tail positions.
                    ;; TODO.
 
+
                    ;; 4. Add overlays for unused requires and bindings.
                    (dolist (v (cdr (assq 'unused-requires response)))
-                     (racket--pdb-add-face-overlay (car v) (cdr v) racket-xp-unused-face 1))
+                     (racket--pdb-add-face-overlay (car v) (cdr v) racket-xp-unused-face))
                    (dolist (v (cdr (assq 'unused-def-sites response)))
                      (pcase-let ((`(,beg . ,end) v))
                        (when (string-match-p racket-pdb-highlight-unused-regexp
                                              (buffer-substring beg end))
-                         (racket--pdb-add-face-overlay beg end racket-xp-unused-face 1))))
+                         (racket--pdb-add-face-overlay beg end racket-xp-unused-face))))
 
-                   ;; 5. Experimental: Add overlays for "semantic
-                   ;; highlighting". One motivation is to enrich
-                   ;; racket-hash-lang's "impoverished" token font-lock,
-                   ;; but this could be useful with racket-mode's
-                   ;; default font-lock, too.
+                   ;; 5. Experimental: Maybe set font-lock-face for
+                   ;; "semantic highlighting". Do so only when
+                   ;; font-lock-defaults is nil, which is the case
+                   ;; e.g. when the minor mode `racket-hash-lang-mode'
+                   ;; is enhancing `racket-mode' buffers and is doing
+                   ;; font-lock only for the lang's lexer tokens.
+                   ;;
+                   ;; Note that font-lock-face -- not face -- is
+                   ;; preferred here because that way if user disables
+                   ;; font-lock-mode, this won't show.
+                   (unless font-lock-defaults
+                     (remove-text-properties (window-start window)
+                                             (window-end window)
+                                             `(font-lock-face nil))
 
-                   ;; We know sites that are the "definition end" of a
-                   ;; lexical arrow. Unforutnatley we don't get this for
-                   ;; definitions that are unused. We also don't get a
-                   ;; distinction between function and variable
-                   ;; definitions (although that's arguably inherent to
-                   ;; Racket or Scheme, it's also true that an analysis
-                   ;; of fully-expanded code could report define-values
-                   ;; where the rhs is lambda, differently). Some people
-                   ;; (I'm one) like to set both names to the same
-                   ;; color, but bold the function names.
-                   (dolist (v (cdr (assq 'def-sites response)))
-                     (racket--pdb-add-face-overlay (car v) (cdr v) 'font-lock-variable-name-face))
-                   ;; Not sure about this one, but in practice so far it
-                   ;; seems to work well to highlight documented items
-                   ;; as "keywords".
-                   (dolist (v (cdr (assq 'doc-sites response)))
-                     (racket--pdb-add-face-overlay (car v) (cdr v) 'font-lock-keyword-face))))))))))))
+                     ;; Emacs has font-lock-function-name-face and
+                     ;; font-lock-variable-name-face. Some people like
+                     ;; to set these differently, e.g. maybe both same
+                     ;; color, but bold function names. Alas from
+                     ;; check-syntax we get no distinction for variables
+                     ;; whose value is a function. (Although Racket is a
+                     ;; "Lisp-1", an analysis of fully-expanded syntax
+                     ;; could distinguish define-values where the rhs is
+                     ;; lambda; see e.g. inferred value names.)
+                     (dolist (v (cdr (assq 'def-sites response)))
+                       (put-text-property (car v) (cdr v)
+                                          'font-lock-face
+                                          'font-lock-variable-name-face))
+                     ;; Not sure about this one, but in practice so far
+                     ;; it seems to work well to highlight documented
+                     ;; items as "keywords". TODO: Distinguish syntax as
+                     ;; "keywords" and non-syntax as "builtints", much
+                     ;; like racket-keywords-and-builtins.el?
+                     (dolist (v (cdr (assq 'doc-sites response)))
+                       (put-text-property (car v) (cdr v)
+                                          'font-lock-face
+                                          'font-lock-keyword-face)))))))))))))
 
 (defun racket--pdb-show-after-motion (window)
   "Useful when a command doesn't move but wants to force showing."
