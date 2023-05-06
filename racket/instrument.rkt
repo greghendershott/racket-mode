@@ -149,26 +149,39 @@
            #'(#%plain-app set-mcar! v #t))))
 
 (define (get-uncovered source)
-  ;; Due to macro expansion (e.g. to an `if` form), there may be
-  ;; multiple data points for the exact same source location. We want
-  ;; to logically OR them: If any are true, the source location is
-  ;; covered.
-  (define im (make-interval-map))
-  (for ([(stx v) (in-hash test-coverage-info)])
-    (define covered? (mcar v))
-    (unless covered?
-      (when (equal? source (syntax-source stx))
-        (define beg (syntax-position stx))
-        (define end (+ beg (syntax-span stx)))
-        (interval-map-set! im beg end #t))))
-  ;; interval-map-set! doesn't merge adjacent identical intervals so:
-  (let loop ([xs (dict-keys im)])
-    (match xs
-      [(list) (list)]
-      [(list* (cons beg same) (cons same end) more)
-       (loop (list* (cons beg end) more))]
-      [(cons this more)
-       (cons this (loop more))])))
+  (for/set ([stx (in-list (get-uncovered-expressions source))])
+    (define beg (syntax-position stx))
+    (define end (+ beg (syntax-span stx)))
+    (cons beg end)))
+
+;; from sandbox-lib
+(define (get-uncovered-expressions source)
+  (let* ([xs (hash-map test-coverage-info
+                       (lambda (k v) (cons k (mcar v))))]
+         [xs (filter (lambda (x) (and (syntax-position (car x))
+                                      (equal? (syntax-source (car x)) source)))
+                     xs)]
+         [xs (sort xs (lambda (x1 x2)
+                        (let ([p1 (syntax-position (car x1))]
+                              [p2 (syntax-position (car x2))])
+                          (or (< p1 p2) ; earlier first
+                              (and (= p1 p2)
+                                   (> (syntax-span (car x1)) ; wider first
+                                      (syntax-span (car x2))))))))]
+         [xs (reverse xs)])
+    (if (null? xs)
+      xs
+      (let loop ([xs (cdr xs)] [r (list (car xs))])
+        (if (null? xs)
+          (map car (filter (lambda (x) (not (cdr x))) r))
+          (loop (cdr xs)
+                (cond [(not (and (= (syntax-position (caar xs))
+                                    (syntax-position (caar r)))
+                                 (= (syntax-span (caar xs))
+                                    (syntax-span (caar r)))))
+                       (cons (car xs) r)]
+                      [(cdar r) r]
+                      [else (cons (car xs) (cdr r))])))))))
 
 ;;; Profiling
 
