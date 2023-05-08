@@ -154,6 +154,8 @@ this mode."
 (defvar-local racket--pdb-motion-timer nil)
 (defvar-local racket--pdb-motion-generation 0
   "See similar `racket--pdb-change-generation' for rationale.")
+(defvar-local racket--pdb-motion-def-and-use-sites nil
+  "A sorted vector of def and use sites related to point, if any.")
 
 (defun racket-pdb-pre-redisplay (window)
   (with-current-buffer (window-buffer window)
@@ -212,9 +214,14 @@ this mode."
                                        (point))))))
                      (_ (racket-show "")))
 
-                   ;; 2. Add overlays to highlight defs and uses.
+                   ;; 2. Def and use sites
                    (let ((def  (cdr (assq 'point-def-site response)))
                          (uses (cdr (assq 'point-use-sites response))))
+                     ;; Make sorted vector for `racket--pdb-forward-use'.
+                     (setq racket--pdb-motion-def-and-use-sites
+                           (seq-sort (lambda (a b) (< (car a) (car b)))
+                                     (apply #'vector (if def (cons def uses) uses))))
+                     ;; Add overlays
                      (when def
                        (racket--pdb-add-face-overlay (car def) (cdr def) racket-xp-def-face))
                      (dolist (use uses)
@@ -280,8 +287,6 @@ this mode."
 
 ;;; Face overlays
 
-(defvar-local racket--pdb-face-overlays nil)
-
 (defun racket--pdb-add-face-overlay (beg end face &optional priority)
   (let ((o (make-overlay beg end
                          nil ;current-buffer
@@ -290,20 +295,19 @@ this mode."
                          )))
     (overlay-put o 'priority (or priority 0)) ;below other overlays e.g. isearch
     (overlay-put o 'face face)
-    (push o racket--pdb-face-overlays)
     o))
 
 (defun racket--pdb-remove-face-overlays (&rest faces)
-  (setq racket--pdb-face-overlays
-        (seq-filter (lambda (o)
-                      (if (memq (overlay-get o 'face) faces)
-                          (progn (delete-overlay o) nil)
-                        t))
-                    racket--pdb-face-overlays)))
+  (save-restriction
+    (widen)
+    (dolist (face faces)
+      (remove-overlays (point-min) (point-max) 'face face))))
 
 (defun racket--pdb-remove-all-face-overlays ()
-  (mapc #'delete-overlay racket--pdb-face-overlays)
-  (setq racket--pdb-face-overlays nil))
+  (racket--pdb-remove-face-overlays racket-xp-def-face
+                                    racket-xp-use-face
+                                    racket-xp-unused-face
+                                    racket-xp-error-face))
 
 (defun racket--pdb-remove-all-decorations ()
   (racket--pdb-remove-all-face-overlays)
@@ -610,25 +614,16 @@ Uses pdb to query for sites among multiple files."
 ;;; Next/previous use
 
 (defun racket--pdb-forward-use (amt)
-  (let* ((os (seq-filter (lambda (o)
-                           (and (memq (overlay-get o 'face)
-                                      '(racket-xp-def-face
-                                        racket-xp-use-face))
-                                o))
-                         racket--pdb-face-overlays))
-         (sorted (sort os (lambda (a b)
-                            (< (overlay-start a) (overlay-start b)))))
-         (vec (apply #'vector sorted))
-         (pt (point)))
+  (let ((vec racket--pdb-motion-def-and-use-sites)
+        (pt (point)))
     (if-let (ix (seq-position vec
                               nil
-                              (lambda (o _o)
-                                (and (<= (overlay-start o) pt)
-                                     (< pt (overlay-end o))))))
-        (progn
-          (goto-char (overlay-start (aref vec (mod (+ ix amt)
-                                                   (length vec)))))
-          (racket--pdb-show-after-motion (selected-window)))
+                              (lambda (a _)
+                                (and (<= (car a) pt) (< pt (cdr a))))))
+        (let* ((new-ix  (mod (+ ix amt) (length vec)))
+               (new-pos (car (aref vec new-ix))))
+          (racket--pdb-remove-all-decorations)
+          (goto-char new-pos))
       (user-error "No highlighted definition or use at point"))))
 
 (defun racket-pdb-next-use (&optional amount)
