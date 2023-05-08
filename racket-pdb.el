@@ -215,17 +215,21 @@ this mode."
                      (_ (racket-show "")))
 
                    ;; 2. Def and use sites
-                   (let ((def  (cdr (assq 'point-def-site response)))
-                         (uses (cdr (assq 'point-use-sites response))))
+                   (pcase-let ((`(,def ,import-p ,uses)
+                                (cdr (assq 'point-def-and-use-sites response))))
                      ;; Make sorted vector for `racket--pdb-forward-use'.
                      (setq racket--pdb-motion-def-and-use-sites
                            (seq-sort (lambda (a b) (< (car a) (car b)))
                                      (apply #'vector (if def (cons def uses) uses))))
-                     ;; Add overlays
-                     (when def
-                       (racket--pdb-add-face-overlay (car def) (cdr def) racket-xp-def-face))
-                     (dolist (use uses)
-                       (racket--pdb-add-face-overlay (car use) (cdr use) racket-xp-use-face)))
+                     ;; Add overlays unless import (which would be too
+                     ;; noisy; also consistent with racket-xp-mode
+                     ;; which lets you nav among these but doens't
+                     ;; highlight them).
+                     (unless import-p
+                       (when def
+                         (racket--pdb-add-face-overlay (car def) (cdr def) racket-xp-def-face))
+                       (dolist (use uses)
+                         (racket--pdb-add-face-overlay (car use) (cdr use) racket-xp-use-face))))
 
                    ;; 3. Add overlays to highight tail positions.
                    ;; TODO.
