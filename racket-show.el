@@ -126,74 +126,82 @@ any border."
              (ov (make-overlay eol (1+ eol))))
         (overlay-put ov 'after-string text)
         (list ov))
-    ;; Otherwise we simulate a tooltip displayed one line below pos,
-    ;; and one column right (although it might start further left
-    ;; depending on window-width) "over" any existing text.
-    (pcase-let*
-        ((text     (propertize (concat " " text " ")
-                               'face
-                               `(:inherit default
-                                 :foreground ,(face-foreground 'tooltip)
-                                 :background ,(face-background 'tooltip)
-                                 :box (:line-width -1))))
-         (text-len (length text))
-         (bol      (racket--bol pos))
-         (eol      (racket--eol pos))
-         ;; Position the tooltip on the next line, indented to `pos'
-         ;; -- but not so far it ends off right edge.
-         (indent   (max 0 (min (- pos bol)
-                               (- (window-width) (string-width text) 2))))
-         (beg      (+ eol indent 1))
-         (next-eol (racket--eol (1+ eol))))
-      ;; If the tip starts before next-eol, create an overlay with the
-      ;; 'display property, covering the span of the tooltip text but
-      ;; not beyond next-eol.
-      ;;
-      ;; As a further wrinkle, when the overlay does not cover the
-      ;; entire rest of the line, our new text might not be exactly
-      ;; the same pixel width as the text we replace -- causing the
-      ;; remaining text to shift. This can happen e.g. due to Unicode
-      ;; characters like λ. Furthermore, our replacement text can be
-      ;; two pixels wider because :box (:line-width -1) doesn't seem
-      ;; to work as advertised.
-      ;;
-      ;; To avoid this, we add _another_ overlay simply to replace the
-      ;; character following our tooltip with a space of the necessary
-      ;; pixel width to keep things aligned. Although covering the
-      ;; character with a space isn't great -- even if you justify it
-      ;; as a sort of "shadow" (?) -- it's better than having the
-      ;; remainder of the line jiggle as the tooltip apears and
-      ;; disappears.
-      (if (< beg next-eol)
-          (cl-flet ((text-pixel-width
-                     (beg end)
-                     (car (window-text-pixel-size nil beg end))))
-            (let* ((end  (min next-eol (+ beg text-len)))
-                   (ov   (make-overlay beg end))
-                   (old  (text-pixel-width (1+ eol) end))
-                   (_    (overlay-put ov 'display text))
-                   (new  (text-pixel-width (1+ eol) end))
-                   (diff (- new old)))
-              (cons
-               ov
-               (when (and (not (zerop diff))
-                          (< end next-eol))
-                 (let* ((ov-spacer   (make-overlay end (1+ end)))
-                        (width       (text-pixel-width end (1+ end)))
-                        (space-width (abs (- width diff))))
-                   (overlay-put ov-spacer
-                                'display
-                                `(space
-                                  :width (,space-width)))
-                   (list ov-spacer))))))
-        ;; Else the tip starts after next-eol. So, create an overlay
-        ;; on the newline, and use an after-string, where we prefix
-        ;; enough blank spaces before the tooltip text itself to get
-        ;; the desired indent.
-        (let* ((ov (make-overlay (1- next-eol) next-eol))
-               (blanks (make-string (- beg next-eol) 32)))
-          (overlay-put ov 'after-string (concat blanks text))
-          (list ov))))))
+    ;; Else we simulate a tooltip. The only question is where, and the
+    ;; overlay(s) necessary to achieve that.
+    (let*
+        ((text (propertize (concat " " text " ")
+                           'face
+                           `(:inherit default
+                             :foreground ,(face-foreground 'tooltip)
+                             :background ,(face-background 'tooltip)
+                             :box (:line-width -1))))
+         (text-width (string-width text))
+         (bol (racket--bol pos))
+         (eol (racket--eol pos)))
+      ;; If there is room after end of same line, show there.
+      (if (< (+ text-width 1) (- (window-width) (- eol bol)))
+          (let ((ov (make-overlay (1- eol) eol)))
+            (overlay-put ov 'after-string (concat " " text))
+            (list ov))
+        ;; Otherwise we simulate a tooltip displayed one line below
+        ;; pos, and one column right (although it might start further
+        ;; left depending on window-width) "over" any existing text.
+        (let*
+            (;; Position the tooltip on the next line, indented to `pos'
+             ;; -- but not so far it ends off right edge.
+             (indent   (max 0 (min (- pos bol)
+                                   (- (window-width) text-width 2))))
+             (beg      (+ eol indent 1))
+             (next-eol (racket--eol (1+ eol))))
+          ;; If the tip starts before next-eol, create an overlay with
+          ;; the 'display property, covering the span of the tooltip
+          ;; text but not beyond next-eol.
+          ;;
+          ;; As a further wrinkle, when the overlay does not cover the
+          ;; entire rest of the line, our new text might not be
+          ;; exactly the same pixel width as the text we replace --
+          ;; causing the remaining text to shift. This can happen e.g.
+          ;; due to Unicode characters like λ. Furthermore, our
+          ;; replacement text can be two pixels wider because :box
+          ;; (:line-width -1) doesn't seem to work as advertised.
+          ;;
+          ;; To avoid this, we add _another_ overlay simply to replace
+          ;; the character following our tooltip with a space of the
+          ;; necessary pixel width to keep things aligned. Although
+          ;; covering the character with a space isn't great -- even
+          ;; if you justify it as a sort of "shadow" (?) -- it's
+          ;; better than having the remainder of the line jiggle as
+          ;; the tooltip apears and disappears.
+          (if (< beg next-eol)
+              (cl-flet ((text-pixel-width
+                         (beg end)
+                         (car (window-text-pixel-size nil beg end))))
+                (let* ((end  (min next-eol (+ beg text-width)))
+                       (ov   (make-overlay beg end))
+                       (old  (text-pixel-width (1+ eol) end))
+                       (_    (overlay-put ov 'display text))
+                       (new  (text-pixel-width (1+ eol) end))
+                       (diff (- new old)))
+                  (cons
+                   ov
+                   (when (and (not (zerop diff))
+                              (< end next-eol))
+                     (let* ((ov-spacer   (make-overlay end (1+ end)))
+                            (width       (text-pixel-width end (1+ end)))
+                            (space-width (abs (- width diff))))
+                       (overlay-put ov-spacer
+                                    'display
+                                    `(space
+                                      :width (,space-width)))
+                       (list ov-spacer))))))
+            ;; Else the tip starts after next-eol. So, create an overlay
+            ;; on the newline, and use an after-string, where we prefix
+            ;; enough blank spaces before the tooltip text itself to get
+            ;; the desired indent.
+            (let* ((ov (make-overlay (1- next-eol) next-eol))
+                   (blanks (make-string (- beg next-eol) 32)))
+              (overlay-put ov 'after-string (concat blanks text))
+              (list ov))))))))
 
 (defun racket--bol (pos)
   "Given POS return line beginning position."
