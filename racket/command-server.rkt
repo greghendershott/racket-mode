@@ -29,6 +29,8 @@
                                pdb-visit
                                pdb-rename-sites
                                pdb-analyze-path
+                               pdb-completions
+                               pdb-submodules
                                pdb-point-info
                                pdb-doc-link)]
  ["commands/describe.rkt"     (describe type)]
@@ -167,6 +169,8 @@
     [`(pkg-doc-link ,name)             (catalog-package-doc-link name)]
     [`(pdb-available?)                 (pdb-available?)]
     [`(pdb-analyze-path ,path ,code)   (pdb-analyze-path path code)]
+    [`(pdb-submodules ,path ,pos)      (pdb-submodules path pos)]
+    [`(pdb-completions ,path ,pos)     (pdb-completions path pos)]
     [`(pdb-point-info ,path ,pos ,beg ,end) (pdb-point-info path pos beg end)]
     [`(pdb-doc-link ,path ,pos)        (pdb-doc-link path pos)]
     [`(pdb-visit ,path, pos)           (pdb-visit path pos)]
