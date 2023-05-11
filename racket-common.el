@@ -341,11 +341,15 @@ new buffer has a file on-disk."
   (cons (racket--buffer-file-name)
         (racket--submod-path)))
 
+(defvar racket--submod-path-function nil)
+
 (defun racket--submod-path ()
-  (let ((mods (racket--modules-at-point)))
-    (if (racket--lang-p)
-        mods
-      (cdr mods))))
+  (if (functionp racket--submod-path-function)
+      (funcall racket--submod-path-function)
+    (let ((mods (racket--modules-at-point)))
+      (if (racket--lang-p)
+          mods
+        (cdr mods)))))
 
 (defun racket--lang-p ()
   "Is #lang the first sexpr in the file, after an optional shebang?"
