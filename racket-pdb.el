@@ -113,12 +113,8 @@ this mode."
                  #'racket-complete-at-point
                  t)
     (add-hook 'completion-at-point-functions
-              #'racket-xp-complete-at-point ;racket-xp-complete.el
+              #'racket-pdb-complete-at-point
               t t)
-    (racket--cmd/async nil
-                       `(module-names)
-                       (lambda (result)
-                         (setq racket--xp-module-completions result)))
     (add-hook 'xref-backend-functions
               #'racket-pdb-xref-backend-function
               nil t)
@@ -131,15 +127,18 @@ this mode."
        (unless response
          (racket-pdb-mode -1)
          (user-error "The `pdb` package is not available so racket-pdb-mode cannot be used; use racket-xp-mode instead"))
-       (racket-pdb-analyze))))
+       (racket-pdb-analyze)))
+    (setq-local racket--submod-path-function
+                #'racket-pdb-submodules-at-point))
    (t
+    (setq-local racket--submod-path-function nil)
     (racket-show nil)
     (racket--pdb-remove-all-face-overlays)
     (remove-hook 'after-change-functions
                  #'racket--pdb-after-change-hook
                  t)
     (remove-hook 'completion-at-point-functions
-                 #'racket-xp-complete-at-point
+                 #'racket-pdb-complete-at-point
                  t)
     (add-hook 'completion-at-point-functions
               #'racket-complete-at-point
@@ -150,6 +149,13 @@ this mode."
     (remove-hook 'pre-redisplay-functions
                  #'racket-pdb-pre-redisplay
                  t))))
+
+(defun racket-pdb-submodules-at-point ()
+  (racket--cmd/await
+   nil
+   `(pdb-submodules
+     ,(racket-file-name-front-to-back (racket--buffer-file-name))
+     ,(point))))
 
 (defvar-local racket--pdb-motion-timer nil)
 (defvar-local racket--pdb-motion-generation 0
@@ -445,11 +451,8 @@ This is ad hoc and forensic."
        (when (= generation-of-our-request racket--pdb-change-generation)
          (setq racket--pdb-change-response-generation generation-of-our-request)
          (pcase response
-           (`((completions . ,completions)
-              (errors      . ,errors))
+           (`((errors . ,errors))
             (racket--pdb-remove-all-decorations)
-            (when completions ;if none b/c e.g. error, retain old ones
-              (setq racket--xp-binding-completions completions)) ;racket-xp-complete.el
             (racket--pdb-reset-errors errors)
             (racket--pdb-set-status (if errors 'err 'ok))
             (racket--pdb-show-after-motion window))))))))
@@ -528,9 +531,7 @@ Uses pdb to query for sites among multiple files."
               'racket-pdb-xref-point (point)))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql racket-pdb-xref)))
-  (completion-table-dynamic
-   (lambda (prefix)
-     (all-completions prefix racket--xp-binding-completions))))
+  nil)
 
 (cl-defmethod xref-backend-definitions ((_backend (eql racket-pdb-xref)) str)
   (pcase (racket--cmd/await nil
@@ -593,7 +594,7 @@ Uses pdb to query for sites among multiple files."
           (if-let (str (racket--symbol-at-point-or-prompt
                         t
                         "Describe: "
-                        racket--xp-binding-completions))
+                        nil))
               (racket--do-describe path nil str)
             (message "No documentation available"))
         (racket--cmd/async nil `(pdb-doc-link ,path ,(point))
@@ -607,7 +608,7 @@ Uses pdb to query for sites among multiple files."
   (interactive "P")
   (let ((path (racket--buffer-file-name)))
     (if prefix
-        (racket--doc prefix path racket--xp-binding-completions)
+        (racket--doc prefix path nil)
       (racket--cmd/async nil `(pdb-doc-link ,path ,(point))
                          (lambda (path+anchor)
                            (if path+anchor
@@ -639,6 +640,48 @@ Uses pdb to query for sites among multiple files."
   "When point is a highlighted definition or use, go to the previous related site."
   (interactive "P")
   (racket--pdb-forward-use (if (numberp amount) amount -1)))
+
+;;; Completion
+
+;; TODO: A problem with this approach is when the buffer is in error,
+;; then pdb-completions returns nothing. Probably it should retain the
+;; completion data from the previous non-error analysis, if any.
+;; [That's effectively what racket-xp-mode does, although in that case
+;; the state is stored in `racket--xp-binding-completions', which it
+;; simply doesn't reset when there are errors. Whreas with pdb we're
+;; querying the back end for completions for a specific point, the
+;; back end owns/holds that state. So it is probably the entity that
+;; should preserve completion candidates.]
+
+(defun racket-pdb-complete-at-point ()
+  (pcase-let
+      ((`(,beg . ,end)
+        ;; Stick to `forward-sexp' here, so should work for non-sexp
+        ;; langs via `racket-hash-lang-mode' setting the variable
+        ;; `forward-sexp-function' to use lang's grouping-position.
+        (save-excursion
+          (cons (condition-case ()
+                    (progn (forward-sexp -1) (point))
+                  (error (point)))
+                (condition-case ()
+                    (progn (forward-sexp 1) (point))
+                  (error (point)))))))
+    (list beg
+          end
+          (completion-table-dynamic
+           (lambda (prefix)
+             (all-completions prefix
+                              (racket--cmd/await nil
+                                                 `(pdb-completions
+                                                   ,(racket-file-name-front-to-back
+                                                     (racket--buffer-file-name))
+                                                   ,(point))))))
+          :predicate          #'identity
+          :exclusive          'no
+          ;; TODO: Change these not to use the "def" and "doc"
+          ;; commands, if possible??
+          :company-location   (racket--xp-make-company-location-proc)
+          :company-doc-buffer (racket--xp-make-company-doc-buffer-proc))))
 
 ;;; Mode line status
 

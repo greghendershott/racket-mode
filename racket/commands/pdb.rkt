@@ -12,6 +12,8 @@
 
 (provide pdb-available?
          pdb-analyze-path
+         pdb-submodules
+         pdb-completions
          pdb-point-info
          pdb-doc-link
          pdb-visit
@@ -32,7 +34,7 @@
                  (dynamic-require 'pdb 'id) ...)))])
 
 (define-from-pdb pdb-available?
-  [analyze-path get-errors get-completion-candidates
+  [analyze-path get-errors get-submodule-names get-completion-candidates
                 get-point-info get-doc-link get-require-path
                 use->def rename-sites])
 
@@ -41,10 +43,17 @@
   (define result (analyze-path path #:code code-str))
   (if (exn:break? result)
       `(break) ;abandoned due to newer request; ignore/cleanup
-      (list (cons 'completions (sort (map symbol->string
-                                          (set->list (get-completion-candidates path)))
-                                     string<=?))
-            (cons 'errors      (get-errors path)))))
+      (list (cons 'errors (get-errors path)))))
+
+(define (pdb-submodules path-str pos)
+  (define path (string->path path-str))
+  (get-submodule-names path pos))
+
+(define (pdb-completions path-str pos)
+  (define path (string->path path-str))
+  (sort (map symbol->string
+             (set->list (get-completion-candidates path pos)))
+        string<=?))
 
 (define (pdb-point-info path-str pos beg end)
   (hash-update (get-point-info (string->path path-str) pos beg end)
