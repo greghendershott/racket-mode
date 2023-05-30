@@ -211,6 +211,20 @@ not. Intended as a convenience so users needn't set a
                     (racket--hash-lang-repl-buffer-string beg end)
                   (buffer-substring-no-properties beg end)))))
 
+(defun racket--hash-lang-setup-scribble ()
+  (setq-local comment-start "@;"))
+
+(defvar racket--hash-lang-config `(("scribble" . ,#'racket--hash-lang-setup-scribble)
+                                   ("scribble/base" . ,#'racket--hash-lang-setup-scribble)))
+
+
+(defun racket--hash-lang-setup (lang-name)
+  (let ((f (assoc-default "scribble" racket--hash-lang-config)))
+    (if f
+        (funcall f)
+      (error (format "there is no configuration for #lang %s" lang-name)))))
+
+
 ;;; Notifications: Front end <-- back end
 
 (defun racket--hash-lang-on-notify (id params)
@@ -263,7 +277,8 @@ lang's attributes that care about have changed."
                   (concat " #lang "
                           (plist-get plist 'name)
                           (when (plist-get plist 'racket-grouping) "()")
-                          (when (plist-get plist 'range-indenter) "⇉"))))))
+                          (when (plist-get plist 'range-indenter) "⇉")))
+      (racket--hash-lang-setup (plist-get plist 'name)))))
 
 (defun racket--hash-lang-on-changed-tokens (_gen beg end)
   "The back end has processed a change that resulted in new tokens.
