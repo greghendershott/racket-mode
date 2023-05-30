@@ -166,6 +166,7 @@ not. Intended as a convenience so users needn't set a
                       (racket--hash-lang-repl-buffer-string (point-min) (point-max))
                     (buffer-substring-no-properties (point-min) (point-max)))))))
 
+
 (defun racket--hash-lang-delete ()
   (when racket--hash-lang-id
     (racket--cmd/async
@@ -259,7 +260,8 @@ lang's attributes that care about have changed."
       (setq-local racket--hash-lang-submit-predicate-p
                   (plist-get plist 'submit-predicate))
       (setq-local racket-hash-lang-mode-lighter
-                  (concat " #lang"
+                  (concat " #lang "
+                          (plist-get plist 'name)
                           (when (plist-get plist 'racket-grouping) "()")
                           (when (plist-get plist 'range-indenter) "⇉"))))))
 

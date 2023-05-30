@@ -16,7 +16,8 @@
    grouping-position
    line-indenter
    range-indenter
-   submit-predicate)
+   submit-predicate
+   name)
   #:transparent #:authentic)
 
 (define racket-grouping-position

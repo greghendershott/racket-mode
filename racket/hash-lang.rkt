@@ -101,6 +101,7 @@
 (define-simple-macro (with-semaphore sema e:expr ...+)
   (call-with-semaphore sema (λ () e ...)))
 
+
 (define hash-lang%
   (class* object% (color-textoid<%>)
     (super-new)
@@ -129,9 +130,15 @@
     ;; read the language, for a REPL buffer that should use the lang
     ;; from the file for which it is a REPL.
     (init-field [other-lang-source #f])
+    (define lang-name (if other-lang-source
+                          (regexp-match lang-re other-lang-source)
+                          "racket"))
+
+    (define/public (get-lang-name) lang-name)
+
     (define lang-info (if other-lang-source
-                        (read-lang-info (open-input-string other-lang-source))
-                        default-lang-info))
+                          (read-lang-info (open-input-string other-lang-source))
+                          default-lang-info))
     (define/public (get-lang-info) lang-info)
 
     ;; Some methods intended just for tests
@@ -669,9 +676,16 @@
              racket-grouping-position
              racket-amount-to-indent
              #f
+             #f
              #f))
 
+(define lang-re #px"(?m:^#lang ([^\\s]+)+)")
+
 (define (read-lang-info* in)
+  (define lang-name (let ([res (regexp-match lang-re (peek-string 128 0 in))])
+                      (if res
+                          (cadr res)
+                          #f)))
   (define info (or (with-handlers ([values (λ _ #f)])
                      (read-language in (λ _ #f)))
                    (λ (_key default) default)))
@@ -682,7 +696,8 @@
                      (info 'drracket:grouping-position racket-grouping-position)
                      (info 'drracket:indentation racket-amount-to-indent)
                      (info 'drracket:range-indentation #f)
-                     (info 'drracket:submit-predicate #f))
+                     (info 'drracket:submit-predicate #f)
+                     lang-name)
           end-pos))
 
 (define (read-lang-info in)
