@@ -464,6 +464,8 @@ This is ad hoc and forensic."
 
 Uses pdb to query for sites among multiple files."
   (interactive)
+  (unless (racket--pdb-analysis-is-up-to-date-p)
+    (user-error "Wait for analysis to finish"))
   (pcase-let*
       ((back-end-path (racket-file-name-front-to-back (racket--buffer-file-name)))
        (files-and-sites (racket--cmd/await nil
@@ -482,11 +484,19 @@ Uses pdb to query for sites among multiple files."
                                 (< (point) (cdr site))
                                 (buffer-substring-no-properties (car site) (cdr site))))
                          (cdr (assoc back-end-path files-and-sites))))
-       (new-id (read-from-minibuffer (format "Rename `%s' at %s sites in %s file%s to: "
-                                             old-id
-                                             num-sites
-                                             num-files
-                                             (if (= num-files 1) "" "s")))))
+       (new-id (read-from-minibuffer
+                (format "Rename `%s' at %s sites%s to: "
+                        old-id
+                        num-sites
+                        (cond
+                         ((<= num-files 1)
+                          "")
+                         ((<= num-files 6)
+                          (format " in %s"
+                                       (mapcar (lambda (f+s)
+                                                 (file-name-nondirectory (car f+s)))
+                                               files-and-sites)))
+                         (t (format " in %s files" num-files)))))))
     (dolist (file-and-sites files-and-sites)
       (let ((file (racket-file-name-back-to-front (car file-and-sites)))
             (sites (cdr file-and-sites)))
