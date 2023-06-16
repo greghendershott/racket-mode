@@ -114,9 +114,17 @@
       [(? eof-object?)        (void)]))  )
 
 (define (exn->string e)
-  (string-join (cons (exn-message e)
-                     (map ~a (continuation-mark-set->context
-                              (exn-continuation-marks e))))
+  (string-join (list* (exn-message e)
+                      "Context:"
+                      (for/list ([v (in-list (continuation-mark-set->context
+                                              (exn-continuation-marks e)))]
+                                 [_ (in-range 3)])
+                        (match-define (cons sym src) v)
+                        (format "~a:~a:~a~a"
+                                (srcloc-source src)
+                                (srcloc-line src)
+                                (srcloc-column src)
+                                (if sym (~a " " sym) ""))))
                "\n"))
 
 (define (command-invocation-label nonce sid sexp)
