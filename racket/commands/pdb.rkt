@@ -29,7 +29,7 @@
                           (log-racket-mode-info "Using classic check-syntax:\n~a"
                                                 (exn-message e))
                           (values (λ () #f)
-                                  #,@(map (λ _ void) (syntax->list #'(id ...)))))])
+                                  #,@(map (λ _ (void)) (syntax->list #'(id ...)))))])
          (values (λ () #t)
                  (dynamic-require 'pdb 'id) ...)))])
 
