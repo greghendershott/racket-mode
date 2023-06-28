@@ -39,7 +39,7 @@
 (defconst ci-p (getenv "CI")
   "Is there an environment variable saying we're running on CI?")
 
-(defconst racket-tests/timeout (if ci-p 30 10))
+(defconst racket-tests/timeout (if ci-p 60 10))
 
 (defun racket-tests/type (typing)
   (let ((blink-matching-paren nil)) ;suppress "Matches " messages
@@ -246,15 +246,9 @@ c.rkt. Visit each file, racket-run, and check as expected."
 
 ;;; Profile
 
-(defun racket-tests/expected-result-for-profile-p (result)
-  "Allow the test to pass or fail on CI."
-  (if ci-p
-      t
-    (ert-test-passed-p result)))
-
 (ert-deftest racket-tests/profile ()
   "Exercise `racket-profile'."
-  :expected-result `(satisfies racket-tests/expected-result-for-profile-p)
+  (skip-unless (not ci-p))
   (message "racket-tests/profile")
   (racket-tests/with-back-end-settings
     (let* ((path (make-temp-file "test" nil ".rkt"))
@@ -681,21 +675,22 @@ want to use the value of `racket-program' at run time."
 (defun racket-tests/indent-time (file)
   (with-current-buffer (find-file (expand-file-name file racket-tests/here-dir))
     (racket-mode)
-    (let* ((start (float-time))
+    (let* ((start (float-time (get-internal-run-time)))
            (_ (racket-tests/indent-region))
-           (finish (float-time))
+           (finish (float-time (get-internal-run-time)))
            (dur (- finish start)))
-      (message "indent %s took %s seconds" file dur)
+      (message "indent %s %f seconds cpu"
+               file dur)
       (revert-buffer t t t)
       dur)))
 
 (ert-deftest racket-tests/indent-speed-1 ()
-  (should (or (< (racket-tests/indent-time "example/class-internal.rkt") 10)
-              ci-p)))
+  (skip-unless (not ci-p))
+  (should (< (racket-tests/indent-time "example/class-internal.rkt") 10)))
 
 (ert-deftest racket-tests/indent-speed-2 ()
-  (should (or (< (racket-tests/indent-time "example/core.scm") 10)
-              ci-p)))
+  (skip-unless (not ci-p))
+  (should (< (racket-tests/indent-time "example/core.scm") 10)))
 
 ;;; Font-lock
 
