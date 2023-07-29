@@ -126,10 +126,10 @@ this mode."
      (lambda (response)
        (unless response
          (racket-pdb-mode -1)
-         (user-error "The `pdb` package is not available so racket-pdb-mode cannot be used; use racket-xp-mode instead"))
-       (racket-pdb-analyze)))
-    (setq-local racket--submod-path-function
-                #'racket-pdb-submodules-at-point))
+         (user-error "The Racket package `pdb` is not available so racket-pdb-mode cannot be used; instead maybe use racket-xp-mode"))
+       (racket-pdb-analyze)
+       (setq-local racket--submod-path-function
+                   #'racket-pdb-submodules-at-point))))
    (t
     (setq-local racket--submod-path-function nil)
     (racket-show nil)
