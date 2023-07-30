@@ -212,6 +212,7 @@ not. Intended as a convenience so users needn't set a
                   (buffer-substring-no-properties beg end)))))
 
 (defun racket--hash-lang-setup-scribble ()
+  (define-key racket-hash-lang-mode-map (kbd "M-q") 'fill-paragraph)
   (setq-local comment-start "@;"))
 
 (defvar racket--hash-lang-config `(("scribble" . ,#'racket--hash-lang-setup-scribble)
@@ -280,12 +281,13 @@ lang's attributes that care about have changed."
                           (when (plist-get plist 'range-indenter) "⇉")))
       (racket--hash-lang-setup (plist-get plist 'name)))))
 
+
 (defun racket--hash-lang-on-changed-tokens (_gen beg end)
   "The back end has processed a change that resulted in new tokens.
 
 All we do here is mark the span as not fontified, then let
 jit-lock do its thing if/when this span ever becomes visible."
-  ;;;(message "racket--hash-lang-on-changed-tokens %s %s %s" _gen beg end)
+;;;(message "racket--hash-lang-on-changed-tokens %s %s %s" _gen beg end)
   (font-lock-flush beg end))
 
 ;;; Fontification
