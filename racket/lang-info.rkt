@@ -10,7 +10,8 @@
 ;; require it normally and not need to do more dynamic-requires.
 
 (struct lang-info
-  (lexer
+  (module-language
+   lexer
    paren-matches
    quote-matches
    grouping-position

@@ -43,6 +43,7 @@
                            (list
                             'hash-lang id
                             'lang
+                            'module-language (lang-info-module-language li)
                             'racket-grouping (lang-info-grouping-position-is-racket? li)
                             'range-indenter  (and (lang-info-range-indenter li) #t)
                             'submit-predicate (and (lang-info-submit-predicate li) #t))))
@@ -50,7 +51,8 @@
         (when (< beg end)
           (async-channel-put hash-lang-notify-channel
                              (list 'hash-lang id
-                                   'update gen (add1 beg) (add1 end))))))))
+                                   'update
+                                   gen (add1 beg) (add1 end))))))))
 
 (define (hash-lang . args)
   (unless (class? hash-lang-class-or-error-message)

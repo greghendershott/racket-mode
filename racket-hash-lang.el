@@ -34,7 +34,7 @@ until the back end has handled the update commands and also
 re-tokenization has progressed sufficiently.")
 
 (defvar-local racket--hash-lang-changed-vars nil
-  "Where we save spec to restore original values.")
+  "Original values when minor mode was enabled, to restore when disabled.")
 
 (defvar racket-hash-lang-mode-map
   (racket--easy-keymap-define
@@ -50,6 +50,9 @@ re-tokenization has progressed sufficiently.")
 (defvar-local racket-hash-lang-mode-lighter " #lang")
 
 (defvar-local racket--hash-lang-submit-predicate-p nil)
+
+(defvar-local racket-hash-lang-module-language nil
+  "The symbol for the module language, if any, else nil.")
 
 ;;;###autoload
 (define-minor-mode racket-hash-lang-mode
@@ -69,6 +72,9 @@ for each `racket-run', based on whether the associated
 For `racket-repl-mode' buffers, be aware that only input portions
 of the buffer use coloring/indent/navigation from the hash-lang.
 Output portions are treated as whitespace.
+
+Runs the hook variable `racket-hash-lang-module-language-hook'
+when the module language changes.
 
 \\{racket-hash-lang-mode-map}
 "
@@ -225,13 +231,15 @@ not. Intended as a convenience so users needn't set a
 We do /not/ get notified when a new lang uses exactly the same
 attributes as the old one. For example changing from #lang racket
 to #lang racket/base will /not/ notify us, because none of the
-lang's attributes that care about have changed."
+lang's attributes that we care about have changed."
   ;;;(message "racket--hash-lang-on-new-lang %s" plist)
   (with-silent-modifications
     (save-restriction
       (widen)
       (racket--hash-lang-remove-text-properties (point-min) (point-max))
       (font-lock-flush (point-min) (point-max))
+      (setq racket-hash-lang-module-language (plist-get plist 'module-language))
+      (run-hooks 'racket-hash-lang-module-language-hook)
       ;; If the lang uses racket-grouping-position, i.e. it uses
       ;; s-expressions, then use racket-mode-syntax-table. That way
       ;; other Emacs features and packages are more likely to work.
@@ -538,6 +546,31 @@ not a complete expression, in which case `newline-and-indent'."
                                     t))))
       (racket-repl-submit prefix)
     (newline-and-indent)))
+
+(defun racket-hash-lang-module-language-hook-default ()
+  "A default value for hook variable `racket-hash-lang-module-language-hook'.
+
+Sets the variable `comment-start'. This is probably just a
+work-around until a lang info key for this is defined and
+implemented by various langs?"
+  (setq comment-start
+        (cl-case racket-hash-lang-module-language
+          ((racket
+            racket/base)
+           ";;")
+          ((rhombus)
+           "//")
+          ((scribble/base/lang
+            scribble/manual/lang)
+           "@;"))))
+
+(defvar racket-hash-lang-module-language-hook
+  (list #'racket-hash-lang-module-language-hook-default)
+  "Hook run when the module language changes.
+
+Your hook function may consult the variable
+`racket-hash-lang-module-language' and do additional
+customization based on the specific language.")
 
 (provide 'racket-hash-lang)
 

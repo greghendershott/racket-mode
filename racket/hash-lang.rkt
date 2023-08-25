@@ -658,12 +658,14 @@
     (define/public (get-regions)
       '((0 end)))))
 
+(define default-module-language #f)
 (define default-lexer (waive-option module-lexer*))
 (define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
 (define default-quote-matches '(#\" #\|))
 
 (define default-lang-info
-  (lang-info default-lexer
+  (lang-info default-module-language
+             default-lexer
              default-paren-matches
              default-quote-matches
              racket-grouping-position
@@ -676,7 +678,8 @@
                      (read-language in (λ _ #f)))
                    (λ (_key default) default)))
   (define-values (_line _col end-pos) (port-next-location in))
-  (values (lang-info (info 'color-lexer default-lexer)
+  (values (lang-info (info 'module-language default-module-language)
+                     (info 'color-lexer default-lexer)
                      (info 'drracket:paren-matches default-paren-matches)
                      (info 'drracket:quote-matches default-quote-matches)
                      (info 'drracket:grouping-position racket-grouping-position)
