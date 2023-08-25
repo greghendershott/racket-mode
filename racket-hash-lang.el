@@ -343,6 +343,8 @@ C redisplay engine, as is the case with `jit-lock-mode'."
                 ('keyword (put-face beg end 'font-lock-keyword-face))
                 ('hash-colon-keyword (put-face beg end 'racket-keyword-argument-face))
                 ('other (put-face beg end 'font-lock-doc-face))
+                ('at (put-face beg end 'racket-hash-lang-at-face))
+                ('operator (put-face beg end 'racket-hash-lang-operator-face))
                 ('white-space nil)))))))))
 
 (defconst racket--hash-lang-text-properties

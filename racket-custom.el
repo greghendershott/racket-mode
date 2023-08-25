@@ -681,6 +681,16 @@ would also make it more obvious which portions of a buffer have
 been lexed and font-locked."
   "Racket Hash Lang Symbol Face")
 
+(defface-racket racket-hash-lang-at-face
+  '((t (:inherit font-lock-doc-face)))
+  "Face `racket-hash-lang-mode' uses for \"at\" tokens."
+  "Racket Hash Lang At Face")
+
+(defface-racket racket-hash-lang-operator-face
+  '((t (:inherit font-lock-variable-name-face)))
+  "Face `racket-hash-lang-mode' uses for \"operator\" tokens."
+  "Racket Hash Lang Operator Face")
+
 (provide 'racket-custom)
 
 ;;; racket-custom.el ends here
