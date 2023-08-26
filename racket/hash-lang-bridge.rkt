@@ -46,7 +46,8 @@
                             'module-language (lang-info-module-language li)
                             'racket-grouping (lang-info-grouping-position-is-racket? li)
                             'range-indenter  (and (lang-info-range-indenter li) #t)
-                            'submit-predicate (and (lang-info-submit-predicate li) #t))))
+                            'submit-predicate (and (lang-info-submit-predicate li) #t)
+                            'comments (lang-info-comments li))))
       (define/override (on-changed-tokens gen beg end)
         (when (< beg end)
           (async-channel-put hash-lang-notify-channel

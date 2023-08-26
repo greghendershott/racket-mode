@@ -54,6 +54,12 @@ re-tokenization has progressed sufficiently.")
 (defvar-local racket-hash-lang-module-language nil
   "The symbol for the module language, if any, else nil.")
 
+(defvar racket-hash-lang-module-language-hook nil
+  "Hook run when the module language changes.
+
+Your hook function may do additional customization based on the
+the variable `racket-hash-lang-module-language'.")
+
 ;;;###autoload
 (define-minor-mode racket-hash-lang-mode
   "Use color-lexer, indent, and navigation supplied by a #lang.
@@ -238,8 +244,6 @@ lang's attributes that we care about have changed."
       (widen)
       (racket--hash-lang-remove-text-properties (point-min) (point-max))
       (font-lock-flush (point-min) (point-max))
-      (setq racket-hash-lang-module-language (plist-get plist 'module-language))
-      (run-hooks 'racket-hash-lang-module-language-hook)
       ;; If the lang uses racket-grouping-position, i.e. it uses
       ;; s-expressions, then use racket-mode-syntax-table. That way
       ;; other Emacs features and packages are more likely to work.
@@ -269,7 +273,15 @@ lang's attributes that we care about have changed."
       (setq-local racket-hash-lang-mode-lighter
                   (concat " #lang"
                           (when (plist-get plist 'racket-grouping) "()")
-                          (when (plist-get plist 'range-indenter) "⇉"))))))
+                          (when (plist-get plist 'range-indenter) "⇉")))
+      (pcase-let ((`(,start ,end ,padding) (plist-get plist 'comments)))
+        (setq-local comment-start   start)
+        (setq-local comment-end     end)
+        (setq-local comment-padding padding))
+      ;; Finally run user's module language hooks.
+      (progn
+        (setq racket-hash-lang-module-language (plist-get plist 'module-language))
+        (run-hooks 'racket-hash-lang-module-language-hook)))))
 
 (defun racket--hash-lang-on-changed-tokens (_gen beg end)
   "The back end has processed a change that resulted in new tokens.
@@ -546,31 +558,6 @@ not a complete expression, in which case `newline-and-indent'."
                                     t))))
       (racket-repl-submit prefix)
     (newline-and-indent)))
-
-(defun racket-hash-lang-module-language-hook-default ()
-  "A default value for hook variable `racket-hash-lang-module-language-hook'.
-
-Sets the variable `comment-start'. This is probably just a
-work-around until a lang info key for this is defined and
-implemented by various langs?"
-  (setq comment-start
-        (cl-case racket-hash-lang-module-language
-          ((racket
-            racket/base)
-           ";;")
-          ((rhombus)
-           "//")
-          ((scribble/base/lang
-            scribble/manual/lang)
-           "@;"))))
-
-(defvar racket-hash-lang-module-language-hook
-  (list #'racket-hash-lang-module-language-hook-default)
-  "Hook run when the module language changes.
-
-Your hook function may consult the variable
-`racket-hash-lang-module-language' and do additional
-customization based on the specific language.")
 
 (provide 'racket-hash-lang)
 

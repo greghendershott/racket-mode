@@ -671,6 +671,7 @@
              racket-grouping-position
              racket-amount-to-indent
              #f
+             #f
              #f))
 
 (define (read-lang-info* in)
@@ -678,15 +679,30 @@
                      (read-language in (λ _ #f)))
                    (λ (_key default) default)))
   (define-values (_line _col end-pos) (port-next-location in))
-  (values (lang-info (info 'module-language default-module-language)
+  (define mod-lang (info 'module-language default-module-language))
+  (values (lang-info mod-lang
                      (info 'color-lexer default-lexer)
                      (info 'drracket:paren-matches default-paren-matches)
                      (info 'drracket:quote-matches default-quote-matches)
                      (info 'drracket:grouping-position racket-grouping-position)
                      (info 'drracket:indentation racket-amount-to-indent)
                      (info 'drracket:range-indentation #f)
-                     (info 'drracket:submit-predicate #f))
+                     (info 'drracket:submit-predicate #f)
+                     (or (info 'comments #f) ;; TODO: drracket:comments ?
+                         (comments-fallback mod-lang)))
           end-pos))
+
+;; Fallback when langs don't support a comments info key.
+(define (comments-fallback mod-lang-sym)
+  (define (root sym) ;e.g. 'racket and 'racket/base => racket
+    (match (and sym (symbol->string sym))
+      [(pregexp "^([^/]+)" (list _ str))
+       (string->symbol str)]
+      [_ #f]))
+  (case (root mod-lang-sym)
+    [(scribble) '("@;" "" " ")]
+    [(rhombus)  '("//" "" " ")]
+    [else       '(";;" "" " ")]))
 
 (define (read-lang-info in)
   (define-values (v _pos) (read-lang-info* in))
