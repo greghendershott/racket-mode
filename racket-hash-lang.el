@@ -45,7 +45,8 @@ re-tokenization has progressed sufficiently.")
      ("C-M-b" ,#'racket-hash-lang-backward)
      ("C-M-f" ,#'racket-hash-lang-forward)
      ("C-M-u" ,#'racket-hash-lang-up)
-     ("C-M-d" ,#'racket-hash-lang-down))))
+     ("C-M-d" ,#'racket-hash-lang-down)
+     ("C-M-q" ,#'racket-hash-lang-C-M-q-dwim))))
 
 (defvar-local racket-hash-lang-mode-lighter " #lang")
 
@@ -571,6 +572,22 @@ not a complete expression, in which case `newline-and-indent'."
                                     t))))
       (racket-repl-submit prefix)
     (newline-and-indent)))
+
+(defun racket-hash-lang-C-M-q-dwim (&optional prefix)
+  "Depending on token at point, indent expression or fill."
+  (interactive "P")
+  (racket--cmd/async nil
+                     `(hash-lang
+                       classify
+                       ,racket--hash-lang-id
+                       ,racket--hash-lang-generation
+                       ,(point))
+                     (pcase-lambda (`(,_beg ,_end ,type))
+                       (cl-case type
+                         ((whitespace) (user-error "ambiguous; did nothing"))
+                         ((text) (fill-paragraph prefix))
+                         ((comment) (fill-comment-paragraph prefix))
+                         (otherwise (prog-indent-sexp prefix))))))
 
 (provide 'racket-hash-lang)
 
