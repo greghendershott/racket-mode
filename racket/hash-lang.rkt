@@ -17,7 +17,8 @@
          (only-in syntax-color/racket-navigation racket-grouping-position)
          syntax/parse/define
          "lang-info.rkt"
-         (prefix-in lines: "text-lines.rkt"))
+         (prefix-in lines: "text-lines.rkt")
+         "util.rkt")
 
 (provide hash-lang%
          generation/c
@@ -688,21 +689,37 @@
                      (info 'drracket:indentation racket-amount-to-indent)
                      (info 'drracket:range-indentation #f)
                      (info 'drracket:submit-predicate #f)
-                     (or (info 'comments #f) ;; TODO: drracket:comments ?
-                         (comments-fallback mod-lang)))
+                     (comment-delimiters info mod-lang))
           end-pos))
 
-;; Fallback when langs don't support a comments info key.
-(define (comments-fallback mod-lang-sym)
-  (define (root sym) ;e.g. 'racket and 'racket/base => racket
-    (match (and sym (symbol->string sym))
-      [(pregexp "^([^/]+)" (list _ str))
-       (string->symbol str)]
-      [_ #f]))
-  (case (root mod-lang-sym)
-    [(scribble) '("@;" "" " ")]
-    [(rhombus)  '("//" "" " ")]
-    [else       '(";;" "" " ")]))
+;; Return (list start continue end padding)
+(define (comment-delimiters info mod-lang-sym)
+  (define (fallback)
+    ;; Fallback when langs don't support the info key, or the value
+    ;; isn't as expected.
+    (define (root sym) ;e.g. 'racket and 'racket/base => 'racket
+      (match (and sym (symbol->string sym))
+        [(pregexp "^([^/]+)" (list _ str))
+         (string->symbol str)]
+        [_ #f]))
+    (case (root mod-lang-sym)
+      [(scribble) '("@;" "@;" "" " ")]
+      [(rhombus)  '("//" "//" "" " ")]
+      [else       '(";;" ";;" "" " ")]))
+  (match (info 'drracket:comment-delimiters #f)
+    [#f (fallback)]
+    [(list* (list 'line (? string? start) (? string? padding))
+            _other-styles)
+     (list start start "" padding)]
+    [(list* (list 'region (? string? start) (? string? continue) (? string? end) (? string? padding))
+            _other-styles)
+     (list start continue end padding)]
+    [unexpected
+     (log-racket-mode-warning
+      "drracket:comment-delimiters from mod-lang-sym ~v\n  unexpected value: ~v"
+      mod-lang-sym
+      unexpected)
+     (fallback)]))
 
 (define (read-lang-info in)
   (define-values (v _pos) (read-lang-info* in))

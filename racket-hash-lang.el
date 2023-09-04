@@ -274,10 +274,16 @@ lang's attributes that we care about have changed."
                   (concat " #lang"
                           (when (plist-get plist 'racket-grouping) "()")
                           (when (plist-get plist 'range-indenter) "⇉")))
-      (pcase-let ((`(,start ,end ,padding) (plist-get plist 'comments)))
-        (setq-local comment-start   start)
-        (setq-local comment-end     end)
-        (setq-local comment-padding padding))
+      (pcase-let ((`(,start ,continue ,end ,padding) (plist-get plist 'comments)))
+        (setq-local comment-start      start)
+        (setq-local comment-continue   continue)
+        (setq-local comment-end        end)
+        (setq-local comment-padding    padding)
+        (setq-local comment-use-syntax nil)
+        ;; Use `comment-normalize-vars' to recalc the skip regexps.
+        (setq-local comment-start-skip nil)
+        (setq-local comment-end-skip   nil)
+        (comment-normalize-vars))
       ;; Finally run user's module language hooks.
       (progn
         (setq racket-hash-lang-module-language (plist-get plist 'module-language))
@@ -330,19 +336,26 @@ C redisplay engine, as is the case with `jit-lock-mode'."
             (dolist (kind kinds)
               (pcase kind
                 ('comment
-                 ;; Although I'm not 100% sure we need to put-stx here I
-                 ;; think it might be important to make sure that the
-                 ;; buffer's syntax-table does not consider things
-                 ;; within comments to be e.g. parens/strings? This may
-                 ;; help when people use Emacs features that rely on
-                 ;; char syntax.
-                 (put-stx beg (1+ beg) '(11)) ;comment-start
-                 (put-stx (1- end) end '(12)) ;comment-end
-                 (let ((beg (1+ beg))   ;comment _contents_ if any
-                       (end (1- end)))
-                   (when (< beg end)
-                     (put-stx beg end '(14)))) ;generic comment
-                 (put-face beg end 'font-lock-comment-face))
+                 (put-face beg end 'font-lock-comment-face)
+                 ;; When the start/end match comment-start/end, then
+                 ;; give those spans comment start/end syntax. (This
+                 ;; helps with e.g. `comment-region' and
+                 ;; `uncomment-region'. Give the remainder generic
+                 ;; comment syntax.
+                 (let ((comment-start-end (+ beg (length comment-start))))
+                   (when (and (<= comment-start-end (point-max))
+                              (string-equal comment-start
+                                            (buffer-substring beg comment-start-end)))
+                     (put-stx beg comment-start-end '(11))
+                     (setq beg comment-start-end)))
+                 (let* ((comment-end (if (equal comment-end "") "\n" comment-end))
+                        (comment-end-start (- end (length comment-end))))
+                   (when (and (<= comment-end-start (point-max))
+                              (string-equal comment-end
+                                            (buffer-substring comment-end-start end)))
+                     (put-stx comment-end-start end '(12))
+                     (setq end comment-end-start)))
+                 (put-stx beg end '(14))) ;generic comment
                 ('sexp-comment ;just the "#;" prefix not following sexp
                  (put-stx beg end '(14)) ;generic comment
                  (put-face beg end 'font-lock-comment-face))
