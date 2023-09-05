@@ -83,6 +83,7 @@ Configure
 Commands
 
 * Edit::
+* Hash Langs::
 * Explore::
 * Run::
 * Test::
@@ -110,6 +111,10 @@ Edit
 * racket-align::
 * racket-unalign::
 * racket-complete-at-point::
+
+Hash Langs
+
+* racket-hash-lang-mode::
 
 Explore
 
@@ -292,6 +297,8 @@ All
 * racket-ext-link-face::
 * racket-doc-output-face::
 * racket-doc-litchar-face::
+* racket-hash-lang-at-face::
+* racket-hash-lang-operator-face::
 @end detailmenu
 @end menu
 
@@ -811,6 +818,7 @@ You can also view these by using the normal Emacs help mechanism:
 
 @menu
 * Edit::
+* Hash Langs::
 * Explore::
 * Run::
 * Test::
@@ -1414,6 +1422,68 @@ A value for the variable @code{completion-at-point-functions}.
 Completion candidates are drawn from the same symbols used for
 font-lock. This is a static list. If you want dynamic, smarter
 completion candidates, enable the minor mode @ref{racket-xp-mode}.
+
+@node Hash Langs
+@section Hash Langs
+
+@menu
+* racket-hash-lang-mode::
+@end menu
+
+@node racket-hash-lang-mode
+@subsection racket-hash-lang-mode
+
+@kbd{M-x}  @code{racket-hash-lang-mode}
+
+Use color-lexer, indent, and navigation supplied by a #lang.
+
+An experimental minor mode that modifies the default behavior of
+@ref{racket-mode} and @ref{racket-repl-mode} buffers.
+
+For @ref{racket-mode} buffers, you can enable this automatically by
+adding it to @code{racket-mode-hook}.
+
+Elsewhere in your Emacs configuration, you may also want to
+update the variable @code{auto-mode-alist} to use @ref{racket-mode} for
+file extensions like ``.scrbl'' and ``.rhm''.
+
+For @ref{racket-repl-mode} buffers, you don't enable this manually --
+instead it is automatically turned on/off, for each @ref{racket-run},
+based on whether the associated @ref{racket-mode} buffer is using
+@ref{racket-hash-lang-mode}. A REPL buffer can be shared among
+multiple edit buffers, each of which might vary in its use of
+@ref{racket-hash-lang-mode}, not to mention the specific #lang in
+use.
+
+For @ref{racket-repl-mode} buffers, be aware that only input portions
+of the buffer use coloring/indent/navigation from the hash-lang.
+Output portions are treated as whitespace.
+
+Runs the hook variable @code{racket-hash-lang-module-language-hook}
+when the module language changes.
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@item Key
+@tab Binding
+@item @kbd{C-M-q} 
+@tab @code{racket-hash-lang-C-M-q-dwim}
+@item @kbd{C-M-d} 
+@tab @code{racket-hash-lang-down}
+@item @kbd{C-M-u} 
+@tab @code{racket-hash-lang-up}
+@item @kbd{C-M-f} 
+@tab @code{racket-hash-lang-forward}
+@item @kbd{C-M-b} 
+@tab @code{racket-hash-lang-backward}
+@item @kbd{]} 
+@tab @code{self-insert-command}
+@item @kbd{@}} 
+@tab @code{self-insert-command}
+@item @kbd{)} 
+@tab @code{self-insert-command}
+@item @kbd{RET} 
+@tab @code{racket-hash-lang-return}
+@end multitable
 
 @node Explore
 @section Explore
@@ -3580,6 +3650,8 @@ A value for the variable @ref{racket-shell-or-terminal-function}.
 * racket-ext-link-face::
 * racket-doc-output-face::
 * racket-doc-litchar-face::
+* racket-hash-lang-at-face::
+* racket-hash-lang-operator-face::
 @end menu
 
 @node racket-keyword-argument-face
@@ -3695,6 +3767,16 @@ Face @code{racket-describe-mode} uses for Scribble @@example or @@interactions o
 @subsection racket-doc-litchar-face
 
 Face @code{racket-describe-mode} uses for Scribble @@litchar.
+
+@node racket-hash-lang-at-face
+@subsection racket-hash-lang-at-face
+
+Face @ref{racket-hash-lang-mode} uses for ``at'' tokens.
+
+@node racket-hash-lang-operator-face
+@subsection racket-hash-lang-operator-face
+
+Face @ref{racket-hash-lang-mode} uses for ``operator'' tokens.
 
 @c Emacs 25.2.2 (Org mode 8.2.10)
 @bye

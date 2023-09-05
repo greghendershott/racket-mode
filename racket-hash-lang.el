@@ -65,16 +65,23 @@ the variable `racket-hash-lang-module-language'.")
 (define-minor-mode racket-hash-lang-mode
   "Use color-lexer, indent, and navigation supplied by a #lang.
 
-Minor mode to modify the default behavior `racket-mode' and
-`racket-repl-mode' buffers.
+An experimental minor mode that modifies the default behavior of
+`racket-mode' and `racket-repl-mode' buffers.
 
-For `racket-mode' buffers, this needs to be enabled via
-`racket-mode-hook'.
+For `racket-mode' buffers, you can enable this automatically by
+adding it to `racket-mode-hook'.
 
-For `racket-repl-mode' buffers, this should not need to be
-configured manually. Instead automatically turns itself on/off,
-for each `racket-run', based on whether the associated
-`racket-mode' buffer is using `racket-hash-lang-mode'.
+Elsewhere in your Emacs configuration, you may also want to
+update the variable `auto-mode-alist' to use `racket-mode' for
+file extensions like \".scrbl\" and \".rhm\".
+
+For `racket-repl-mode' buffers, you don't enable this manually --
+instead it is automatically turned on/off, for each `racket-run',
+based on whether the associated `racket-mode' buffer is using
+`racket-hash-lang-mode'. A REPL buffer can be shared among
+multiple edit buffers, each of which might vary in its use of
+`racket-hash-lang-mode', not to mention the specific #lang in
+use.
 
 For `racket-repl-mode' buffers, be aware that only input portions
 of the buffer use coloring/indent/navigation from the hash-lang.
@@ -574,7 +581,19 @@ not a complete expression, in which case `newline-and-indent'."
     (newline-and-indent)))
 
 (defun racket-hash-lang-C-M-q-dwim (&optional prefix)
-  "Depending on token at point, indent expression or fill."
+  "Fill or indent depending on lang lexer's token at point.
+
+When the lang lexer token is...
+
+  - \"text\", for example in Scribble document text, do
+    `fill-paragraph'.
+
+  - \"comment\", do `fill-comment'.
+
+  - \"whitespace\", give an error message.
+
+  - anything else, do `prog-indent-sexp'.
+"
   (interactive "P")
   (racket--cmd/async nil
                      `(hash-lang

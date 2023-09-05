@@ -19,6 +19,7 @@
 (require 'racket-unicode-input-method)
 (require 'racket-smart-open)
 (require 'racket-repl-buffer-name)
+(require 'racket-hash-lang)
 (require 'seq)
 
 (defun racket-generate-reference.org ()
@@ -51,6 +52,8 @@
     racket-align
     racket-unalign
     racket-complete-at-point
+    "Hash Langs"
+    racket-hash-lang-mode
     "Explore"
     racket-xp-mode
     (racket-xp-describe ,racket-xp-mode-map)
@@ -251,7 +254,9 @@
     racket-doc-link-face
     racket-ext-link-face
     racket-doc-output-face
-    racket-doc-litchar-face)
+    racket-doc-litchar-face
+    racket-hash-lang-at-face
+    racket-hash-lang-operator-face)
   "Faces to include in the Reference.")
 
 (defun racket-generate--faces ()
