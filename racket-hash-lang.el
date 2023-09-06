@@ -87,6 +87,13 @@ For `racket-repl-mode' buffers, be aware that only input portions
 of the buffer use coloring/indent/navigation from the hash-lang.
 Output portions are treated as whitespace.
 
+See the customization variable
+`racket-hash-lang-token-face-alist'.
+
+A discussion of the information provided by a Racket language:
+
+  <https://docs.racket-lang.org/tools/lang-languages-customization.html>
+
 Runs the hook variable `racket-hash-lang-module-language-hook'
 when the module language changes.
 
@@ -376,17 +383,10 @@ C redisplay engine, as is the case with `jit-lock-mode'."
                                     (get-text-property beg 'face))))
                 ('parenthesis (when (facep 'parenthesis)
                                 (put-face beg end 'parenthesis)))
-                ('string (put-face beg end 'font-lock-string-face))
                 ('text (put-stx beg end racket--hash-lang-plain-syntax-table))
-                ('constant (put-face beg end 'font-lock-constant-face))
-                ('error (put-face beg end 'error))
-                ('symbol (put-face beg end 'racket-hash-lang-symbol-face))
-                ('keyword (put-face beg end 'font-lock-keyword-face))
-                ('hash-colon-keyword (put-face beg end 'racket-keyword-argument-face))
-                ('other (put-face beg end 'font-lock-doc-face))
-                ('at (put-face beg end 'racket-hash-lang-at-face))
-                ('operator (put-face beg end 'racket-hash-lang-operator-face))
-                ('white-space nil)))))))))
+                (sym
+                 (when-let (face (cdr (assq sym racket-hash-lang-token-face-alist)))
+                   (put-face beg end face)))))))))))
 
 (defconst racket--hash-lang-text-properties
   '(face syntax-table racket-token)

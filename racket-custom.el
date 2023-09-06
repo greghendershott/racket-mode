@@ -146,6 +146,41 @@ an underline, which is a common convention."
   :safe #'stringp
   :group 'racket-xp)
 
+;;; Hash Lang
+
+(defgroup racket-hash-lang nil
+  "`racket-hash-lang-mode' options"
+  :tag "Hash Lang"
+  :group 'racket)
+
+(defcustom racket-hash-lang-token-face-alist
+  `((string             . font-lock-string-face)
+    (constant           . font-lock-constant-face)
+    (symbol             . default)
+    (error              . error)
+    (other              . font-lock-doc-face)
+    (keyword            . font-lock-keyword-face)
+    (hash-colon-keyword . racket-keyword-argument-face)
+    (at                 . font-lock-doc-face)
+    (operator           . font-lock-variable-name-face))
+  "An association list from color-lexer token symbols to face symbols.
+
+Note: In many Racket languages, tokens for identifiers are lexed
+as \"symbol\", and in many programs, identifiers are a majority
+of the source. Using the Emacs face `default' is \"less noisy\"
+and closer to the appearance in Dr Racket. However you could
+plausibly choose something like `font-lock-variable-face'.
+
+Note: Some tokens are hardwired and not customizable by this
+list: Comment tokens use the face `font-lock-comment-face',
+sometimes blended with other faces. Parenthesis tokens use the
+face `paren' if defined. Text tokens, e.g. Scribble text, use the
+default face."
+  :tag "Hash Lang Token Face Alist"
+  :type '(alist :key-type symbol :value-type face)
+  :safe #'listp
+  :group 'racket-hash-lang)
+
 ;;; REPL
 
 (defgroup racket-repl nil
@@ -667,29 +702,6 @@ See the variable `racket-browse-url-function'."
   '((t (:inherit holiday)))
   "Face `racket-describe-mode' uses for Scribble @litchar."
   "Racket Doc Litchar Face")
-
-(defface-racket racket-hash-lang-symbol-face
-  '((t (:inherit default)))
-  "Face `racket-hash-lang-mode' uses for \"symbol\" tokens.
-
-In most Racket languages, tokens for identifiers are lexed as
-\"symbol\", and in many programs, identifiers are a majority of
-the source text. Using the Emacs default face is \"less noisy\"
-and closer to the appearance in Dr Racket. However you could
-plausibly choose something like font-lock-variable-face, which
-would also make it more obvious which portions of a buffer have
-been lexed and font-locked."
-  "Racket Hash Lang Symbol Face")
-
-(defface-racket racket-hash-lang-at-face
-  '((t (:inherit font-lock-doc-face)))
-  "Face `racket-hash-lang-mode' uses for \"at\" tokens."
-  "Racket Hash Lang At Face")
-
-(defface-racket racket-hash-lang-operator-face
-  '((t (:inherit font-lock-variable-name-face)))
-  "Face `racket-hash-lang-mode' uses for \"operator\" tokens."
-  "Racket Hash Lang Operator Face")
 
 (provide 'racket-custom)
 

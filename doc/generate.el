@@ -54,6 +54,11 @@
     racket-complete-at-point
     "Hash Langs"
     racket-hash-lang-mode
+    (racket-hash-lang-backward ,racket-hash-lang-mode-map)
+    (racket-hash-lang-forward ,racket-hash-lang-mode-map)
+    (racket-hash-lang-up ,racket-hash-lang-mode-map)
+    (racket-hash-lang-down ,racket-hash-lang-mode-map)
+    (racket-hash-lang-C-M-q-dwim ,racket-hash-lang-mode-map)
     "Explore"
     racket-xp-mode
     (racket-xp-describe ,racket-xp-mode-map)
@@ -184,6 +189,10 @@
     racket-xp-after-change-refresh-delay
     racket-xp-highlight-unused-regexp
     racket-documentation-search-location
+    "Hash lang variables"
+    racket-hash-lang-token-face-alist
+    racket-hash-lang-module-language-hook
+    racket-hash-lang-module-language
     "REPL variables"
     racket-repl-buffer-name-function
     racket-submodules-to-run
@@ -254,9 +263,7 @@
     racket-doc-link-face
     racket-ext-link-face
     racket-doc-output-face
-    racket-doc-litchar-face
-    racket-hash-lang-at-face
-    racket-hash-lang-operator-face)
+    racket-doc-litchar-face)
   "Faces to include in the Reference.")
 
 (defun racket-generate--faces ()

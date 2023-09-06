@@ -115,6 +115,11 @@ Edit
 Hash Langs
 
 * racket-hash-lang-mode::
+* racket-hash-lang-backward::
+* racket-hash-lang-forward::
+* racket-hash-lang-up::
+* racket-hash-lang-down::
+* racket-hash-lang-C-M-q-dwim::
 
 Explore
 
@@ -183,6 +188,7 @@ Other
 Variables
 
 * General variables::
+* Hash lang variables::
 * REPL variables::
 * Other variables::
 * Experimental debugger variables::
@@ -200,6 +206,12 @@ General variables
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
 * racket-documentation-search-location::
+
+Hash lang variables
+
+* racket-hash-lang-token-face-alist::
+* racket-hash-lang-module-language-hook::
+* racket-hash-lang-module-language::
 
 REPL variables
 
@@ -297,8 +309,6 @@ All
 * racket-ext-link-face::
 * racket-doc-output-face::
 * racket-doc-litchar-face::
-* racket-hash-lang-at-face::
-* racket-hash-lang-operator-face::
 @end detailmenu
 @end menu
 
@@ -1428,6 +1438,11 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 
 @menu
 * racket-hash-lang-mode::
+* racket-hash-lang-backward::
+* racket-hash-lang-forward::
+* racket-hash-lang-up::
+* racket-hash-lang-down::
+* racket-hash-lang-C-M-q-dwim::
 @end menu
 
 @node racket-hash-lang-mode
@@ -1459,22 +1474,22 @@ For @ref{racket-repl-mode} buffers, be aware that only input portions
 of the buffer use coloring/indent/navigation from the hash-lang.
 Output portions are treated as whitespace.
 
-Runs the hook variable @code{racket-hash-lang-module-language-hook}
+Runs the hook variable @ref{racket-hash-lang-module-language-hook}
 when the module language changes.
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
 @item @kbd{C-M-q} 
-@tab @code{racket-hash-lang-C-M-q-dwim}
+@tab @ref{racket-hash-lang-C-M-q-dwim}
 @item @kbd{C-M-d} 
-@tab @code{racket-hash-lang-down}
+@tab @ref{racket-hash-lang-down}
 @item @kbd{C-M-u} 
-@tab @code{racket-hash-lang-up}
+@tab @ref{racket-hash-lang-up}
 @item @kbd{C-M-f} 
-@tab @code{racket-hash-lang-forward}
+@tab @ref{racket-hash-lang-forward}
 @item @kbd{C-M-b} 
-@tab @code{racket-hash-lang-backward}
+@tab @ref{racket-hash-lang-backward}
 @item @kbd{]} 
 @tab @code{self-insert-command}
 @item @kbd{@}} 
@@ -1484,6 +1499,58 @@ when the module language changes.
 @item @kbd{RET} 
 @tab @code{racket-hash-lang-return}
 @end multitable
+
+@node racket-hash-lang-backward
+@subsection racket-hash-lang-backward
+
+@kbd{C-M-b} 
+
+Like @code{backward-sexp} but uses #lang supplied navigation.
+
+@node racket-hash-lang-forward
+@subsection racket-hash-lang-forward
+
+@kbd{C-M-f} 
+
+Like @code{forward-sexp} but uses #lang supplied navigation.
+
+@node racket-hash-lang-up
+@subsection racket-hash-lang-up
+
+@kbd{C-M-u} 
+
+Like @code{backward-up-list} but uses #lang supplied navigation.
+
+@node racket-hash-lang-down
+@subsection racket-hash-lang-down
+
+@kbd{C-M-d} 
+
+Like @code{down-list} but uses #lang supplied navigation.
+
+@node racket-hash-lang-C-M-q-dwim
+@subsection racket-hash-lang-C-M-q-dwim
+
+@kbd{C-M-q} 
+
+Fill or indent depending on lang lexer's token at point.
+
+When the lang lexer token is@dots{}
+
+@itemize
+@item
+``text'', for example in Scribble document text, do
+@code{fill-paragraph}.
+
+@item
+``comment'', do @code{fill-comment}.
+
+@item
+``whitespace'', give an error message.
+
+@item
+anything else, do @code{prog-indent-sexp}.
+@end itemize
 
 @node Explore
 @section Explore
@@ -2745,6 +2812,7 @@ Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 
 @menu
 * General variables::
+* Hash lang variables::
 * REPL variables::
 * Other variables::
 * Experimental debugger variables::
@@ -2898,6 +2966,45 @@ Otherwise, the value is a string recognizable by @code{format}, with
 after applying @code{url-hexify-string}. Apart from ``%s'', the
 string should be a properly encoded URL.
 @end itemize
+
+@node Hash lang variables
+@section Hash lang variables
+
+@menu
+* racket-hash-lang-token-face-alist::
+* racket-hash-lang-module-language-hook::
+* racket-hash-lang-module-language::
+@end menu
+
+@node racket-hash-lang-token-face-alist
+@subsection racket-hash-lang-token-face-alist
+
+An association list from color-lexer token symbols to face symbols.
+
+Note: In many Racket languages, tokens for identifiers are lexed
+as ``symbol'', and in many programs, identifiers are a majority
+of the source. Using the Emacs face @code{default} is ``less noisy''
+and closer to the appearance in Dr Racket. However you could
+plausibly choose something like @code{font-lock-variable-face}.
+
+Note: Some tokens are hardwired and not customizable by this
+list: Comment tokens use the face @code{font-lock-comment-face},
+sometimes blended with other faces. Parenthesis tokens use the
+face @code{paren} if defined. Text tokens, e.g. Scribble text, use the
+default face.
+
+@node racket-hash-lang-module-language-hook
+@subsection racket-hash-lang-module-language-hook
+
+Hook run when the module language changes.
+
+Your hook function may do additional customization based on the
+the variable @ref{racket-hash-lang-module-language}.
+
+@node racket-hash-lang-module-language
+@subsection racket-hash-lang-module-language
+
+The symbol for the module language, if any, else nil.
 
 @node REPL variables
 @section REPL variables
@@ -3650,8 +3757,6 @@ A value for the variable @ref{racket-shell-or-terminal-function}.
 * racket-ext-link-face::
 * racket-doc-output-face::
 * racket-doc-litchar-face::
-* racket-hash-lang-at-face::
-* racket-hash-lang-operator-face::
 @end menu
 
 @node racket-keyword-argument-face
@@ -3767,16 +3872,6 @@ Face @code{racket-describe-mode} uses for Scribble @@example or @@interactions o
 @subsection racket-doc-litchar-face
 
 Face @code{racket-describe-mode} uses for Scribble @@litchar.
-
-@node racket-hash-lang-at-face
-@subsection racket-hash-lang-at-face
-
-Face @ref{racket-hash-lang-mode} uses for ``at'' tokens.
-
-@node racket-hash-lang-operator-face
-@subsection racket-hash-lang-operator-face
-
-Face @ref{racket-hash-lang-mode} uses for ``operator'' tokens.
 
 @c Emacs 25.2.2 (Org mode 8.2.10)
 @bye
