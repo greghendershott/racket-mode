@@ -352,28 +352,12 @@ C redisplay engine, as is the case with `jit-lock-mode'."
               (pcase kind
                 ('comment
                  (put-face beg end 'font-lock-comment-face)
-                 ;; When the start/end match comment-start/end, then
-                 ;; give those spans comment start/end syntax. (This
-                 ;; helps with e.g. `comment-region' and
-                 ;; `uncomment-region'. Give the remainder generic
-                 ;; comment syntax.
-                 (let ((comment-start-end (+ beg (length comment-start))))
-                   (when (and (<= comment-start-end (point-max))
-                              (string-equal comment-start
-                                            (buffer-substring beg comment-start-end)))
-                     (put-stx beg comment-start-end '(11))
-                     (setq beg comment-start-end)))
-                 (let* ((comment-end (if (equal comment-end "") "\n" comment-end))
-                        (comment-end-start (- end (length comment-end))))
-                   (when (and (<= comment-end-start (point-max))
-                              (string-equal comment-end
-                                            (buffer-substring comment-end-start end)))
-                     (put-stx comment-end-start end '(12))
-                     (setq end comment-end-start)))
-                 (put-stx beg end '(14))) ;generic comment
-                ('sexp-comment ;just the "#;" prefix not following sexp
-                 (put-stx beg end '(14)) ;generic comment
-                 (put-face beg end 'font-lock-comment-face))
+                 (put-stx beg (1+ beg) '(14))
+                 (put-stx (1- end) end '(14)))
+                ('sexp-comment ;just the "#;" prefix not following sexp body
+                 (put-face beg end 'font-lock-comment-face)
+                 (put-stx beg (1+ beg) '(14))
+                 (put-stx (1- end) end '(14)))
                 ;; Note: This relies on the back end supplying `kinds`
                 ;; with sexp-comment-body last, so that we can modify
                 ;; the face property already set by the previous
