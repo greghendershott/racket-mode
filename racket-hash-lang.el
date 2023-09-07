@@ -337,8 +337,11 @@ C redisplay engine, as is the case with `jit-lock-mode'."
   (save-restriction
     (widen)
     (with-silent-modifications
-      (cl-flet ((put-face (beg end face) (put-text-property beg end 'face face))
-                (put-stx  (beg end stx)  (put-text-property beg end 'syntax-table stx)))
+      (cl-flet* ((put-face (beg end face) (put-text-property beg end 'face face))
+                 (put-stx  (beg end stx)  (put-text-property beg end 'syntax-table stx))
+                 (put-fence (beg end stx)
+                            (put-stx beg (1+ beg) stx)
+                            (put-stx (1- end) end stx)))
         (dolist (token tokens)
           (pcase-let ((`(,beg ,end ,kinds) token))
             (setq beg (max (point-min) beg))
@@ -352,12 +355,13 @@ C redisplay engine, as is the case with `jit-lock-mode'."
               (pcase kind
                 ('comment
                  (put-face beg end 'font-lock-comment-face)
-                 (put-stx beg (1+ beg) '(14))
-                 (put-stx (1- end) end '(14)))
+                 (put-fence beg end '(14)))
                 ('sexp-comment ;just the "#;" prefix not following sexp body
                  (put-face beg end 'font-lock-comment-face)
-                 (put-stx beg (1+ beg) '(14))
-                 (put-stx (1- end) end '(14)))
+                 (put-fence beg end '(14)))
+                ('string
+                 (put-face beg end 'font-lock-string-face)
+                 (put-fence beg end '(15)))
                 ;; Note: This relies on the back end supplying `kinds`
                 ;; with sexp-comment-body last, so that we can modify
                 ;; the face property already set by the previous

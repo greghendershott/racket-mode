@@ -154,8 +154,7 @@ an underline, which is a common convention."
   :group 'racket)
 
 (defcustom racket-hash-lang-token-face-alist
-  `((string             . font-lock-string-face)
-    (constant           . font-lock-constant-face)
+  `((constant           . font-lock-constant-face)
     (symbol             . default)
     (error              . error)
     (other              . font-lock-doc-face)
@@ -174,7 +173,8 @@ plausibly choose something like `font-lock-variable-face'.
 Note: Some tokens are hardwired and not customizable by this
 list: Comment tokens use the face `font-lock-comment-face',
 sometimes blended with other faces. Parenthesis tokens use the
-face `paren' if defined. Text tokens, e.g. Scribble text, use the
+face `paren' if defined. String tokens use
+`font-lock-string-face'. Text tokens, e.g. Scribble text, use the
 default face."
   :tag "Hash Lang Token Face Alist"
   :type '(alist :key-type symbol :value-type face)

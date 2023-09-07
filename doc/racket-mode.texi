@@ -1474,6 +1474,13 @@ For @ref{racket-repl-mode} buffers, be aware that only input portions
 of the buffer use coloring/indent/navigation from the hash-lang.
 Output portions are treated as whitespace.
 
+See the customization variable
+@ref{racket-hash-lang-token-face-alist}.
+
+A discussion of the information provided by a Racket language:
+
+@uref{https://docs.racket-lang.org/tools/lang-languages-customization.html}
+
 Runs the hook variable @ref{racket-hash-lang-module-language-hook}
 when the module language changes.
 
@@ -2990,7 +2997,8 @@ plausibly choose something like @code{font-lock-variable-face}.
 Note: Some tokens are hardwired and not customizable by this
 list: Comment tokens use the face @code{font-lock-comment-face},
 sometimes blended with other faces. Parenthesis tokens use the
-face @code{paren} if defined. Text tokens, e.g. Scribble text, use the
+face @code{paren} if defined. String tokens use
+@code{font-lock-string-face}. Text tokens, e.g. Scribble text, use the
 default face.
 
 @node racket-hash-lang-module-language-hook
