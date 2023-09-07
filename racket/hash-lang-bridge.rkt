@@ -39,15 +39,24 @@
       (super-new)
       (init-field id)
       (define/override (on-changed-lang-info _gen li)
-        (async-channel-put hash-lang-notify-channel
-                           (list
-                            'hash-lang id
-                            'lang
-                            'module-language (lang-info-module-language li)
-                            'racket-grouping (lang-info-grouping-position-is-racket? li)
-                            'range-indenter  (and (lang-info-range-indenter li) #t)
-                            'submit-predicate (and (lang-info-submit-predicate li) #t)
-                            'comments (lang-info-comments li))))
+        (async-channel-put
+         hash-lang-notify-channel
+         (list
+          'hash-lang id
+          'lang
+          'module-language    (lang-info-module-language li)
+          'racket-grouping    (lang-info-grouping-position-is-racket? li)
+          'range-indenter     (and (lang-info-range-indenter li) #t)
+          'submit-predicate   (and (lang-info-submit-predicate li) #t)
+          ;; String-ize paren-matches and quotes-matches data to avoid
+          ;; discrepancies with Emacs Lisp allowed symbols and char
+          ;; reader syntax.
+          'paren-matches      (for/list ([o/c (in-list (lang-info-paren-matches li))])
+                                (match-define (list o c) o/c)
+                                (cons (symbol->string o) (symbol->string c)))
+          'quote-matches      (for/list ([c (in-list (lang-info-quote-matches li))])
+                                (make-string 1 c))
+          'comment-delimiters (lang-info-comment-delimiters li))))
       (define/override (on-changed-tokens gen beg end)
         (when (< beg end)
           (async-channel-put hash-lang-notify-channel

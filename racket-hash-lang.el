@@ -209,16 +209,36 @@ not. Intended as a convenience so users needn't set a
            (buffer-list)))
 
 (defconst racket--hash-lang-plain-syntax-table
-  (let ((st (make-syntax-table)))
+  (let ((table (make-syntax-table)))
     ;; Modify entries for characters for parens, strings, and
     ;; comments, setting them to word syntax instead. (For the these
     ;; raw syntax descriptor numbers, see Emacs Lisp Info: "Syntax
     ;; Table Internals".)
     (map-char-table (lambda (key value)
                       (when (memq (car value) '(4 5 7 10 11 12))
-                        (aset st key '(2))))
-                    st)
-    st))
+                        (aset table key '(2))))
+                    table)
+    table))
+
+(defun racket--make-non-sexp-syntax-table (parens quotes)
+  "Make a syntax-table with the given parens and quotes.
+
+Intended for use by things like `electric-pair-mode'."
+  (let ((table (make-syntax-table racket--hash-lang-plain-syntax-table)))
+    (dolist (str-pair parens)
+      (pcase-let ((`(,open . ,close) str-pair))
+        ;; Unsure how to handle in syntax-table when > 1 char.
+        (when (and (= 1 (length open)) (= 1 (length close)))
+          (modify-syntax-entry (aref open 0)
+                               (concat "(" (substring close 0 1) "  ")
+                               table)
+          (modify-syntax-entry (aref close 0)
+                               (concat ")" (substring open 0 1) "  ")
+                               table))))
+    (dolist (str quotes)
+      (when (= 1 (length str))
+        (modify-syntax-entry (aref str 0) "\"   " table)))
+    table))
 
 ;;; Updates: Front end --> back end
 
@@ -267,7 +287,9 @@ lang's attributes that we care about have changed."
       ;; parens, comments, or strings.
       (set-syntax-table (if (plist-get plist 'racket-grouping)
                             racket-mode-syntax-table
-                          racket--hash-lang-plain-syntax-table))
+                          (racket--make-non-sexp-syntax-table
+                           (plist-get plist 'paren-matches)
+                           (plist-get plist 'quote-matches))))
       ;; Similarly for `forward-sexp-function'. The
       ;; drracket:grouping-position protocol doesn't support a nuance
       ;; where a `forward-sexp-function' should signal an exception
@@ -289,7 +311,8 @@ lang's attributes that we care about have changed."
                   (concat " #lang"
                           (when (plist-get plist 'racket-grouping) "()")
                           (when (plist-get plist 'range-indenter) "⇉")))
-      (pcase-let ((`(,start ,continue ,end ,padding) (plist-get plist 'comments)))
+      (pcase-let ((`(,start ,continue ,end ,padding)
+                   (plist-get plist 'comment-delimiters)))
         (setq-local comment-start      start)
         (setq-local comment-continue   continue)
         (setq-local comment-end        end)

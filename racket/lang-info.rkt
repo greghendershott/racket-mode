@@ -18,7 +18,7 @@
    line-indenter
    range-indenter
    submit-predicate
-   comments)
+   comment-delimiters)
   #:transparent #:authentic)
 
 (define racket-grouping-position
