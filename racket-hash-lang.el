@@ -53,7 +53,29 @@ re-tokenization has progressed sufficiently.")
 (defvar-local racket--hash-lang-submit-predicate-p nil)
 
 (defvar-local racket-hash-lang-module-language nil
-  "The symbol for the module language, if any, else nil.")
+  "The symbol for the module language, if any, else nil.
+
+Typically you would consult this in your value for the hook
+`racket-hash-lang-module-language-hook' in order to do additional
+Emacs customization. Often this is when you want \"classic\"
+Emacs behavior and features to work for an s-expression
+language... but not others. For example, maybe you want to use
+`electric-pair-mode' instead of `paredit-mode' when the module
+language is scribble or rhombus:
+
+    (cl-case racket-hash-lang-module-language
+      ((scribble/manual scribble/doc rhombus)
+       (paredit-mode -1)
+       (electric-pair-local-mode 1))
+      (otherwise
+       (paredit-mode 1)
+       (electric-pair-local-mode -1)))
+
+Note: The \"module-language\" info key is supported automatically
+when a language is defined using syntax/module-reader. Otherwise
+a lang might not supply this and the value will be nil. See:
+
+  <https://docs.racket-lang.org/syntax/reader-helpers.html#%28mod-path._syntax%2Fmodule-reader%29>.")
 
 (defvar racket-hash-lang-module-language-hook nil
   "Hook run when the module language changes.

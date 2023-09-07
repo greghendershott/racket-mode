@@ -3014,6 +3014,28 @@ the variable @ref{racket-hash-lang-module-language}.
 
 The symbol for the module language, if any, else nil.
 
+Typically you would consult this in your value for the hook
+@ref{racket-hash-lang-module-language-hook} in order to do additional
+Emacs customization. Often this is when you want ``classic''
+Emacs behavior and features to work for an s-expression
+language@dots{} but not others. For example, maybe you want to use
+@code{electric-pair-mode} instead of @code{paredit-mode} when the module
+language is scribble or rhombus:
+
+(cl-case racket-hash-lang-module-language
+  ((scribble/manual scribble/doc rhombus)
+   (paredit-mode -1)
+   (electric-pair-local-mode 1))
+  (otherwise
+   (paredit-mode 1)
+   (electric-pair-local-mode -1)))
+
+Note: The ``module-language'' info key is supported automatically
+when a language is defined using syntax/module-reader. Otherwise
+a lang might not supply this and the value will be nil. See:
+
+@uref{https://docs.racket-lang.org/syntax/reader-helpers.html#%28mod-path._syntax%2Fmodule-reader%29}.
+
 @node REPL variables
 @section REPL variables
 
