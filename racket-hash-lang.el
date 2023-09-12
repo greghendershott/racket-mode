@@ -285,7 +285,7 @@ Intended for use by things like `electric-pair-mode'."
   (when-let (buf (racket--hash-lang-find-buffer id))
     (with-current-buffer buf
       (pcase params
-        (`(lang . ,params)        (racket--hash-lang-on-new-lang params))
+        (`(lang . ,plist)         (racket--hash-lang-on-new-lang plist))
         (`(update ,gen ,beg ,end) (racket--hash-lang-on-changed-tokens gen beg end))))))
 
 (defun racket--hash-lang-on-new-lang (plist)
