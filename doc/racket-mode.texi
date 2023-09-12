@@ -320,13 +320,18 @@ The @uref{https://www.racket-mode.com/,Racket Mode} package consists of a variet
 
 @itemize
 @item
-@code{racket-mode}: A major mode for editing @code{.rkt} files.
+@code{racket-mode}: A major mode to edit @code{.rkt} files. Can be enhanced by enabling any/all of the following minor modes:
+
+@itemize
+@item
+@ref{racket-xp-mode}: Explain and explore code, similar to background check-syntax in Dr Racket.
 
 @item
-@ref{racket-xp-mode}: An optional minor mode that enhances @code{racket-mode} to explain and explore code.
+@ref{racket-hash-lang-mode}: Use behavior specified by a @code{#lang} for colors, indent, expression navigation, etc. @emph{Experimental}.
+@end itemize
 
 @item
-@code{racket-repl-mode}: A major mode for running programs providing a REPL.
+@code{racket-repl-mode}: A major mode to run programs and use a REPL.
 
 @item
 Various other modes to support specific features:
@@ -342,7 +347,7 @@ Various other modes to support specific features:
 
 For code, issues, and pull requests, see the @uref{https://github.com/greghendershott/racket-mode,Git repo}.
 
-To fund this work, see @uref{https://github.com/users/greghendershott/sponsorship,GitHub Sponsors} or @uref{https://www.paypal.me/greghendershott,PayPal}.
+To sponsor this work, see @uref{https://github.com/users/greghendershott/sponsorship,GitHub Sponsors} or @uref{https://www.paypal.me/greghendershott,PayPal}.
 
 @node Install Update and Uninstall
 @chapter Install, Update, and Uninstall
@@ -1454,34 +1459,38 @@ Use color-lexer, indent, and navigation supplied by a #lang.
 An experimental minor mode that modifies the default behavior of
 @ref{racket-mode} and @ref{racket-repl-mode} buffers.
 
-For @ref{racket-mode} buffers, you can enable this automatically by
-adding it to @code{racket-mode-hook}.
+Like any minor mode, you can turn it on or off for a specific
+buffer. If you always want to use it, put the following code in
+your Emacs init file:
+
+@lisp
+    (require 'racket-hash-lang)
+    (add-hook 'racket-mode-hook #'racket-hash-lang-mode)
+@end lisp
 
 Elsewhere in your Emacs configuration, you may also want to
 update the variable @code{auto-mode-alist} to use @ref{racket-mode} for
 file extensions like ``.scrbl'' and ``.rhm''.
 
-For @ref{racket-repl-mode} buffers, you don't enable this manually --
+You @emph{don't} need to enable this for @ref{racket-repl-mode} buffers;
 instead it is automatically turned on/off, for each @ref{racket-run},
 based on whether the associated @ref{racket-mode} buffer is using
-@ref{racket-hash-lang-mode}. A REPL buffer can be shared among
+@ref{racket-hash-lang-mode}. (Why: A REPL buffer can be shared among
 multiple edit buffers, each of which might vary in its use of
 @ref{racket-hash-lang-mode}, not to mention the specific #lang in
-use.
+use.)
 
 For @ref{racket-repl-mode} buffers, be aware that only input portions
 of the buffer use coloring/indent/navigation from the hash-lang.
 Output portions are treated as whitespace.
 
-See the customization variable
-@ref{racket-hash-lang-token-face-alist}.
+See also the customization variable
+@ref{racket-hash-lang-token-face-alist} and the hook variable
+@ref{racket-hash-lang-module-language-hook}.
 
 A discussion of the information provided by a Racket language:
 
 @uref{https://docs.racket-lang.org/tools/lang-languages-customization.html}
-
-Runs the hook variable @ref{racket-hash-lang-module-language-hook}
-when the module language changes.
 
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
@@ -3019,7 +3028,7 @@ syntax/module-reader:
 Otherwise a lang might not supply this and the value will be nil.
 
 The hook is useful when you want to vary Emacs behavior in ways
-that goes beyond what a lang can describe. This may include
+that go beyond what a lang can describe. This may include
 enabling ``fancy'' or ``classic'' Emacs behaviors only for
 s-expression langs.
 

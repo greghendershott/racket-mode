@@ -98,34 +98,38 @@ rhombus:
 An experimental minor mode that modifies the default behavior of
 `racket-mode' and `racket-repl-mode' buffers.
 
-For `racket-mode' buffers, you can enable this automatically by
-adding it to `racket-mode-hook'.
+Like any minor mode, you can turn it on or off for a specific
+buffer. If you always want to use it, put the following code in
+your Emacs init file:
+
+#+BEGIN_SRC elisp
+    (require \\='racket-hash-lang)
+    (add-hook \\='racket-mode-hook #\\='racket-hash-lang-mode)
+#+END_SRC
 
 Elsewhere in your Emacs configuration, you may also want to
 update the variable `auto-mode-alist' to use `racket-mode' for
 file extensions like \".scrbl\" and \".rhm\".
 
-For `racket-repl-mode' buffers, you don't enable this manually --
+You /don't/ need to enable this for `racket-repl-mode' buffers;
 instead it is automatically turned on/off, for each `racket-run',
 based on whether the associated `racket-mode' buffer is using
-`racket-hash-lang-mode'. A REPL buffer can be shared among
+`racket-hash-lang-mode'. (Why: A REPL buffer can be shared among
 multiple edit buffers, each of which might vary in its use of
 `racket-hash-lang-mode', not to mention the specific #lang in
-use.
+use.)
 
 For `racket-repl-mode' buffers, be aware that only input portions
 of the buffer use coloring/indent/navigation from the hash-lang.
 Output portions are treated as whitespace.
 
-See the customization variable
-`racket-hash-lang-token-face-alist'.
+See also the customization variable
+`racket-hash-lang-token-face-alist' and the hook variable
+`racket-hash-lang-module-language-hook'.
 
 A discussion of the information provided by a Racket language:
 
   <https://docs.racket-lang.org/tools/lang-languages-customization.html>
-
-Runs the hook variable `racket-hash-lang-module-language-hook'
-when the module language changes.
 
 \\{racket-hash-lang-mode-map}
 "
