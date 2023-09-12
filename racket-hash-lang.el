@@ -52,36 +52,44 @@ re-tokenization has progressed sufficiently.")
 
 (defvar-local racket--hash-lang-submit-predicate-p nil)
 
-(defvar-local racket-hash-lang-module-language nil
-  "The symbol for the module language, if any, else nil.
+(defvar racket-hash-lang-module-language-hook nil
+  "Hook run when the module language changes.
 
-Typically you would consult this in your value for the hook
-`racket-hash-lang-module-language-hook' in order to do additional
-Emacs customization. Often this is when you want \"classic\"
-Emacs behavior and features to work for an s-expression
-language... but not others. For example, maybe you want to use
-`electric-pair-mode' instead of `paredit-mode' when the module
-language is scribble or rhombus:
+The hook is called when a file is first visited, and thereafter
+whenever the \"#lang\" line is edited -- provided that results in
+new language info; for example changing from \"#lang racket\" to
+\"#lang racket/base\" will /not/ run the hook.
 
-    (cl-case racket-hash-lang-module-language
+The function is called with a symbol returned by the lang's
+\"module-language\" info key. This info key is supplied
+automatically when a language is defined using
+syntax/module-reader:
+
+  <https://docs.racket-lang.org/syntax/reader-helpers.html#%28mod-path._syntax%2Fmodule-reader%29>.
+
+Otherwise a lang might not supply this and the value will be nil.
+
+The hook is useful when you want to vary Emacs behavior in ways
+that go beyond what a lang can describe. This may include
+enabling \"fancy\" or \"classic\" Emacs behaviors only for
+s-expression langs.
+
+For example, maybe you want to use `electric-pair-mode' instead
+of `paredit-mode' when the module language is scribble or
+rhombus:
+
+#+BEGIN_SRC elisp
+  (defun my-hook (module-language)
+    (cl-case module-language
       ((scribble/manual scribble/doc rhombus)
        (paredit-mode -1)
        (electric-pair-local-mode 1))
       (otherwise
        (paredit-mode 1)
-       (electric-pair-local-mode -1)))
-
-Note: The \"module-language\" info key is supported automatically
-when a language is defined using syntax/module-reader. Otherwise
-a lang might not supply this and the value will be nil. See:
-
-  <https://docs.racket-lang.org/syntax/reader-helpers.html#%28mod-path._syntax%2Fmodule-reader%29>.")
-
-(defvar racket-hash-lang-module-language-hook nil
-  "Hook run when the module language changes.
-
-Your hook function may do additional customization based on the
-the variable `racket-hash-lang-module-language'.")
+       (electric-pair-local-mode -1))))
+  (add-hook 'racket-hash-lang-module-language-hook #'my-hook)
+#+END_SRC
+")
 
 ;;;###autoload
 (define-minor-mode racket-hash-lang-mode
@@ -345,9 +353,8 @@ lang's attributes that we care about have changed."
         (setq-local comment-end-skip   nil)
         (comment-normalize-vars))
       ;; Finally run user's module language hooks.
-      (progn
-        (setq racket-hash-lang-module-language (plist-get plist 'module-language))
-        (run-hooks 'racket-hash-lang-module-language-hook)))))
+      (run-hook-with-args 'racket-hash-lang-module-language-hook
+                          (plist-get plist 'module-language)))))
 
 (defun racket--hash-lang-on-changed-tokens (_gen beg end)
   "The back end has processed a change that resulted in new tokens.

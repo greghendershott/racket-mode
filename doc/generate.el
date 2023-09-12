@@ -192,7 +192,6 @@
     "Hash lang variables"
     racket-hash-lang-token-face-alist
     racket-hash-lang-module-language-hook
-    racket-hash-lang-module-language
     "REPL variables"
     racket-repl-buffer-name-function
     racket-submodules-to-run

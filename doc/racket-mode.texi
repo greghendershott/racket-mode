@@ -211,7 +211,6 @@ Hash lang variables
 
 * racket-hash-lang-token-face-alist::
 * racket-hash-lang-module-language-hook::
-* racket-hash-lang-module-language::
 
 REPL variables
 
@@ -2980,7 +2979,6 @@ string should be a properly encoded URL.
 @menu
 * racket-hash-lang-token-face-alist::
 * racket-hash-lang-module-language-hook::
-* racket-hash-lang-module-language::
 @end menu
 
 @node racket-hash-lang-token-face-alist
@@ -3006,35 +3004,40 @@ default face.
 
 Hook run when the module language changes.
 
-Your hook function may do additional customization based on the
-the variable @ref{racket-hash-lang-module-language}.
+The hook is called when a file is first visited, and thereafter
+whenever the ``#lang'' line is edited -- provided that results in
+new language info; for example changing from ``#lang racket'' to
+``#lang racket/base'' will @emph{not} run the hook.
 
-@node racket-hash-lang-module-language
-@subsection racket-hash-lang-module-language
-
-The symbol for the module language, if any, else nil.
-
-Typically you would consult this in your value for the hook
-@ref{racket-hash-lang-module-language-hook} in order to do additional
-Emacs customization. Often this is when you want ``classic''
-Emacs behavior and features to work for an s-expression
-language@dots{} but not others. For example, maybe you want to use
-@code{electric-pair-mode} instead of @code{paredit-mode} when the module
-language is scribble or rhombus:
-
-(cl-case racket-hash-lang-module-language
-  ((scribble/manual scribble/doc rhombus)
-   (paredit-mode -1)
-   (electric-pair-local-mode 1))
-  (otherwise
-   (paredit-mode 1)
-   (electric-pair-local-mode -1)))
-
-Note: The ``module-language'' info key is supported automatically
-when a language is defined using syntax/module-reader. Otherwise
-a lang might not supply this and the value will be nil. See:
+The function is called with a symbol returned by the lang's
+``module-language'' info key. This info key is supplied
+automatically when a language is defined using
+syntax/module-reader:
 
 @uref{https://docs.racket-lang.org/syntax/reader-helpers.html#%28mod-path._syntax%2Fmodule-reader%29}.
+
+Otherwise a lang might not supply this and the value will be nil.
+
+The hook is useful when you want to vary Emacs behavior in ways
+that goes beyond what a lang can describe. This may include
+enabling ``fancy'' or ``classic'' Emacs behaviors only for
+s-expression langs.
+
+For example, maybe you want to use @code{electric-pair-mode} instead
+of @code{paredit-mode} when the module language is scribble or
+rhombus:
+
+@lisp
+  (defun my-hook (module-language)
+    (cl-case module-language
+      ((scribble/manual scribble/doc rhombus)
+       (paredit-mode -1)
+       (electric-pair-local-mode 1))
+      (otherwise
+       (paredit-mode 1)
+       (electric-pair-local-mode -1))))
+  (add-hook 'racket-hash-lang-module-language-hook #'my-hook)
+@end lisp
 
 @node REPL variables
 @section REPL variables
