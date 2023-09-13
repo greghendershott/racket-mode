@@ -543,6 +543,10 @@ Likewise for @code{racket-repl-mode-hook} and @code{racket-repl-mode-map}.
 @node Font-lock (syntax highlighting)
 @section Font-lock (syntax highlighting)
 
+@quotation
+Note: The optional minor mode @ref{racket-hash-lang-mode} disables all of the following behavior and uses colors determined by the #lang.
+@end quotation
+
 Font-lock (as Emacs calls syntax highlighting) can be controlled using the variable @code{font-lock-maximum-decoration}, which defaults to @code{t} (maximum). You can set it to a number, where @code{0} is the lowest level. You can even supply an association list to specify different values for different major modes.
 
 Historically you might choose a lower level for speed. These days you might do so because you prefer a simpler appearance.
@@ -644,12 +648,20 @@ In any case, using the Emacs xref API allows for consistent command names, short
 @node Indent
 @section Indent
 
+@quotation
+Note: The optional minor mode @ref{racket-hash-lang-mode} disables all of the following behavior and uses indentation determined by the #lang.
+@end quotation
+
 Indentation can be customized in a way similar to lisp-mode and scheme-mode: @ref{racket-indent-line}.
 
 (Indentation preserves your line breaks. If you want to use an auto-reformatter --- an expressive pretty printer that chooses line breaks while computing an optimal layout --- the Racket package @uref{https://docs.racket-lang.org/fmt/,fmt} is supported by the Emacs package @uref{https://github.com/lassik/emacs-format-all-the-code,emacs-format-all-the-code}.)
 
 @node paredit
 @section paredit
+
+@quotation
+Note: If you use @ref{racket-hash-lang-mode}, you can use @code{racket-hash-lang-mode-hook} to enable/disable paredit based on the specific #lang.
+@end quotation
 
 If you use @uref{https://melpa.org/#/paredit,paredit}, you might want to add keybindings to @code{paredit-mode-map}:
 
