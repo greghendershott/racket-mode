@@ -58,7 +58,7 @@ this to use the names with shell programs or a Racket back end."
       v)))
 
 (defun racket--save-if-changed ()
-  (unless (eq major-mode 'racket-mode)
+  (unless (derived-mode-p 'racket-mode)
     (user-error "Current buffer is not a racket-mode buffer"))
   (when (or (buffer-modified-p)
             (and (buffer-file-name)

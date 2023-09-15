@@ -32,11 +32,11 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 The [[https://www.racket-mode.com/][Racket Mode]] package consists of a variety of Emacs major and minor modes, including:
 
-- ~racket-mode~: A major mode to edit ~.rkt~ files. Can be enhanced by enabling any/all of the following minor modes:
+- ~racket-mode~: A major mode to edit ~.rkt~ files. Generally assumes ~#lang racket~.
 
-  - {{{ref(racket-xp-mode)}}}: Explain and explore code, similar to background check-syntax in Dr Racket.
+- {{{ref(racket-hash-lang-mode)}}}: An alternative to ~racket-mode~ using behavior specified by a ~#lang~ for colors, indent, expression navigation, etc. /Experimental/.
 
-  - {{{ref(racket-hash-lang-mode)}}}: Use behavior specified by a ~#lang~ for colors, indent, expression navigation, etc. /Experimental/.
+- {{{ref(racket-xp-mode)}}}: A minor mode to enhance either edit mode. Explain and explore code, similar to background check-syntax in Dr Racket.
 
 - ~racket-repl-mode~: A major mode to run programs and use a REPL.
 
@@ -181,7 +181,7 @@ Likewise for ~racket-repl-mode-hook~ and ~racket-repl-mode-map~.
 ** Font-lock (syntax highlighting)
 
 #+BEGIN_QUOTE
-Note: The optional minor mode {{{ref(racket-hash-lang-mode)}}} disables all of the following behavior and uses colors determined by the #lang.
+Note: The alternative major mode {{{ref(racket-hash-lang-mode)}}} disables all of the following behavior and uses colors determined by the #lang.
 #+END_QUOTE
 
 Font-lock (as Emacs calls syntax highlighting) can be controlled using the variable ~font-lock-maximum-decoration~, which defaults to ~t~ (maximum). You can set it to a number, where ~0~ is the lowest level. You can even supply an association list to specify different values for different major modes.
@@ -256,7 +256,7 @@ In any case, using the Emacs xref API allows for consistent command names, short
 ** Indent
 
 #+BEGIN_QUOTE
-Note: The optional minor mode {{{ref(racket-hash-lang-mode)}}} disables all of the following behavior and uses indentation determined by the #lang.
+Note: The alternative major mode {{{ref(racket-hash-lang-mode)}}} disables all of the following behavior and uses indentation determined by the #lang.
 #+END_QUOTE
 
 Indentation can be customized in a way similar to lisp-mode and scheme-mode: {{{ref(racket-indent-line)}}}.

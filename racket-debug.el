@@ -349,7 +349,7 @@ How to debug:
              ("!"   racket-debug-toggle-breakpoint)
              ("h"   racket-debug-run-to-here)
              ("?"   racket-debug-help)))
-  (unless (eq major-mode 'racket-mode)
+  (unless (derived-mode-p 'racket-mode)
     (setq racket-debug-mode nil)
     (user-error "racket-debug-mode only works with racket-mode"))
   (cond

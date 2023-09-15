@@ -126,6 +126,8 @@ but does not have a live session."
 
 (defalias 'racket-repl-eval-or-newline-and-indent #'racket-repl-submit)
 
+(defvar-local racket-repl-submit-function nil)
+
 (defun racket-repl-submit (&optional prefix)
   "Submit your input to the Racket REPL.
 
@@ -138,7 +140,10 @@ end of an interactive expression/statement."
   (interactive "P")
   (pcase (get-buffer-process (current-buffer))
     ((and (pred processp) proc)
-     (cond ((racket--repl-complete-sexp-p proc)
+     (cond ((if racket-repl-submit-function
+                (funcall racket-repl-submit-function
+                         (substring-no-properties (funcall comint-get-old-input)))
+              (racket--repl-complete-sexp-p proc))
             (comint-send-input)
             (with-silent-modifications
               (remove-text-properties comint-last-input-start
@@ -501,7 +506,7 @@ If not `racket--repl-live-p', start it and supply the run
 command via the start callback.the REPL is not live, create it.
 
 Otherwise if `racket--repl-live-p', send the command."
-  (unless (eq major-mode 'racket-mode)
+  (unless (derived-mode-p 'racket-mode)
     (user-error "Racket Mode run command only works from a `racket-mode' buffer"))
   ;; Support running buffers created by `org-edit-src-code': see
   ;; issues #626, #630.
@@ -724,7 +729,7 @@ most recent `racket-mode' buffer, if any."
 (defun racket--most-recent-racket-mode-buffer ()
   (cl-some (lambda (b)
              (with-current-buffer b
-               (and (eq major-mode 'racket-mode) b)))
+               (and (derived-mode-p 'racket-mode) b)))
            (buffer-list)))
 
 ;;; send to REPL
@@ -1256,6 +1261,7 @@ identifier bindings and modules from the REPL's namespace.
 
 \\{racket-repl-mode-map}"
   (racket--common-variables)
+  (setq-local font-lock-defaults nil)
   (setq-local comint-use-prompt-regexp nil)
   (setq-local comint-prompt-read-only t)
   (setq-local comint-scroll-show-maximum-output nil) ;t slow for big outputs

@@ -251,7 +251,7 @@ commands directly to whatever keys you prefer.
 "
   :lighter racket-xp-mode-lighter
   :keymap racket-xp-mode-map
-  (unless (eq major-mode 'racket-mode)
+  (unless (derived-mode-p 'racket-mode)
     (setq racket-xp-mode nil)
     (user-error "racket-xp-mode only works with racket-mode buffers"))
   (setq-local text-property-default-nonsticky

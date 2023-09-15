@@ -320,15 +320,13 @@ The @uref{https://www.racket-mode.com/,Racket Mode} package consists of a variet
 
 @itemize
 @item
-@code{racket-mode}: A major mode to edit @code{.rkt} files. Can be enhanced by enabling any/all of the following minor modes:
-
-@itemize
-@item
-@ref{racket-xp-mode}: Explain and explore code, similar to background check-syntax in Dr Racket.
+@code{racket-mode}: A major mode to edit @code{.rkt} files. Generally assumes @code{#lang racket}.
 
 @item
-@ref{racket-hash-lang-mode}: Use behavior specified by a @code{#lang} for colors, indent, expression navigation, etc. @emph{Experimental}.
-@end itemize
+@ref{racket-hash-lang-mode}: An alternative to @code{racket-mode} using behavior specified by a @code{#lang} for colors, indent, expression navigation, etc. @emph{Experimental}.
+
+@item
+@ref{racket-xp-mode}: A minor mode to enhance either edit mode. Explain and explore code, similar to background check-syntax in Dr Racket.
 
 @item
 @code{racket-repl-mode}: A major mode to run programs and use a REPL.
@@ -544,7 +542,7 @@ Likewise for @code{racket-repl-mode-hook} and @code{racket-repl-mode-map}.
 @section Font-lock (syntax highlighting)
 
 @quotation
-Note: The optional minor mode @ref{racket-hash-lang-mode} disables all of the following behavior and uses colors determined by the #lang.
+Note: The alternative major mode @ref{racket-hash-lang-mode} disables all of the following behavior and uses colors determined by the #lang.
 @end quotation
 
 Font-lock (as Emacs calls syntax highlighting) can be controlled using the variable @code{font-lock-maximum-decoration}, which defaults to @code{t} (maximum). You can set it to a number, where @code{0} is the lowest level. You can even supply an association list to specify different values for different major modes.
@@ -649,7 +647,7 @@ In any case, using the Emacs xref API allows for consistent command names, short
 @section Indent
 
 @quotation
-Note: The optional minor mode @ref{racket-hash-lang-mode} disables all of the following behavior and uses indentation determined by the #lang.
+Note: The alternative major mode @ref{racket-hash-lang-mode} disables all of the following behavior and uses indentation determined by the #lang.
 @end quotation
 
 Indentation can be customized in a way similar to lisp-mode and scheme-mode: @ref{racket-indent-line}.
@@ -1468,33 +1466,12 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 
 Use color-lexer, indent, and navigation supplied by a #lang.
 
-An experimental minor mode that modifies the default behavior of
-@ref{racket-mode} and @ref{racket-repl-mode} buffers.
+An experimental major mode alternative to @ref{racket-mode} for
+source file edit buffers.
 
-Like any minor mode, you can turn it on or off for a specific
-buffer. If you always want to use it, put the following code in
-your Emacs init file:
-
-@lisp
-    (require 'racket-hash-lang)
-    (add-hook 'racket-mode-hook #'racket-hash-lang-mode)
-@end lisp
-
-Elsewhere in your Emacs configuration, you may also want to
-update the variable @code{auto-mode-alist} to use @ref{racket-mode} for
-file extensions like ``.scrbl'' and ``.rhm''.
-
-You @emph{don't} need to enable this for @ref{racket-repl-mode} buffers;
-instead it is automatically turned on/off, for each @ref{racket-run},
-based on whether the associated @ref{racket-mode} buffer is using
-@ref{racket-hash-lang-mode}. (Why: A REPL buffer can be shared among
-multiple edit buffers, each of which might vary in its use of
-@ref{racket-hash-lang-mode}, not to mention the specific #lang in
-use.)
-
-For @ref{racket-repl-mode} buffers, be aware that only input portions
-of the buffer use coloring/indent/navigation from the hash-lang.
-Output portions are treated as whitespace.
+In your Emacs configuration, you may want to update the
+variable @code{auto-mode-alist} to use @ref{racket-hash-lang-mode} for
+file extensions like ``.rkt'', ``.scrbl'', and/or ``.rhm''.
 
 See also the customization variable
 @ref{racket-hash-lang-token-face-alist} and the hook variable
@@ -1524,8 +1501,15 @@ A discussion of the information provided by a Racket language:
 @item @kbd{)} 
 @tab @code{self-insert-command}
 @item @kbd{RET} 
-@tab @code{racket-hash-lang-return}
+@tab @code{newline-and-indent}
 @end multitable
+
+
+
+
+In addition to any hooks its parent mode might have run,
+this mode runs the hook @code{racket-hash-lang-mode-hook}, as the final step
+during initialization.
 
 @node racket-hash-lang-backward
 @subsection racket-hash-lang-backward

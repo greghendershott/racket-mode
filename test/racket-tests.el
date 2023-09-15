@@ -323,7 +323,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
           (code "#lang racket/base\n(define (f x) (+ 1 x))\n(f 41)\n"))
      (write-region code nil path nil 'no-wrote-file-message)
      (find-file path)
-     (should (eq major-mode 'racket-mode))
+     (should (derived-mode-p 'racket-mode))
      (racket-run `(16))
      (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
      (racket-tests/should-eventually (racket--repl-live-p))
