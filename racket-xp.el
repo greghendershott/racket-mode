@@ -612,9 +612,11 @@ If point is instead on a definition, then go to its first use."
                              locs))
        (point-marker (let ((m (make-marker)))
                        (set-marker m (point) (current-buffer)))))
-    ;; Don't let our after-change hook run until all changes are
-    ;; made, otherwise check-syntax will find a syntax error.
-    (let ((inhibit-modification-hooks t))
+    ;; Don't let our after-change hook run while we make changes,
+    ;; otherwise check-syntax will find a syntax error. Note:
+    ;; `inhibit-modification-hooks' is too strong here; inhibit just
+    ;; our hook.
+    (let ((racket--xp-inhibit-after-change-hook t))
       (dolist (marker-pair marker-pairs)
         (let ((beg (marker-position (nth 0 marker-pair)))
               (end (marker-position (nth 1 marker-pair))))
@@ -847,13 +849,16 @@ more edits. When the originally requested annotations arrive, we
 can see they're out of date and should be ignored. Instead just wait
 for the annotations resulting from the user's later edits.")
 
+(defvar-local racket--xp-inhibit-after-change-hook nil)
+
 (defun racket--xp-after-change-hook (_beg _end _len)
-  (cl-incf racket--xp-edit-generation)
-  (when (timerp racket--xp-annotate-idle-timer)
-    (cancel-timer racket--xp-annotate-idle-timer))
-  (racket--xp-set-status 'outdated)
-  (when racket-xp-after-change-refresh-delay
-    (racket--xp-start-idle-timer (current-buffer))))
+  (unless racket--xp-inhibit-after-change-hook
+    (cl-incf racket--xp-edit-generation)
+    (when (timerp racket--xp-annotate-idle-timer)
+      (cancel-timer racket--xp-annotate-idle-timer))
+    (racket--xp-set-status 'outdated)
+    (when racket-xp-after-change-refresh-delay
+      (racket--xp-start-idle-timer (current-buffer)))))
 
 (defun racket--xp-start-idle-timer (buffer)
   (setq racket--xp-annotate-idle-timer
