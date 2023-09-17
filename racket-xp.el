@@ -308,6 +308,236 @@ commands directly to whatever keys you prefer.
                       #'racket-xp-pre-redisplay
                       t))))
 
+;;; Change hook and idle timer
+
+(defvar-local racket--xp-annotate-idle-timer nil)
+
+(defvar-local racket--xp-edit-generation 0
+  "A counter to detect check-syntax command responses we should ignore.
+Example scenario: User edits. Timer set. Timer expires; we
+request annotations. While waiting for that response, user makes
+more edits. When the originally requested annotations arrive, we
+can see they're out of date and should be ignored. Instead just wait
+for the annotations resulting from the user's later edits.")
+
+(defvar-local racket--xp-inhibit-after-change-hook nil)
+
+(defun racket--xp-after-change-hook (_beg _end _len)
+  (unless racket--xp-inhibit-after-change-hook
+    (cl-incf racket--xp-edit-generation)
+    (when (timerp racket--xp-annotate-idle-timer)
+      (cancel-timer racket--xp-annotate-idle-timer))
+    (racket--xp-set-status 'outdated)
+    (when racket-xp-after-change-refresh-delay
+      (racket--xp-start-idle-timer (current-buffer)))))
+
+(defun racket--xp-start-idle-timer (buffer)
+  (setq racket--xp-annotate-idle-timer
+        (run-with-idle-timer racket-xp-after-change-refresh-delay
+                             nil        ;no repeat
+                             #'racket--xp-on-idle-timer
+                             buffer)))
+
+(defun racket--xp-on-idle-timer (buffer)
+  "Handle after-change-hook => idle-timer expiration.
+
+One scenario to keep in mind: The user has typed a few characters
+-- which are likely to be a syntax error -- and is in the process
+of using manual or auto completion. We don't want to annotate
+yet. At best it's a waste of work, and at worst the completion UI
+and our UI might distractingly interfere with each other. Just do
+nothing for now. If the user selects a completion candiate, that
+buffer modification will cause us to run later -- which is
+perfect. If they cancel completion, the annotation won't refresh
+and might miss a change from before they even started completion
+-- which is not great, but is better than making a mistake
+rescheduling an idle-timer with an amount <= the amount of idle
+time that has already elapsed: see #504."
+  (when (buffer-live-p buffer)
+    (with-current-buffer buffer
+      (unless (racket--xp-completing-p)
+        (racket--xp-annotate)))))
+
+(defun racket--xp-completing-p ()
+  "Is completion underway?
+This is ad hoc and forensic."
+  (or (get-buffer-window "*Completions*")
+      (and (boundp 'company-pseudo-tooltip-overlay)
+           company-pseudo-tooltip-overlay)))
+
+;;; Annotation
+
+(defun racket-xp-annotate-all-buffers ()
+  "Call `racket-xp-annotate' in all `racket-xp-mode' buffers."
+  (interactive)
+  (let ((buffers (seq-filter (lambda (buffer)
+                               (when (buffer-live-p buffer)
+                                 (with-current-buffer buffer
+                                   racket-xp-mode)))
+                             (buffer-list))))
+    (when (y-or-n-p
+           (format "Request re-annotation of %s racket-xp-mode buffers?"
+                   (length buffers)))
+      (message "")
+      (with-temp-message "Working..."
+        (dolist (buffer buffers)
+          (with-current-buffer buffer
+            (racket-xp-annotate)))))))
+
+(defun racket-xp-annotate ()
+  "Request the buffer to be analyzed and annotated.
+
+If you have set `racket-xp-after-change-refresh-delay' to nil --
+or to a very large amount -- you can use this command to annotate
+manually."
+  (interactive)
+  (when (and racket-xp-mode
+             (or (< (buffer-size) racket-xp-buffer-size-limit)
+                 (yes-or-no-p "The buffer is so large Emacs will probably 'freeze'! Are you sure you want to continue? ")))
+    (racket--xp-annotate
+     (let ((windows (get-buffer-window-list (current-buffer) nil t)))
+       (lambda ()
+         (dolist (window windows)
+           (racket-xp--force-redisplay window)))))))
+
+(defvar-local racket--xp-imenu-index nil)
+
+(defun racket--xp-annotate (&optional after-thunk)
+  (racket--xp-set-status 'running)
+  (let ((generation-of-our-request racket--xp-edit-generation))
+    (racket--cmd/async
+     nil
+     `(check-syntax ,(racket-file-name-front-to-back
+                      (or (racket--buffer-file-name) (buffer-name)))
+                    ,(buffer-substring-no-properties (point-min) (point-max)))
+     (lambda (response)
+       (when (= generation-of-our-request racket--xp-edit-generation)
+         (racket-show "")
+         (racket--xp-clear-errors)
+         (pcase response
+           (`(check-syntax-ok
+              (completions . ,completions)
+              (imenu       . ,imenu)
+              (annotations . ,annotations))
+            (racket--xp-clear)
+            (setq racket--xp-binding-completions completions)
+            (setq racket--xp-imenu-index imenu)
+            (racket--xp-insert annotations)
+            (racket--xp-set-status 'ok)
+            (when (and annotations after-thunk)
+              (funcall after-thunk)))
+           (`(check-syntax-errors
+              (errors      . ,errors)
+              (annotations . ,annotations))
+            ;; Don't do full `racket--xp-clear': The old completions and
+            ;; some old annotations may be helpful to user while editing
+            ;; to correct the error. However do clear things related to
+            ;; previous _errors_.
+            (racket--xp-clear t)
+            (racket--xp-insert errors)
+            (racket--xp-insert annotations)
+            (racket--xp-set-status 'err)
+            (when (and annotations after-thunk)
+              (funcall after-thunk)))))))))
+
+(defun racket--xp-insert (xs)
+  "Insert text properties."
+  (with-silent-modifications
+    (overlay-recenter (point-max))
+    (dolist (x xs)
+      (pcase x
+        (`(error ,path ,beg ,end ,str)
+         (let ((path (racket-file-name-back-to-front path)))
+           (racket--xp-add-error path beg str)
+           (when (equal path (racket--buffer-file-name))
+             (remove-text-properties
+              beg end
+              (list 'help-echo     nil
+                    'racket-xp-def nil
+                    'racket-xp-use nil))
+             (racket--add-overlay beg end racket-xp-error-face)
+             (add-text-properties
+              beg end
+              (list 'help-echo str)))))
+        (`(info ,beg ,end ,str)
+         (put-text-property beg end 'help-echo str)
+         (when (and (string-equal str "no bound occurrences")
+                    (string-match-p racket-xp-highlight-unused-regexp
+                                    (buffer-substring beg end)))
+           (racket--add-overlay beg end racket-xp-unused-face)))
+        (`(unused-require ,beg ,end)
+         (put-text-property beg end 'help-echo "unused require")
+         (racket--add-overlay beg end racket-xp-unused-face))
+        (`(require ,beg ,end ,file)
+         (put-text-property beg end 'racket-xp-require file))
+        (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
+         (let ((def-beg (copy-marker def-beg t))
+               (def-end (copy-marker def-end t))
+               (uses    (mapcar (lambda (use)
+                                  (mapcar (lambda (pos)
+                                            (copy-marker pos t))
+                                          use))
+                                uses)))
+           (put-text-property (marker-position def-beg)
+                              (marker-position def-end)
+                              'racket-xp-def (list req id uses))
+           (dolist (use uses)
+             (pcase-let* ((`(,use-beg ,use-end) use))
+               (put-text-property (marker-position use-beg)
+                                  (marker-position use-end)
+                                  'racket-xp-use (list def-beg def-end))))))
+
+        (`(target/tails ,target ,calls)
+         (let ((target (copy-marker target t))
+               (calls  (mapcar (lambda (call)
+                                 (copy-marker call t))
+                               calls)))
+           (put-text-property (marker-position target)
+                              (1+ (marker-position target))
+                              'racket-xp-tail-target
+                              calls)
+           (dolist (call calls)
+             (put-text-property (marker-position call)
+                                (1+ (marker-position call))
+                                'racket-xp-tail-position
+                                target))))
+        (`(jump ,beg ,end ,path ,subs ,ids)
+         (add-text-properties
+          beg end
+          (list 'racket-xp-visit
+                (list (racket-file-name-back-to-front path) subs ids))))
+        (`(doc ,beg ,end ,path ,anchor)
+         (add-text-properties
+          beg end
+          (list 'racket-xp-doc
+                (list (racket-file-name-back-to-front path) anchor))))))))
+
+(defun racket--xp-clear (&optional only-errors-p)
+  (with-silent-modifications
+    (racket-show "")
+    (racket--xp-clear-errors)
+    (racket--remove-overlays-in-buffer racket-xp-error-face)
+    (remove-text-properties (point-min) (point-max)
+                            (list 'help-echo nil))
+    (unless only-errors-p
+      (setq racket--xp-binding-completions nil)
+      (setq racket--xp-imenu-index nil)
+      (racket--remove-overlays-in-buffer racket-xp-def-face
+                                         racket-xp-use-face
+                                         racket-xp-unused-face
+                                         racket-xp-tail-position-face
+                                         racket-xp-tail-target-face)
+      (remove-text-properties (point-min) (point-max)
+                              (list 'racket-xp-def           nil
+                                    'racket-xp-use           nil
+                                    'racket-xp-tail-position nil
+                                    'racket-xp-tail-target   nil
+                                    'racket-xp-visit         nil
+                                    'racket-xp-doc           nil
+                                    'racket-xp-require       nil)))))
+
+;;; xref
+
 (defun racket-xp-describe (&optional prefix)
   "Describe the identifier at point.
 
@@ -546,6 +776,8 @@ command prefixes you supply.
      (racket-browse-file-url path anchor))
     (_
      (racket--doc prefix (buffer-file-name) racket--xp-binding-completions))))
+
+;;; Navigation
 
 (defun racket-xp--forward-use (amt)
   "When point is on a use, go AMT uses forward. AMT may be negative.
@@ -836,234 +1068,6 @@ evaluation errors that won't be found merely from expansion -- or
       ;; to grep. Also be careful with major-mode-alist regexps as
       ;; they're given to grep.
       (cl-call-next-method backend (substring-no-properties str))))
-
-;;; Change hook and idle timer
-
-(defvar-local racket--xp-annotate-idle-timer nil)
-
-(defvar-local racket--xp-edit-generation 0
-  "A counter to detect check-syntax command responses we should ignore.
-Example scenario: User edits. Timer set. Timer expires; we
-request annotations. While waiting for that response, user makes
-more edits. When the originally requested annotations arrive, we
-can see they're out of date and should be ignored. Instead just wait
-for the annotations resulting from the user's later edits.")
-
-(defvar-local racket--xp-inhibit-after-change-hook nil)
-
-(defun racket--xp-after-change-hook (_beg _end _len)
-  (unless racket--xp-inhibit-after-change-hook
-    (cl-incf racket--xp-edit-generation)
-    (when (timerp racket--xp-annotate-idle-timer)
-      (cancel-timer racket--xp-annotate-idle-timer))
-    (racket--xp-set-status 'outdated)
-    (when racket-xp-after-change-refresh-delay
-      (racket--xp-start-idle-timer (current-buffer)))))
-
-(defun racket--xp-start-idle-timer (buffer)
-  (setq racket--xp-annotate-idle-timer
-        (run-with-idle-timer racket-xp-after-change-refresh-delay
-                             nil        ;no repeat
-                             #'racket--xp-on-idle-timer
-                             buffer)))
-
-(defun racket--xp-on-idle-timer (buffer)
-  "Handle after-change-hook => idle-timer expiration.
-
-One scenario to keep in mind: The user has typed a few characters
--- which are likely to be a syntax error -- and is in the process
-of using manual or auto completion. We don't want to annotate
-yet. At best it's a waste of work, and at worst the completion UI
-and our UI might distractingly interfere with each other. Just do
-nothing for now. If the user selects a completion candiate, that
-buffer modification will cause us to run later -- which is
-perfect. If they cancel completion, the annotation won't refresh
-and might miss a change from before they even started completion
--- which is not great, but is better than making a mistake
-rescheduling an idle-timer with an amount <= the amount of idle
-time that has already elapsed: see #504."
-  (when (buffer-live-p buffer)
-    (with-current-buffer buffer
-      (unless (racket--xp-completing-p)
-        (racket--xp-annotate)))))
-
-(defun racket--xp-completing-p ()
-  "Is completion underway?
-This is ad hoc and forensic."
-  (or (get-buffer-window "*Completions*")
-      (and (boundp 'company-pseudo-tooltip-overlay)
-           company-pseudo-tooltip-overlay)))
-
-;;; Annotation
-
-(defun racket-xp-annotate-all-buffers ()
-  "Call `racket-xp-annotate' in all `racket-xp-mode' buffers."
-  (interactive)
-  (let ((buffers (seq-filter (lambda (buffer)
-                               (when (buffer-live-p buffer)
-                                 (with-current-buffer buffer
-                                   racket-xp-mode)))
-                             (buffer-list))))
-    (when (y-or-n-p
-           (format "Request re-annotation of %s racket-xp-mode buffers?"
-                   (length buffers)))
-      (message "")
-      (with-temp-message "Working..."
-        (dolist (buffer buffers)
-          (with-current-buffer buffer
-            (racket-xp-annotate)))))))
-
-(defun racket-xp-annotate ()
-  "Request the buffer to be analyzed and annotated.
-
-If you have set `racket-xp-after-change-refresh-delay' to nil --
-or to a very large amount -- you can use this command to annotate
-manually."
-  (interactive)
-  (when (and racket-xp-mode
-             (or (< (buffer-size) racket-xp-buffer-size-limit)
-                 (yes-or-no-p "The buffer is so large Emacs will probably 'freeze'! Are you sure you want to continue? ")))
-    (racket--xp-annotate
-     (let ((windows (get-buffer-window-list (current-buffer) nil t)))
-       (lambda ()
-         (dolist (window windows)
-           (racket-xp--force-redisplay window)))))))
-
-(defvar-local racket--xp-imenu-index nil)
-
-(defun racket--xp-annotate (&optional after-thunk)
-  (racket--xp-set-status 'running)
-  (let ((generation-of-our-request racket--xp-edit-generation))
-    (racket--cmd/async
-     nil
-     `(check-syntax ,(racket-file-name-front-to-back
-                      (or (racket--buffer-file-name) (buffer-name)))
-                    ,(buffer-substring-no-properties (point-min) (point-max)))
-     (lambda (response)
-       (when (= generation-of-our-request racket--xp-edit-generation)
-         (racket-show "")
-         (racket--xp-clear-errors)
-         (pcase response
-           (`(check-syntax-ok
-              (completions . ,completions)
-              (imenu       . ,imenu)
-              (annotations . ,annotations))
-            (racket--xp-clear)
-            (setq racket--xp-binding-completions completions)
-            (setq racket--xp-imenu-index imenu)
-            (racket--xp-insert annotations)
-            (racket--xp-set-status 'ok)
-            (when (and annotations after-thunk)
-              (funcall after-thunk)))
-           (`(check-syntax-errors
-              (errors      . ,errors)
-              (annotations . ,annotations))
-            ;; Don't do full `racket--xp-clear': The old completions and
-            ;; some old annotations may be helpful to user while editing
-            ;; to correct the error. However do clear things related to
-            ;; previous _errors_.
-            (racket--xp-clear t)
-            (racket--xp-insert errors)
-            (racket--xp-insert annotations)
-            (racket--xp-set-status 'err)
-            (when (and annotations after-thunk)
-              (funcall after-thunk)))))))))
-
-(defun racket--xp-insert (xs)
-  "Insert text properties."
-  (with-silent-modifications
-    (overlay-recenter (point-max))
-    (dolist (x xs)
-      (pcase x
-        (`(error ,path ,beg ,end ,str)
-         (let ((path (racket-file-name-back-to-front path)))
-           (racket--xp-add-error path beg str)
-           (when (equal path (racket--buffer-file-name))
-             (remove-text-properties
-              beg end
-              (list 'help-echo     nil
-                    'racket-xp-def nil
-                    'racket-xp-use nil))
-             (racket--add-overlay beg end racket-xp-error-face)
-             (add-text-properties
-              beg end
-              (list 'help-echo str)))))
-        (`(info ,beg ,end ,str)
-         (put-text-property beg end 'help-echo str)
-         (when (and (string-equal str "no bound occurrences")
-                    (string-match-p racket-xp-highlight-unused-regexp
-                                    (buffer-substring beg end)))
-           (racket--add-overlay beg end racket-xp-unused-face)))
-        (`(unused-require ,beg ,end)
-         (put-text-property beg end 'help-echo "unused require")
-         (racket--add-overlay beg end racket-xp-unused-face))
-        (`(require ,beg ,end ,file)
-         (put-text-property beg end 'racket-xp-require file))
-        (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
-         (let ((def-beg (copy-marker def-beg t))
-               (def-end (copy-marker def-end t))
-               (uses    (mapcar (lambda (use)
-                                  (mapcar (lambda (pos)
-                                            (copy-marker pos t))
-                                          use))
-                                uses)))
-           (put-text-property (marker-position def-beg)
-                              (marker-position def-end)
-                              'racket-xp-def (list req id uses))
-           (dolist (use uses)
-             (pcase-let* ((`(,use-beg ,use-end) use))
-               (put-text-property (marker-position use-beg)
-                                  (marker-position use-end)
-                                  'racket-xp-use (list def-beg def-end))))))
-
-        (`(target/tails ,target ,calls)
-         (let ((target (copy-marker target t))
-               (calls  (mapcar (lambda (call)
-                                 (copy-marker call t))
-                               calls)))
-           (put-text-property (marker-position target)
-                              (1+ (marker-position target))
-                              'racket-xp-tail-target
-                              calls)
-           (dolist (call calls)
-             (put-text-property (marker-position call)
-                                (1+ (marker-position call))
-                                'racket-xp-tail-position
-                                target))))
-        (`(jump ,beg ,end ,path ,subs ,ids)
-         (add-text-properties
-          beg end
-          (list 'racket-xp-visit
-                (list (racket-file-name-back-to-front path) subs ids))))
-        (`(doc ,beg ,end ,path ,anchor)
-         (add-text-properties
-          beg end
-          (list 'racket-xp-doc
-                (list (racket-file-name-back-to-front path) anchor))))))))
-
-(defun racket--xp-clear (&optional only-errors-p)
-  (with-silent-modifications
-    (racket-show "")
-    (racket--xp-clear-errors)
-    (racket--remove-overlays-in-buffer racket-xp-error-face)
-    (remove-text-properties (point-min) (point-max)
-                            (list 'help-echo nil))
-    (unless only-errors-p
-      (setq racket--xp-binding-completions nil)
-      (setq racket--xp-imenu-index nil)
-      (racket--remove-overlays-in-buffer racket-xp-def-face
-                                         racket-xp-use-face
-                                         racket-xp-unused-face
-                                         racket-xp-tail-position-face
-                                         racket-xp-tail-target-face)
-      (remove-text-properties (point-min) (point-max)
-                              (list 'racket-xp-def           nil
-                                    'racket-xp-use           nil
-                                    'racket-xp-tail-position nil
-                                    'racket-xp-tail-target   nil
-                                    'racket-xp-visit         nil
-                                    'racket-xp-doc           nil
-                                    'racket-xp-require       nil)))))
 
 ;;; Mode line status
 
