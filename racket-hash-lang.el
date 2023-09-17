@@ -81,7 +81,7 @@ rhombus:
       (otherwise
        (paredit-mode 1)
        (electric-pair-local-mode -1))))
-  (add-hook 'racket-hash-lang-module-language-hook #'my-hook)
+  (add-hook \\='racket-hash-lang-module-language-hook #\\='my-hook)
 #+END_SRC
 ")
 
