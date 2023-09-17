@@ -432,7 +432,8 @@ region."
                                 ))))
 
 (defun racket--region-transform-faces (beg end func)
-  (let ((i nil))                        ;make byte-compiler happy
+  (let ((i nil)) ;silence byte-compiler warning...
+    i            ;...on all versions of emacs
     (cl-loop for i being the intervals from beg to end
              do
              (racket--region-set-face (car i) (cdr i)

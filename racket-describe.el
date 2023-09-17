@@ -169,7 +169,8 @@ text. We want point left where `racket-search-describe' can use
     ((numberp goto)
      goto)
     ((stringp goto)
-     (or (let ((i nil))                 ;silence byte-compiler warning
+     (or (let ((i nil)) ;silence byte-compiler warning...
+           i            ;...on all versions of emacs
            (cl-loop for i being the intervals
                     if (equal (get-text-property (car i) 'racket-anchor)
                               goto)
