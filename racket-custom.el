@@ -146,6 +146,24 @@ an underline, which is a common convention."
   :safe #'stringp
   :group 'racket-xp)
 
+(defcustom racket-xp-binding-font-lock-face-modes '(racket-hash-lang-mode)
+  "Major modes where `racket-xp-mode' will fontify binding identifier sites.
+
+A \\='font-lock-face property is added with the value:
+
+  - `racket-xp-binding-def-font-lock-face' for each site that is
+    a binding definition identifier.
+
+  - `racket-xp-binding-use-font-lock-face' for each site that is
+    a use of an /imported/ binding identifier.
+
+This has a visible effect only when there is /not/ also a
+\\='face property applied by the major mode's fontification."
+  :tag "Racket Xp Mode Binding Font Lock Face Modes"
+  :type '(repeat symbol)
+  :safe #'listp
+  :group 'racket-xp)
+
 ;;; Hash Lang
 
 (defgroup racket-hash-lang nil
@@ -155,7 +173,6 @@ an underline, which is a common convention."
 
 (defcustom racket-hash-lang-token-face-alist
   `((constant           . font-lock-constant-face)
-    (symbol             . default)
     (error              . error)
     (other              . font-lock-doc-face)
     (keyword            . font-lock-keyword-face)
@@ -164,18 +181,30 @@ an underline, which is a common convention."
     (operator           . font-lock-variable-name-face))
   "An association list from color-lexer token symbols to face symbols.
 
-Note: In many Racket languages, tokens for identifiers are lexed
-as \"symbol\", and in many programs, identifiers are a majority
-of the source. Using the Emacs face `default' is \"less noisy\"
-and closer to the appearance in Dr Racket. However you could
-plausibly choose something like `font-lock-variable-face'.
+Note: In many Racket languages, the lexer classifies tokens for
+as \\='symbol. In many programs, a majority of the source
+consists of identifiers at binding definition and use sites.
+Therefore the appearance of \"symbol\" tokens is significant, and
+a matter of personal preference.
+
+  - If you prefer a \"plainer\" appearance, similar to Dr Racket:
+    Add \\='symbol with the value \\='default. This gives an
+    explicit \\='face property, which overrides any
+    \\='font-lock-face property that a minor mode might apply to
+    enhance the basic fontification.
+
+  - If you prefer a more \"colorful\" appearance, similar to
+    \"classic\" `racket-mode': Do /not/ map \\='symbol tokens in
+    this list. Instead enable `racket-xp-mode' and let it do
+    \"semantic\" highlighting of bindings; see the customization
+    variable `racket-xp-binding-font-lock-face-modes'.
 
 Note: Some tokens are hardwired and not customizable by this
 list: Comment tokens use the face `font-lock-comment-face',
 sometimes blended with other faces. Parenthesis tokens use the
-face `paren' if defined. String tokens use
-`font-lock-string-face'. Text tokens, e.g. Scribble text, use the
-default face."
+face `parenthesis' if defined, as by the paren-face package.
+String tokens use `font-lock-string-face'. Text tokens, e.g.
+Scribble text, use the face `default'"
   :tag "Hash Lang Token Face Alist"
   :type '(alist :key-type symbol :value-type face)
   :safe #'listp
@@ -550,13 +579,27 @@ ignore POS. Examples: `racket-show-echo-area' and
 
 (defface-racket racket-xp-def-face
   '((t (:inherit match :underline (:style line))))
-  "Face `racket-xp-mode' uses to highlight definitions."
+  "Face `racket-xp-mode' uses when point is on a definition."
   "Definition Face")
 
 (defface-racket racket-xp-use-face
   '((t (:inherit match)))
-  "Face `racket-xp-mode' uses to highlight uses."
+  "Face `racket-xp-mode' uses when point is on a use."
   "Use Face")
+
+(defface-racket racket-xp-binding-def-font-lock-face
+  '((t (:inherit font-lock-variable-name-face)))
+  "Value of the font-lock-face property `racket-xp-mode' gives to definition sites.
+
+See the variable `racket-xp-binding-font-lock-face-modes'."
+  "Binding Definition Font Lock Face")
+
+(defface-racket racket-xp-binding-use-font-lock-face
+  '((t (:inherit font-lock-keyword-face)))
+  "Value of the font-lock-face `racket-xp-mode' gives to use sites.
+
+See the variable `racket-xp-binding-font-lock-face-modes'."
+  "Binding Use Font Lock Face")
 
 (defface-racket racket-xp-error-face
   '((t (:underline (:color "red" :style wave))))

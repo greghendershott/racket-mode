@@ -188,6 +188,7 @@
     racket-browse-url-function
     racket-xp-after-change-refresh-delay
     racket-xp-highlight-unused-regexp
+    racket-xp-binding-font-lock-face-modes
     racket-documentation-search-location
     "Hash lang variables"
     racket-hash-lang-token-face-alist
@@ -252,6 +253,8 @@
     racket-xp-unused-face
     racket-xp-tail-target-face
     racket-xp-tail-position-face
+    racket-xp-binding-def-font-lock-face
+    racket-xp-binding-use-font-lock-face
     racket-logger-config-face
     racket-logger-topic-face
     racket-logger-fatal-face

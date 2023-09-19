@@ -205,6 +205,7 @@ General variables
 * racket-browse-url-function::
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
+* racket-xp-binding-font-lock-face-modes::
 * racket-documentation-search-location::
 
 Hash lang variables
@@ -297,6 +298,8 @@ All
 * racket-xp-unused-face::
 * racket-xp-tail-target-face::
 * racket-xp-tail-position-face::
+* racket-xp-binding-def-font-lock-face::
+* racket-xp-binding-use-font-lock-face::
 * racket-logger-config-face::
 * racket-logger-topic-face::
 * racket-logger-fatal-face::
@@ -2843,6 +2846,7 @@ Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 * racket-browse-url-function::
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
+* racket-xp-binding-font-lock-face-modes::
 * racket-documentation-search-location::
 @end menu
 
@@ -2959,6 +2963,26 @@ Only give @ref{racket-xp-unused-face} to unused bindings that match this regexp.
 The default is to highlight identifiers that do not start with
 an underline, which is a common convention.
 
+@node racket-xp-binding-font-lock-face-modes
+@subsection racket-xp-binding-font-lock-face-modes
+
+Major modes where @ref{racket-xp-mode} will fontify binding identifier sites.
+
+A `font-lock-face property is added with the value:
+
+@itemize
+@item
+@ref{racket-xp-binding-def-font-lock-face} for each site that is
+a binding definition identifier.
+
+@item
+@ref{racket-xp-binding-use-font-lock-face} for each site that is
+a use of an @emph{imported} binding identifier.
+@end itemize
+
+This has a visible effect only when there is @emph{not} also a
+`face property applied by the major mode's fontification.
+
 @node racket-documentation-search-location
 @subsection racket-documentation-search-location
 
@@ -2991,18 +3015,34 @@ string should be a properly encoded URL.
 
 An association list from color-lexer token symbols to face symbols.
 
-Note: In many Racket languages, tokens for identifiers are lexed
-as ``symbol'', and in many programs, identifiers are a majority
-of the source. Using the Emacs face @code{default} is ``less noisy''
-and closer to the appearance in Dr Racket. However you could
-plausibly choose something like @code{font-lock-variable-face}.
+Note: In many Racket languages, the lexer classifies tokens for
+as `symbol. In many programs, a majority of the source
+consists of identifiers at binding definition and use sites.
+Therefore the appearance of ``symbol'' tokens is significant, and
+a matter of personal preference.
+
+@itemize
+@item
+If you prefer a ``plainer'' appearance, similar to Dr Racket:
+Add `symbol with the value `default. This gives an
+explicit `face property, which overrides any
+`font-lock-face property that a minor mode might apply to
+enhance the basic fontification.
+
+@item
+If you prefer a more ``colorful'' appearance, similar to
+``classic'' @ref{racket-mode}: Do @emph{not} map `symbol tokens in
+this list. Instead enable @ref{racket-xp-mode} and let it do
+``semantic'' highlighting of bindings; see the customization
+variable @ref{racket-xp-binding-font-lock-face-modes}.
+@end itemize
 
 Note: Some tokens are hardwired and not customizable by this
 list: Comment tokens use the face @code{font-lock-comment-face},
 sometimes blended with other faces. Parenthesis tokens use the
-face @code{paren} if defined. String tokens use
-@code{font-lock-string-face}. Text tokens, e.g. Scribble text, use the
-default face.
+face @code{parenthesis} if defined, as by the paren-face package.
+String tokens use @code{font-lock-string-face}. Text tokens, e.g.
+Scribble text, use the face @code{default}
 
 @node racket-hash-lang-module-language-hook
 @subsection racket-hash-lang-module-language-hook
@@ -3784,6 +3824,8 @@ A value for the variable @ref{racket-shell-or-terminal-function}.
 * racket-xp-unused-face::
 * racket-xp-tail-target-face::
 * racket-xp-tail-position-face::
+* racket-xp-binding-def-font-lock-face::
+* racket-xp-binding-use-font-lock-face::
 * racket-logger-config-face::
 * racket-logger-topic-face::
 * racket-logger-fatal-face::
@@ -3830,12 +3872,12 @@ Face for here strings.
 @node racket-xp-def-face
 @subsection racket-xp-def-face
 
-Face @ref{racket-xp-mode} uses to highlight definitions.
+Face @ref{racket-xp-mode} uses when point is on a definition.
 
 @node racket-xp-use-face
 @subsection racket-xp-use-face
 
-Face @ref{racket-xp-mode} uses to highlight uses.
+Face @ref{racket-xp-mode} uses when point is on a use.
 
 @node racket-xp-unused-face
 @subsection racket-xp-unused-face
@@ -3851,6 +3893,20 @@ Face @ref{racket-xp-mode} uses to highlight targets of a tail position.
 @subsection racket-xp-tail-position-face
 
 Face @ref{racket-xp-mode} uses to highlight expressions in a tail position.
+
+@node racket-xp-binding-def-font-lock-face
+@subsection racket-xp-binding-def-font-lock-face
+
+Value of the font-lock-face property @ref{racket-xp-mode} gives to definition sites.
+
+See the variable @ref{racket-xp-binding-font-lock-face-modes}.
+
+@node racket-xp-binding-use-font-lock-face
+@subsection racket-xp-binding-use-font-lock-face
+
+Value of the font-lock-face @ref{racket-xp-mode} gives to use sites.
+
+See the variable @ref{racket-xp-binding-font-lock-face-modes}.
 
 @node racket-logger-config-face
 @subsection racket-logger-config-face
