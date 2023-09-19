@@ -182,14 +182,14 @@ This has a visible effect only when there is /not/ also a
   "An association list from color-lexer token symbols to face symbols.
 
 Note: In many Racket languages, the lexer classifies tokens for
-as \\='symbol. In many programs, a majority of the source
-consists of identifiers at binding definition and use sites.
-Therefore the appearance of \"symbol\" tokens is significant, and
-a matter of personal preference.
+identifiers as \\='symbol. In many programs, a majority of the
+source consists of identifiers at binding definition and use
+sites. Therefore the appearance of \"symbol\" tokens is
+significant, and a matter of personal preference.
 
   - If you prefer a \"plainer\" appearance, similar to Dr Racket:
     Add \\='symbol with the value \\='default. This gives an
-    explicit \\='face property, which overrides any
+    explicit \\='face property that prevails over any
     \\='font-lock-face property that a minor mode might apply to
     enhance the basic fontification.
 
@@ -205,7 +205,7 @@ sometimes blended with other faces. Parenthesis tokens use the
 face `parenthesis' if defined, as by the paren-face package.
 String tokens use `font-lock-string-face'. Text tokens, e.g.
 Scribble text, use the face `default'"
-  :tag "Hash Lang Token Face Alist"
+  :tag "Hash Lang Token Face Association List"
   :type '(alist :key-type symbol :value-type face)
   :safe #'listp
   :group 'racket-hash-lang)

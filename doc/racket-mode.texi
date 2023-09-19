@@ -3016,16 +3016,16 @@ string should be a properly encoded URL.
 An association list from color-lexer token symbols to face symbols.
 
 Note: In many Racket languages, the lexer classifies tokens for
-as `symbol. In many programs, a majority of the source
-consists of identifiers at binding definition and use sites.
-Therefore the appearance of ``symbol'' tokens is significant, and
-a matter of personal preference.
+identifiers as `symbol. In many programs, a majority of the
+source consists of identifiers at binding definition and use
+sites. Therefore the appearance of ``symbol'' tokens is
+significant, and a matter of personal preference.
 
 @itemize
 @item
 If you prefer a ``plainer'' appearance, similar to Dr Racket:
 Add `symbol with the value `default. This gives an
-explicit `face property, which overrides any
+explicit `face property that prevails over any
 `font-lock-face property that a minor mode might apply to
 enhance the basic fontification.
 
