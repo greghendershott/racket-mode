@@ -69,7 +69,7 @@ their response asychronously."
   "Function to call to browse a URL."
   :tag "Browse URL Function"
   :type 'function
-  :safe #'functionp
+  :risky t
   :group 'racket)
 
 (defcustom racket-documentation-search-location
@@ -101,12 +101,12 @@ send a newline or enter.
 Predefined choices include `racket-shell', `racket-term',
 `racket-ansi-term', and `racket-vterm'."
   :tag "Shell or Terminal"
-  :type 'functionp
+  :type 'function
   :options '(racket-shell
              racket-term
              racket-ansi-term
              racket-vterm)
-  :safe #'functionp
+  :risky t
   :group 'racket)
 
 ;;; Xp Mode
@@ -177,6 +177,7 @@ necessary."
                  (const :tag "One REPL buffer for all project edit buffers" racket-repl-buffer-name-project)
                  (const :tag "One REPL buffer for each edit buffer" racket-repl-buffer-name-unique)
                  (function :tag "Other function"))
+  :risky t
   :group 'racket-repl)
 
 (defcustom racket-submodules-to-run '((test) (main))
@@ -323,7 +324,7 @@ language syntax is not s-expressions. When t `racket-repl-submit'
 will use this to decide whether to submit your input, yet."
   :tag "Use REPL Submit Predicate"
   :type 'boolean
-  :safe nil
+  :safe #'booleanp
   :group 'racket-repl)
 
 (defcustom racket-before-run-hook nil
@@ -335,7 +336,7 @@ function instead needs the `racket-repl-mode' buffer, it should
 get that from the variable `racket-repl-buffer-name'."
   :tag "Before Run Hook"
   :type 'hook
-  :safe nil
+  :risky t
   :group 'racket-repl)
 
 (defcustom racket-after-run-hook nil
@@ -350,7 +351,7 @@ function instead needs the `racket-repl-mode' buffer, it should
 get that from the variable `racket-repl-buffer-name'."
   :tag "After Run Hook"
   :type 'hook
-  :safe 'nil
+  :risky t
   :group 'racket-repl)
 
 ;;; Other
@@ -381,7 +382,7 @@ modes like `scheme-mode'. Setting this to a high value can make
 indentation noticeably slower. This is safe to set as a
 file-local variable."
   :tag "Indent Sequence Depth"
-  :type 'integerp
+  :type 'integer
   :safe #'integerp
   :group 'racket-other)
 
@@ -487,12 +488,12 @@ A function that shows STR in a fixed location may of course
 ignore POS. Examples: `racket-show-echo-area' and
 `racket-show-header-line'"
   :tag "Racket Show Functions"
-  :type 'hook
+  :type '(repeat function)
   :options '(racket-show-pseudo-tooltip
              racket-show-echo-area
              racket-show-header-line
              racket-show-pos-tip)
-  :safe #'functionp
+  :risky t
   :group 'racket-other)
 
 ;;; Faces
