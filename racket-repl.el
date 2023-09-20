@@ -1250,6 +1250,18 @@ The command varies based on how many \\[universal-argument] command prefixes you
     "---"
     ["Switch to Edit Buffer" racket-repl-switch-to-edit]))
 
+(defconst racket--repl-lang-plain-syntax-table
+  (let ((table (make-syntax-table)))
+    ;; Modify entries for characters for parens, strings, and
+    ;; comments, setting them to word syntax instead. (For the these
+    ;; raw syntax descriptor numbers, see Emacs Lisp Info: "Syntax
+    ;; Table Internals".)
+    (map-char-table (lambda (key value)
+                      (when (memq (car value) '(4 5 7 10 11 12))
+                        (aset table key '(2))))
+                    table)
+    table))
+
 (define-derived-mode racket-repl-mode comint-mode "Racket-REPL"
   "Major mode for Racket REPL.
 
@@ -1262,6 +1274,8 @@ identifier bindings and modules from the REPL's namespace.
 \\{racket-repl-mode-map}"
   (racket--common-variables)
   (setq-local font-lock-defaults nil)
+  (setq-local syntax-propertize-function nil)
+  (set-syntax-table racket--repl-lang-plain-syntax-table)
   (setq-local comint-use-prompt-regexp nil)
   (setq-local comint-prompt-read-only t)
   (setq-local comint-scroll-show-maximum-output nil) ;t slow for big outputs
