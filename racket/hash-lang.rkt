@@ -548,7 +548,7 @@
           #\nul))
 
     (define/public (get-text from upto)
-      (lines:get-text content from upto))
+      (lines:get-text content from (if (eq? upto 'eof) (last-position) upto)))
 
     (define/public (position-paragraph pos [eol? #f])
       (lines:position->line content (min pos (last-position))))
