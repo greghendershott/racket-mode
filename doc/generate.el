@@ -253,8 +253,12 @@
     racket-xp-unused-face
     racket-xp-tail-target-face
     racket-xp-tail-position-face
-    racket-xp-binding-def-font-lock-face
-    racket-xp-binding-use-font-lock-face
+    racket-xp-binding-lang-face
+    racket-xp-binding-lang-use-face
+    racket-xp-binding-import-face
+    racket-xp-binding-import-use-face
+    racket-xp-binding-local-face
+    racket-xp-binding-local-use-face
     racket-logger-config-face
     racket-logger-topic-face
     racket-logger-fatal-face

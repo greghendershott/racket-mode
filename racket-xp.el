@@ -485,22 +485,18 @@ manually."
                                 (marker-position def-end)
                                 'racket-xp-def (list req id uses))
              (when binding-font-lock-face-p
-               (add-text-properties (marker-position def-beg)
-                                    (marker-position def-end)
-                                    (list 'font-lock-face racket-xp-binding-def-font-lock-face
-                                          'fontified nil)))
+               (racket--xp-add-def-face (marker-position def-beg)
+                                        (marker-position def-end)
+                                        req))
              (dolist (use uses)
                (pcase-let* ((`(,use-beg ,use-end) use))
                  (put-text-property (marker-position use-beg)
                                     (marker-position use-end)
                                     'racket-xp-use (list def-beg def-end))
                  (when binding-font-lock-face-p
-                   (unless (eq req 'local)
-                     (add-text-properties (marker-position use-beg)
-                                          (marker-position use-end)
-                                          (list 'font-lock-face racket-xp-binding-use-font-lock-face
-                                                'fontified nil))))))))
-
+                   (racket--xp-add-use-face (marker-position use-beg)
+                                            (marker-position use-end)
+                                            req))))))
           (`(target/tails ,target ,calls)
            (let ((target (copy-marker target t))
                  (calls  (mapcar (lambda (call)
@@ -525,6 +521,27 @@ manually."
             beg end
             (list 'racket-xp-doc
                   (list (racket-file-name-back-to-front path) anchor)))))))))
+
+(defun racket--xp-add-binding-face (beg end face)
+  (add-text-properties beg end
+                       (list 'font-lock-face face
+                             'fontified nil)))
+
+(defun racket--xp-add-def-face (beg end arrow-kind)
+  (racket--xp-add-binding-face
+   beg end
+   (cl-case arrow-kind
+     ((module-lang) racket-xp-binding-lang-face)
+     ((import)      racket-xp-binding-import-face)
+     ((local)       racket-xp-binding-local-face))))
+
+(defun racket--xp-add-use-face (beg end arrow-kind)
+  (racket--xp-add-binding-face
+   beg end
+   (cl-case arrow-kind
+     ((module-lang) racket-xp-binding-lang-use-face)
+     ((import)      racket-xp-binding-import-use-face)
+     ((local)       racket-xp-binding-local-use-face))))
 
 (defun racket--xp-clear (&optional only-errors-p)
   (with-silent-modifications

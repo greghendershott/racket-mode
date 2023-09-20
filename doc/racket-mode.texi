@@ -298,8 +298,12 @@ All
 * racket-xp-unused-face::
 * racket-xp-tail-target-face::
 * racket-xp-tail-position-face::
-* racket-xp-binding-def-font-lock-face::
-* racket-xp-binding-use-font-lock-face::
+* racket-xp-binding-lang-face::
+* racket-xp-binding-lang-use-face::
+* racket-xp-binding-import-face::
+* racket-xp-binding-import-use-face::
+* racket-xp-binding-local-face::
+* racket-xp-binding-local-use-face::
 * racket-logger-config-face::
 * racket-logger-topic-face::
 * racket-logger-fatal-face::
@@ -2968,16 +2972,20 @@ an underline, which is a common convention.
 
 Major modes where @ref{racket-xp-mode} will fontify binding identifier sites.
 
-A `font-lock-face property is added with the value:
+A `font-lock-face property is added for bindings from:
 
 @itemize
 @item
-@ref{racket-xp-binding-def-font-lock-face} for each site that is
-a binding definition identifier.
+the module language, using @ref{racket-xp-binding-lang-face} and
+@ref{racket-xp-binding-lang-use-face}.
 
 @item
-@ref{racket-xp-binding-use-font-lock-face} for each site that is
-a use of an @emph{imported} binding identifier.
+other imports, using @ref{racket-xp-binding-import-face} and
+@ref{racket-xp-binding-import-use-face}.
+
+@item
+local definitions, using @ref{racket-xp-binding-local-face} and
+@ref{racket-xp-binding-local-use-face}.
 @end itemize
 
 This has a visible effect only when there is @emph{not} also a
@@ -3824,8 +3832,12 @@ A value for the variable @ref{racket-shell-or-terminal-function}.
 * racket-xp-unused-face::
 * racket-xp-tail-target-face::
 * racket-xp-tail-position-face::
-* racket-xp-binding-def-font-lock-face::
-* racket-xp-binding-use-font-lock-face::
+* racket-xp-binding-lang-face::
+* racket-xp-binding-lang-use-face::
+* racket-xp-binding-import-face::
+* racket-xp-binding-import-use-face::
+* racket-xp-binding-local-face::
+* racket-xp-binding-local-use-face::
 * racket-logger-config-face::
 * racket-logger-topic-face::
 * racket-logger-fatal-face::
@@ -3894,17 +3906,45 @@ Face @ref{racket-xp-mode} uses to highlight targets of a tail position.
 
 Face @ref{racket-xp-mode} uses to highlight expressions in a tail position.
 
-@node racket-xp-binding-def-font-lock-face
-@subsection racket-xp-binding-def-font-lock-face
+@node racket-xp-binding-lang-face
+@subsection racket-xp-binding-lang-face
 
-Value of the font-lock-face property @ref{racket-xp-mode} gives to definition sites.
+Face @ref{racket-xp-mode} gives to the module language name.
 
 See the variable @ref{racket-xp-binding-font-lock-face-modes}.
 
-@node racket-xp-binding-use-font-lock-face
-@subsection racket-xp-binding-use-font-lock-face
+@node racket-xp-binding-lang-use-face
+@subsection racket-xp-binding-lang-use-face
 
-Value of the font-lock-face @ref{racket-xp-mode} gives to use sites.
+Face @ref{racket-xp-mode} gives uses of bindings imported from the module language.
+
+See the variable @ref{racket-xp-binding-font-lock-face-modes}.
+
+@node racket-xp-binding-import-face
+@subsection racket-xp-binding-import-face
+
+Face @ref{racket-xp-mode} gives to imported module names.
+
+See the variable @ref{racket-xp-binding-font-lock-face-modes}.
+
+@node racket-xp-binding-import-use-face
+@subsection racket-xp-binding-import-use-face
+
+Face @ref{racket-xp-mode} gives uses of imported bindings.
+
+See the variable @ref{racket-xp-binding-font-lock-face-modes}.
+
+@node racket-xp-binding-local-face
+@subsection racket-xp-binding-local-face
+
+Face @ref{racket-xp-mode} gives to local definitions.
+
+See the variable @ref{racket-xp-binding-font-lock-face-modes}.
+
+@node racket-xp-binding-local-use-face
+@subsection racket-xp-binding-local-use-face
+
+Face @ref{racket-xp-mode} gives to uses of local definitions.
 
 See the variable @ref{racket-xp-binding-font-lock-face-modes}.
 

@@ -149,13 +149,16 @@ an underline, which is a common convention."
 (defcustom racket-xp-binding-font-lock-face-modes '(racket-hash-lang-mode)
   "Major modes where `racket-xp-mode' will fontify binding identifier sites.
 
-A \\='font-lock-face property is added with the value:
+A \\='font-lock-face property is added for bindings from:
 
-  - `racket-xp-binding-def-font-lock-face' for each site that is
-    a binding definition identifier.
+  - the module language, using `racket-xp-binding-lang-face' and
+    `racket-xp-binding-lang-use-face'.
 
-  - `racket-xp-binding-use-font-lock-face' for each site that is
-    a use of an /imported/ binding identifier.
+  - other imports, using `racket-xp-binding-import-face' and
+    `racket-xp-binding-import-use-face'.
+
+  - local definitions, using `racket-xp-binding-local-face' and
+    `racket-xp-binding-local-use-face'.
 
 This has a visible effect only when there is /not/ also a
 \\='face property applied by the major mode's fontification."
@@ -587,19 +590,47 @@ ignore POS. Examples: `racket-show-echo-area' and
   "Face `racket-xp-mode' uses when point is on a use."
   "Use Face")
 
-(defface-racket racket-xp-binding-def-font-lock-face
-  '((t (:inherit font-lock-variable-name-face)))
-  "Value of the font-lock-face property `racket-xp-mode' gives to definition sites.
+(defface-racket racket-xp-binding-lang-face
+  '((t (:inherit font-lock-doc-face)))
+  "Face `racket-xp-mode' gives to the module language name.
 
 See the variable `racket-xp-binding-font-lock-face-modes'."
-  "Binding Definition Font Lock Face")
+  "Binding Lang Face")
 
-(defface-racket racket-xp-binding-use-font-lock-face
+(defface-racket racket-xp-binding-lang-use-face
   '((t (:inherit font-lock-keyword-face)))
-  "Value of the font-lock-face `racket-xp-mode' gives to use sites.
+  "Face `racket-xp-mode' gives uses of bindings imported from the module language.
 
 See the variable `racket-xp-binding-font-lock-face-modes'."
-  "Binding Use Font Lock Face")
+  "Binding Lang Use Face")
+
+(defface-racket racket-xp-binding-import-face
+  '((t (:inherit font-lock-doc-face)))
+  "Face `racket-xp-mode' gives to imported module names.
+
+See the variable `racket-xp-binding-font-lock-face-modes'."
+  "Binding Import Face")
+
+(defface-racket racket-xp-binding-import-use-face
+  '((t (:inherit font-lock-keyword-face)))
+  "Face `racket-xp-mode' gives uses of imported bindings.
+
+See the variable `racket-xp-binding-font-lock-face-modes'."
+  "Binding Import Use Face")
+
+(defface-racket racket-xp-binding-local-face
+  '((t (:inherit font-lock-variable-name-face)))
+  "Face `racket-xp-mode' gives to local definitions.
+
+See the variable `racket-xp-binding-font-lock-face-modes'."
+  "Binding Local Face")
+
+(defface-racket racket-xp-binding-local-use-face
+  '((t (:inherit default)))
+  "Face `racket-xp-mode' gives to uses of local definitions.
+
+See the variable `racket-xp-binding-font-lock-face-modes'."
+  "Binding Local Use Face")
 
 (defface-racket racket-xp-error-face
   '((t (:underline (:color "red" :style wave))))
