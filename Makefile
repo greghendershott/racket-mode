@@ -7,6 +7,8 @@ help:
 # default on PATH. e.g. `EMACS=/path/to/emacs make`.
 EMACS ?= emacs
 RACKET ?= racket
+# Allow another locations for Emacs packages.
+EMACS_PACKAGES ?= ~/.emacs.d/elpa
 
 show-versions:
 	@echo `which $(RACKET)`
@@ -14,7 +16,10 @@ show-versions:
 	@echo `which $(EMACS)`
 	@$(EMACS) --version
 
-batch-emacs := $(EMACS) --batch -Q -L . --eval '(package-initialize)'
+batch-emacs := \
+  $(EMACS) --batch -Q -L . \
+  --eval '(setq package-user-dir "$(EMACS_PACKAGES)")' \
+  --eval '(package-initialize)'
 
 byte-compile := \
   $(batch-emacs) \
