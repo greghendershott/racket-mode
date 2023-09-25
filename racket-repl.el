@@ -1273,7 +1273,7 @@ The command varies based on how many \\[universal-argument] command prefixes you
   the same REPL successively, even with plain #lang racket there
   are gotchas like issue #633.
 
-- Make output read-only, and give it a 'field property for use by
+- Make output read-only, and give it a \\='field property for use by
   `racket--hash-lang-repl-buffer-string'."
   (propertize str
               'syntax-table racket--plain-syntax-table

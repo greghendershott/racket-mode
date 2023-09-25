@@ -184,8 +184,8 @@ Intended for use by things like `electric-pair-mode'."
 
 This depends on `racket-repl-mode' using
 `comint-preoutput-filter-functions' to apply a text property with
-the key 'field the value 'output. Although comint mode eventually
-applies this, it does so too late for us to use here.
+the key \\='field the value \\='output. Although comint mode
+eventually applies this, it does so too late for us to use here.
 
 A REPL buffer is a \"hopeless\" mix of user input, which we want
 a hash-lang to color and indent, as well as user program output
