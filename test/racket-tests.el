@@ -135,16 +135,13 @@ supplied to it."
       (racket-tests/press "RET")
       (should (racket-tests/see-back "#<procedure:current-output-port>\n> "))
 
-      ;; Disabled for temporarily giving racket-repl-mode an extremely
-      ;; plain syntax-table.
-      ;;
-      ;; ;; Multiline expression indent
-      ;; (racket-tests/type&press "(if 1" "C-j")
-      ;; (should (racket-tests/see-back "(if 1\n      "))
-      ;; (racket-tests/type&press "2" "C-j")
-      ;; (should (racket-tests/see-back "2\n      "))
-      ;; (racket-tests/type&press "3)" "RET")
-      ;; (should (racket-tests/see-back "3)\n2\n> "))
+      ;; Multiline expression indent
+      (racket-tests/type&press "(if 1" "C-j")
+      (should (racket-tests/see-back "(if 1\n      "))
+      (racket-tests/type&press "2" "C-j")
+      (should (racket-tests/see-back "2\n      "))
+      (racket-tests/type&press "3)" "RET")
+      (should (racket-tests/see-back "3)\n2\n> "))
 
       ;; Multiple expressions at one prompt should produce multiple
       ;; values, one per line.
@@ -159,29 +156,26 @@ supplied to it."
       (racket-tests/type&press "1 " "RET")
       (should (racket-tests/see-back "1\n> "))
 
-      ;; Disabled for temporarily giving racket-repl-mode an extremely
-      ;; plain syntax-table.
+      ;; `racket-smart-open-bracket-mode'.
       ;;
-      ;; ;; `racket-smart-open-bracket-mode'.
-      ;; ;;
-      ;; ;; For `paredit-mode' we test using the configuration we
-      ;; ;; document in doc/racket-mode.org; see #647.
-      ;; (dolist (k '("RET" "C-m" "C-j"))
-      ;;   (define-key paredit-mode-map (kbd k) nil))
-      ;; (let ((typing   "[cond [[values 1] #t] [else #f]]")
-      ;;       (expected "(cond [(values 1) #t] [else #f])\n#t\n> "))
-      ;;   (mapc (lambda (modes)
-      ;;           (racket-smart-open-bracket-mode -1)
-      ;;           (electric-pair-mode (if (car modes) 1 -1))
-      ;;           (if (cdr modes) (enable-paredit-mode) (disable-paredit-mode))
-      ;;           ;; Enable /after/ enabling other mode, as our doc
-      ;;           ;; string tells users to do.
-      ;;           (racket-smart-open-bracket-mode 1)
-      ;;           (racket-tests/type&press typing "RET")
-      ;;           (should (racket-tests/see-back expected)))
-      ;;         (list (cons t   nil)      ;just `electric-pair-mode'
-      ;;               (cons nil t)        ;just `paredit-mode'
-      ;;               (cons nil nil))))   ;neither/plain
+      ;; For `paredit-mode' we test using the configuration we
+      ;; document in doc/racket-mode.org; see #647.
+      (dolist (k '("RET" "C-m" "C-j"))
+        (define-key paredit-mode-map (kbd k) nil))
+      (let ((typing   "[cond [[values 1] #t] [else #f]]")
+            (expected "(cond [(values 1) #t] [else #f])\n#t\n> "))
+        (mapc (lambda (modes)
+                (racket-smart-open-bracket-mode -1)
+                (electric-pair-mode (if (car modes) 1 -1))
+                (if (cdr modes) (enable-paredit-mode) (disable-paredit-mode))
+                ;; Enable /after/ enabling other mode, as our doc
+                ;; string tells users to do.
+                (racket-smart-open-bracket-mode 1)
+                (racket-tests/type&press typing "RET")
+                (should (racket-tests/see-back expected)))
+              (list (cons t   nil)      ;just `electric-pair-mode'
+                    (cons nil t)        ;just `paredit-mode'
+                    (cons nil nil))))   ;neither/plain
 
       ;; Exit
       (racket-tests/type&press "(exit)" "RET")
@@ -192,7 +186,7 @@ supplied to it."
 ;;; Multi REPLs
 
 (ert-deftest racket-test/unique-repls ()
-  "Excercise one unique REPL per racket-mode buffer.
+  "Exercise one unique REPL per racket-mode buffer.
 Create file a.rkt with (define a \"a\") -- and so on for b.rkt,
 c.rkt. Visit each file, racket-run, and check as expected."
   (message "racket-test/unique-repls")
