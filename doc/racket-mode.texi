@@ -3278,10 +3278,13 @@ like ``debug'' and not get overhwelmed by these noisy topics.
 
 Normal hook done before various Racket Mode run commands.
 
+Here ``before'' means that the @ref{racket-repl-mode} buffer might not
+exist yet.
+
 When hook functions are called, @code{current-buffer} is that of the
-@ref{racket-mode} buffer when the run command was issued. If a hook
-function instead needs the @ref{racket-repl-mode} buffer, it should
-get that from the variable @code{racket-repl-buffer-name}.
+edit buffer when the run command was issued. If a hook function
+instead needs the @ref{racket-repl-mode} buffer, it should get that
+from the variable @code{racket-repl-buffer-name}.
 
 @node racket-after-run-hook
 @subsection racket-after-run-hook
@@ -3292,9 +3295,9 @@ Here ``after'' means that the run has completed and the REPL is
 waiting at another prompt.
 
 When hook functions are called, @code{current-buffer} is that of the
-@ref{racket-mode} buffer when the run command was issued. If a hook
-function instead needs the @ref{racket-repl-mode} buffer, it should
-get that from the variable @code{racket-repl-buffer-name}.
+buffer when the run command was issued. If a hook function
+instead needs the @ref{racket-repl-mode} buffer, it should get that
+from the variable @code{racket-repl-buffer-name}.
 
 @node racket-sexp-comment-fade
 @subsection racket-sexp-comment-fade

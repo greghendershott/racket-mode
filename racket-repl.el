@@ -106,7 +106,7 @@ but does not have a live session."
      (pcase (get-buffer name)
        ((and (pred bufferp) buf)
         (with-current-buffer buf (funcall thunk)))))
-    (v (error "bad racket-repl-buffer-name: %s" v))))
+    (v (error "racket--call-with-repl-buffer: bad racket-repl-buffer-name: %s" v))))
 
 (defmacro with-racket-repl-buffer (&rest body)
   "Execute forms in BODY with `racket-repl-mode' temporarily current buffer."
@@ -472,8 +472,17 @@ The following values will /not/ work:
 (defvar racket--repl-before-run-hook nil
   "Thunks to do before each `racket--repl-run'.
 
+Here \"before\" means that the `racket-repl-mode' buffer might not
+exist yet.
+
 This hook is for internal use by Racket Mode. An equivalent hook
 for end user customization is `racket-before-run-hook'.")
+
+(defvar racket--repl-configure-buffer-hook nil
+  "Thunks to do for `racket--repl-run' to configure the buffer.
+
+This hook is for internal use by Racket Mode, specifically by
+`racket-hash-lang-mode'.")
 
 (defvar racket--repl-after-run-hook nil
   "Thunks to do after each `racket--repl-run'.
@@ -548,8 +557,8 @@ Otherwise if `racket--repl-live-p', send the command."
         (while (racket--repl-live-p)
           (accept-process-output)))
       (racket-start-back-end)))
-  (run-hook-with-args 'racket--repl-before-run-hook) ;ours
-  (run-hook-with-args 'racket-before-run-hook)       ;user's
+  (run-hooks 'racket--repl-before-run-hook
+             'racket-before-run-hook)
   (pcase-let*
       ((context-level (or context-level racket-error-context))
        (what (or what (racket--what-to-run)))
@@ -574,13 +583,15 @@ Otherwise if `racket--repl-live-p', send the command."
        (buf (current-buffer))
        (after (lambda (_ignore)
                 (with-current-buffer buf
-                  (run-hook-with-args 'racket--repl-after-run-hook) ;ours
-                  (run-hook-with-args 'racket-after-run-hook) ;user's
+                  (run-hooks 'racket--repl-configure-buffer-hook
+                             'racket--repl-after-run-hook
+                             'racket-after-run-hook)
                   (when callback
                     (funcall callback))))))
     (cond ((racket--repl-live-p)
            (unless (racket--repl-session-id)
              (error "No REPL session"))
+           (run-hooks 'racket--repl-configure-buffer-hook)
            (racket--cmd/async (racket--repl-session-id) cmd after)
            (display-buffer racket-repl-buffer-name))
           (t
@@ -627,9 +638,9 @@ This does not display the buffer or change the selected window."
          (princ (format "{racket--repl-start}: (repl-tcp-port-number) replied %s\n"
                         port)))
        (with-current-buffer (get-buffer-create name)
-         ;; Add a pre-output hook that -- possibly over multiple calls
-         ;; to accumulate text -- reads `(ok ,id) to set
-         ;; `racket--repl-session-id' then removes itself.
+         ;; Use a comint-preoutput-filter-function that -- possibly
+         ;; over multiple calls, accumulating text -- reads the `(ok
+         ;; ,id) response to set `racket--repl-session-id'.
          (let ((hook      nil)
                (read-buf  (generate-new-buffer " *racket-repl-session-id-reader*")))
            (when noninteractive
@@ -644,6 +655,8 @@ This does not display the buffer or change the selected window."
                         (pcase (ignore-errors (read read-buf))
                           (`(ok ,id)
                            (remove-hook 'comint-preoutput-filter-functions hook t)
+                           (add-hook 'comint-preoutput-filter-functions
+                                     #'racket--repl-pre-output nil t)
                            (when noninteractive
                              (princ (format "{racket--repl-start}: %s\n" id)))
                            (setq racket--repl-session-id id)
@@ -656,6 +669,7 @@ This does not display the buffer or change the selected window."
                                                    (point-max)))
                              (kill-buffer read-buf)))
                           (_ ""))))
+           (remove-hook 'comint-preoutput-filter-functions #'racket--repl-pre-output t)
            (add-hook 'comint-preoutput-filter-functions hook nil t))
 
          (condition-case ()
@@ -1250,17 +1264,23 @@ The command varies based on how many \\[universal-argument] command prefixes you
     "---"
     ["Switch to Edit Buffer" racket-repl-switch-to-edit]))
 
-(defconst racket--repl-lang-plain-syntax-table
-  (let ((table (make-syntax-table)))
-    ;; Modify entries for characters for parens, strings, and
-    ;; comments, setting them to word syntax instead. (For the these
-    ;; raw syntax descriptor numbers, see Emacs Lisp Info: "Syntax
-    ;; Table Internals".)
-    (map-char-table (lambda (key value)
-                      (when (memq (car value) '(4 5 7 10 11 12))
-                        (aset table key '(2))))
-                    table)
-    table))
+(defun racket--repl-pre-output (str)
+  "Apply text properties to output before inserted to buffer.
+
+- Give miscellaneous program output plain char-syntax and
+  font-lock. Especially don't assume that output is a printed
+  value from any given lang. Not only might the various langs use
+  the same REPL successively, even with plain #lang racket there
+  are gotchas like issue #633.
+
+- Make output read-only, and give it a 'field property for use by
+  `racket--hash-lang-repl-buffer-string'."
+  (propertize str
+              'syntax-table racket--plain-syntax-table
+              'font-lock-face 'default
+              'fontified t
+              'read-only t
+              'field 'output))
 
 (define-derived-mode racket-repl-mode comint-mode "Racket-REPL"
   "Major mode for Racket REPL.
@@ -1273,9 +1293,6 @@ identifier bindings and modules from the REPL's namespace.
 
 \\{racket-repl-mode-map}"
   (racket--common-variables)
-  (setq-local font-lock-defaults nil)
-  (setq-local syntax-propertize-function nil)
-  (set-syntax-table racket--repl-lang-plain-syntax-table)
   (setq-local comint-use-prompt-regexp nil)
   (setq-local comint-prompt-read-only t)
   (setq-local comint-scroll-show-maximum-output nil) ;t slow for big outputs

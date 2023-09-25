@@ -34,7 +34,7 @@ re-tokenization has progressed sufficiently.")
 
 (defvar racket-hash-lang-mode-map
   (racket--easy-keymap-define
-   `(("RET"    ,#'newline-and-indent)
+   `(("RET"   ,#'newline-and-indent)
      (")"     ,#'self-insert-command)   ;not `racket-insert-closing'
      ("}"     ,#'self-insert-command)   ;not `racket-insert-closing'
      ("]"     ,#'self-insert-command)   ;not `racket-insert-closing'
@@ -123,24 +123,33 @@ A discussion of the information provided by a Racket language:
   (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
   (racket--hash-lang-create))
 
-(defun racket--hash-lang-create ()
-  (setq-local racket--hash-lang-id
-              (cl-incf racket--hash-lang-next-id))
-  (racket--cmd/await
-   nil
-   `(hash-lang create
-               ,racket--hash-lang-id
-               nil
-               ,(save-restriction
-                  (widen)
-                  (buffer-substring-no-properties (point-min) (point-max))))))
+;; For use by both racket-hash-lang-mode and racket-repl-mode
+(defun racket--hash-lang-create (&optional other-buffer)
+  (setq-local racket--hash-lang-id (cl-incf racket--hash-lang-next-id))
+  (setq-local racket--hash-lang-generation 1)
+  (let ((other-lang-source
+         (when other-buffer
+           (with-current-buffer other-buffer
+             (save-restriction
+               (widen)
+               (buffer-substring-no-properties (point-min) (min 4096 (point-max)))))))
+        (text
+         (save-restriction
+           (widen)
+           (if (eq major-mode 'racket-repl-mode)
+               (racket--hash-lang-repl-buffer-string (point-min) (point-max))
+             (buffer-substring-no-properties (point-min) (point-max))))))
+    (racket--cmd/await ;TODO: Can we avoid await here?
+     nil
+     `(hash-lang create ,racket--hash-lang-id ,other-lang-source ,text))))
 
 (defun racket--hash-lang-delete ()
   (when racket--hash-lang-id
-    (racket--cmd/async
-     nil
+    (racket--cmd/await
+     (when (eq major-mode 'racket-repl-mode) racket--repl-session-id)
      `(hash-lang delete ,racket--hash-lang-id))
-    (setq racket--hash-lang-id nil)))
+    (setq racket--hash-lang-id nil)
+    (setq-local racket--hash-lang-generation 1)))
 
 
 (defun racket--hash-lang-find-buffer (id)
@@ -150,23 +159,11 @@ A discussion of the information provided by a Racket language:
                buf))
            (buffer-list)))
 
-(defconst racket--hash-lang-plain-syntax-table
-  (let ((table (make-syntax-table)))
-    ;; Modify entries for characters for parens, strings, and
-    ;; comments, setting them to word syntax instead. (For the these
-    ;; raw syntax descriptor numbers, see Emacs Lisp Info: "Syntax
-    ;; Table Internals".)
-    (map-char-table (lambda (key value)
-                      (when (memq (car value) '(4 5 7 10 11 12))
-                        (aset table key '(2))))
-                    table)
-    table))
-
 (defun racket--make-non-sexp-syntax-table (parens quotes)
   "Make a syntax-table with the given parens and quotes.
 
 Intended for use by things like `electric-pair-mode'."
-  (let ((table (make-syntax-table racket--hash-lang-plain-syntax-table)))
+  (let ((table (make-syntax-table racket--plain-syntax-table)))
     (dolist (str-pair parens)
       (pcase-let ((`(,open . ,close) str-pair))
         ;; Unsure how to handle in syntax-table when > 1 char.
@@ -182,6 +179,43 @@ Intended for use by things like `electric-pair-mode'."
         (modify-syntax-entry (aref str 0) "\"   " table)))
     table))
 
+(defun racket--hash-lang-repl-buffer-string (beg end)
+  "Like `buffer-substring-no-properties' but non-input is whitespace.
+
+This depends on `racket-repl-mode' using
+`comint-preoutput-filter-functions' to apply a text property with
+the key 'field the value 'output. Although comint mode eventually
+applies this, it does so too late for us to use here.
+
+A REPL buffer is a \"hopeless\" mix of user input, which we want
+a hash-lang to color and indent, as well as user program output
+and REPL prompts, which we want to ignore. This function replaces
+output with whitespace --- mostly spaces, but preserves newlines
+for the sake of indent alignment. The only portions not affected
+are input --- text that the user has typed or yanked in the REPL
+buffer."
+  (save-restriction
+    (widen)
+    (let ((pos beg)
+          (result-str ""))
+      (while (< pos end)
+        ;; Handle a chunk sharing same field property value.
+        (let* ((chunk-end (min (or (next-single-property-change pos 'field)
+                                   (point-max))
+                               end))
+               (chunk-str (buffer-substring-no-properties pos chunk-end)))
+          ;; Unless input, replace all non-newline chars with spaces.
+          (unless (null (get-text-property pos 'field))
+            (let ((i 0)
+                  (len (- chunk-end pos)))
+              (while (< i len)
+                (unless (eq ?\n (aref chunk-str i))
+                  (aset chunk-str i 32))
+                (setq i (1+ i)))))
+          (setq result-str (concat result-str chunk-str))
+          (setq pos chunk-end)))
+      result-str)))
+
 ;;; Updates: Front end --> back end
 
 (defun racket--hash-lang-after-change-hook (beg end len)
@@ -195,7 +229,9 @@ Intended for use by things like `electric-pair-mode'."
                ,(cl-incf racket--hash-lang-generation)
                ,beg
                ,len
-               ,(buffer-substring-no-properties beg end))))
+               ,(if (eq major-mode 'racket-repl-mode)
+                    (racket--hash-lang-repl-buffer-string beg end)
+                  (buffer-substring-no-properties beg end)))))
 
 ;;; Notifications: Front end <-- back end
 
@@ -238,7 +274,7 @@ lang's attributes that we care about have changed."
       ;; uses `forward-sexp' to set a region), it matters when things
       ;; like `up-list' use `forward-sexp'.
       (setq-local forward-sexp-function (unless (plist-get plist 'racket-grouping)
-                                    #'racket-hash-lang-forward-sexp))
+                                          #'racket-hash-lang-forward-sexp))
       (syntax-ppss-flush-cache (point-min))
       (setq-local indent-line-function
                   #'racket-hash-lang-indent-line-function)
@@ -333,7 +369,7 @@ C redisplay engine, as is the case with `jit-lock-mode'."
                                     (get-text-property beg 'face))))
                 ('parenthesis (when (facep 'parenthesis)
                                 (put-face beg end 'parenthesis)))
-                ('text (put-stx beg end racket--hash-lang-plain-syntax-table))
+                ('text (put-stx beg end racket--plain-syntax-table))
                 (sym
                  (when-let (face (cdr (assq sym racket-hash-lang-token-face-alist)))
                    (put-face beg end face)))))))))))
@@ -492,15 +528,74 @@ When the lang lexer token is...
                          ((comment) (fill-comment-paragraph prefix))
                          (otherwise (prog-indent-sexp prefix))))))
 
-;;; REPL submit
+;;; REPL
 
-(defun racket--hash-lang-before-run-hook ()
-  ""
-  (let ((enable (eq major-mode 'racket-hash-lang-mode)))
+(defvar racket-hash-lang-repl-mode-map
+  (racket--easy-keymap-define
+   `(("C-M-b" ,#'racket-hash-lang-backward)
+     ("C-M-f" ,#'racket-hash-lang-forward)
+     ("C-M-u" ,#'racket-hash-lang-up)
+     ("C-M-d" ,#'racket-hash-lang-down)
+     ("C-M-q" ,#'racket-hash-lang-C-M-q-dwim))))
+
+(define-minor-mode racket-hash-lang-repl-mode
+  "A minor mode just to override some keybindings in `racket-repl-mode'.
+
+\\{racket-hash-lang-repl-mode-map}
+"
+  :lighter ""
+  :keymap racket-hash-lang-repl-mode-map)
+
+(defun racket--hash-lang-configure-repl-buffer-from-edit-buffer ()
+  "Update the `racket-repl-mode' buffer associated with the current edit buffer.
+
+A value for the hook `racket--repl-configure-buffer-hook'.
+
+To be called when a `racket-mode' or `racket-hash-lang-mode' edit
+buffer is `current-buffer'.
+
+It is possible for multiple edit buffers to \"take turns\" using
+the same `racket-repl-mode' buffer, for successive `racket-run'
+commands. Even if various edit buffers all use
+`racket-hash-lang-mode', the hash-lang for ech may differ, e.g.
+one buffer is \"#lang racket\" while another is \"#lang
+scribble\"."
+  ;;;(message "racket--hash-lang-configure-repl called from buffer %s" (buffer-name))
+  (let ((hl (cl-case major-mode
+              (racket-mode nil)
+              (racket-hash-lang-mode t)
+              (otherwise (error "unexpected major-mode %s" major-mode))))
+        (edit-buffer (current-buffer)))
     (with-racket-repl-buffer
+      ;; Clean up from previous hash-lang use of REPL, if any
+      (racket--hash-lang-delete)
+      ;; char-syntax
+      (set-syntax-table (with-current-buffer edit-buffer (syntax-table)))
+      (setq-local syntax-propertize-function
+                  (with-current-buffer edit-buffer syntax-propertize-function))
+      ;; font-lock
+      (setq-local font-lock-defaults
+                  (with-current-buffer edit-buffer font-lock-defaults))
+      (setq-local font-lock-fontify-region-function
+                  (with-current-buffer edit-buffer font-lock-fontify-region-function))
+      ;; indent
+      (setq-local indent-line-function
+                  (with-current-buffer edit-buffer indent-line-function))
+      (setq-local indent-region-function
+                  (with-current-buffer edit-buffer indent-region-function))
+      ;; nav
+      (setq-local forward-sexp-function
+                  (with-current-buffer edit-buffer forward-sexp-function))
+      (racket-hash-lang-repl-mode (if hl 1 -1)) ;keybindings
+      (when hl
+        (racket--hash-lang-create edit-buffer))
+      (if hl
+          (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
+        (remove-hook 'after-change-functions  #'racket--hash-lang-after-change-hook t))
       (setq-local racket-repl-submit-function
-                  (and enable #'racket-hash-lang-submit)))))
-(add-hook 'racket--repl-before-run-hook #'racket--hash-lang-before-run-hook)
+                  (if hl #'racket-hash-lang-submit nil)))))
+(add-hook 'racket--repl-configure-buffer-hook
+          #'racket--hash-lang-configure-repl-buffer-from-edit-buffer)
 
 (defun racket-hash-lang-submit (input)
   ""

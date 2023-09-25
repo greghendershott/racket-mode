@@ -394,13 +394,17 @@ will use this to decide whether to submit your input, yet."
   :safe #'booleanp
   :group 'racket-repl)
 
+
 (defcustom racket-before-run-hook nil
   "Normal hook done before various Racket Mode run commands.
 
+Here \"before\" means that the `racket-repl-mode' buffer might not
+exist yet.
+
 When hook functions are called, `current-buffer' is that of the
-`racket-mode' buffer when the run command was issued. If a hook
-function instead needs the `racket-repl-mode' buffer, it should
-get that from the variable `racket-repl-buffer-name'."
+edit buffer when the run command was issued. If a hook function
+instead needs the `racket-repl-mode' buffer, it should get that
+from the variable `racket-repl-buffer-name'."
   :tag "Before Run Hook"
   :type 'hook
   :risky t
@@ -413,9 +417,9 @@ Here \"after\" means that the run has completed and the REPL is
 waiting at another prompt.
 
 When hook functions are called, `current-buffer' is that of the
-`racket-mode' buffer when the run command was issued. If a hook
-function instead needs the `racket-repl-mode' buffer, it should
-get that from the variable `racket-repl-buffer-name'."
+buffer when the run command was issued. If a hook function
+instead needs the `racket-repl-mode' buffer, it should get that
+from the variable `racket-repl-buffer-name'."
   :tag "After Run Hook"
   :type 'hook
   :risky t

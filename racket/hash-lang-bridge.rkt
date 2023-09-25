@@ -70,7 +70,7 @@
            (string-append "This feature needs a newer version of syntax-color-lib.\n"
                           hash-lang-class-or-error-message)))
   (match args
-    [`(create ,id ,sid ,str)                       (create id sid str)]
+    [`(create ,id ,ols ,str)                       (create id ols str)]
     [`(delete ,id)                                 (delete id)]
     [`(update ,id ,gen ,pos ,old-len ,str)         (update id gen pos old-len str)]
     [`(indent-amount ,id ,gen ,pos)                (indent-amount id gen pos)]
@@ -88,19 +88,12 @@
             (λ () (error 'hash-lang-bridge
                          "No hash-lang exists with ID ~v" id))))
 
-(define (create id sid str) ;any/c (or/c #f string?) string? -> void
+(define (create id ols str) ;any/c (or/c #f string?) string? -> void
   (define obj (new our-hash-lang%
                    [id id]
-                   [other-lang-source (sid->source sid)]))
+                   [other-lang-source (and ols (not (null? ols)) ols)]))
   (hash-set! ht id obj)
   (send obj update! 1 0 0 str))
-
-(define (sid->source sid)
-  (and sid (not (null? sid)) ;handle Elisp nil/()
-       (match (get-session sid)
-         [(struct* session ([maybe-mod (? path? file)]))
-          (call-with-input-file file (λ (in) (read-string 4096 in)))]
-         [_ #f]))  )
 
 (define (delete id)
   (hash-remove! ht id))
