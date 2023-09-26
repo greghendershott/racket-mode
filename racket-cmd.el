@@ -73,7 +73,8 @@ even from compiled bytecode.")
 
 (defun racket--cmd-open ()
   ;; Avoid excess processes/buffers like "racket-process<1>".
-  (racket--cmd-close)
+  (when (racket--cmd-open-p)
+    (racket--cmd-close))
   ;; Give the process buffer the current values of some vars; see
   ;; <https://github.com/purcell/envrc/issues/22>.
   (cl-letf* (((default-value 'process-environment) process-environment)

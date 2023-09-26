@@ -93,7 +93,8 @@
                    [id id]
                    [other-lang-source (and ols (not (null? ols)) ols)]))
   (hash-set! ht id obj)
-  (send obj update! 1 0 0 str))
+  (send obj update! 1 0 0 str)
+  id)
 
 (define (delete id)
   (hash-remove! ht id))

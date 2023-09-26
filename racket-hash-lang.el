@@ -139,9 +139,24 @@ A discussion of the information provided by a Racket language:
            (if (eq major-mode 'racket-repl-mode)
                (racket--hash-lang-repl-buffer-string (point-min) (point-max))
              (buffer-substring-no-properties (point-min) (point-max))))))
-    (racket--cmd/await ;TODO: Can we avoid await here?
+    ;; On the one hand, racket--cmd/await would be simpler to use
+    ;; here. On the other hand, when someone visits a file without the
+    ;; back end running yet, there's a delay for that to start, during
+    ;; which the buffer isn't displayed and Emacs seems frozen. On the
+    ;; third hand, if we use async the buffer could try to interact
+    ;; with a back end object that doesn't yet exist, and error.
+    ;;
+    ;; Warm bowl of porridge: Make buffer read-only and not font-lock.
+    ;; Send command async. Only when the response arrives, i.e. the
+    ;; back end object is ready, enable read/write and font-lock.
+    (font-lock-mode -1)
+    (read-only-mode 1)
+    (racket--cmd/async
      nil
-     `(hash-lang create ,racket--hash-lang-id ,other-lang-source ,text))))
+     `(hash-lang create ,racket--hash-lang-id ,other-lang-source ,text)
+     (lambda (_id)
+       (font-lock-mode 1)
+       (read-only-mode -1)))))
 
 (defun racket--hash-lang-delete ()
   (when racket--hash-lang-id
@@ -151,6 +166,52 @@ A discussion of the information provided by a Racket language:
     (setq racket--hash-lang-id nil)
     (setq-local racket--hash-lang-generation 1)))
 
+(defun racket--hash-lang-change-mode-hook ()
+  (when (eq major-mode 'racket-hash-lang-mode)
+    (racket--hash-lang-delete)))
+(add-hook 'change-major-mode-hook #'racket--hash-lang-change-mode-hook)
+
+;;; Handle back end stopping and re-starting
+
+(defvar racket--hash-lang-downgraded-to-racket-mode nil
+  "A list of buffers set by `racket--hash-lang-on-stop-back-end'.")
+
+(defun racket--hash-lang-on-stop-back-end ()
+  "Downgrade all `racket-hash-lang-mode' buffers to `racket-mode'
+and save them in a list to maybe restore later. Also downgrade
+any REPL buffer associated with the edit buffer."
+  (setq racket--hash-lang-downgraded-to-racket-mode
+        (seq-filter (lambda (buf)
+                      (with-current-buffer buf
+                        (when (eq major-mode 'racket-hash-lang-mode)
+                          (racket-mode)
+                          (racket--hash-lang-configure-repl-buffer-from-edit-buffer)
+                          buf)))
+                    (buffer-list))))
+(add-hook 'racket-stop-back-end-hook #'racket--hash-lang-on-stop-back-end)
+
+(defun racket--hash-lang-on-start-back-end ()
+  "Restore any downgraded buffers back to
+`racket-hash-lang-mode'. Although the user is prompted right
+away, after e.g. choosing M-x racket-start-back-end, the
+restoration is done on an idle timer. That way if the back end
+was started by them e.g. visiting a new file, they see that right
+away."
+  (let ((num (length racket--hash-lang-downgraded-to-racket-mode)))
+    (when (and (< 0 num)
+               (y-or-n-p (format "Also restore %s buffers to use racket-hash-lang-mode "
+                                 num)))
+      (run-with-idle-timer
+       1 nil
+       (lambda ()
+         (dolist (buf racket--hash-lang-downgraded-to-racket-mode)
+           (with-current-buffer buf
+             (when (bufferp buf)
+               (racket-hash-lang-mode))))
+         (setq racket--hash-lang-downgraded-to-racket-mode nil))))))
+(add-hook 'racket-start-back-end-hook #'racket--hash-lang-on-start-back-end)
+
+;;; Other
 
 (defun racket--hash-lang-find-buffer (id)
   "Find the buffer whose local value for `racket--hash-lang-id' is ID."
