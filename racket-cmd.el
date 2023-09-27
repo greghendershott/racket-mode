@@ -223,8 +223,9 @@ sentinel is `ignore'."
 
 (defun racket--cmd-dispatch (back-end response)
   "Do something with a sexpr sent to us from the command server.
-Although mostly these are 1:1 responses to command requests,
-\"logger\" and \"debug-break\" are notifications."
+Although mostly these are 1:1 responses to command requests, some
+like \"logger\", \"debug-break\", and \"hash-lang\" are
+notifications."
   (pcase response
     (`(logger ,str)
      (run-at-time 0.001 nil #'racket--logger-on-notify back-end str))
