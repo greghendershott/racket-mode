@@ -207,15 +207,6 @@ sentinel is `ignore'."
             (setq racket--cmd-read-from (point-min))
             t)))))
 
-;; (with-temp-buffer
-;;   (dolist (str '("(1 2 3)\n"
-;;                  "(1 2)\n(1 2)\n(1 2 "
-;;                  "3 4"
-;;                  " 5 6)\n"))
-;;     (goto-char (point-max))
-;;     (insert str)
-;;     (racket--cmd-read #'prin1)))
-
 (defvar racket--cmd-nonce->callback (make-hash-table :test 'eq)
   "A hash from command nonce to callback function.")
 (defvar racket--cmd-nonce 0
