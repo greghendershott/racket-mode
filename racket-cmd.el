@@ -307,12 +307,12 @@ mistake."
                             (with-current-buffer buf (funcall callback v))))
              (`(error ,m) (let ((print-length nil) ;for %S
                                 (print-level nil))
-                            (message "Exception for command %S from %s to %s:\n%s"
+                            (message "Exception for command %S from %S to %S:\n%s"
                                      command-sexpr buf name m)))
              (`(break)    nil)
              (v           (let ((print-length nil) ;for %S
                                 (print-level nil))
-                            (message "Unknown response to command %S from %s to %s:\n%s"
+                            (message "Unknown response to command %S from %S to %S:\n%S"
                                      command-sexpr buf name v)))))
        #'ignore))))
 
@@ -322,20 +322,29 @@ mistake."
 REPL-SESSION-ID may be nil for commands that do not need to run
 in a specific namespace."
   (let* ((awaiting 'RACKET-REPL-AWAITING)
-         (response awaiting))
+         (response awaiting)
+         (buf (current-buffer))
+         (name (racket--back-end-process-name)))
     (racket--cmd/async-raw repl-session-id
                            command-sexpr
                            (lambda (v) (setq response v)))
     (with-timeout (racket-command-timeout
-                   (error "racket-command process timeout: %S" command-sexpr))
+                   (let ((print-length nil) ;for %S
+                         (print-level nil))
+                     (error "Command %S from %S to %S timed out after %s seconds"
+                            command-sexpr buf name racket-command-timeout)))
       (while (eq response awaiting)
         (accept-process-output nil 0.001))
       (pcase response
         (`(ok ,v)    v)
-        (`(error ,m) (error "%s" m))
+        (`(error ,m) (let ((print-length nil) ;for %S
+                           (print-level nil))
+                       (error "Exception for command %S from %S to %S:\n%s"
+                              command-sexpr buf name m)))
         (v           (let ((print-length nil) ;for %S
                            (print-level nil))
-                       (error "Unknown command response: %S" v)))))))
+                       (error "Unknown response to command %S from %S to %S:\n%S"
+                              command-sexpr buf name v)))))))
 
 (provide 'racket-cmd)
 
