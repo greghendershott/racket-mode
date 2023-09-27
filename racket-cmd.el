@@ -305,11 +305,15 @@ mistake."
            (pcase response
              (`(ok ,v)    (when (buffer-live-p buf)
                             (with-current-buffer buf (funcall callback v))))
-             (`(error ,m) (message "%s command exception:\n%s" name m))
+             (`(error ,m) (let ((print-length nil) ;for %S
+                                (print-level nil))
+                            (message "Exception for command %S from %s to %s:\n%s"
+                                     command-sexpr buf name m)))
              (`(break)    nil)
              (v           (let ((print-length nil) ;for %S
                                 (print-level nil))
-                            (message "%s unknown command response:\n%S" name v)))))
+                            (message "Unknown response to command %S from %s to %s:\n%s"
+                                     command-sexpr buf name v)))))
        #'ignore))))
 
 (defun racket--cmd/await (repl-session-id command-sexpr)
