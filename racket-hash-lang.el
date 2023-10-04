@@ -205,8 +205,8 @@ away."
        1 nil
        (lambda ()
          (dolist (buf racket--hash-lang-downgraded-to-racket-mode)
-           (with-current-buffer buf
-             (when (bufferp buf)
+           (when (and (bufferp buf) (buffer-live-p buf))
+             (with-current-buffer buf
                (racket-hash-lang-mode))))
          (setq racket--hash-lang-downgraded-to-racket-mode nil))))))
 (add-hook 'racket-start-back-end-hook #'racket--hash-lang-on-start-back-end)
