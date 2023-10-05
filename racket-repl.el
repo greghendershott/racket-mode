@@ -105,8 +105,7 @@ but does not have a live session."
     ((and (pred stringp) name)
      (pcase (get-buffer name)
        ((and (pred bufferp) buf)
-        (with-current-buffer buf (funcall thunk)))))
-    (v (error "racket--call-with-repl-buffer: bad racket-repl-buffer-name: %s" v))))
+        (with-current-buffer buf (funcall thunk)))))))
 
 (defmacro with-racket-repl-buffer (&rest body)
   "Execute forms in BODY with `racket-repl-mode' temporarily current buffer."

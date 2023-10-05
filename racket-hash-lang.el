@@ -147,16 +147,26 @@ A discussion of the information provided by a Racket language:
     ;; with a back end object that doesn't yet exist, and error.
     ;;
     ;; Warm bowl of porridge: Make buffer read-only and not font-lock.
+    ;; Set a timer to show a message in the header-line after awhile.
     ;; Send command async. Only when the response arrives, i.e. the
     ;; back end object is ready, enable read/write and font-lock.
     (font-lock-mode -1)
     (read-only-mode 1)
-    (racket--cmd/async
-     nil
-     `(hash-lang create ,racket--hash-lang-id ,other-lang-source ,text)
-     (lambda (_id)
-       (font-lock-mode 1)
-       (read-only-mode -1)))))
+    (let* ((buf (current-buffer))
+           (timer (run-with-timer
+                   1 nil
+                   (lambda ()
+                     (with-current-buffer buf
+                       (setq-local header-line-format
+                                   "Waiting for back end server..."))))))
+      (racket--cmd/async
+       nil
+       `(hash-lang create ,racket--hash-lang-id ,other-lang-source ,text)
+       (lambda (_id)
+         (font-lock-mode 1)
+         (read-only-mode -1)
+         (cancel-timer timer)
+         (setq-local header-line-format nil))))))
 
 (defun racket--hash-lang-delete ()
   (when racket--hash-lang-id
@@ -168,25 +178,26 @@ A discussion of the information provided by a Racket language:
 
 (defun racket--hash-lang-change-mode-hook ()
   (when (eq major-mode 'racket-hash-lang-mode)
-    (racket--hash-lang-delete)))
+    (racket--hash-lang-delete)
+    (racket--hash-lang-configure-repl-buffer-from-edit-buffer)))
 (add-hook 'change-major-mode-hook #'racket--hash-lang-change-mode-hook)
 
 ;;; Handle back end stopping and re-starting
 
-(defvar racket--hash-lang-downgraded-to-racket-mode nil
+(defvar racket--hash-lang-downgraded-buffers nil
   "A list of buffers set by `racket--hash-lang-on-stop-back-end'.")
 
 (defun racket--hash-lang-on-stop-back-end ()
-  "Downgrade all `racket-hash-lang-mode' buffers to `racket-mode'
-and save them in a list to maybe restore later. Also downgrade
-any REPL buffer associated with the edit buffer."
-  (setq racket--hash-lang-downgraded-to-racket-mode
+  "Downgrade all `racket-hash-lang-mode' buffers to `prog-mode',
+since former can't work without a live back end. Remember to
+restore if/when back end started later. Also downgrade any REPL
+buffer associated with the edit buffer."
+  (setq racket--hash-lang-downgraded-buffers
         (seq-filter (lambda (buf)
-                      (with-current-buffer buf
-                        (when (eq major-mode 'racket-hash-lang-mode)
-                          (racket-mode)
-                          (racket--hash-lang-configure-repl-buffer-from-edit-buffer)
-                          buf)))
+                        (with-current-buffer buf
+                          (when (eq major-mode 'racket-hash-lang-mode)
+                            (prog-mode)
+                            buf)))
                     (buffer-list))))
 (add-hook 'racket-stop-back-end-hook #'racket--hash-lang-on-stop-back-end)
 
@@ -197,18 +208,10 @@ away, after e.g. choosing M-x racket-start-back-end, the
 restoration is done on an idle timer. That way if the back end
 was started by them e.g. visiting a new file, they see that right
 away."
-  (let ((num (length racket--hash-lang-downgraded-to-racket-mode)))
-    (when (and (< 0 num)
-               (y-or-n-p (format "Also restore %s buffers to use racket-hash-lang-mode "
-                                 num)))
-      (run-with-idle-timer
-       1 nil
-       (lambda ()
-         (dolist (buf racket--hash-lang-downgraded-to-racket-mode)
-           (when (and (bufferp buf) (buffer-live-p buf))
-             (with-current-buffer buf
-               (racket-hash-lang-mode))))
-         (setq racket--hash-lang-downgraded-to-racket-mode nil))))))
+  (dolist (buf racket--hash-lang-downgraded-buffers)
+    (when (and (bufferp buf) (buffer-live-p buf))
+      (with-current-buffer buf
+        (racket-hash-lang-mode)))))
 (add-hook 'racket-start-back-end-hook #'racket--hash-lang-on-start-back-end)
 
 ;;; Other
@@ -622,10 +625,8 @@ commands. Even if various edit buffers all use
 one buffer is \"#lang racket\" while another is \"#lang
 scribble\"."
   ;;;(message "racket--hash-lang-configure-repl called from buffer %s" (buffer-name))
-  (let ((hl (cl-case major-mode
-              (racket-mode nil)
-              (racket-hash-lang-mode t)
-              (otherwise (error "unexpected major-mode %s" major-mode))))
+  (let ((hl (and (eq major-mode 'racket-hash-lang-mode)
+                 racket--hash-lang-id))
         (edit-buffer (current-buffer)))
     (with-racket-repl-buffer
       ;; Clean up from previous hash-lang use of REPL, if any
