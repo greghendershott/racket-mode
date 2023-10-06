@@ -165,6 +165,32 @@ On macOS, downloading Racket doesn't add its ~bin~ directory to your ~PATH~. Eve
 
 You can ~setq~ this directly in your Emacs init file (=~/.emacs= or =~/.emacs.d/init.el=), or, use {{{kbd(M-x)}}} ~customize~, as you prefer.
 
+** Which major mode to use
+
+Racket is a programming language.
+
+Racket is also a "language-oriented programming language". Most Racket source files contain a `#lang` line. The lang may be an s-expression lang like ~racket~, or an at-expression lang like ~scribble/manual~, or something completely different like ~datalog~ or ~rhombus~.
+
+The Racket Mode package offers a choice of two major modes to use in buffers for viewing and editing source code. Each has pros and cons.
+
+Whereas ~racket-mode~ is in the tradition of Emacs ~lisp-mode~ and ~scheme-mode~ and assumes s-expression langs, ~racket-hash-lang-mode~ takes the approach of DrRacket to work for all langs.
+
+- ~racket-mode~ is the original, "classic" mode for ~#lang racket~ and related s-expression languages. It is implemented entirely in Emacs and does /not/ need Racket Mode's back end racket process running. Font-lock (coloring) uses rules for a fixed set of identifiers from ~racket~ lang and popular modules like ~racket/match~. Indentation uses rules for a fixed set of forms, and may be customized (see below).
+
+- ~racket-hash-lang-mode~ uses font-lock (colors) and indentation determined by the lang; to get this information it /does/ need the Racket Mode's back end racket process running. Although basic editing should feel fast, you might notice some delay when indenting. You might see colors appear after a small delay (but it will not block editing). Speaking of colors, they will be "plainer" than ~racket-mode~ -- mostly just for different kinds of tokens like numbers, comments, strings, and keywords. This looks similar to DrRacket. However if you /also/ enable the minor mode ~racket-xp-mode~, it will eventually add more colors at definition and use sites, and vary the colors depending on whether the identifier is local, imported, or from the module language. So you may see the "syntax" highlighting appear fairly quickly from ~racket-hash-lang-mode~, and later see more "semantic" highlighting contributed by ~racket-xp-mode~. The end result will be about as rich, although not exactly the same, as ~racket-mode~.
+
+You can use different major modes for different kinds of files:
+
+- For editing ~.rkt~ files and s-expression langs, which mode to use is personal preference.
+
+- For ~.scrbl~ and at-expression langs like ~scribble/manual~, ~racket-hash-lang-mode~ is probably better than ~racket-mode~. (Note there is also an unrelated ~scribble-mode~ package.)
+
+- For non-s-expression langs like ~datalog~ or ~rhombus~ (~.rhm~), ~racket-hash-lang-mode~ is definitely better than ~racket-mode~. (Note there is also an unrelated ~rhombus-mode~ package.)
+
+You use ~auto-mode-alist~ to tell Emacs which major mode to use initially for certain file extensions. Also, in a buffer you can use ~M-x racket-mode~ and ~M-x racket-hash-lang-mode~ to switch between them.
+
+Note that ~racket-hash-lang-mode~ is derived from ~racket-mode~, so it runs both ~racket-mode-hook~ and ~racket-hash-lang-mode-hook~.
+
 ** Key bindings
 
 To customize things like key bindings, you can use ~racket-mode-hook~ in your Emacs init file to modify ~racket-mode-map~. For example, although {{{kbd(C-c C-c)}}} is bound by default to the ~racket-run~ command, let's say you wanted {{{kbd(F5)}}} to be an additional binding:
