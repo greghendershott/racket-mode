@@ -180,8 +180,7 @@ This has a visible effect only when there is /not/ also a
     (other              . font-lock-doc-face)
     (keyword            . font-lock-keyword-face)
     (hash-colon-keyword . racket-keyword-argument-face)
-    (at                 . font-lock-doc-face)
-    (operator           . font-lock-variable-name-face))
+    (at                 . font-lock-doc-face))
   "An association list from color-lexer token symbols to face symbols.
 
 Note: In many Racket languages, the lexer classifies tokens for
