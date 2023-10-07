@@ -166,6 +166,7 @@ A discussion of the information provided by a Racket language:
          (font-lock-mode 1)
          (read-only-mode -1)
          (cancel-timer timer)
+         (font-lock-fontify-buffer)
          (setq-local header-line-format nil))))))
 
 (defun racket--hash-lang-delete ()
