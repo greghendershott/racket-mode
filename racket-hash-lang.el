@@ -183,8 +183,7 @@ can contribute more colors; see the customization variable
 
 (defun racket--hash-lang-change-mode-hook ()
   (when (eq major-mode 'racket-hash-lang-mode)
-    (racket--hash-lang-delete)
-    (racket--hash-lang-configure-repl-buffer-from-edit-buffer)))
+    (racket--hash-lang-delete)))
 (add-hook 'change-major-mode-hook #'racket--hash-lang-change-mode-hook)
 
 ;;; Handle back end stopping and re-starting
@@ -612,7 +611,7 @@ When the lang lexer token is...
 
 \\{racket-hash-lang-repl-mode-map}
 "
-  :lighter ""
+  :lighter " #lang"
   :keymap racket-hash-lang-repl-mode-map)
 
 (defun racket--hash-lang-configure-repl-buffer-from-edit-buffer ()

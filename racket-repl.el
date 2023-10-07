@@ -590,7 +590,6 @@ Otherwise if `racket--repl-live-p', send the command."
     (cond ((racket--repl-live-p)
            (unless (racket--repl-session-id)
              (error "No REPL session"))
-           (run-hooks 'racket--repl-configure-buffer-hook)
            (racket--cmd/async (racket--repl-session-id) cmd after)
            (display-buffer racket-repl-buffer-name))
           (t
