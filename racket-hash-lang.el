@@ -105,15 +105,17 @@ A discussion of the information provided by a Racket language:
 
   <https://docs.racket-lang.org/tools/lang-languages-customization.html>
 
+Note that langs supply colors only for lexer tokens like strings
+and comments. If you enable the minor mode `racket-xp-mode', it
+can contribute more colors; see the customization variable
+`racket-xp-binding-font-lock-face-modes'.
+
 \\{racket-hash-lang-mode-map}
 "
-  (setq-local racket--hash-lang-generation 1)
-  (electric-indent-local-mode -1)
-  (setq-local electric-indent-inhibit t)
-  (setq-local blink-paren-function nil)
   (setq-local font-lock-defaults nil)
   (setq-local font-lock-fontify-region-function
               #'racket--hash-lang-font-lock-fontify-region)
+  (font-lock-set-defaults) ;issue #642
   (setq-local syntax-propertize-function nil)
   (setq-local text-property-default-nonsticky
               (append
@@ -121,6 +123,9 @@ A discussion of the information provided by a Racket language:
                text-property-default-nonsticky))
   (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
   (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
+  (electric-indent-local-mode -1)
+  (setq-local electric-indent-inhibit t)
+  (setq-local blink-paren-function nil)
   (racket--hash-lang-create))
 
 ;; For use by both racket-hash-lang-mode and racket-repl-mode
