@@ -84,6 +84,7 @@
     (parameterize ([current-output-port out])
       (let loop ()
         (elisp-writeln (sync response-channel
+                             repl-output-channel
                              logger-notify-channel
                              debug-notify-channel
                              hash-lang-notify-channel))

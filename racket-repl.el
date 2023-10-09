@@ -1386,6 +1386,46 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
       (dolist (win (get-buffer-window-list))
         (set-window-point win (point-max))))))
 
+;;; Output
+
+;; For now, just errors are sent to us as a notfication as opposed to
+;; via REPL's TCP output port. Eventually, all output could come this
+;; way.
+
+(defun racket--call-with-repl-session-id (id proc &rest args)
+  "Apply ARGS to PROC while current-buffer set to REPL having racket--repl-session-id equal to ID."
+  ;; If searching buffer-list too slow, we could maintain a hash table
+  ;; and clean it with a kill-buffer hook.
+  (seq-some (lambda (b)
+              (with-current-buffer b
+                (when (and (eq major-mode 'racket-repl-mode)
+                           (equal racket--repl-session-id id))
+                  (apply proc args)
+                  t)))
+            (buffer-list)))
+
+(defun racket--repl-on-error (value)
+  (save-excursion
+    (let ((proc (get-buffer-process (current-buffer))))
+      (goto-char (process-mark proc))
+      ;; TODO instead of printing the sexpr, use its structure to
+      ;; insert live links like compilation-mode does, and support
+      ;; next-error.
+      (insert (propertize (format "User program raised:\n%S\n" value)
+                          'syntax-table racket--plain-syntax-table
+                          'font-lock-face 'error
+                          'fontified t
+                          'read-only t
+                          'field 'output))
+      (set-marker (process-mark proc) (point)))))
+
+(defun racket--repl-on-output (session-id kind value)
+  (cl-case kind
+    ((error)
+     (racket--call-with-repl-session-id session-id
+                                        #'racket--repl-on-error
+                                        value))))
+
 (provide 'racket-repl)
 
 ;; racket-repl.el ends here

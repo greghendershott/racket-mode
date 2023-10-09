@@ -1,7 +1,7 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2023 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
-#lang at-exp racket/base
+#lang racket/base
 
 (require (only-in pkg/db
                   get-catalogs)
@@ -10,7 +10,6 @@
                   pkg-directory)
          racket/format
          racket/match
-         racket/string
          setup/dirs
          "instrument.rkt"
          "stack-checkpoint.rkt"
@@ -22,65 +21,38 @@
 (module+ test
   (require rackunit))
 
-(define (racket-mode-error-display-handler msg v)
-  (parameterize ([current-output-port (current-error-port)])
-    (cond [(with-handlers ([values (λ _ #f)])
-             ((dynamic-require 'rackunit 'exn:test:check?) v))
-           (displayln msg)]
-          [(exn? v)
-           (define (show msg)
-             (display-commented
-              (complete-paths
-               (undo-path->relative-string/library msg))))
-           (show msg)
-           (unless (member (exn-message v) (list "" msg))
-             (show (exn-message v)))
-           (display-srclocs v)
-           (unless (or (exn:fail:syntax? v)
-                       (and (exn:fail:read? v) (not (exn:fail:read:eof? v)))
-                       (exn:fail:user? v))
-             (display-context v))
-           (maybe-suggest-packages v)]
-          [else
-           (display-commented msg)])))
+(define ((racket-mode-error-display-handler output) msg v)
+  (output
+    (cond
+      [(with-handlers ([values (λ _ #f)])
+         ((dynamic-require 'rackunit 'exn:test:check?) v))
+       (list 'exn:test:check msg)]
+      [(exn? v)
+       (define (fix-paths msg)
+         (complete-paths
+          (undo-path->relative-string/library msg)))
+       (list 'exn
+             (fix-paths msg)
+             (if (member (exn-message v) (list "" msg))
+                 ""
+                 (fix-paths (exn-message v)))
+             (list 'srclocs
+                   (if (exn:srclocs? exn)
+                       (map srcloc->elisp-value
+                            ((exn:srclocs-accessor exn) exn))
+                       null))
+             (list 'context
+                   (if (or (exn:fail:syntax? v)
+                               (and (exn:fail:read? v) (not (exn:fail:read:eof? v)))
+                               (exn:fail:user? v))
+                       null
+                       (context v))))]
+      [else
+       (list 'non-exn msg)])))
 
 ;;; srclocs
 
-(define (display-srclocs exn)
-  (when (exn:srclocs? exn)
-    ;; Display srclocs that aren't already present in exn-message.
-    ;;
-    ;; Often the first srcloc is already in exn-message.
-    ;;
-    ;; Sometimes (e.g. Typed Racket) ALL the srclocs are in
-    ;; exn-message.
-    ;;
-    ;; On Racket BC, if a path is very long, it might be truncated and
-    ;; start with "..." in exn-message. As a result, we will display
-    ;; the full path from the srcloc here, which is helpful; see #604.
-    (define strs
-      (for*/list ([srcloc (in-list ((exn:srclocs-accessor exn) exn))]
-                  [str (in-value (source-location->string srcloc))]
-                  #:when (not (regexp-match? (regexp-quote str)
-                                             (exn-message exn))))
-        (string-append "  " str)))
-    (unless (null? strs)
-      (display-commented "  Source locations:")
-      (for-each display-commented strs))))
-
-(module+ test
-  (let ([o (open-output-string)])
-    (parameterize ([current-error-port o])
-      (display-srclocs (make-exn:fail:read "..."
-                                           (current-continuation-marks)
-                                           '())))
-    (check-equal? (get-output-string o) "")))
-
-;; We don't use source-location->string from syntax/srcloc, because we
-;; don't want the setup/path-to-relative behavior that elides complete
-;; pathnames with prefixes like "<pkgs>/" etc. For strings we create
-;; ourselves, we use our own such function, defined here.
-(define (source-location->string x)
+(define (srcloc->elisp-value x)
   (define src
     ;; Although I want to find/fix this properly upstream -- is
     ;; something a path-string? when it should be a path? -- for now
@@ -88,41 +60,30 @@
     ;; "\"/path/to/file.rkt\"" i.e. the string value has quotes.
     (match (srcloc-source x)
       [(pregexp "^\"(.+)\"$" (list _ unquoted)) unquoted]
+      [(? path? v) (path->string v)]
       [v v]))
   (define line (or (srcloc-line x)   1))
   (define col  (or (srcloc-column x) 0))
-  (format "~a:~a:~a" src line col))
+  (list src line col (srcloc-position x) (srcloc-span x)))
 
 ;;; context
 
-(define (display-context exn)
-  (cond [(instrumenting-enabled)
-         (define p (open-output-string))
-         (print-error-trace p exn)
-         (match (get-output-string p)
-           ["" (void)]
-           [s  (display-commented (~a "Context (errortrace):" s))])]
-        [else
-         (match (context->string
-                 (continuation-mark-set->trimmed-context
-                  (exn-continuation-marks exn)))
-           ["" (void)]
-           [s (display-commented
-               (~a "Context (plain; to see better errortrace context, re-run with C-u prefix):\n"
-                   s))])]))
-
-(define (context->string xs)
-  (string-join (for/list ([x xs]
-                          [_ (error-print-context-length)])
-                 (context-item->string x))
-               "\n"))
-
-(define (context-item->string ci)
-  (match-define (cons id srcloc) ci)
-  (~a (if (or srcloc id) "  " "")
-      (if srcloc (source-location->string srcloc) "")
-      (if (and srcloc id) " " "")
-      (if id (format "~a" id) "")))
+(define (context e)
+  (define-values (kind pairs)
+    (cond [(instrumenting-enabled)
+           (values 'errortrace
+                 (get-error-trace e))]
+          [else
+           (values 'plain
+                   (for/list ([_ (error-print-context-length)]
+                              [v (continuation-mark-set->trimmed-context
+                                  (exn-continuation-marks e))])
+                     v))]))
+  (cons kind
+        (for/list ([v (in-list pairs)])
+          (match-define (cons expr src) v)
+          (cons (~a expr)
+                (and src (srcloc->elisp-value src))))))
 
 ;;; Complete pathnames for Emacs
 
@@ -242,29 +203,3 @@
                       "already complete path: no change")))
     (delete-file example)))
 
-;;; packages
-
-(define (maybe-suggest-packages exn)
-  (when (exn:missing-module? exn)
-    (match (get-catalogs)
-      [(list)
-       (display-commented
-        @~a{-----
-            Can't suggest packages to install, because pkg/db get-catalogs is '().
-            To configure:
-            1. Start DrRacket.
-            2. Choose "File | Package Manager".
-            3. Click "Available from Catalog".
-            4. When prompted, click "Update".
-            -----})]
-      [_
-       (define mod ((exn:missing-module-accessor exn) exn))
-       (match (pkg-catalog-suggestions-for-module mod)
-         [(list) void]
-         [(list p)
-          (display-commented
-           @~a{Try "raco pkg install @|p|" ?})]
-         [(? list? ps)
-          (display-commented
-           @~a{Try "raco pkg install" one of @(string-join ps ", ") ?})]
-         [_ void])])))

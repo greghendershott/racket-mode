@@ -4,7 +4,8 @@
 #lang racket/base
 ;; Do NOT use `at-exp` in this file! See issue #290.
 
-(require racket/contract
+(require racket/async-channel
+         racket/contract
          racket/format
          racket/match
          (only-in racket/path path-only file-name-from-path)
@@ -28,7 +29,23 @@
          run
          repl-break
          repl-zero-column
-         maybe-module-path->file)
+         maybe-module-path->file
+         repl-output-channel)
+
+;;; REPL output
+
+;; We want structured output -- distinctly separated:
+;;  - current-output-port
+;;    - raw text
+;;    - images via this port supporting write-special
+;;  - current-print values
+;;  - current-error-port
+;;  - errors from error-display-handler
+
+(define repl-output-channel (make-async-channel))
+(define (repl-output kind value)
+  (async-channel-put repl-output-channel
+                     (list 'repl-output (current-session-id) kind value)))
 
 ;;; Messages to each repl manager thread
 
@@ -199,9 +216,10 @@
 (define (repl-manager-thread-thunk)
   (define session-id (next-session-id!))
   (log-racket-mode-info "start ~v" session-id)
-  (parameterize* ([error-display-handler racket-mode-error-display-handler]
-                  [current-session-id    session-id]
-                  [current-repl-msg-chan (make-channel)])
+  (parameterize* ([current-session-id    session-id]
+                  [current-repl-msg-chan (make-channel)]
+                  [error-display-handler (racket-mode-error-display-handler
+                                          (lambda (v) (repl-output 'error v)))])
     (do-run
      (initial-run-config
       (λ ()
