@@ -128,29 +128,21 @@ but does not have a live session."
 (defvar-local racket-repl-submit-function nil)
 
 (defun racket-repl-submit (&optional prefix)
-  "Submit your input to the Racket REPL.
-
-\\<racket-repl-mode-map>
-With a prefix argument (e.g. \\[universal-argument] \\[racket-repl-submit]):
-
-After sending your input and a newline, also calls
-`process-send-eof' -- because some langs require EOF to mark the
-end of an interactive expression/statement."
+  "Submit your input to the Racket REPL."
   (interactive "P")
   (pcase (get-buffer-process (current-buffer))
     ((and (pred processp) proc)
-     (cond ((if racket-repl-submit-function
-                (funcall racket-repl-submit-function
-                         (substring-no-properties (funcall comint-get-old-input)))
-              (racket--repl-complete-sexp-p proc))
-            (comint-send-input)
-            (with-silent-modifications
-              (remove-text-properties comint-last-input-start
-                                      comint-last-input-end
-                                      '(font-lock-face comint-highlight-input)))
-            ;; Hack for datalog/lang
-            (when prefix (process-send-eof proc)))
-           (t (newline-and-indent))))
+     (end-of-line)
+     (when (< (process-mark proc) (point))
+       (let ((input (buffer-substring-no-properties (process-mark proc) (point))))
+         (when (if racket-repl-submit-function
+                   (funcall racket-repl-submit-function input)
+                 (racket--repl-complete-sexp-p proc))
+           (insert ?\n)
+           (set-marker (process-mark proc) (point))
+           (racket--cmd/async (racket--repl-session-id) `(submit ,input))
+           ;; TODO: Revive history like comint does
+           ))))
     (_ (user-error "current buffer has no process"))))
 
 (defun racket--repl-complete-sexp-p (proc)
@@ -1347,10 +1339,6 @@ Emacs init file something like:
   (add-hook \\='racket-before-run-hook #\\='racket-repl-clear)
 
 See also the command `racket-repl-clear-leaving-last-prompt'."
-  ;; This prevents a first blank line, by telling the back end that
-  ;; output is no longer sitting at some non-zero column after a
-  ;; prompt; therefore fresh-line won't need to issue a newline.
-  (racket--cmd/async (racket--repl-session-id) `(repl-zero-column))
   (racket--do-repl-clear nil))
 
 (defun racket-repl-clear-leaving-last-prompt ()
@@ -1388,9 +1376,11 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
 
 ;;; Output
 
-;; For now, just errors are sent to us as a notfication as opposed to
-;; via REPL's TCP output port. Eventually, all output could come this
-;; way.
+;; For now, stdout and stderr still go to process TCP port, but other
+;; kinds of output come via this. (Eventually, assuming performance is
+;; OK, /all/ output could come this way. If input could also be
+;; handled as a command /to/ the back end, then we don't even need the
+;; TCP ports anymore?)
 
 (defun racket--call-with-repl-session-id (id proc &rest args)
   "Apply ARGS to PROC while current-buffer set to REPL having racket--repl-session-id equal to ID."
@@ -1404,27 +1394,40 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
                   t)))
             (buffer-list)))
 
-(defun racket--repl-on-error (value)
-  (save-excursion
-    (let ((proc (get-buffer-process (current-buffer))))
-      (goto-char (process-mark proc))
-      ;; TODO instead of printing the sexpr, use its structure to
-      ;; insert live links like compilation-mode does, and support
-      ;; next-error.
-      (insert (propertize (format "User program raised:\n%S\n" value)
-                          'syntax-table racket--plain-syntax-table
-                          'font-lock-face 'error
-                          'fontified t
-                          'read-only t
-                          'field 'output))
-      (set-marker (process-mark proc) (point)))))
-
 (defun racket--repl-on-output (session-id kind value)
-  (cl-case kind
-    ((error)
-     (racket--call-with-repl-session-id session-id
-                                        #'racket--repl-on-error
-                                        value))))
+  ;;;(message "%S" (list 'racket--repl-on-output session-id kind value))
+  (racket--call-with-repl-session-id
+   session-id
+   (lambda ()
+     (let* ((proc (get-buffer-process (current-buffer)))
+            (moving (= (point) (process-mark proc)))
+            (inhibit-read-only t))
+       (save-excursion
+         (goto-char (process-mark proc))
+         (unless (memq kind '(stdout stderr))
+           (unless (bolp)
+             (newline)))
+         (insert
+          (propertize
+           (cl-case kind
+             ;; TODO: When kind is 'error, use the structured data for
+             ;; hyperlinks and next-error, in the style of
+             ;; compilation-mode.
+             ((error) (format "%S" value))
+             ((prompt) (concat value " "))
+             (otherwise value))
+           'syntax-table racket--plain-syntax-table
+           'font-lock-face (cl-case kind
+                             ((stderr error) 'error)
+                             ((prompt) 'comint-highlight-prompt)
+                             ((message) 'font-lock-comment-face)
+                             (otherwise 'default))
+           'fontified t
+           'read-only t
+           'rear-nonsticky t
+           'field 'output))
+         (set-marker (process-mark proc) (point)))
+       (when moving (goto-char (process-mark proc)))))))
 
 (provide 'racket-repl)
 

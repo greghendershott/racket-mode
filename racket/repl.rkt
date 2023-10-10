@@ -4,8 +4,7 @@
 #lang racket/base
 ;; Do NOT use `at-exp` in this file! See issue #290.
 
-(require racket/async-channel
-         racket/contract
+(require racket/contract
          racket/format
          racket/match
          (only-in racket/path path-only file-name-from-path)
@@ -19,6 +18,7 @@
          "instrument.rkt"
          "interactions.rkt"
          "print.rkt"
+         "repl-output.rkt"
          "repl-session.rkt"
          "stack-checkpoint.rkt"
          (only-in "syntax.rkt" make-caching-load/use-compiled-handler)
@@ -28,24 +28,8 @@
          repl-tcp-port-number
          run
          repl-break
-         repl-zero-column
-         maybe-module-path->file
-         repl-output-channel)
-
-;;; REPL output
-
-;; We want structured output -- distinctly separated:
-;;  - current-output-port
-;;    - raw text
-;;    - images via this port supporting write-special
-;;  - current-print values
-;;  - current-error-port
-;;  - errors from error-display-handler
-
-(define repl-output-channel (make-async-channel))
-(define (repl-output kind value)
-  (async-channel-put repl-output-channel
-                     (list 'repl-output (current-session-id) kind value)))
+         repl-submit
+         maybe-module-path->file)
 
 ;;; Messages to each repl manager thread
 
@@ -105,11 +89,12 @@
   (channel-put (current-repl-msg-chan) (break kind)))
 
 ;; Command. Called from a command-server thread
-(struct zero-column (chan))
-(define (repl-zero-column)
-  (define ch (make-channel))
-  (channel-put (current-repl-msg-chan) (zero-column ch))
-  (sync ch))
+(struct submit (kind))
+(define/contract (repl-submit str)
+  (-> string? any)
+  (unless (current-repl-msg-chan)
+    (error 'repl-break "No REPL session to break"))
+  (channel-put (current-repl-msg-chan) (submit str)))
 
 ;; Command. Called from a command-server thread
 (define/contract (run what subs mem pp cols pix/char ctx args dbgs)
@@ -209,7 +194,6 @@
                                    supplied-token)
             (exit 'racket-mode-repl-auth-failure))
           (port-count-lines! in)  ;but for #519 #556 see interactions.rkt
-          (port-count-lines! out) ;for fresh-line
           (thread repl-manager-thread-thunk))))
     (accept-a-connection)))
 
@@ -218,8 +202,8 @@
   (log-racket-mode-info "start ~v" session-id)
   (parameterize* ([current-session-id    session-id]
                   [current-repl-msg-chan (make-channel)]
-                  [error-display-handler (racket-mode-error-display-handler
-                                          (lambda (v) (repl-output 'error v)))])
+                  [error-display-handler racket-mode-error-display-handler])
+    (define orig-tcp-out (current-output-port))
     (do-run
      (initial-run-config
       (λ ()
@@ -228,9 +212,10 @@
         ;; of a specific REPL. We wait to do so until this ready-thunk
         ;; to ensure the `sessions` hash table has this session before
         ;; any subsequent commands use call-with-session-context.
-        (elisp-writeln `(ok ,session-id))
-        (flush-output)
-        (display-commented (string-append "\n" (banner))))))))
+        (parameterize ([current-output-port orig-tcp-out])
+          (elisp-writeln `(ok ,session-id))
+          (flush-output))
+        (repl-output-message (banner)))))))
 
 (define (do-run cfg) ;run-config? -> void?
   (match-define (run-config maybe-mod
@@ -257,11 +242,15 @@
                             (inexact->exact (round (* 1024 1024 mem-limit)))
                             repl-cust))
 
+  (define submissions (make-channel))
+
   ;; repl-thunk loads the user program and enters read-eval-print-loop
   (define (repl-thunk)
     ;; Command line arguments
     (current-command-line-arguments cmd-line-args)
     ;; Set print hooks and output handlers
+    (current-output-port (make-repl-output-port))
+    (current-error-port  (make-repl-error-port))
     (set-print-parameters pretty-print? columns pixels/char)
     (set-output-handlers)
     ;; Record as much info about our session as we can, before
@@ -304,12 +293,20 @@
     ;; Now that user's program has run, and `sessions` is updated,
     ;; call the ready-thunk. On REPL session startup this lets us
     ;; postpone sending the repl-session-id until `sessions` is
-    ;; updated. And for subsequent run commands, this lets us it wait
-    ;; to send a response, which is useful for commands that want to
-    ;; run after a run command has finished.
+    ;; updated. And for subsequent run commands, this lets us wait to
+    ;; send a response, which is useful for commands that want to run
+    ;; after a run command has finished.
     (ready-thunk)
     ;; And finally, enter read-eval-print-loop.
-    (parameterize ([current-prompt-read (make-prompt-read maybe-mod)])
+    (define (prompt-read)
+      (repl-output-prompt (string-append (maybe-module-path->prompt-string maybe-mod)
+                                         ">"))
+      (define in (open-input-string (channel-get submissions)))
+      (define v (with-stack-checkpoint
+                  ((current-read-interaction) 'racket-mode-repl in)))
+      (next-break 'all) ;let debug-instrumented code break again
+      v)
+    (parameterize ([current-prompt-read prompt-read])
       ;; Note that read-eval-print-loop catches all non-break
       ;; exceptions.
       (read-eval-print-loop)))
@@ -333,18 +330,11 @@
                            [(profile)  (clear-profile-info!)]
                            [(coverage) (clear-test-coverage-info!)])
                          (custodian-shutdown-all repl-cust)
-                         (fresh-line)
                          (do-run c)]
-      [(zero-column ch)  (zero-column!)
-                         (channel-put ch 'done)]
+      [(submit s)        (channel-put submissions s)]
       [(break kind)      (break-thread repl-thread (if (eq? kind 'break) #f kind))]
       [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)])
     (get-message)))
-
-(define ((make-prompt-read m))
-  (begin0 (get-interaction (maybe-module-path->prompt-string m))
-    ;; let debug-instrumented code break again
-    (next-break 'all)))
 
 ;; Change one of our non-false maybe-mod values (for which we use path
 ;; objects, not path-strings) into a module-path applied to
@@ -397,7 +387,7 @@
 (define (check-#%top-interaction)
   ;; Check that the lang defines #%top-interaction
   (unless (memq '#%top-interaction (namespace-mapped-symbols))
-    (display-commented
+    (repl-output-message
      "Because the language used by this module provides no #%top-interaction\n you will be unable to evaluate expressions here in the REPL.")))
 
 ;;; Output handlers; see issues #381 #397

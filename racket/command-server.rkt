@@ -13,6 +13,7 @@
          "hash-lang-bridge.rkt"
          "logger.rkt"
          "repl.rkt"
+         "repl-output.rkt"
          "repl-session.rkt"
          (only-in "scribble.rkt"
                   doc-index-names
@@ -169,7 +170,7 @@
     [`(debug-resume ,v)                (debug-resume v)]
     [`(debug-disable)                  (debug-disable)]
     [`(break ,kind)                    (repl-break kind)]
-    [`(repl-zero-column)               (repl-zero-column)]))
+    [`(submit ,str)                    (repl-submit str)]))
 
 ;;; Some trivial commands defined here
 

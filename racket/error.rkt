@@ -12,6 +12,7 @@
          racket/match
          setup/dirs
          "instrument.rkt"
+         "repl-output.rkt"
          "stack-checkpoint.rkt"
          "util.rkt")
 
@@ -21,8 +22,8 @@
 (module+ test
   (require rackunit))
 
-(define ((racket-mode-error-display-handler output) msg v)
-  (output
+(define (racket-mode-error-display-handler msg v)
+  (repl-output-error
     (cond
       [(with-handlers ([values (λ _ #f)])
          ((dynamic-require 'rackunit 'exn:test:check?) v))

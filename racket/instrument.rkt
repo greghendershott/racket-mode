@@ -20,6 +20,7 @@
          racket/set
          racket/unit
          syntax/parse
+         "repl-output.rkt"
          "repl-session.rkt"
          "util.rkt")
 
@@ -88,7 +89,7 @@
     [(#%app time-apply . _)
      (unless (set-member? warned-sessions (current-session-id))
        (set-add! warned-sessions (current-session-id))
-       (display-commented
+       (repl-output-message
         @~a{Warning: time or time-apply used in errortrace annotated code.
             Instead use command-line racket for more-accurate measurements.
             (Will not warn again for this REPL session.)}))

@@ -5,6 +5,7 @@
 
 (require racket/match
          racket/port
+         "repl-output.rkt"
          "stack-checkpoint.rkt"
          "util.rkt")
 
@@ -32,20 +33,18 @@
         (log-racket-mode-info "get-interaction: exn:fail:network")
         (exit 'get-interaction-exn:fail:network))
      (when (exn:fail:read? e) ;#646
-        (discard-remaining-lines! in)
-        (zero-column!))
+        (discard-remaining-lines! in))
      e)
    (λ ()
      (unless (already-more-to-read? in) ;#311
-       (display-prompt prompt))
+       (repl-output-prompt (string-append prompt ">")))
      (define v (with-stack-checkpoint
                  ((current-read-interaction) prompt in)))
      (when (eof-object? v)
        (log-racket-mode-info "get-interaction: eof")
-       (display-commented
+       (repl-output-message
         "Closing REPL session because language's current-read-interaction returned EOF")
        (exit 'get-interaction-eof))
-     (zero-column!)
      v)))
 
 (define (discard-remaining-lines! in)
@@ -84,8 +83,3 @@
   (begin0 (sync/timeout 0.01 ch)
     (custodian-shutdown-all cust)))
 
-(define (display-prompt str)
-  (fresh-line)
-  (display str)
-  (display "> ")
-  (flush-output))
