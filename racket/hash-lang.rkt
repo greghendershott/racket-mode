@@ -102,6 +102,11 @@
 (define-simple-macro (with-semaphore sema e:expr ...+)
   (call-with-semaphore sema (λ () e ...)))
 
+;; Note: To do actual lexing, we /always/ use module-lexer*. We need
+;; the 'color-lexer info key solely as a signal for lang change
+;; detection.
+(define the-lexer (waive-option module-lexer*))
+
 (define hash-lang%
   (class* object% (color-textoid<%>)
     (super-new)
@@ -279,49 +284,38 @@
       lexer-changed?)
 
     (define/private (update-tokens-and-parens edit-pos diff)
-      (define raw-lexer (lang-info-lexer lang-info))
       ;; Determine the position from which we need to start
       ;; re-tokenizing (this will be less than the edit position) and
       ;; the initial lexer mode.
-      (define-values (initial-pos initial-mode effective-lexer)
-        (cond
-          [(procedure-arity-includes? raw-lexer 3)
-           (with-semaphore tokens-sema
-             ;; Find beginning of the token, if any, corresponding to the
-             ;; edit position.
-             ;;
-             ;; An update at the end can result in token-ref returning #f
-             ;; so make an initial adjustment of edit-pos to give to
-             ;; token-ref.
-             (send tokens search! edit-pos)
-             (define pos (send tokens get-root-start-position))
-             (match (token-ref pos)
-               [(list beg _end (struct* data ([backup backup])))
-                ;; Initially back up by at least 1 (i.e. to the previous
-                ;; token) or by this token's `backup` amount.
-                (let loop ([pos (- beg (max 1 backup))])
-                  (match (token-ref pos)
-                    [(list beg _end (struct* data ([backup backup])))
-                     (if (< 0 backup)
-                         (loop (- beg backup))
-                         ;; Finally, back up one more to get the initial
-                         ;; lexer mode, if any. (Why: The mode stored
-                         ;; with a token is state with which to read the
-                         ;; _next_ token.)
-                         (match (token-ref (sub1 beg))
-                           [(list _beg _end (struct* data ([mode mode])))
-                            (values beg mode raw-lexer)]
-                           [#f (values beg #f raw-lexer)]))]
-                    [#f (values min-position #f raw-lexer)]))]
-               [#f (values min-position #f raw-lexer)]))]
-          [(procedure-arity-includes? raw-lexer 1)
-           (values min-position
-                   'dummy-mode
-                   (λ (port _pos _mode)
-                     (define-values (lexeme attribs paren beg end)
-                       ((lang-info-lexer lang-info) port))
-                     (values lexeme attribs paren beg end beg 'dummy-mode)))]
-          [error 'lexer "Unknown lexer arity"]))
+      (define-values (initial-pos initial-mode)
+        (with-semaphore tokens-sema
+          ;; Find beginning of the token, if any, corresponding to the
+          ;; edit position.
+          ;;
+          ;; An update at the end can result in token-ref returning #f
+          ;; so make an initial adjustment of edit-pos to give to
+          ;; token-ref.
+          (send tokens search! edit-pos)
+          (define pos (send tokens get-root-start-position))
+          (match (token-ref pos)
+            [(list beg _end (struct* data ([backup backup])))
+             ;; Initially back up by at least 1 (i.e. to the previous
+             ;; token) or by this token's `backup` amount.
+             (let loop ([pos (- beg (max 1 backup))])
+               (match (token-ref pos)
+                 [(list beg _end (struct* data ([backup backup])))
+                  (if (< 0 backup)
+                      (loop (- beg backup))
+                      ;; Finally, back up one more to get the initial
+                      ;; lexer mode, if any. (Why: The mode stored
+                      ;; with a token is state with which to read the
+                      ;; _next_ token.)
+                      (match (token-ref (sub1 beg))
+                        [(list _beg _end (struct* data ([mode mode])))
+                         (values beg mode)]
+                        [#f (values beg #f)]))]
+                 [#f (values min-position #f)]))]
+            [#f (values min-position #f)])))
       ;; Everything before this is valid; allow other threads to
       ;; progress thru that position of this generation.
       (set-update-progress #:position (sub1 initial-pos))
@@ -348,7 +342,7 @@
                        [max-changed-pos min-position])
           (define pos/port (add1 pos))
           (define-values (lexeme attribs paren beg/port end/port backup new-mode/ds)
-            (effective-lexer in pos/port mode))
+            (the-lexer in pos/port mode))
           (define-values (new-mode may-stop?)
             (match new-mode/ds
               [(struct* dont-stop ([val v])) (values v #f)]
@@ -670,8 +664,8 @@
     (define/public (get-regions)
       '((0 end)))))
 
+(define default-lexer the-lexer)
 (define default-module-language #f)
-(define default-lexer (waive-option module-lexer*))
 (define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
 (define default-quote-matches '(#\" #\|))
 
