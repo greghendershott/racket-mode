@@ -1337,7 +1337,27 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
              ;; TODO: When kind is 'error, use the structured data for
              ;; hyperlinks and next-error, in the style of
              ;; compilation-mode.
-             ((error) (format "%S" value))
+             ((error)
+              (cl-flet*
+                  ((format-loc
+                    (loc)
+                    (pcase-let ((`(,name ,file ,line ,col ,pos ,span) loc))
+                      (propertize (format "%s %s:%s:%s:%s:%s" name file line col pos span)
+                                  'racket-error-loc loc)))
+                   (format-locs
+                    (label locs)
+                    (when locs
+                      (list label
+                            (string-join (mapcar #'format-loc locs) "\n")))))
+               (pcase value
+                 (`(exn ,msg1 ,msg2 (srclocs ,more-locs) (context (,context-kind . ,context-locs)))
+                  (string-join
+                   `(,msg1
+                     ,@(if (equal msg2 "") '() msg2)
+                     ,@(format-locs (format "Context (%s):" context-kind) context-locs)
+                     ,@(format-locs "More source locations:" more-locs))
+                   "\n"))
+                 (_ (format "%S" value)))))
              ((run) (concat value "\n"))
              ((prompt) value)
              (otherwise value))
