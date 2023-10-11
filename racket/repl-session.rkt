@@ -19,17 +19,17 @@
 
 ;;; REPL session "housekeeping"
 
-;; Session IDs are strings based on time + monotonic number
 (define next-session-id!
-  (let ([n 0])
+  (let ([sema (make-semaphore 1)]
+        [n 0])
     (λ ()
-      (format "repl-session-~a-~a"
-              (current-inexact-milliseconds)
-              (begin0 n
-                (inc! n))))))
+      (call-with-semaphore sema
+                           (λ ()
+                             (begin0 n
+                               (set! n (add1 n))))))))
 
 ;; Each REPL session has an entry in this hash-table.
-(define sessions (make-hash)) ;string? => session?
+(define sessions (make-hasheq)) ;number? => session?
 
 (struct session
   (thread           ;thread? the repl manager thread

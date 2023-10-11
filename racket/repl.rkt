@@ -24,8 +24,7 @@
          (only-in "syntax.rkt" make-caching-load/use-compiled-handler)
          "util.rkt")
 
-(provide start-repl-session-server
-         repl-tcp-port-number
+(provide repl-start
          run
          repl-break
          repl-submit
@@ -79,6 +78,12 @@
               #()   ;cmd-line-args
               (set) ;debug-files
               ready-thunk))
+
+;; Command. Called from a command-server thread
+(define (repl-start)
+  (define session-id (next-session-id!))
+  (thread (repl-manager-thread-thunk session-id))
+  session-id)
 
 ;; Command. Called from a command-server thread
 (struct break (kind))
@@ -144,77 +149,16 @@
     [(list* 'submod p xs) (string-join (cons (name p) (map ~a xs)) "/")]
     [#f                   ""]))
 
-;;; REPL session server
+;;; REPL sessions
 
-(define repl-tcp-port-number #f)
-
-(define (start-repl-session-server launch-token accept-host tcp-port)
-  (define listener
-    (tcp-listen tcp-port ;0 == choose port dynamically, a.k.a. "ephemeral" port
-                64
-                (not (zero? tcp-port)) ;reuse not good for ephemeral ports
-                accept-host))
-  (set! repl-tcp-port-number
-        (let-values ([(_loc-addr port _rem-addr _rem-port) (tcp-addresses listener #t)])
-          port))
-  (log-racket-mode-info "Accepting TCP connections from host ~v on port ~v"
-                        accept-host
-                        repl-tcp-port-number)
-  (thread (listener-thread-thunk launch-token listener)))
-
-(define ((listener-thread-thunk launch-token listener))
-  (let accept-a-connection ()
-    (define custodian (make-custodian))
-    (parameterize ([current-custodian custodian])
-      ;; `exit` in a REPL should terminate that REPL session -- not
-      ;; the entire back end server. Also, this is opportunity to
-      ;; remove the session from `sessions` hash table.
-      (define (our-exit-handler code)
-        (log-racket-mode-info "(our-exit-handler ~v) ~v"
-                              code (current-session-id))
-        (when (current-session-id) ;might exit before session created
-          (remove-session! (current-session-id)))
-        (custodian-shutdown-all custodian))
-      (parameterize ([exit-handler our-exit-handler])
-        (define-values (in out) (tcp-accept listener))
-        (parameterize ([current-input-port  in]
-                       [current-output-port out]
-                       [current-error-port  out])
-          (file-stream-buffer-mode in (if (eq? (system-type) 'windows)
-                                          'none
-                                          'block)) ;#582
-          (file-stream-buffer-mode out 'none)
-          ;; Immediately after connecting, the client must send us
-          ;; exactly the same launch token value that it gave us as a
-          ;; command line argument when it started us. Else we close
-          ;; the connection. See issue #327.
-          (define supplied-token (elisp-read in))
-          (unless (equal? launch-token supplied-token)
-            (log-racket-mode-fatal "Authorization failed: ~v"
-                                   supplied-token)
-            (exit 'racket-mode-repl-auth-failure))
-          (port-count-lines! in)  ;but for #519 #556 see interactions.rkt
-          (thread repl-manager-thread-thunk))))
-    (accept-a-connection)))
-
-(define (repl-manager-thread-thunk)
-  (define session-id (next-session-id!))
+(define ((repl-manager-thread-thunk session-id))
   (log-racket-mode-info "start ~v" session-id)
   (parameterize* ([current-session-id    session-id]
                   [current-repl-msg-chan (make-channel)]
                   [error-display-handler racket-mode-error-display-handler])
-    (define orig-tcp-out (current-output-port))
     (do-run
      (initial-run-config
       (λ ()
-        ;; Write a sexpr containing the session-id, which the client
-        ;; can use in certain commands that need to run in the context
-        ;; of a specific REPL. We wait to do so until this ready-thunk
-        ;; to ensure the `sessions` hash table has this session before
-        ;; any subsequent commands use call-with-session-context.
-        (parameterize ([current-output-port orig-tcp-out])
-          (elisp-writeln `(ok ,session-id))
-          (flush-output))
         (repl-output-message (banner)))))))
 
 (define (do-run cfg) ;run-config? -> void?
@@ -228,6 +172,7 @@
                             cmd-line-args
                             debug-files
                             ready-thunk)   cfg)
+  (repl-output-run (maybe-module-path->prompt-string maybe-mod))
   (define file (maybe-module-path->file maybe-mod))
   (define dir (path-only file))
   ;; Set current-directory -- but not current-load-relative-directory,
@@ -243,7 +188,6 @@
                             repl-cust))
 
   (define submissions (make-channel))
-
   ;; repl-thunk loads the user program and enters read-eval-print-loop
   (define (repl-thunk)
     ;; Command line arguments
@@ -332,7 +276,9 @@
                          (custodian-shutdown-all repl-cust)
                          (do-run c)]
       [(submit s)        (channel-put submissions s)]
-      [(break kind)      (break-thread repl-thread (if (eq? kind 'break) #f kind))]
+      [(break kind)      (break-thread repl-thread (if (eq? kind 'break) #f kind))
+                         (when (eq? kind 'terminate)
+                           (repl-output-exit))]
       [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)])
     (get-message)))
 

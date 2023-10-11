@@ -135,7 +135,6 @@
     ;; Commands that do NOT need a REPL session
     [`(no-op)                          #t]
     [`(logger ,v)                      (channel-put logger-command-channel v)]
-    [`(repl-tcp-port-number)           repl-tcp-port-number]
     [`(check-syntax ,path-str ,code)   (check-syntax path-str code)]
     [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
     [`(macro-stepper/next ,what)       (macro-stepper/next what)]
@@ -155,6 +154,7 @@
     [`(describe ,how ,str)             (describe how str)]
     [`(doc ,how ,str)                  (doc how str)]
     [`(type ,how ,v)                   (type how v)]
+    [`(repl-start)                     (repl-start)]
 
     ;; Commands that DEFINITELY DO need a REPL session for context,
     ;; e.g. its namespace. Should they pass a session-id explicitly,

@@ -7,8 +7,10 @@
 (provide repl-output-channel
          repl-output-error
          repl-output-message
+         repl-output-run
          repl-output-prompt
          repl-output-value
+         repl-output-exit
          make-repl-output-port
          make-repl-error-port)
 
@@ -38,6 +40,9 @@
 (define (repl-output-message v)
   (repl-output 'message v))
 
+(define (repl-output-run v)
+  (repl-output 'run v))
+
 ;; To be called from get-interaction, i.e. "display-prompt".
 (define (repl-output-prompt v)
   (repl-output 'prompt v))
@@ -45,6 +50,9 @@
 ;; To be called from `current-print`
 (define (repl-output-value v)
   (repl-output 'value v))
+
+(define (repl-output-exit)
+  (repl-output 'exit "REPL session ended"))
 
 (define (make-repl-output-port)
   (make-repl-port 'stdout))

@@ -16,7 +16,6 @@
          syntax-or-sexpr->sexpr
          nat/c
          pos/c
-         inc!
          memq?
          in-syntax
          log-racket-mode-debug
@@ -47,9 +46,6 @@
 
 (define nat/c exact-nonnegative-integer?)
 (define pos/c exact-positive-integer?)
-
-(define-simple-macro (inc! v:id)
-  (set! v (add1 v)))
 
 (define (memq? x xs)
   (and (memq x xs) #t))

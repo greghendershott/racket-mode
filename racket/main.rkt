@@ -40,5 +40,4 @@
     ;; Set no-ops so e.g. rando print can't bork the command I/O.
     (parameterize ([current-input-port  (open-input-bytes #"")]
                    [current-output-port (open-output-nowhere)])
-      (start-repl-session-server launch-token accept-host tcp-port)
       (command-server-loop stdin stdout))))
