@@ -13,6 +13,7 @@
          (only-in syntax-color/lexer-contract dont-stop)
          (only-in syntax-color/color-textoid color-textoid<%>)
          (only-in syntax-color/module-lexer module-lexer*)
+         (only-in syntax-color/racket-lexer racket-lexer)
          (only-in syntax-color/racket-indentation racket-amount-to-indent)
          (only-in syntax-color/racket-navigation racket-grouping-position)
          syntax/parse/define
@@ -101,11 +102,6 @@
 
 (define-simple-macro (with-semaphore sema e:expr ...+)
   (call-with-semaphore sema (λ () e ...)))
-
-;; Note: To do actual lexing, we /always/ use module-lexer*. We need
-;; the 'color-lexer info key solely as a signal for lang change
-;; detection.
-(define the-lexer (waive-option module-lexer*))
 
 (define hash-lang%
   (class* object% (color-textoid<%>)
@@ -341,8 +337,11 @@
                        [min-changed-pos max-position]
                        [max-changed-pos min-position])
           (define pos/port (add1 pos))
+          (define lexer (if other-lang-source
+                            (lang-info-lexer lang-info)
+                            (waive-option module-lexer*)))
           (define-values (lexeme attribs paren beg/port end/port backup new-mode/ds)
-            (the-lexer in pos/port mode))
+            (lexer in pos/port mode))
           (define-values (new-mode may-stop?)
             (match new-mode/ds
               [(struct* dont-stop ([val v])) (values v #f)]
@@ -664,7 +663,7 @@
     (define/public (get-regions)
       '((0 end)))))
 
-(define default-lexer the-lexer)
+(define default-lexer racket-lexer)
 (define default-module-language #f)
 (define default-paren-matches '((\( \)) (\[ \]) (\{ \})))
 (define default-quote-matches '(#\" #\|))

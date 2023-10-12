@@ -137,9 +137,7 @@
        [o (test-create str)])
   (check-equal? (send o get-tokens 1)
                 (list
-                 (list  0 12 'other)
-                 (list 12 13 'white-space)
-                 (list 13 19 'symbol)
+                 (list  0 19 'other)
                  (list 19 20 'white-space)
                  (list 20 22 'constant)
                  (list 22 23 'white-space)
@@ -172,7 +170,7 @@
        [o (test-create str)])
   (check-equal? (send o get-tokens 1)
                 (list
-                 (list 0  19 'text)
+                 (list 0  19 'other)
                  (list 19 20 'white-space)
                  (list 20 26 'text)
                  (list 26 27 'parenthesis) ;;??
@@ -373,7 +371,7 @@
        ;;              1         2           3          4
        [o (test-create str)])
   (check-equal? (send o get-tokens 1)
-                '((0 21 text)
+                '((0 21 other)
                   (21 23 white-space)
                   (23 32 text)
                   (32 33 white-space)
@@ -465,17 +463,20 @@
 ;;; Test equivalance of our text%-like methods to those of racket:text%
 ;;;
 
+(require (only-in racket/contract/option waive-option)
+         (only-in syntax-color/module-lexer module-lexer*))
+
 (define (create-objects str)
   ;; Create an object of our class.
   (define o (test-create str))
 
   ;; Create an object of racket:text%, which also implements the
-  ;; color:text<%> interface. Since our class reads lang info to get
-  ;; things like the initial lexer and paren-matches, give those
-  ;; values from our object to color:text<%> `start-colorer`.
+  ;; color:text<%> interface. Since our class uses module-lexer*, and
+  ;; reads lang info to get paren-matches, give those values to
+  ;; color:text<%> `start-colorer`.
   (define t (new racket:text%))
   (send t start-colorer symbol->string
-        (lang-info-lexer (send o get-lang-info))
+        (waive-option module-lexer*)
         (lang-info-paren-matches (send o get-lang-info)))
   (send t insert str)
   (send t freeze-colorer)
