@@ -790,24 +790,6 @@ The expression may be either an at-expression or an s-expression."
           (+ (point) 2)
         (point)))))
 
-(defun racket--repl-forget-errors ()
-  "Forget existing errors in the REPL.
-Although they remain clickable they will be ignored by
-`next-error' and `previous-error'"
-  (with-racket-repl-buffer
-    (compilation-forget-errors)
-    ;; `compilation-forget-errors' may have just set
-    ;; `compilation-messages-start' to a marker at position 1. But in
-    ;; that case process output (including error messages) will be
-    ;; inserted ABOVE the marker, in which case `next-error' won't see
-    ;; them. Instead use a non-marker position like 1 or use nil.
-    (when (and (markerp compilation-messages-start)
-               (equal (marker-position compilation-messages-start) 1)
-               (equal (marker-buffer compilation-messages-start) (current-buffer)))
-      (setq compilation-messages-start nil))))
-
-(add-hook 'racket--repl-before-run-hook #'racket--repl-forget-errors)
-
 ;;; Inline images in REPL
 
 (defvar racket-image-cache-dir nil)
@@ -1102,54 +1084,6 @@ The command varies based on how many \\[universal-argument] command prefixes you
   (interactive "P")
   (racket--doc prefix 'namespace racket--repl-namespace-symbols))
 
-;;; compilation-mode
-
-(defconst racket--compilation-error-regexp-alist
-  (list
-   ;; Any apparent file:line[:.]col optionally prefaced by
-   ;; "#<syntax:".
-   (list (rx (optional "#<syntax:")
-             (group-n 1
-                      (+ (not (any " \r\n")))
-                      ?.
-                      (+ (not (any " \r\n"))))
-             ?\:
-             (group-n 2 (+ digit))
-             (any ?\: ?\.)
-             (group-n 3 (+ digit)))
-         #'racket--adjust-group-1 2 3)
-   ;; Any path struct
-   (list (rx "#<path:" (group-n 1 (+? (not (any ?\>)))) ?\>)
-         #'racket--adjust-group-1 nil nil 0)
-   ;; Any (srcloc path line column ...) struct
-   (list (rx "(" "srcloc" (+ space)
-             ;; path
-             "\"" (group-n 1 (+? any)) "\""
-             ;; line
-             (+ space) (group-n 2 (+ digit))
-             ;; column
-             (+ space) (group-n 3 (+ digit)))
-         #'racket--adjust-group-1 2 3 0 1)
-   ;; Any htdp check-expect failure message
-   (list (rx "In "
-             (group-n 1
-                      (+ (not (any " \r\n")))
-                      ?.
-                      (+ (not (any " \r\n"))))
-             " at line "
-             (group-n 2 (+ digit))
-             " column "
-             (group-n 3 (+ digit)))
-         #'racket--adjust-group-1 2 3))
-  "Our value for the variable `compilation-error-regexp-alist'.")
-
-(defun racket--adjust-group-1 ()
-  (let ((file (match-string 1)))
-    (if (string-match-p (rx "...") file) ;#604
-        "*unknown*"
-      (save-match-data
-        (racket-file-name-back-to-front file)))))
-
 ;;; racket-repl-mode definition per se
 
 (defvar racket-repl-mode-map
@@ -1218,8 +1152,7 @@ identifier bindings and modules from the REPL's namespace.
   (setq-local mode-line-process nil)
   (setq-local completion-at-point-functions (list #'racket-repl-complete-at-point))
   (setq-local eldoc-documentation-function nil)
-  (compilation-setup t)
-  (setq-local compilation-error-regexp-alist racket--compilation-error-regexp-alist)
+  (setq-local next-error-function #'racket-repl-next-error)
   ;; Persistent history
   (make-directory racket-repl-history-directory t)
   ;; (setq-local comint-input-ring-file-name
@@ -1301,6 +1234,77 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
       (dolist (win (get-buffer-window-list))
         (set-window-point win (point-max))))))
 
+;;; Errors
+
+(defun racket--format-error-location (loc)
+  (pcase-let ((`(,name ,file ,line ,col ,pos ,span) loc))
+    (propertize (format "- %s %s:%s:%s" name file line col)
+                'racket-error-loc loc
+                'keymap racket-repl-error-location-map)))
+                   (format-locs
+                    (label locs)
+                    (when locs
+                      (list label
+                            (string-join (mapcar #'format-loc locs) "\n"))))
+
+(defvar racket-repl-error-location-map
+  (let ((map (make-sparse-keymap)))
+    (define-key map [mouse-2] #'racket-repl-goto-error-location)
+    (define-key map (kbd "RET") #'racket-repl-goto-error-location)
+    map))
+
+(defun racket-repl-goto-error-location ()
+  (interactive)
+  (pcase (get-text-property (point) 'racket-error-loc)
+    (`(,_name ,file ,_line ,_col ,pos ,span)
+     (with-current-buffer (or (get-file-buffer file)
+                              (let ((find-file-suppress-same-file-warnings t))
+                                (find-file-no-select file)))
+       (display-buffer (current-buffer))
+       (goto-char pos)
+       (set-window-point (get-buffer-window (current-buffer)) pos)
+       (pulse-momentary-highlight-region pos (+ pos span))))))
+
+(defvar-local racket--errors-reset t)
+(defvar-local racket--errors-point-min nil)
+(defun racket--repl-forget-errors ()
+  "Forget existing errors in the REPL.
+Although they remain clickable they will be ignored by
+`next-error' and `previous-error'"
+  (with-racket-repl-buffer
+    (setq racket--errors-reset t)
+    (setq racket--errors-point-min (point-max))
+    (set-window-point (get-buffer-window (current-buffer)) racket--repl-pmark)))
+(add-hook 'racket--repl-before-run-hook #'racket--repl-forget-errors)
+
+(defun racket-repl-next-error (count reset)
+  "A value for `next-error-function'."
+  (let ((prop 'racket-error-loc))
+    (cl-flet* ((get () (get-text-property (point) prop))
+               (next () (next-single-property-change (point) prop))
+               (prev () (previous-single-property-change (point) prop))
+               (go-next () (goto-char (or (next) (point-max))))
+               (go-prev () (goto-char (max (or (prev) racket--errors-point-min)
+                                           racket--errors-point-min))))
+      (when (or reset racket--errors-reset)
+        (goto-char racket--errors-point-min))
+      (setq racket--errors-reset nil)
+      (if (< 0 count)
+          (dotimes (_ count)
+            (when (get) (go-next))
+            (go-next)
+            (unless (get) (go-next)))
+        (dotimes (_ (- count))
+          (when (get) (go-prev))
+          (go-prev)
+          (unless (get) (go-prev))))
+      (cond ((get)
+             ;; Show in REPL buffer
+             (set-window-point (get-buffer-window (current-buffer)) (point))
+             ;; Show in edit buffer
+             (racket-repl-goto-error-location))
+            (t (user-error "No more errors"))))))
+
 ;;; Output
 
 (defun racket--call-with-repl-session-id (id proc &rest args)
@@ -1328,9 +1332,11 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
          (cl-case kind
            ((stdout stderr)
             nil)
-           (otherwise
+           (otherwise ;"fresh line"
             (unless (bolp)
-              (insert ?\n))))
+              (insert (propertize "\n"
+                                  'read-only t
+                                  'field 'output)))))
          (insert
           (propertize
            (cl-case kind
@@ -1338,17 +1344,14 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
              ;; hyperlinks and next-error, in the style of
              ;; compilation-mode.
              ((error)
-              (cl-flet*
-                  ((format-loc
-                    (loc)
-                    (pcase-let ((`(,name ,file ,line ,col ,pos ,span) loc))
-                      (propertize (format "%s %s:%s:%s:%s:%s" name file line col pos span)
-                                  'racket-error-loc loc)))
-                   (format-locs
+              (cl-flet
+                  ((format-locs
                     (label locs)
                     (when locs
                       (list label
-                            (string-join (mapcar #'format-loc locs) "\n")))))
+                            (string-join (mapcar #'racket--format-error-location
+                                                 locs)
+                                         "\n")))))
                (pcase value
                  (`(exn ,msg1 ,msg2 (srclocs ,more-locs) (context (,context-kind . ,context-locs)))
                   (string-join
@@ -1358,7 +1361,7 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
                      ,@(format-locs "More source locations:" more-locs))
                    "\n"))
                  (_ (format "%S" value)))))
-             ((run) (concat value "\n"))
+             ((run) (format "run %s\n" value))
              ((prompt) value)
              (otherwise value))
            'syntax-table racket--plain-syntax-table
@@ -1366,7 +1369,7 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
                              ((stderr error) 'error)
                              ((prompt) 'comint-highlight-prompt)
                              ((message run exit) '((t (:inherit font-lock-comment-face
-                                                                :box (:line-width -1)))))
+                                                                :overline t))))
                              (otherwise 'default))
            'fontified t
            'read-only t
