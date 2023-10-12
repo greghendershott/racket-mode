@@ -21,6 +21,7 @@
 
 (define racket-lexer  (dynamic-require 'syntax-color/racket-lexer 'racket-lexer))
 (define racket-lexer* (dynamic-require 'syntax-color/racket-lexer 'racket-lexer*))
+(define module-lexer* (dynamic-require 'syntax-color/module-lexer 'module-lexer*))
 
 ;; To test async updates from the updater thread, we supply an
 ;; on-changed-tokens override method that puts some of them to a
@@ -463,20 +464,17 @@
 ;;; Test equivalance of our text%-like methods to those of racket:text%
 ;;;
 
-(require (only-in racket/contract/option waive-option)
-         (only-in syntax-color/module-lexer module-lexer*))
-
 (define (create-objects str)
   ;; Create an object of our class.
   (define o (test-create str))
 
   ;; Create an object of racket:text%, which also implements the
   ;; color:text<%> interface. Since our class uses module-lexer*, and
-  ;; reads lang info to get paren-matches, give those values to
-  ;; color:text<%> `start-colorer`.
+  ;; reads lang info to get paren-matches, give those same values to
+  ;; the racket:text% object's `start-colorer` method.
   (define t (new racket:text%))
   (send t start-colorer symbol->string
-        (waive-option module-lexer*)
+        module-lexer*
         (lang-info-paren-matches (send o get-lang-info)))
   (send t insert str)
   (send t freeze-colorer)
