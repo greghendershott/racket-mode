@@ -304,13 +304,13 @@ mistake."
                             (with-current-buffer buf (funcall callback v))))
              (`(error ,m) (let ((print-length nil) ;for %S
                                 (print-level nil))
-                            (message "Exception for command %S from %S to %S:\n%s"
-                                     command-sexpr buf name m)))
+                            (message "Exception for command %S with repl-id %S from %S to %S:\n%s"
+                                     command-sexpr repl-session-id buf name m)))
              (`(break)    nil)
              (v           (let ((print-length nil) ;for %S
                                 (print-level nil))
-                            (message "Unknown response to command %S from %S to %S:\n%S"
-                                     command-sexpr buf name v)))))
+                            (message "Unknown response to command %S with repl-id %S from %S to %S:\n%S"
+                                     command-sexpr repl-session-id buf name v)))))
        #'ignore))))
 
 (defun racket--cmd/await (repl-session-id command-sexpr)

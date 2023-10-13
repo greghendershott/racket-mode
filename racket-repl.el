@@ -1098,6 +1098,7 @@ The command varies based on how many \\[universal-argument] command prefixes you
      ;; ("<C-S-backspace>" comint-kill-whole-line)
      ("C-c C-p"         racket-repl-previous-prompt)
      ("C-c C-n"         racket-repl-next-prompt)
+     ("C-c C-o"         racket-repl-delete-output)
      ("C-c C-e f"       racket-expand-file)
      ("C-c C-e x"       racket-expand-definition)
      ("C-c C-e e"       racket-expand-last-sexp)
@@ -1149,7 +1150,6 @@ identifier bindings and modules from the REPL's namespace.
 \\{racket-repl-mode-map}"
   (racket--common-variables)
   (setq-local window-point-insertion-type t)
-  (setq-local mode-line-process nil)
   (setq-local completion-at-point-functions (list #'racket-repl-complete-at-point))
   (setq-local eldoc-documentation-function nil)
   (setq-local next-error-function #'racket-repl-next-error)
@@ -1237,15 +1237,12 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
 ;;; Errors
 
 (defun racket--format-error-location (loc)
-  (pcase-let ((`(,name ,file ,line ,col ,pos ,span) loc))
-    (propertize (format "- %s %s:%s:%s" name file line col)
-                'racket-error-loc loc
-                'keymap racket-repl-error-location-map)))
-                   (format-locs
-                    (label locs)
-                    (when locs
-                      (list label
-                            (string-join (mapcar #'format-loc locs) "\n"))))
+  (pcase loc
+    (`(,file ,line ,col ,pos ,span)
+     (propertize (format "%s:%s:%s" file line col)
+                 'font-lock-face 'link
+                 'racket-error-loc loc
+                 'keymap racket-repl-error-location-map))))
 
 (defvar racket-repl-error-location-map
   (let ((map (make-sparse-keymap)))
@@ -1256,10 +1253,10 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
 (defun racket-repl-goto-error-location ()
   (interactive)
   (pcase (get-text-property (point) 'racket-error-loc)
-    (`(,_name ,file ,_line ,_col ,pos ,span)
+    (`(,file ,_line ,_col ,pos ,span)
      (with-current-buffer (or (get-file-buffer file)
                               (let ((find-file-suppress-same-file-warnings t))
-                                (find-file-no-select file)))
+                                (find-file-noselect file)))
        (display-buffer (current-buffer))
        (goto-char pos)
        (set-window-point (get-buffer-window (current-buffer)) pos)
@@ -1322,78 +1319,84 @@ Although they remain clickable they will be ignored by
 
 (defun racket--repl-on-output (session-id kind value)
   ;;;(message "%S" (list 'racket--repl-on-output session-id kind value))
-  (racket--call-with-repl-session-id
-   session-id
-   (lambda ()
-     (let ((moving (= (point) racket--repl-pmark))
-           (inhibit-read-only t))
-       (save-excursion
-         (goto-char racket--repl-pmark)
-         (cl-case kind
-           ((stdout stderr)
-            nil)
-           (otherwise ;"fresh line"
-            (unless (bolp)
-              (insert (propertize "\n"
-                                  'read-only t
-                                  'field 'output)))))
-         (insert
-          (propertize
-           (cl-case kind
-             ;; TODO: When kind is 'error, use the structured data for
-             ;; hyperlinks and next-error, in the style of
-             ;; compilation-mode.
-             ((error)
-              (cl-flet
-                  ((format-locs
-                    (label locs)
-                    (when locs
-                      (list label
-                            (string-join (mapcar #'racket--format-error-location
-                                                 locs)
-                                         "\n")))))
-               (pcase value
-                 (`(exn ,msg1 ,msg2 (srclocs ,more-locs) (context (,context-kind . ,context-locs)))
-                  (string-join
-                   `(,msg1
-                     ,@(if (equal msg2 "") '() msg2)
-                     ,@(format-locs (format "Context (%s):" context-kind) context-locs)
-                     ,@(format-locs "More source locations:" more-locs))
-                   "\n"))
-                 (_ (format "%S" value)))))
-             ((run) (format "run %s\n" value))
-             ((prompt) value)
-             (otherwise value))
-           'syntax-table racket--plain-syntax-table
-           'font-lock-face (cl-case kind
-                             ((stderr error) 'error)
-                             ((prompt) 'comint-highlight-prompt)
-                             ((message run exit) '((t (:inherit font-lock-comment-face
-                                                                :overline t))))
-                             (otherwise 'default))
-           'fontified t
-           'read-only t
-           'field 'output
-           'racket-prompt (eq kind 'prompt)
-           'racket-output kind))
-         ;; When prompt, add a trailing space extending the prompt
-         ;; field. The space is read-only, but rear-nonsticky, so user
-         ;; has read/write input following it.
-         (when (eq kind 'prompt)
-           (insert (propertize " "
-                               'font-lock-face 'default
-                               'fontified t
+  (racket--call-with-repl-session-id session-id
+                                     #'racket--repl-insert-output
+                                     kind value))
+
+(defun racket--repl-insert-output (kind value)
+  (let ((moving (= (point) racket--repl-pmark))
+        (inhibit-read-only t))
+    (save-excursion
+      (goto-char racket--repl-pmark)
+      (cl-case kind
+        ((stdout stderr)
+         nil)
+        (otherwise ;"fresh line"
+         (unless (bolp)
+           (insert (propertize "\n"
                                'read-only t
-                               'rear-nonsticky t
-                               'field 'output
-                               'racket-prompt t
-                               'racket-output kind)))
-         (set-marker racket--repl-pmark (point)))
-       (when (or moving
-                 (eq kind 'prompt))
-         (goto-char racket--repl-pmark))
-       (when (eq kind 'exit)
-         (setq racket--repl-session-id nil))))))
+                               'field 'output)))))
+      (let ((pt (point)))
+        (cl-flet* ((insert-faced (str face) (insert (propertize str 'font-lock-face face))))
+          (cl-case kind
+            ((run)
+             (unless (equal value "")
+               (insert-faced (format "run %s\n" value) 'font-lock-comment-face)))
+            ((message exit)
+             (insert-faced value 'font-lock-comment-face))
+            ((prompt)
+             (insert (propertize value 'font-lock-face 'comint-highlight-prompt))
+             (insert (propertize " " 'rear-nonsticky t)))
+            ((error)
+             (pcase value
+               (`(,msg
+                  (srclocs ,srclocs)
+                  (context (,context-kind . ,context-names-and-locs)))
+                (insert-faced msg 'error)
+                (newline)
+                ;; Heuristic: When something supplies exn-srclocs,
+                ;; show those only. Otherwise show context if any.
+                ;; This seems to work well for most runtime
+                ;; exceptions, as well as for rackunit tests (where
+                ;; the srcloc sufficies and the context esp
+                ;; w/errortrace is useless noise).
+                (cond (srclocs
+                       (dolist (loc srclocs)
+                         (insert (racket--format-error-location loc))
+                         (newline)))
+                      (context-names-and-locs
+                       (insert-faced (format "Context (%s):" context-kind) 'error)
+                       (newline)
+                       (dolist (v context-names-and-locs)
+                         (pcase-let ((`(,name . ,loc) v))
+                           (insert (racket--format-error-location loc))
+                           (insert " ")
+                           (when name
+                             (insert
+                              (propertize name 'font-lock-face 'font-lock-variable-name-face))))
+                         (newline)))))))
+            (otherwise
+             (insert-faced value 'default))))
+        (add-text-properties pt (point)
+                             (list
+                              'syntax-table racket--plain-syntax-table
+                              'read-only t
+                              'field 'output
+                              'racket-prompt (eq kind 'prompt)
+                              'racket-output kind)))
+      (set-marker racket--repl-pmark (point)))
+    (when (or moving
+              (eq kind 'prompt))
+      (goto-char racket--repl-pmark))
+    (when (eq kind 'exit)
+      (setq racket--repl-session-id nil))))
+
+(defun racket--repl-on-stop-back-end ()
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (when (eq major-mode 'racket-repl-mode)
+        (racket--repl-insert-output 'exit "Back end stopped")))))
+(add-hook 'racket-stop-back-end-hook #'racket--repl-on-stop-back-end)
 
 ;;; Nav
 
@@ -1416,6 +1419,13 @@ Although they remain clickable they will be ignored by
     (go-next)
     (when (in-prompt)
       (go-next))))
+
+(defun racket-repl-delete-output ()
+  (interactive)
+  (let ((pt (point))
+        (inhibit-read-only t))
+    (racket-repl-previous-prompt)
+    (delete-region (point) pt)))
 
 ;;; Errors
 

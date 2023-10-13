@@ -178,8 +178,6 @@
   ;; Set current-directory -- but not current-load-relative-directory,
   ;; see #492 -- to the source file's directory.
   (current-directory dir)
-  ;; Make srcloc->string provide full pathnames
-  (prevent-path-elision-by-srcloc->string)
   ;; Custodian for the REPL.
   (define repl-cust (make-custodian))
   (when (< 0 mem-limit)
