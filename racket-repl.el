@@ -29,6 +29,7 @@
 (require 'rx)
 (require 'xref)
 (require 'semantic/symref/grep)
+(require 'ring)
 
 (defvar racket--back-end-auth-token)
 (declare-function  racket--what-to-run-p "racket-common" (v))
@@ -140,6 +141,7 @@ but does not have a live session."
       (when (if racket-repl-submit-function
                 (funcall racket-repl-submit-function input)
               (racket--repl-complete-sexp-p))
+        (racket--repl-add-to-input-history input)
         (put-text-property racket--repl-pmark (point) 'field 'input)
         (insert ?\n)
         (set-marker racket--repl-pmark (point))
@@ -626,10 +628,10 @@ This does not display the buffer or change the selected window."
          (when noninteractive
            (princ (format "{racket--repl-start}: %s\n" id)))
          ;; Buffer might already be in `racket-repl-mode' -- e.g.
-         ;; `racket-repl-exit' was used and now we're
-         ;; "restarting". In that case avoid re-initialization
-         ;; that is at best unnecessary or at worst undesirable
-         ;; (e.g. `comint-input-ring' would lose input history).
+         ;; `racket-repl-exit' was used and now we're "restarting". In
+         ;; that case avoid re-initialization that is at best
+         ;; unnecessary or at worst undesirable (e.g. would lose input
+         ;; history).
          (unless (eq major-mode 'racket-repl-mode)
            (when noninteractive
              (princ "{racket--repl-start}: (racket-repl-mode)\n"))
@@ -649,7 +651,7 @@ This does not display the buffer or change the selected window."
 
 The result can be nil if the REPL is not started, or if it is
 running no particular file."
-  (when (comint-check-proc racket-repl-buffer-name)
+  (when (racket--repl-session-id)
     (racket--cmd/await (racket--repl-session-id) `(path))))
 
 (defun racket--in-repl-or-its-file-p ()
@@ -1077,6 +1079,9 @@ The command varies based on how many \\[universal-argument] command prefixes you
      ;; TODO:
      ;; ("C-w"             comint-kill-region)
      ;; ("<C-S-backspace>" comint-kill-whole-line)
+     ("M-p"             racket-repl-previous-input)
+     ("M-n"             racket-repl-next-input)
+     ("C-c C-u"         racket-repl-clear-input)
      ("C-c C-p"         racket-repl-previous-prompt)
      ("C-c C-n"         racket-repl-next-prompt)
      ("C-c C-o"         racket-repl-delete-output)
@@ -1134,27 +1139,20 @@ identifier bindings and modules from the REPL's namespace.
   (setq-local completion-at-point-functions (list #'racket-repl-complete-at-point))
   (setq-local eldoc-documentation-function nil)
   (setq-local next-error-function #'racket-repl-next-error)
-  ;; Persistent history
-  (make-directory racket-repl-history-directory t)
-  ;; (setq-local comint-input-ring-file-name
-  ;;             (expand-file-name (racket--buffer-name-slug)
-  ;;                               racket-repl-history-directory))
-  ;; (comint-read-input-ring t)
-  ;; (add-hook 'kill-buffer-hook #'comint-write-input-ring nil t)
-  ;; (add-hook 'kill-emacs-hook #'racket--repl-save-all-histories nil t)
+  (racket-repl-read-history)
+  (add-hook 'kill-buffer-hook #'racket-repl-write-history nil t)
+  (add-hook 'kill-emacs-hook #'racket-repl-write-all-histories nil t)
   (add-hook 'xref-backend-functions #'racket-repl-xref-backend-function nil t)
   (add-to-list 'semantic-symref-filepattern-alist
                '(racket-repl-mode "*.rkt" "*.rktd" "*.rktl")))
 
-(defun racket--repl-save-all-histories ()
-  "Call comint-write-input-ring for all `racket-repl-mode' buffers.
+(defun racket-repl-write-all-histories ()
+  "Call `racket-repl-write-history' for all `racket-repl-mode' buffers.
 A suitable value for the hook `kill-emacs-hook'."
   (dolist (buf (buffer-list))
     (with-current-buffer buf
       (when (eq major-mode 'racket-repl-mode)
-        ;;(comint-write-input-ring)
-        nil
-        ))))
+        (racket-repl-write-history)))))
 
 (defun racket--buffer-name-slug ()
   "Change `buffer-name' to a string that is a valid filename."
@@ -1413,7 +1411,68 @@ Although they remain clickable they will be ignored by
     (racket-repl-previous-prompt)
     (delete-region (point) pt)))
 
-;;; Errors
+;;; Input history
+
+;; TODO: Make defcustom
+(defvar racket-repl-history-size 128)
+
+(defvar-local racket--repl-input-ring nil)
+(defvar-local racket--repl-input-ring-index nil)
+
+(defun racket--repl-add-to-input-history (input)
+  "To be called from `racket-repl-submit'."
+  (unless (ring-p racket--repl-input-ring)
+    (setq racket--repl-input-ring (make-ring racket-repl-history-size)))
+  (unless (and (not (ring-empty-p racket--repl-input-ring))
+               (string-equal (ring-ref racket--repl-input-ring 0) input))
+    (ring-insert racket--repl-input-ring input)
+    (setq racket--repl-input-ring-index nil)))
+
+(defun racket-repl-previous-input (arg)
+  (interactive "*p")
+  (unless (and (ring-p racket--repl-input-ring)
+               (not (ring-empty-p racket--repl-input-ring)))
+    (user-error "No history"))
+  (setq racket--repl-input-ring-index
+        (if racket--repl-input-ring-index
+            (+ racket--repl-input-ring-index arg)
+          (if (< 0 arg)
+              (1- arg) ;0 is already previous item in ring
+            arg)))
+  (racket-repl-clear-input)
+  (let ((input (ring-ref racket--repl-input-ring racket--repl-input-ring-index)))
+    (insert (propertize input 'field 'input))))
+
+(defun racket-repl-next-input (arg)
+  (interactive "*p")
+  (racket-repl-previous-input (- arg)))
+
+(defun racket-repl-clear-input ()
+  (interactive)
+  (delete-region racket--repl-pmark
+                 (point-max)))
+
+(defun racket--repl-history-filename ()
+  (make-directory racket-repl-history-directory t)
+  (expand-file-name (concat "input-history-" (racket--buffer-name-slug))
+                    racket-repl-history-directory))
+
+(defun racket-repl-write-history ()
+  (let* ((items (ring-elements racket--repl-input-ring))
+         (str   (format "%S" items)))
+    (write-region str nil (racket--repl-history-filename) nil 'no-message)))
+
+(defun racket-repl-read-history ()
+  (let* ((file (racket--repl-history-filename))
+         (items (with-temp-buffer
+                  (insert-file-contents file)
+                  (goto-char (point-min))
+                  (read (current-buffer)))))
+    ;; Although `ring-convert-sequence-to-ring' looks handy, it
+    ;; doesn't let us set the ring size (capacity).
+    (setq racket--repl-input-ring (make-ring racket-repl-history-size))
+    (dolist (item items)
+      (ring-insert-at-beginning racket--repl-input-ring item))))
 
 (provide 'racket-repl)
 
