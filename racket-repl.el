@@ -820,47 +820,28 @@ images in `racket-image-cache-dir'."
                          racket-images-keep-last))
     (delete-file file)))
 
-(defun racket-repl-display-images (_txt)
-  "Replace all image patterns with actual images.
-A value for the variable `comint-output-filter-functions'."
-  (with-silent-modifications
-    (save-excursion
-      (goto-char (if (and (markerp comint-last-output-start)
-                          (eq (marker-buffer comint-last-output-start)
-                              (current-buffer))
-                          (marker-position comint-last-output-start))
-                     comint-last-output-start
-                   (point-min-marker)))
-      (forward-line 0) ;in case comint-last-output-start left mid line: #535
-      (while (re-search-forward "\"#<Image: \\(.+?racket-image-.+?\\)>\""
-                                racket--repl-pmark
-                                t)
-        (let* ((beg (match-beginning 0))
-               (file (match-string-no-properties 1))
-               (file (save-match-data (racket-file-name-back-to-front file)))
-               (file (save-match-data (or (file-local-copy file) file))))
-          (cond ((and racket-images-inline (display-images-p))
-                 (replace-match "")
-                 (insert-image
-                  (apply #'create-image
-                         file
-                         (and (image-type-available-p 'imagemagick)
-                              racket-imagemagick-props
-                              'imagemagick)
-                         nil          ;data-p
-                         (append
-                          '(:scale 1.0) ;#529
-                          (and (image-type-available-p 'imagemagick)
-                               racket-imagemagick-props)))))
-                (t
-                 (replace-match (format "[file://%s]" file))))
-          (set-marker racket--repl-pmark (max (marker-position racket--repl-pmark) (point)))
-          (add-text-properties beg (point)
-                               `(keymap ,racket-image-map
-                                        racket-image ,file
-                                        help-echo "RET or Mouse-2 to view image"))
-          (setq racket-image-cache-dir (file-name-directory file))
-          (racket-repl--clean-image-cache))))))
+(defun racket--repl-insert-image (file)
+  (let ((beg (point)))
+    (if (and racket-images-inline (display-images-p))
+        (insert-image
+         (apply #'create-image
+                file
+                (and (image-type-available-p 'imagemagick)
+                     racket-imagemagick-props
+                     'imagemagick)
+                nil                     ;data-p
+                (append
+                 '(:scale 1.0)          ;#529
+                 (and (image-type-available-p 'imagemagick)
+                      racket-imagemagick-props))))
+      (insert (propertize (format "[file://%s]" file)
+                          'font-lock-face 'italic)))
+    (add-text-properties beg (point)
+                         (list 'keymap racket-image-map
+                               'racket-image file
+                               'help-echo "RET or Mouse-2 to view image"))
+    (setq racket-image-cache-dir (file-name-directory file))
+    (racket-repl--clean-image-cache)))
 
 (defun racket-view-image ()
   "View the image at point using `racket-images-system-viewer'."
@@ -1329,7 +1310,7 @@ Although they remain clickable they will be ignored by
     (save-excursion
       (goto-char racket--repl-pmark)
       (cl-case kind
-        ((stdout stderr)
+        ((stdout stderr value value-special)
          nil)
         (otherwise ;"fresh line"
          (unless (bolp)
@@ -1347,6 +1328,11 @@ Although they remain clickable they will be ignored by
             ((prompt)
              (insert (propertize value 'font-lock-face 'comint-highlight-prompt))
              (insert (propertize " " 'rear-nonsticky t)))
+            ((value)
+             (insert-faced value 'font-lock-constant-face))
+            ((value-special)
+             (pcase-let ((`(image . ,file) value))
+               (racket--repl-insert-image file)))
             ((error)
              (pcase value
                (`(,msg

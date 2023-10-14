@@ -193,7 +193,7 @@
     ;; Set print hooks and output handlers
     (current-output-port (make-repl-output-port))
     (current-error-port  (make-repl-error-port))
-    (set-print-parameters pretty-print? columns pixels/char)
+    (current-print (make-racket-mode-print-handler pretty-print? columns pixels/char))
     (set-output-handlers)
     ;; Record as much info about our session as we can, before
     ;; possibly entering module->namespace.

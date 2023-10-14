@@ -44,5 +44,5 @@
          (and (? bytes? bstr) (app default-width width))) ;bytes
      (define filename (make-temporary-file (~a "racket-image-~a." ext)))
      (with-output-to-file filename #:exists 'truncate (λ () (display bstr)))
-     (cons (format "#<Image: ~a>" filename) width)]
+     (cons (path->string filename) width)]
     [#f #f]))

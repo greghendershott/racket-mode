@@ -1,7 +1,9 @@
+;; Copyright (c) 2023 by Greg Hendershott.
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
 #lang racket/base
 
 (require racket/async-channel
-         racket/port
          "repl-session.rkt")
 
 (provide repl-output-channel
@@ -9,50 +11,59 @@
          repl-output-message
          repl-output-run
          repl-output-prompt
-         repl-output-value
          repl-output-exit
          make-repl-output-port
-         make-repl-error-port)
+         make-repl-error-port
+         make-repl-value-port)
 
 ;;; REPL output
 
-;; We want structured output -- distinctly separated:
+;; Traditionally a REPL's output is a hopeless mix things dumped into
+;; stdout and stderr. This forces client to use unreliable regexps in
+;; an attempt to "demux" and recover the original pieces.
+;;
+;; Instead we want structured output -- distinctly separated:
 ;;  - current-output-port
-;;    - raw bytes
-;;    - images via this port supporting write-special
-;;  - current-print values
 ;;  - current-error-port
-;;  - errors from error-display-handler
+;;  - current-print values
+;;    - strings
+;;    - image files
+;;  - prompts
+;;  - structured errors from error-display-handler
+;;  - various messages from the back end
 
+;; A channel from which the command-server can sync.
 (define repl-output-channel (make-async-channel))
 
 (define (repl-output kind value)
   (async-channel-put repl-output-channel
                      (list 'repl-output (current-session-id) kind value)))
 
+;; Various wrappers around repl-output:
+
 ;; To be called from the error-display-handler. Instead of raw text,
-;; `v` may be any structured data that elisp-write can handle.
+;; `v` may be any structured data that elisp-write can handle. As long
+;; as the front end understands the structure, here we don't care.
 (define (repl-output-error v)
   (repl-output 'error v))
 
-;; Replacement for the old `display-commented`: Some miscellaneous
-;; message from us as opposed to from Racket or from the user program.
+;; Replacement for the old `display-commented`: Miscellaneous messages
+;; from this back end, as opposed to from Racket or from the user
+;; program.
 (define (repl-output-message v)
   (repl-output 'message v))
-
-(define (repl-output-run v)
-  (repl-output 'run v))
 
 ;; To be called from get-interaction, i.e. "display-prompt".
 (define (repl-output-prompt v)
   (repl-output 'prompt v))
 
-;; To be called from `current-print`
-(define (repl-output-value v)
-  (repl-output 'value v))
+(define (repl-output-run v)
+  (repl-output 'run v))
 
 (define (repl-output-exit)
   (repl-output 'exit "REPL session ended"))
+
+;; Output port wrappers around repl-output:
 
 (define (make-repl-output-port)
   (make-repl-port 'stdout))
@@ -60,15 +71,20 @@
 (define (make-repl-error-port)
   (make-repl-port 'stderr))
 
+;; For current-print
+(define (make-repl-value-port)
+  (make-repl-port 'value))
+
 (define (make-repl-port kind)
   (define name (format "racket-mode-repl-~a" kind))
+  (define special-kind (string->symbol (format "~a-special" kind)))
   (define (write-out bstr start end non-block? breakable?)
     (async-channel-put repl-output-channel
                        (repl-output kind (subbytes bstr start end)))
     (- end start))
-  (define (write-out-special v non-block? breakable?)
+  (define (write-out-special v _non-block? _breakable?)
     (async-channel-put repl-output-channel
-                       (repl-output 'image "TODO: Image"))
+                       (repl-output special-kind v))
     #t)
   (define close void)
   (make-output-port name
