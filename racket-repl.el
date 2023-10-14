@@ -145,9 +145,7 @@ but does not have a live session."
         (put-text-property racket--repl-pmark (point) 'field 'input)
         (insert ?\n)
         (set-marker racket--repl-pmark (point))
-        (racket--cmd/async (racket--repl-session-id) `(submit ,input))
-        ;; TODO: Revive history like comint does
-        ))))
+        (racket--cmd/async (racket--repl-session-id) `(submit ,input))))))
 
 (defun racket--repl-complete-sexp-p ()
   "Is there at least one complete sexp at `racket--repl-pmark'?"
@@ -703,8 +701,7 @@ see the results."
     (error "start and end must not be nil"))
   (unless (racket--repl-live-p)
     (user-error "No REPL session available; run the file first"))
-  ;; Save the current buffer in case something changes it before we
-  ;; call `comint-send-region'; see e.g. issue 407.
+  ;; Save source buffer in case something changes; see e.g. #407.
   (let ((source-buffer (current-buffer)))
     (racket--repl-forget-errors)
     (with-racket-repl-buffer
@@ -714,12 +711,15 @@ see the results."
         (when echo-p
           (insert (with-current-buffer source-buffer
                     (buffer-substring start end)))
-          (insert "\n;; =>\n"))
+          (insert (propertize "\n=>\n"
+                              'font-lock-face 'font-lock-comment-face)))
+        (add-text-properties racket--repl-pmark (point)
+                             (list 'field 'send
+                                   'read-only t))
         (set-marker racket--repl-pmark (point))))
-    ;; FIXME
-    ;; (with-current-buffer source-buffer
-    ;;   (comint-send-region proc start end)
-    ;;   (comint-send-string proc "\n"))
+    (racket--cmd/async (racket--repl-session-id)
+                       `(submit ,(with-current-buffer source-buffer
+                                   (buffer-substring-no-properties start end))))
     (display-buffer racket-repl-buffer-name)))
 
 (defun racket-send-region (start end)
@@ -748,7 +748,7 @@ without the #; prefix.
 
 \\<racket-mode-map>
 With a prefix argument (e.g. \\[universal-argument] \\[racket-send-last-sexp]), the sexp is copied
-into the REPL, followed by a \";; ->\\n\" line, to distinguish it
+into the REPL, followed by a \"=>\" line, to distinguish it
 from the zero or more values to which it evaluates."
   (interactive "P")
   (racket--send-region-to-repl (racket--start-of-previous-expression)
@@ -1465,9 +1465,10 @@ Although they remain clickable they will be ignored by
 (defun racket-repl-read-history ()
   (let* ((file (racket--repl-history-filename))
          (items (with-temp-buffer
-                  (insert-file-contents file)
-                  (goto-char (point-min))
-                  (read (current-buffer)))))
+                  (ignore-errors
+                    (insert-file-contents file)
+                    (goto-char (point-min))
+                    (read (current-buffer))))))
     ;; Although `ring-convert-sequence-to-ring' looks handy, it
     ;; doesn't let us set the ring size (capacity).
     (setq racket--repl-input-ring (make-ring racket-repl-history-size))
