@@ -21,38 +21,18 @@
                     msg
                     (string-append msg "\n" (exn-message v)))])
       (repl-output-error
-       (list msg
-             (list 'srclocs
-                   (if (exn:srclocs? v)
-                       (map srcloc->elisp-value
-                            ((exn:srclocs-accessor v) v))
-                       null))
-             (list 'context
-                   (if (or (exn:fail:syntax? v)
-                           (and (exn:fail:read? v) (not (exn:fail:read:eof? v)))
-                           (exn:fail:user? v))
-                       null
-                       (context v))))))]
+       (list msg (srclocs v) (context v))))]
     [else
      (displayln msg (current-error-port))
      (flush-output (current-error-port))]))
 
-(define (srcloc->elisp-value x)
-  (define src
-    ;; Although I want to find/fix this properly upstream -- is
-    ;; something a path-string? when it should be a path? -- for now
-    ;; just catch here the case where the source is a string like
-    ;; "\"/path/to/file.rkt\"" i.e. the string value has quotes.
-    (match (srcloc-source x)
-      [(pregexp "^\"(.+)\"$" (list _ unquoted)) unquoted]
-      [(? path? v) (path->string v)]
-      [v v]))
-  (and (path-string? src)
-       (srcloc-line x)
-       (srcloc-column x)
-       (srcloc-position x)
-       (srcloc-span x)
-       (list src (srcloc-line x) (srcloc-column x) (srcloc-position x) (srcloc-span x))))
+(define (srclocs e)
+  (cond [(exn:srclocs? e)
+         (for*/list ([sl (in-list ((exn:srclocs-accessor e) e))]
+                     [elv (in-value (srcloc->elisp-value sl))]
+                     #:when elv)
+           elv)]
+        [else null]))
 
 (define (context e)
   (define-values (kind pairs)
@@ -71,3 +51,20 @@
           (match-define (cons label src) v)
           (cons (and label (~a label))
                 (and src (srcloc->elisp-value src))))))
+
+(define (srcloc->elisp-value x)
+  (define src
+    ;; Although I want to find/fix this properly upstream -- is
+    ;; something a path-string? when it should be a path? -- for now
+    ;; just catch here the case where the source is a string like
+    ;; "\"/path/to/file.rkt\"" i.e. the string value has quotes.
+    (match (srcloc-source x)
+      [(pregexp "^\"(.+)\"$" (list _ unquoted)) unquoted]
+      [(? path? v) (path->string v)]
+      [v v]))
+  (and (path-string? src)
+       (srcloc-line x)
+       (srcloc-column x)
+       (srcloc-position x)
+       (srcloc-span x)
+       (list src (srcloc-line x) (srcloc-column x) (srcloc-position x) (srcloc-span x))))

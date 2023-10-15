@@ -1227,7 +1227,8 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
      (propertize (format "%s:%s:%s" file line col)
                  'font-lock-face 'link
                  'racket-error-loc loc
-                 'keymap racket-repl-error-location-map))))
+                 'keymap racket-repl-error-location-map))
+    (_ (propertize "no location" 'font-lock-face 'italic))))
 
 (defun racket-repl-goto-error-location ()
   (interactive)
@@ -1333,9 +1334,7 @@ Although they remain clickable they will be ignored by
                (racket--repl-insert-image file)))
             ((error)
              (pcase value
-               (`(,msg
-                  (srclocs ,srclocs)
-                  (context (,context-kind . ,context-names-and-locs)))
+               (`(,msg ,srclocs (,context-kind . ,context-names-and-locs))
                 (insert-faced msg 'error)
                 (newline)
                 ;; Heuristic: When something supplies exn-srclocs,
