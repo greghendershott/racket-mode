@@ -1423,10 +1423,10 @@ Although they remain clickable they will be ignored by
   "To be called from `racket-repl-submit'."
   (unless (ring-p racket--repl-input-ring)
     (setq racket--repl-input-ring (make-ring racket-repl-history-size)))
-  (unless (and (not (ring-empty-p racket--repl-input-ring))
-               (string-equal (ring-ref racket--repl-input-ring 0) input))
-    (ring-insert racket--repl-input-ring input)
-    (setq racket--repl-input-ring-index nil)))
+  (when (or (ring-empty-p racket--repl-input-ring)
+            (not (string-equal (ring-ref racket--repl-input-ring 0) input)))
+    (ring-insert racket--repl-input-ring input))
+  (setq racket--repl-input-ring-index nil))
 
 (defun racket-repl-previous-input (arg)
   (interactive "*p")
@@ -1439,7 +1439,7 @@ Although they remain clickable they will be ignored by
           (if (< 0 arg)
               (1- arg) ;0 is already previous item in ring
             arg)))
-  (racket-repl-clear-input)
+  (delete-region racket--repl-pmark (point-max))
   (let ((input (ring-ref racket--repl-input-ring racket--repl-input-ring-index)))
     (insert (propertize input 'field 'input))))
 
@@ -1449,8 +1449,8 @@ Although they remain clickable they will be ignored by
 
 (defun racket-repl-clear-input ()
   (interactive)
-  (delete-region racket--repl-pmark
-                 (point-max)))
+  (delete-region racket--repl-pmark (point-max))
+  (setq racket--repl-input-ring-index nil))
 
 (defun racket--repl-history-filename ()
   (make-directory racket-repl-history-directory t)
@@ -1458,9 +1458,11 @@ Although they remain clickable they will be ignored by
                     racket-repl-history-directory))
 
 (defun racket-repl-write-history ()
-  (let* ((items (ring-elements racket--repl-input-ring))
-         (str   (format "%S" items)))
-    (write-region str nil (racket--repl-history-filename) nil 'no-message)))
+  (when (and (ring-p racket--repl-input-ring)
+             (not (ring-empty-p racket--repl-input-ring)))
+    (let* ((items (ring-elements racket--repl-input-ring))
+           (str   (format "%S" items)))
+      (write-region str nil (racket--repl-history-filename) nil 'no-message))))
 
 (defun racket-repl-read-history ()
   (let* ((file (racket--repl-history-filename))
@@ -1470,7 +1472,7 @@ Although they remain clickable they will be ignored by
                     (goto-char (point-min))
                     (read (current-buffer))))))
     ;; Although `ring-convert-sequence-to-ring' looks handy, it
-    ;; doesn't let us set the ring size (capacity).
+    ;; creates a ring without letting us set the size (capacity).
     (setq racket--repl-input-ring (make-ring racket-repl-history-size))
     (dolist (item items)
       (ring-insert-at-beginning racket--repl-input-ring item))))
