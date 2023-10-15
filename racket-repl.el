@@ -1215,19 +1215,19 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
 
 ;;; Errors
 
-(defun racket--format-error-location (loc)
-  (pcase loc
-    (`(,file ,line ,col ,pos ,span)
-     (propertize (format "%s:%s:%s" file line col)
-                 'font-lock-face 'link
-                 'racket-error-loc loc
-                 'keymap racket-repl-error-location-map))))
-
 (defvar racket-repl-error-location-map
   (let ((map (make-sparse-keymap)))
     (define-key map [mouse-2] #'racket-repl-goto-error-location)
     (define-key map (kbd "RET") #'racket-repl-goto-error-location)
     map))
+
+(defun racket--format-error-location (loc)
+  (pcase loc
+    (`(,file ,line ,col ,_pos ,_span)
+     (propertize (format "%s:%s:%s" file line col)
+                 'font-lock-face 'link
+                 'racket-error-loc loc
+                 'keymap racket-repl-error-location-map))))
 
 (defun racket-repl-goto-error-location ()
   (interactive)
