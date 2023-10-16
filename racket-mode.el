@@ -133,6 +133,7 @@
 
 \\{racket-mode-map}"
   (racket--common-variables)
+  (syntax-propertize (point-max)) ;for e.g. paredit: see issue #222
   (racket-call-racket-repl-buffer-name-function)
   (setq-local imenu-create-index-function #'racket-imenu-create-index-function)
   (hs-minor-mode t)

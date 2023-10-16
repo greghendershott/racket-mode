@@ -248,41 +248,23 @@ Intended for use by things like `electric-pair-mode'."
     table))
 
 (defun racket--hash-lang-repl-buffer-string (beg end)
-  "Like `buffer-substring-no-properties' but non-input is whitespace.
-
-This depends on `racket-repl-mode' using
-`comint-preoutput-filter-functions' to apply a text property with
-the key \\='field and the value \\='output. Although comint mode
-eventually applies this, it does so too late for us to use here.
-
-A REPL buffer is a \"hopeless\" mix of user input, which we want
-a hash-lang to color and indent, as well as user program output
-and REPL prompts, which we want to ignore. This function replaces
-output with whitespace --- mostly spaces, but preserves newlines
-for the sake of indent alignment. The only portions not affected
-are input --- text that the user has typed or yanked in the REPL
-buffer."
+  "Like `buffer-substring-no-properties' but everything before
+`racket--repl-pmark' is treated as whitespace."
   (save-restriction
     (widen)
-    (let ((pos beg)
-          (result-str ""))
-      (while (< pos end)
-        ;; Handle a chunk sharing same field property value.
-        (let* ((chunk-end (min (or (next-single-property-change pos 'field)
-                                   (point-max))
-                               end))
-               (chunk-str (buffer-substring-no-properties pos chunk-end)))
-          ;; Unless input, replace all non-newline chars with spaces.
-          (unless (null (get-text-property pos 'field))
-            (let ((i 0)
-                  (len (- chunk-end pos)))
-              (while (< i len)
-                (unless (eq ?\n (aref chunk-str i))
-                  (aset chunk-str i 32))
-                (setq i (1+ i)))))
-          (setq result-str (concat result-str chunk-str))
-          (setq pos chunk-end)))
-      result-str)))
+    (let* ((before-input
+            (buffer-substring-no-properties (min beg racket--repl-pmark)
+                                            (min end racket--repl-pmark)))
+           (input
+            (buffer-substring-no-properties (max beg racket--repl-pmark)
+                                            (max end racket--repl-pmark)))
+           (len (length before-input))
+           (i 0))
+      (while (< i len)
+        (unless (eq ?\n (aref before-input i))
+          (aset before-input i 32))
+        (setq i (1+ i)))
+      (concat before-input input))))
 
 ;;; Updates: Front end --> back end
 
@@ -625,9 +607,9 @@ buffer is `current-buffer'.
 It is possible for multiple edit buffers to \"take turns\" using
 the same `racket-repl-mode' buffer, for successive `racket-run'
 commands. Even if various edit buffers all use
-`racket-hash-lang-mode', the hash-lang for ech may differ, e.g.
+`racket-hash-lang-mode', the hash-lang for each may differ, e.g.
 one buffer is \"#lang racket\" while another is \"#lang
-scribble\"."
+rhombus\"."
   ;;;(message "racket--hash-lang-configure-repl called from buffer %s" (buffer-name))
   (let ((hl (and (eq major-mode 'racket-hash-lang-mode)
                  racket--hash-lang-id))
@@ -643,7 +625,9 @@ scribble\"."
       (setq-local font-lock-defaults
                   (with-current-buffer edit-buffer font-lock-defaults))
       (setq-local font-lock-fontify-region-function
-                  (with-current-buffer edit-buffer font-lock-fontify-region-function))
+                  (racket--repl-limited-fontify-region
+                   (with-current-buffer edit-buffer font-lock-fontify-region-function)))
+      (font-lock-set-defaults)
       ;; indent
       (setq-local indent-line-function
                   (with-current-buffer edit-buffer indent-line-function))

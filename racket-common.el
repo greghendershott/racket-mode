@@ -208,7 +208,6 @@ property whose value is STRING. The close | syntax is set by
   (setq-local multibyte-syntax-as-symbol t)
   (setq-local parse-sexp-ignore-comments t)
   (setq-local syntax-propertize-function #'racket-syntax-propertize-function)
-  (syntax-propertize (point-max)) ;for e.g. paredit: see issue #222
   ;; -----------------------------------------------------------------
   ;; Font-lock
   (setq-local font-lock-defaults

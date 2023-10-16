@@ -106,7 +106,7 @@ but does not have a live session."
            racket-repl-buffer-name)
     ((and (pred stringp) name)
      (pcase (get-buffer name)
-       ((and (pred bufferp) buf)
+       ((and (pred bufferp) (pred buffer-live-p) buf)
         (with-current-buffer buf (funcall thunk)))))))
 
 (defmacro with-racket-repl-buffer (&rest body)
@@ -1113,6 +1113,16 @@ The command varies based on how many \\[universal-argument] command prefixes you
     "---"
     ["Switch to Edit Buffer" racket-repl-switch-to-edit]))
 
+(defun racket--repl-limited-fontify-region (original)
+  "Wrap a `font-lock-fontify-region-function'; the resulting
+function uses the original only to fontify user input after
+`racket--repl-pmark', at the end of the buffer."
+  (lambda (beg end loudly)
+    (when (< racket--repl-pmark end)
+      (funcall original (max racket--repl-pmark beg) end loudly))
+    (put-text-property beg end 'fontified t)
+    `(jit-lock-bounds ,beg . ,end)))
+
 (define-derived-mode racket-repl-mode fundamental-mode "Racket-REPL"
   "Major mode for Racket REPL.
 
@@ -1123,7 +1133,17 @@ You may use `xref-find-definitions' \\[xref-find-definitions] and
 identifier bindings and modules from the REPL's namespace.
 
 \\{racket-repl-mode-map}"
+  ;; Although here we some initial values assuming `racket-mode',
+  ;; `racket--hash-lang-configure-repl-buffer-from-edit-buffer' will
+  ;; refresh these upon each run command via
+  ;; `racket--repl-configure-buffer-hook', drawing values from the
+  ;; `racket-mode' or `racket-hash-lang-mode' edit buffer to also use
+  ;; in the repl.
   (racket--common-variables)
+  (setq-local font-lock-fontify-region-function
+              (racket--repl-limited-fontify-region #'font-lock-default-fontify-region))
+  (font-lock-set-defaults)
+  ;; Other values
   (setq-local window-point-insertion-type t)
   (setq-local completion-at-point-functions (list #'racket-repl-complete-at-point))
   (setq-local eldoc-documentation-function nil)
@@ -1348,11 +1368,12 @@ Although they remain clickable they will be ignored by
                              (insert
                               (propertize name 'font-lock-face 'font-lock-variable-name-face))))
                          (newline)))))))
+            ((stdout) (insert-faced value 'default))
+            ((stderr) (insert-faced value 'error))
             (otherwise
              (insert-faced value 'default))))
         (add-text-properties pt (point)
                              (list
-                              'syntax-table racket--plain-syntax-table
                               'read-only t
                               'field 'output
                               'racket-prompt (eq kind 'prompt)
