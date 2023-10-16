@@ -73,6 +73,8 @@ However, a buffer may `setq-local' this to some other value. See
 the defcustom `racket-repl-buffer-name-function' and example
 values for it in racket-repl-buffer-name.el.")
 
+(defvar racket--repl-next-session-id 0)
+
 (defvar-local racket--repl-session-id nil
   "The REPL session ID returned from the back end.
 
@@ -111,7 +113,6 @@ but does not have a live session."
   "Execute forms in BODY with `racket-repl-mode' temporarily current buffer."
   (declare (indent 0) (debug t))
   `(racket--call-with-repl-buffer (lambda () ,@body)))
-
 
 (defun racket--repl-live-p ()
   "Does a Racket REPL buffer exist and have a live REPL session?"
@@ -172,30 +173,21 @@ but does not have a live session."
   "Send a break to the REPL program's main thread."
   (interactive)
   (cond ((racket--cmd-open-p) ;don't auto-start the back end
-         (racket--cmd/async (racket--repl-session-id) `(break break)))
+         (racket--cmd/async (racket--repl-session-id) `(repl-break)))
         (t
          (user-error "Back end is not running"))))
 
-(defun racket-repl-exit (&optional killp)
+(defun racket-repl-exit ()
   "Send a terminate break to the REPL program's main thread.
 
 If your program is running, equivalent to `racket-repl-break'.
 
 If already at the REPL prompt, effectively the same as entering
 \"(exit)\" at the prompt, but works even when the module language
-doesn't provide any binding for \"exit\".
-
-\\<racket-repl-mode-map>
-With a prefix argument (e.g. \\[universal-argument] \\[racket-repl-exit]):
-
-Terminates the entire Racket Mode back end process --- the
-command server and all REPL sessions."
-  (interactive "P")
-  (cond (killp
-         (message "Killing entire Racket Mode back end process")
-         (racket--cmd-close))
-        ((racket--cmd-open-p) ;don't auto-start the back end
-         (racket--cmd/async (racket--repl-session-id) `(break terminate)))
+doesn't provide any binding for \"exit\"."
+  (interactive)
+  (cond ((racket--cmd-open-p) ;don't auto-start the back end
+         (racket--cmd/async (racket--repl-session-id) `(repl-exit)))
         (t
          (user-error "Back end is not running"))))
 
@@ -615,32 +607,29 @@ Sets `racket--repl-session-id'.
 
 This does not display the buffer or change the selected window."
   (when noninteractive (princ "{racket--repl-start}: entered\n"))
-  ;; Capture buffer-local values for this buffer, to use in command
-  ;; callback below.
-  (let ((name racket-repl-buffer-name))
-    (racket--cmd/async
-     nil
-     `(repl-start)
-     (lambda (id)
-       (with-current-buffer (get-buffer-create name)
-         (when noninteractive
-           (princ (format "{racket--repl-start}: %s\n" id)))
-         ;; Buffer might already be in `racket-repl-mode' -- e.g.
-         ;; `racket-repl-exit' was used and now we're "restarting". In
-         ;; that case avoid re-initialization that is at best
-         ;; unnecessary or at worst undesirable (e.g. would lose input
-         ;; history).
-         (unless (eq major-mode 'racket-repl-mode)
-           (when noninteractive
-             (princ "{racket--repl-start}: (racket-repl-mode)\n"))
-           (racket-repl-mode))
-         ;; After racket-repl-mode may have bashed local vars:
-         (setq racket--repl-session-id id)
-         (setq racket--repl-pmark (make-marker))
-         (set-marker racket--repl-pmark (point-max))
-         (goto-char (point-max))
-         (add-hook 'kill-buffer-hook #'racket-repl-exit nil t)
-         (run-with-timer 0.001 nil callback))))))
+  (let ((buf (get-buffer-create racket-repl-buffer-name)))
+    (with-current-buffer buf
+      ;; Buffer might already be in `racket-repl-mode' -- e.g.
+      ;; `racket-repl-exit' was used and now we're "restarting". In
+      ;; that case avoid re-initialization that is at best
+      ;; unnecessary or at worst undesirable (e.g. would lose input
+      ;; history).
+      (unless (eq major-mode 'racket-repl-mode)
+        (when noninteractive
+          (princ "{racket--repl-start}: (racket-repl-mode)\n"))
+        (racket-repl-mode))
+      ;; Now that major mode has bashed local vars, set some:
+      (setq racket--repl-session-id (cl-incf racket--repl-next-session-id))
+      (setq racket--repl-pmark (make-marker))
+      (set-marker racket--repl-pmark (point-max))
+      (goto-char (point-max))
+      (racket--cmd/async
+       nil
+       `(repl-start ,racket--repl-session-id)
+       (lambda (_id)
+         (with-current-buffer buf
+           (add-hook 'kill-buffer-hook #'racket-repl-exit nil t)
+           (run-with-timer 0.001 nil callback)))))))
 
 ;;; Misc
 
@@ -1223,8 +1212,8 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
 
 (defun racket--format-error-location (loc)
   (pcase loc
-    (`(,file ,line ,col ,_pos ,_span)
-     (propertize (format "%s:%s:%s" file line col)
+    (`(,str ,_file ,_line ,_col ,_pos ,_span)
+     (propertize str
                  'font-lock-face 'link
                  'racket-error-loc loc
                  'keymap racket-repl-error-location-map))
@@ -1233,7 +1222,7 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
 (defun racket-repl-goto-error-location ()
   (interactive)
   (pcase (get-text-property (point) 'racket-error-loc)
-    (`(,file ,_line ,_col ,pos ,span)
+    (`(,_str ,file ,_line ,_col ,pos ,span)
      (with-current-buffer (or (get-file-buffer file)
                               (let ((find-file-suppress-same-file-warnings t))
                                 (find-file-noselect file)))
@@ -1289,12 +1278,13 @@ Although they remain clickable they will be ignored by
 `eq' to ID. Apply ARGS to PROC while that is current buffer."
   ;; If searching buffer-list too slow, we could maintain a hash table
   ;; and clean it with a kill-buffer hook.
-  (seq-some (lambda (b)
-              (with-current-buffer b
-                (when (and (eq major-mode 'racket-repl-mode)
-                           (eq racket--repl-session-id id))
-                  (apply proc args)
-                  t)))
+  (seq-some (lambda (buf)
+              (when (buffer-live-p buf)
+                (with-current-buffer buf
+                  (when (and (eq major-mode 'racket-repl-mode)
+                             (eq racket--repl-session-id id))
+                    (apply proc args)
+                    t))))
             (buffer-list)))
 
 (defun racket--repl-on-output (session-id kind value)
@@ -1378,7 +1368,7 @@ Although they remain clickable they will be ignored by
   (dolist (buf (buffer-list))
     (with-current-buffer buf
       (when (eq major-mode 'racket-repl-mode)
-        (racket--repl-insert-output 'exit "Back end stopped")))))
+        (racket--repl-insert-output 'exit "REPL session stopped")))))
 (add-hook 'racket-stop-back-end-hook #'racket--repl-on-stop-back-end)
 
 ;;; Nav

@@ -10,13 +10,11 @@
          (only-in racket/path path-only file-name-from-path)
          racket/set
          (only-in racket/string string-join)
-         racket/tcp
          (only-in "debug.rkt" make-debug-eval-handler next-break)
          "elisp.rkt"
          "error.rkt"
          "gui.rkt"
          "instrument.rkt"
-         "interactions.rkt"
          "print.rkt"
          "repl-output.rkt"
          "repl-session.rkt"
@@ -25,6 +23,7 @@
          "util.rkt")
 
 (provide repl-start
+         repl-exit
          run
          repl-break
          repl-submit
@@ -80,26 +79,30 @@
               ready-thunk))
 
 ;; Command. Called from a command-server thread
-(define (repl-start)
-  (define session-id (next-session-id!))
-  (thread (repl-manager-thread-thunk session-id))
-  session-id)
+(define (repl-start sid)
+  (when (get-session sid)
+    (error 'repl-start "session already exists with id ~a" sid))
+  (define ready-ch (make-channel))
+  (thread (repl-manager-thread-thunk sid ready-ch))
+  (sync ready-ch))
+
+(define (repl-exit)
+  (unless (current-repl-msg-chan)
+    (error 'repl-exit "No REPL session to exit"))
+  (channel-put (current-repl-msg-chan) 'exit))
 
 ;; Command. Called from a command-server thread
-(struct break (kind))
-(define/contract (repl-break kind)
-  (-> (or/c 'break 'hang-up 'terminate) any)
+(define (repl-break)
   (unless (current-repl-msg-chan)
     (error 'repl-break "No REPL session to break"))
-  (channel-put (current-repl-msg-chan) (break kind)))
+  (channel-put (current-repl-msg-chan) 'break))
 
 ;; Command. Called from a command-server thread
-(struct submit (kind))
 (define/contract (repl-submit str)
   (-> string? any)
-  (unless (current-repl-msg-chan)
+  (unless (current-submissions)
     (error 'repl-break "No REPL session to break"))
-  (channel-put (current-repl-msg-chan) (submit str)))
+  (channel-put (current-submissions) str))
 
 ;; Command. Called from a command-server thread
 (define/contract (run what subs mem pp cols pix/char ctx args dbgs)
@@ -151,14 +154,17 @@
 
 ;;; REPL sessions
 
-(define ((repl-manager-thread-thunk session-id))
-  (log-racket-mode-info "start ~v" session-id)
+(define ((repl-manager-thread-thunk session-id ready-ch))
+  (log-racket-mode-info "starting repl session ~v" session-id)
   (parameterize* ([current-session-id    session-id]
                   [current-repl-msg-chan (make-channel)]
+                  [current-submissions   (make-channel)]
                   [error-display-handler racket-mode-error-display-handler])
+    (set-session! session-id #f)
     (do-run
      (initial-run-config
       (λ ()
+        (channel-put ready-ch #t)
         (repl-output-message (banner)))))))
 
 (define (do-run cfg) ;run-config? -> void?
@@ -185,7 +191,6 @@
                             (inexact->exact (round (* 1024 1024 mem-limit)))
                             repl-cust))
 
-  (define submissions (make-channel))
   ;; repl-thunk loads the user program and enters read-eval-print-loop
   (define (repl-thunk)
     ;; Command line arguments
@@ -243,7 +248,7 @@
     (define (prompt-read)
       (repl-output-prompt (string-append (maybe-module-path->prompt-string maybe-mod)
                                          ">"))
-      (define in (open-input-string (channel-get submissions)))
+      (define in (open-input-string (channel-get (current-submissions))))
       (define v (with-stack-checkpoint
                   ((current-read-interaction) 'racket-mode-repl in)))
       (next-break 'all) ;let debug-instrumented code break again
@@ -273,12 +278,12 @@
                            [(coverage) (clear-test-coverage-info!)])
                          (custodian-shutdown-all repl-cust)
                          (do-run c)]
-      [(submit s)        (channel-put submissions s)]
-      [(break kind)      (break-thread repl-thread (if (eq? kind 'break) #f kind))
-                         (when (eq? kind 'terminate)
-                           (repl-output-exit))]
-      [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)])
-    (get-message)))
+      ['break            (break-thread repl-thread #f)
+                         (get-message)]
+      ['exit             (repl-output-exit)
+                         (remove-session! (current-session-id))]
+      [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)
+         (get-message)])))
 
 ;; Change one of our non-false maybe-mod values (for which we use path
 ;; objects, not path-strings) into a module-path applied to

@@ -52,19 +52,21 @@
           (cons (and label (~a label))
                 (and src (srcloc->elisp-value src))))))
 
-(define (srcloc->elisp-value x)
+(define (srcloc->elisp-value loc)
   (define src
     ;; Although I want to find/fix this properly upstream -- is
     ;; something a path-string? when it should be a path? -- for now
     ;; just catch here the case where the source is a string like
     ;; "\"/path/to/file.rkt\"" i.e. the string value has quotes.
-    (match (srcloc-source x)
+    (match (srcloc-source loc)
       [(pregexp "^\"(.+)\"$" (list _ unquoted)) unquoted]
       [(? path? v) (path->string v)]
       [v v]))
+  (define str (or (srcloc->string loc)
+                  (format "~a:~a:~a" src (srcloc-line loc) (srcloc-column loc))))
   (and (path-string? src)
-       (srcloc-line x)
-       (srcloc-column x)
-       (srcloc-position x)
-       (srcloc-span x)
-       (list src (srcloc-line x) (srcloc-column x) (srcloc-position x) (srcloc-span x))))
+       (srcloc-line loc)
+       (srcloc-column loc)
+       (srcloc-position loc)
+       (srcloc-span loc)
+       (list str src (srcloc-line loc) (srcloc-column loc) (srcloc-position loc) (srcloc-span loc))))

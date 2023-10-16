@@ -13,9 +13,9 @@
          syntax/modread
          "debug-annotator.rkt"
          "elisp.rkt"
-         "interactions.rkt"
          "repl-output.rkt"
          "repl-session.rkt"
+         "stack-checkpoint.rkt"
          "util.rkt")
 
 (module+ test
@@ -307,7 +307,10 @@
 
 (define ((make-prompt-read src pos top-mark))
   (define-values (_base name _dir) (split-path src))
-  (define stx (get-interaction (format "[~a:~a]" name pos)))
+  (repl-output-prompt (format "[~a:~a]" name pos))
+  (define in (open-input-string (channel-get (current-submissions))))
+  (define stx (with-stack-checkpoint
+              ((current-read-interaction) 'racket-mode-debug-repl in)))
   (call-with-session-context (current-session-id)
                              with-locals stx (mark-bindings top-mark)))
 

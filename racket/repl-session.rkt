@@ -7,10 +7,10 @@
          racket/match
          "util.rkt")
 
-(provide next-session-id!
-         call-with-session-context
+(provide call-with-session-context
          current-session-id
          current-repl-msg-chan
+         current-submissions
          current-session-maybe-mod
          (struct-out session)
          get-session
@@ -19,21 +19,13 @@
 
 ;;; REPL session "housekeeping"
 
-(define next-session-id!
-  (let ([sema (make-semaphore 1)]
-        [n 0])
-    (λ ()
-      (call-with-semaphore sema
-                           (λ ()
-                             (begin0 n
-                               (set! n (add1 n))))))))
-
 ;; Each REPL session has an entry in this hash-table.
 (define sessions (make-hasheq)) ;number? => session?
 
 (struct session
   (thread           ;thread? the repl manager thread
    repl-msg-chan    ;channel?
+   submissions      ;channel?
    maybe-mod        ;(or/c #f module-path?)
    namespace)
   #:transparent)
@@ -44,6 +36,7 @@
 (define (set-session! sid maybe-mod)
   (hash-set! sessions sid (session (current-thread)
                                    (current-repl-msg-chan)
+                                   (current-submissions)
                                    maybe-mod
                                    (current-namespace)))
   (log-racket-mode-debug @~a{(set-session! @~v[sid] @~v[maybe-mod]) => sessions: @~v[sessions]}))
@@ -54,6 +47,7 @@
 
 (define current-session-id (make-parameter #f))
 (define current-repl-msg-chan (make-parameter #f))
+(define current-submissions (make-parameter #f))
 (define current-session-maybe-mod (make-parameter #f))
 
 ;; A way to parameterize e.g. commands that need to work with a
@@ -64,6 +58,7 @@
      (log-racket-mode-debug @~a{@car[args]: using session ID @~v[sid]})
      (parameterize ([current-session-id          sid]
                     [current-repl-msg-chan       (session-repl-msg-chan s)]
+                    [current-submissions         (session-submissions s)]
                     [current-session-maybe-mod   (session-maybe-mod s)]
                     [current-namespace           (session-namespace s)])
        (apply proc args))]

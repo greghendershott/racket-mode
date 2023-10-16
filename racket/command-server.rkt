@@ -154,7 +154,7 @@
     [`(describe ,how ,str)             (describe how str)]
     [`(doc ,how ,str)                  (doc how str)]
     [`(type ,how ,v)                   (type how v)]
-    [`(repl-start)                     (repl-start)]
+    [`(repl-start, sid)                (repl-start sid)]
 
     ;; Commands that DEFINITELY DO need a REPL session for context,
     ;; e.g. its namespace. Should they pass a session-id explicitly,
@@ -169,8 +169,9 @@
     [`(eval ,v)                        (eval-command v)]
     [`(debug-resume ,v)                (debug-resume v)]
     [`(debug-disable)                  (debug-disable)]
-    [`(break ,kind)                    (repl-break kind)]
-    [`(submit ,str)                    (repl-submit str)]))
+    [`(submit ,str)                    (repl-submit str)]
+    [`(repl-break)                     (repl-break)]
+    [`(repl-exit)                      (repl-exit)]))
 
 ;;; Some trivial commands defined here
 
