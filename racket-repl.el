@@ -605,8 +605,9 @@ Sets `racket--repl-session-id'.
 
 This does not display the buffer or change the selected window."
   (when noninteractive (princ "{racket--repl-start}: entered\n"))
-  (let ((buf (get-buffer-create racket-repl-buffer-name)))
-    (with-current-buffer buf
+  (let ((orig-buf (current-buffer))
+        (repl-buf (get-buffer-create racket-repl-buffer-name)))
+    (with-current-buffer repl-buf
       ;; Buffer might already be in `racket-repl-mode' -- e.g.
       ;; `racket-repl-exit' was used and now we're "restarting". In
       ;; that case avoid re-initialization that is at best
@@ -614,10 +615,13 @@ This does not display the buffer or change the selected window."
       ;; history).
       (unless (eq major-mode 'racket-repl-mode)
         (when noninteractive
-          (princ "{racket--repl-start}: (racket-repl-mode)\n"))
+          (princ "{racket--repl-start}: enabling (racket-repl-mode)\n"))
         (racket-repl-mode))
       ;; Now that major mode has bashed local vars, set some:
       (setq racket--repl-session-id (cl-incf racket--repl-next-session-id))
+      (when noninteractive
+        (princ (format "{racket--repl-start}: picking next session id %S\n"
+                       racket--repl-session-id)))
       (setq racket--repl-pmark (make-marker))
       (set-marker racket--repl-pmark (point-max))
       (goto-char (point-max))
@@ -625,9 +629,11 @@ This does not display the buffer or change the selected window."
        nil
        `(repl-start ,racket--repl-session-id)
        (lambda (_id)
-         (with-current-buffer buf
-           (add-hook 'kill-buffer-hook #'racket-repl-exit nil t)
-           (run-with-timer 0.001 nil callback)))))))
+         (with-current-buffer repl-buf
+           (add-hook 'kill-buffer-hook #'racket-repl-exit nil t))
+         (run-with-timer 0.001 nil (lambda ()
+                                     (with-current-buffer orig-buf
+                                       (funcall callback)))))))))
 
 ;;; Misc
 
