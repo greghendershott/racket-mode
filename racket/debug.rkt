@@ -307,7 +307,7 @@
 
 (define ((make-prompt-read src pos top-mark))
   (define-values (_base name _dir) (split-path src))
-  (repl-output-prompt (format "[~a:~a]" name pos))
+  (repl-output-prompt (format "[~a:~a]>" name pos))
   (define in (open-input-string (channel-get (current-submissions))))
   (define stx (with-stack-checkpoint
               ((current-read-interaction) 'racket-mode-debug-repl in)))
