@@ -705,7 +705,7 @@ see the results."
           (insert (with-current-buffer source-buffer
                     (buffer-substring start end)))
           (insert (propertize "\n=>\n"
-                              'font-lock-face 'font-lock-comment-face)))
+                              'font-lock-face 'racket-repl-message)))
         (add-text-properties racket--repl-pmark (point)
                              (list 'field 'send
                                    'read-only t))
@@ -1238,10 +1238,10 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
   (pcase loc
     (`(,str ,_file ,_line ,_col ,_pos ,_span)
      (propertize str
-                 'font-lock-face 'link
+                 'font-lock-face 'racket-repl-error-location
                  'racket-error-loc loc
                  'keymap racket-repl-error-location-map))
-    (_ (propertize "no location" 'font-lock-face 'italic))))
+    (_ (propertize "location N/A" 'font-lock-face 'italic))))
 
 (defun racket-repl-goto-error-location ()
   (interactive)
@@ -1335,47 +1335,47 @@ Although they remain clickable they will be ignored by
           (cl-case kind
             ((run)
              (unless (equal value "")
-               (insert-faced (format "run %s\n" value) 'font-lock-comment-face)))
+               (insert-faced (format "run %s\n" value) 'racket-repl-message)))
             ((message exit)
-             (insert-faced value 'font-lock-comment-face))
+             (insert-faced value 'racket-repl-message))
             ((prompt)
-             (insert (propertize value 'font-lock-face 'comint-highlight-prompt))
+             (insert-faced value 'racket-repl-prompt)
              (insert (propertize " " 'rear-nonsticky t)))
             ((value)
-             (insert-faced value 'font-lock-constant-face))
+             (insert-faced value 'racket-repl-value))
             ((value-special)
              (pcase-let ((`(image . ,file) value))
                (racket--repl-insert-image file)))
             ((error)
              (pcase value
                (`(,msg ,srclocs (,context-kind . ,context-names-and-locs))
-                (insert-faced msg 'error)
+                (insert-faced msg 'racket-repl-error-message)
                 (newline)
                 ;; Heuristic: When something supplies exn-srclocs,
                 ;; show those only. Otherwise show context if any.
                 ;; This seems to work well for most runtime
-                ;; exceptions, as well as for rackunit tests (where
-                ;; the srcloc sufficies and the context esp
+                ;; exceptions, as well as for rackunit test failures
+                ;; (where the srcloc sufficies and the context esp
                 ;; w/errortrace is useless noise).
                 (cond (srclocs
                        (dolist (loc srclocs)
                          (insert (racket--format-error-location loc))
                          (newline)))
                       (context-names-and-locs
-                       (insert-faced (format "Context (%s):" context-kind) 'error)
+                       (insert-faced (format "Context (%s):" context-kind)
+                                     'racket-repl-error-message)
                        (newline)
                        (dolist (v context-names-and-locs)
                          (pcase-let ((`(,name . ,loc) v))
+                           (insert " ")
                            (insert (racket--format-error-location loc))
                            (insert " ")
                            (when name
-                             (insert
-                              (propertize name 'font-lock-face 'font-lock-variable-name-face))))
+                             (insert-faced name 'racket-repl-error-label)))
                          (newline)))))))
-            ((stdout) (insert-faced value 'default))
-            ((stderr) (insert-faced value 'error))
-            (otherwise
-             (insert-faced value 'default))))
+            ((stdout) (insert-faced value 'racket-repl-stdout))
+            ((stderr) (insert-faced value 'racket-repl-stderr))
+            (otherwise (insert-faced value 'racket-repl-message))))
         (add-text-properties pt (point)
                              (list
                               'read-only t

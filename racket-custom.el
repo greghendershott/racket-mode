@@ -780,6 +780,46 @@ See the variable `racket-browse-url-function'."
   "Face `racket-describe-mode' uses for Scribble @litchar."
   "Racket Doc Litchar Face")
 
+(defface-racket racket-repl-message
+  '((t (:inherit font-lock-comment-face)))
+  "Face `racket-repl-mode' uses for messages from the back end."
+  "Racket REPL Message")
+
+(defface-racket racket-repl-prompt
+  '((t (:inherit bold)))
+  "Face `racket-repl-mode' uses for prompts."
+  "Racket REPL Prompt")
+
+(defface-racket racket-repl-value
+  '((t (:inherit font-lock-constant-face)))
+  "Face `racket-repl-mode' uses for values output by current-print."
+  "Racket REPL Value")
+
+(defface-racket racket-repl-error-message
+  '((t (:inherit error)))
+  "Face `racket-repl-mode' uses for error messages."
+  "Racket REPL Error Message")
+
+(defface-racket racket-repl-error-location
+  '((t (:inherit link)))
+  "Face `racket-repl-mode' uses for error locations."
+  "Racket REPL Error Location")
+
+(defface-racket racket-repl-error-label
+  '((t (:inherit font-lock-variable-name-face)))
+  "Face `racket-repl-mode' uses for error labels."
+  "Racket REPL Error Label")
+
+(defface-racket racket-repl-stdout
+  '((t (:inherit default)))
+  "Face `racket-repl-mode' uses for output to current-output-port."
+  "Racket REPL Stdout")
+
+(defface-racket racket-repl-stderr
+  '((t (:inherit error)))
+  "Face `racket-repl-mode' uses for output to current-error-port."
+  "Racket REPL Stderr")
+
 (provide 'racket-custom)
 
 ;;; racket-custom.el ends here
