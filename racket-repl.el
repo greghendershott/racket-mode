@@ -118,30 +118,57 @@ but does not have a live session."
   (racket--repl-session-id))
 
 (defvar-local racket--repl-pmark nil
-  "Same role as `process-mark', but we use no process.")
+  "Same role as `process-mark', but we use no process per REPL session.")
 
 ;;; Misc
+
+(defun racket-repl-input ()
+  "Submit input to current-input-port of the user program."
+  (interactive)
+  (unless (racket--repl-live-p)
+    (user-error "no REPL session"))
+  (let ((input (concat (read-string "Input for user program: ") "\n")))
+    (racket--cmd/async (racket--repl-session-id) `(repl-input ,input))))
 
 (defalias 'racket-repl-eval-or-newline-and-indent #'racket-repl-submit)
 
 (defvar-local racket-repl-submit-function nil)
 
 (defun racket-repl-submit ()
-  "Submit your input to the Racket REPL."
+  "Submit input to the Racket REPL.
+
+When not at a REPL prompt, instead submits as input for user program."
   (interactive)
   (unless (racket--repl-live-p)
     (user-error "no REPL session"))
   (end-of-line)
   (when (< racket--repl-pmark (point))
-    (let ((input (buffer-substring-no-properties racket--repl-pmark (point))))
-      (when (if racket-repl-submit-function
-                (funcall racket-repl-submit-function input)
-              (racket--repl-complete-sexp-p))
-        (racket--repl-add-to-input-history input)
-        (put-text-property racket--repl-pmark (point) 'field 'input)
+    ;; We allow all input >= pmark. Here we check to see if pmark is
+    ;; sitting right after a prompt. If so, treat input as a possible
+    ;; REPL expression submission. Otherwise give it to back end as
+    ;; input for user program.
+    (let ((at-prompt-p (get-text-property (1- (marker-position racket--repl-pmark))
+                                          'racket-prompt))
+          (input (buffer-substring-no-properties racket--repl-pmark (point))))
+      (if (racket--repl-at-prompt-p)
+          (when (if racket-repl-submit-function
+                    (funcall racket-repl-submit-function input)
+                  (racket--repl-complete-sexp-p))
+            (racket--repl-add-to-input-history input)
+            (insert ?\n)
+            (add-text-properties racket--repl-pmark (point)
+                                 (list 'read-only t
+                                       'rear-nonsticky t))
+            (set-marker racket--repl-pmark (point))
+            (racket--cmd/async (racket--repl-session-id) `(repl-submit ,input)))
+        ;; Intentionally do NOT `racket--repl-add-to-input-history'.
         (insert ?\n)
+        (add-text-properties racket--repl-pmark (point)
+                                 (list 'read-only t
+                                       'rear-nonsticky t))
         (set-marker racket--repl-pmark (point))
-        (racket--cmd/async (racket--repl-session-id) `(submit ,input))))))
+        (racket--cmd/async (racket--repl-session-id)
+                           `(repl-input ,(concat input "\n")))))))
 
 (defun racket--repl-complete-sexp-p ()
   "Is there at least one complete sexp at `racket--repl-pmark'?"
@@ -1115,9 +1142,11 @@ The command varies based on how many \\[universal-argument] command prefixes you
 (defun racket--repl-limited-fontify-region (original)
   "Wrap a `font-lock-fontify-region-function'; the resulting
 function uses the original only to fontify user input after
-`racket--repl-pmark', at the end of the buffer."
+`racket--repl-pmark', at the end of the buffer, and only if it
+follows a prompt."
   (lambda (beg end loudly)
-    (when (< racket--repl-pmark end)
+    (when (and (< racket--repl-pmark end)
+               (racket--repl-at-prompt-p))
       (funcall original (max racket--repl-pmark beg) end loudly))
     (put-text-property beg end 'fontified t)
     `(jit-lock-bounds ,beg . ,end)))
@@ -1334,8 +1363,7 @@ Although they remain clickable they will be ignored by
             ((message exit)
              (insert-faced value 'racket-repl-message))
             ((prompt)
-             (insert-faced value 'racket-repl-prompt)
-             (insert (propertize " " 'rear-nonsticky t)))
+             (insert-faced (concat value " ") 'racket-repl-prompt))
             ((value)
              (insert-faced value 'racket-repl-value))
             ((value-special)
@@ -1374,6 +1402,7 @@ Although they remain clickable they will be ignored by
         (add-text-properties pt (point)
                              (list
                               'read-only t
+                              'rear-nonsticky t
                               'field 'output
                               'racket-prompt (eq kind 'prompt)
                               'racket-output kind)))
@@ -1392,6 +1421,10 @@ Although they remain clickable they will be ignored by
 (add-hook 'racket-stop-back-end-hook #'racket--repl-on-stop-back-end)
 
 ;;; Nav
+
+(defun racket--repl-at-prompt-p ()
+  (get-text-property (1- (marker-position racket--repl-pmark))
+                     'racket-prompt))
 
 (defun racket-repl-previous-prompt ()
   "Move to the character after the previous prompt."
@@ -1450,7 +1483,7 @@ Although they remain clickable they will be ignored by
             arg)))
   (delete-region racket--repl-pmark (point-max))
   (let ((input (ring-ref racket--repl-input-ring racket--repl-input-ring-index)))
-    (insert (propertize input 'field 'input))))
+    (insert input)))
 
 (defun racket-repl-next-input (arg)
   (interactive "*p")

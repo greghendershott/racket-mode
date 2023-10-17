@@ -169,7 +169,8 @@
     [`(eval ,v)                        (eval-command v)]
     [`(debug-resume ,v)                (debug-resume v)]
     [`(debug-disable)                  (debug-disable)]
-    [`(submit ,str)                    (repl-submit str)]
+    [`(repl-input ,str)                (repl-input str)]
+    [`(repl-submit ,str)               (repl-submit str)]
     [`(repl-break)                     (repl-break)]
     [`(repl-exit)                      (repl-exit)]))
 

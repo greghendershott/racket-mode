@@ -27,6 +27,7 @@
          run
          repl-break
          repl-submit
+         repl-input
          maybe-module-path->file)
 
 ;;; Messages to each repl manager thread
@@ -101,8 +102,15 @@
 (define/contract (repl-submit str)
   (-> string? any)
   (unless (current-submissions)
-    (error 'repl-break "No REPL session to break"))
+    (error 'repl-submit "No REPL session for submit"))
   (channel-put (current-submissions) str))
+
+;; Command. Called from a command-server thread
+(define/contract (repl-input str)
+  (-> string? any)
+  (unless (current-repl-msg-chan)
+    (error 'repl-input "No REPL session for input"))
+  (channel-put (current-repl-msg-chan) `(input ,(string->bytes/utf-8 str))))
 
 ;; Command. Called from a command-server thread
 (define/contract (run what subs mem pp cols pix/char ctx args dbgs)
@@ -156,6 +164,9 @@
 
 (define ((repl-manager-thread-thunk session-id ready-ch))
   (log-racket-mode-info "starting repl session ~v" session-id)
+  ;; Make pipe for user program input (as distinct form repl-submit
+  ;; input).
+  (define-values (user-pipe-in user-pipe-out) (make-pipe))
   (parameterize* ([current-session-id    session-id]
                   [current-repl-msg-chan (make-channel)]
                   [current-submissions   (make-channel)]
@@ -196,6 +207,10 @@
     (remove-session! (current-session-id)))
   (exit-handler our-exit)
 
+  ;; Input for user program (as distinct from REPL submissions; see
+  ;; current-submissions).
+  (define-values (user-pipe-in user-pipe-out) (make-pipe))
+
   ;; repl-thunk loads the user program and enters read-eval-print-loop
   (define (repl-thunk)
     ;; Command line arguments
@@ -205,6 +220,7 @@
     (current-error-port  (make-repl-error-port))
     (current-print (make-racket-mode-print-handler pretty-print? columns pixels/char))
     (set-output-handlers)
+    (current-input-port user-pipe-in)
     ;; Record as much info about our session as we can, before
     ;; possibly entering module->namespace.
     (set-session! (current-session-id) maybe-mod)
@@ -284,6 +300,8 @@
                          (custodian-shutdown-all repl-cust)
                          (do-run c)]
       ['break            (break-thread repl-thread #f)
+                         (get-message)]
+      [`(input ,bstr)    (write-bytes bstr user-pipe-out)
                          (get-message)]
       ['exit             (our-exit)]
       [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)
