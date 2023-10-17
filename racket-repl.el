@@ -172,24 +172,22 @@ but does not have a live session."
 (defun racket-repl-break ()
   "Send a break to the REPL program's main thread."
   (interactive)
-  (cond ((racket--cmd-open-p) ;don't auto-start the back end
-         (racket--cmd/async (racket--repl-session-id) `(repl-break)))
-        (t
-         (user-error "Back end is not running"))))
+  (unless (racket--cmd-open-p) ;don't auto-start the back end
+    (user-error "Back end is not running"))
+  (racket--cmd/async (racket--repl-session-id) `(repl-break)))
 
 (defun racket-repl-exit ()
-  "Send a terminate break to the REPL program's main thread.
-
-If your program is running, equivalent to `racket-repl-break'.
+  "Exit the REPL session.
 
 If already at the REPL prompt, effectively the same as entering
 \"(exit)\" at the prompt, but works even when the module language
 doesn't provide any binding for \"exit\"."
   (interactive)
-  (cond ((racket--cmd-open-p) ;don't auto-start the back end
-         (racket--cmd/async (racket--repl-session-id) `(repl-exit)))
-        (t
-         (user-error "Back end is not running"))))
+  (unless (racket--cmd-open-p) ;don't auto-start the back end
+    (user-error "Back end is not running"))
+  ;; Allow our output handler function to get the "exit" message and
+  ;; racket--repl-session-id to nil; don't do that early here.
+  (racket--cmd/async (racket--repl-session-id) `(repl-exit)))
 
 (declare-function racket-call-racket-repl-buffer-name-function "racket-repl-buffer-name" ())
 (autoload        'racket-call-racket-repl-buffer-name-function "racket-repl-buffer-name")
