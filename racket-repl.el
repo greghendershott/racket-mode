@@ -31,7 +31,6 @@
 (require 'semantic/symref/grep)
 (require 'ring)
 
-(defvar racket--back-end-auth-token)
 (declare-function  racket--what-to-run-p "racket-common" (v))
 
 ;; Don't (require 'racket-debug). Mutual dependency. Instead:
@@ -119,13 +118,9 @@ but does not have a live session."
   (racket--repl-session-id))
 
 (defvar-local racket--repl-pmark nil
-  "Same role as `process-mark' but we have no process.")
+  "Same role as `process-mark', but we use no process.")
 
 ;;; Misc
-
-(defun racket-repl--input-filter (str)
-  "Don't save anything matching `racket-history-filter-regexp'."
-  (not (string-match-p racket-history-filter-regexp str)))
 
 (defalias 'racket-repl-eval-or-newline-and-indent #'racket-repl-submit)
 

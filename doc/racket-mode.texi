@@ -65,6 +65,7 @@ Update
 * Updating just Racket Mode::
 Configure
 
+* Which major mode to use::
 * Key bindings::
 * Font-lock (syntax highlighting)::
 * Completion at point::
@@ -516,6 +517,7 @@ On macOS, downloading Racket doesn't add its @code{bin} directory to your @code{
 
 You can @code{setq} this directly in your Emacs init file (@verb{,~/.emacs,} or @verb{,~/.emacs.d/init.el,}), or, use @kbd{M-x}  @code{customize}, as you prefer.
 @menu
+* Which major mode to use::
 * Key bindings::
 * Font-lock (syntax highlighting)::
 * Completion at point::
@@ -531,6 +533,42 @@ You can @code{setq} this directly in your Emacs init file (@verb{,~/.emacs,} or 
 * Unicode input method::
 * Ligatures::
 @end menu
+
+@node Which major mode to use
+@section Which major mode to use
+
+Racket is a programming language.
+
+Racket is also a ``language-oriented programming language''. Most Racket source files contain a `#lang` line. The lang may be an s-expression lang like @code{racket}, or an at-expression lang like @code{scribble/manual}, or something completely different like @code{datalog} or @code{rhombus}.
+
+The Racket Mode package offers a choice of two major modes to use in buffers for viewing and editing source code. Each has pros and cons.
+
+Whereas @code{racket-mode} is in the tradition of Emacs @code{lisp-mode} and @code{scheme-mode} and assumes s-expression langs, @code{racket-hash-lang-mode} takes the approach of DrRacket to work for all langs.
+
+@itemize
+@item
+@code{racket-mode} is the original, ``classic'' mode for @code{#lang racket} and related s-expression languages. It is implemented entirely in Emacs and does @emph{not} need Racket Mode's back end racket process running. Font-lock (coloring) uses rules for a fixed set of identifiers from @code{racket} lang and popular modules like @code{racket/match}. Indentation uses rules for a fixed set of forms, and may be customized (see below).
+
+@item
+@code{racket-hash-lang-mode} uses font-lock (colors) and indentation determined by the lang; to get this information it @emph{does} need the Racket Mode's back end racket process running. Although basic editing should feel fast, you might notice some delay when indenting. You might see colors appear after a small delay (but it will not block editing). Speaking of colors, they will be ``plainer'' than @code{racket-mode} -- mostly just for different kinds of tokens like numbers, comments, strings, and keywords. This looks similar to DrRacket. However if you @emph{also} enable the minor mode @code{racket-xp-mode}, it will eventually add more colors at definition and use sites, and vary the colors depending on whether the identifier is local, imported, or from the module language. So you may see the ``syntax'' highlighting appear fairly quickly from @code{racket-hash-lang-mode}, and later see more ``semantic'' highlighting contributed by @code{racket-xp-mode}. The end result will be about as rich, although not exactly the same, as @code{racket-mode}.
+@end itemize
+
+You can use different major modes for different kinds of files:
+
+@itemize
+@item
+For editing @code{.rkt} files and s-expression langs, which mode to use is personal preference.
+
+@item
+For @code{.scrbl} and at-expression langs like @code{scribble/manual}, @code{racket-hash-lang-mode} is probably better than @code{racket-mode}. (Note there is also an unrelated @code{scribble-mode} package.)
+
+@item
+For non-s-expression langs like @code{datalog} or @code{rhombus} (@code{.rhm}), @code{racket-hash-lang-mode} is definitely better than @code{racket-mode}. (Note there is also an unrelated @code{rhombus-mode} package.)
+@end itemize
+
+You use @code{auto-mode-alist} to tell Emacs which major mode to use initially for certain file extensions. Also, in a buffer you can use @code{M-x racket-mode} and @code{M-x racket-hash-lang-mode} to switch between them.
+
+Note that @code{racket-hash-lang-mode} is derived from @code{racket-mode}, so it runs both @code{racket-mode-hook} and @code{racket-hash-lang-mode-hook}.
 
 @node Key bindings
 @section Key bindings
@@ -806,25 +844,25 @@ To learn more about how @emph{many} REPLs are used: @xref{racket-repl-buffer-nam
 
 In the common case there is only one back end, on the same local host as Emacs, and it is used for @code{.rkt} files in any directory.
 
-@image{scenario-0,,, Emacs front end and one local back end. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+@image{scenario-0,,, Emacs front end and one local back end. Command I/O via pipe (local) or ssh (remote). Each back end provides zero or more REPLs.,.svg}
 
 However you can configure using any number of back ends on any number of local or remote hosts.
 
 As one example, you can have multiple back ends on the local host. One back end is used for a project under a specific subdirectory, and the other back end for all others. (Perhaps one project needs Racket built from source, and everything else uses an installed, older version of Racket. By using different back ends, not only will @code{racket-run} use the desired version of Racket for a file, so will commands for documentation or visiting definitions.)
 
-@image{scenario-1,,, Emacs front end and two local back ends --- one for a project path. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+@image{scenario-1,,, Emacs front end and two local back ends --- one for a project path. Command I/O via pipe (local) or ssh (remote). Each back end provides zero or more REPLs.,.svg}
 
 Furthermore, you could work with a project located on a remote host, whose files you edit using TRAMP. You also want the back end to run there. For a remote host, Racket Mode copies its back end source files to the remote when necessary, and runs the back end using ssh.
 
-@image{scenario-2,,, Emacs front end and a back end on a remote host. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+@image{scenario-2,,, Emacs front end and a back end on a remote host. Command I/O via pipe (local) or ssh (remote). Each back end provides zero or more REPLs.,.svg}
 
 Of course the remote can also use different back ends for different paths.
 
-@image{scenario-3,,, Emacs front end and two back ends on a remote host. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+@image{scenario-3,,, Emacs front end and two back ends on a remote host. Command I/O via pipe (local) or ssh (remote). Each back end provides zero or more REPLs.,.svg}
 
 And of course you can have multiple remotes.
 
-@image{scenario-4,,, Emacs front end and two back ends each on two remote hosts. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}
+@image{scenario-4,,, Emacs front end and two back ends each on two remote hosts. Command I/O via pipe (local) or ssh (remote). Each back end provides zero or more REPLs.,.svg}
 
 If you need any of these ``fancy'' configurations: @xref{racket-add-back-end}.
 
@@ -1488,6 +1526,11 @@ A discussion of the information provided by a Racket language:
 
 @uref{https://docs.racket-lang.org/tools/lang-languages-customization.html}
 
+Note that langs supply colors only for lexer tokens like strings
+and comments. If you enable the minor mode @ref{racket-xp-mode}, it
+can contribute more colors; see the customization variable
+@ref{racket-xp-binding-font-lock-face-modes}.
+
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
@@ -2077,12 +2120,20 @@ identifier bindings and modules from the REPL's namespace.
 @tab @ref{racket-expand-definition}
 @item @kbd{C-c C-e f} 
 @tab @ref{racket-expand-file}
-@item @kbd{C-w} 
-@tab @code{comint-kill-region}
-@item @kbd{C-a} 
-@tab @code{comint-bol}
+@item @kbd{C-c C-o} 
+@tab @code{racket-repl-delete-output}
+@item @kbd{C-c C-n} 
+@tab @code{racket-repl-next-prompt}
+@item @kbd{C-c C-p} 
+@tab @code{racket-repl-previous-prompt}
+@item @kbd{C-c C-u} 
+@tab @code{racket-repl-clear-input}
 @item @kbd{C-M-y} 
 @tab @ref{racket-insert-lambda}
+@item @kbd{M-n} 
+@tab @code{racket-repl-next-input}
+@item @kbd{M-p} 
+@tab @code{racket-repl-previous-input}
 @item @kbd{C-M-q} 
 @tab @code{prog-indent-sexp}
 @item @kbd{C-M-u} 
@@ -2097,8 +2148,7 @@ identifier bindings and modules from the REPL's namespace.
 
 
 
-In addition to any hooks its parent mode @code{comint-mode} might have run,
-this mode runs the hook @code{racket-repl-mode-hook}, as the final step
+This mode runs the hook @code{racket-repl-mode-hook}, as the final step
 during initialization.
 
 @node racket-run
@@ -2592,7 +2642,7 @@ When the expression is a sexp comment, the sexp itself is sent,
 without the #; prefix.
 
 With a prefix argument (e.g. @kbd{C-u}  @kbd{C-x C-e} ), the sexp is copied
-into the REPL, followed by a ``;; ->'' line, to distinguish it
+into the REPL, followed by a ``=>'' line, to distinguish it
 from the zero or more values to which it evaluates.
 
 @node Collections
@@ -3624,15 +3674,6 @@ buffer, DIRECTORY determines:
 Whether the back end is local or remote.
 
 @item
-The host name. Used to make TCP/IP connections to a back end
-for REPL sesssions. When remote used for SSH connections to
-start the back end process.
-
-This may be a Host alias from ~/.ssh/config with a HostName, in
-which case HostName is used as the actual host name for both
-SSH and TCP/IP connections.
-
-@item
 When remote, any explicit user and port used to make SSH
 connections (as opposed to relying on values from
 ~/.ssh/config).
@@ -3663,32 +3704,10 @@ supply the localname there (not a full @code{file-remote-p}). The
 default value is ``/tmp/racket-mode-back-end''.
 
 @item
-:repl-tcp-accept-host
-
-Host from which the back end TCP REPL server will accept
-connections. ``127.0.0.1'' means it will accept only local
-connections. ``0.0.0.0'' means it will accept connections from
-anywhere --- which usually is risky unless the remote is behind
-a firewall that limits connections!
-
-@item
-:repl-tcp-port
-
-The port number the back end TCP REPL server uses to listen for
-connections.
-
-Note that this is @code{numberp} --- not @code{stringp}.
-
-When 0, this means the back end chooses an available port --- a
-so-called ``ephemeral'' port. Usually that is practical only on
-a local host. Otherwise a specific port number should be used,
-and, remember to allow that in the remote's firewall.
-
-@item
 :windows
 
-Whether the back end uses Windows style path names. Used to do
-translation betwen slashes and backslashes between the Emacs
+Whether the back end uses Windows style path names. Used to
+translate betwen slashes and backslashes between the Emacs
 front end (which uses slashes even on Windows) and the Racket
 back end (which expects native backslashes on Windows).
 
@@ -3709,28 +3728,10 @@ DIRECTORY is local or remote:
 
 @itemize
 @item
-When DIRECTORY is remote, :repl-tcp-port is set to 55555,
-:repl-tcp-accept-host is set to ``0.0.0.0'' (accepts
-connections from anywhere), and :windows is nil.
-
-When working with back ends on remote hosts, @strong{remember to check
-your remote host firewall}. Your goal is to make sure things
-work for you --- but only for you.
-
-Probably you want the firewall to limit from where it accepts
-SSH connections.
-
-Also you need the firewall to accept connections on
-:repl-tcp-port, but again, limiting from where --- either in
-the firewall or by setting :repl-tcp-accept-host to a value
-that is @emph{not} ``0.0.0.0''.
+When DIRECTORY is remote, :windows defaults to nil.
 
 @item
-Otherwise, reasonable defaults are used for a local back end:
-:repl-tcp-port is set to 0 (meaning the back end picks an
-ephemeral port), :repl-tcp-accept-host is set to ``127.0.0.1''
-(meaning the back end only accept TCP connections locally),
-and :windows is set based on @code{system-type}.
+Otherwise, :windows defaults to a value based on @code{system-type}.
 @end itemize
 
 Although the default values usually ``just work'' for local and

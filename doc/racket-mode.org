@@ -1,7 +1,7 @@
 #+OPTIONS: ':t toc:t author:t email:t H:4
 
 #+MACRO: kbd @@texinfo:@kbd{$1}@@ @@html:<kbd>$1</kbd>@@
-#+MACRO: img @@texinfo:@image{$1,,,$2. Command I/O via pipe (local) or ssh (remote). REPL I/O via one TCP connection per REPL buffer (local/remote). Each back end provides zero or more REPLs.,.svg}@@
+#+MACRO: img @@texinfo:@image{$1,,,$2. Command I/O via pipe (local) or ssh (remote). Each back end provides zero or more REPLs.,.svg}@@
 #+MACRO: ref @@texinfo:@ref{$1}@@
 #+MACRO: see @@texinfo:@xref{$1}@@
 

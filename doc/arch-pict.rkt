@@ -9,7 +9,6 @@
 
 (define pipe-color "blue")
 (define ssh-color "purple")
-(define tcp-color "brown")
 
 (define host-color      (make-color 0 0 0 0.0))
 (define front-end-color (make-color #xF0 #xF7 #xF0 1.0))
@@ -48,17 +47,14 @@
    (vl-append
     (text "Emacs front end" '(bold))
     (hc-append
-     (text "Command requests/responses via ")
+     (text "Command requests/responses and notifications via ")
      (colorize (text "pipe" '(bold)) pipe-color)
      (text " or ")
      (colorize (text "ssh" '(bold)) ssh-color)
-     (text "."))
-    (hc-append
-     (text "REPL I/O via one ")
-     (colorize (text "TCP" '(bold)) tcp-color)
-     (text " connection per REPL buffer.")))))
+     (text ".")))))
 
 (define (backend path)
+  (define i/o-color (if (regexp-match? #rx"^/[^:]+:" path) ssh-color pipe-color))
   (box
    #:inset 5
    #:color (light "black")
@@ -73,17 +69,17 @@
      10
      (colorize
       (box #:inset 5 (text "Commands"))
-      (if (regexp-match? #rx"^/[^:]+:" path) ssh-color pipe-color))
+      i/o-color)
      (vl-append
       4
       (colorize (box #:inset 2 (text "REPL 1"))
-                tcp-color)
+                i/o-color)
       (colorize (box #:inset 2 (text "REPL 2"))
-                tcp-color)
+                i/o-color)
       (colorize (box #:inset 2
                      #:segment 2
                      (text "REPL n" '(italic)))
-                tcp-color))))))
+                i/o-color))))))
 
 (define (back-end-source-files)
   (box

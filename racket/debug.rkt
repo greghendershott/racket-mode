@@ -300,7 +300,6 @@
 
 ;;; Debug REPL
 
-;; FIXME for new approach not using tcp-input-port; see repl.rkt
 (define ((repl src pos top-mark))
   (parameterize ([current-prompt-read (make-prompt-read src pos top-mark)])
     (read-eval-print-loop)))

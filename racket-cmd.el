@@ -68,12 +68,6 @@ Before doing anything runs the hook `racket-stop-back-end-hook'."
  "This is no longer supported."
  "2021-08-16")
 
-(defvar racket--back-end-auth-token (format "token-%x" (random))
-  "A value used to start a REPL in a back end process.
-We share this among back ends, which is fine. Keep in mind this
-does get freshly initialized each time this .el file is loaded --
-even from compiled bytecode.")
-
 (defun racket--cmd-open ()
   ;; Avoid excess processes/buffers like "racket-process<1>".
   (when (racket--cmd-open-p)
@@ -108,14 +102,7 @@ even from compiled bytecode.")
                                        (image-type-available-p 'imagemagick))))
                          "--use-svg"
                        "--do-not-use-svg"))
-           (args    (list main-dot-rkt
-                          "--auth"        racket--back-end-auth-token
-                          "--accept-host" (plist-get back-end
-                                                     :repl-tcp-accept-host)
-                          "--port"        (format "%s"
-                                                  (plist-get back-end
-                                                             :repl-tcp-port))
-                          svg-flag))
+           (args    (list main-dot-rkt svg-flag))
            (command (racket--back-end-args->command back-end args))
            (process
             (make-process
