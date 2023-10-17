@@ -190,6 +190,11 @@
     (custodian-limit-memory repl-cust
                             (inexact->exact (round (* 1024 1024 mem-limit)))
                             repl-cust))
+  (define (our-exit [_v #f])
+    (repl-output-exit)
+    (custodian-shutdown-all repl-cust)
+    (remove-session! (current-session-id)))
+  (exit-handler our-exit)
 
   ;; repl-thunk loads the user program and enters read-eval-print-loop
   (define (repl-thunk)
@@ -280,8 +285,7 @@
                          (do-run c)]
       ['break            (break-thread repl-thread #f)
                          (get-message)]
-      ['exit             (repl-output-exit)
-                         (remove-session! (current-session-id))]
+      ['exit             (our-exit)]
       [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)
          (get-message)])))
 
