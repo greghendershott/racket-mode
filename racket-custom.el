@@ -781,7 +781,7 @@ See the variable `racket-browse-url-function'."
   "Racket Doc Litchar Face")
 
 (defface-racket racket-repl-message
-  '((t (:inherit font-lock-comment-face)))
+  '((t (:inherit font-lock-comment-face :slant italic)))
   "Face `racket-repl-mode' uses for messages from the back end."
   "Racket REPL Message")
 

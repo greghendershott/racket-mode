@@ -111,7 +111,7 @@ supplied to it."
 
 ;;; REPL
 
-(ert-deftest 0-racket-tests/repl ()
+(ert-deftest racket-tests/repl ()
   "Start/exercise/stop REPL without any racket-run."
   (message "racket-tests/repl")
   (racket-tests/with-back-end-settings
@@ -180,7 +180,7 @@ supplied to it."
       ;; Exit
       (racket-tests/type&press "(exit)" "RET")
       (should (racket-tests/see-back
-               "REPL session ended"))
+               "REPL session ended\n"))
       (kill-buffer))))
 
 ;;; Multi REPLs
@@ -239,7 +239,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
         (should (racket-tests/see-back (concat "\n" name "> ")))
         (racket-repl-exit)
         (should (racket-tests/see-back
-                 "REPL session ended"))
+                 "REPL session ended\n"))
         (kill-buffer))
       (kill-buffer)
       (delete-file path))))
@@ -276,7 +276,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
         (with-current-buffer repl-name
           (racket-repl-exit)
           (should (racket-tests/see-back
-                   "REPL session ended"))
+                   "REPL session ended\n"))
           (kill-buffer))
         (kill-buffer)
         (delete-file path)))))
@@ -357,7 +357,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
      (with-racket-repl-buffer
        (racket-repl-exit)
        (should (racket-tests/see-back
-                "REPL session ended"))
+                "REPL session ended\n"))
        (kill-buffer))
 
      (kill-buffer)
@@ -634,7 +634,7 @@ want to use the value of `racket-program' at run time."
         (with-racket-repl-buffer
           (racket-repl-exit)
           (should (racket-tests/see-back
-                   "REPL session ended"))
+                   "REPL session ended\n"))
           (kill-buffer))
 
         (kill-buffer)

@@ -231,8 +231,7 @@
                  (match new-vals-pair
                    [(cons #t  new-vals-str) (read-str/default new-vals-str vals)]
                    [(cons '() _)            vals]) ])
-            (kill-thread repl-thread)
-            (newline))]
+            (kill-thread repl-thread))]
          [_ (wait)]))]
     ;; Otherwise, if we didn't break, we simply need to (a) calculate
     ;; next-break and (b) tell the annotator to use the original

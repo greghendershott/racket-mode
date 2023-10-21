@@ -249,15 +249,16 @@ Intended for use by things like `electric-pair-mode'."
 
 (defun racket--hash-lang-repl-buffer-string (beg end)
   "Like `buffer-substring-no-properties' but everything before
-`racket--repl-pmark' is treated as whitespace."
+repl input is treated as whitespace."
   (save-restriction
     (widen)
-    (let* ((before-input
-            (buffer-substring-no-properties (min beg racket--repl-pmark)
-                                            (min end racket--repl-pmark)))
+    (let* ((prompt-end (racket--repl-prompt-mark-end))
+           (before-input
+            (buffer-substring-no-properties (min beg prompt-end)
+                                            (min end prompt-end)))
            (input
-            (buffer-substring-no-properties (max beg racket--repl-pmark)
-                                            (max end racket--repl-pmark)))
+            (buffer-substring-no-properties (max beg prompt-end)
+                                            (max end prompt-end)))
            (len (length before-input))
            (i 0))
       (while (< i len)
