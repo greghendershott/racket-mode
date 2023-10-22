@@ -12,9 +12,10 @@
          repl-output-run
          repl-output-prompt
          repl-output-exit
+         repl-output-value
+         repl-output-value-special
          make-repl-output-port
-         make-repl-error-port
-         make-repl-value-port)
+         make-repl-error-port)
 
 ;;; REPL output
 
@@ -63,6 +64,13 @@
 (define (repl-output-exit)
   (repl-output 'exit "REPL session ended"))
 
+;; For current-print
+(define (repl-output-value v)
+  (repl-output 'value v))
+
+(define (repl-output-value-special v)
+  (repl-output 'value-special v))
+
 ;; Output port wrappers around repl-output:
 
 (define (make-repl-output-port)
@@ -70,10 +78,6 @@
 
 (define (make-repl-error-port)
   (make-repl-port 'stderr))
-
-;; For current-print
-(define (make-repl-value-port)
-  (make-repl-port 'value))
 
 (define (make-repl-port kind)
   (define name (format "racket-mode-repl-~a" kind))

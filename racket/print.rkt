@@ -3,32 +3,67 @@
 
 #lang racket/base
 
-(require racket/format
-         racket/match
+(require racket/match
+         racket/port
          racket/pretty
-         "repl-output.rkt"
-         "image.rkt")
+         "image.rkt"
+         "repl-output.rkt")
 
-(provide make-racket-mode-print-handler)
+(provide make-racket-mode-print-handler
+         current-value-port)
+
+(define current-value-port (make-parameter #f))
 
 (define (make-racket-mode-print-handler pretty? columns pixels/char)
   (define (racket-mode-print-handler v)
-   (unless (void? v)
-     (parameterize ([current-output-port (make-repl-value-port)]
-                    [print-syntax-width +inf.0])
-       (cond
-         [pretty?
-          (parameterize ([pretty-print-columns columns]
-                         [pretty-print-size-hook (make-pp-size-hook pixels/char)]
-                         [pretty-print-print-hook (make-pp-print-hook)])
-            (pretty-print v))]
-         [else
-          (match (convert-image v)
-            [(cons path-name _pixel-width)
-             (write-special (cons 'image path-name))]
-            [_
-             (print v)])]))))
+    (unless (void? v)
+      (define-values (in out) (make-value-pipe))
+      (parameterize ([current-output-port out]
+                     [print-syntax-width +inf.0])
+        (cond
+          [pretty?
+           (parameterize ([pretty-print-columns columns]
+                          [pretty-print-size-hook (make-pp-size-hook pixels/char)]
+                          [pretty-print-print-hook (make-pp-print-hook)])
+             (pretty-print v))]
+          [else
+           (match (convert-image v)
+             [(cons path-name _pixel-width)
+              (write-special (cons 'image path-name))]
+             [_
+              (print v)])]))
+      (drain-value-pipe in out)))
   racket-mode-print-handler)
+
+;; Because pretty-print does a print for each value within a list,
+;; plus for each space and newline, etc., it can result in many calls
+;; to repl-output-value with short strings.
+;;
+;; To avoid this: Use for current-output-port a pipe of unlimited size
+;; to accumulate all the pretty-printed bytes and specials. Finally
+;; drain it using read-bytes-avail! to consolidate runs of bytes
+;; (interrupted only by specials, if any) up to a fixed buffer size.
+
+(define (make-value-pipe)
+  (make-pipe-with-specials))
+
+(define (drain-value-pipe in out)
+  (flush-output out)
+  (close-output-port out)
+  (define buffer (make-bytes 2048))
+  (let loop ()
+    (match (read-bytes-avail! buffer in)
+      [(? exact-nonnegative-integer? len)
+       (define v (bytes->string/utf-8 (subbytes buffer 0 len)))
+       (repl-output-value v)
+       (loop)]
+      [(? procedure? read-special)
+       ;; m-p-w-specials ignores the position arguments so just pass
+       ;; something satisfying the contract.
+       (define v (read-special #f #f #f 1))
+       (repl-output-value-special v)
+       (loop)]
+      [(? eof-object?) (void)])))
 
 ;; pretty-print uses separate size and print hooks -- and the size
 ;; hook can even be called more than once per object. Avoid calling
