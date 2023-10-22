@@ -165,10 +165,10 @@ starts.")
 Plays a role similar to `process-mark' in `comint-mode', except
 we have no process.
 
-Various kinds of output get various 'field property values. All
+Various kinds of output get various field property values. All
 output is read-only, but we arrange for the last character to be
-'rear-nonsticky so self-insert-command will let the user type
-input. When th euser types text there and presses RET, then that
+rear-nonsticky so self-insert-command will let the user type
+input. When the user types text there and presses RET, then that
 is submitted as plain input -- as opposed to REPL interaction
 input.
 
