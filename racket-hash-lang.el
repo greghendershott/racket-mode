@@ -254,27 +254,27 @@ Intended for use by things like `electric-pair-mode'."
         (modify-syntax-entry (aref str 0) "\"   " table)))
     table))
 
+;;; Updates: Front end --> back end
+
 (defun racket--hash-lang-repl-buffer-string (beg end)
   "Like `buffer-substring-no-properties' but everything before
-repl input is treated as whitespace."
+repl input is treated as whitespace, preserving only line breaks
+for indentation."
   (save-restriction
     (widen)
-    (let* ((prompt-end (racket--repl-prompt-mark-end))
+    (let* ((prompt-end (or (racket--repl-prompt-mark-end) (point-max)))
            (before-input
             (buffer-substring-no-properties (min beg prompt-end)
                                             (min end prompt-end)))
+           (before-input
+            (replace-regexp-in-string "[^\r\n]+"
+                                      (lambda (s)
+                                        (make-string (length s) 32))
+                                      before-input))
            (input
             (buffer-substring-no-properties (max beg prompt-end)
-                                            (max end prompt-end)))
-           (len (length before-input))
-           (i 0))
-      (while (< i len)
-        (unless (eq ?\n (aref before-input i))
-          (aset before-input i 32))
-        (setq i (1+ i)))
+                                            (max end prompt-end))))
       (concat before-input input))))
-
-;;; Updates: Front end --> back end
 
 (defun racket--hash-lang-after-change-hook (beg end len)
   ;;;(message "racket--hash-lang-after-change-hook %s %s %s" beg end len)
