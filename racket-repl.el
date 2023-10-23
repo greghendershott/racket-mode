@@ -1444,21 +1444,20 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
          (user-error "Current buffer is not a Racket edit or REPL buffer"))))
 
 (defun racket--delete-all-buffer-text (leave-last-prompt-p)
-  (with-silent-modifications
-    (widen)
-    (let ((end (if leave-last-prompt-p
-                   (save-excursion
-                     (goto-char (point-max))
-                     (racket-repl-previous-prompt)
-                     (racket-repl-next-prompt)
-                     (forward-line 0)   ;BOL ignoring fields
-                     (point))
-                 (point-max)))
-          (inhibit-read-only t))
-      (delete-region (point-min) end)
-      (goto-char (point-max))
-      (dolist (win (get-buffer-window-list))
-        (set-window-point win (point-max))))))
+  (widen)
+  (let ((end (if leave-last-prompt-p
+                 (save-excursion
+                   (goto-char (point-max))
+                   (racket-repl-previous-prompt)
+                   (racket-repl-next-prompt)
+                   (forward-line 0)   ;BOL ignoring fields
+                   (point))
+               (point-max)))
+        (inhibit-read-only t))
+    (delete-region (point-min) end)
+    (goto-char (point-max))
+    (dolist (win (get-buffer-window-list))
+      (set-window-point win (point-max)))))
 
 ;;; Errors
 
