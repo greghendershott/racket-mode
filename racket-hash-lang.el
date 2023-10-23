@@ -132,46 +132,53 @@ can contribute more colors; see the customization variable
 (defun racket--hash-lang-create (&optional other-buffer)
   (setq-local racket--hash-lang-id (cl-incf racket--hash-lang-next-id))
   (setq-local racket--hash-lang-generation 1)
-  (let ((other-lang-source
-         (when other-buffer
-           (with-current-buffer other-buffer
-             (save-restriction
-               (widen)
-               (buffer-substring-no-properties (point-min) (min 4096 (point-max)))))))
-        (text
-         (save-restriction
-           (widen)
-           (if (eq major-mode 'racket-repl-mode)
-               (racket--hash-lang-repl-buffer-string (point-min) (point-max))
-             (buffer-substring-no-properties (point-min) (point-max))))))
-    ;; On the one hand, racket--cmd/await would be simpler to use
-    ;; here. On the other hand, when someone visits a file without the
-    ;; back end running yet, there's a delay for that to start, during
-    ;; which the buffer isn't displayed and Emacs seems frozen. On the
-    ;; third hand, if we use async the buffer could try to interact
-    ;; with a back end object that doesn't yet exist, and error.
-    ;;
-    ;; Warm bowl of porridge: Make buffer read-only and not font-lock.
-    ;; Set a timer to show a message in the header-line after awhile.
-    ;; Send command async. Only when the response arrives, i.e. the
-    ;; back end object is ready, enable read/write and font-lock.
-    (font-lock-mode -1)
-    (read-only-mode 1)
-    (let* ((buf (current-buffer))
-           (timer (run-with-timer
-                   1 nil
-                   (lambda ()
-                     (with-current-buffer buf
-                       (setq-local header-line-format
-                                   "Waiting for back end server..."))))))
+  (cl-case major-mode
+   ((racket-hash-lang-mode)
+    (let ((text (save-restriction
+                  (widen)
+                  (buffer-substring-no-properties (point-min) (point-max)))))
+      ;; On the one hand, racket--cmd/await would be simpler to use
+      ;; here. On the other hand, when someone visits a file without the
+      ;; back end running yet, there's a delay for that to start, during
+      ;; which the buffer isn't displayed and Emacs seems frozen. On the
+      ;; third hand, if we use async the buffer could try to interact
+      ;; with a back end object that doesn't yet exist, and error.
+      ;;
+      ;; Warm bowl of porridge: Make buffer read-only and not font-lock.
+      ;; Set a timer to show a message in the header-line after awhile.
+      ;; Send command async. Only when the response arrives, i.e. the
+      ;; back end object is ready, enable read/write and font-lock.
+      (font-lock-mode -1)
+      (read-only-mode 1)
+      (let* ((buf (current-buffer))
+             (timer (run-with-timer
+                     1 nil
+                     (lambda ()
+                       (with-current-buffer buf
+                         (setq-local header-line-format
+                                     "Waiting for back end server..."))))))
+        (racket--cmd/async
+         nil
+         `(hash-lang create ,racket--hash-lang-id ,nil ,text)
+         (lambda (_id)
+           (font-lock-mode 1)
+           (read-only-mode -1)
+           (cancel-timer timer)
+           (setq-local header-line-format nil))))))
+   ((racket-repl-mode)
+    (let ((other-lang-source
+           (when other-buffer
+             (with-current-buffer other-buffer
+               (save-restriction
+                 (widen)
+                 (buffer-substring-no-properties (point-min) (min 4096 (point-max)))))))
+          (text
+           (racket--hash-lang-repl-buffer-string (point-min) (point-max))))
       (racket--cmd/async
        nil
-       `(hash-lang create ,racket--hash-lang-id ,other-lang-source ,text)
-       (lambda (_id)
-         (font-lock-mode 1)
-         (read-only-mode -1)
-         (cancel-timer timer)
-         (setq-local header-line-format nil))))))
+       `(hash-lang create ,racket--hash-lang-id ,other-lang-source ,text))))
+   (otherwise
+    (error "racket--hash-lang-create doesn't work for %s" major-mode))))
 
 (defun racket--hash-lang-delete ()
   (when racket--hash-lang-id
