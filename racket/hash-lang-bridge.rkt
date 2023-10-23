@@ -9,7 +9,6 @@
          racket/runtime-path
          "elisp.rkt"
          "lang-info.rkt"
-         "repl-session.rkt"
          "util.rkt")
 
 (provide hash-lang
