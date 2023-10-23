@@ -358,9 +358,10 @@ Otherwise send to current-input-port of user program."
     (user-error "no REPL session"))
   (let ((prompt-end (racket--repl-prompt-mark-end)))
     (if (and prompt-end (< prompt-end (point-max)))
-        (let ((input (buffer-substring-no-properties prompt-end (point-max))))
+        (let* ((input (buffer-substring-no-properties prompt-end (point-max)))
+               (input+ret (concat input "\n")))
           (when (if racket-repl-submit-function
-                    (funcall racket-repl-submit-function input)
+                    (funcall racket-repl-submit-function input+ret)
                   (racket--repl-complete-sexp-p))
             (racket--repl-add-to-input-history input)
             (goto-char (point-max))
@@ -369,7 +370,7 @@ Otherwise send to current-input-port of user program."
                                  (list 'read-only t
                                        'rear-nonsticky t))
             (racket--repl-delete-prompt-mark nil)
-            (racket--cmd/async (racket--repl-session-id) `(repl-submit ,input))))
+            (racket--cmd/async (racket--repl-session-id) `(repl-submit ,input+ret))))
       (end-of-line)
       (when (< racket--repl-output-mark (point))
         (let ((input (buffer-substring-no-properties racket--repl-output-mark (point))))
