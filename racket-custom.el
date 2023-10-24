@@ -801,7 +801,7 @@ See the variable `racket-browse-url-function'."
   "Racket REPL Error Message")
 
 (defface-racket racket-repl-error-location
-  '((t (:inherit link)))
+  '((t (:inherit underline)))
   "Face `racket-repl-mode' uses for error locations."
   "Racket REPL Error Location")
 
