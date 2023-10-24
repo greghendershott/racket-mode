@@ -257,24 +257,25 @@ Intended for use by things like `electric-pair-mode'."
 ;;; Updates: Front end --> back end
 
 (defun racket--hash-lang-repl-buffer-string (beg end)
-  "Like `buffer-substring-no-properties' but everything before
-repl input is treated as whitespace, preserving only line breaks
-for indentation."
-  (save-restriction
-    (widen)
-    (let* ((prompt-end (or (racket--repl-prompt-mark-end) (point-max)))
-           (before-input
-            (buffer-substring-no-properties (min beg prompt-end)
-                                            (min end prompt-end)))
-           (before-input
-            (replace-regexp-in-string "[^\r\n]+"
-                                      (lambda (s)
-                                        (make-string (length s) 32))
-                                      before-input))
-           (input
-            (buffer-substring-no-properties (max beg prompt-end)
-                                            (max end prompt-end))))
-      (concat before-input input))))
+  "Like `buffer-substring-no-properties' treat as whitespace,
+preserving only line breaks for indentation, everything that is
+not a value output since the last run, or input after the last
+live prompt."
+  (let ((result-str ""))
+    (racket--repl-call-with-value-and-input-ranges
+     beg end
+     (lambda (beg end is-value-or-input-p)
+       (let ((raw (buffer-substring-no-properties beg end)))
+         (setq
+          result-str
+          (concat result-str
+                  (if is-value-or-input-p
+                      raw
+                    (replace-regexp-in-string "[^\r\n]+"
+                                              (lambda (s)
+                                                (make-string (length s) 32))
+                                              raw)))))))
+    result-str))
 
 (defun racket--hash-lang-after-change-hook (beg end len)
   ;;;(message "racket--hash-lang-after-change-hook %s %s %s" beg end len)
@@ -311,8 +312,9 @@ lang's attributes that we care about have changed."
   (with-silent-modifications
     (save-restriction
       (widen)
-      (racket--hash-lang-remove-text-properties (point-min) (point-max))
-      (font-lock-flush (point-min) (point-max))
+      (unless (eq major-mode 'racket-repl-mode)
+        (racket--hash-lang-remove-text-properties (point-min) (point-max))
+        (font-lock-flush (point-min) (point-max)))
       ;; If the lang uses racket-grouping-position, i.e. it uses
       ;; s-expressions, then use racket-mode-syntax-table. That way
       ;; other Emacs features and packages are more likely to work.
@@ -652,7 +654,7 @@ rhombus\"."
         (remove-hook 'after-change-functions  #'racket--hash-lang-after-change-hook t))
       (setq-local racket-repl-submit-function
                   (if hl #'racket-hash-lang-submit nil)))))
-(add-hook 'racket--repl-configure-buffer-hook
+(add-hook 'racket--repl-before-run-hook
           #'racket--hash-lang-configure-repl-buffer-from-edit-buffer)
 
 (defun racket-hash-lang-submit (input)

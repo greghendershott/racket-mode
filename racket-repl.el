@@ -140,7 +140,10 @@ but does not have a live session."
         (racket--repl-insert-output 'exit "REPL session stopped")))))
 (add-hook 'racket-stop-back-end-hook #'racket--repl-on-stop-back-end)
 
-;;; Markers for interactions prompt and for program I/O
+;;; Markers for run, interactions prompt, and program I/O
+
+(defvar-local racket--repl-run-mark nil
+  "The point at which a run command was issued.")
 
 ;; Note: One goal here is to make read-only all of the output, as well
 ;; as "old" input that has already been submitted. This involves
@@ -222,12 +225,6 @@ live prompt this marker will be at `point-max'.")
   (when racket--repl-prompt-mark
     (or (next-single-property-change racket--repl-prompt-mark 'racket-prompt)
         (point-max))))
-
-(defun racket--repl-make-output-mark ()
-  "Initialize `racket--repl-output-mark'."
-  (goto-char (point-max))
-  (setq racket--repl-output-mark (point-marker))
-  (set-marker-insertion-type racket--repl-output-mark nil))
 
 ;;; Output
 
@@ -314,8 +311,7 @@ live prompt this marker will be at `point-max'.")
           (add-text-properties pt (point)
                                (list
                                 'read-only t
-                                'field 'output
-                                'racket-output kind))
+                                'field kind))
           ;; Make last character rear-nonsticky. Among other things,
           ;; means `racket--repl-output-mark' won't be read-only; and
           ;; user may input there (for user program reading from
@@ -330,7 +326,7 @@ live prompt this marker will be at `point-max'.")
                      (equal (point) (marker-position racket--repl-prompt-mark)))
             (insert (propertize "\n"
                                 'read-only t
-                                'field 'output))))))
+                                'field kind))))))
     ;; If we just inserted a new prompt, position after it.
     (let ((win (get-buffer-window (current-buffer))))
       (if (eq kind 'prompt)
@@ -343,6 +339,32 @@ live prompt this marker will be at `point-max'.")
         (when moving
           (goto-char racket--repl-output-mark)
           (when win (set-window-point win racket--repl-output-mark)))))))
+
+(defun racket--repl-call-with-value-and-input-ranges (from upto proc)
+  "Call PROC with sub-ranges of FROM..UPTO, whether they are
+values or input since `racket--repl-run-mark'."
+  (setq upto (min upto (point-max)))
+  ;; Everything before the last run is "stale": No.
+  (when (< from racket--repl-run-mark)
+    (funcall proc from racket--repl-run-mark nil)
+    (setq from racket--repl-run-mark))
+  (let ((prompt-end (or (racket--repl-prompt-mark-end) (point-max))))
+    (while (< from upto)
+      (cond
+       ;; If we're at/after the end of the last, live prompt, then
+       ;; everything remaining is input, yes, and we're done.
+       ((<= prompt-end from)
+        (funcall proc from upto t)
+        (setq from upto))
+       ;; Keep getting chunks at racket-output prop change boundaries,
+       ;; until we reach the earlier of prompt-end or point-max.
+       (t
+        (let ((in (memq (get-text-property from 'field) '(value input)))
+              (pos (min (or (next-single-property-change from 'field)
+                            (point-max))
+                        prompt-end)))
+          (funcall proc from (min pos upto) in)
+          (setq from pos)))))))
 
 (defalias 'racket-repl-eval-or-newline-and-indent #'racket-repl-submit)
 
@@ -696,12 +718,6 @@ exist yet.
 This hook is for internal use by Racket Mode. An equivalent hook
 for end user customization is `racket-before-run-hook'.")
 
-(defvar racket--repl-configure-buffer-hook nil
-  "Thunks to do for `racket--repl-run' to configure the buffer.
-
-This hook is for internal use by Racket Mode, specifically by
-`racket-hash-lang-mode'.")
-
 (defvar racket--repl-after-run-hook nil
   "Thunks to do after each `racket--repl-run'.
 
@@ -767,14 +783,11 @@ Otherwise if `racket--repl-live-p', send the command."
                             changes
                             (racket-back-end-name)))
       (message "")
-      ;; Starting a new REPL session here seems to be reliable only if
-      ;; we stop the back end and wait for the old session process to
-      ;; die.
-      (racket-stop-back-end)
-      (with-temp-message "Waiting for old REPL to terminate..."
-        (while (racket--repl-live-p)
-          (accept-process-output)))
       (racket-start-back-end)))
+
+  (racket--repl-delete-prompt-mark 'abandon)
+  (with-racket-repl-buffer ;if it already exists
+    (set-marker racket--repl-run-mark (point)))
   (run-hooks 'racket--repl-before-run-hook
              'racket-before-run-hook)
   (pcase-let*
@@ -801,8 +814,7 @@ Otherwise if `racket--repl-live-p', send the command."
        (buf (current-buffer))
        (after (lambda (_ignore)
                 (with-current-buffer buf
-                  (run-hooks 'racket--repl-configure-buffer-hook
-                             'racket--repl-after-run-hook
+                  (run-hooks 'racket--repl-after-run-hook
                              'racket-after-run-hook)
                   (when callback
                     (funcall callback))))))
@@ -857,9 +869,11 @@ This does not display the buffer or change the selected window."
       (when noninteractive
         (princ (format "{racket--repl-start}: picking next session id %S\n"
                        racket--repl-session-id)))
-      (racket--repl-delete-prompt-mark t)
-      (racket--repl-make-output-mark)
       (goto-char (point-max))
+      (racket--repl-delete-prompt-mark t)
+      (setq racket--repl-run-mark (point-marker))
+      (setq racket--repl-output-mark (point-marker))
+      (set-marker-insertion-type racket--repl-output-mark nil)
       (racket--cmd/async
        nil
        `(repl-start ,racket--repl-session-id)
@@ -1351,13 +1365,17 @@ The command varies based on how many \\[universal-argument] command prefixes you
     ["Switch to Edit Buffer" racket-repl-switch-to-edit]))
 
 (defun racket--repl-limited-fontify-region (original)
-  "Wrap a `font-lock-fontify-region-function'; the resulting
-function uses the original only to fontify user input after
-the live propmt at end of buffer, if any."
+  "Limit a `font-lock-fontify-region-function' to certain spans.
+
+The resulting function uses ORIGINAL only to fontify input and
+value output spans since the last run -- see also
+`racket--hash-lang-configure-repl-buffer-from-edit-buffer'. Other
+spans are just marked fontified with no action."
   (lambda (beg end loudly)
-    (let ((prompt-end (racket--repl-prompt-mark-end)))
-      (when (and prompt-end (< prompt-end end))
-        (funcall original (max prompt-end beg) end loudly)))
+    (racket--repl-call-with-value-and-input-ranges
+     beg end
+     (lambda (beg end v)
+       (when v (funcall original beg end loudly))))
     (put-text-property beg end 'fontified t)
     `(jit-lock-bounds ,beg . ,end)))
 
@@ -1371,10 +1389,10 @@ You may use `xref-find-definitions' \\[xref-find-definitions] and
 identifier bindings and modules from the REPL's namespace.
 
 \\{racket-repl-mode-map}"
-  ;; Although here we some initial values assuming `racket-mode',
+  ;; Although here we set some initial values assuming `racket-mode',
   ;; `racket--hash-lang-configure-repl-buffer-from-edit-buffer' will
   ;; refresh these upon each run command via
-  ;; `racket--repl-configure-buffer-hook', drawing values from the
+  ;; `racket--repl-before-run-hook', drawing values from the
   ;; `racket-mode' or `racket-hash-lang-mode' edit buffer to also use
   ;; in the repl.
   (racket--common-variables)
