@@ -116,8 +116,7 @@ supplied to it."
   (message "racket-tests/repl")
   (racket-tests/with-back-end-settings
     (racket-repl)
-    (racket-tests/eventually (get-buffer racket-repl-buffer-name))
-    (racket-tests/eventually (racket--repl-live-p))
+    (racket-tests/eventually (racket--repl-session-id))
     (with-racket-repl-buffer
       (should
        (racket-tests/see-back-rx
@@ -233,8 +232,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
       (write-region code nil path nil 'no-wrote-file-message)
       (find-file path)
       (racket-run)
-      (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
-      (racket-tests/should-eventually (racket--repl-live-p))
+      (racket-tests/should-eventually (racket--repl-session-id))
       (with-racket-repl-buffer
         (should (racket-tests/see-back (concat "\n" name "> ")))
         (racket-repl-exit)
@@ -326,7 +324,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
      (should (derived-mode-p 'racket-mode))
      (racket-run `(16))
      (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
-     (racket-tests/should-eventually (racket--repl-live-p))
+     (racket-tests/should-eventually (racket--repl-session-id))
      (racket-tests/should-eventually racket-debug-mode)
 
      (with-racket-repl-buffer
@@ -605,7 +603,7 @@ want to use the value of `racket-program' at run time."
 
         (racket-run)
         (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
-        (racket-tests/should-eventually (racket--repl-live-p))
+        (racket-tests/should-eventually (racket--repl-session-id))
         (with-racket-repl-buffer
           (should (racket-tests/see-back (concat "\n" name "> "))))
 

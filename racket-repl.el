@@ -68,8 +68,8 @@
   "The name of the `racket-repl-mode' buffer associated with `racket-mode' buffer.
 
 Important: This variable only means something in each
-`racket-mode' buffer. It has no meaning in `racket-repl-mode' or
-other buffers.
+`racket-mode' or `racket-hash-lang-mode' edit buffer. It has no
+meaning in `racket-repl-mode' or other buffers.
 
 When nil, all `racket-mode' edit buffers share the same REPL.
 However, a buffer may `setq-local' this to some other value. See
@@ -118,10 +118,6 @@ but does not have a live session."
         (when buffer
           (with-current-buffer racket-repl-buffer-name
             racket--repl-session-id))))))
-
-(defun racket--repl-live-p ()
-  "Does a Racket REPL buffer exist and have a live REPL session?"
-  (racket--repl-session-id))
 
 (defun racket--call-with-repl-session-id (id proc &rest args)
   "Find `racket-repl-mode' buffer with `racket--repl-session-id'
@@ -380,7 +376,7 @@ is a value or input since `racket--repl-run-mark'."
 When at a REPL prompt, submit as an interaction expression.
 Otherwise send to current-input-port of user program."
   (interactive)
-  (unless (racket--repl-live-p)
+  (unless (racket--repl-session-id)
     (user-error "no REPL session"))
   (let ((prompt-end (racket--repl-prompt-mark-end)))
     (if (and prompt-end (< prompt-end (point-max)))
@@ -444,8 +440,9 @@ Equivalent to entering \"(exit)\" at the REPL prompt, but works
 even when the module language doesn't provide any binding for
 \"exit\"."
   (interactive)
-  ;; Avoid auto-starting the back end to send a command about a REPL
-  ;; session that can't exist because the back end isn't running.
+  ;; Avoid sending a command about exiting a REPL session that can't
+  ;; exist because the back end isn't running. That's worse than a
+  ;; no-op; that would auto-start the back end for no good reason now.
   (when (racket--cmd-open-p)
     ;; Note: We don't `(setq racket--repl-session-id nil)` here
     ;; because we want to allow our output handler function to get the
@@ -477,18 +474,13 @@ Mode's REPL as intended, then consider using a plain Emacs
 `shell' buffer to run command-line Racket."
   (interactive "P")
   (racket-call-racket-repl-buffer-name-function)
-  (cl-flet
-      ((display-and-maybe-select
-        ()
-        (display-buffer racket-repl-buffer-name)
-        (unless noselect
-          (select-window (get-buffer-window racket-repl-buffer-name t)))))
-    (if (racket--repl-live-p)
-        (display-and-maybe-select)
-      (racket--repl-start
-       (lambda ()
-         (racket--repl-refresh-namespace-symbols)
-         (display-and-maybe-select))))))
+  (unless (racket--repl-session-id)
+    (racket--repl-start)
+    (with-racket-repl-buffer
+      (racket--repl-refresh-namespace-symbols)))
+  (display-buffer racket-repl-buffer-name)
+  (unless noselect
+    (select-window (get-buffer-window racket-repl-buffer-name t))))
 
 ;;; Run
 
@@ -741,12 +733,7 @@ CONTEXT-LEVEL should be a valid value for the variable
 defaults to the variable `racket-error-context'.
 
 CALLBACK is used as the callback for `racket--cmd/async'; it may
-be nil which is equivalent to #\\='ignore.
-
-If not `racket--repl-live-p', start it and supply the run
-command via the start callback.the REPL is not live, create it.
-
-Otherwise if `racket--repl-live-p', send the command."
+be nil which is equivalent to #\\='ignore."
   (unless (derived-mode-p 'racket-mode)
     (user-error "Racket Mode run command only works from a `racket-mode' buffer"))
   ;; Support running buffers created by `org-edit-src-code': see
@@ -816,21 +803,10 @@ Otherwise if `racket--repl-live-p', send the command."
                              'racket-after-run-hook)
                   (when callback
                     (funcall callback))))))
-    (cond ((racket--repl-live-p)
-           (unless (racket--repl-session-id)
-             (error "No REPL session"))
-           (racket--cmd/async (racket--repl-session-id) cmd after)
-           (display-buffer racket-repl-buffer-name))
-          (t
-           (racket--repl-start
-            (lambda ()
-              (when noninteractive
-                (princ "{racket--repl-run}: callback from racket--repl-start called\n"))
-              (with-current-buffer buf
-                (unless (racket--repl-session-id)
-                  (error "No REPL session"))
-                (racket--cmd/async (racket--repl-session-id) cmd after)
-                (display-buffer racket-repl-buffer-name))))))))
+    (unless (racket--repl-session-id)
+      (racket--repl-start))
+    (racket--cmd/async (racket--repl-session-id) cmd after)
+    (display-buffer racket-repl-buffer-name)))
 
 (defun racket--write-contents ()
   (write-region nil nil buffer-file-name)
@@ -843,15 +819,15 @@ Otherwise if `racket--repl-live-p', send the command."
       (set-window-buffer nil (current-buffer))
       (car (window-text-pixel-size nil (line-beginning-position) (point))))))
 
-(defun racket--repl-start (callback)
-  "Create a `racket-repl-mode' buffer connected to a REPL session.
+(defun racket--repl-start ()
+  "Get or create a `racket-repl-mode' buffer connected to a REPL session.
 
-Sets `racket--repl-session-id'.
+Runs the repl-start back end command synchronously and locally
+sets `racket--repl-session-id' in the REPL buffer before
+returning.
 
 This does not display the buffer or change the selected window."
-  (when noninteractive (princ "{racket--repl-start}: entered\n"))
-  (let ((orig-buf (current-buffer))
-        (repl-buf (get-buffer-create racket-repl-buffer-name)))
+  (let ((repl-buf (get-buffer-create racket-repl-buffer-name)))
     (with-current-buffer repl-buf
       ;; Buffer might already be in `racket-repl-mode' -- e.g.
       ;; `racket-repl-exit' was used and now we're "restarting". In
@@ -872,15 +848,9 @@ This does not display the buffer or change the selected window."
       (setq racket--repl-run-mark (point-marker))
       (setq racket--repl-output-mark (point-marker))
       (set-marker-insertion-type racket--repl-output-mark nil)
-      (racket--cmd/async
-       nil
-       `(repl-start ,racket--repl-session-id)
-       (lambda (_id)
-         (with-current-buffer repl-buf
-           (add-hook 'kill-buffer-hook #'racket-repl-exit nil t))
-         (run-with-timer 0.001 nil (lambda ()
-                                     (with-current-buffer orig-buf
-                                       (funcall callback)))))))))
+      (racket--cmd/await nil
+                         `(repl-start ,racket--repl-session-id))
+      (add-hook 'kill-buffer-hook #'racket-repl-exit nil t))))
 
 ;;; Misc
 
@@ -939,7 +909,7 @@ Finally, displays the REPL buffer in some window, so the user may
 see the results."
   (unless (and start end)
     (error "start and end must not be nil"))
-  (unless (racket--repl-live-p)
+  (unless (racket--repl-session-id)
     (user-error "No REPL session available; run the file first"))
   ;; Capture source buffer in case something changes; see e.g. #407.
   (let ((source-buffer (current-buffer)))
@@ -1004,7 +974,7 @@ The eventual results are presented using the variable
 
 The expression may be either an at-expression or an s-expression."
   (interactive)
-  (unless (racket--repl-live-p)
+  (unless (racket--repl-session-id)
     (user-error "No REPL session available; run the file first"))
   (let ((beg (racket--start-of-previous-expression))
         (end (point)))
@@ -1115,11 +1085,10 @@ image."
 (defvar racket--repl-namespace-symbols nil)
 
 (defun racket--repl-refresh-namespace-symbols ()
-  (racket--cmd/async
-   (racket--repl-session-id)
-   '(syms)
-   (lambda (syms)
-     (setq racket--repl-namespace-symbols syms))))
+  (racket--cmd/async (racket--repl-session-id)
+                     '(syms)
+                     (lambda (syms)
+                       (setq racket--repl-namespace-symbols syms))))
 
 (add-hook 'racket--repl-after-run-hook   #'racket--repl-refresh-namespace-symbols)
 
