@@ -37,28 +37,32 @@
 (declare-function  racket--debuggable-files      "racket-debug" (file-to-run))
 (autoload         'racket--debuggable-files      "racket-debug")
 
-;;; racket-mode <=> racket-repl-mode associations
+;;; edit buffers <=> `racket-repl-mode' buffers
 
 ;; There are some nuances here regarding these variables being
 ;; buffer-local or not, and, whether the variables have any meaning in
 ;; certain modes, or not. We use Emacs variable semantics to handle
-;; the association between `racket-mode' edit buffers and
-;; `racket-repl-mode' buffers, for a variety of use cases the user
-;; might prefer. These range from all edit buffers sharing one REPL
-;; buffer (the traditional default for Racket Mode), up to each edit
-;; buffers having its own REPL (as in Dr Racket), or anything in
-;; between (such as one REPL per projectile project, or whatever).
-;; Some of these scenarios might benefit from some higher-level UI.
-;; But ultimately they reduce to setting the variable
-;; `racket-repl-buffer-name' globally and/or locally for `racket-mode'
-;; buffers -- that is the fundamental representation. Similarly, each
-;; `racket-repl-mode' buffer has an always-buffer-local value for the
-;; variable `racket--repl-session-id'. (Note that
-;; `racket-repl-buffer-name' only has meaning for `racket-mode'
-;; buffers, and `racket--repl-session-id' only has meaning for
-;; `racket-repl-mode' buffers. Emacs variables exist for all buffers
-;; using all major modes. All we can do is remember in which buffers
-;; they mean something as opposed to being ignored..)
+;; the association between `racket-mode' or `racket-hash-lang-mode'
+;; edit buffers and `racket-repl-mode' buffers, for a variety of use
+;; cases the user might prefer. These range from all edit buffers
+;; sharing one REPL buffer (the traditional default for Racket Mode),
+;; up to each edit buffers having its own REPL (as in Dr Racket), or
+;; anything in between (such as one REPL per projectile project, or
+;; whatever).
+;;
+;; Although some of these scenarios might benefit from a higher-level
+;; UI, they all come down to setting the variable
+;; `racket-repl-buffer-name' globally and/or locally for each edit
+;; buffer -- that is the fundamental representation.
+;;
+;; Similarly, each `racket-repl-mode' buffer has an
+;; always-buffer-local value for the variable
+;; `racket--repl-session-id'. (Note that `racket-repl-buffer-name'
+;; only has meaning for `racket-mode' buffers, and
+;; `racket--repl-session-id' only has meaning for `racket-repl-mode'
+;; buffers. Emacs variables exist for all buffers using all major
+;; modes. All we can do is remember in which buffers they mean
+;; something as opposed to being ignored.)
 
 (defvar racket-repl-buffer-name nil
   "The name of the `racket-repl-mode' buffer associated with `racket-mode' buffer.
@@ -67,20 +71,34 @@ Important: This variable only means something in each
 `racket-mode' buffer. It has no meaning in `racket-repl-mode' or
 other buffers.
 
-By default all `racket-mode' edit buffers share the same REPL.
+When nil, all `racket-mode' edit buffers share the same REPL.
 However, a buffer may `setq-local' this to some other value. See
-the defcustom `racket-repl-buffer-name-function' and example
+the defcustom `racket-repl-buffer-name-function' as well as several
 values for it in racket-repl-buffer-name.el.")
 
-;;; REPL sessions and buffers
+(defun racket--call-with-repl-buffer (thunk)
+  (pcase (if (eq major-mode 'racket-repl-mode)
+             (buffer-name)
+           racket-repl-buffer-name)
+    ((and (pred stringp) name)
+     (pcase (get-buffer name)
+       ((and (pred bufferp) (pred buffer-live-p) buf)
+        (with-current-buffer buf (funcall thunk)))))))
+
+(defmacro with-racket-repl-buffer (&rest body)
+  "Execute forms in BODY with `racket-repl-mode' temporarily current buffer."
+  (declare (indent 0) (debug t))
+  `(racket--call-with-repl-buffer (lambda () ,@body)))
+
+;;; REPL back end sessions <=> `racket-repl-mode' buffers
 
 (defvar racket--repl-next-session-id 0)
 
 (defvar-local racket--repl-session-id nil
-  "The REPL session ID returned from the back end.
+  "An ID for each back end REPL session.
 
-Must be supplied in command requests, although for some commands
-it can be nil.
+Commands that are about a specific REPL session must supply this;
+see `racket--cmd/async'.
 
 Important: This variable only means something in each
 `racket-repl-mode' buffer. It has no meaning in `racket-mode' or
@@ -100,20 +118,6 @@ but does not have a live session."
         (when buffer
           (with-current-buffer racket-repl-buffer-name
             racket--repl-session-id))))))
-
-(defun racket--call-with-repl-buffer (thunk)
-  (pcase (if (eq major-mode 'racket-repl-mode)
-             (buffer-name)
-           racket-repl-buffer-name)
-    ((and (pred stringp) name)
-     (pcase (get-buffer name)
-       ((and (pred bufferp) (pred buffer-live-p) buf)
-        (with-current-buffer buf (funcall thunk)))))))
-
-(defmacro with-racket-repl-buffer (&rest body)
-  "Execute forms in BODY with `racket-repl-mode' temporarily current buffer."
-  (declare (indent 0) (debug t))
-  `(racket--call-with-repl-buffer (lambda () ,@body)))
 
 (defun racket--repl-live-p ()
   "Does a Racket REPL buffer exist and have a live REPL session?"
@@ -341,8 +345,8 @@ live prompt this marker will be at `point-max'.")
           (when win (set-window-point win racket--repl-output-mark)))))))
 
 (defun racket--repl-call-with-value-and-input-ranges (from upto proc)
-  "Call PROC with sub-ranges of FROM..UPTO, whether they are
-values or input since `racket--repl-run-mark'."
+  "Call PROC with sub-ranges of FROM..UPTO, saying whether each
+is a value or input since `racket--repl-run-mark'."
   (setq upto (min upto (point-max)))
   ;; Everything before the last run is "stale": No.
   (when (< from racket--repl-run-mark)
@@ -427,7 +431,7 @@ Otherwise send to current-input-port of user program."
     (scan-error nil)))
 
 (defun racket-repl-break ()
-  "Send a break to the REPL program's main thread."
+  "Send an interrupt break to the REPL."
   (interactive)
   (unless (racket--cmd-open-p) ;don't auto-start the back end
     (user-error "Back end is not running"))
@@ -436,14 +440,15 @@ Otherwise send to current-input-port of user program."
 (defun racket-repl-exit ()
   "Exit the REPL session.
 
-If already at the REPL prompt, effectively the same as entering
-\"(exit)\" at the prompt, but works even when the module language
-doesn't provide any binding for \"exit\"."
+Equivalent to entering \"(exit)\" at the REPL prompt, but works
+even when the module language doesn't provide any binding for
+\"exit\"."
   (interactive)
   (unless (racket--cmd-open-p) ;don't auto-start the back end
     (user-error "Back end is not running"))
-  ;; Allow our output handler function to get the "exit" message and
-  ;; racket--repl-session-id to nil; don't do that early here.
+  ;; We don't `(setq racket--repl-session-id nil)` here because we
+  ;; want to allow our output handler function to get the "exit"
+  ;; message from the back end; it will set nil.
   (racket--cmd/async (racket--repl-session-id) `(repl-exit)))
 
 (declare-function racket-call-racket-repl-buffer-name-function "racket-repl-buffer-name" ())
@@ -538,17 +543,9 @@ See also `racket-run-and-switch-to-repl', which is even more like
 Dr Racket's Run command because it selects the REPL window after
 running.
 
-In the `racket-repl-mode' buffer, output that describes a file
-and position is automatically \"linkified\". Examples of such
-text include:
-
-- Racket error messages.
-- rackunit test failure location messages.
-- print representation of path objects.
-
-To visit these locations, move point there and press RET or mouse
+To visit error locations, move point there and press RET or mouse
 click. Or, use the standard `next-error' and `previous-error'
-commands."
+commands from either the edit or REPL buffer."
   (interactive "P")
   (racket--repl-run (list (racket--buffer-file-name))
                     racket-submodules-to-run
