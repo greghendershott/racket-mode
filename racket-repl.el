@@ -444,12 +444,13 @@ Equivalent to entering \"(exit)\" at the REPL prompt, but works
 even when the module language doesn't provide any binding for
 \"exit\"."
   (interactive)
-  (unless (racket--cmd-open-p) ;don't auto-start the back end
-    (user-error "Back end is not running"))
-  ;; We don't `(setq racket--repl-session-id nil)` here because we
-  ;; want to allow our output handler function to get the "exit"
-  ;; message from the back end; it will set nil.
-  (racket--cmd/async (racket--repl-session-id) `(repl-exit)))
+  ;; Avoid auto-starting the back end to send a command about a REPL
+  ;; session that can't exist because the back end isn't running.
+  (when (racket--cmd-open-p)
+    ;; Note: We don't `(setq racket--repl-session-id nil)` here
+    ;; because we want to allow our output handler function to get the
+    ;; "exit" message from the back end; it will set nil, then.
+    (racket--cmd/async (racket--repl-session-id) `(repl-exit))))
 
 (declare-function racket-call-racket-repl-buffer-name-function "racket-repl-buffer-name" ())
 (autoload        'racket-call-racket-repl-buffer-name-function "racket-repl-buffer-name")
