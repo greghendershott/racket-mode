@@ -269,7 +269,14 @@
     racket-doc-link-face
     racket-ext-link-face
     racket-doc-output-face
-    racket-doc-litchar-face)
+    racket-doc-litchar-face
+    racket-repl-message
+    racket-repl-prompt
+    racket-repl-value
+    racket-repl-error-message
+    racket-repl-error-location
+    racket-repl-stdout
+    racket-repl-stderr)
   "Faces to include in the Reference.")
 
 (defun racket-generate--faces ()

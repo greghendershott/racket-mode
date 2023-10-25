@@ -316,6 +316,13 @@ All
 * racket-ext-link-face::
 * racket-doc-output-face::
 * racket-doc-litchar-face::
+* racket-repl-message::
+* racket-repl-prompt::
+* racket-repl-value::
+* racket-repl-error-message::
+* racket-repl-error-location::
+* racket-repl-stdout::
+* racket-repl-stderr::
 @end detailmenu
 @end menu
 
@@ -3853,6 +3860,13 @@ A value for the variable @ref{racket-shell-or-terminal-function}.
 * racket-ext-link-face::
 * racket-doc-output-face::
 * racket-doc-litchar-face::
+* racket-repl-message::
+* racket-repl-prompt::
+* racket-repl-value::
+* racket-repl-error-message::
+* racket-repl-error-location::
+* racket-repl-stdout::
+* racket-repl-stderr::
 @end menu
 
 @node racket-keyword-argument-face
@@ -4010,6 +4024,41 @@ Face @code{racket-describe-mode} uses for Scribble @@example or @@interactions o
 @subsection racket-doc-litchar-face
 
 Face @code{racket-describe-mode} uses for Scribble @@litchar.
+
+@node racket-repl-message
+@subsection racket-repl-message
+
+Face @ref{racket-repl-mode} uses for messages from the back end.
+
+@node racket-repl-prompt
+@subsection racket-repl-prompt
+
+Face @ref{racket-repl-mode} uses for prompts.
+
+@node racket-repl-value
+@subsection racket-repl-value
+
+Face @ref{racket-repl-mode} uses for values output by current-print.
+
+@node racket-repl-error-message
+@subsection racket-repl-error-message
+
+Face @ref{racket-repl-mode} uses for error messages.
+
+@node racket-repl-error-location
+@subsection racket-repl-error-location
+
+Face @ref{racket-repl-mode} uses for error locations.
+
+@node racket-repl-stdout
+@subsection racket-repl-stdout
+
+Face @ref{racket-repl-mode} uses for output to current-output-port.
+
+@node racket-repl-stderr
+@subsection racket-repl-stderr
+
+Face @ref{racket-repl-mode} uses for output to current-error-port.
 
 @c Emacs 25.2.2 (Org mode 8.2.10)
 @bye
