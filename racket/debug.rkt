@@ -13,9 +13,9 @@
          syntax/modread
          "debug-annotator.rkt"
          "elisp.rkt"
+         "interaction.rkt"
          "repl-output.rkt"
          "repl-session.rkt"
-         "stack-checkpoint.rkt"
          "util.rkt")
 
 (module+ test
@@ -303,14 +303,14 @@
   (parameterize ([current-prompt-read (make-prompt-read src pos top-mark)])
     (read-eval-print-loop)))
 
-(define ((make-prompt-read src pos top-mark))
-  (define-values (_base name _dir) (split-path src))
-  (repl-output-prompt (format "[~a:~a]>" name pos))
-  (define in (open-input-string (channel-get (current-submissions))))
-  (define stx (with-stack-checkpoint
-              ((current-read-interaction) 'racket-mode-debug-repl in)))
-  (call-with-session-context (current-session-id)
-                             with-locals stx (mark-bindings top-mark)))
+(define (make-prompt-read src pos top-mark)
+  (define (racket-mode-debug-prompt-read)
+    (define-values (_base name _dir) (split-path src))
+    (define prompt (format "[~a:~a]" name pos))
+    (define stx (get-interaction prompt))
+    (call-with-session-context (current-session-id)
+                               with-locals stx (mark-bindings top-mark)))
+  racket-mode-debug-prompt-read)
 
 (define (with-locals stx bindings)
   ;; Before or during module->namespace -- i.e. during a racket-run --

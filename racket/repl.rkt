@@ -14,6 +14,7 @@
          "elisp.rkt"
          "error.rkt"
          "gui.rkt"
+         "interaction.rkt"
          "instrument.rkt"
          "print.rkt"
          "repl-output.rkt"
@@ -207,8 +208,8 @@
     (remove-session! (current-session-id)))
   (exit-handler our-exit)
 
-  ;; Input for user program (as distinct from REPL submissions; see
-  ;; current-submissions).
+  ;; Input for user program (as distinct from REPL submissions, for
+  ;; which see current-submissions and get-interaction).
   (define-values (user-pipe-in user-pipe-out) (make-pipe))
 
   ;; repl-thunk loads the user program and enters read-eval-print-loop
@@ -262,23 +263,8 @@
     ;; call the ready-thunk: useful for commands that want to run
     ;; after a run command has finished.
     (ready-thunk)
-    ;; And finally, enter read-eval-print-loop with a suitable value
-    ;; for current-prompt-read.
-    (define (prompt-read)
-      (repl-output-prompt (string-append (maybe-module-path->prompt-string maybe-mod)
-                                         ">"))
-      (let loop ()
-        (sync
-         (wrap-evt ((current-get-interaction-evt)) ;allow GUI yield
-                   (λ (thk) (thk) (loop)))
-         (wrap-evt (current-submissions)
-                   (λ (str)
-                     (define in (open-input-string str))
-                     (define v (with-stack-checkpoint
-                                 ((current-read-interaction) 'racket-mode-repl in)))
-                     (next-break 'all) ;let debug-instrumented code break again
-                     v)))))
-    (parameterize ([current-prompt-read prompt-read])
+    ;; And finally, enter read-eval-print-loop.
+    (parameterize ([current-prompt-read (make-prompt-read maybe-mod)])
       ;; Note that read-eval-print-loop catches all non-break
       ;; exceptions.
       (read-eval-print-loop)))
@@ -310,6 +296,14 @@
       ['exit             (our-exit)]
       [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)
          (get-message)])))
+
+(define (make-prompt-read maybe-mod)
+  (define (racket-mode-prompt-read)
+    (define prompt (maybe-module-path->prompt-string maybe-mod))
+    (define stx (get-interaction prompt))
+    (next-break 'all) ;let debug-instrumented code break again
+    stx)
+  racket-mode-prompt-read)
 
 ;; Change one of our non-false maybe-mod values (for which we use path
 ;; objects, not path-strings) into a module-path applied to
