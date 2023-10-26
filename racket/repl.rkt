@@ -215,12 +215,12 @@
   (define (repl-thunk)
     ;; Command line arguments
     (current-command-line-arguments cmd-line-args)
-    ;; Set print hooks and output handlers
+    ;; Set ports, current-print handler, and output handlers
+    (current-input-port user-pipe-in)
     (current-output-port (make-repl-output-port))
     (current-error-port  (make-repl-error-port))
     (current-print (make-racket-mode-print-handler pretty-print? columns pixels/char))
     (set-output-handlers)
-    (current-input-port user-pipe-in)
     ;; Record as much info about our session as we can, before
     ;; possibly entering module->namespace.
     (set-session! (current-session-id) maybe-mod)
@@ -259,21 +259,25 @@
     ;; current-namespace is possibly updated.
     (set-session! (current-session-id) maybe-mod)
     ;; Now that user's program has run, and `sessions` is updated,
-    ;; call the ready-thunk. On REPL session startup this lets us
-    ;; postpone sending the repl-session-id until `sessions` is
-    ;; updated. And for subsequent run commands, this lets us wait to
-    ;; send a response, which is useful for commands that want to run
+    ;; call the ready-thunk: useful for commands that want to run
     ;; after a run command has finished.
     (ready-thunk)
-    ;; And finally, enter read-eval-print-loop.
+    ;; And finally, enter read-eval-print-loop with a suitable value
+    ;; for current-prompt-read.
     (define (prompt-read)
       (repl-output-prompt (string-append (maybe-module-path->prompt-string maybe-mod)
                                          ">"))
-      (define in (open-input-string (channel-get (current-submissions))))
-      (define v (with-stack-checkpoint
-                  ((current-read-interaction) 'racket-mode-repl in)))
-      (next-break 'all) ;let debug-instrumented code break again
-      v)
+      (let loop ()
+        (sync
+         (wrap-evt ((current-get-interaction-evt)) ;allow GUI yield
+                   (λ (thk) (thk) (loop)))
+         (wrap-evt (current-submissions)
+                   (λ (str)
+                     (define in (open-input-string str))
+                     (define v (with-stack-checkpoint
+                                 ((current-read-interaction) 'racket-mode-repl in)))
+                     (next-break 'all) ;let debug-instrumented code break again
+                     v)))))
     (parameterize ([current-prompt-read prompt-read])
       ;; Note that read-eval-print-loop catches all non-break
       ;; exceptions.
