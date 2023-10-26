@@ -55,7 +55,7 @@
 (define (call-with-session-context sid proc . args)
   (match (get-session sid)
     [(? session? s)
-     (log-racket-mode-debug @~a{@car[args]: using session ID @~v[sid]})
+     (log-racket-mode-debug @~a{@~v[@car[args]]: using session ID @~v[sid]})
      (parameterize ([current-session-id          sid]
                     [current-repl-msg-chan       (session-repl-msg-chan s)]
                     [current-submissions         (session-submissions s)]
@@ -64,5 +64,5 @@
        (apply proc args))]
     [_
      (unless (equal? sid '())
-       (log-racket-mode-warning @~a{@car[args]: session ID @~v[sid] not found}))
+       (log-racket-mode-warning @~a{@~v[@car[args]]: session ID @~v[sid] not found}))
      (apply proc args)]))
