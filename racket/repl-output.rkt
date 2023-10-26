@@ -19,9 +19,9 @@
 
 ;;; REPL output
 
-;; Traditionally a REPL's output is a hopeless mix things dumped into
-;; stdout and stderr. This forces client to use unreliable regexps in
-;; an attempt to "demux" and recover the original pieces.
+;; Traditionally a REPL's output is a hopeless mix of things dumped
+;; into stdout and stderr. This forces a client to use unreliable
+;; regexps in an attempt to recover the original pieces.
 ;;
 ;; Instead we want structured output -- distinctly separated:
 ;;  - current-output-port

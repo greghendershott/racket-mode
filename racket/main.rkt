@@ -11,7 +11,7 @@
 
 (module+ main
   ;; Assert Racket minimum version
-  (define minimum-version "6.9")
+  (define minimum-version "6.12")
   (define actual-version (version))
   (unless (version<=? minimum-version actual-version)
     (error '|Racket Mode back end| "Need Racket ~a or newer but ~a is ~a"
