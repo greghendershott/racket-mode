@@ -136,7 +136,8 @@ but does not have a live session."
 (defun racket--repl-on-stop-back-end ()
   (dolist (buf (buffer-list))
     (with-current-buffer buf
-      (when (eq major-mode 'racket-repl-mode)
+      (when (and (eq major-mode 'racket-repl-mode)
+                 (buffer-live-p buf))
         (racket--repl-insert-output 'exit "REPL session stopped")))))
 (add-hook 'racket-stop-back-end-hook #'racket--repl-on-stop-back-end)
 
@@ -444,10 +445,13 @@ even when the module language doesn't provide any binding for
   ;; exist because the back end isn't running. That's worse than a
   ;; no-op; that would auto-start the back end for no good reason now.
   (when (racket--cmd-open-p)
-    ;; Note: We don't `(setq racket--repl-session-id nil)` here
-    ;; because we want to allow our output handler function to get the
-    ;; "exit" message from the back end; it will set nil, then.
-    (racket--cmd/async (racket--repl-session-id) `(repl-exit))))
+    (when (racket--repl-session-id)
+      ;; Note: We don't `(setq racket--repl-session-id nil)` here
+      ;; because (1) the repl buffer isn't necessarily current and
+      ;; anyway (2) we want to allow our output handler function to
+      ;; get the "exit" message from the back end; it will set nil,
+      ;; then.
+      (racket--cmd/async (racket--repl-session-id) `(repl-exit)))))
 
 (declare-function racket-call-racket-repl-buffer-name-function "racket-repl-buffer-name" ())
 (autoload        'racket-call-racket-repl-buffer-name-function "racket-repl-buffer-name")
@@ -474,13 +478,11 @@ Mode's REPL as intended, then consider using a plain Emacs
 `shell' buffer to run command-line Racket."
   (interactive "P")
   (racket-call-racket-repl-buffer-name-function)
-  (unless (racket--repl-session-id)
-    (racket--repl-start)
-    (with-racket-repl-buffer
-      (racket--repl-refresh-namespace-symbols)))
-  (display-buffer racket-repl-buffer-name)
-  (unless noselect
-    (select-window (get-buffer-window racket-repl-buffer-name t))))
+  (racket--repl-ensure-buffer-and-session
+   (lambda (repl-buffer)
+     (racket--repl-refresh-namespace-symbols)
+     (unless noselect
+       (select-window (get-buffer-window repl-buffer t))))))
 
 ;;; Run
 
@@ -803,10 +805,9 @@ be nil which is equivalent to #\\='ignore."
                              'racket-after-run-hook)
                   (when callback
                     (funcall callback))))))
-    (unless (racket--repl-session-id)
-      (racket--repl-start))
-    (racket--cmd/async (racket--repl-session-id) cmd after)
-    (display-buffer racket-repl-buffer-name)))
+    (racket--repl-ensure-buffer-and-session
+     (lambda (_repl-buffer)
+       (racket--cmd/async (racket--repl-session-id) cmd after)))))
 
 (defun racket--write-contents ()
   (write-region nil nil buffer-file-name)
@@ -819,38 +820,40 @@ be nil which is equivalent to #\\='ignore."
       (set-window-buffer nil (current-buffer))
       (car (window-text-pixel-size nil (line-beginning-position) (point))))))
 
-(defun racket--repl-start ()
-  "Get or create a `racket-repl-mode' buffer connected to a REPL session.
+(defun racket--repl-ensure-buffer-and-session (continue)
+  "Ensure a `racket-repl-mode' buffer exists with a live session.
 
-Runs the repl-start back end command synchronously and locally
-sets `racket--repl-session-id' in the REPL buffer before
-returning.
+Create the buffer if necessary, enabling `racket-repl-mode'.
 
-This does not display the buffer or change the selected window."
-  (let ((repl-buf (get-buffer-create racket-repl-buffer-name)))
+Start the session if necessary.
+
+Calls CONTINUE with one argument, the repl buffer.
+
+This displays the buffer but does not change the selected window."
+  (let ((repl-buf (or (get-buffer racket-repl-buffer-name)
+                      (with-current-buffer (get-buffer-create racket-repl-buffer-name)
+                        (racket-repl-mode)
+                        (add-hook 'kill-buffer-hook #'racket-repl-exit nil t)
+                        (current-buffer)))))
+    (display-buffer repl-buf)
     (with-current-buffer repl-buf
-      ;; Buffer might already be in `racket-repl-mode' -- e.g.
-      ;; `racket-repl-exit' was used and now we're "restarting". In
-      ;; that case avoid re-initialization that is at best
-      ;; unnecessary or at worst undesirable (e.g. would lose input
-      ;; history).
-      (unless (eq major-mode 'racket-repl-mode)
+      (if racket--repl-session-id
+          (funcall continue repl-buf)
+        (setq racket--repl-session-id (cl-incf racket--repl-next-session-id))
         (when noninteractive
-          (princ "{racket--repl-start}: enabling (racket-repl-mode)\n"))
-        (racket-repl-mode))
-      ;; Now that major mode has bashed local vars, set some:
-      (setq racket--repl-session-id (cl-incf racket--repl-next-session-id))
-      (when noninteractive
-        (princ (format "{racket--repl-start}: picking next session id %S\n"
-                       racket--repl-session-id)))
-      (goto-char (point-max))
-      (racket--repl-delete-prompt-mark t)
-      (setq racket--repl-run-mark (point-marker))
-      (setq racket--repl-output-mark (point-marker))
-      (set-marker-insertion-type racket--repl-output-mark nil)
-      (racket--cmd/await nil
-                         `(repl-start ,racket--repl-session-id))
-      (add-hook 'kill-buffer-hook #'racket-repl-exit nil t))))
+          (princ (format "{racket--repl-start}: picked next session id %S\n"
+                         racket--repl-session-id)))
+        (goto-char (point-max))
+        (racket--repl-delete-prompt-mark t)
+        (setq racket--repl-run-mark (point-marker))
+        (setq racket--repl-output-mark (point-marker))
+        (set-marker-insertion-type racket--repl-output-mark nil)
+        (unless (racket--cmd-open-p)
+          (racket--repl-insert-output 'message "Starting back end..."))
+        (racket--cmd/async nil
+                           `(repl-start ,racket--repl-session-id)
+                           (lambda (_id)
+                             (funcall continue repl-buf)))))))
 
 ;;; Misc
 

@@ -282,7 +282,8 @@ parens and close parens are breakble positions."
 
 (defun racket-debug-disable ()
   (interactive)
-  (racket--cmd/async (racket--repl-session-id) `(debug-disable))
+  (when (racket--cmd-open-p) ;otherwise no need
+    (racket--cmd/async (racket--repl-session-id) `(debug-disable)))
   (racket-debug-mode -1)
   (setq racket--debug-breakable-positions nil)
   (setq racket--debug-break-locals nil)
