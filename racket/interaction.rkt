@@ -32,10 +32,10 @@
     [current-get-interaction-evt
      (let loop ()
        (sync
-        (wrap-evt ((current-get-interaction-evt)) ;allow GUI yield
-                  (λ (thk)
-                    (thk)
-                    (loop)))
+        (handle-evt ((current-get-interaction-evt)) ;allow GUI yield
+                    (λ (thk)
+                      (thk)
+                      (loop)))
         (current-submissions)))]
     [else
      ((txt/gui sync yield) (current-submissions))]))
