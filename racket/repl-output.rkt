@@ -15,7 +15,8 @@
          repl-output-value
          repl-output-value-special
          make-repl-output-port
-         make-repl-error-port)
+         make-repl-error-port
+         repl-error-port?)
 
 ;;; REPL output
 
@@ -73,11 +74,18 @@
 
 ;; Output port wrappers around repl-output:
 
-(define (make-repl-output-port)
-  (make-repl-port 'stdout))
-
+;; Tuck the port in a struct just for a simple, reliable
+;; repl-error-port? predicate.
+(struct repl-error-port (p)
+  #:property prop:output-port 0)
 (define (make-repl-error-port)
-  (make-repl-port 'stderr))
+  (repl-error-port (make-repl-port 'stderr)))
+
+;; And do same for this, just for conistency.
+(struct repl-output-port (p)
+  #:property prop:output-port 0)
+(define (make-repl-output-port)
+  (repl-output-port (make-repl-port 'stdout)))
 
 (define (make-repl-port kind)
   (define name (format "racket-mode-repl-~a" kind))

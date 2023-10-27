@@ -167,7 +167,6 @@
   (log-racket-mode-info "starting repl session ~v" session-id)
   ;; Make pipe for user program input (as distinct form repl-submit
   ;; input).
-  (define-values (user-pipe-in user-pipe-out) (make-pipe))
   (parameterize* ([current-session-id    session-id]
                   [current-repl-msg-chan (make-channel)]
                   [current-submissions   (make-channel)]
@@ -210,7 +209,7 @@
 
   ;; Input for user program (as distinct from REPL submissions, for
   ;; which see current-submissions and get-interaction).
-  (define-values (user-pipe-in user-pipe-out) (make-pipe))
+  (define-values (user-pipe-in user-pipe-out) (make-pipe #f 'repl))
 
   ;; repl-thunk loads the user program and enters read-eval-print-loop
   (define (repl-thunk)

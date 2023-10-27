@@ -11,20 +11,50 @@
 
 (provide racket-mode-error-display-handler)
 
-(module+ test
-  (require rackunit))
+(define default-error-display-handler (error-display-handler))
 
+;; On the one hand, the docs say: "An error display handler can print
+;; errors in different ways, but it should always print to the current
+;; error port." After all, a user program might use
+;; error-display-handler, as in #672.
+;;
+;; On the other hand, we really want to give our front end REPL
+;; /structured/ error data via our special channel, not text.
+;;
+;; I think the solution is to check whether current-error-port is the
+;; special one we use for structured REPL output, a.k.a. the original
+;; value for the user program.
+
+;; - If so it's fine to bend the rules and use our special output
+;;   channel to the front end. Probably we're the one using the
+;;   handler. Even if the user program is, the meaning is "use it
+;;   for-effect to output to the original error port", which in this
+;;   case means ultimately to the Racket Mode front end REPL. It's OK
+;;   and in fact desirable to get the same structured error handling.
+;;
+;; - Otherwise, we're running while the user program has parameterized
+;;   current-error-port, perhaps to an output-string to use for-value,
+;;   or to some other port to use for-effect. In that case we defer
+;;   /completely/ to the default error-display-handler. Not only does
+;;   that output to current-error-port, the overall format will be the
+;;   same as when the user program is run with command-line racket.
+;;   (Of course some context items may differ on the "outside" edge,
+;;   showing wx/queue.rkt, racket-mode's repl.rkt, etc. But the
+;;   "inner" items and the overall format will be the same.)
 (define (racket-mode-error-display-handler msg v)
   (cond
-    [(exn? v)
-     (let ([msg (if (member (exn-message v) (list msg ""))
-                    msg
-                    (string-append msg "\n" (exn-message v)))])
-      (repl-output-error
-       (list msg (srclocs v) (context v))))]
+    [(repl-error-port? (current-error-port))
+     (cond
+       [(exn? v)
+        (let ([msg (if (member (exn-message v) (list msg ""))
+                       msg
+                       (string-append msg "\n" (exn-message v)))])
+          (repl-output-error (list msg (srclocs v) (context v))))]
+       [else
+        (displayln msg (current-error-port))
+        (flush-output (current-error-port))])]
     [else
-     (displayln msg (current-error-port))
-     (flush-output (current-error-port))]))
+     (default-error-display-handler msg v)]))
 
 (define (srclocs e)
   (cond [(exn:srclocs? e)
