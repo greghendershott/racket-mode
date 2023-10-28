@@ -112,6 +112,7 @@ can contribute more colors; see the customization variable
 
 \\{racket-hash-lang-mode-map}
 "
+  (set-syntax-table racket--plain-syntax-table)
   (setq-local font-lock-defaults nil)
   (setq-local font-lock-fontify-region-function
               #'racket--hash-lang-font-lock-fontify-region)
