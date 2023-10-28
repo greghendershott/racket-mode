@@ -124,6 +124,7 @@ can contribute more colors; see the customization variable
                text-property-default-nonsticky))
   (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
   (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
+  (add-hook 'change-major-mode-hook #'racket--hash-lang-delete t t)
   (electric-indent-local-mode -1)
   (setq-local electric-indent-inhibit t)
   (setq-local blink-paren-function nil)
@@ -151,21 +152,15 @@ can contribute more colors; see the customization variable
       ;; back end object is ready, enable read/write and font-lock.
       (font-lock-mode -1)
       (read-only-mode 1)
-      (let* ((buf (current-buffer))
-             (timer (run-with-timer
-                     1 nil
-                     (lambda ()
-                       (with-current-buffer buf
-                         (setq-local header-line-format
-                                     "Waiting for back end server..."))))))
-        (racket--cmd/async
-         nil
-         `(hash-lang create ,racket--hash-lang-id ,nil ,text)
-         (lambda (_id)
-           (font-lock-mode 1)
-           (read-only-mode -1)
-           (cancel-timer timer)
-           (setq-local header-line-format nil))))))
+      (unless (racket--cmd-open-p)
+        (setq-local header-line-format "Waiting for back end to start..."))
+      (racket--cmd/async
+       nil
+       `(hash-lang create ,racket--hash-lang-id ,nil ,text)
+       (lambda (_id)
+         (font-lock-mode 1)
+         (read-only-mode -1)
+         (setq-local header-line-format nil)))))
    ((racket-repl-mode)
     (let ((other-lang-source
            (when other-buffer
@@ -189,42 +184,17 @@ can contribute more colors; see the customization variable
     (setq racket--hash-lang-id nil)
     (setq-local racket--hash-lang-generation 1)))
 
-(defun racket--hash-lang-change-mode-hook ()
-  (when (eq major-mode 'racket-hash-lang-mode)
-    (racket--hash-lang-delete)))
-(add-hook 'change-major-mode-hook #'racket--hash-lang-change-mode-hook)
-
-;;; Handle back end stopping and re-starting
-
-(defvar racket--hash-lang-downgraded-buffers nil
-  "A list of buffers set by `racket--hash-lang-on-stop-back-end'.")
+;;; Handle back end stopping
 
 (defun racket--hash-lang-on-stop-back-end ()
-  "Downgrade all `racket-hash-lang-mode' buffers to `prog-mode',
-since former can't work without a live back end. Remember to
-restore if/when back end started later. Also downgrade any REPL
-buffer associated with the edit buffer."
-  (setq racket--hash-lang-downgraded-buffers
-        (seq-filter (lambda (buf)
-                        (with-current-buffer buf
-                          (when (eq major-mode 'racket-hash-lang-mode)
-                            (prog-mode)
-                            buf)))
-                    (buffer-list))))
-(add-hook 'racket-stop-back-end-hook #'racket--hash-lang-on-stop-back-end)
-
-(defun racket--hash-lang-on-start-back-end ()
-  "Restore any downgraded buffers back to
-`racket-hash-lang-mode'. Although the user is prompted right
-away, after e.g. choosing M-x racket-start-back-end, the
-restoration is done on an idle timer. That way if the back end
-was started by them e.g. visiting a new file, they see that right
-away."
-  (dolist (buf racket--hash-lang-downgraded-buffers)
-    (when (and (bufferp buf) (buffer-live-p buf))
+  "Because `racket-hash-lang-mode' buffers can't work without a
+live back end, downgrade them all to `prog-mode'."
+  (dolist (buf (buffer-list))
+    (when (buffer-live-p buf)
       (with-current-buffer buf
-        (racket-hash-lang-mode)))))
-(add-hook 'racket-start-back-end-hook #'racket--hash-lang-on-start-back-end)
+        (when (eq major-mode 'racket-hash-lang-mode)
+          (prog-mode))))))
+(add-hook 'racket-stop-back-end-hook #'racket--hash-lang-on-stop-back-end)
 
 ;;; Other
 
@@ -359,7 +329,7 @@ lang's attributes that we care about have changed."
         (setq-local comment-start-skip nil)
         (setq-local comment-end-skip   nil)
         (comment-normalize-vars))
-      ;; Finally run user's module language hooks.
+      ;; Finally run user's module-language-hook.
       (run-hook-with-args 'racket-hash-lang-module-language-hook
                           (plist-get plist 'module-language)))))
 
