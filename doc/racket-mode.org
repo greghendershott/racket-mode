@@ -187,10 +187,7 @@ You can use different major modes for different kinds of files:
 
 - For non-s-expression langs like ~datalog~ or ~rhombus~ (~.rhm~), ~racket-hash-lang-mode~ is definitely better than ~racket-mode~. (Note there is also an unrelated ~rhombus-mode~ package.)
 
-You use ~auto-mode-alist~ to tell Emacs which major mode to use initially for certain file extensions. Also, in a buffer you can use ~M-x racket-mode~ and ~M-x racket-hash-lang-mode~ to switch between them.
-
-Note that ~racket-hash-lang-mode~ is derived from ~racket-mode~, so it runs both ~racket-mode-hook~ and ~racket-hash-lang-mode-hook~.
-
+You can use ~auto-mode-alist~ to tell Emacs which major mode to use initially for certain file extensions. Also, in a buffer you can use ~M-x racket-mode~ and ~M-x racket-hash-lang-mode~ to switch between them.
 ** Key bindings
 
 To customize things like key bindings, you can use ~racket-mode-hook~ in your Emacs init file to modify ~racket-mode-map~. For example, although {{{kbd(C-c C-c)}}} is bound by default to the ~racket-run~ command, let's say you wanted {{{kbd(F5)}}} to be an additional binding:
@@ -199,7 +196,6 @@ To customize things like key bindings, you can use ~racket-mode-hook~ in your Em
 (add-hook 'racket-mode-hook
           (lambda ()
             (define-key racket-mode-map (kbd "<f5>") 'racket-run)))
-
 #+END_SRC
 
 Likewise for ~racket-repl-mode-hook~ and ~racket-repl-mode-map~.

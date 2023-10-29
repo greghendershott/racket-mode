@@ -72,7 +72,7 @@
   "Keymap for Racket mode.")
 
 (easy-menu-define racket-mode-menu racket-mode-map
-  "Menu for Racket mode."
+  "Menu for `racket-mode'."
   '("Racket"
     ("Run"
      ["in REPL" racket-run]
@@ -132,22 +132,66 @@
   "Major mode for editing Racket source files.
 
 \\{racket-mode-map}"
-  (racket--common-variables)
+  ;;; Syntax
+  (set-syntax-table racket-mode-syntax-table)
+  (setq-local multibyte-syntax-as-symbol t)
+  (setq-local parse-sexp-ignore-comments t)
+  (setq-local syntax-propertize-function #'racket-syntax-propertize-function)
   (syntax-propertize (point-max)) ;for e.g. paredit: see issue #222
+  ;; -----------------------------------------------------------------
+  ;; REPL
   (racket-call-racket-repl-buffer-name-function)
+  (add-hook 'kill-buffer-hook
+            #'racket-mode-maybe-offer-to-kill-repl-buffer
+            nil t)
+  ;; -----------------------------------------------------------------
+  ;; Font-lock
+  (setq-local font-lock-defaults
+              (list racket-font-lock-keywords ;keywords
+                    nil                       ;keywords-only?
+                    nil                       ;case-fold?
+                    nil                       ;syntax-alist
+                    nil                       ;syntax-begin
+                    ;; Additional variables:
+                    (cons 'font-lock-mark-block-function #'mark-defun)
+                    (cons 'parse-sexp-lookup-properties t)
+                    (cons 'font-lock-multiline t)
+                    (cons 'font-lock-syntactic-face-function
+                          #'racket-font-lock-syntactic-face-function)
+                    (list 'font-lock-extend-region-functions
+                          #'font-lock-extend-region-wholelines
+                          #'font-lock-extend-region-multiline)))
+  ;; -----------------------------------------------------------------
+  ;; Comments. Mostly borrowed from lisp-mode and/or scheme-mode
+  (setq-local comment-start ";")
+  (setq-local comment-add 1)        ;default to `;;' in comment-region
+  (setq-local comment-start-skip ";+ *")
+  (setq-local comment-column 40)
+  (setq-local comment-multi-line t) ;for auto-fill-mode and #||# comments
+  ;; Font lock mode uses this only when it knows a comment is starting:
+  (setq-local font-lock-comment-start-skip ";+ *")
+  ;; -----------------------------------------------------------------
+  ;; Indent
+  (setq-local indent-line-function #'racket-indent-line)
+  (setq-local indent-tabs-mode nil)
+  ;; -----------------------------------------------------------------
+  ;;; Misc
+  (setq-local local-abbrev-table racket-mode-abbrev-table)
+  (setq-local paragraph-start (concat "$\\|" page-delimiter))
+  (setq-local paragraph-separate paragraph-start)
+  (setq-local paragraph-ignore-fill-prefix t)
+  (setq-local fill-paragraph-function #'lisp-fill-paragraph)
+  (setq-local adaptive-fill-mode nil)
+  (setq-local outline-regexp ";;; \\|(....")
+  (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function)
   (setq-local imenu-create-index-function #'racket-imenu-create-index-function)
   (hs-minor-mode t)
   (setq-local completion-at-point-functions (list #'racket-complete-at-point))
   (setq-local eldoc-documentation-function nil)
-  (funcall (or (and (functionp racket-repl-buffer-name-function)
-                    racket-repl-buffer-name-function)
-               #'racket-repl-buffer-name-shared))
-  (add-hook 'kill-buffer-hook
-            #'racket-mode-maybe-offer-to-kill-repl-buffer
-            nil t)
   (add-hook 'xref-backend-functions
             #'racket-mode-xref-backend-function
-            nil t))
+            nil t)
+  (setq racket-submodules-at-point-function #'racket-submodules-at-point-text-sexp))
 
 ;;;###autoload
 (progn

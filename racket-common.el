@@ -199,57 +199,6 @@ property whose value is STRING. The close | syntax is set by
                                'syntax-table
                                (string-to-syntax "|"))))))))
 
-;;;
-
-(defun racket--common-variables ()
-  "Set variables common to `racket-mode' and `racket-repl-mode'."
-  ;;; Syntax
-  (set-syntax-table racket-mode-syntax-table)
-  (setq-local multibyte-syntax-as-symbol t)
-  (setq-local parse-sexp-ignore-comments t)
-  (setq-local syntax-propertize-function #'racket-syntax-propertize-function)
-  ;; -----------------------------------------------------------------
-  ;; Font-lock
-  (setq-local font-lock-defaults
-              (list racket-font-lock-keywords ;keywords
-                    nil                       ;keywords-only?
-                    nil                       ;case-fold?
-                    nil                       ;syntax-alist
-                    nil                       ;syntax-begin
-                    ;; Additional variables:
-                    (cons 'font-lock-mark-block-function #'mark-defun)
-                    (cons 'parse-sexp-lookup-properties t)
-                    (cons 'font-lock-multiline t)
-                    (cons 'font-lock-syntactic-face-function
-                          #'racket-font-lock-syntactic-face-function)
-                    (list 'font-lock-extend-region-functions
-                          #'font-lock-extend-region-wholelines
-                          #'font-lock-extend-region-multiline)))
-  ;; -----------------------------------------------------------------
-  ;; Comments. Mostly borrowed from lisp-mode and/or scheme-mode
-  (setq-local comment-start ";")
-  (setq-local comment-add 1)        ;default to `;;' in comment-region
-  (setq-local comment-start-skip ";+ *")
-  (setq-local comment-column 40)
-  (setq-local comment-multi-line t) ;for auto-fill-mode and #||# comments
-  ;; Font lock mode uses this only when it knows a comment is starting:
-  (setq-local font-lock-comment-start-skip ";+ *")
-  ;; -----------------------------------------------------------------
-  ;; Indent
-  (setq-local indent-line-function #'racket-indent-line)
-  (setq-local indent-tabs-mode nil)
-  ;; -----------------------------------------------------------------
-  ;;; Misc
-  (setq-local local-abbrev-table racket-mode-abbrev-table)
-  (setq-local paragraph-start (concat "$\\|" page-delimiter))
-  (setq-local paragraph-separate paragraph-start)
-  (setq-local paragraph-ignore-fill-prefix t)
-  (setq-local fill-paragraph-function #'lisp-fill-paragraph)
-  (setq-local adaptive-fill-mode nil)
-  (setq-local outline-regexp ";;; \\|(....")
-  (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function))
-
-
 ;;; Insert lambda char (like DrRacket)
 
 (defconst racket-lambda-char (make-char 'greek-iso8859-7 107)
@@ -336,11 +285,17 @@ new buffer has a file on-disk."
           (cl-every #'symbolp subs)))
     (_ nil)))
 
+(defvar-local racket-submodules-at-point-function nil)
+
 (defun racket--what-to-run ()
   (cons (racket--buffer-file-name)
-        (racket--submod-path)))
+        (and racket-submodules-at-point-function
+             (funcall racket-submodules-at-point-function))))
 
-(defun racket--submod-path ()
+(defun racket-submodules-at-point-text-sexp ()
+  "A value for variable `racket--submodules-at-point-function',
+which is suitable for `racket-mode' and possibly for
+`racket-hash-lang-mode' when the hash-lang is like lang racket."
   (let ((mods (racket--modules-at-point)))
     (if (racket--lang-p)
         mods

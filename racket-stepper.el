@@ -74,8 +74,7 @@ original form is displayed and you can start stepping.
 With \\[universal-argument] also expands syntax from racket/base
 -- which can result in very many expansion steps."
   (interactive "P")
-  (unless (derived-mode-p 'racket-mode)
-    (user-error "Only works in racket-mode buffer"))
+  (racket--assert-edit-mode)
   (racket--save-if-changed)
   (racket-stepper--start 'file (racket--buffer-file-name) into-base))
 
@@ -133,12 +132,11 @@ stepping.")
 WHICH should be \"expr\" or \"file\".
 STR should be the expression or pathname.
 INTO-BASE is treated as a raw command prefix arg and converted to boolp."
-  (unless (derived-mode-p 'racket-mode)
-    (error "Only works from racket-mode buffers"))
+  (racket--assert-edit-mode)
   (setq racket--stepper-repl-session-id (racket--repl-session-id))
   (unless (or racket--stepper-repl-session-id
               (eq which 'file))
-    (error "Only works when the racket-mode buffer has a REPL buffer, and, you should racket-run first"))
+    (error "Only works when the edit buffer has a REPL buffer, and, you should racket-run first"))
   ;; Create buffer if necessary
   (let ((name (racket--stepper-buffer-name)))
     (unless (get-buffer name)

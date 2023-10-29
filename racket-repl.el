@@ -736,8 +736,7 @@ defaults to the variable `racket-error-context'.
 
 CALLBACK is used as the callback for `racket--cmd/async'; it may
 be nil which is equivalent to #\\='ignore."
-  (unless (derived-mode-p 'racket-mode)
-    (user-error "Racket Mode run command only works from a `racket-mode' buffer"))
+  (racket--assert-edit-mode)
   ;; Support running buffers created by `org-edit-src-code': see
   ;; issues #626, #630.
   (when (bound-and-true-p org-src-mode)
@@ -887,14 +886,14 @@ most recent `racket-mode' buffer, if any."
        ((and (pred bufferp) buffer) (pop-to-buffer buffer t))
        (_ (other-window 1)
           (find-file path))))
-    (_ (pcase (racket--most-recent-racket-mode-buffer)
+    (_ (pcase (racket--most-recent-edit-buffer)
          ((and (pred bufferp) buffer) (pop-to-buffer buffer t))
          (_ (user-error "There are no racket-mode buffers"))))))
 
-(defun racket--most-recent-racket-mode-buffer ()
+(defun racket--most-recent-edit-buffer ()
   (cl-some (lambda (b)
              (with-current-buffer b
-               (and (derived-mode-p 'racket-mode) b)))
+               (and (racket--edit-mode-p) b)))
            (buffer-list)))
 
 ;;; send to REPL
@@ -1359,18 +1358,19 @@ You may use `xref-find-definitions' \\[xref-find-definitions] and
 identifier bindings and modules from the REPL's namespace.
 
 \\{racket-repl-mode-map}"
-  ;; Although here we set some initial values assuming `racket-mode',
+  ;; Here we set some values that will definitely be used when the
+  ;; buffer is created by the `racket-repl' command. Otherwise,
   ;; `racket--hash-lang-configure-repl-buffer-from-edit-buffer' will
   ;; refresh these upon each run command via
   ;; `racket--repl-before-run-hook', drawing values from the
   ;; `racket-mode' or `racket-hash-lang-mode' edit buffer to also use
   ;; in the repl.
-  (racket--common-variables)
   (setq-local font-lock-fontify-region-function
               (racket--repl-limited-fontify-region #'font-lock-default-fontify-region))
   (font-lock-set-defaults)
-  ;; Other values
   (setq-local window-point-insertion-type t)
+  (setq-local indent-line-function #'racket-indent-line)
+  (setq-local indent-tabs-mode nil)
   (setq-local completion-at-point-functions (list #'racket-repl-complete-at-point))
   (setq-local eldoc-documentation-function nil)
   (setq-local next-error-function #'racket-repl-next-error)
@@ -1425,7 +1425,7 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
 (defun racket--do-repl-clear (leave-last-prompt-p)
   (cond ((eq major-mode 'racket-repl-mode)
          (racket--delete-all-buffer-text leave-last-prompt-p))
-        ((derived-mode-p 'racket-mode)
+        ((racket--edit-mode-p)
          (when (get-buffer racket-repl-buffer-name)
            (with-current-buffer racket-repl-buffer-name
              (racket--delete-all-buffer-text leave-last-prompt-p))))

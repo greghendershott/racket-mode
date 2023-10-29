@@ -58,8 +58,7 @@ this to use the names with shell programs or a Racket back end."
       v)))
 
 (defun racket--save-if-changed ()
-  (unless (derived-mode-p 'racket-mode)
-    (user-error "Current buffer is not a racket-mode buffer"))
+  (racket--assert-edit-mode)
   (when (or (buffer-modified-p)
             (and (buffer-file-name)
                  (not (file-exists-p (buffer-file-name)))))
@@ -153,6 +152,20 @@ The \"project\" is determined by trying, in order:
         (and (fboundp 'project-current)
              (cdr (project-current nil dir)))
         dir)))
+
+(defun racket--edit-mode-p ()
+  (and (seq-some #'derived-mode-p '(racket-mode racket-hash-lang-mode)) t))
+
+(defun racket--assert-edit-mode (&optional fail-thunk)
+  (unless (racket--edit-mode-p)
+    (when fail-thunk (funcall fail-thunk))
+    (user-error "%S works only in racket-mode or racket-hash-lang-mode edit buffers"
+                this-command)))
+
+(defun racket--assert-racket-mode ()
+  (unless (derived-mode-p 'racket-mode)
+    (user-error "%S works only in racket-mode edit buffers"
+                this-command)))
 
 (provide 'racket-util)
 

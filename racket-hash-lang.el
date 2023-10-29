@@ -14,35 +14,58 @@
 (require 'racket-mode)
 (require 'racket-repl)
 
-(defvar-local racket--hash-lang-id nil
-  "Unique integer used to identify the back end hash-lang object.
-Although it's tempting to use `buffer-file-name' for the ID, not
-all buffers have files. Although it's tempting to use
-`buffer-name', buffers can be renamed. Although it's tempting to
-use the buffer object, we can't serialize that.")
-(defvar racket--hash-lang-next-id 0
-  "Increment when we need a new id.")
-
-(defvar-local racket--hash-lang-generation 1
-  "Monotonic increasing value for hash-lang updates.
-
-This is set to 1 when we hash-lang create, incremented every time
-we do a hash-lang update, and then supplied for all other, query
-hash-lang operations. That way the queries can block if necessary
-until the back end has handled the update commands and also
-re-tokenization has progressed sufficiently.")
-
 (defvar racket-hash-lang-mode-map
   (racket--easy-keymap-define
-   `(("RET"   ,#'newline-and-indent)
-     (")"     ,#'self-insert-command)   ;not `racket-insert-closing'
-     ("}"     ,#'self-insert-command)   ;not `racket-insert-closing'
-     ("]"     ,#'self-insert-command)   ;not `racket-insert-closing'
-     ("C-M-b" ,#'racket-hash-lang-backward)
-     ("C-M-f" ,#'racket-hash-lang-forward)
-     ("C-M-u" ,#'racket-hash-lang-up)
-     ("C-M-d" ,#'racket-hash-lang-down)
-     ("C-M-q" ,#'racket-hash-lang-C-M-q-dwim))))
+   `((("C-c C-c"
+       "C-c C-k")   ,#'racket-run-module-at-point)
+     ("C-c C-z"     ,#'racket-repl)
+     ("<f5>"        ,#'racket-run-and-switch-to-repl)
+     ("M-C-<f5>"    ,#'racket-racket)
+     ("C-<f5>"      ,#'racket-test)
+     ("C-c C-t"     ,#'racket-test)
+     ("C-c C-l"     ,#'racket-logger)
+     ("C-c C-o"     ,#'racket-profile)
+     ("C-c C-e f"   ,#'racket-expand-file)
+     ("C-c C-x C-f" ,#'racket-open-require-path)
+     ("TAB"         ,#'indent-for-tab-command)
+     ;; ("C-c C-p"     racket-cycle-paren-shapes) equivalent using paren-matches?
+     ("M-C-y"       ,#'racket-insert-lambda)
+     ("RET"         ,#'newline-and-indent)
+     ("C-M-b"       ,#'racket-hash-lang-backward)
+     ("C-M-f"       ,#'racket-hash-lang-forward)
+     ("C-M-u"       ,#'racket-hash-lang-up)
+     ("C-M-d"       ,#'racket-hash-lang-down)
+     ("C-M-q"       ,#'racket-hash-lang-C-M-q-dwim))))
+
+(easy-menu-define racket-hash-lang-mode-menu racket-hash-lang-mode-map
+  "Menu for `racket-hash-lang-mode'."
+  '("Racket-Hash-Lang"
+    ("Run"
+     ["in REPL" racket-run]
+     ["in REPL and switch to REPL" racket-run-and-switch-to-repl]
+     ["in *shell* using `racket`" racket-racket])
+    ("Tests"
+     ["in REPL" racket-test]
+     ["in *shell* using `raco test`" racket-raco-test])
+    ("Macro Expand"
+     ["File" racket-expand-file])
+    ["Switch to REPL" racket-repl]
+    ("Tools"
+     ["Profile" racket-profile]
+     ["Error Trace" racket-run-with-errortrace]
+     ["Step Debug" racket-run-with-debugging]
+     ["Toggle XP Mode" racket-xp-mode])
+    "---"
+    ["Comment" comment-dwim]
+    ["Insert λ" racket-insert-lambda]
+    ["Indent Region" indent-region]
+    "---"
+    ["Open Require Path" racket-open-require-path]
+    ["Find Collection" racket-find-collection]
+    "---"
+    ["Next Error or Link" next-error]
+    ["Previous Error" previous-error]
+    ["Customize..." customize-mode]))
 
 (defvar-local racket--hash-lang-submit-predicate-p nil)
 
@@ -86,7 +109,7 @@ rhombus:
 ")
 
 ;;;###autoload
-(define-derived-mode racket-hash-lang-mode racket-mode
+(define-derived-mode racket-hash-lang-mode prog-mode
   "#lang"
   "Use color-lexer, indent, and navigation supplied by a #lang.
 
@@ -112,6 +135,10 @@ can contribute more colors; see the customization variable
 
 \\{racket-hash-lang-mode-map}
 "
+  (racket-call-racket-repl-buffer-name-function)
+  (add-hook 'kill-buffer-hook
+            #'racket-mode-maybe-offer-to-kill-repl-buffer
+            nil t)
   (set-syntax-table racket--plain-syntax-table)
   (setq-local font-lock-defaults nil)
   (setq-local font-lock-fontify-region-function
@@ -128,7 +155,29 @@ can contribute more colors; see the customization variable
   (electric-indent-local-mode -1)
   (setq-local electric-indent-inhibit t)
   (setq-local blink-paren-function nil)
+  (setq-local imenu-create-index-function nil)
+  (setq-local completion-at-point-functions nil) ;rely on racket-xp-mode
+  (setq-local eldoc-documentation-function nil)
+  (setq racket-submodules-at-point-function nil) ;might change in on-new-lang
   (racket--hash-lang-create))
+
+(defvar-local racket--hash-lang-id nil
+  "Unique integer used to identify the back end hash-lang object.
+Although it's tempting to use `buffer-file-name' for the ID, not
+all buffers have files. Although it's tempting to use
+`buffer-name', buffers can be renamed. Although it's tempting to
+use the buffer object, we can't serialize that.")
+(defvar racket--hash-lang-next-id 0
+  "Increment when we need a new id.")
+
+(defvar-local racket--hash-lang-generation 1
+  "Monotonic increasing value for hash-lang updates.
+
+This is set to 1 when we hash-lang create, incremented every time
+we do a hash-lang update, and then supplied for all other, query
+hash-lang operations. That way the queries can block if necessary
+until the back end has handled the update commands and also
+re-tokenization has progressed sufficiently.")
 
 ;; For use by both racket-hash-lang-mode and racket-repl-mode
 (defun racket--hash-lang-create (&optional other-buffer)
@@ -314,6 +363,13 @@ lang's attributes that we care about have changed."
                     #'racket-hash-lang-indent-region-function))
       (setq-local racket--hash-lang-submit-predicate-p
                   (plist-get plist 'submit-predicate))
+      ;; If racket-grouping i.e.sexp lang then we can probably
+      ;; determine submodules textually from sexprs. Something like
+      ;; racket-pdb-mode could determine this non-textually (albeit
+      ;; after an analysis delay) someday.
+      (setq racket-submodules-at-point-function
+            (and (plist-get plist 'racket-grouping)
+                 #'racket-submodules-at-point-text-sexp))
       ;; (setq-local racket-hash-lang-mode-lighter
       ;;             (concat " #lang"
       ;;                     (when (plist-get plist 'racket-grouping) "()")

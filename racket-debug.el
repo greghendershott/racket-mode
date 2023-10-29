@@ -350,9 +350,7 @@ How to debug:
              ("!"   racket-debug-toggle-breakpoint)
              ("h"   racket-debug-run-to-here)
              ("?"   racket-debug-help)))
-  (unless (derived-mode-p 'racket-mode)
-    (setq racket-debug-mode nil)
-    (user-error "racket-debug-mode only works with racket-mode"))
+  (racket--assert-edit-mode (lambda () (setq racket-debug-mode nil)))
   (cond
    (racket-debug-mode
     (racket--debug-make-overlay
