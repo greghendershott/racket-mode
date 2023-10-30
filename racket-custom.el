@@ -608,7 +608,7 @@ See the variable `racket-xp-binding-font-lock-face-modes'."
   "Binding Lang Use Face")
 
 (defface-racket racket-xp-binding-import-face
-  '((t (:inherit font-lock-doc-face)))
+  '((t (:inherit default)))
   "Face `racket-xp-mode' gives to imported module names.
 
 See the variable `racket-xp-binding-font-lock-face-modes'."
