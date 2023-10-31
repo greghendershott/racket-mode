@@ -98,7 +98,8 @@ rhombus:
 #+BEGIN_SRC elisp
   (defun my-hook (module-language)
     (cond
-     ((member module-language '(\"racket\" \"racket/base\" \"typed/racket\" \"typed/racket/base\"))
+     ((member module-language (list \"racket\" \"racket/base\"
+                                    \"typed/racket\" \"typed/racket/base\"))
       (electric-pair-local-mode -1)
       (paredit-mode 1))
     (t
