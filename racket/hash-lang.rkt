@@ -695,7 +695,7 @@
                      (read-language in (λ _ #f)))
                    (λ (_key default) default)))
   (define-values (_line _col end-pos) (port-next-location in))
-  (define mod-lang (info 'module-language default-module-language))
+  (define mod-lang (safe-info-module-language info))
   (values (lang-info mod-lang
                      (info 'color-lexer default-lexer)
                      (info 'drracket:paren-matches default-paren-matches)
@@ -706,6 +706,22 @@
                      (info 'drracket:submit-predicate #f)
                      (comment-delimiters info mod-lang))
           end-pos))
+
+;; Handle a lang info proc returning values other than the documented
+;; symbol type.
+(define (safe-info-module-language info)
+  (match (info 'module-language default-module-language)
+    ;; Not supplied.
+    [(== default-module-language) default-module-language]
+    ;; Documented/expected.
+    [(? symbol? sym) sym]
+    ;; Not documented but we can fix (e.g. s-exp meta lang does this; #673).
+    [(? syntax? stx) #:when (symbol? (syntax->datum stx)) (syntax->datum stx)]
+    ;; We can't fix.
+    [hopeless
+     (log-racket-mode-debug "Ignoring value returned by ~v for module-language key: ~v"
+                            info hopeless)
+     default-module-language]))
 
 ;; Return (list start continue end padding)
 (define (comment-delimiters info mod-lang-sym)
