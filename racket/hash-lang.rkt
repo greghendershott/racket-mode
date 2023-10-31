@@ -7,6 +7,7 @@
          racket/class
          racket/contract/base
          racket/contract/option
+         racket/format
          racket/match
          syntax-color/token-tree
          syntax-color/paren-tree
@@ -707,36 +708,40 @@
                      (comment-delimiters info mod-lang))
           end-pos))
 
-;; Handle a lang info proc returning values other than the documented
-;; symbol type.
+;; Handle the module-language lang info key, as documented at
+;; <https://docs.racket-lang.org/syntax/reader-helpers.html#%28mod-path._syntax%2Fmodule-reader%29>.
+;; (info-proc -> (or/c #f string?)
 (define (safe-info-module-language info)
-  (match (info 'module-language default-module-language)
-    ;; Not supplied.
-    [(== default-module-language) default-module-language]
-    ;; Documented/expected.
-    [(? symbol? sym) sym]
-    ;; Not documented but we can fix (e.g. s-exp meta lang does this; #673).
-    [(? syntax? stx) #:when (symbol? (syntax->datum stx)) (syntax->datum stx)]
-    ;; We can't fix.
-    [hopeless
-     (log-racket-mode-debug "Ignoring value returned by ~v for module-language key: ~v"
-                            info hopeless)
-     default-module-language]))
+  (define (handle v)
+    (match v
+      [(== default-module-language) default-module-language]
+      [(? module-path? mp)
+       (~a mp)]
+      [(? syntax? stx)
+       #:when (module-path? (syntax->datum stx))
+       (~a (syntax->datum stx))]
+      [(? procedure? p)
+       (handle v)]
+      [hopeless
+       (log-racket-mode-debug "Ignoring value returned for module-language key: ~v"
+                              info hopeless)
+       default-module-language]))
+  (handle (info 'module-language default-module-language)))
 
 ;; Return (list start continue end padding)
-(define (comment-delimiters info mod-lang-sym)
+(define (comment-delimiters info mod-lang)
   (define (fallback)
     ;; Fallback when langs don't support the info key, or the value
     ;; isn't as expected.
-    (define (root sym) ;e.g. 'racket and 'racket/base => 'racket
-      (match (and sym (symbol->string sym))
+    (define (root mp-str) ;e.g. 'racket and 'racket/base => 'racket
+      (match mp-str
         [(pregexp "^([^/]+)" (list _ str))
          (string->symbol str)]
         [_ #f]))
-    (case (root mod-lang-sym)
-      [(scribble) '("@;" "@;" "" " ")]
-      [(rhombus)  '("//" "//" "" " ")]
-      [else       '(";;" ";;" "" " ")]))
+    (match (root mod-lang)
+      ["scribble" '("@;" "@;" "" " ")]
+      ["rhombus"  '("//" "//" "" " ")]
+      [_          '(";;" ";;" "" " ")]))
   (match (info 'drracket:comment-delimiters #f)
     [#f (fallback)]
     [(list* (list 'line (? string? start) (? string? padding))
@@ -747,8 +752,8 @@
      (list start continue end padding)]
     [unexpected
      (log-racket-mode-warning
-      "drracket:comment-delimiters from mod-lang-sym ~v\n  unexpected value: ~v"
-      mod-lang-sym
+      "drracket:comment-delimiters from mod-lang ~v\n  unexpected value: ~v"
+      mod-lang
       unexpected)
      (fallback)]))
 

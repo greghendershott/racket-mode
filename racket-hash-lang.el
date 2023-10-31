@@ -77,7 +77,7 @@ whenever the \"#lang\" line is edited -- provided that results in
 new language info; for example changing from \"#lang racket\" to
 \"#lang racket/base\" will /not/ run the hook.
 
-The function is called with a symbol returned by the lang's
+The function is called with a string returned by the lang's
 \"module-language\" info key. This info key is supplied
 automatically when a language is defined using
 syntax/module-reader:
@@ -97,13 +97,13 @@ rhombus:
 
 #+BEGIN_SRC elisp
   (defun my-hook (module-language)
-    (cl-case module-language
-      ((scribble/manual scribble/doc rhombus)
-       (paredit-mode -1)
-       (electric-pair-local-mode 1))
-      (otherwise
-       (paredit-mode 1)
-       (electric-pair-local-mode -1))))
+    (cond
+     ((member module-language '(\"racket\" \"racket/base\" \"typed/racket\" \"typed/racket/base\"))
+      (electric-pair-local-mode -1)
+      (paredit-mode 1))
+    (t
+     (paredit-mode -1)
+     (electric-pair-local-mode 1))))
   (add-hook \\='racket-hash-lang-module-language-hook #\\='my-hook)
 #+END_SRC
 ")
