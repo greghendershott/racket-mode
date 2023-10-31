@@ -64,10 +64,12 @@
                                    gen (add1 beg) (add1 end))))))))
 
 (define (hash-lang . args)
-  (unless (class? hash-lang-class-or-error-message)
-    (error 'hash-lang
-           (string-append "This feature needs a newer version of syntax-color-lib.\n"
-                          hash-lang-class-or-error-message)))
+  (cond
+    [(class? hash-lang-class-or-error-message) (apply hash-lang* args)]
+    [(eq? 'create (car args)) #f]
+    [else (error 'hash-lang hash-lang-class-or-error-message)]))
+
+(define (hash-lang* . args)
   (match args
     [`(create ,id ,ols ,str)                       (create id ols str)]
     [`(delete ,id)                                 (delete id)]

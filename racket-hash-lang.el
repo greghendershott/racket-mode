@@ -199,6 +199,9 @@ re-tokenization has progressed sufficiently.")
       ;; Set a timer to show a message in the header-line after awhile.
       ;; Send command async. Only when the response arrives, i.e. the
       ;; back end object is ready, enable read/write and font-lock.
+      ;;
+      ;; Finally, handle the back end returning nil for the create,
+      ;; meaning there's no sufficiently new syntax-color-lib.
       (font-lock-mode -1)
       (read-only-mode 1)
       (unless (racket--cmd-open-p)
@@ -206,10 +209,13 @@ re-tokenization has progressed sufficiently.")
       (racket--cmd/async
        nil
        `(hash-lang create ,racket--hash-lang-id ,nil ,text)
-       (lambda (_id)
+       (lambda (maybe-id)
          (font-lock-mode 1)
          (read-only-mode -1)
-         (setq-local header-line-format nil)))))
+         (setq-local header-line-format nil)
+         (unless maybe-id
+           (prog-mode)
+           (message "hash-lang support not available; needs newer syntax-color-lib"))))))
    ((racket-repl-mode)
     (let ((other-lang-source
            (when other-buffer
@@ -227,9 +233,10 @@ re-tokenization has progressed sufficiently.")
 
 (defun racket--hash-lang-delete ()
   (when racket--hash-lang-id
-    (racket--cmd/await
-     (when (eq major-mode 'racket-repl-mode) racket--repl-session-id)
-     `(hash-lang delete ,racket--hash-lang-id))
+    (ignore-errors
+      (racket--cmd/await
+       (when (eq major-mode 'racket-repl-mode) racket--repl-session-id)
+       `(hash-lang delete ,racket--hash-lang-id)))
     (setq racket--hash-lang-id nil)
     (setq-local racket--hash-lang-generation 1)))
 
