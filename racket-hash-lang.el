@@ -91,9 +91,9 @@ that go beyond what a lang can describe. This may include
 enabling \"fancy\" or \"classic\" Emacs behaviors only for
 s-expression langs.
 
-For example, maybe you want to use `electric-pair-mode' instead
-of `paredit-mode' when the module language is scribble or
-rhombus:
+For example, maybe you want to use `paredit-mode' when it is
+suitable for the module language, otherwise stick with the
+plainer `electric-pair-mode'.
 
 #+BEGIN_SRC elisp
   (defun my-hook (module-language)

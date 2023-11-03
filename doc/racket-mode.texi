@@ -573,9 +573,7 @@ For @code{.scrbl} and at-expression langs like @code{scribble/manual}, @code{rac
 For non-s-expression langs like @code{datalog} or @code{rhombus} (@code{.rhm}), @code{racket-hash-lang-mode} is definitely better than @code{racket-mode}. (Note there is also an unrelated @code{rhombus-mode} package.)
 @end itemize
 
-You use @code{auto-mode-alist} to tell Emacs which major mode to use initially for certain file extensions. Also, in a buffer you can use @code{M-x racket-mode} and @code{M-x racket-hash-lang-mode} to switch between them.
-
-Note that @code{racket-hash-lang-mode} is derived from @code{racket-mode}, so it runs both @code{racket-mode-hook} and @code{racket-hash-lang-mode-hook}.
+You can use @code{auto-mode-alist} to tell Emacs which major mode to use initially for certain file extensions. Also, in a buffer you can use @code{M-x racket-mode} and @code{M-x racket-hash-lang-mode} to switch between them.
 
 @node Key bindings
 @section Key bindings
@@ -1538,9 +1536,11 @@ and comments. If you enable the minor mode @ref{racket-xp-mode}, it
 can contribute more colors; see the customization variable
 @ref{racket-xp-binding-font-lock-face-modes}.
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
+@item @kbd{RET} 
+@tab @code{newline-and-indent}
 @item @kbd{C-M-q} 
 @tab @ref{racket-hash-lang-C-M-q-dwim}
 @item @kbd{C-M-d} 
@@ -1551,20 +1551,32 @@ can contribute more colors; see the customization variable
 @tab @ref{racket-hash-lang-forward}
 @item @kbd{C-M-b} 
 @tab @ref{racket-hash-lang-backward}
-@item @kbd{]} 
-@tab @code{self-insert-command}
-@item @kbd{@}} 
-@tab @code{self-insert-command}
-@item @kbd{)} 
-@tab @code{self-insert-command}
-@item @kbd{RET} 
-@tab @code{newline-and-indent}
+@item @kbd{C-M-y} 
+@tab @ref{racket-insert-lambda}
+@item @kbd{TAB} 
+@tab @code{indent-for-tab-command}
+@item @kbd{C-c C-x C-f} 
+@tab @ref{racket-open-require-path}
+@item @kbd{C-c C-e f} 
+@tab @ref{racket-expand-file}
+@item @kbd{C-c C-o} 
+@tab @ref{racket-profile}
+@item @kbd{C-c C-l} 
+@tab @ref{racket-logger}
+@item @kbd{C-c C-t} 
+@tab @ref{racket-test}
+@item @kbd{C-c C-z} 
+@tab @ref{racket-repl}
+@item @kbd{C-c C-k} 
+@tab @ref{racket-run-module-at-point}
+@item @kbd{C-c C-c} 
+@tab @ref{racket-run-module-at-point}
 @end multitable
 
 
 
 
-In addition to any hooks its parent mode might have run,
+In addition to any hooks its parent mode @code{prog-mode} might have run,
 this mode runs the hook @code{racket-hash-lang-mode-hook}, as the final step
 during initialization.
 
@@ -2212,22 +2224,9 @@ See also @ref{racket-run-and-switch-to-repl}, which is even more like
 Dr Racket's Run command because it selects the REPL window after
 running.
 
-In the @ref{racket-repl-mode} buffer, output that describes a file
-and position is automatically ``linkified''. Examples of such
-text include:
-
-@itemize
-@item
-Racket error messages.
-@item
-rackunit test failure location messages.
-@item
-print representation of path objects.
-@end itemize
-
-To visit these locations, move point there and press RET or mouse
+To visit error locations, move point there and press RET or mouse
 click. Or, use the standard @code{next-error} and @code{previous-error}
-commands.
+commands from either the edit or REPL buffer.
 
 @node racket-run-and-switch-to-repl
 @subsection racket-run-and-switch-to-repl
@@ -3119,7 +3118,7 @@ whenever the ``#lang'' line is edited -- provided that results in
 new language info; for example changing from ``#lang racket'' to
 ``#lang racket/base'' will @emph{not} run the hook.
 
-The function is called with a symbol returned by the lang's
+The function is called with a string returned by the lang's
 ``module-language'' info key. This info key is supplied
 automatically when a language is defined using
 syntax/module-reader:
@@ -3133,19 +3132,20 @@ that go beyond what a lang can describe. This may include
 enabling ``fancy'' or ``classic'' Emacs behaviors only for
 s-expression langs.
 
-For example, maybe you want to use @code{electric-pair-mode} instead
-of @code{paredit-mode} when the module language is scribble or
-rhombus:
+For example, maybe you want to use @code{paredit-mode} when it is
+suitable for the module language, otherwise stick with the
+plainer @code{electric-pair-mode}.
 
 @lisp
   (defun my-hook (module-language)
-    (cl-case module-language
-      ((scribble/manual scribble/doc rhombus)
-       (paredit-mode -1)
-       (electric-pair-local-mode 1))
-      (otherwise
-       (paredit-mode 1)
-       (electric-pair-local-mode -1))))
+    (cond
+     ((member module-language (list "racket" "racket/base"
+                                    "typed/racket" "typed/racket/base"))
+      (electric-pair-local-mode -1)
+      (paredit-mode 1))
+    (t
+     (paredit-mode -1)
+     (electric-pair-local-mode 1))))
   (add-hook 'racket-hash-lang-module-language-hook #'my-hook)
 @end lisp
 
