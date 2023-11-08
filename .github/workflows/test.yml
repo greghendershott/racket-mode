@@ -51,7 +51,7 @@ jobs:
       - name: Run Emacs Lisp Tests
         run: make test-elisp
       - name: Run Racket Tests
-        run: xvfb-run make test-racket # xvfb for hash-lang.rkt
+        run: make test-racket
 
   windows:
     runs-on: windows-latest
@@ -80,5 +80,7 @@ jobs:
         run: make deps
       - name: Compile Elisp
         run: make compile
-      - name: Run Tests
-        run: make test
+      - name: Run Emacs Lisp Tests
+        run: make test-elisp
+      - name: Run Racket Tests
+        run: make test-racket
