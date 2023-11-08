@@ -51,7 +51,7 @@ jobs:
       - name: Run Emacs Lisp Tests
         run: make test-elisp
       - name: Run Racket Tests
-        run: make test-racket
+        run: xvfb-run make test-racket
 
   windows:
     runs-on: windows-latest
