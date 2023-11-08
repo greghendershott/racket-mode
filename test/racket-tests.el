@@ -122,6 +122,9 @@ supplied to it."
       (should
        (racket-tests/see-back-rx
         (rx "Welcome to Racket v" (+ (any digit ".")) (? " [" (or "bc" "cs") "]") ".\n"
+            (? "Warning: GUI programs might not work correctly because\n"
+               "your version of Racket lacks `current-get-interaction-evt`,\n"
+               "which was added in Racket 8.4.\n")
             "> ")))
 
       ;; Completion
@@ -235,7 +238,12 @@ c.rkt. Visit each file, racket-run, and check as expected."
        (find-file path)
        (funcall edit-mode)
        ;; On older Rackets racket-hash-lang-mode may fail gracefully
-       ;; down to prog-mode.
+       ;; down to prog-mode, but only eventually, after back end
+       ;; responds.
+       (racket-tests/should-eventually
+        (cl-case major-mode
+          ((racket-hash-lang-mode) (not buffer-read-only)) ;keep waiting
+          ((racket-mode prog-mode) t)))
        (unless (eq major-mode 'prog-mode)
          (racket-run)
          (racket-tests/should-eventually (racket--repl-session-id))
@@ -244,9 +252,9 @@ c.rkt. Visit each file, racket-run, and check as expected."
            (racket-repl-exit)
            (should (racket-tests/see-back
                     "REPL session ended\n"))
-           (kill-buffer))
-         (kill-buffer)
-         (delete-file path))))))
+           (kill-buffer)))
+       (kill-buffer)
+       (delete-file path)))))
 
 ;;; Profile
 
@@ -330,7 +338,12 @@ c.rkt. Visit each file, racket-run, and check as expected."
        (find-file path)
        (funcall edit-mode)
        ;; On older Rackets racket-hash-lang-mode may fail gracefully
-       ;; down to prog-mode.
+       ;; down to prog-mode, but only eventually, after back end
+       ;; responds.
+       (racket-tests/should-eventually
+        (cl-case major-mode
+          ((racket-hash-lang-mode) (not buffer-read-only)) ;keep waiting
+          ((racket-mode prog-mode) t)))
        (unless (eq major-mode 'prog-mode)
          (racket-run `(16))
          (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
@@ -340,34 +353,33 @@ c.rkt. Visit each file, racket-run, and check as expected."
          (with-racket-repl-buffer
            (should (racket-tests/see-back (concat "\n[" name ":42]> ")))) ;debugger prompt
          (should (racket-tests/see-char-property (point) 'face
-                                                 racket-debug-break-face)))
+                                                 racket-debug-break-face))
 
-       (racket-debug-step)
-       (with-racket-repl-buffer
-         (should (racket-tests/see-back (concat "\n[" name ":33]> "))))
-       (should (racket-tests/see-char-property (point) 'face
-                                               racket-debug-break-face))
-       (should (racket-tests/see-char-property  (- (point) 3) 'after-string
-                                                (propertize "41" 'face racket-debug-locals-face)))
+         (racket-debug-step)
+         (with-racket-repl-buffer
+           (should (racket-tests/see-back (concat "\n[" name ":33]> "))))
+         (should (racket-tests/see-char-property (point) 'face
+                                                 racket-debug-break-face))
+         (should (racket-tests/see-char-property  (- (point) 3) 'after-string
+                                                  (propertize "41" 'face racket-debug-locals-face)))
 
-       (racket-debug-step)
-       (with-racket-repl-buffer
-         (should (racket-tests/see-back (concat "\n[" name ":47]> "))))
-       (should (racket-tests/see-char-property  (point) 'after-string
-                                                (propertize "⇒ (values 42)" 'face racket-debug-result-face)))
+         (racket-debug-step)
+         (with-racket-repl-buffer
+           (should (racket-tests/see-back (concat "\n[" name ":47]> "))))
+         (should (racket-tests/see-char-property  (point) 'after-string
+                                                  (propertize "⇒ (values 42)" 'face racket-debug-result-face)))
 
-       (racket-debug-step)              ;no more debug breaks left
-       (with-racket-repl-buffer
-         (should (racket-tests/see-back (concat "\n" name "> "))))
-       (should (racket-tests/see-char-property (point) 'after-string
-                                               nil))
-       (should-not racket-debug-mode)
-       (with-racket-repl-buffer
-         (racket-repl-exit)
-         (should (racket-tests/see-back
-                  "REPL session ended\n"))
-         (kill-buffer))
-
+         (racket-debug-step)              ;no more debug breaks left
+         (with-racket-repl-buffer
+           (should (racket-tests/see-back (concat "\n" name "> "))))
+         (should (racket-tests/see-char-property (point) 'after-string
+                                                 nil))
+         (should-not racket-debug-mode)
+         (with-racket-repl-buffer
+           (racket-repl-exit)
+           (should (racket-tests/see-back
+                    "REPL session ended\n"))
+           (kill-buffer)))
        (kill-buffer)
        (delete-file path)))))
 
