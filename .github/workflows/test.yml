@@ -13,7 +13,7 @@ jobs:
         emacs_version:
           - '25.1'              # our minimum supported version
           - '26.3'
-          - '28.1'              # most recent release
+          - '29.1'              # most recent release
         racket_version:
           - '6.12'              # our minimum supported version
           - 'stable'            # most recent release
@@ -59,7 +59,7 @@ jobs:
       fail-fast: false
       matrix:
         emacs_version:
-          - '28.1'              # most recent release
+          - '29.1'              # most recent release
         racket_version:
           - 'stable'            # most recent release
     name: Windows Emacs ${{ matrix.emacs_version }} and Racket ${{ matrix.racket_version }}
