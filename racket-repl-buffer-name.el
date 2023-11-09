@@ -16,9 +16,13 @@
 
 ;;;###autoload
 (defun racket-call-racket-repl-buffer-name-function ()
-  (funcall (or (and (functionp racket-repl-buffer-name-function)
-                    racket-repl-buffer-name-function)
-               #'racket-repl-buffer-name-shared)))
+  "Unless it already has a value, set the buffer-local value of
+the variable `racket-repl-buffer-name' according to the user's
+customization."
+  (unless racket-repl-buffer-name ;#655
+    (funcall (or (and (functionp racket-repl-buffer-name-function)
+                      racket-repl-buffer-name-function)
+                 #'racket-repl-buffer-name-shared))))
 
 ;;;###autoload
 (defun racket-repl-buffer-name-shared ()
