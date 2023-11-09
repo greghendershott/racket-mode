@@ -1,6 +1,6 @@
 ;;; racket-repl-buffer-name.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2023 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -55,19 +55,20 @@ The \"project\" is determined by `racket-project-root'."
 (defun racket-mode-maybe-offer-to-kill-repl-buffer ()
   "Maybe offer to kill a `racket-repl-mode' buffer.
 
-A value for `kill-buffer-hook'.
+Intended to be a buffer-local value for `kill-buffer-hook' in
+`racket-mode' or `racket-hash-lang-mode' edit buffers.
 
-Offer to kill a `racket-repl-mode' buffer when killing the last
-`racket-mode' buffer using it. Although is not necessary to do
-so, a user might want to do some \"cleanup\" -- especially if
-they're using a `racket-repl-buffer-name-function' such as
+Offer to kill an `racket-repl-mode' buffer when killing the last
+edit buffer using it. Although is not necessary to do so, a user
+might want to do some \"cleanup\" -- especially if they're using
+a `racket-repl-buffer-name-function' such as
 `racket-repl-buffer-name-unique'."
   (when (racket--edit-mode-p)
     (pcase (get-buffer racket-repl-buffer-name)
-      ((and (pred bufferp) repl-buffer)
+      ((and (pred bufferp) (pred buffer-live-p) repl-buffer)
        (let ((n (1-
                  (length
-                  (racket--buffers-using-repl racket-repl-buffer-name)))))
+                  (racket--edit-buffers-using-repl racket-repl-buffer-name)))))
          (if (zerop n)
              (when (y-or-n-p
                     (format "No other buffers using %s -- also kill it? "
@@ -78,7 +79,7 @@ they're using a `racket-repl-buffer-name-function' such as
                     (if (= n 1) "" "s")
                     racket-repl-buffer-name)))))))
 
-(defun racket--buffers-using-repl (repl-buffer-name)
+(defun racket--edit-buffers-using-repl (repl-buffer-name)
   (seq-filter (lambda (buffer)
                 (with-current-buffer buffer
                   (and (racket--edit-mode-p)
