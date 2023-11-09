@@ -128,10 +128,10 @@ this mode."
          (racket-pdb-mode -1)
          (user-error "The Racket package `pdb` is not available so racket-pdb-mode cannot be used; instead maybe use racket-xp-mode"))
        (racket-pdb-analyze)
-       (setq-local racket--submod-path-function
+       (setq-local racket-submodules-at-point-function
                    #'racket-pdb-submodules-at-point))))
    (t
-    (setq-local racket--submod-path-function nil)
+    (setq-local racket-submodules-at-point-function nil)
     (racket-show nil)
     (racket--pdb-remove-all-face-overlays)
     (remove-hook 'after-change-functions

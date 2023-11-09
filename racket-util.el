@@ -153,7 +153,6 @@ The \"project\" is determined by trying, in order:
              (cdr (project-current nil dir)))
         dir)))
 
-<<<<<<< HEAD
 (defun racket--edit-mode-p ()
   (and (seq-some #'derived-mode-p '(racket-mode racket-hash-lang-mode)) t))
 
@@ -183,7 +182,6 @@ s-expressions."
   (unless (racket--sexp-edit-mode-p)
     (user-error "%S only works in racket-mode, or, racket-hash-lang-mode when the lang uses sexps"
                 this-command)))
-=======
 (defun racket--property-bounds (pos prop)
   (when-let (val (get-text-property pos prop))
     (let* ((prev-pos (previous-single-property-change pos prop))
@@ -196,7 +194,6 @@ s-expressions."
             (if (equal val next-val)
                 next-pos
               pos))))) ;pos is last char having prop val
->>>>>>> Initial commit to use "pdb" when available for check-syntax
 
 (provide 'racket-util)
 
