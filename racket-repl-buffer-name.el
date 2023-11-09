@@ -72,11 +72,6 @@ they're using a `racket-repl-buffer-name-function' such as
              (when (y-or-n-p
                     (format "No other buffers using %s -- also kill it? "
                             racket-repl-buffer-name))
-               ;; They already said yes. Avoid another prompt about
-               ;; killing the buffer's process.
-               (pcase (get-buffer-process repl-buffer)
-                 ((and (pred processp) repl-process)
-                  (set-process-query-on-exit-flag repl-process nil)))
                (kill-buffer repl-buffer))
            (message "%s other buffer%s still using %s"
                     n
