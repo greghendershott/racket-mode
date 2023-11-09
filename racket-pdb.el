@@ -97,9 +97,7 @@ documentation for `racket-xp-mode', most of which is relevant to
 this mode."
   :lighter racket-pdb-mode-lighter
   :keymap racket-pdb-mode-map
-  (unless (eq major-mode 'racket-mode)
-    (setq racket-pdb-mode nil)
-    (user-error "racket-pdb-mode only works with racket-mode buffers"))
+  (racket--assert-edit-mode)
   ;; Enabling both `racket-pdb-mode' and `racket-xp-mode' isn't
   ;; supported so automatically disable latter.
   (when (bound-and-true-p racket-xp-mode)
@@ -253,8 +251,7 @@ this mode."
                    ;; 5. Experimental: Maybe set font-lock-face for
                    ;; "semantic highlighting". Do so only when
                    ;; font-lock-defaults is nil, which is the case
-                   ;; e.g. when the minor mode `racket-hash-lang-mode'
-                   ;; is enhancing `racket-mode' buffers and is doing
+                   ;; e.g. for `racket-hash-lang-mode', which does
                    ;; font-lock only for the lang's lexer tokens.
                    ;;
                    ;; Note that font-lock-face -- not face -- is
