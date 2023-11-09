@@ -24,11 +24,19 @@
 
 ;;; code folding
 
-;;;###autoload
-(add-to-list 'hs-special-modes-alist
-             '(racket-mode "(" ")" ";" nil nil))
-
 (defun racket--for-all-tests (verb f)
+  ;; For this to work in `racket-hash-lang-mode', (a) we'd need to
+  ;; learn the test submodule spans from analysis of fully-expanded
+  ;; code (as we can do on the `pdb` branch with a sufficiently new
+  ;; Racket). And then, (b) we'd need to do the hiding ourselves,
+  ;; without `hs-minor-mode', which AFAICT demands regexps for block
+  ;; starts and ends. We'd want a "positional" not regexp flavor,
+  ;; which AFAIK we'd need to implement ourselves.
+  ;;
+  ;; TL;DR: For now require `racket-mode'.
+  (racket--assert-racket-mode)
+  (unless (bound-and-true-p hs-minor-mode)
+    (user-error "hs-minor-mode is not enabled"))
   (save-excursion
     (goto-char (point-min))
     (let ((n 0))

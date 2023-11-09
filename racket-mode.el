@@ -175,6 +175,11 @@
   (setq-local indent-line-function #'racket-indent-line)
   (setq-local indent-tabs-mode nil)
   ;; -----------------------------------------------------------------
+  ;; Code folding
+  (add-to-list 'hs-special-modes-alist
+               '(racket-mode "(" ")" ";" nil nil))
+  (hs-minor-mode 1)
+  ;; -----------------------------------------------------------------
   ;;; Misc
   (setq-local local-abbrev-table racket-mode-abbrev-table)
   (setq-local paragraph-start (concat "$\\|" page-delimiter))
@@ -185,7 +190,6 @@
   (setq-local outline-regexp ";;; \\|(....")
   (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function)
   (setq-local imenu-create-index-function #'racket-imenu-create-index-function)
-  (hs-minor-mode t)
   (setq-local completion-at-point-functions (list #'racket-complete-at-point))
   (setq-local eldoc-documentation-function nil)
   (add-hook 'xref-backend-functions
