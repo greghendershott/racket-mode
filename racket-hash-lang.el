@@ -403,7 +403,10 @@ lang's attributes that we care about have changed."
 All we do here is mark the span as not fontified, then let
 jit-lock do its thing if/when this span ever becomes visible."
   ;;;(message "racket--hash-lang-on-changed-tokens %s %s %s" _gen beg end)
-  (font-lock-flush beg end))
+  (save-restriction
+    (widen)
+    (font-lock-flush (max beg (point-min))
+                     (min end (point-max)))))
 
 ;;; Fontification
 
