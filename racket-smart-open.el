@@ -49,13 +49,15 @@ not even press `]`.
 Tip: When also using `paredit-mode', enable that first so that
 the binding for the `[`' key in the map for
 `racket-smart-open-bracket-mode' has higher priority. See also
-the variable `minor-mode-map-alist'."
+the variable `minor-mode-map-alist'.
+
+Tip: When using this with `racket-hash-lang-mode', you may want
+to use `racket-hash-lang-module-language-hook' to enable it IFF
+the module langugage is something like \"racket\"."
   :lighter " RacketSmartOpen"
-  :keymap (racket--easy-keymap-define
-           '(("[" racket-smart-open-bracket)))
-  (unless (memq major-mode '(racket-mode racket-repl-mode))
-    (setq racket-smart-open-bracket-mode nil)
-    (user-error "racket-smart-open-bracket-mode only works with with Racket Mode buffers")))
+  :keymap (racket--easy-keymap-define '(("[" racket-smart-open-bracket)))
+  (racket--assert-edit-or-repl-mode
+   (lambda () (setq racket-smart-open-bracket-mode nil))))
 
 (defconst racket--smart-open-bracket-data
   (eval-when-compile

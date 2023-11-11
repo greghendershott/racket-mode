@@ -162,6 +162,13 @@ The \"project\" is determined by trying, in order:
     (user-error "%S works only in racket-mode or racket-hash-lang-mode edit buffers"
                 this-command)))
 
+(defun racket--assert-edit-or-repl-mode (&optional fail-thunk)
+  (unless (or (racket--edit-mode-p)
+              (derived-mode-p 'racket-repl-mode))
+    (when fail-thunk (funcall fail-thunk))
+    (user-error "%S works only in racket-mode or racket-hash-lang-mode edit buffers, or racket-repl-mode buffers"
+                this-command)))
+
 (defun racket--assert-racket-mode ()
   (unless (derived-mode-p 'racket-mode)
     (user-error "%S works only in racket-mode edit buffers"
