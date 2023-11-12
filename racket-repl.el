@@ -1333,20 +1333,16 @@ The command varies based on how many \\[universal-argument] command prefixes you
     "---"
     ["Switch to Edit Buffer" racket-repl-switch-to-edit]))
 
-(defun racket--repl-limited-fontify-region (original)
-  "Limit a `font-lock-fontify-region-function' to certain spans.
-
-The resulting function uses ORIGINAL only to fontify input and
-value output spans since the last run -- see also
-`racket--hash-lang-configure-repl-buffer-from-edit-buffer'. Other
-spans are just marked fontified with no action."
-  (lambda (beg end loudly)
-    (racket--repl-call-with-value-and-input-ranges
-     beg end
-     (lambda (beg end v)
-       (when v (funcall original beg end loudly))))
-    (put-text-property beg end 'fontified t)
-    `(jit-lock-bounds ,beg . ,end)))
+(defvar-local racket--repl-fontify-region-function #'font-lock-default-fontify-buffer)
+(defun racket--repl-fontify-region (beg end loudly)
+  "Limit to input and value spans."
+  (racket--repl-call-with-value-and-input-ranges
+   beg end
+   (lambda (beg end v)
+     (when v
+       (funcall racket--repl-fontify-region-function beg end loudly))))
+  (put-text-property beg end 'fontified t)
+  `(jit-lock-bounds ,beg . ,end))
 
 (define-derived-mode racket-repl-mode fundamental-mode "Racket-REPL"
   "Major mode for Racket REPL.
@@ -1365,8 +1361,7 @@ identifier bindings and modules from the REPL's namespace.
   ;; `racket--repl-before-run-hook', drawing values from the
   ;; `racket-mode' or `racket-hash-lang-mode' edit buffer to also use
   ;; in the repl.
-  (setq-local font-lock-fontify-region-function
-              (racket--repl-limited-fontify-region #'font-lock-default-fontify-region))
+  (setq-local font-lock-fontify-region-function #'racket--repl-fontify-region)
   (font-lock-set-defaults)
   (setq-local window-point-insertion-type t)
   (setq-local indent-line-function #'racket-indent-line)

@@ -522,8 +522,7 @@ manually."
 
 (defun racket--xp-add-binding-face (beg end face)
   (add-text-properties beg end
-                       (list 'font-lock-face face
-                             'fontified nil)))
+                       (list 'font-lock-face face)))
 
 (defun racket--xp-add-def-face (beg end arrow-kind)
   (racket--xp-add-binding-face

@@ -109,6 +109,24 @@ plainer `electric-pair-mode'.
 #+END_SRC
 ")
 
+(defvar-local racket--hash-lang-id nil
+  "Unique integer used to identify the back end hash-lang object.
+Although it's tempting to use `buffer-file-name' for the ID, not
+all buffers have files. Although it's tempting to use
+`buffer-name', buffers can be renamed. Although it's tempting to
+use the buffer object, we can't serialize that.")
+(defvar racket--hash-lang-next-id 0
+  "Increment when we need a new id.")
+
+(defvar-local racket--hash-lang-generation 1
+  "Monotonic increasing value for hash-lang updates.
+
+This is set to 1 when we hash-lang create, incremented every time
+we do a hash-lang update, and then supplied for all other, query
+hash-lang operations. That way the queries can block if necessary
+until the back end has handled the update commands and also
+re-tokenization has progressed sufficiently.")
+
 ;;;###autoload
 (define-derived-mode racket-hash-lang-mode prog-mode
   "#lang"
@@ -142,17 +160,12 @@ can contribute more colors; see the customization variable
             nil t)
   (set-syntax-table racket--plain-syntax-table)
   (setq-local font-lock-defaults nil)
-  (setq-local font-lock-fontify-region-function
-              #'racket--hash-lang-font-lock-fontify-region)
   (font-lock-set-defaults) ;issue #642
   (setq-local syntax-propertize-function nil)
   (setq-local text-property-default-nonsticky
               (append
                (racket--hash-lang-text-prop-list #'cons t)
                text-property-default-nonsticky))
-  (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
-  (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
-  (add-hook 'change-major-mode-hook #'racket--hash-lang-delete t t)
   (electric-indent-local-mode -1)
   (setq-local electric-indent-inhibit t)
   (setq-local blink-paren-function nil)
@@ -160,85 +173,60 @@ can contribute more colors; see the customization variable
   (setq-local completion-at-point-functions nil) ;rely on racket-xp-mode
   (setq-local eldoc-documentation-function nil)
   (setq racket-submodules-at-point-function nil) ;might change in on-new-lang
-  (racket--hash-lang-create))
-
-(defvar-local racket--hash-lang-id nil
-  "Unique integer used to identify the back end hash-lang object.
-Although it's tempting to use `buffer-file-name' for the ID, not
-all buffers have files. Although it's tempting to use
-`buffer-name', buffers can be renamed. Although it's tempting to
-use the buffer object, we can't serialize that.")
-(defvar racket--hash-lang-next-id 0
-  "Increment when we need a new id.")
-
-(defvar-local racket--hash-lang-generation 1
-  "Monotonic increasing value for hash-lang updates.
-
-This is set to 1 when we hash-lang create, incremented every time
-we do a hash-lang update, and then supplied for all other, query
-hash-lang operations. That way the queries can block if necessary
-until the back end has handled the update commands and also
-re-tokenization has progressed sufficiently.")
-
-;; For use by both racket-hash-lang-mode and racket-repl-mode
-(defun racket--hash-lang-create (&optional other-buffer)
-  (setq-local racket--hash-lang-id (cl-incf racket--hash-lang-next-id))
+  ;; Create back end hash-lang object.
+  ;;
+  ;; On the one hand, `racket--cmd/await' would be simpler to use
+  ;; here. On the other hand, when the back end isn't running, there's
+  ;; a delay for that to start, during which the buffer isn't
+  ;; displayed and Emacs seems frozen. On the third hand, if we use
+  ;; `racket--cmd/async' naively the buffer could try to interact with
+  ;; a back end object that doesn't yet exist, and error.
+  ;;
+  ;; Warm bowl of porridge: Make buffer read-only and use async
+  ;; command to create hash-lang object. Only when the response
+  ;; arrives, i.e. the back end object is ready, enable read/write and
+  ;; set various hook functions that depend on `racket--hash-lang-id'.
+  ;;
+  ;; Also, handle the back end returning nil for the create -- meaning
+  ;; there's no sufficiently new syntax-color-lib -- by downgrading to
+  ;; plain `prog-mode'.
+  (setq-local racket--hash-lang-id nil) ;until async command response
   (setq-local racket--hash-lang-generation 1)
-  (cl-case major-mode
-   ((racket-hash-lang-mode)
-    (let ((text (save-restriction
-                  (widen)
-                  (buffer-substring-no-properties (point-min) (point-max)))))
-      ;; On the one hand, racket--cmd/await would be simpler to use
-      ;; here. On the other hand, when someone visits a file without the
-      ;; back end running yet, there's a delay for that to start, during
-      ;; which the buffer isn't displayed and Emacs seems frozen. On the
-      ;; third hand, if we use async the buffer could try to interact
-      ;; with a back end object that doesn't yet exist, and error.
-      ;;
-      ;; Warm bowl of porridge: Make buffer read-only and not font-lock.
-      ;; Set a timer to show a message in the header-line after awhile.
-      ;; Send command async. Only when the response arrives, i.e. the
-      ;; back end object is ready, enable read/write and font-lock.
-      ;;
-      ;; Finally, handle the back end returning nil for the create,
-      ;; meaning there's no sufficiently new syntax-color-lib.
-      (font-lock-mode -1)
-      (read-only-mode 1)
-      (unless (racket--cmd-open-p)
-        (setq-local header-line-format "Waiting for back end to start..."))
-      (racket--cmd/async
-       nil
-       `(hash-lang create ,racket--hash-lang-id ,nil ,text)
-       (lambda (maybe-id)
-         (font-lock-mode 1)
-         (read-only-mode -1)
-         (setq-local header-line-format nil)
-         (unless maybe-id
-           (prog-mode)
-           (message "hash-lang support not available; needs newer syntax-color-lib"))))))
-   ((racket-repl-mode)
-    (let ((other-lang-source
-           (when other-buffer
-             (with-current-buffer other-buffer
-               (save-restriction
-                 (widen)
-                 (buffer-substring-no-properties (point-min) (min 4096 (point-max)))))))
-          (text
-           (racket--hash-lang-repl-buffer-string (point-min) (point-max))))
-      (racket--cmd/async
-       nil
-       `(hash-lang create ,racket--hash-lang-id ,other-lang-source ,text))))
-   (otherwise
-    (error "racket--hash-lang-create doesn't work for %s" major-mode))))
+  (unless (racket--cmd-open-p)
+    (setq-local header-line-format "Waiting for back end to start..."))
+  (setq-local buffer-read-only t)
+  (racket--cmd/async
+   nil
+   `(hash-lang create
+               ,(cl-incf racket--hash-lang-next-id)
+               ,nil
+               ,(buffer-substring-no-properties (point-min) (point-max)))
+   (lambda (maybe-id)
+     (setq-local header-line-format nil)
+     (cond
+      (maybe-id
+       (setq-local racket--hash-lang-id maybe-id)
+       ;; These depend on `racket--hash-lang-id':
+       (setq-local font-lock-fontify-region-function #'racket--hash-lang-fontify-region)
+       (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
+       (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
+       (add-hook 'change-major-mode-hook #'racket--hash-lang-delete t t)
+       (setq-local buffer-read-only nil))
+      (t
+       (prog-mode) ;wipes all local variables including buffer-read-only
+       (message "hash-lang support not available; needs newer syntax-color-lib")))))  )
 
 (defun racket--hash-lang-delete ()
   (when racket--hash-lang-id
-    (ignore-errors
-      (racket--cmd/await
-       (when (eq major-mode 'racket-repl-mode) racket--repl-session-id)
-       `(hash-lang delete ,racket--hash-lang-id)))
-    (setq racket--hash-lang-id nil)
+    ;; When back end running, delete the hash-lang object. (Otherwise,
+    ;; don't start the back end just to delete something that doesn't
+    ;; exist.)
+    (when (racket--cmd-open-p)
+      (ignore-errors
+        (racket--cmd/await
+         (when (eq major-mode 'racket-repl-mode) racket--repl-session-id)
+         `(hash-lang delete ,racket--hash-lang-id))))
+    (setq-local racket--hash-lang-id nil)
     (setq-local racket--hash-lang-generation 1)))
 
 ;;; Handle back end stopping
@@ -309,16 +297,17 @@ live prompt."
   ;;;(message "racket--hash-lang-after-change-hook %s %s %s" beg end len)
   ;; This might be called as frequently as once per single changed
   ;; character.
-  (racket--cmd/async
-   nil
-   `(hash-lang update
-               ,racket--hash-lang-id
-               ,(cl-incf racket--hash-lang-generation)
-               ,beg
-               ,len
-               ,(if (eq major-mode 'racket-repl-mode)
-                    (racket--hash-lang-repl-buffer-string beg end)
-                  (buffer-substring-no-properties beg end)))))
+  (when racket--hash-lang-id
+    (racket--cmd/async
+     nil
+     `(hash-lang update
+                 ,racket--hash-lang-id
+                 ,(cl-incf racket--hash-lang-generation)
+                 ,beg
+                 ,len
+                 ,(if (eq major-mode 'racket-repl-mode)
+                      (racket--hash-lang-repl-buffer-string beg end)
+                    (buffer-substring-no-properties beg end))))))
 
 ;;; Notifications: Front end <-- back end
 
@@ -410,26 +399,30 @@ jit-lock do its thing if/when this span ever becomes visible."
 
 ;;; Fontification
 
-(defun racket--hash-lang-font-lock-fontify-region (beg end &optional _loudly)
+(defun racket--hash-lang-fontify-region (beg end loudly)
   "Our value for the variable `font-lock-fontify-region-function'.
 
 We ask the back end for tokens, and handle its response
 asynchronously in `racket--hash-lang-on-tokens' which does the
 actual application of faces and syntax. It wouldn't be
 appropriate to wait for a response while being called from Emacs
-C redisplay engine, as is the case with `jit-lock-mode'."
-  ;;;(message "racket--hash-lang-font-lock-fontify-region %s %s" beg end)
-  (racket--cmd/async
-   nil
-   `(hash-lang get-tokens
-               ,racket--hash-lang-id
-               ,racket--hash-lang-generation
-               ,beg
-               ,end)
-   #'racket--hash-lang-on-tokens)
-  `(jit-lock-bounds ,beg . ,end))
+C redisplay engine."
+  ;;;(message "racket--hash-lang-fontify-region %s %s" beg end)
+  (when racket--hash-lang-id
+    (font-lock-default-fontify-region beg end loudly)
+    (let ((beg (if (markerp beg) (marker-position beg) beg))
+          (end (if (markerp end) (marker-position end) end)))
+      (racket--cmd/async nil
+                         `(hash-lang get-tokens
+                                     ,racket--hash-lang-id
+                                     ,racket--hash-lang-generation
+                                     ,beg
+                                     ,end)
+                         #'racket--hash-lang-on-tokens))
+    `(jit-lock-bounds ,beg . ,end)))
 
 (defun racket--hash-lang-on-tokens (tokens)
+  ;;;(message "racket--hash-lang-on-tokens %S" tokens)
   (save-restriction
     (widen)
     (with-silent-modifications
@@ -473,7 +466,7 @@ C redisplay engine, as is the case with `jit-lock-mode'."
                    (put-face beg end face)))))))))))
 
 (defconst racket--hash-lang-text-properties
-  '(face syntax-table racket-token)
+  '(syntax-table racket-token)
   "The text properties we use.")
 
 (defun racket--hash-lang-text-prop-list (f val)
@@ -659,23 +652,39 @@ commands. Even if various edit buffers all use
 one buffer is \"#lang racket\" while another is \"#lang
 rhombus\"."
   ;;;(message "racket--hash-lang-configure-repl called from buffer %s" (buffer-name))
-  (let ((hl (and (eq major-mode 'racket-hash-lang-mode)
-                 racket--hash-lang-id))
+  (let ((hl (eq major-mode 'racket-hash-lang-mode))
         (edit-buffer (current-buffer)))
+    ;; FIXME: On the very first run, the before-run hook is called
+    ;; before the REPL buffer exists so none of the following happens.
     (with-racket-repl-buffer
       ;; Clean up from previous hash-lang use of REPL, if any
       (racket--hash-lang-delete)
+
+      ;; Maybe create hash-lang object, synchronously.
+      (when hl
+        (setq-local
+         racket--hash-lang-id
+         (racket--cmd/await
+          nil
+          `(hash-lang
+            create
+            ,(cl-incf racket--hash-lang-next-id)
+            ,(with-current-buffer edit-buffer
+               (save-restriction
+                 (widen)
+                 (buffer-substring-no-properties (point-min) (min 4096 (point-max)))))
+            ,(racket--hash-lang-repl-buffer-string (point-min) (point-max))))))
+
       ;; char-syntax
       (set-syntax-table (with-current-buffer edit-buffer (syntax-table)))
       (setq-local syntax-propertize-function
                   (with-current-buffer edit-buffer syntax-propertize-function))
       ;; font-lock
-      (setq-local font-lock-defaults
-                  (with-current-buffer edit-buffer font-lock-defaults))
-      (setq-local font-lock-fontify-region-function
-                  (racket--repl-limited-fontify-region
-                   (with-current-buffer edit-buffer font-lock-fontify-region-function)))
-      (font-lock-set-defaults)
+      (setq-local font-lock-keywords
+                  (with-current-buffer edit-buffer font-lock-keywords))
+      (setq-local racket--repl-fontify-region-function
+                  (with-current-buffer edit-buffer font-lock-fontify-region-function))
+      (font-lock-flush)
       ;; indent
       (setq-local indent-line-function
                   (with-current-buffer edit-buffer indent-line-function))
@@ -685,8 +694,6 @@ rhombus\"."
       (setq-local forward-sexp-function
                   (with-current-buffer edit-buffer forward-sexp-function))
       (racket-hash-lang-repl-mode (if hl 1 -1)) ;keybindings
-      (when hl
-        (racket--hash-lang-create edit-buffer))
       (if hl
           (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
         (remove-hook 'after-change-functions  #'racket--hash-lang-after-change-hook t))
@@ -694,6 +701,20 @@ rhombus\"."
                   (if hl #'racket-hash-lang-submit nil)))))
 (add-hook 'racket--repl-before-run-hook
           #'racket--hash-lang-configure-repl-buffer-from-edit-buffer)
+
+(defun racket--hash-lang-repl-on-stop-back-end ()
+  (dolist (buf (buffer-list))
+    (with-current-buffer buf
+      (when (and (eq major-mode 'racket-repl-mode)
+                 (buffer-live-p buf))
+        ;; Clean up from previous hash-lang use of REPL, if any
+        (racket-hash-lang-repl-mode -1)
+        (setq-local racket--repl-fontify-region-function
+                    #'font-lock-default-fontify-region)
+        (setq-local racket--hash-lang-id nil)
+        (setq-local racket--hash-lang-generation 1)))))
+(add-hook 'racket-stop-back-end-hook
+          #'racket--hash-lang-repl-on-stop-back-end)
 
 (defun racket-hash-lang-submit (input)
   ""

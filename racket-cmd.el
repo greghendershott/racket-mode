@@ -137,7 +137,9 @@ Before doing anything runs the hook `racket-stop-back-end-hook'."
       (delete-process/buffer (racket--back-end-process-name-stderr back-end)))))
 
 (defun racket--cmd-process-sentinel (proc event)
-  (when (string-match-p "exited abnormally|failed|connection broken" event)
+  (unless (eq 'open (process-status proc))
+    (when (string-match-p "exited abnormally" event)
+      (run-hooks 'racket-stop-back-end-hook))
     (message "{%s} %s" (process-name proc) (substring event 0 -1))))
 
 (defun racket--cmd-process-stderr-filter (proc string)
