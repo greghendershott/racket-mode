@@ -222,6 +222,29 @@ notifications."
        (run-at-time 0.001 nil callback response)))
     (_ nil)))
 
+(defun racket--assert-readable (sexp)
+  "Sanity check that SEXP is readable by Racket.
+
+For example if a command sexp supplies a marker -- which prints
+as unreadable #<marker ...> -- instead of an integer, we will
+error here in Emacs with a more helpful error message and
+backtrace. Besides which, a read error in the back end's command
+loop could cause the entire back end to abend."
+  (cl-labels
+      ((check
+        (v)
+        (cond
+         ((numberp v) t)
+         ((stringp v) t)
+         ((symbolp v) t)
+         ((consp v)   (and (check (car v)) (check (cdr v))))
+         (t
+          (let ((print-length nil)
+                (print-level nil))
+            (error "invalid s-expression for Racket reader\n value: %S\n in: %S"
+                   v sexp))))))
+    (check sexp)))
+
 (defun racket--cmd/async-raw (repl-session-id command-sexpr &optional callback)
   "Send COMMAND-SEXPR and return. Later call CALLBACK with the response sexp.
 
@@ -242,6 +265,7 @@ CALLBACK is called, as it was when the command was sent. If you
 need to do something to do that original buffer, save the
 `current-buffer' in a `let' and use it in a `with-current-buffer'
 form. See `racket--restoring-current-buffer'."
+  (racket--assert-readable command-sexpr)
   (unless (racket--cmd-open-p)
     (racket--cmd-open))
   (cl-incf racket--cmd-nonce)
