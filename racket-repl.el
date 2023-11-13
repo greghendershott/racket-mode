@@ -479,6 +479,7 @@ Mode's REPL as intended, then consider using a plain Emacs
   (interactive "P")
   (racket-call-racket-repl-buffer-name-function)
   (racket--repl-ensure-buffer-and-session
+   nil
    (lambda (repl-buffer)
      (racket--repl-refresh-namespace-symbols)
      (unless noselect
@@ -719,6 +720,10 @@ for end user customization is `racket-after-run-hook'.
 Here \"after\" means that the run has completed and e.g. the REPL
 is waiting at another prompt.")
 
+;; Don't (require 'racket-hash-lang). Mutual dependency. Instead:
+(declare-function racket--configure-repl-buffer-from-edit-buffer "racket-hash-lang" (edit-buf repl-buf))
+(autoload        'racket--configure-repl-buffer-from-edit-buffer "racket-hash-lang")
+
 (defun racket--repl-run (&optional what extra-submods context-level callback)
   "Do an initial or subsequent run.
 
@@ -771,11 +776,6 @@ be nil which is equivalent to #\\='ignore."
       (message "")
       (racket-start-back-end)))
 
-  (racket--repl-delete-prompt-mark 'abandon)
-  (with-racket-repl-buffer ;if it already exists
-    (set-marker racket--repl-run-mark (point)))
-  (run-hooks 'racket--repl-before-run-hook
-             'racket-before-run-hook)
   (pcase-let*
       ((context-level (or context-level racket-error-context))
        (what (or what (racket--what-to-run)))
@@ -797,15 +797,19 @@ be nil which is equivalent to #\\='ignore."
                   context-level
                   racket-user-command-line-arguments
                   debug-files))
-       (buf (current-buffer))
+       (edit-buffer (current-buffer))
        (after (lambda (_ignore)
-                (with-current-buffer buf
+                (with-current-buffer edit-buffer
                   (run-hooks 'racket--repl-after-run-hook
                              'racket-after-run-hook)
                   (when callback
                     (funcall callback))))))
     (racket--repl-ensure-buffer-and-session
+     edit-buffer
      (lambda (_repl-buffer)
+       (with-current-buffer edit-buffer
+         (run-hooks 'racket--repl-before-run-hook
+                    'racket-before-run-hook))
        (racket--cmd/async (racket--repl-session-id) cmd after)))))
 
 (defun racket--write-contents ()
@@ -819,12 +823,17 @@ be nil which is equivalent to #\\='ignore."
       (set-window-buffer nil (current-buffer))
       (car (window-text-pixel-size nil (line-beginning-position) (point))))))
 
-(defun racket--repl-ensure-buffer-and-session (continue)
+(defun racket--repl-ensure-buffer-and-session (edit-buffer continue)
   "Ensure a `racket-repl-mode' buffer exists with a live session.
 
 Create the buffer if necessary, enabling `racket-repl-mode'.
 
 Start the session if necessary.
+
+When EDIT-BUFFER is not nil, use it to call
+`racket--configure-repl-buffer-from-edit-buffer' after the repl
+buffer is fully initialized (and if the repl session isn't
+started, before starting it).
 
 Calls CONTINUE with one argument, the repl buffer.
 
@@ -837,7 +846,10 @@ This displays the buffer but does not change the selected window."
     (display-buffer repl-buf)
     (with-current-buffer repl-buf
       (if racket--repl-session-id
-          (funcall continue repl-buf)
+          (progn
+            (when edit-buffer
+              (racket--configure-repl-buffer-from-edit-buffer edit-buffer repl-buf))
+            (funcall continue repl-buf))
         (setq racket--repl-session-id (cl-incf racket--repl-next-session-id))
         (when noninteractive
           (princ (format "{racket--repl-start}: picked next session id %S\n"
@@ -847,6 +859,8 @@ This displays the buffer but does not change the selected window."
         (setq racket--repl-run-mark (point-marker))
         (setq racket--repl-output-mark (point-marker))
         (set-marker-insertion-type racket--repl-output-mark nil)
+        (when edit-buffer
+          (racket--configure-repl-buffer-from-edit-buffer edit-buffer repl-buf))
         (unless (racket--cmd-open-p)
           (racket--repl-insert-output 'message "Starting back end..."))
         (racket--cmd/async nil

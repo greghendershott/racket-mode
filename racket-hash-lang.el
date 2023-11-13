@@ -637,13 +637,12 @@ When the lang lexer token is...
   :lighter " #lang"
   :keymap racket-hash-lang-repl-mode-map)
 
-(defun racket--hash-lang-configure-repl-buffer-from-edit-buffer ()
-  "Update the `racket-repl-mode' buffer associated with the current edit buffer.
+(defun racket--configure-repl-buffer-from-edit-buffer (edit-buffer repl-buffer)
+  "Configure REPL-BUFFER from EDIT-BUFFER.
 
-A value for the hook `racket--repl-configure-buffer-hook'.
-
-To be called when a `racket-mode' or `racket-hash-lang-mode' edit
-buffer is `current-buffer'.
+To be called upon each run command. EDIT-BUFFER is the buffer
+where the run command was issued, REPL-BUFFER is the
+`racket-repl-mode' buffer to be used.
 
 It is possible for multiple edit buffers to \"take turns\" using
 the same `racket-repl-mode' buffer, for successive `racket-run'
@@ -651,17 +650,14 @@ commands. Even if various edit buffers all use
 `racket-hash-lang-mode', the hash-lang for each may differ, e.g.
 one buffer is \"#lang racket\" while another is \"#lang
 rhombus\"."
-  ;;;(message "racket--hash-lang-configure-repl called from buffer %s" (buffer-name))
-  (let ((hl (eq major-mode 'racket-hash-lang-mode))
-        (edit-buffer (current-buffer)))
-    ;; FIXME: On the very first run, the before-run hook is called
-    ;; before the REPL buffer exists so none of the following happens.
-    (with-racket-repl-buffer
+  ;;;(message "%S" (list 'racket--configure-repl-buffer-from-edit-buffer edit-buffer repl-buffer))
+  (let ((hash-lang-p (with-current-buffer edit-buffer (eq major-mode 'racket-hash-lang-mode))))
+    (with-current-buffer repl-buffer
       ;; Clean up from previous hash-lang use of REPL, if any
       (racket--hash-lang-delete)
 
       ;; Maybe create hash-lang object, synchronously.
-      (when hl
+      (when hash-lang-p
         (setq-local
          racket--hash-lang-id
          (racket--cmd/await
@@ -693,14 +689,12 @@ rhombus\"."
       ;; nav
       (setq-local forward-sexp-function
                   (with-current-buffer edit-buffer forward-sexp-function))
-      (racket-hash-lang-repl-mode (if hl 1 -1)) ;keybindings
-      (if hl
+      (racket-hash-lang-repl-mode (if hash-lang-p 1 -1)) ;keybindings
+      (if hash-lang-p
           (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
         (remove-hook 'after-change-functions  #'racket--hash-lang-after-change-hook t))
       (setq-local racket-repl-submit-function
-                  (if hl #'racket-hash-lang-submit nil)))))
-(add-hook 'racket--repl-before-run-hook
-          #'racket--hash-lang-configure-repl-buffer-from-edit-buffer)
+                  (if hash-lang-p #'racket-hash-lang-submit nil)))))
 
 (defun racket--hash-lang-repl-on-stop-back-end ()
   (dolist (buf (buffer-list))
