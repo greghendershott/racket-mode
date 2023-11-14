@@ -94,13 +94,8 @@
     (async-channel-put repl-output-channel
                        (repl-output kind (subbytes bstr start end)))
     (- end start))
-  (define (write-out-special v _non-block? _breakable?)
-    (async-channel-put repl-output-channel
-                       (repl-output special-kind v))
-    #t)
   (define close void)
   (make-output-port name
                     repl-output-channel
                     write-out
-                    close
-                    write-out-special))
+                    close))
