@@ -128,9 +128,13 @@ anchor. If numberp, move to that position."
          (concat path (cond ((stringp goto) (concat " " goto))
                             ((numberp goto) (format " %s" goto))))
          'face '(:height 0.75)))
-  (cl-macrolet ((disable (id) `(and (boundp ',id) ,id (fboundp ',id) (,id -1))))
-    (disable linum-mode)
-    (disable display-line-numbers-mode))
+  ;; Although `shr' carefully fills to fit window width, if user
+  ;; resizes window or changes text scaling, we don't want it to wrap.
+  (setq truncate-lines t)
+  ;; Modes that show line numbers in the buffer just eat up valuable
+  ;; space; disable. (Also we'll set a text prop below.)
+  (when (fboundp 'linum-mode)                (linum-mode -1))
+  (when (fboundp 'display-line-numbers-mode) (display-line-numbers-mode -1))
   (let ((buffer-read-only nil))
     (erase-buffer)
     (let ((shr-use-fonts nil)
@@ -152,6 +156,10 @@ anchor. If numberp, move to that position."
     (goto-char (point-min))
     (while (re-search-forward (string racket--scribble-temp-nbsp) nil t)
       (replace-match " " t t))
+    ;; Just in case disabling `display-line-numbers-mode' doesn't
+    ;; suffice (#678), as well as to cover e.g. user enabling
+    ;; `global-display-line-numbers-mode' later:
+    (put-text-property (point-min) (point-max) 'display-line-numbers-disable t)
     (racket--describe-goto goto)))
 
 (defun racket--describe-goto (goto)
