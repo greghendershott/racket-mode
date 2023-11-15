@@ -165,12 +165,18 @@ In some cases we resort to returning custom elements for
     (`(a ((name . ,name)) . ,xs)
      `(racket-anchor ((name . ,name)) . ,xs))
 
+    ;; Ignore new <span class="button-group"> elements.
+    (`(span ((class . "button-group")) . ,_)
+     `(span))
+
     ;; Replace <a> with <racket-doc-link> or <racket-ext-link>. The
     ;; former are links to follow using racket-describe-mode, the
     ;; latter using browse-url (a general-purpose, probably external
     ;; web browser).
     (`(a ,_ . ,xs)
      (pcase (dom-attr dom 'href)
+       ;; No href.
+       (`() `(span () ,@(mapcar #'racket--walk-dom xs)))
        ;; Handle "local-redirect" links. Scribble writes these as
        ;; external links, and generates doc/local-redirect.js to
        ;; adjust these on page load. Partially mimic that js here.
