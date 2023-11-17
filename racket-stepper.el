@@ -86,6 +86,7 @@ Uses Racket's `expand-once` in the namespace from the most recent
   (interactive "rP")
   (unless (region-active-p)
     (user-error "No region"))
+  (racket--assert-sexp-edit-mode)
   (racket-stepper--expand-text into-base
                                (lambda ()
                                  (cons start end))))
@@ -96,6 +97,7 @@ Uses Racket's `expand-once` in the namespace from the most recent
 Uses Racket's `expand-once` in the namespace from the most recent
 `racket-run'."
   (interactive "P")
+  (racket--assert-sexp-edit-mode)
   (racket-stepper--expand-text into-base
                                (lambda ()
                                  (save-excursion
@@ -108,6 +110,7 @@ Uses Racket's `expand-once` in the namespace from the most recent
 Uses Racket's `expand-once` in the namespace from the most recent
 `racket-run'."
   (interactive "P")
+  (racket--assert-sexp-edit-mode)
   (racket-stepper--expand-text into-base
                                (lambda ()
                                  (save-excursion

@@ -25,16 +25,16 @@
 ;;; code folding
 
 (defun racket--for-all-tests (verb f)
-  ;; For this to work in `racket-hash-lang-mode', (a) we'd need to
-  ;; learn the test submodule spans from analysis of fully-expanded
-  ;; code (as we can do on the `pdb` branch with a sufficiently new
-  ;; Racket). And then, (b) we'd need to do the hiding ourselves,
-  ;; without `hs-minor-mode', which AFAICT demands regexps for block
-  ;; starts and ends. We'd want a "positional" not regexp flavor,
-  ;; which AFAIK we'd need to implement ourselves.
+  ;; For this to work in `racket-hash-lang-mode' for all hash-langs,
+  ;; (a) we'd need to learn the test submodule spans from analysis of
+  ;; fully-expanded code (as we can do on the `pdb` branch with a
+  ;; sufficiently new Racket). And then, (b) we'd need to do the
+  ;; hiding ourselves, without `hs-minor-mode', which AFAICT demands
+  ;; regexps for block starts and ends. We'd want a "positional" not
+  ;; regexp flavor, which AFAIK we'd need to implement ourselves.
   ;;
-  ;; TL;DR: For now require `racket-mode'.
-  (racket--assert-racket-mode)
+  ;; TL;DR: For now require `racket-sexp-edit-mode'.
+  (racket--assert-sexp-edit-mode)
   (unless (bound-and-true-p hs-minor-mode)
     (user-error "hs-minor-mode is not enabled"))
   (save-excursion
@@ -82,7 +82,7 @@ At most one required module is listed per line.
 
 See also: `racket-trim-requires' and `racket-base-requires'."
   (interactive)
-  (racket--assert-racket-mode)
+  (racket--assert-sexp-edit-mode)
   (racket--tidy-requires '() #'ignore))
 
 (defun racket--tidy-requires (add callback)
@@ -166,7 +166,7 @@ Note: Currently this only helps change \"#lang racket\" to
 conversions, such as changing \"#lang typed/racket\" to \"#lang
 typed/racket/base\"."
   (interactive)
-  (racket--assert-racket-mode)
+  (racket--assert-sexp-edit-mode)
   (when (racket--buffer-start-re "^#lang.*? racket/base$")
     (user-error "Already using #lang racket/base. Nothing to change."))
   (unless (racket--buffer-start-re "^#lang.*? racket$")
@@ -277,7 +277,7 @@ The mechanism is similar to that used for Racket's \"Search
 Manuals\" feature. Today there exists no system-wide database of
 identifiers that are exported but not documented."
   (interactive)
-  (racket--assert-racket-mode)
+  (racket--assert-sexp-edit-mode)
   (let ((sym-at-point (thing-at-point 'symbol t)))
     (unless sym-at-point
       (user-error "There does not seem to be an identifier at point"))
@@ -376,6 +376,7 @@ usual. For example:
 
 See also: `racket-unalign'."
   (interactive)
+  (racket--assert-sexp-edit-mode)
   (save-excursion
     (let ((listp (eq ?\( (char-syntax (char-after))))
           (prev-line 0)
@@ -399,6 +400,7 @@ See also: `racket-unalign'."
 Effectively does M-x `just-one-space' and `prog-indent-sexp' for
 each couple's value."
   (interactive)
+  (racket--assert-sexp-edit-mode)
   (save-excursion
     (let ((listp (eq ?\( (char-syntax (char-after)))))
       (racket--for-each-couple listp

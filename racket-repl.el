@@ -954,11 +954,13 @@ see the results."
   (interactive "r")
   (unless (region-active-p)
     (user-error "No region"))
+  (racket--assert-edit-mode)
   (racket--send-region-to-repl start end))
 
 (defun racket-send-definition ()
   "Send the current definition to the Racket REPL."
   (interactive)
+  (racket--assert-sexp-edit-mode)
   (save-excursion
     (end-of-defun)
     (let ((end (point)))
@@ -978,6 +980,7 @@ With a prefix argument (e.g. \\[universal-argument] \\[racket-send-last-sexp]), 
 into the REPL, followed by a \"=>\" line, to distinguish it
 from the zero or more values to which it evaluates."
   (interactive "P")
+  (racket--assert-sexp-edit-mode)
   (racket--send-region-to-repl (racket--start-of-previous-expression)
                                (point)
                                prefix))
@@ -990,6 +993,7 @@ The eventual results are presented using the variable
 
 The expression may be either an at-expression or an s-expression."
   (interactive)
+  (racket--assert-sexp-edit-mode)
   (unless (racket--repl-session-id)
     (user-error "No REPL session available; run the file first"))
   (let ((beg (racket--start-of-previous-expression))

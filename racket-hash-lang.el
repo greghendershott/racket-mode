@@ -25,11 +25,19 @@
      ("C-c C-t"     ,#'racket-test)
      ("C-c C-l"     ,#'racket-logger)
      ("C-c C-o"     ,#'racket-profile)
+     ("M-C-x"       racket-send-definition)
+     ("C-x C-e"     racket-send-last-sexp)
+     ("C-c C-r"     racket-send-region)
      ("C-c C-e f"   ,#'racket-expand-file)
+     ("C-c C-e x"   racket-expand-definition)
+     ("C-c C-e e"   racket-expand-last-sexp)
+     ("C-c C-e r"   racket-expand-region)
      ("C-c C-x C-f" ,#'racket-open-require-path)
      ("TAB"         ,#'indent-for-tab-command)
      ;; ("C-c C-p"     racket-cycle-paren-shapes) equivalent using paren-matches?
      ("M-C-y"       ,#'racket-insert-lambda)
+     ("C-c C-f"     racket-fold-all-tests)
+     ("C-c C-u"     racket-unfold-all-tests)
      ("RET"         ,#'newline-and-indent)
      ("C-M-b"       ,#'racket-hash-lang-backward)
      ("C-M-f"       ,#'racket-hash-lang-forward)
@@ -46,9 +54,19 @@
      ["in *shell* using `racket`" racket-racket])
     ("Tests"
      ["in REPL" racket-test]
-     ["in *shell* using `raco test`" racket-raco-test])
+     ["in *shell* using `raco test`" racket-raco-test]
+     "---"
+     ["Fold All" racket-fold-all-tests :active (racket--sexp-edit-mode-p)]
+     ["Unfold All" racket-unfold-all-tests :active (racket--sexp-edit-mode-p)])
+    ("Eval"
+     ["Region" racket-send-region :active (and (region-active-p) (racket--sexp-edit-mode-p))]
+     ["Definition" racket-send-definition :active (racket--sexp-edit-mode-p)]
+     ["Last S-Expression" racket-send-last-sexp :active (racket--sexp-edit-mode-p)])
     ("Macro Expand"
-     ["File" racket-expand-file])
+     ["File" racket-expand-file]
+     ["Region" racket-expand-region :active (and (region-active-p) (racket--sexp-edit-mode-p))]
+     ["Definition" racket-expand-definition :active (racket--sexp-edit-mode-p)]
+     ["Last S-Expression" racket-expand-last-sexp  :active (racket--sexp-edit-mode-p)])
     ["Switch to REPL" racket-repl]
     ("Tools"
      ["Profile" racket-profile]
@@ -59,6 +77,9 @@
     ["Comment" comment-dwim]
     ["Insert λ" racket-insert-lambda]
     ["Indent Region" indent-region]
+    ["Cycle Paren Shapes" racket-cycle-paren-shapes :active (racket--sexp-edit-mode-p)]
+    ["Align" racket-align :active (racket--sexp-edit-mode-p)]
+    ["Unalign" racket-unalign :active (racket--sexp-edit-mode-p)]
     "---"
     ["Open Require Path" racket-open-require-path]
     ["Find Collection" racket-find-collection]

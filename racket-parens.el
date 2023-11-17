@@ -137,6 +137,7 @@ This function is a suitable element for the list variable
 (defun racket-cycle-paren-shapes ()
   "Cycle the sexpr among () [] {}."
   (interactive)
+  (racket--assert-sexp-edit-mode)
   (save-excursion
     (unless (eq ?\( (char-syntax (char-after)))
       (backward-up-list))
