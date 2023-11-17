@@ -41,25 +41,29 @@
   (->* (syntax?) (set-mutable?) set-mutable?)
 
   (define (handle-module stx)
-    (syntax-case stx (module #%module-begin #%plain-module-begin #%require)
-      [(module _id lang (#%module-begin e ...))
-       (handle-module-level #'(e ...) #'lang)]
-      [(module _id lang (#%plain-module-begin e ...))
-       (handle-module-level #'(e ...) #'lang)]))
+    (syntax-case stx (module #%module-begin #%plain-module-begin)
+      [(module id lang (#%module-begin e ...))
+       (handle-module-level #'id #'lang #'(e ...))]
+      [(module id lang (#%plain-module-begin e ...))
+       (handle-module-level #'id #'lang #'(e ...))]))
 
-  (define (handle-module-level es lang)
-    (module-exported-strings lang lang)
+  (define (handle-module-level id lang es)
+    (unless (equal? (syntax-e id) 'configure-runtime)
+      (module-exported-strings lang lang))
     (for ([e (in-syntax es)])
       (syntax-case* e (#%require module module*) symbolic-compare?
         [(#%require e ...)
-         (for ([spec (in-syntax #'(e ...))])
-           (handle-raw-require-spec spec lang))]
-        [(module _id sub-mod-lang (_mb e ...))
-         (handle-module-level #'(e ...) #'sub-mod-lang)]
-        [(module* _id sub-mod-lang (_mb e ...))
-         (handle-module-level #'(e ...) (if (syntax-e #'sub-mod-lang)
-                                            #'sub-mod-lang
-                                            lang))]
+         (unless (equal? (syntax-e id) 'configure-runtime)
+           (for ([spec (in-syntax #'(e ...))])
+             (handle-raw-require-spec spec lang)))]
+        [(module id sub-mod-lang (_mb e ...))
+         (handle-module-level #'id #'sub-mod-lang #'(e ...))]
+        [(module* id sub-mod-lang (_mb e ...))
+         (handle-module-level #'id
+                              (if (syntax-e #'sub-mod-lang)
+                                  #'sub-mod-lang
+                                  lang)
+                              #'(e ...))]
         [ _ (void)])))
 
   (define (handle-raw-require-spec spec lang)
@@ -175,11 +179,16 @@
            (module sub racket/base (void))
            (require racket/require
                     (submod "." sub)
-                    (except-in "../error.rkt" show-full-path-in-errors)
                     (prefix-in XXX: (except-in racket/file other-write-bit))
                     (rename-in racket/path [path-only PATH-ONLY])))))
     (syntax->datum stx)
     (imports stx)))
+
+(module+ completions-example-2
+  (require "syntax.rkt")
+  (parameterize ([current-namespace (make-base-empty-namespace)])
+    (string->expanded-syntax "/tmp/foo.rkt" "#lang rhombus\n1"
+                             imports)))
 
 (module+ test
   (require rackunit
@@ -259,8 +268,7 @@
                          #`(module mod racket/base
                              (module sub1 racket/base)
                              (module sub2 racket/base
-                               (require (submod ".." sub1))))))))
-  )
+                               (require (submod ".." sub1)))))))))
 
 (module+ slow-test
   ;; Exercise our parsing of the #%require grammar: Try doing
