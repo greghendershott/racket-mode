@@ -51,10 +51,7 @@ Set by `racket-xp-mode'. Used by `racket-xp-complete-at-point'.")
 (defun racket--xp-capf-bindings (beg end)
   (list beg
         end
-        (completion-table-dynamic
-         (lambda (prefix)
-           (all-completions prefix racket--xp-binding-completions)))
-        :predicate          #'identity
+        (racket--completion-table racket--xp-binding-completions)
         :exclusive          'no
         :company-location   (racket--xp-make-company-location-proc)
         :company-doc-buffer (racket--xp-make-company-doc-buffer-proc)))
@@ -73,9 +70,7 @@ that are require transformers."
 (defun racket--xp-capf-absolute-module-paths (beg end)
   (list beg
         end
-        (completion-table-dynamic
-         (lambda (prefix)
-           (all-completions prefix racket--xp-module-completions)))
+        (racket--completion-table racket--xp-module-completions)
         :exclusive 'no))
 
 (defun racket--xp-capf-relative-module-paths ()
@@ -89,7 +84,7 @@ that are require transformers."
                                 table)))
             (list beg
                   end
-                  table
+                  (racket--completion-table table 'file)
                   :exclusive 'no))))))))
 
 (defun racket--xp-make-company-location-proc ()

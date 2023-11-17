@@ -436,16 +436,15 @@ When LISTP is true, expects couples to be `[id val]`, else `id val`."
 
 ;;; Completion
 
-(defvar racket--completion-candidates (list racket-type-list
-                                            racket-keywords
-                                            racket-builtins-1-of-2
-                                            racket-builtins-2-of-2))
-
-(defun racket--completion-candidates-for-prefix (prefix)
-  (cl-reduce (lambda (results strs)
-               (append results (all-completions prefix strs)))
-             racket--completion-candidates
-             :initial-value ()))
+(defconst racket--completion-candidates
+  (seq-sort #'string-lessp
+            (seq-reduce (lambda (accum xs)
+                          (append accum xs))
+                        (list racket-type-list
+                              racket-keywords
+                              racket-builtins-1-of-2
+                              racket-builtins-2-of-2)
+                        nil)))
 
 (defun racket-complete-at-point ()
   "A value for the variable `completion-at-point-functions'.
@@ -457,8 +456,7 @@ completion candidates, enable the minor mode `racket-xp-mode'."
    (lambda (beg end)
      (list beg
            end
-           (completion-table-dynamic
-            #'racket--completion-candidates-for-prefix)
+           (racket--completion-table racket--completion-candidates)
            :predicate #'identity
            :exclusive 'no))))
 

@@ -1108,9 +1108,6 @@ image."
 
 (add-hook 'racket--repl-after-run-hook   #'racket--repl-refresh-namespace-symbols)
 
-(defun racket--repl-completion-candidates-for-prefix (prefix)
-  (all-completions prefix racket--repl-namespace-symbols))
-
 (defun racket-repl-complete-at-point ()
   "A value for the variable `completion-at-point-functions'.
 
@@ -1124,8 +1121,7 @@ to supply this quickly enough or at all."
    (lambda (beg end)
      (list beg
            end
-           (completion-table-dynamic
-            #'racket--repl-completion-candidates-for-prefix)
+           (racket--completion-table racket--repl-namespace-symbols)
            :predicate #'identity
            :exclusive 'no
            :company-doc-buffer #'racket--repl-company-doc-buffer
