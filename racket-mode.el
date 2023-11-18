@@ -178,7 +178,6 @@
   ;; Code folding
   (add-to-list 'hs-special-modes-alist
                '(racket-mode "(" ")" ";" nil nil))
-  (hs-minor-mode 1)
   ;; -----------------------------------------------------------------
   ;;; Misc
   (setq-local local-abbrev-table racket-mode-abbrev-table)

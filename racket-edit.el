@@ -22,9 +22,9 @@
 (require 'hideshow)
 (require 'xref)
 
-;;; code folding
+;;; Show/hide test submodules
 
-(defun racket--for-all-tests (verb f)
+(defun racket--fold-tests (fold-p)
   ;; For this to work in `racket-hash-lang-mode' for all hash-langs,
   ;; (a) we'd need to learn the test submodule spans from analysis of
   ;; fully-expanded code (as we can do on the `pdb` branch with a
@@ -34,27 +34,28 @@
   ;; regexp flavor, which AFAIK we'd need to implement ourselves.
   ;;
   ;; TL;DR: For now require `racket-sexp-edit-mode'.
-  (racket--assert-sexp-edit-mode)
-  (unless (bound-and-true-p hs-minor-mode)
-    (user-error "hs-minor-mode is not enabled"))
+  (unless hs-minor-mode
+    (hs-minor-mode))
   (save-excursion
     (goto-char (point-min))
     (let ((n 0))
       (while (re-search-forward "^(module[+*]? test" (point-max) t)
-        (funcall f)
+        (if fold-p (hs-hide-block) (hs-show-block))
         (cl-incf n)
         (goto-char (match-end 0)))
-      (message "%s %d test submodules" verb n))))
+      (message "%s %d test submodules" (if fold-p "Folded" "Unfolded") n))))
 
 (defun racket-fold-all-tests ()
   "Fold (hide) all test submodules."
   (interactive)
-  (racket--for-all-tests "Folded" #'hs-hide-block))
+  (racket--assert-sexp-edit-mode)
+  (racket--fold-tests t))
 
 (defun racket-unfold-all-tests ()
   "Unfold (show) all test submodules."
   (interactive)
-  (racket--for-all-tests "Unfolded" #'hs-show-block))
+  (racket--assert-sexp-edit-mode)
+  (racket--fold-tests nil))
 
 ;;; requires
 
