@@ -102,11 +102,10 @@
     (with-time/log 'get-annotations
       (send (current-annotations) get-annotations)))
 
-  (define completions-set (send (current-annotations) get-local-completion-candidates))
-  (with-time/log 'imports
-    (imports stx completions-set))
-  (define completions (sort (set->list completions-set)
-                            string<=?))
+  (define completions
+    (cons (cons #f (send (current-annotations) get-local-completion-candidates))
+          (for/list ([(k v) (in-hash (imports stx))])
+            (cons k (set->list v)))))
 
   (define imenu (send (current-annotations) get-imenu-index))
 
@@ -211,7 +210,8 @@
         ;; imported that _could_ be used.
         (when (or (regexp-match? #px"^\\d+ bound occurrences?$" status)
                   (equal? status "no bound occurrences"))
-          (set-add! local-completion-candidates (substring code-str beg end)))))
+          (set-add! local-completion-candidates
+                    (substring code-str beg end)))))
 
     ;; These are module-level definitions (not lexical bindings). So
     ;; they are useful for things like imenu. Also these are a good
@@ -231,7 +231,8 @@
         (match keys
           [(list key)      (hash-set! ht key (add1 beg))]
           [(cons key more) (trie-set! (hash-ref! ht key (make-hash)) more)]))
-      (set-add! local-completion-candidates (~a symbol)))
+      (set-add! local-completion-candidates
+                (~a symbol)))
 
     (define/override (syncheck:add-jump-to-definition _src beg end id-sym path submods)
       ;; - drracket/check-syntax only reports the file, not the

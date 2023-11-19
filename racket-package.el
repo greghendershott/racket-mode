@@ -173,7 +173,7 @@ Allows users to customize via `completion-category-overrides'.")
                                stat
                                (make-string (- max-stat (length stat)) 32)
                                desc)
-                       'face 'font-lock-comment-face)))))
+                       'face 'completions-annotations)))))
            vs)))
        (val (completing-read "Describe Racket package: "
                              (racket--completion-table

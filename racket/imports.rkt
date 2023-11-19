@@ -37,8 +37,19 @@
 
 ;; It is important to run this with the correct parameterization of
 ;; current-namespace and current-load-relative-directory.
-(define/contract (imports stx [sos (mutable-set)])
-  (->* (syntax?) (set-mutable?) set-mutable?)
+(define/contract (imports stx)
+  (->* (syntax?) hash?)
+  (define ht (make-hash))
+  (define (update! rmp f)
+    (hash-update! ht (->str rmp) f (set)))
+  (define (add! rmp v)
+    (update! rmp (λ (s) (set-add s (->str v)))))
+  (define (remove! rmp v)
+    (update! rmp (λ (s) (set-remove s (->str v)))))
+  (define (add-set! rmp set-of-strings)
+    (update! rmp (λ (s) (set-union s set-of-strings))))
+  (define (remove-set! rmp set-of-strings)
+    (update! rmp (λ (s) (set-subtract s set-of-strings))))
 
   (define (handle-module stx)
     (syntax-case stx (module #%module-begin #%plain-module-begin)
@@ -99,9 +110,9 @@
   (define (handle-phaseless-spec spec lang)
     (syntax-case* spec (only prefix all-except prefix-all-except rename)
         symbolic-compare?
-      [(only _raw-module-path id ...)
-       (set-union! sos
-                   (syntax->string-set #'(id ...)))]
+      [(only raw-module-path id ...)
+       (add-set! #'raw-module-path
+                 (syntax->string-set (syntax->list #'(id ...))))]
       [(prefix prefix-id raw-module-path)
        (module-exported-strings #'raw-module-path
                                 lang
@@ -118,8 +129,8 @@
       [(rename raw-module-path local-id exported-id)
        (begin
          (unless (eq? (syntax-e #'raw-module-path) (syntax-e lang))
-           (set-remove! sos (->str #'exported-id)))
-         (set-add! sos (->str #'local-id)))]
+           (remove! #'raw-module-path #'exported-id))
+         (add! #'raw-module-path #'local-id))]
       [raw-module-path
        (module-path? (syntax->datum #'raw-module-path))
        (module-exported-strings #'raw-module-path
@@ -128,7 +139,7 @@
   (define (module-exported-strings raw-module-path
                                    lang
                                    #:except [exceptions (set)]
-                                   #:prefix [prefix #'""])
+                                   #:prefix [prefix #f])
     ;; NOTE: Important to run module->exports with the correct
     ;; parameterization of current-namespace and
     ;; current-load-relative-directory.
@@ -138,25 +149,28 @@
     ;; completion candidates from drracket/check-syntax for
     ;; non-imported bindings. Our contribution is imported
     ;; definitions.
-    (with-handlers ([exn:fail? (λ _ sos)])
-      (define-values (vars stxs)
-        (module->exports (syntax->datum raw-module-path)))
+    (define-values (vars stxs)
+      (with-handlers ([exn:fail? (λ _ (values #f #f))])
+        (module->exports (syntax->datum raw-module-path))))
+    (when (and vars stxs)
       (define orig
-        (for*/mutable-set ([vars+stxs (in-list (list vars stxs))]
-                           [phases    (in-list vars+stxs)]
-                           [export    (in-list (cdr phases))])
+        (for*/set ([vars+stxs (in-list (list vars stxs))]
+                   [phases    (in-list vars+stxs)]
+                   [export    (in-list (cdr phases))])
           (->str (car export))))
       ;; If imports are from the module language, then {except rename
       ;; prefix}-in do NOT remove imports under the original name.
       ;; Otherwise they do.
       (if (eq? (syntax-e raw-module-path) (syntax-e lang))
-          (set-union! sos orig)
-          (set-subtract! sos orig exceptions))
-      (for ([v (in-set orig)])
-        (set-add! sos (~a (->str prefix) v)))))
+          (add-set! raw-module-path orig)
+          (remove-set! raw-module-path exceptions))
+      (if prefix
+          (for ([v (in-set orig)])
+            (add! raw-module-path (~a prefix (->str v))))
+          (add-set! raw-module-path orig))))
 
   (handle-module stx)
-  sos)
+  ht)
 
 (define (->str v)
   (match v
@@ -165,7 +179,7 @@
     [(? string?) v]))
 
 (define (syntax->string-set s)
-  (for/mutable-set ([s (in-syntax s)])
+  (for/set ([s (in-syntax s)])
     (->str s)))
 
 (define (symbolic-compare? x y)
@@ -187,13 +201,13 @@
 (module+ completions-example-2
   (require "syntax.rkt")
   (parameterize ([current-namespace (make-base-empty-namespace)])
-    (string->expanded-syntax "/tmp/foo.rkt" "#lang rhombus\n1"
+    (string->expanded-syntax "/tmp/foo.rkt" "#lang rhombus\n"
                              imports)))
 
 (module+ test
   (require rackunit
            version/utils)
-  ;; Compare the results to namespace-mapped-symbols.
+  ;; To compare the results to namespace-mapped-symbols.
   (module mod racket/base
     (module sub racket/base
       (define provided-by-submodule 42)
@@ -236,17 +250,17 @@
     ;; Test {prefix rename except}-in, keeping mind that they work
     ;; differently for requires that modify the module language
     ;; imports.
-    (check-false (set-member? cs "path-only")
+    (check-false (set-member? (hash-ref cs "racket/path") "path-only")
                  "rename-in not from module language hides old name")
-    (check-true (set-member? cs "PATH-ONLY")
+    (check-true (set-member? (hash-ref cs "racket/path") "PATH-ONLY")
                 "rename-in not from module language has new name ")
-    (check-true (set-member? cs "display")
+    (check-true (set-member? (hash-ref cs "racket/base") "display")
                 "rename-in from module language does not hide old name")
-    (check-true (set-member? cs "DISPLAY")
+    (check-true (set-member? (hash-ref cs "racket/base") "DISPLAY")
                 "rename-in from module language has new name")
-    (check-true (set-member? cs "displayln")
+    (check-true (set-member? (hash-ref cs "racket/base") "displayln")
                 "prefix-in from module language does not hide old name")
-    (check-true (set-member? cs "PREFIX:displayln")
+    (check-true (set-member? (hash-ref cs "racket/base") "PREFIX:displayln")
                 "prefix-in from module language is available under new name")
     ;; namespace-mapped-symbols will return some definitions beyond
     ;; those imported -- it includes {top module}-level bindings. This
@@ -259,7 +273,7 @@
     ;; Well, _our_ results are correct. For now, let's just do the
     ;; test on Racket 7.0+.
     (when (version<=? "7.0" (version))
-      (check-equal? (set-subtract nsms cs)
+      (check-equal? (set-subtract nsms (apply set-union (hash-values cs)))
                     (set "tmp.1" "nsms" "nsa" "provided-by-submodule")
                     "namespace-mapped-symbols returns only a few more, non-imported definitions")))
   ;; Issue 481

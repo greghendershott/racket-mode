@@ -18,18 +18,18 @@
                   (end (progn (forward-sexp  1) (point))))
               (when (<= (+ beg 2) end)  ;prefix at least 2 chars
                 (funcall proc beg end))))
-        (error nil)))
-  (let ((beg (save-excursion (skip-syntax-backward "^-()>") (point))))
-    (unless (or (eq beg (point-max))
-                (member (char-syntax (char-after beg)) '(?\" ?\( ?\))))
-      (condition-case _
-          (save-excursion
-            (goto-char beg)
-            (forward-sexp 1)
-            (let ((end (point)))
-              (when (<= (+ beg 2) end) ;prefix at least 2 chars
-               (funcall proc beg end))))
-        (error nil)))))
+        (error nil))
+    (let ((beg (save-excursion (skip-syntax-backward "^-()>") (point))))
+      (unless (or (eq beg (point-max))
+                  (member (char-syntax (char-after beg)) '(?\" ?\( ?\))))
+        (condition-case _
+            (save-excursion
+              (goto-char beg)
+              (forward-sexp 1)
+              (let ((end (point)))
+                (when (<= (+ beg 2) end) ;prefix at least 2 chars
+                  (funcall proc beg end))))
+          (error nil))))))
 
 (defun racket--in-require-form-p ()
   (unless forward-sexp-function ;not necessarily sexp lang
@@ -56,21 +56,36 @@
 (add-to-list 'completion-category-defaults
              `(,racket--identifier-category (styles basic)))
 
+(defconst racket--module-category 'racket-module
+  "Value for category metadata of module completion tables.")
+
+;; Suggest default; can customize via `completion-category-overrides'.
+(add-to-list 'completion-category-defaults
+             `(,racket--module-category (styles basic)))
+
 (defun racket--completion-table (completions &optional metadata)
-  "Like `completion-table-dynamic' but also metadata.
+  "Like `completion-table-dynamic' but also supplies metadata.
 
 METADATA defaults to `((category . ,`racket--identifier-category')).
 
-Category metadata needs to be returned by the completion table
-function itself, unlike metadata supplied as properties in the
-`completion-at-point-functions' list.
+Although sometimes completion metadata is specified as properties
+in a `completion-at-point-functions' item, sometimes that is
+insufficient or irrelevant -- as with category metadata, or, when
+CAPF isn't involved and instead the completion table is given
+directly to `completing-read'.
 
 Supplying category metadata allows the user to configure a
-completion matching style for that category."
+completion matching style for that category. It also prevents
+third party packages like marginalia from misclassifying and
+displaying inappropriate annotations."
   (lambda (prefix predicate action)
-    (if (eq action 'metadata)
-        (cons 'metadata (or metadata `((category . ,racket--identifier-category))))
-      (complete-with-action action completions prefix predicate))))
+    (pcase action
+      ('metadata
+       (cons 'metadata
+             (or metadata
+                 `((category . ,racket--identifier-category)))))
+      (_
+       (complete-with-action action completions prefix predicate)))))
 
 (provide 'racket-complete)
 

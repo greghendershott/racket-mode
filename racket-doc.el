@@ -22,19 +22,21 @@
 
 (defun racket--doc (prefix how completions)
   "A helper for `racket-xp-documentation' and `racket-repl-documentation'."
-  (let ((search-p (equal prefix '(16))))
-    (pcase (racket--symbol-at-point-or-prompt prefix
-                                              "Documentation for: "
-                                              (unless search-p completions)
-                                              search-p)
-      ((and (pred stringp) str)
-       (if search-p
-           (racket--search-doc str)
-         (racket--doc-assert-local-back-end)
-         (racket--doc-command (when (eq how 'namespace)
-                                (racket--repl-session-id))
-                              how
-                              str))))))
+  (racket--doc-assert-local-back-end)
+  (cond
+   ((equal prefix '(16))
+    (when-let (str (read-from-minibuffer
+                    "Search documentation for text: "))
+      (racket--search-doc str)))
+   (t
+    (when-let (str (racket--symbol-at-point-or-prompt
+                    prefix
+                    "Documentation for: "
+                    completions))
+      (racket--doc-command (when (eq how 'namespace)
+                             (racket--repl-session-id))
+                           how
+                           str)))))
 
 (defun racket--doc-command (repl-session-id how str)
   "A helper for `racket--doc', `racket-xp-describe', and `racket-repl-describe'.

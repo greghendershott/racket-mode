@@ -8,17 +8,81 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(require 'seq)
 (require 'racket-complete)
 (require 'racket-describe)
 (require 'racket-company-doc)
 
-(defvar-local racket--xp-binding-completions nil
-  "Completion candidates that are bindings.
-Set by `racket-xp-mode'. Used by `racket-xp-complete-at-point'.")
+(defvar-local racket--xp-completion-table-all nil
+  "A completion table of all bindings; for use by a CAPF.
+
+Includes both imports and lexical bindings. Better for use by
+`completion-at-point' in an edit buffer, because in general more
+completion candidates offer more opportunities to minimize
+typing.
+
+The table includes category and affixation-function metadata; the
+latter shows the module from which an identifier was imported,
+when not a lexical binding.")
+
+(defvar-local racket--xp-completion-table-imports nil
+  "A completion table of import bindings; for use in minibuffer.
+
+Includes only imports, not lexical bindings. Definitely better
+for use by commands that look up documentation. Sometimes better
+for use by `completing-read' in the minibuffer, because that
+returns strings stripped of all text properties -- unless a
+command is able to find a suitable matching string in the buffer
+and use its text properties.
+
+The table includes category and affixation-funciton metadata.")
+
+(defun racket--set-xp-binding-completions (mods+syms)
+  ;; The back end gives us data optimized for space when serializing:
+  ;;
+  ;;  ((modA symA0 symA1 ...)
+  ;;   (modB symB0 symB1 ...) ...)
+  ;;
+  ;; Reshape that to a list of strings, each propertized with is mod,
+  ;; for use as completion table.
+  (let ((all nil)
+        (imports nil)
+        (metadata `((category . ,racket--identifier-category)
+                    (affixation-function . ,#'racket--xp-binding-completion-affixator))))
+    (dolist (mod+syms mods+syms)
+      (pcase-let ((`(,mod . ,syms) mod+syms))
+        (dolist (sym syms)
+          (push (propertize sym 'racket-module mod) all)
+          (when mod
+            (push (propertize sym 'racket-module mod) imports)))))
+    (setq racket--xp-completion-table-all
+          (racket--completion-table all metadata))
+    (setq racket--xp-completion-table-imports
+          (racket--completion-table imports metadata))))
+
+(defun racket--xp-binding-completion-affixator (strs)
+  "Value for :affixation-function."
+  (let ((max-len (seq-reduce (lambda (max-len str)
+                               (max max-len (1+ (length str))))
+                             strs
+                             15)))
+    (seq-map (lambda (str)
+               (let* ((leading-space (make-string (- max-len (length str)) 32))
+                      (mod (get-text-property 0 'racket-module str))
+                      (suffix (or mod ""))
+                      (suffix (propertize suffix 'face 'completions-annotations))
+                      (suffix (concat leading-space suffix)))
+                 (list str "" suffix)))
+             strs)))
 
 (defvar-local racket--xp-module-completions nil
-  "Completion candidates that are available collection module paths.
-Set by `racket-xp-mode'. Used by `racket-xp-complete-at-point'.")
+  "A completion table for available collection module paths.
+Do not `setq' directly; instead call `racket--xp-set-module-completions'.")
+
+(defun racket--set-xp-module-completions (completions)
+  (setq-local racket--xp-module-completions
+              (racket--completion-table completions
+                                        `((category . ,racket--module-category)))))
 
 (defun racket-xp-complete-at-point ()
   "A value for the variable `completion-at-point-functions'.
@@ -51,10 +115,11 @@ Set by `racket-xp-mode'. Used by `racket-xp-complete-at-point'.")
 (defun racket--xp-capf-bindings (beg end)
   (list beg
         end
-        (racket--completion-table racket--xp-binding-completions)
-        :exclusive          'no
-        :company-location   (racket--xp-make-company-location-proc)
-        :company-doc-buffer (racket--xp-make-company-doc-buffer-proc)))
+        racket--xp-completion-table-all
+        :affixation-function #'racket--xp-binding-completion-affixator
+        :exclusive           'no
+        :company-location    (racket--xp-make-company-location-proc)
+        :company-doc-buffer  (racket--xp-make-company-doc-buffer-proc)))
 
 (defun racket--xp-capf-require-transformers (beg end)
   "Note: Currently this returns too many candidates -- all
@@ -70,23 +135,15 @@ that are require transformers."
 (defun racket--xp-capf-absolute-module-paths (beg end)
   (list beg
         end
-        (racket--completion-table racket--xp-module-completions)
+        racket--xp-module-completions
         :exclusive 'no))
 
 (defun racket--xp-capf-relative-module-paths ()
-  (pcase (thing-at-point 'filename t)
-    ((and (pred stringp) str)
-     (pcase-let ((`(,beg . ,end) (bounds-of-thing-at-point 'filename)))
-       (pcase (completion-file-name-table str #'file-exists-p t)
-         ((and (pred listp) table)
-          (let* ((dir (file-name-directory str))
-                 (table (mapcar (lambda (v) (concat dir v)) ;#466
-                                table)))
-            (list beg
-                  end
-                  (racket--completion-table table
-                                            '((category . file)))
-                  :exclusive 'no))))))))
+  (when-let (bounds (bounds-of-thing-at-point 'filename))
+    (list (car bounds)
+          (cdr bounds)
+          #'completion-file-name-table
+          :exclusive 'no)))
 
 (defun racket--xp-make-company-location-proc ()
   (when (racket--cmd-open-p)

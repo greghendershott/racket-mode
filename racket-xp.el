@@ -278,7 +278,7 @@ commands directly to whatever keys you prefer.
          (racket--cmd/async nil
                             `(module-names)
                             (lambda (result)
-                              (setq racket--xp-module-completions result)))
+                              (racket--set-xp-module-completions result)))
          (add-hook 'xref-backend-functions
                    #'racket-xp-xref-backend-function
                    nil t)
@@ -427,7 +427,7 @@ manually."
             (when (equal next-error-last-buffer (current-buffer))
               (setq next-error-last-buffer nil))
             (racket--xp-clear)
-            (setq racket--xp-binding-completions completions)
+            (racket--set-xp-binding-completions completions)
             (setq racket--xp-imenu-index imenu)
             (racket--xp-insert annotations)
             (racket--xp-set-status 'ok)
@@ -572,7 +572,7 @@ point."
     (remove-text-properties (point-min) (point-max)
                             (list 'help-echo nil))
     (unless only-errors-p
-      (setq racket--xp-binding-completions nil)
+      (racket--set-xp-binding-completions nil)
       (setq racket--xp-imenu-index nil)
       (racket--remove-overlays-in-buffer racket-xp-def-face
                                          racket-xp-use-face
@@ -593,63 +593,6 @@ point."
                                     ;; where WE added this, and
                                     ;; remove only those.
                                     'font-lock-face          nil)))))
-
-;;; xref
-
-(defun racket-xp-describe (&optional prefix)
-  "Describe the identifier at point.
-
-The command varies based on how many \\[universal-argument] command prefixes you supply.
-\\<racket-xp-mode-map>
-
-- \\[racket-xp-describe]
-
-  Uses the symbol at point. If no such symbol exists, you are
-  prompted enter the identifier, but in this case it only
-  considers definitions or imports at the file's module level --
-  not local bindings nor definitions in submodules.
-
-  - If the identifier has installed Racket documentation, then a
-    simplified version of the HTML is presented in the buffer,
-    including the \"blue box\", documentation prose, and
-    examples.
-
-  - Otherwise, if the identifier is a function, then its
-    signature is displayed, for example \"\(name arg-1-name
-    arg-2-name\)\".
-
-- \\[universal-argument] \\[racket-xp-describe]
-
-  Always prompts you to enter a symbol, defaulting to the symbol
-  at point if any.
-
-- \\[universal-argument] \\[universal-argument] \\[racket-xp-describe]
-
-  This is an alias for `racket-describe-search', which uses
-  installed documentation in a `racket-describe-mode' buffer
-  instead of an external web browser.
-
-The intent is to give a quick reminder or introduction to
-something, regardless of whether it has installed documentation
--- and to do so within Emacs, without switching to a web browser.
-
-This buffer is also displayed when you use `company-mode' and
-press F1 or C-h in its pop up completion list."
-  (interactive "P")
-  (if (equal prefix '(16))
-      (racket-describe-search)
-    (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
-                                              racket--xp-binding-completions)
-      ((and (pred stringp) str)
-       ;; When there is a racket-xp-doc property, use its path and
-       ;; anchor, because that will be correct even for an identifier
-       ;; in a submodule with different imports than the file module.
-       ;; Else supply the file path-str, and the "describe" command
-       ;; will treat it as a file module identifier.
-       (let ((how (pcase (get-text-property (point) 'racket-xp-doc)
-                    (`(,path ,anchor) `(,path . ,anchor))
-                    (_                (racket--buffer-file-name)))))
-         (racket--do-describe how nil str))))))
 
 (defun racket-xp-eldoc-function ()
   "A value for the variable `eldoc-documentation-function'.
@@ -835,7 +778,7 @@ command prefixes you supply.
     ((and `(,path ,anchor) (guard (not prefix)))
      (racket-browse-file-url path anchor))
     (_
-     (racket--doc prefix (buffer-file-name) racket--xp-binding-completions))))
+     (racket--doc prefix (buffer-file-name) racket--xp-completion-table-imports))))
 
 ;;; Navigation
 
@@ -1044,7 +987,98 @@ around at the first and last errors."
   (interactive)
   (previous-error))
 
+;;; describe
+
+(defun racket-xp-describe (&optional prefix)
+  "Describe the identifier at point.
+
+The command varies based on how many \\[universal-argument] command prefixes you supply.
+\\<racket-xp-mode-map>
+
+- \\[racket-xp-describe]
+
+  Uses the symbol at point. If no such symbol exists, you are
+  prompted enter the identifier, but in this case it only
+  considers definitions or imports at the file's module level --
+  not local bindings nor definitions in submodules.
+
+  - If the identifier has installed Racket documentation, then a
+    simplified version of the HTML is presented in the buffer,
+    including the \"blue box\", documentation prose, and
+    examples.
+
+  - Otherwise, if the identifier is a function, then its
+    signature is displayed, for example \"\(name arg-1-name
+    arg-2-name\)\".
+
+- \\[universal-argument] \\[racket-xp-describe]
+
+  Always prompts you to enter a symbol, defaulting to the symbol
+  at point if any.
+
+- \\[universal-argument] \\[universal-argument] \\[racket-xp-describe]
+
+  This is an alias for `racket-describe-search', which uses
+  installed documentation in a `racket-describe-mode' buffer
+  instead of an external web browser.
+
+The intent is to give a quick reminder or introduction to
+something, regardless of whether it has installed documentation
+-- and to do so within Emacs, without switching to a web browser.
+
+This buffer is also displayed when you use `company-mode' and
+press F1 or C-h in its pop up completion list."
+  (interactive "P")
+  (if (equal prefix '(16))
+      (racket-describe-search)
+    (pcase (racket--symbol-at-point-or-prompt
+            prefix "Describe: "
+            racket--xp-completion-table-all)
+      ((and (pred stringp) str)
+       ;; When user did /not/ supply command prefix to input an
+       ;; arbitrary string, we can look for a racket-xp-doc property
+       ;; at point. If available, use its path and anchor, because
+       ;; that will be correct even for an identifier in a submodule
+       ;; with different imports than the file module. Otherwise
+       ;; supply the file's path, and the "describe" command will
+       ;; treat str as a file module identifier.
+       (let ((how (pcase (and (not prefix)
+                              (get-text-property (point) 'racket-xp-doc))
+                    (`(,path ,anchor) `(,path . ,anchor))
+                    (_                (racket--buffer-file-name)))))
+         (racket--do-describe how nil str))))))
+
 ;;; xref
+
+(defconst racket--xp-props-for-xref
+  '(racket-xp-require
+    racket-xp-visit
+    racket-xp-use
+    racket-xp-def))
+
+(defun racket--xp-props-for-xref-at (pos &optional object)
+  (when-let (plist (text-properties-at pos object))
+    (seq-some (lambda (p) (plist-member plist p))
+              racket--xp-props-for-xref)))
+
+(defun racket--xp-find-propertized-string (str)
+  "Find string in buffer matching STR and having one of our properties.
+When found, returns the buffer string and all its properties,
+else returns STR."
+  (save-restriction
+    (widen)
+    (save-excursion
+      (goto-char (point-min))
+      (save-match-data
+        (let ((result nil))
+          (while (and (not result)
+                      (< (point) (point-max)))
+            (if (search-forward str nil t)
+                (when (and (equal (thing-at-point 'symbol) str)
+                           (racket--xp-props-for-xref-at (match-beginning 0)))
+                  (setq result (match-string 0)))
+             (goto-char (point-max))))
+          (or result str))))))
 
 (defun racket-xp-xref-backend-function ()
   'racket-xp-xref)
@@ -1055,60 +1089,72 @@ around at the first and last errors."
                     (let* ((end (next-single-property-change (point) prop))
                            (beg (previous-single-property-change end prop)))
                       (save-restriction (widen) (buffer-substring beg end)))))
-                ;; Consider same props our xref-backend-definitions
-                ;; method looks for.
-                '(racket-xp-require
-                  racket-xp-visit
-                  racket-xp-use
-                  racket-xp-def))
+                racket--xp-props-for-xref)
       (thing-at-point 'symbol)))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql racket-xp-xref)))
-  (completion-table-dynamic
-   (lambda (prefix)
-     (all-completions prefix racket--xp-binding-completions))))
+  racket--xp-completion-table-all)
 
 (cl-defmethod xref-backend-definitions ((_backend (eql racket-xp-xref)) str)
-  (or
-   ;; Something annotated as add-open-reuqire-menu by drracket/check-syntax
-   (when-let (path (get-text-property 0 'racket-xp-require str))
-     (list (xref-make str (xref-make-file-location path 1 0))))
-   ;; Something annotated for jump-to-definition by drracket/check-syntax
-   (pcase (get-text-property 0 'racket-xp-visit str)
-     (`(,path ,subs ,ids)
-      (pcase (racket--cmd/await nil
-                                `(def/drr
-                                   ,(racket-file-name-front-to-back
-                                     (racket--buffer-file-name))
-                                   ,(racket-file-name-front-to-back path)
-                                   ,subs
-                                   ,ids))
+  ;; If xref used `completing-read', then STR will have no text
+  ;; properties, which limits what we can do with it. Try to find a
+  ;; matching string in the buffer to use, so we can use one of its
+  ;; `racket--xp-props-for-xref'.
+  (let ((str (if (not (racket--xp-props-for-xref-at 0 str))
+                 (racket--xp-find-propertized-string str)
+               str)))
+    (list
+     (or
+      ;; Something annotated as add-open-require-menu by drracket/check-syntax
+      (when-let (path (get-text-property 0 'racket-xp-require str))
+        (list (xref-make str (xref-make-file-location path 1 0))))
+      ;; Something annotated for jump-to-definition by drracket/check-syntax
+      (pcase (get-text-property 0 'racket-xp-visit str)
+        (`(,path ,subs ,ids)
+         (pcase (racket--cmd/await nil
+                                   `(def/drr
+                                      ,(racket-file-name-front-to-back
+                                        (racket--buffer-file-name))
+                                      ,(racket-file-name-front-to-back path)
+                                      ,subs
+                                      ,ids))
+           (`(,path ,line ,col)
+            (xref-make str
+                       (xref-make-file-location
+                        (racket-file-name-back-to-front path) line col))))))
+      (pcase (get-text-property 0 'racket-xp-use str)
+        (`(,beg ,end)
+         (xref-make (save-restriction (widen) (buffer-substring beg end))
+                    (xref-make-buffer-location (current-buffer)
+                                               (marker-position beg)))))
+      (pcase (get-text-property 0 'racket-xp-def str)
+        (`(local ,id ((,use-beg ,_use-end) . ,_))
+         (when-let (def-beg (car (get-text-property use-beg 'racket-xp-use)))
+           (xref-make id
+                      (xref-make-buffer-location (current-buffer)
+                                                 (marker-position def-beg)))))
+        ;; Annotated by dr/cs as imported module; visit the module
+        (`(import ,id . ,_)
+         (xref-backend-definitions 'racket-xref-module id)))
+      ;; Something that, for whatever reason, drracket/check-syntax
+      ;; did not annotate. Use the back end `def` command (although it
+      ;; can only find definitions imported at the file module level,
+      ;; not submodules, since all we give it is a plain string and no
+      ;; position.)
+      (pcase (racket--cmd/await nil `(def ,(racket-file-name-front-to-back
+                                            (racket--buffer-file-name))
+                                          ,(substring-no-properties str)))
         (`(,path ,line ,col)
-         (list (xref-make str
-                          (xref-make-file-location
-                           (racket-file-name-back-to-front path) line col)))))))
-   (pcase (get-text-property 0 'racket-xp-use str)
-     (`(,beg ,end)
-      (list
-       (xref-make (save-restriction (widen) (buffer-substring beg end))
-                  (xref-make-buffer-location (current-buffer)
-                                             (marker-position beg))))))
-   ;; Annotated by dr/cs as imported module; visit the module
-   (pcase (get-text-property 0 'racket-xp-def str)
-     (`(import ,id . ,_)
-      (xref-backend-definitions 'racket-xref-module id)))
-   ;; Something that, for whatever reason, drracket/check-syntax did
-   ;; not annotate.
-   (pcase (racket--cmd/await nil `(def ,(racket-file-name-front-to-back
-                                         (racket--buffer-file-name))
-                                       ,(substring-no-properties str)))
-     (`(,path ,line ,col)
-      (list (xref-make str
-                       (xref-make-file-location path line col))))
-     (`kernel
-      (list (xref-make str
-                       (xref-make-bogus-location
-                        "Defined in #%%kernel -- source not available")))))))
+         (xref-make str
+                    (xref-make-file-location path line col)))
+        (`kernel
+         (xref-make str
+                    (xref-make-bogus-location
+                     "Defined in #%%kernel -- source not available")))
+        (_
+         (xref-make str
+                    (xref-make-bogus-location
+                     "Cannot find definition; maybe if identifier is imported in a submodule but not used"))))))))
 
 (cl-defmethod xref-backend-references ((backend (eql racket-xp-xref)) str)
   ;; Note: Our ability to find references is limited to those
