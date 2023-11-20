@@ -1491,14 +1491,16 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
 (defun racket--repl-forget-errors ()
   "Forget existing errors in the REPL.
 Although they remain clickable they will be ignored by
-`next-error' and `previous-error'"
+`next-error' and `previous-error'."
   (with-racket-repl-buffer
     (setq racket--errors-reset t)
-    (setq racket--errors-point-min (point-max))))
+    (setq racket--errors-point-min (point-max))
+    ;; Set this so `next-error-find-buffer' chooses us.
+    (setq next-error-last-buffer (current-buffer))))
 (add-hook 'racket--repl-before-run-hook #'racket--repl-forget-errors)
 
 (defun racket-repl-next-error (count reset)
-  "A value for `next-error-function'."
+  "A value for the variable `next-error-function'."
   (let ((prop 'racket-error-loc))
     (cl-flet* ((get () (get-text-property (point) prop))
                (next () (next-single-property-change (point) prop))

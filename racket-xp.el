@@ -53,8 +53,8 @@ everything. If you find that too \"noisy\", set this to nil.")
      (">" ,#'racket-xp-tail-next-sibling)
      ("<" ,#'racket-xp-tail-previous-sibling)
      ("g" ,#'racket-xp-annotate)
-     ("N" ,#'racket-xp-next-error)
-     ("P" ,#'racket-xp-previous-error))))
+     ("N" ,#'next-error)
+     ("P" ,#'previous-error))))
 
 (defvar racket-xp-mode-map
   (racket--easy-keymap-define
@@ -67,8 +67,8 @@ everything. If you find that too \"noisy\", set this to nil.")
 (easy-menu-define racket-xp-mode-menu racket-xp-mode-map
   "Menu for `racket-xp-mode'."
   '("Racket-XP"
-    ["Next Error" racket-xp-next-error]
-    ["Previous Error" racket-xp-previous-error]
+    ["Next Error" next-error]
+    ["Previous Error" previous-error]
     "---"
     ["Next Definition" racket-xp-next-definition]
     ["Previous Definition" racket-xp-previous-definition]
@@ -225,10 +225,10 @@ and use the `racket-xp-annotate' command manually.
 The mode line changes to reflect the current status of
 annotations, and whether or not you had a syntax error.
 
-If you have one or more syntax errors, `racket-xp-next-error' and
-`racket-xp-previous-error' navigate among them. Although most
-languages will stop after the first syntax error, some like Typed
-Racket will try to collect and report multiple errors.
+If you have one or more syntax errors, `next-error' and
+`previous-error' navigate among them. Although most languages
+will stop after the first syntax error, some like Typed Racket
+will try to collect and report multiple errors.
 
 You may use `xref-find-definitions' \\[xref-find-definitions],
 `xref-pop-marker-stack' \\[xref-pop-marker-stack], and
@@ -283,6 +283,7 @@ commands directly to whatever keys you prefer.
                    #'racket-xp-xref-backend-function
                    nil t)
          (setq-local imenu-create-index-function #'racket-xp-imenu-create-index-function)
+         (setq-local next-error-function #'racket-xp-next-error-function)
          (add-hook 'pre-redisplay-functions
                    #'racket-xp-pre-redisplay
                    nil t))
@@ -298,6 +299,7 @@ commands directly to whatever keys you prefer.
          (add-hook 'completion-at-point-functions
                    #'racket-complete-at-point
                    t t)
+         (setq-local next-error-function nil)
          (setq-local imenu-create-index-function #'racket-imenu-create-index-function)
          (remove-hook 'xref-backend-functions
                       #'racket-xp-xref-backend-function
@@ -417,6 +419,11 @@ manually."
               (completions . ,completions)
               (imenu       . ,imenu)
               (annotations . ,annotations))
+            ;; We have no errors; allow `next-error-find-buffer' to
+            ;; pick some other buffer, such as a `racket-repl-mode'
+            ;; buffer that set this when it ran.
+            (when (equal next-error-last-buffer (current-buffer))
+              (setq next-error-last-buffer nil))
             (racket--xp-clear)
             (setq racket--xp-binding-completions completions)
             (setq racket--xp-imenu-index imenu)
@@ -427,6 +434,8 @@ manually."
            (`(check-syntax-errors
               (errors      . ,errors)
               (annotations . ,annotations))
+            ;; Set this so `next-error-find-buffer' chooses us.
+            (setq next-error-last-buffer (current-buffer))
             ;; Don't do full `racket--xp-clear': The old completions and
             ;; some old annotations may be helpful to user while editing
             ;; to correct the error. However do clear things related to
@@ -976,20 +985,16 @@ Moving before/after the first/last tail wraps around."
         (vconcat racket--xp-errors
                  (vector (list path beg str)))))
 
-(defun racket--xp-next-error (&optional amt reset)
+(defun racket-xp-next-error-function (&optional amt reset)
   "Move AMT errors, if any.
 
-If there are any check-syntax errors, moves among them, wrapping
-around at the first and last errors.
+A value for the variable `next-error-function'.
 
-Otherwise delegate to `next-error'. That way, things still work
-as you would want when using `racket-run' -- e.g. for runtime
-evaluation errors that won't be found merely from expansion -- or
-`compilation-mode'."
+If there are any check-syntax errors, moves among them, wrapping
+around at the first and last errors."
   (interactive)
   (let ((len (length racket--xp-errors)))
-    (if (zerop len)
-        (next-error amt reset)
+    (unless (zerop len)
       (if reset
           (setq racket--xp-errors-index 0)
         (setq racket--xp-errors-index
@@ -1005,15 +1010,17 @@ evaluation errors that won't be found merely from expansion -- or
                (goto-char pos)))
         (message "%s" str)))))
 
+(make-obsolete 'racket-xp-next-error 'next-error "2023-11-20")
 (defun racket-xp-next-error ()
-  "Go to the next error."
+  "An obsolete alias for `next-error'."
   (interactive)
-  (racket--xp-next-error 1 nil))
+  (next-error))
 
+(make-obsolete 'racket-xp-previous-error 'previous-error "2023-11-20")
 (defun racket-xp-previous-error ()
-  "Go to the previous error."
+  "An obsolete alias for `previous-error'."
   (interactive)
-  (racket--xp-next-error -1 nil))
+  (previous-error))
 
 ;;; xref
 
