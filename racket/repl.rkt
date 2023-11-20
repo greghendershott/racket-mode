@@ -167,10 +167,11 @@
   (log-racket-mode-info "starting repl session ~v" session-id)
   ;; Make pipe for user program input (as distinct form repl-submit
   ;; input).
-  (parameterize* ([current-session-id    session-id]
-                  [current-repl-msg-chan (make-channel)]
-                  [current-submissions   (make-channel)]
-                  [error-display-handler racket-mode-error-display-handler])
+  (parameterize* ([current-session-id          session-id]
+                  [current-repl-output-manager (make-repl-output-manager session-id)]
+                  [current-repl-msg-chan       (make-channel)]
+                  [current-submissions         (make-channel)]
+                  [error-display-handler       racket-mode-error-display-handler])
     (set-session! session-id #f)
     (do-run
      (initial-run-config

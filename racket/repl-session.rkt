@@ -12,6 +12,7 @@
          current-repl-msg-chan
          current-submissions
          current-session-maybe-mod
+         current-repl-output-manager
          (struct-out session)
          get-session
          set-session!
@@ -24,6 +25,7 @@
 
 (struct session
   (thread           ;thread? the repl manager thread
+   repl-out-mgr     ;thread? the repl output manager thread
    repl-msg-chan    ;channel?
    submissions      ;channel?
    maybe-mod        ;(or/c #f module-path?)
@@ -35,6 +37,7 @@
 
 (define (set-session! sid maybe-mod)
   (hash-set! sessions sid (session (current-thread)
+                                   (current-repl-output-manager)
                                    (current-repl-msg-chan)
                                    (current-submissions)
                                    maybe-mod
@@ -49,6 +52,7 @@
 (define current-repl-msg-chan (make-parameter #f))
 (define current-submissions (make-parameter #f))
 (define current-session-maybe-mod (make-parameter #f))
+(define current-repl-output-manager (make-parameter #f))
 
 ;; A way to parameterize e.g. commands that need to work with a
 ;; specific REPL session. Called from e.g. a command-server thread.
@@ -57,6 +61,7 @@
     [(? session? s)
      (log-racket-mode-debug @~a{@~v[@car[args]]: using session ID @~v[sid]})
      (parameterize ([current-session-id          sid]
+                    [current-repl-output-manager (session-repl-out-mgr s)]
                     [current-repl-msg-chan       (session-repl-msg-chan s)]
                     [current-submissions         (session-submissions s)]
                     [current-session-maybe-mod   (session-maybe-mod s)]
