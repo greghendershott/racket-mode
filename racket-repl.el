@@ -1305,8 +1305,8 @@ The command varies based on how many \\[universal-argument] command prefixes you
      ("M-p"             racket-repl-previous-input)
      ("M-n"             racket-repl-next-input)
      ("C-c C-u"         racket-repl-clear-input)
-     ("C-c C-p"         racket-repl-previous-prompt)
-     ("C-c C-n"         racket-repl-next-prompt)
+     ("C-c C-p"         racket-repl-previous-prompt-or-run)
+     ("C-c C-n"         racket-repl-next-prompt-or-run)
      ("C-c C-o"         racket-repl-delete-output)
      ("C-c C-e f"       racket-expand-file)
      ("C-c C-e x"       racket-expand-definition)
@@ -1527,25 +1527,49 @@ Although they remain clickable they will be ignored by
 
 ;;; Nav
 
+(defun racket--repl-after-previous-field (kinds)
+  ;; If already desired kind of field, move before
+  (when (and (not (bobp))
+             (memq (field-at-pos (point)) kinds))
+    (goto-char (field-beginning (point) t)))
+  ;; While not desired kind of field, move before.
+  (while (and (not (bobp))
+              (not (memq (field-at-pos (point)) kinds)))
+    (goto-char (field-beginning (point) t))))
+
+(defun racket--repl-after-next-field (kinds)
+  ;; If already desired kind of field, move after it.
+  (when (and (not (eobp))
+             (memq (field-at-pos (1+ (point))) kinds))
+    (goto-char (field-end (point) t)))
+  ;; While not desired kind of field, move after.
+  (while (and (not (eobp))
+              (not (memq (field-at-pos (1+ (point))) kinds)))
+    (goto-char (field-end (point) t)))
+  ;; When we've found the desired kind, move after it.
+  (when (and (not (eobp))
+             (memq (field-at-pos (1+ (point))) kinds))
+    (goto-char (field-end (point) t))))
+
 (defun racket-repl-previous-prompt ()
   "Move to the character after the previous prompt."
   (interactive)
-  (cl-flet* ((prev (pos) (previous-single-property-change pos 'racket-prompt))
-             (go-prev () (goto-char (or (prev (point)) (point-min))))
-             (in-prompt () (get-text-property (point) 'racket-prompt)))
-    (go-prev)
-    (when (in-prompt)
-      (go-prev))))
+  (racket--repl-after-previous-field '(prompt)))
 
 (defun racket-repl-next-prompt ()
   "Move to the character after the next prompt."
   (interactive)
-  (cl-flet* ((next (pos) (next-single-property-change pos 'racket-prompt))
-             (go-next () (goto-char (or (next (point)) (point-max))))
-             (in-prompt () (get-text-property (point) 'racket-prompt)))
-    (go-next)
-    (when (in-prompt)
-      (go-next))))
+  (racket--repl-after-next-field '(prompt)))
+
+(defun racket-repl-previous-prompt-or-run ()
+  "Move to the character after the previous prompt or run."
+  (interactive)
+  (racket--repl-after-previous-field '(prompt run)))
+
+(defun racket-repl-next-prompt-or-run ()
+  "Move to the character after the next prompt or run."
+  (interactive)
+  (racket--repl-after-next-field '(prompt run)))
 
 (defun racket-repl-delete-output ()
   "Delete output from REPL interaction.
@@ -1553,28 +1577,35 @@ Although they remain clickable they will be ignored by
 When point is within a prompt or input, delete the output of the
 previous interaction.
 
-When point is within output, delete that output."
+When point is within output, delete all of that congtiguous
+output."
   (interactive)
-  (let ((pt (point))
-        (end-of-input (progn
-                        (when (eq (get-text-property (point) 'field) 'input)
-                          (goto-char (field-beginning (1+ (point)))))
-                        (racket-repl-previous-prompt)
-                        (if (bobp)
-                            (point-min)
-                          (field-end (1+ (point))))))
-        (end-of-output (progn
-                         (racket-repl-next-prompt)
-                         (forward-line 0)
-                         (point))))
-    (goto-char pt)
-    (let ((inhibit-read-only t))
-      (delete-region end-of-input end-of-output)
-      (save-excursion
-        (goto-char end-of-input)
-        (insert (propertize "(output deleted)\n"
-                            'read-only t
-                            'font-lock-face racket-repl-message))))))
+  (let* ((pt (point))
+         (output-fields '(value stdout stderr))
+         (beg-of-output (progn
+                          ;; Skip backward over non-output fields
+                          (while (and (not (bobp))
+                                      (not (memq (field-at-pos (point)) output-fields)))
+                            (goto-char (field-beginning (point) t)))
+                          ;; Skip backward over output fields
+                          (while (and (not (bobp))
+                                      (memq (field-at-pos (point)) output-fields))
+                            (goto-char (field-beginning (point) t)))
+                          (point)))
+         (end-of-output (progn
+                          (while (and (not (eobp))
+                                      (memq (field-at-pos (1+ (point))) output-fields))
+                            (goto-char (field-end (point) t)))
+                          (point))))
+    (if (< beg-of-output end-of-output)
+        (let ((inhibit-read-only t))
+          (delete-region beg-of-output end-of-output)
+          (save-excursion
+            (goto-char beg-of-output)
+            (insert (propertize "(output deleted)\n"
+                                'read-only t
+                                'font-lock-face racket-repl-message))))
+      (goto-char pt))))
 
 ;;; Input history
 
