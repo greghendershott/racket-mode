@@ -1586,9 +1586,10 @@ output."
          (output-fields '(value stdout stderr))
          (beg-of-output (progn
                           ;; Skip backward over non-output fields
-                          (while (and (not (bobp))
-                                      (not (memq (field-at-pos (point)) output-fields)))
-                            (goto-char (field-beginning (point) t)))
+                          (unless (memq (get-text-property (point) 'field) output-fields)
+                            (while (and (not (bobp))
+                                        (not (memq (field-at-pos (point)) output-fields)))
+                              (goto-char (field-beginning (point) t))))
                           ;; Skip backward over output fields
                           (while (and (not (bobp))
                                       (memq (field-at-pos (point)) output-fields))
@@ -1596,7 +1597,12 @@ output."
                           (point)))
          (end-of-output (progn
                           (while (and (not (eobp))
-                                      (memq (field-at-pos (1+ (point))) output-fields))
+                                      (or (memq (field-at-pos (1+ (point))) output-fields)
+                                          ;; After stdout/stderr there
+                                          ;; might be a \n with nil
+                                          ;; field property.
+                                          (and (not (field-at-pos (1+ (point))))
+                                               (eq ?\n (char-after)))))
                             (goto-char (field-end (point) t)))
                           (point))))
     (if (< beg-of-output end-of-output)
@@ -1607,6 +1613,7 @@ output."
             (insert (propertize "(output deleted)\n"
                                 'read-only t
                                 'font-lock-face racket-repl-message))))
+      (user-error "Can't find output to delete")
       (goto-char pt))))
 
 ;;; Input history
