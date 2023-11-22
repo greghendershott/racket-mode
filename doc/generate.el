@@ -188,7 +188,7 @@
     racket-browse-url-function
     racket-xp-after-change-refresh-delay
     racket-xp-highlight-unused-regexp
-    racket-xp-binding-font-lock-face-modes
+    racket-xp-add-binding-faces
     racket-documentation-search-location
     "Hash lang variables"
     racket-hash-lang-token-face-alist

@@ -230,28 +230,15 @@
             (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation)))))
        (1 font-lock-keyword-face nil t)
        (2 font-lock-function-name-face nil t))))
-  "Parens, modules, function/variable identifiers, syntax-")
+  "Definition forms, let-bound identifiers, module forms.")
 
 (defconst racket-font-lock-keywords-3
   (eval-when-compile
     `((,(regexp-opt racket-keywords 'symbols) . font-lock-keyword-face)
       (,(regexp-opt racket-builtins-1-of-2 'symbols) . font-lock-builtin-face)
       (,(regexp-opt racket-builtins-2-of-2 'symbols) . font-lock-builtin-face)
-      (,(regexp-opt racket-type-list 'symbols) . font-lock-type-face)
-
-      ;; pretty lambda (deprecated)
-      (,(rx (syntax open-parenthesis)
-            (? (or "case-" "match-" "opt-"))
-            (group "lambda")
-            (or word-end symbol-end))
-       1
-       (ignore
-        (when racket-pretty-lambda
-          (compose-region (match-beginning 1)
-                          (match-end       1)
-                          racket-lambda-char)))
-       nil t)))
-  "Function/variable identifiers, Typed Racket types.
+      (,(regexp-opt racket-type-list 'symbols) . font-lock-type-face)))
+  "A curated list of popular Racket lang identifiers and Typed Racket types.
 
 Note: To the extent you use #lang racket or #typed/racket, this
 may be handy. But Racket is also a tool to make #lang's, and this

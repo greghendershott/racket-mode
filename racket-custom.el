@@ -146,8 +146,8 @@ an underline, which is a common convention."
   :safe #'stringp
   :group 'racket-xp)
 
-(defcustom racket-xp-binding-font-lock-face-modes '(racket-hash-lang-mode)
-  "Major modes where `racket-xp-mode' will fontify binding identifier sites.
+(defcustom racket-xp-add-binding-faces nil
+  "Have `racket-xp-mode' fontify binding identifier sites.
 
 A \\='font-lock-face property is added for bindings from:
 
@@ -197,9 +197,8 @@ significant, and a matter of personal preference.
 
   - If you prefer a more \"colorful\" appearance, similar to
     \"classic\" `racket-mode': Do /not/ map \\='symbol tokens in
-    this list. Instead enable `racket-xp-mode' and let it do
-    \"semantic\" highlighting of bindings; see the customization
-    variable `racket-xp-binding-font-lock-face-modes'.
+    this list. See `racket-hash-lang-module-language-hook' for
+    ideas.
 
 Note: Some tokens are hardwired and not customizable by this
 list: Comment tokens use the face `font-lock-comment-face',

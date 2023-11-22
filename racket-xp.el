@@ -451,83 +451,80 @@ manually."
   "Insert text properties."
   (with-silent-modifications
     (overlay-recenter (point-max))
-    (let ((binding-font-lock-face-p (and (memq major-mode
-                                               racket-xp-binding-font-lock-face-modes)
-                                         t)))
-      (dolist (x xs)
-        (pcase x
-          (`(error ,path ,beg ,end ,str)
-           (let ((path (racket-file-name-back-to-front path)))
-             (racket--xp-add-error path beg str)
-             (when (equal path (racket--buffer-file-name))
-               (remove-text-properties
-                beg end
-                (list 'help-echo     nil
-                      'racket-xp-def nil
-                      'racket-xp-use nil))
-               (racket--add-overlay beg end racket-xp-error-face)
-               (add-text-properties
-                beg end
-                (list 'help-echo str)))))
-          (`(info ,beg ,end ,str)
-           (put-text-property beg end 'help-echo str)
-           (when (and (string-equal str "no bound occurrences")
-                      (string-match-p racket-xp-highlight-unused-regexp
-                                      (buffer-substring beg end)))
-             (racket--add-overlay beg end racket-xp-unused-face)))
-          (`(unused-require ,beg ,end)
-           (put-text-property beg end 'help-echo "unused require")
-           (racket--add-overlay beg end racket-xp-unused-face))
-          (`(require ,beg ,end ,file)
-           (put-text-property beg end 'racket-xp-require file))
-          (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
-           (let ((def-beg (copy-marker def-beg t))
-                 (def-end (copy-marker def-end t))
-                 (uses    (mapcar (lambda (use)
-                                    (mapcar (lambda (pos)
-                                              (copy-marker pos t))
-                                            use))
-                                  uses)))
-             (put-text-property (marker-position def-beg)
-                                (marker-position def-end)
-                                'racket-xp-def (list req id uses))
-             (when binding-font-lock-face-p
-               (racket--xp-add-def-face (marker-position def-beg)
-                                        (marker-position def-end)
-                                        req))
-             (dolist (use uses)
-               (pcase-let* ((`(,use-beg ,use-end) use))
-                 (put-text-property (marker-position use-beg)
-                                    (marker-position use-end)
-                                    'racket-xp-use (list def-beg def-end))
-                 (when binding-font-lock-face-p
-                   (racket--xp-add-use-face (marker-position use-beg)
-                                            (marker-position use-end)
-                                            req))))))
-          (`(target/tails ,target ,calls)
-           (let ((target (copy-marker target t))
-                 (calls  (mapcar (lambda (call)
-                                   (copy-marker call t))
-                                 calls)))
-             (put-text-property (marker-position target)
-                                (1+ (marker-position target))
-                                'racket-xp-tail-target
-                                calls)
-             (dolist (call calls)
-               (put-text-property (marker-position call)
-                                  (1+ (marker-position call))
-                                  'racket-xp-tail-position
-                                  target))))
-          (`(jump ,beg ,end ,path ,subs ,ids)
-           (add-text-properties
-            beg end
-            (list 'racket-xp-visit
-                  (list (racket-file-name-back-to-front path) subs ids))))
-          (`(doc ,beg ,end ,path ,anchor)
-           (add-text-properties
-            beg end
-            (list 'racket-xp-doc
-                  (list (racket-file-name-back-to-front path) anchor)))))))))
+    (dolist (x xs)
+      (pcase x
+        (`(error ,path ,beg ,end ,str)
+         (let ((path (racket-file-name-back-to-front path)))
+           (racket--xp-add-error path beg str)
+           (when (equal path (racket--buffer-file-name))
+             (remove-text-properties
+              beg end
+              (list 'help-echo     nil
+                    'racket-xp-def nil
+                    'racket-xp-use nil))
+             (racket--add-overlay beg end racket-xp-error-face)
+             (add-text-properties
+              beg end
+              (list 'help-echo str)))))
+        (`(info ,beg ,end ,str)
+         (put-text-property beg end 'help-echo str)
+         (when (and (string-equal str "no bound occurrences")
+                    (string-match-p racket-xp-highlight-unused-regexp
+                                    (buffer-substring beg end)))
+           (racket--add-overlay beg end racket-xp-unused-face)))
+        (`(unused-require ,beg ,end)
+         (put-text-property beg end 'help-echo "unused require")
+         (racket--add-overlay beg end racket-xp-unused-face))
+        (`(require ,beg ,end ,file)
+         (put-text-property beg end 'racket-xp-require file))
+        (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
+         (let ((def-beg (copy-marker def-beg t))
+               (def-end (copy-marker def-end t))
+               (uses    (mapcar (lambda (use)
+                                  (mapcar (lambda (pos)
+                                            (copy-marker pos t))
+                                          use))
+                                uses)))
+           (put-text-property (marker-position def-beg)
+                              (marker-position def-end)
+                              'racket-xp-def (list req id uses))
+           (when racket-xp-add-binding-faces
+             (racket--xp-add-def-face (marker-position def-beg)
+                                      (marker-position def-end)
+                                      req))
+           (dolist (use uses)
+             (pcase-let* ((`(,use-beg ,use-end) use))
+               (put-text-property (marker-position use-beg)
+                                  (marker-position use-end)
+                                  'racket-xp-use (list def-beg def-end))
+               (when racket-xp-add-binding-faces
+                 (racket--xp-add-use-face (marker-position use-beg)
+                                          (marker-position use-end)
+                                          req))))))
+        (`(target/tails ,target ,calls)
+         (let ((target (copy-marker target t))
+               (calls  (mapcar (lambda (call)
+                                 (copy-marker call t))
+                               calls)))
+           (put-text-property (marker-position target)
+                              (1+ (marker-position target))
+                              'racket-xp-tail-target
+                              calls)
+           (dolist (call calls)
+             (put-text-property (marker-position call)
+                                (1+ (marker-position call))
+                                'racket-xp-tail-position
+                                target))))
+        (`(jump ,beg ,end ,path ,subs ,ids)
+         (add-text-properties
+          beg end
+          (list 'racket-xp-visit
+                (list (racket-file-name-back-to-front path) subs ids))))
+        (`(doc ,beg ,end ,path ,anchor)
+         (add-text-properties
+          beg end
+          (list 'racket-xp-doc
+                (list (racket-file-name-back-to-front path) anchor))))))))
 
 (defun racket--xp-add-binding-face (beg end face)
   (add-text-properties beg end
@@ -572,6 +569,11 @@ manually."
                                     'racket-xp-visit         nil
                                     'racket-xp-doc           nil
                                     'racket-xp-require       nil
+                                    ;; TODO: Shouldn't do this
+                                    ;; unconditionally, need some
+                                    ;; other prop to record spans
+                                    ;; where WE added this, and
+                                    ;; remove only those.
                                     'font-lock-face          nil)))))
 
 ;;; xref

@@ -125,8 +125,34 @@ plainer `electric-pair-mode'.
       (paredit-mode 1))
     (t
      (paredit-mode -1)
+     (setq-local electric-pair-inhibit-predicate
+                 #\\='electric-pair-conservative-inhibit)
      (electric-pair-local-mode 1))))
   (add-hook \\='racket-hash-lang-module-language-hook #\\='my-hook)
+#+END_SRC
+
+As another example, if you prefer richer font-lock than just
+tokens, choices include:
+
+- Use some of `racket-mode's regexp search-based fontification
+  for some module languages:
+
+#+BEGIN_SRC elisp
+  (require \\='racket-font-lock)
+  ;; When the module-language is rackety
+  (font-lock-add-keywords nil (append racket-font-lock-keywords-2
+                                      racket-font-lock-keywords-3))
+  ;; Otherwise
+  (font-lock-remove-keywords nil (append racket-font-lock-keywords-2
+                                         racket-font-lock-keywords-3))
+#+END_SRC
+
+- Enable `racket-xp-mode' in `racket-hash-lang-mode-hook' and in
+  the module language hook locally set
+  `racket-xp-add-binding-faces':
+
+#+BEGIN_SRC elisp
+  (setq-local racket-xp-add-binding-faces t)
 #+END_SRC
 ")
 
@@ -180,13 +206,28 @@ can contribute more colors; see the customization variable
             #'racket-mode-maybe-offer-to-kill-repl-buffer
             nil t)
   (set-syntax-table racket--plain-syntax-table)
-  (setq-local font-lock-defaults nil)
-  (font-lock-set-defaults) ;issue #642
-  (setq-local syntax-propertize-function nil)
+  ;; Here we do the usual, approved thing: Set `font-lock-defaults'
+  ;; (and let `font-lock-set-defaults' to calculate and set other
+  ;; font-lock-xxx variables correctly).
+  (setq font-lock-defaults
+        (list
+         ;; "keywords": Although we contribute none here (we color
+         ;; solely based on lang lexer tokens), we support other
+         ;; parties using `font-lock-add-keywords', such as a minor
+         ;; mode -- or even an end user adding all the static
+         ;; `racket-mode' font-lock keywords when the hash-lang is
+         ;; racket.
+         nil
+         ;; "keywords-only?": We absolutely don't want any syntactic
+         ;; fontification; see e.g. #679. Any char syntx table we set
+         ;; is intended to hep fit into the Emacs ecosystem for things
+         ;; like `paredit' or `electric-pair-mode'. Using that for
+         ;; font-lock isn't reliable; we trust the lang lexer tokens,
+         ;; only.
+         t))
   (setq-local text-property-default-nonsticky
-              (append
-               (racket--hash-lang-text-prop-list #'cons t)
-               text-property-default-nonsticky))
+              (append (list (cons 'racket-token t))
+                      text-property-default-nonsticky))
   (electric-indent-local-mode -1)
   (setq-local electric-indent-inhibit t)
   (setq-local blink-paren-function nil)
@@ -227,7 +268,7 @@ can contribute more colors; see the customization variable
      (cond
       (maybe-id
        (setq-local racket--hash-lang-id maybe-id)
-       ;; These depend on `racket--hash-lang-id':
+       ;; These need non-nil `racket--hash-lang-id':
        (setq-local font-lock-fontify-region-function #'racket--hash-lang-fontify-region)
        (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
        (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
@@ -356,9 +397,8 @@ lang's attributes that we care about have changed."
       ;; If the lang uses racket-grouping-position, i.e. it uses
       ;; s-expressions, then use racket-mode-syntax-table. That way
       ;; other Emacs features and packages are more likely to work.
-      ;; Otherwise, assume nothing about the lang and set a "plain"
-      ;; syntax table where no characters are assumed to delimit
-      ;; parens, comments, or strings.
+      ;; Otherwise, make a syntax table assuming nothing but what the
+      ;; lang reports for parens and quotes.
       (set-syntax-table (if (plist-get plist 'racket-grouping)
                             racket-mode-syntax-table
                           (racket--make-non-sexp-syntax-table
@@ -411,7 +451,7 @@ lang's attributes that we care about have changed."
   "The back end has processed a change that resulted in new tokens.
 
 All we do here is mark the span as not fontified, then let
-jit-lock do its thing if/when this span ever becomes visible."
+jit-lock do its thing as/when this span ever becomes visible."
   ;;;(message "racket--hash-lang-on-changed-tokens %s %s %s" _gen beg end)
   (save-restriction
     (widen)
@@ -420,17 +460,14 @@ jit-lock do its thing if/when this span ever becomes visible."
 
 ;;; Fontification
 
-(defun racket--hash-lang-fontify-region (beg end loudly)
+(defun racket--hash-lang-fontify-region (beg end _loudly)
   "Our value for the variable `font-lock-fontify-region-function'.
 
-We ask the back end for tokens, and handle its response
-asynchronously in `racket--hash-lang-on-tokens' which does the
-actual application of faces and syntax. It wouldn't be
-appropriate to wait for a response while being called from Emacs
-C redisplay engine."
+Just claim we fontified the region now, and ask the back end for
+tokens asynchronously. Inappropriate to wait for a response while
+being called from Emacs C redisplay engine."
   ;;;(message "racket--hash-lang-fontify-region %s %s" beg end)
   (when racket--hash-lang-id
-    (font-lock-default-fontify-region beg end loudly)
     (let ((beg (if (markerp beg) (marker-position beg) beg))
           (end (if (markerp end) (marker-position end) end)))
       (racket--cmd/async nil
@@ -439,66 +476,96 @@ C redisplay engine."
                                      ,racket--hash-lang-generation
                                      ,beg
                                      ,end)
-                         #'racket--hash-lang-on-tokens))
+                         (lambda (tokens)
+                           (racket--hash-lang-tokens+fontify beg end tokens))))
     `(jit-lock-bounds ,beg . ,end)))
 
-(defun racket--hash-lang-on-tokens (tokens)
-  ;;;(message "racket--hash-lang-on-tokens %S" tokens)
+(defun racket--hash-lang-tokens+fontify (beg end tokens)
+  "Put token properties and do \"normal\" keyword fontification, both.
+
+Although we could have done the normal fontification earlier
+synchronously, and done token propertization here later, the
+result wouldn't always be consistent. It's best to handle both
+together -- and best to token propertize first, since that sets
+syntax-table props for comments and strings, thereby correctly
+preventing keyword fontification inside those.
+
+We only call `font-lock-fontify-keywords-region', not the full
+`font-lock-default-fontify-region'. Why: 1. We only support
+keyword fontification, not syntactic. Even though we set
+`font-lock-keywords-only' true in our mode initialization,
+belt+suspenders here. 2. It makes moot the value of
+`font-lock-extend-region-functions', so that's one less value
+that need be set. "
+  ;;;(message "racket--hash-lang-tokens+fontify %S %S <tokens>" beg end)
+  (with-silent-modifications
+    ;; As this removes face property do it before adding face props
+    ;; from tokens.
+    (save-excursion
+      (font-lock-unfontify-region beg end))
+    (racket--hash-lang-put-tokens tokens)
+    (save-excursion
+      (font-lock-fontify-keywords-region beg end))))
+
+(defun racket--hash-lang-put-tokens (tokens)
+  ;;;(message "racket--hash-lang-put-tokens %S" tokens)
+  ;; Assumes called within dynamic extent of `with-silent-modifications'.
   (save-restriction
     (widen)
-    (with-silent-modifications
-      (cl-flet* ((put-face (beg end face) (put-text-property beg end 'face face))
-                 (put-stx  (beg end stx)  (put-text-property beg end 'syntax-table stx))
-                 (put-fence (beg end stx)
-                            (put-stx beg (1+ beg) stx)
-                            (put-stx (1- end) end stx)))
-        (dolist (token tokens)
-          (pcase-let ((`(,beg ,end ,kinds) token))
-            (setq beg (max (point-min) beg))
-            (setq end (min end (point-max)))
-            (racket--hash-lang-remove-text-properties beg end)
-            ;; Add 'racket-token just for me to examine results using
-            ;; `describe-char'; use vector b/c `describe-property-list'
-            ;; assumes lists of symbols are "widgets".
-            (put-text-property beg end 'racket-token (apply #'vector kinds))
-            (dolist (kind kinds)
-              (pcase kind
-                ('comment
-                 (put-face beg end 'font-lock-comment-face)
-                 (put-fence beg end '(14)))
-                ('sexp-comment ;just the "#;" prefix not following sexp body
-                 (put-face beg end 'font-lock-comment-face)
-                 (put-fence beg end '(14)))
-                ('string
-                 (put-face beg end 'font-lock-string-face)
-                 (put-fence beg end '(15)))
-                ;; Note: This relies on the back end supplying `kinds`
-                ;; with sexp-comment-body last, so that we can modify
-                ;; the face property already set by the previous
-                ;; kind(s).
-                ('sexp-comment-body
-                 (put-face beg end (racket--sexp-comment-face
-                                    (get-text-property beg 'face))))
-                ('parenthesis (when (facep 'parenthesis)
-                                (put-face beg end 'parenthesis)))
-                ('text (put-stx beg end racket--plain-syntax-table))
-                (sym
-                 (when-let (face (cdr (assq sym racket-hash-lang-token-face-alist)))
-                   (put-face beg end face)))))))))))
-
-(defconst racket--hash-lang-text-properties
-  '(syntax-table racket-token)
-  "The text properties we use.")
-
-(defun racket--hash-lang-text-prop-list (f val)
-  (mapcar (lambda (prop-sym) (funcall f prop-sym val))
-          racket--hash-lang-text-properties))
+    (cl-flet* ((put-face (beg end face)
+                         (add-text-properties beg end
+                                              (list 'face face
+                                                    'rear-nonsticky t)))
+               (get-face-at (pos)
+                            (get-text-property pos 'face))
+               (remove-face (beg end)
+                            (remove-list-of-text-properties beg end
+                                                            (list
+                                                             'face
+                                                             'rear-nonsticky)))
+               (put-stx  (beg end stx)
+                         (put-text-property beg end 'syntax-table stx))
+               (put-fence (beg end stx)
+                          (put-stx beg (1+ beg) stx)
+                          (put-stx (1- end) end stx)))
+      (dolist (token tokens)
+        (pcase-let ((`(,beg ,end ,kinds) token))
+          (setq beg (max (point-min) beg))
+          (setq end (min end (point-max)))
+          (racket--hash-lang-remove-text-properties beg end)
+          ;; Add a 'racket-token prop used just for me to inspect via
+          ;; `describe-char'. Use a vector of symbols as the value
+          ;; because `describe-property-list' presents lists of
+          ;; symbols as "widgets" in the UI.
+          (put-text-property beg end 'racket-token (apply #'vector kinds))
+          (dolist (kind kinds)
+            (pcase kind
+              ('comment
+               (put-face beg end 'font-lock-comment-face)
+               (put-fence beg end '(14)))
+              ('sexp-comment ;just the "#;" prefix not following sexp body
+               (put-face beg end 'font-lock-comment-face)
+               (put-fence beg end '(14)))
+              ('string
+               (put-face beg end 'font-lock-string-face)
+               (put-fence beg end '(15)))
+              ;; Note: This relies on the back end supplying `kinds`
+              ;; with sexp-comment-body last, so that we can modify
+              ;; the face property already set by the previous
+              ;; kind(s).
+              ('sexp-comment-body
+               (put-face beg end (racket--sexp-comment-face (get-face-at beg))))
+              ('parenthesis (when (facep 'parenthesis)
+                              (put-face beg end 'parenthesis)))
+              ('text (put-stx beg end racket--plain-syntax-table))
+              (kind
+               (if-let (face (cdr (assq kind racket-hash-lang-token-face-alist)))
+                   (put-face beg end face)
+                 (remove-face beg end))))))))))
 
 (defun racket--hash-lang-remove-text-properties (beg end)
   "Remove `racket--hash-lang-text-properties' from region BEG..END."
-  (remove-text-properties beg end
-                          (apply #'append
-                                 (racket--hash-lang-text-prop-list #'list nil))))
+  (remove-list-of-text-properties beg end '(syntax-table racket-token)))
 
 ;;; Indent
 
