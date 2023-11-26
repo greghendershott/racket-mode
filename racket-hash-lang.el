@@ -211,15 +211,14 @@ can contribute more colors; see the customization variable
   ;; font-lock-xxx variables correctly).
   (setq font-lock-defaults
         (list
-         ;; "keywords": Although we contribute none here (we color
-         ;; solely based on lang lexer tokens), we support other
-         ;; parties using `font-lock-add-keywords', such as a minor
-         ;; mode -- or even an end user adding all the static
-         ;; `racket-mode' font-lock keywords when the hash-lang is
-         ;; racket.
+         ;; "keywords": Although we contribute none here (we only use
+         ;; lang lexer tokens), we support other parties using
+         ;; `font-lock-add-keywords', such as a minor mode -- or even
+         ;; an end user adding static `racket-mode' font-lock keyword
+         ;; lists when the hash-lang is racket.
          nil
          ;; "keywords-only?": We absolutely don't want any syntactic
-         ;; fontification; see e.g. #679. Any char syntx table we set
+         ;; fontification; see e.g. #679. Any char syntax table we set
          ;; is intended to hep fit into the Emacs ecosystem for things
          ;; like `paredit' or `electric-pair-mode'. Using that for
          ;; font-lock isn't reliable; we trust the lang lexer tokens,
@@ -496,7 +495,7 @@ keyword fontification, not syntactic. Even though we set
 `font-lock-keywords-only' true in our mode initialization,
 belt+suspenders here. 2. It makes moot the value of
 `font-lock-extend-region-functions', so that's one less value
-that need be set. "
+that need be set."
   ;;;(message "racket--hash-lang-tokens+fontify %S %S <tokens>" beg end)
   (with-silent-modifications
     ;; As this removes face property do it before adding face props
