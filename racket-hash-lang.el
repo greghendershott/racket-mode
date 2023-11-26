@@ -454,8 +454,8 @@ jit-lock do its thing as/when this span ever becomes visible."
   ;;;(message "racket--hash-lang-on-changed-tokens %s %s %s" _gen beg end)
   (save-restriction
     (widen)
-    (font-lock-flush (max beg (point-min))
-                     (min end (point-max)))))
+    (jit-lock-refontify (max beg (point-min))
+                        (min end (point-max)))))
 
 ;;; Fontification
 
