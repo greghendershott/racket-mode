@@ -717,7 +717,7 @@ Indentation can be customized in a way similar to lisp-mode and scheme-mode: @re
 @section paredit
 
 @quotation
-Note: If you use @ref{racket-hash-lang-mode}, you can use @code{racket-hash-lang-mode-hook} to enable/disable paredit based on the specific #lang.
+Note: If you use @ref{racket-hash-lang-mode}, see @ref{racket-hash-lang-module-language-hook} for how to enable/disable paredit based on the specific #lang.
 
 @end quotation
 
@@ -761,6 +761,11 @@ If you want to use paredit with interactive modes, their advice is to remove the
 
 @node smartparens
 @section smartparens
+
+@quotation
+Note: If you use @ref{racket-hash-lang-mode}, see @ref{racket-hash-lang-module-language-hook} for how to enable/disable smartparens based on the specific #lang.
+
+@end quotation
 
 If instead of paredit you prefer @uref{https://melpa.org/#/smartparens, smartparens}, you can use the default configuration it provides for Lisp modes generally and for Racket Mode specifically:
 
@@ -3255,6 +3260,16 @@ suitable for the module language:
   (add-hook 'racket-hash-lang-module-language-hook #'my-hook)
 @end lisp
 
+A similar tactic can be used for @code{smartparens} or
+@code{electric-pair-mode}. In general, none of these
+delimiter-matching modes is likely to work well unless the
+hash-lang uses racket for drracket:grouping-position, in which
+case @ref{racket-hash-lang-mode} uses the classic @ref{racket-mode}
+syntax-table for the buffer. Otherwise you should not enable one
+of these modes, and isntead just use the simple delimiter
+matching built into @ref{racket-hash-lang-mode}; see
+@ref{racket-hash-lang-pairs}.
+
 As another example, if you prefer richer font-lock than just
 tokens, choices include:
 
@@ -3271,8 +3286,8 @@ the module language hook locally set
 
 @itemize
 @item
-Or, use some of @ref{racket-mode}s regexp search-based
-fontification for some module languages:
+Or, use some of the regexp search-based fontification from
+classic @ref{racket-mode} for rackety module languages:
 @end itemize
 
 @lisp

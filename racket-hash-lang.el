@@ -137,6 +137,16 @@ suitable for the module language:
   (add-hook \\='racket-hash-lang-module-language-hook #\\='my-hook)
 #+END_SRC
 
+A similar tactic can be used for `smartparens' or
+`electric-pair-mode'. In general, none of these
+delimiter-matching modes is likely to work well unless the
+hash-lang uses racket for drracket:grouping-position, in which
+case `racket-hash-lang-mode' uses the classic `racket-mode'
+syntax-table for the buffer. Otherwise you should not enable one
+of these modes, and instead just use the simple delimiter
+matching built into `racket-hash-lang-mode'; see
+`racket-hash-lang-pairs'.
+
 As another example, if you prefer richer font-lock than just
 tokens, choices include:
 
@@ -148,8 +158,8 @@ tokens, choices include:
   (setq-local racket-xp-add-binding-faces t)
 #+END_SRC
 
-- Or, use some of `racket-mode's regexp search-based
-  fontification for some module languages:
+- Or, use some of the regexp search-based fontification from
+  classic `racket-mode' for rackety module languages:
 
 #+BEGIN_SRC elisp
   (require \\='racket-font-lock)

@@ -288,7 +288,7 @@ Indentation can be customized in a way similar to lisp-mode and scheme-mode: {{{
 ** paredit
 
 #+BEGIN_QUOTE
-Note: If you use {{{ref(racket-hash-lang-mode)}}}, you can use ~racket-hash-lang-mode-hook~ to enable/disable paredit based on the specific #lang.
+Note: If you use {{{ref(racket-hash-lang-mode)}}}, see {{{ref(racket-hash-lang-module-language-hook)}}} for how to enable/disable paredit based on the specific #lang.
 #+END_QUOTE
 
 If you use [[https://melpa.org/#/paredit][paredit]], you might want to add keybindings to ~paredit-mode-map~:
@@ -326,6 +326,10 @@ If you want to use paredit with interactive modes, their advice is to remove the
 #+END_SRC
 
 ** smartparens
+
+#+BEGIN_QUOTE
+Note: If you use {{{ref(racket-hash-lang-mode)}}}, see {{{ref(racket-hash-lang-module-language-hook)}}} for how to enable/disable smartparens based on the specific #lang.
+#+END_QUOTE
 
 If instead of paredit you prefer [[https://melpa.org/#/smartparens][smartparens]], you can use the default configuration it provides for Lisp modes generally and for Racket Mode specifically:
 
