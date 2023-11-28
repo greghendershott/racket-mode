@@ -212,6 +212,7 @@ General variables
 Hash lang variables
 
 * racket-hash-lang-token-face-alist::
+* racket-hash-lang-pairs::
 * racket-hash-lang-module-language-hook::
 
 REPL variables
@@ -1567,6 +1568,8 @@ can contribute more colors; see the customization variable
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
+@item @kbd{DEL} 
+@tab @code{racket-hash-lang-delete-backward-char}
 @item @kbd{RET} 
 @tab @code{newline-and-indent}
 @item @kbd{TAB} 
@@ -3143,6 +3146,7 @@ string should be a properly encoded URL@.
 
 @menu
 * racket-hash-lang-token-face-alist::
+* racket-hash-lang-pairs::
 * racket-hash-lang-module-language-hook::
 @end menu
 
@@ -3179,15 +3183,48 @@ face @code{parenthesis} if defined, as by the paren-face package.
 String tokens use @code{font-lock-string-face}. Text tokens, e.g.
 Scribble text, use the face @code{default}
 
+@node racket-hash-lang-pairs
+@subsection racket-hash-lang-pairs
+
+Pairs of characters to insert automatically.
+
+The format of each item is
+
+(open-char close-char . except-kinds)
+
+where except-kinds are symbols corresonding to lang lexer token
+kinds.
+
+This is initialized whenever a module language changes, using
+single-character values from the language's reported
+drracket:paren-matches and drracket:quote-matches.
+
+Paren matches are allowed for all token kinds. Quote matches are
+not allowed in string, comment, or text tokens. For example a
+lang might supply ' as a quote-match, and you wouldn't want to
+type don't in prose but get don't'.
+
+You may customize this default initialization in
+@ref{racket-hash-lang-module-language-hook}.
+
 @node racket-hash-lang-module-language-hook
 @subsection racket-hash-lang-module-language-hook
 
 Hook run when the module language changes.
 
-The hook is called when a file is first visited, and thereafter
+Typically in Emacs each language gets its own major mode. As a
+result, the major mode hook is your opportunity to express
+preferences. However @ref{racket-hash-lang-mode} handles radically
+different kinds of hash langs in one major mode. And a given
+buffer can change langs when you edit the ``#lang'' line. As a
+result, @code{racket-hash-lang-mode-hook} is not useful for per-lang
+configuration. Instead you need a kind of ``sub major mode
+hook''. This is that hook.
+
+The hook is run when a file is first visited, and thereafter
 whenever the ``#lang'' line is edited -- provided that results in
-new language info; for example changing from ``#lang racket'' to
-``#lang racket/base'' will @emph{not} run the hook.
+different language info; for example changing from ``#lang
+racket'' to ``#lang racket/base'' will @emph{not} run the hook.
 
 The function is called with a string returned by the lang's
 ``module-language'' info key. This info key is supplied
@@ -3204,42 +3241,22 @@ enabling ``fancy'' or ``classic'' Emacs behaviors only for
 s-expression langs.
 
 For example, maybe you want to use @code{paredit-mode} when it is
-suitable for the module language, otherwise stick with the
-plainer @code{electric-pair-mode}.
+suitable for the module language:
 
 @lisp
   (defun my-hook (module-language)
-    (cond
-     ((member module-language (list "racket" "racket/base"
-                                    "typed/racket" "typed/racket/base"))
-      (electric-pair-local-mode -1)
-      (paredit-mode 1))
-    (t
-     (paredit-mode -1)
-     (setq-local electric-pair-inhibit-predicate
-                 #'electric-pair-conservative-inhibit)
-     (electric-pair-local-mode 1))))
+    (let ((rackety
+           (member module-language
+                   (list "racket" "racket/base"
+                         "typed/racket" "typed/racket/base"))))
+      (if rackety
+          (paredit-mode 1)
+        (paredit-mode -1))))
   (add-hook 'racket-hash-lang-module-language-hook #'my-hook)
 @end lisp
 
 As another example, if you prefer richer font-lock than just
 tokens, choices include:
-
-@itemize
-@item
-Use some of @ref{racket-mode}s regexp search-based fontification
-for some module languages:
-@end itemize
-
-@lisp
-  (require 'racket-font-lock)
-  ;; When the module-language is rackety
-  (font-lock-add-keywords nil (append racket-font-lock-keywords-2
-                                      racket-font-lock-keywords-3))
-  ;; Otherwise
-  (font-lock-remove-keywords nil (append racket-font-lock-keywords-2
-                                         racket-font-lock-keywords-3))
-@end lisp
 
 @itemize
 @item
@@ -3250,6 +3267,23 @@ the module language hook locally set
 
 @lisp
   (setq-local racket-xp-add-binding-faces t)
+@end lisp
+
+@itemize
+@item
+Or, use some of @ref{racket-mode}s regexp search-based
+fontification for some module languages:
+@end itemize
+
+@lisp
+  (require 'racket-font-lock)
+  (if rackety
+      (font-lock-add-keywords nil
+                              (append racket-font-lock-keywords-2
+                                      racket-font-lock-keywords-3))
+    (font-lock-remove-keywords nil
+                               (append racket-font-lock-keywords-2
+                                       racket-font-lock-keywords-3)))
 @end lisp
 
 @node REPL variables

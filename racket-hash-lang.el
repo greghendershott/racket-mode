@@ -39,6 +39,7 @@
      ("C-c C-f"     racket-fold-all-tests)
      ("C-c C-u"     racket-unfold-all-tests)
      ("RET"         ,#'newline-and-indent)
+     ("DEL"         ,#'racket-hash-lang-delete-backward-char)
      ("C-M-b"       ,#'racket-hash-lang-backward)
      ("C-M-f"       ,#'racket-hash-lang-forward)
      ("C-M-u"       ,#'racket-hash-lang-up)
@@ -93,10 +94,19 @@
 (defvar racket-hash-lang-module-language-hook nil
   "Hook run when the module language changes.
 
-The hook is called when a file is first visited, and thereafter
+Typically in Emacs each language gets its own major mode. As a
+result, the major mode hook is your opportunity to express
+preferences. However `racket-hash-lang-mode' handles radically
+different kinds of hash langs in one major mode. And a given
+buffer can change langs when you edit the \"#lang\" line. As a
+result, `racket-hash-lang-mode-hook' is not useful for per-lang
+configuration. Instead you need a kind of \"sub major mode
+hook\". This is that hook.
+
+The hook is run when a file is first visited, and thereafter
 whenever the \"#lang\" line is edited -- provided that results in
-new language info; for example changing from \"#lang racket\" to
-\"#lang racket/base\" will /not/ run the hook.
+different language info; for example changing from \"#lang
+racket\" to \"#lang racket/base\" will /not/ run the hook.
 
 The function is called with a string returned by the lang's
 \"module-language\" info key. This info key is supplied
@@ -113,39 +123,22 @@ enabling \"fancy\" or \"classic\" Emacs behaviors only for
 s-expression langs.
 
 For example, maybe you want to use `paredit-mode' when it is
-suitable for the module language, otherwise stick with the
-plainer `electric-pair-mode'.
+suitable for the module language:
 
 #+BEGIN_SRC elisp
   (defun my-hook (module-language)
-    (cond
-     ((member module-language (list \"racket\" \"racket/base\"
-                                    \"typed/racket\" \"typed/racket/base\"))
-      (electric-pair-local-mode -1)
-      (paredit-mode 1))
-    (t
-     (paredit-mode -1)
-     (setq-local electric-pair-inhibit-predicate
-                 #\\='electric-pair-conservative-inhibit)
-     (electric-pair-local-mode 1))))
+    (let ((rackety
+           (member module-language
+                   (list \"racket\" \"racket/base\"
+                         \"typed/racket\" \"typed/racket/base\"))))
+      (if rackety
+          (paredit-mode 1)
+        (paredit-mode -1))))
   (add-hook \\='racket-hash-lang-module-language-hook #\\='my-hook)
 #+END_SRC
 
 As another example, if you prefer richer font-lock than just
 tokens, choices include:
-
-- Use some of `racket-mode's regexp search-based fontification
-  for some module languages:
-
-#+BEGIN_SRC elisp
-  (require \\='racket-font-lock)
-  ;; When the module-language is rackety
-  (font-lock-add-keywords nil (append racket-font-lock-keywords-2
-                                      racket-font-lock-keywords-3))
-  ;; Otherwise
-  (font-lock-remove-keywords nil (append racket-font-lock-keywords-2
-                                         racket-font-lock-keywords-3))
-#+END_SRC
 
 - Enable `racket-xp-mode' in `racket-hash-lang-mode-hook' and in
   the module language hook locally set
@@ -153,6 +146,20 @@ tokens, choices include:
 
 #+BEGIN_SRC elisp
   (setq-local racket-xp-add-binding-faces t)
+#+END_SRC
+
+- Or, use some of `racket-mode's regexp search-based
+  fontification for some module languages:
+
+#+BEGIN_SRC elisp
+  (require \\='racket-font-lock)
+  (if rackety
+      (font-lock-add-keywords nil
+                              (append racket-font-lock-keywords-2
+                                      racket-font-lock-keywords-3))
+    (font-lock-remove-keywords nil
+                               (append racket-font-lock-keywords-2
+                                       racket-font-lock-keywords-3)))
 #+END_SRC
 ")
 
@@ -174,9 +181,11 @@ hash-lang operations. That way the queries can block if necessary
 until the back end has handled the update commands and also
 re-tokenization has progressed sufficiently.")
 
+(defvar-local racket-hash-lang-mode-lighter "#lang")
+
 ;;;###autoload
 (define-derived-mode racket-hash-lang-mode prog-mode
-  "#lang"
+  'racket-hash-lang-mode-lighter
   "Use color-lexer, indent, and navigation supplied by a #lang.
 
 An experimental major mode alternative to `racket-mode' for
@@ -206,6 +215,9 @@ can contribute more colors; see the customization variable
             #'racket-mode-maybe-offer-to-kill-repl-buffer
             nil t)
   (set-syntax-table racket--plain-syntax-table)
+  ;; Tell `parse-partial-sexp' to consider syntax-table text
+  ;; properties.
+  (setq-local parse-sexp-lookup-properties t)
   ;; Here we do the usual, approved thing: Set `font-lock-defaults'
   ;; (and let `font-lock-set-defaults' to calculate and set other
   ;; font-lock-xxx variables correctly).
@@ -220,13 +232,14 @@ can contribute more colors; see the customization variable
          ;; "keywords-only?": We absolutely don't want any syntactic
          ;; fontification; see e.g. #679. Any char syntax table we set
          ;; is intended to hep fit into the Emacs ecosystem for things
-         ;; like `paredit' or `electric-pair-mode'. Using that for
-         ;; font-lock isn't reliable; we trust the lang lexer tokens,
-         ;; only.
+         ;; like `paredit'. Using that for font-lock isn't reliable;
+         ;; we trust the lang lexer tokens, only.
          t))
   (setq-local text-property-default-nonsticky
               (append (list (cons 'racket-token t))
                       text-property-default-nonsticky))
+  (add-hook 'post-self-insert-hook #'racket-hash-lang-post-self-insert nil t)
+  (electric-pair-mode -1)
   (electric-indent-local-mode -1)
   (setq-local electric-indent-inhibit t)
   (setq-local blink-paren-function nil)
@@ -311,26 +324,6 @@ live back end, downgrade them all to `prog-mode'."
                buf))
            (buffer-list)))
 
-(defun racket--make-non-sexp-syntax-table (parens quotes)
-  "Make a syntax-table with the given parens and quotes.
-
-Intended for use by things like `electric-pair-mode'."
-  (let ((table (make-syntax-table racket--plain-syntax-table)))
-    (dolist (str-pair parens)
-      (pcase-let ((`(,open . ,close) str-pair))
-        ;; Unsure how to handle in syntax-table when > 1 char.
-        (when (and (= 1 (length open)) (= 1 (length close)))
-          (modify-syntax-entry (aref open 0)
-                               (concat "(" (substring close 0 1) "  ")
-                               table)
-          (modify-syntax-entry (aref close 0)
-                               (concat ")" (substring open 0 1) "  ")
-                               table))))
-    (dolist (str quotes)
-      (when (= 1 (length str))
-        (modify-syntax-entry (aref str 0) "\"   " table)))
-    table))
-
 ;;; Updates: Front end --> back end
 
 (defun racket--hash-lang-repl-buffer-string (beg end)
@@ -386,23 +379,24 @@ We do /not/ get notified when a new lang uses exactly the same
 attributes as the old one. For example changing from #lang racket
 to #lang racket/base will /not/ notify us, because none of the
 lang's attributes that we care about have changed."
-  ;;;(message "racket--hash-lang-on-new-lang %s" plist)
+  ;;;(message "racket--hash-lang-on-new-lang %S" plist)
   (with-silent-modifications
     (save-restriction
       (widen)
       (unless (eq major-mode 'racket-repl-mode)
         (racket--hash-lang-remove-text-properties (point-min) (point-max))
         (font-lock-flush (point-min) (point-max)))
+      (racket--hash-lang-configure-pairs (plist-get plist 'paren-matches)
+                                         (plist-get plist 'quote-matches))
       ;; If the lang uses racket-grouping-position, i.e. it uses
       ;; s-expressions, then use racket-mode-syntax-table. That way
-      ;; other Emacs features and packages are more likely to work.
-      ;; Otherwise, make a syntax table assuming nothing but what the
-      ;; lang reports for parens and quotes.
+      ;; some other "classic" Emacs features and packages are more
+      ;; likely to work. Otherwise, make a syntax table assuming
+      ;; nothing and relying solely on the syntax-table text
+      ;; properties we add from tokens.
       (set-syntax-table (if (plist-get plist 'racket-grouping)
                             racket-mode-syntax-table
-                          (racket--make-non-sexp-syntax-table
-                           (plist-get plist 'paren-matches)
-                           (plist-get plist 'quote-matches))))
+                          racket--plain-syntax-table))
       ;; Similarly for `forward-sexp-function'. The
       ;; drracket:grouping-position protocol doesn't support a nuance
       ;; where a `forward-sexp-function' should signal an exception
@@ -427,10 +421,6 @@ lang's attributes that we care about have changed."
       (setq racket-submodules-at-point-function
             (and (plist-get plist 'racket-grouping)
                  #'racket-submodules-at-point-text-sexp))
-      ;; (setq-local racket-hash-lang-mode-lighter
-      ;;             (concat " #lang"
-      ;;                     (when (plist-get plist 'racket-grouping) "()")
-      ;;                     (when (plist-get plist 'range-indenter) "⇉")))
       (pcase-let ((`(,start ,continue ,end ,padding)
                    (plist-get plist 'comment-delimiters)))
         (setq-local comment-start      start)
@@ -442,6 +432,10 @@ lang's attributes that we care about have changed."
         (setq-local comment-start-skip nil)
         (setq-local comment-end-skip   nil)
         (comment-normalize-vars))
+      (setq-local racket-hash-lang-mode-lighter
+                  (concat "#lang"
+                          (when (plist-get plist 'racket-grouping) "()")
+                          (when (plist-get plist 'range-indenter) "⇉")))
       ;; Finally run user's module-language-hook.
       (run-hook-with-args 'racket-hash-lang-module-language-hook
                           (plist-get plist 'module-language)))))
@@ -512,18 +506,13 @@ that need be set."
   (save-restriction
     (widen)
     (cl-flet* ((put-face (beg end face)
-                         (add-text-properties beg end
-                                              (list 'face face
-                                                    'rear-nonsticky t)))
+                         (put-text-property beg end 'face face))
                (get-face-at (pos)
                             (get-text-property pos 'face))
                (remove-face (beg end)
-                            (remove-list-of-text-properties beg end
-                                                            (list
-                                                             'face
-                                                             'rear-nonsticky)))
-               (put-stx  (beg end stx)
-                         (put-text-property beg end 'syntax-table stx))
+                            (remove-list-of-text-properties beg end '(face)))
+               (put-stx (beg end stx)
+                        (put-text-property beg end 'syntax-table stx))
                (put-fence (beg end stx)
                           (put-stx beg (1+ beg) stx)
                           (put-stx (1- end) end stx)))
@@ -566,6 +555,82 @@ that need be set."
   "Remove `racket--hash-lang-text-properties' from region BEG..END."
   (remove-list-of-text-properties beg end '(syntax-table racket-token)))
 
+;;; Pairs
+
+;; Because I can't see how to make electric-pairs-mode work
+;; consistently -- including having it _not_ pair things like ' inside
+;; comments, strings, and especially our unique "text" token spans --
+;; I resorted to making a very simple alternative. It's not electric,
+;; just steam powered.
+
+(defvar-local racket-hash-lang-pairs nil
+  "Pairs of characters to insert automatically.
+
+The format of each item is
+
+  (open-char close-char . except-kinds)
+
+where except-kinds are symbols corresonding to lang lexer token
+kinds.
+
+This is initialized whenever a module language changes, using
+single-character values from the language's reported
+drracket:paren-matches and drracket:quote-matches.
+
+Paren matches are allowed for all token kinds. Quote matches are
+_not_ allowed in string, comment, or text tokens. For example a
+lang might supply \\=' as a quote-match, and you wouldn't want to
+type don\\='t in prose but get don\\='t\\='.
+
+You may customize this default initialization in
+`racket-hash-lang-module-language-hook'.")
+
+(defun racket--hash-lang-configure-pairs (parens quotes)
+  (let ((vs nil))
+    (dolist (p parens)
+      (let ((open (car p))
+            (close (cdr p)))
+        (when (and (= 1 (length open)) (= 1 (length close)))
+          (push (list (aref open 0) (aref close 0))
+                vs))))
+    (dolist (q quotes)
+      (when (= 1 (length q))
+        (push (list (aref q 0) (aref q 0) 'string 'comment 'text)
+              vs)))
+    (setq-local racket-hash-lang-pairs (reverse vs))))
+
+(defun racket-hash-lang-post-self-insert ()
+  "A value for `post-self-insert-hook'."
+  (cl-flet ((self-insert (char)
+                         (let ((racket-hash-lang-pairs nil) ;don't recur!
+                               (last-command-event char)
+                               (blink-matching-paren nil))
+                           (self-insert-command 1)
+                           (forward-char -1))))
+    (pcase (assq last-command-event racket-hash-lang-pairs)
+      (`(,_open ,close)
+       (self-insert close))
+      (`(,_open ,close . ,except-kinds)
+       (pcase-let ((`(,_beg ,_end (,kind . ,_))
+                    (racket--cmd/await
+                     nil
+                     `(hash-lang
+                       classify
+                       ,racket--hash-lang-id
+                       ,racket--hash-lang-generation
+                       ,(1- (point))))))
+         (unless (memq kind except-kinds)
+           (self-insert close)))))))
+
+(defun racket-hash-lang-delete-backward-char ()
+  "Delete previous character, and when between a pair, following character."
+  (interactive)
+  (pcase (assq (char-before) racket-hash-lang-pairs)
+    (`(,_open ,close . ,_ )
+     (when (eq close (char-after))
+       (delete-char 1))))
+  (delete-char -1))
+
 ;;; Indent
 
 (defun racket-hash-lang-indent-line-function ()
@@ -598,30 +663,30 @@ We never use `racket-indent-line' from traditional
 
 (defun racket-hash-lang-indent-region-function (from upto)
   "Maybe use #lang drracket:range-indentation, else plain `indent-region'."
-  (pcase (racket--cmd/await   ; await = :(
-                    nil
-                    `(hash-lang indent-region-amounts
-                                ,racket--hash-lang-id
-                                ,racket--hash-lang-generation
-                                ,from
-                                ,upto))
+  (pcase (racket--cmd/await             ;await = :(
+          nil
+          `(hash-lang indent-region-amounts
+                      ,racket--hash-lang-id
+                      ,racket--hash-lang-generation
+                      ,from
+                      ,upto))
     ('false (let ((indent-region-function nil))
               (indent-region from upto)))
     (`() nil)
     (results
      (save-excursion
        (goto-char from)
-        ;; drracket:range-indent docs say `results` could have more
-        ;; elements than lines in from..upto, and we should ignore
-        ;; extras. Handle that. (Although it could also have fewer, we
-        ;; need no special handling for that here.)
-        (let ((results (seq-take results (count-lines from upto))))
-          (dolist (result results)
-            (pcase-let ((`(,delete-amount ,insert-string) result))
-              (beginning-of-line)
-              (when (< 0 delete-amount) (delete-char delete-amount))
-              (unless (equal "" insert-string) (insert insert-string))
-              (end-of-line 2))))))))
+       ;; drracket:range-indent docs say `results` could have more
+       ;; elements than lines in from..upto, and we should ignore
+       ;; extras. Handle that. (Although it could also have fewer, we
+       ;; need no special handling for that here.)
+       (let ((results (seq-take results (count-lines from upto))))
+         (dolist (result results)
+           (pcase-let ((`(,delete-amount ,insert-string) result))
+             (beginning-of-line)
+             (when (< 0 delete-amount) (delete-char delete-amount))
+             (unless (equal "" insert-string) (insert insert-string))
+             (end-of-line 2))))))))
 
 ;; Motion
 
@@ -699,8 +764,8 @@ When the lang lexer token is...
                        ,racket--hash-lang-id
                        ,racket--hash-lang-generation
                        ,(point))
-                     (pcase-lambda (`(,_beg ,_end ,type))
-                       (cl-case type
+                     (pcase-lambda (`(,_beg ,_end (,kind . ,_)))
+                       (cl-case kind
                          ((whitespace) (user-error "ambiguous; did nothing"))
                          ((text) (fill-paragraph prefix))
                          ((comment) (fill-comment-paragraph prefix))

@@ -115,7 +115,7 @@
 
 (define (classify id gen pos)
   (match-define (list beg end attribs) (send (get-object id) classify gen (sub1 pos)))
-  (list (add1 beg) (add1 end) attribs))
+  (list (add1 beg) (add1 end) (attribs->types attribs)))
 
 (define (grouping id gen pos dir limit count)
   (match (send (get-object id) grouping gen (sub1 pos) dir limit count)
