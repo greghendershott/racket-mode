@@ -249,6 +249,7 @@ can contribute more colors; see the customization variable
               (append (list (cons 'racket-token t))
                       text-property-default-nonsticky))
   (add-hook 'post-self-insert-hook #'racket-hash-lang-post-self-insert nil t)
+  (add-hook 'self-insert-uses-region-functions #'racket-hash-lang-will-use-region nil t)
   (electric-pair-local-mode -1)
   (electric-indent-local-mode -1)
   (setq-local electric-indent-inhibit t)
@@ -565,82 +566,6 @@ that need be set."
   "Remove `racket--hash-lang-text-properties' from region BEG..END."
   (remove-list-of-text-properties beg end '(syntax-table racket-token)))
 
-;;; Pairs
-
-;; Because I can't see how to make electric-pair-mode work
-;; consistently -- including having it _not_ pair things like ' inside
-;; comments, strings, and especially our unique "text" token spans --
-;; I resorted to making a very simple alternative. It's not electric,
-;; just steam powered.
-
-(defvar-local racket-hash-lang-pairs nil
-  "Pairs of characters to insert automatically.
-
-The format of each item is
-
-  (open-char close-char . except-kinds)
-
-where except-kinds are symbols corresonding to lang lexer token
-kinds.
-
-This is initialized whenever a module language changes, using
-single-character values from the language's reported
-drracket:paren-matches and drracket:quote-matches.
-
-Paren matches are allowed for all token kinds. Quote matches are
-_not_ allowed in string, comment, or text tokens. For example a
-lang might supply \\=' as a quote-match, and you wouldn't want to
-type don\\='t in prose but get don\\='t\\='.
-
-You may customize this default initialization in
-`racket-hash-lang-module-language-hook'.")
-
-(defun racket--hash-lang-configure-pairs (parens quotes)
-  (let ((vs nil))
-    (dolist (p parens)
-      (let ((open (car p))
-            (close (cdr p)))
-        (when (and (= 1 (length open)) (= 1 (length close)))
-          (push (list (aref open 0) (aref close 0))
-                vs))))
-    (dolist (q quotes)
-      (when (= 1 (length q))
-        (push (list (aref q 0) (aref q 0) 'string 'comment 'text)
-              vs)))
-    (setq-local racket-hash-lang-pairs (reverse vs))))
-
-(defun racket-hash-lang-post-self-insert ()
-  "A value for `post-self-insert-hook'."
-  (cl-flet ((self-insert (char)
-                         (let ((racket-hash-lang-pairs nil) ;don't recur!
-                               (last-command-event char)
-                               (blink-matching-paren nil))
-                           (self-insert-command 1)
-                           (forward-char -1))))
-    (pcase (assq last-command-event racket-hash-lang-pairs)
-      (`(,_open ,close)
-       (self-insert close))
-      (`(,_open ,close . ,except-kinds)
-       (pcase-let ((`(,_beg ,_end (,kind . ,_))
-                    (racket--cmd/await
-                     nil
-                     `(hash-lang
-                       classify
-                       ,racket--hash-lang-id
-                       ,racket--hash-lang-generation
-                       ,(1- (point))))))
-         (unless (memq kind except-kinds)
-           (self-insert close)))))))
-
-(defun racket-hash-lang-delete-backward-char ()
-  "Delete previous character, and when between a pair, following character."
-  (interactive)
-  (pcase (assq (char-before) racket-hash-lang-pairs)
-    (`(,_open ,close . ,_ )
-     (when (eq close (char-after))
-       (delete-char 1))))
-  (delete-char -1))
-
 ;;; Indent
 
 (defun racket-hash-lang-indent-line-function ()
@@ -750,6 +675,106 @@ However other users don't need that, so we supply this
          (dir (if (< arg 0) 'backward 'forward))
          (cnt (abs arg)))
     (racket-hash-lang-move dir cnt)))
+
+;;; Pairs
+
+;; Because I couldn't see how to make electric-pair-mode work
+;; consistently -- including having it _not_ pair things like ' inside
+;; tokens like comments, strings, text -- I resorted to making a very
+;; simple alternative. Not electric pairs, merely steam-powered.
+
+(defvar-local racket-hash-lang-pairs nil
+  "Pairs of characters to insert automatically.
+
+The format of each item is
+
+  (open-char close-char . except-kinds)
+
+where except-kinds are symbols corresonding to lang lexer token
+kinds.
+
+This is initialized whenever a module language changes, using
+single-character values from the language's reported
+drracket:paren-matches and drracket:quote-matches.
+
+Paren matches are allowed for all token kinds. Quote matches are
+_not_ allowed in string, comment, or text tokens. For example a
+lang might supply \\=' as a quote-match, and you wouldn't want to
+type don\\='t in prose but get don\\='t\\='.
+
+You may customize this default initialization in
+`racket-hash-lang-module-language-hook'.")
+
+(defun racket--hash-lang-configure-pairs (paren-matches quote-matches)
+  (let ((pairs nil))
+    (dolist (p paren-matches)
+      (let ((open (car p))
+            (close (cdr p)))
+        (when (and (= 1 (length open)) (= 1 (length close)))
+          (push (list (aref open 0) (aref close 0))
+                pairs))))
+    (dolist (q quote-matches)
+      (when (= 1 (length q))
+        (push (list (aref q 0) (aref q 0) 'string 'comment 'text)
+              pairs)))
+    (setq-local racket-hash-lang-pairs (reverse pairs))))
+
+(defun racket--hash-lang-lookup-pair ()
+  (pcase (assq last-command-event racket-hash-lang-pairs)
+    (`(,open ,close . ,except-kinds)
+     (if except-kinds
+         (pcase-let ((`(,_beg ,_end (,kind . ,_))
+                    (racket--cmd/await
+                     nil
+                     `(hash-lang
+                       classify
+                       ,racket--hash-lang-id
+                       ,racket--hash-lang-generation
+                       ,(1- (point))))))
+         (unless (memq kind except-kinds)
+           (cons open close)))
+       (cons open close)))))
+
+(defun racket-hash-lang-will-use-region ()
+  "A value for hook `self-insert-uses-region-functions'."
+  (and (use-region-p)
+       (racket--hash-lang-lookup-pair)
+       t))
+
+(defun racket--hash-lang-plain-self-insert (char)
+  "Use `self-insert-command' to insert CHAR without more pair checking."
+  (let ((racket-hash-lang-pairs nil)    ;don't recur!
+        (blink-matching-paren nil)
+        (last-command-event char))
+    (self-insert-command 1)))
+
+(defun racket-hash-lang-post-self-insert ()
+  "A value for hook `post-self-insert-hook'."
+  (pcase (racket--hash-lang-lookup-pair)
+    (`(,open-char . ,close-char)
+     (if (use-region-p)
+         (if (<= (point) (mark))
+             (save-excursion
+               (goto-char (mark))
+               (racket--hash-lang-plain-self-insert close-char))
+           (save-excursion
+             (let ((end (point)))
+               (delete-char -1)       ;delete open-char at end
+               (goto-char (mark))
+               (racket--hash-lang-plain-self-insert open-char)
+               (goto-char end)
+               (racket--hash-lang-plain-self-insert close-char))))
+       (save-excursion
+         (racket--hash-lang-plain-self-insert close-char))))))
+
+(defun racket-hash-lang-delete-backward-char ()
+  "Delete previous character, and when between a pair, following character."
+  (interactive)
+  (pcase (assq (char-before) racket-hash-lang-pairs)
+    (`(,_open ,close . ,_ )
+     (when (eq close (char-after))
+       (delete-char 1))))
+  (delete-char -1))
 
 ;;; Fill
 
