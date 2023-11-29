@@ -249,7 +249,7 @@ can contribute more colors; see the customization variable
               (append (list (cons 'racket-token t))
                       text-property-default-nonsticky))
   (add-hook 'post-self-insert-hook #'racket-hash-lang-post-self-insert nil t)
-  (electric-pair-mode -1)
+  (electric-pair-local-mode -1)
   (electric-indent-local-mode -1)
   (setq-local electric-indent-inhibit t)
   (setq-local blink-paren-function nil)
@@ -567,7 +567,7 @@ that need be set."
 
 ;;; Pairs
 
-;; Because I can't see how to make electric-pairs-mode work
+;; Because I can't see how to make electric-pair-mode work
 ;; consistently -- including having it _not_ pair things like ' inside
 ;; comments, strings, and especially our unique "text" token spans --
 ;; I resorted to making a very simple alternative. It's not electric,
