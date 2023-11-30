@@ -768,13 +768,14 @@ You may customize this default initialization in
          (racket--hash-lang-plain-self-insert close-char))))))
 
 (defun racket-hash-lang-delete-backward-char ()
-  "Delete previous character, and when between a pair, following character."
+  "Delete previous character, and following character when matching pair."
   (interactive)
   (pcase (assq (char-before) racket-hash-lang-pairs)
     (`(,_open ,close . ,_ )
      (when (eq close (char-after))
        (delete-char 1))))
   (delete-char -1))
+(put 'racket-hash-lang-delete-backward-char 'delete-selection 'supersede)
 
 ;;; Fill
 
