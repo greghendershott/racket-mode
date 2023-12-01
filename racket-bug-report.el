@@ -46,22 +46,30 @@
                    (p "Metadata"
                       (let ((v (assq 'racket-mode package-alist)))
                         (and v (cdr v))))))
-        (section "General values"
+        (section "System values"
                  (lambda ()
                    (dolist (sym '(emacs-version
                                   major-mode
                                   system-type
-                                  x-gtk-use-system-tooltips
-                                  after-change-functions
-                                  completion-at-point-functions
-                                  eldoc-documentation-function
-                                  font-lock-defaults
-                                  xref-backend-functions))
+                                  x-gtk-use-system-tooltips))
                      (ignore-errors
                        (p sym (symbol-value sym))))
                    (dolist (fun (list #'display-graphic-p))
                      (ignore-errors
                        (p fun (funcall fun))))))
+        (section "Buffer values"
+                 (lambda ()
+                   (dolist (sym '(after-change-functions
+                                  before-change-functions
+                                  completion-at-point-functions
+                                  eldoc-documentation-function
+                                  font-lock-defaults
+                                  pre-command-hook
+                                  post-command-hook
+                                  post-self-insert-hook
+                                  xref-backend-functions))
+                     (ignore-errors
+                       (p sym (symbol-value sym))))))
         (section "Racket Mode values"
                  (lambda ()
                    (p 'racket--cmd-open-p (racket--cmd-open-p))
