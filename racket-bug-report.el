@@ -18,74 +18,67 @@
 
 ;;;###autoload
 (defun racket-bug-report ()
-  "Fill a buffer with data to make a Racket Mode bug report."
+  "Fill a buffer with details for a Racket Mode bug report."
   (interactive)
   (unless (string-match-p "^racket-" (symbol-name major-mode))
     (user-error "Please run from a Racket Mode buffer in which you're having a problem"))
   (let ((help-window-select t)
         (print-length nil) ;for `pp'
         (print-level nil)) ;for `pp'
-    (cl-flet ((p (label value)
-                 (princ (format "<dt>%s</dt>" label))
-                 (princ "<dd><pre>")
-                 (pp value)
-                 (princ "</pre></dd>\n"))
-              (section (label thunk)
-                       (princ (format "<h2>%s</h2>\n" label))
-                       (princ "<dl>\n")
-                       (funcall thunk)
-                       (princ "</dl>\n"))
-              (symbol-less-p (a b) (string-lessp (symbol-name a) (symbol-name b))))
-      (with-help-window "*racket-mode bug report*"
-        (princ "Please copy all of the following lines and paste them into your bug report\n")
-        (princ "at <https://github.com/greghendershott/racket-mode/issues/>.\n\n")
+    (cl-flet* ((-section (label thunk)
+                         (princ (format "<h2>%s</h2>\n" label))
+                         (princ "<dl>\n")
+                         (funcall thunk)
+                         (princ "</dl>\n"))
+               (show (label value)
+                     (princ (format "<dt>%s</dt>" label))
+                     (princ "<dd><pre>")
+                     (pp value)
+                     (princ "</pre></dd>\n"))
+               (show-vars (syms) (dolist (sym syms)
+                                   (ignore-errors (show sym (symbol-value sym)))))
+               (symbol-less-p (a b) (string-lessp (symbol-name a) (symbol-name b))))
+      (cl-macrolet ((section (title &rest body)
+                             `(-section ,title (lambda () ,@body))))
+        (with-help-window "*racket-mode bug report*"
+          (princ "Please copy all of the following lines and paste them into your bug report\n")
+          (princ "at <https://github.com/greghendershott/racket-mode/issues/>.\n\n")
 
-        (princ "<details>\n")
-        (section "Package"
-                 (lambda ()
-                   (p "Metadata"
-                      (let ((v (assq 'racket-mode package-alist)))
-                        (and v (cdr v))))))
-        (section "System values"
-                 (lambda ()
-                   (dolist (sym '(emacs-version
-                                  major-mode
-                                  system-type
-                                  x-gtk-use-system-tooltips))
-                     (ignore-errors
-                       (p sym (symbol-value sym))))
-                   (dolist (fun (list #'display-graphic-p))
-                     (ignore-errors
-                       (p fun (funcall fun))))))
-        (section "Buffer values"
-                 (lambda ()
-                   (dolist (sym '(after-change-functions
-                                  before-change-functions
-                                  completion-at-point-functions
-                                  eldoc-documentation-function
-                                  font-lock-defaults
-                                  pre-command-hook
-                                  post-command-hook
-                                  post-self-insert-hook
-                                  xref-backend-functions))
-                     (ignore-errors
-                       (p sym (symbol-value sym))))))
-        (section "Racket Mode values"
-                 (lambda ()
-                   (p 'racket--cmd-open-p (racket--cmd-open-p))
-                   (dolist (sym
-                            (sort (append (racket--bug-report-customs)
-                                          '(racket-mode-hook
-                                            racket-hash-lang-mode-hook
-                                            racket-hash-lang-module-language-hook
-                                            racket-repl-mode-hook
-                                            racket-back-end-configurations
-                                            racket--el-source-dir
-                                            racket--rkt-source-dir))
-                                  #'symbol-less-p))
-                     (p sym (symbol-value sym)))))
-        (section "Minor modes"
-                 (lambda ()
+          (princ "<details>\n")
+          (section "Package"
+                   (show "metadata"
+                         (let ((v (assq 'racket-mode package-alist)))
+                           (and v (cdr v))))
+                   (show-vars '(package-archives
+                                racket--el-source-dir
+                                racket--rkt-source-dir)))
+          (section "System values"
+                   (show-vars '(emacs-version
+                                major-mode
+                                system-type
+                                x-gtk-use-system-tooltips))
+                   (show 'display-graphic-p (display-graphic-p)))
+          (section "Buffer values"
+                   (show-vars '(after-change-functions
+                                before-change-functions
+                                completion-at-point-functions
+                                eldoc-documentation-function
+                                font-lock-defaults
+                                pre-command-hook
+                                post-command-hook
+                                post-self-insert-hook
+                                xref-backend-functions)))
+          (section "Racket Mode values"
+                   (show 'racket--cmd-open-p (racket--cmd-open-p))
+                   (show-vars
+                    (sort (append (racket--bug-report-customs)
+                                  '(racket-mode-hook
+                                    racket-hash-lang-mode-hook
+                                    racket-hash-lang-module-language-hook
+                                    racket-repl-mode-hook
+                                    racket-back-end-configurations))
+                          #'symbol-less-p)))
+          (section "Minor modes"
                    (let* ((minor-modes (seq-uniq
                                         (append minor-mode-list
                                                 (mapcar #'car minor-mode-alist))))
@@ -95,14 +88,14 @@
                                                    sym))
                                                minor-modes))
                           (disabled (seq-filter (lambda (sym)
-                                                 (unless (ignore-errors (symbol-value sym))
-                                                   sym))
-                                               minor-modes)))
-                     (p 'enabled  (mapcar #'list enabled)) ;so pp line-breaks
+                                                  (unless (ignore-errors (symbol-value sym))
+                                                    sym))
+                                                minor-modes)))
+                     (show 'enabled  (mapcar #'list enabled)) ;so pp line-breaks
                      (princ "<details><summary>Disabled minor modes</summary>\n")
-                     (p 'disabled (mapcar #'list disabled))
-                     (princ "</details>\n"))))
-        (princ "</details>\n\nSteps to reproduce: ")))
+                     (show 'disabled (mapcar #'list disabled))
+                     (princ "</details>\n")))
+          (princ "</details>\n\nSteps to reproduce: "))))
     (forward-line 2)))
 
 (defun racket--bug-report-customs ()
