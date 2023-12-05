@@ -687,54 +687,46 @@ However other users don't need that, so we supply this
 (defvar-local racket-hash-lang-pairs nil
   "Pairs of characters to insert automatically.
 
-The format of each item is
-
-  (open-char close-char . except-kinds)
-
-where except-kinds are symbols corresonding to lang lexer token
-kinds.
+The format of each item is (cons open-char close-char).
 
 This is initialized whenever a module language changes, using
 single-character values from the language's reported
 drracket:paren-matches and drracket:quote-matches.
 
-Paren matches are allowed for all token kinds. Quote matches are
-_not_ allowed in string, comment, or text tokens. For example a
-lang might supply \\=' as a quote-match, and you wouldn't want to
-type don\\='t in prose but get don\\='t\\='.
-
 You may customize this default initialization in
 `racket-hash-lang-module-language-hook'.")
 
-(defun racket--hash-lang-configure-pairs (paren-matches quote-matches)
-  (let ((pairs nil))
-    (dolist (p paren-matches)
-      (let ((open (car p))
-            (close (cdr p)))
-        (when (and (= 1 (length open)) (= 1 (length close)))
-          (push (list (aref open 0) (aref close 0))
-                pairs))))
-    (dolist (q quote-matches)
-      (when (= 1 (length q))
-        (push (list (aref q 0) (aref q 0) 'string 'comment 'text)
-              pairs)))
-    (setq-local racket-hash-lang-pairs (reverse pairs))))
+(defvar-local racket-hash-lang-pairs-predicate
+  #'racket-hash-lang-pairs-predicate-default)
+(defun racket-hash-lang-pairs-predicate-default (char pos)
+  (not
+   (and (eq char ?')
+        (pcase-let ((`(,_beg ,_end (,kind . ,_))
+                     (racket-hash-lang-classify (1- pos))))
+          (memq kind '(string comment text))))))
 
-(defun racket--hash-lang-lookup-pair ()
-  (pcase (assq last-command-event racket-hash-lang-pairs)
-    (`(,open ,close . ,except-kinds)
-     (if except-kinds
-         (pcase-let ((`(,_beg ,_end (,kind . ,_))
-                    (racket--cmd/await
-                     nil
+(defun racket-hash-lang-classify (pos)
+  (racket--cmd/await nil
                      `(hash-lang
                        classify
                        ,racket--hash-lang-id
                        ,racket--hash-lang-generation
-                       ,(1- (point))))))
-         (unless (memq kind except-kinds)
-           (cons open close)))
-       (cons open close)))))
+                       ,pos)))
+
+(defun racket--hash-lang-configure-pairs (paren-matches quote-matches)
+  (let ((pairs nil))
+    (cl-flet ((add (open close)
+                   (when (and (= 1 (length open)) (= 1 (length close)))
+                     (push (cons (aref open 0) (aref close 0))
+                           pairs))))
+      (dolist (p paren-matches) (add (car p) (cdr p)))
+      (dolist (q quote-matches) (add q q)))
+    (setq-local racket-hash-lang-pairs (reverse pairs))))
+
+(defun racket--hash-lang-lookup-pair ()
+  (when-let (pair (assq last-command-event racket-hash-lang-pairs))
+    (when (funcall racket-hash-lang-pairs-predicate (car pair) (point))
+      pair)))
 
 (defun racket-hash-lang-will-use-region ()
   "A value for hook `self-insert-uses-region-functions'."
@@ -772,7 +764,7 @@ You may customize this default initialization in
   "Delete previous character, and following character when matching pair."
   (interactive)
   (pcase (assq (char-before) racket-hash-lang-pairs)
-    (`(,_open ,close . ,_ )
+    (`(,_open . ,close)
      (when (eq close (char-after))
        (delete-char 1))))
   (delete-char -1))
