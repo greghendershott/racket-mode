@@ -3191,23 +3191,13 @@ Scribble text, use the face @code{default}
 @node racket-hash-lang-pairs
 @subsection racket-hash-lang-pairs
 
-Pairs of characters to insert automatically.
+Pairs of delimiters to insert or delete automatically.
 
-The format of each item is
-
-(open-char close-char . except-kinds)
-
-where except-kinds are symbols corresonding to lang lexer token
-kinds.
+The format of each item is (cons string string).
 
 This is initialized whenever a module language changes, using
-single-character values from the language's reported
+values from the language's reported values for
 drracket:paren-matches and drracket:quote-matches.
-
-Paren matches are allowed for all token kinds. Quote matches are
-not allowed in string, comment, or text tokens. For example a
-lang might supply ' as a quote-match, and you wouldn't want to
-type don't in prose but get don't'.
 
 You may customize this default initialization in
 @ref{racket-hash-lang-module-language-hook}.
@@ -3266,7 +3256,7 @@ delimiter-matching modes is likely to work well unless the
 hash-lang uses racket for drracket:grouping-position, in which
 case @ref{racket-hash-lang-mode} uses the classic @ref{racket-mode}
 syntax-table for the buffer. Otherwise you should not enable one
-of these modes, and isntead just use the simple delimiter
+of these modes, and instead just use the simple delimiter
 matching built into @ref{racket-hash-lang-mode}; see
 @ref{racket-hash-lang-pairs}.
 
