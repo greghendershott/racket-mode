@@ -251,6 +251,7 @@ can contribute more colors; see the customization variable
   (add-hook 'post-self-insert-hook #'racket-hash-lang-post-self-insert nil t)
   (add-hook 'self-insert-uses-region-functions #'racket-hash-lang-will-use-region nil t)
   (electric-pair-local-mode -1)
+  (setq-local electric-pair-open-newline-between-pairs nil) ;#685
   (electric-indent-local-mode -1)
   (setq-local electric-indent-inhibit t)
   (setq-local blink-paren-function nil)
