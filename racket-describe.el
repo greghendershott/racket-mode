@@ -229,21 +229,29 @@ When span has a RktXXX or techinside class, set the face."
     (when-let (title (dom-attr dom 'title))
       (put-text-property start (point) 'help-echo title))))
 
-(defconst racket--shr-headings
-  '((h1 (variable-pitch (:height 2.00)))
-    (h2 (variable-pitch (:height 1.90)))
-    (h3 (variable-pitch (:height 1.75)))
-    (h4 (variable-pitch (:height 1.60)))
-    (h5 (variable-pitch (:height 1.45)))
-    (h6 (variable-pitch (:height 1.40)))
-    (h7 (variable-pitch (:height 1.15)))))
-
 (defun racket-render-tag-heading (dom)
-  (let* ((tag  (car dom))
-         (face (or (when-let (v (assq tag racket--shr-headings))
-                     (cadr v))
-                   `(variable-pitch (:weight bold)))))
-    (shr-heading dom face)))
+  (pcase-let ((`(,level . ,face)
+               (pcase (car dom)
+                 ('h1 '(1 . (variable-pitch (:height 2.00))))
+                 ('h2 '(2 . (variable-pitch (:height 1.90))))
+                 ('h3 '(3 . (variable-pitch (:height 1.75))))
+                 ('h4 '(4 . (variable-pitch (:height 1.60))))
+                 ('h5 '(5 . (variable-pitch (:height 1.45))))
+                 ('h6 '(6 . (variable-pitch (:height 1.40))))
+                 ('h7 '(7 . (variable-pitch (:height 1.15))))
+                 (_ '(nil . (variable-pitch (:weight bold)))))))
+    ;; Starting in Emacs 30.0.50, `shr-heading' assumes the face is a
+    ;; symbol shr-hN so it can extract N to add an outline-level text
+    ;; property. Avoid calling that; instead do equivalent. See #687.
+    (shr-ensure-paragraph)
+    (let ((start (point)))
+      (shr-fontize-dom dom face)
+      (when level
+        (put-text-property start
+                           (let ((inhibit-field-text-motion t))
+                             (line-end-position))
+                           'outline-level level)))
+    (shr-ensure-paragraph)))
 
 (define-button-type 'racket-doc-link
   'action #'racket-describe-doc-link-button)
