@@ -767,19 +767,21 @@ You may customize this default initialization in
   "A value for `post-self-insert-hook'."
   (pcase (racket--hash-lang-lookup-pair last-command-event (point))
     (`(,open . ,close)
-     (if (use-region-p)
-         (if (<= (point) (mark))
-             (progn
-               (goto-char (mark))
-               (insert close))
-           ;; Delete open already inserted after region
-           (delete-char (- (length open)))
-           (insert close)
-           (save-excursion
-             (goto-char (mark))
-             (insert open)))
-       (save-excursion
-         (insert close))))))
+     (cond ((not (use-region-p))
+            (save-excursion
+              (insert close)))
+           ((< (point) (mark))
+            (save-excursion
+              (goto-char (mark))
+              (insert close))
+            (goto-char (1- (point))))
+           ((< (mark) (point))
+            ;; Delete open already inserted after region.
+            (delete-char (- (length open)))
+            (insert close)
+            (save-excursion
+              (goto-char (mark))
+              (insert open)))))))
 
 (defun racket-hash-lang-delete-backward-char ()
   "Delete previous character, and possibly paired delimiters.
