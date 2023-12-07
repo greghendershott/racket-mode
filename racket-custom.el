@@ -775,7 +775,7 @@ See the variable `racket-browse-url-function'."
   "Racket Doc Output Face")
 
 (defface-racket racket-doc-litchar-face
-  '((t (:inherit holiday)))
+  '((t (:foreground "dark red" :background "gray")))
   "Face `racket-describe-mode' uses for Scribble @litchar."
   "Racket Doc Litchar Face")
 
