@@ -22,6 +22,7 @@
 (require 'racket-visit)
 (require 'racket-cmd)
 (require 'racket-back-end)
+(require 'ansi-color)
 (require 'compile)
 (require 'easymenu)
 (require 'cl-lib)
@@ -222,7 +223,7 @@ live prompt this marker will be at `point-max'.")
       (set-marker racket--repl-output-mark (point-max)))))
 
 (defun racket--repl-prompt-mark-end ()
-  "May return when there is no live prompt."
+  "May return nil when there is no live prompt."
   (when racket--repl-prompt-mark
     (or (next-single-property-change racket--repl-prompt-mark 'racket-prompt)
         (point-max))))
@@ -248,7 +249,10 @@ live prompt this marker will be at `point-max'.")
         (remove-text-properties (point-min) (point) '(rear-nonsticky nil))
         (cl-flet*
             ((fresh-line () (unless (bolp) (newline)))
-             (insert-faced (str face) (insert (propertize str 'font-lock-face face))))
+             (faced (str face) (propertize str 'font-lock-face face))
+             (insert-faced (str face) (insert (faced str face)))
+             (insert-filtered (str face) (insert (racket--repl-filter-output
+                                                  (faced str face)))))
           (cl-case kind
             ((run)
              (racket--repl-delete-prompt-mark 'abandon)
@@ -302,9 +306,9 @@ live prompt this marker will be at `point-max'.")
                              (insert-faced name 'racket-repl-error-label)))
                          (newline)))))))
             ((stdout)
-             (insert-faced value 'racket-repl-stdout))
+             (insert-filtered value 'racket-repl-stdout))
             ((stderr)
-             (insert-faced value 'racket-repl-stderr))
+             (insert-filtered value 'racket-repl-stderr))
             (otherwise
              (fresh-line)
              (insert-faced value 'racket-repl-message))))
@@ -341,6 +345,48 @@ live prompt this marker will be at `point-max'.")
           (goto-char racket--repl-output-mark)
           (when win (set-window-point win racket--repl-output-mark)))))))
 
+(defvar racket-repl-output-filter-functions (list #'ansi-color-apply)
+  "List of functions to call before inserting stdout/stderr output.
+
+Similar to `comint-preoutput-filter-functions', but limited to
+stdout/stderr kinds of output.
+
+Each function gets one argument, a string propertized by default
+with a face for stdout or stderr. It should return a string to
+insert instead. The functions are composed.
+
+You can use `add-hook' to add functions to this list either
+globally or locally.
+
+If the function uses state that should be reset between runs, do
+that via `racket-before-run-hook'; for example see
+`racket-ansi-color-context-reset'.")
+
+;; Because we default `racket-repl-output-filter-functions' to
+;; `ansi-color-apply', we want to reset its state for a REPL before
+;; every run. Although we could hard-code that, use the before-run
+;; hook to set an example for users.
+(defun racket-ansi-color-context-reset ()
+  (with-racket-repl-buffer
+    (setq-local ansi-color-context nil)))
+(add-hook 'racket-before-run-hook #'racket-ansi-color-context-reset)
+
+(defun racket--repl-filter-output (string)
+  ;; Beause there is no run-hooks-xxx variant equivalent to function
+  ;; composition, we borrow the equivalent code from comint, which
+  ;; also handles the wrinkle of buffer-local values.
+  (let ((functions racket-repl-output-filter-functions))
+    (while (and functions string)
+      (if (eq (car functions) t)
+          (let ((functions
+                 (default-value 'racket-repl-output-filter-functions)))
+            (while (and functions string)
+              (setq string (funcall (car functions) string))
+              (setq functions (cdr functions))))
+        (setq string (funcall (car functions) string)))
+      (setq functions (cdr functions))))
+  string)
+
 (defun racket--repl-call-with-value-and-input-ranges (from upto proc)
   "Call PROC with sub-ranges of FROM..UPTO, saying whether each
 is a value or input since `racket--repl-run-mark'."
@@ -366,6 +412,8 @@ is a value or input since `racket--repl-run-mark'."
                         prompt-end)))
           (funcall proc from (min pos upto) in)
           (setq from pos)))))))
+
+;;; Submit
 
 (defalias 'racket-repl-eval-or-newline-and-indent #'racket-repl-submit)
 
