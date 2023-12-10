@@ -44,7 +44,7 @@
   (racket--easy-keymap-define
    '((("C-c C-c"
        "C-c C-k")   racket-run-module-at-point)
-     ("C-c C-z"     racket-repl)
+     ("C-c C-z"     racket-edit-switch-to-repl)
      ("<f5>"        racket-run-and-switch-to-repl)
      ("M-C-<f5>"    racket-racket)
      ("C-<f5>"      racket-test)

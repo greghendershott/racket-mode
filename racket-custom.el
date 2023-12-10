@@ -392,7 +392,6 @@ will use this to decide whether to submit your input, yet."
   :safe #'booleanp
   :group 'racket-repl)
 
-
 (defcustom racket-before-run-hook nil
   "Normal hook done before various Racket Mode run commands.
 
@@ -421,6 +420,14 @@ from the variable `racket-repl-buffer-name'."
   :tag "After Run Hook"
   :type 'hook
   :risky t
+  :group 'racket-repl)
+
+(defcustom racket-repl-command-file
+  (expand-file-name "repl.rkt"
+                    (locate-user-emacs-file (file-name-as-directory "racket-mode")))
+  "Name of the file used by `racket-repl'."
+  :tag "REPL Command File"
+  :type 'file
   :group 'racket-repl)
 
 ;;; Other

@@ -226,6 +226,7 @@ REPL variables
 * racket-images-keep-last::
 * racket-images-system-viewer::
 * racket-pretty-print::
+* racket-repl-command-file::
 
 Other variables
 
@@ -997,7 +998,7 @@ Major mode for editing Racket source files.
 @item @kbd{C-c C-t} 
 @tab @ref{racket-test}
 @item @kbd{C-c C-z} 
-@tab @ref{racket-repl}
+@tab @code{racket-edit-switch-to-repl}
 @item @kbd{C-c C-k} 
 @tab @ref{racket-run-module-at-point}
 @item @kbd{C-c C-c} 
@@ -1618,7 +1619,7 @@ can contribute more colors; see the customization variable
 @item @kbd{C-c C-t} 
 @tab @ref{racket-test}
 @item @kbd{C-c C-z} 
-@tab @ref{racket-repl}
+@tab @code{racket-edit-switch-to-repl}
 @item @kbd{C-c C-k} 
 @tab @ref{racket-run-module-at-point}
 @item @kbd{C-c C-c} 
@@ -2321,26 +2322,22 @@ simply the outermost, file module.
 @node racket-repl
 @subsection racket-repl
 
-@kbd{C-c C-z} 
+@kbd{M-x}  @code{racket-repl}
 
 Show a Racket REPL buffer in some window.
 
-@strong{IMPORTANT}
+The intended use of Racket Mode's REPL is that you @code{find-file}
+some specific file, then run it using a command like @ref{racket-run}
+or @ref{racket-run-module-at-point}. The resulting REPL will
+correspond to those definitions and match your expectations.
 
-The main, intended use of Racket Mode's REPL is that you
-@code{find-file} some specific .rkt file, then run it using
-@ref{racket-run} or @ref{racket-run-module-at-point}. The resulting REPL
-will correspond to those definitions and match your expectations.
-
-If you really want to start a REPL for no file in particular,
-then you could use this @ref{racket-repl} command. But the resulting
-REPL will have a minimal ``#lang racket/base'' namespace. You
-could enter ``(require racket)'' if you want the equivalent of
-``#lang racket''. You could also ``(require racket/enter)'' if
-you want things like ``enter!''. But in some sense you'd be
-``using it wrong''. If you actually don't want to use Racket
-Mode's REPL as intended, then consider using a plain Emacs
-@code{shell} buffer to run command-line Racket.
+Therefore this @ref{racket-repl} command -- which is intended as a
+convenience for people who want to ``just get a quick scratch
+REPL'' -- is actually implemented as running the file named in
+the customization variable @ref{racket-repl-command-file}. When that
+file doesn't exist, it is created to contain just ``#lang
+racket/base''. You may edit the file to use a different lang,
+require other modules, or whatever.
 
 @node racket-repl-describe
 @subsection racket-repl-describe
@@ -3304,6 +3301,7 @@ classic @ref{racket-mode} for rackety module languages:
 * racket-images-keep-last::
 * racket-images-system-viewer::
 * racket-pretty-print::
+* racket-repl-command-file::
 @end menu
 
 @node racket-repl-buffer-name-function
@@ -3400,6 +3398,11 @@ The image viewer program to use for @code{racket-view-image}.
 @subsection racket-pretty-print
 
 Use pretty-print instead of print in REPL@?
+
+@node racket-repl-command-file
+@subsection racket-repl-command-file
+
+Name of the file used by @ref{racket-repl}.
 
 @node Other variables
 @section Other variables

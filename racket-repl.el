@@ -501,37 +501,44 @@ even when the module language doesn't provide any binding for
       ;; then.
       (racket--cmd/async (racket--repl-session-id) `(repl-exit)))))
 
-(declare-function racket-call-racket-repl-buffer-name-function "racket-repl-buffer-name" ())
-(autoload        'racket-call-racket-repl-buffer-name-function "racket-repl-buffer-name")
+(declare-function racket-repl-buffer-name-unique "racket-repl-buffer-name" ())
+(autoload        'racket-repl-buffer-name-unique "racket-repl-buffer-name")
 
 ;;;###autoload
 (defun racket-repl (&optional noselect)
   "Show a Racket REPL buffer in some window.
 
-*IMPORTANT*
+The intended use of Racket Mode's REPL is that you `find-file'
+some specific file, then run it using a command like `racket-run'
+or `racket-run-module-at-point'. The resulting REPL will
+correspond to those definitions and match your expectations.
 
-The main, intended use of Racket Mode's REPL is that you
-`find-file' some specific .rkt file, then run it using
-`racket-run' or `racket-run-module-at-point'. The resulting REPL
-will correspond to those definitions and match your expectations.
-
-If you really want to start a REPL for no file in particular,
-then you could use this `racket-repl' command. But the resulting
-REPL will have a minimal \"#lang racket/base\" namespace. You
-could enter \"(require racket)\" if you want the equivalent of
-\"#lang racket\". You could also \"(require racket/enter)\" if
-you want things like \"enter!\". But in some sense you'd be
-\"using it wrong\". If you actually don't want to use Racket
-Mode's REPL as intended, then consider using a plain Emacs
-`shell' buffer to run command-line Racket."
+Therefore this `racket-repl' command -- which is intended as a
+convenience for people who want to \"just get a quick scratch
+REPL\" -- is actually implemented as running the file named in
+the customization variable `racket-repl-command-file'. When that
+file doesn't exist, it is created to contain just \"#lang
+racket/base\". You may edit the file to use a different lang,
+require other modules, or whatever."
   (interactive "P")
-  (racket-call-racket-repl-buffer-name-function)
-  (racket--repl-ensure-buffer-and-session
-   nil
-   (lambda (repl-buffer)
-     (racket--repl-refresh-namespace-symbols)
-     (unless noselect
-       (select-window (get-buffer-window repl-buffer t))))))
+  ;; Create file if it doesn't exist
+  (unless (file-exists-p racket-repl-command-file)
+    (let ((dir (file-name-directory racket-repl-command-file)))
+      (unless (file-exists-p dir)
+        (make-directory dir t)))
+    (write-region ";; Used by M-x racket-repl; you may edit\n#lang racket/base\n"
+                  nil racket-repl-command-file))
+  ;; Visit the file without selecting it, and run it.
+  (let ((racket-repl-buffer-name-function #'racket-repl-buffer-name-unique))
+    (with-current-buffer (find-file-noselect racket-repl-command-file)
+      (racket--repl-run
+       (list racket-repl-command-file)
+       nil
+       nil
+       (lambda ()
+         (display-buffer racket-repl-buffer-name)
+         (unless noselect
+           (select-window (get-buffer-window racket-repl-buffer-name t))))))))
 
 ;;; Run
 
@@ -649,9 +656,7 @@ the variable `racket-before-run-hook'."
                       (`(4)  'high)
                       (`(16) 'debug)
                       (_     racket-error-context))
-                    (lambda ()
-                      (display-buffer racket-repl-buffer-name)
-                      (select-window (get-buffer-window racket-repl-buffer-name t)))))
+                    #'racket-edit-switch-to-repl))
 
 (defun racket-test (&optional prefix)
   "Run the \"test\" submodule.
@@ -916,13 +921,27 @@ This displays the buffer but does not change the selected window."
                            (lambda (_id)
                              (funcall continue repl-buf)))))))
 
-;;; Misc
+;;; Switch between associcated edit and REPL buffers
+
+(defun racket-edit-switch-to-repl ()
+  "Select REPL buffer associated with the edit buffer.
+
+When no such buffer exists yet, do nothing but say so and suggest
+using a run command."
+  (interactive)
+  (racket--assert-edit-mode)
+  (pcase (get-buffer racket-repl-buffer-name)
+    ((and repl-buf (pred buffer-live-p))
+     (display-buffer repl-buf)
+     (select-window (get-buffer-window repl-buf t)))
+    (_ (user-error
+        (format "No REPL buffer exists for %s; use a run command"
+                (buffer-name))))))
 
 (defun racket-repl-file-name ()
   "Return the file running in the REPL, or nil.
 
-The result can be nil if the REPL is not started, or if it is
-running no particular file."
+The result can be nil if the REPL is not started."
   (when (racket--repl-session-id)
     (racket--cmd/await (racket--repl-session-id) `(path))))
 
@@ -935,12 +954,9 @@ running no particular file."
         (and buf-file repl-file (string-equal buf-file repl-file)))))
 
 (defun racket-repl-switch-to-edit ()
-  "Switch to the window for the buffer of the file running in the REPL.
+  "Select edit buffer of the file running in the REPL.
 
-If no buffer is visting the file, `find-file' it in `other-window'.
-
-If the REPL is running no file -- if the prompt is `>` -- use the
-most recent `racket-mode' buffer, if any."
+If no buffer is visting the file, `find-file' it in `other-window'."
   (interactive)
   (pcase (racket-repl-file-name)
     ((and (pred stringp) path)

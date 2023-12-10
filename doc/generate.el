@@ -204,6 +204,7 @@
     racket-images-keep-last
     racket-images-system-viewer
     racket-pretty-print
+    racket-repl-command-file
     "Other variables"
     racket-indent-curly-as-sequence
     racket-indent-sequence-depth
