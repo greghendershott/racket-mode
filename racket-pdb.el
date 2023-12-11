@@ -650,16 +650,6 @@ Uses pdb to query for sites among multiple files."
 
 ;;; Completion
 
-;; TODO: A problem with this approach is when the buffer is in error,
-;; then pdb-completions returns nothing. Probably it should retain the
-;; completion data from the previous non-error analysis, if any.
-;; [That's effectively what racket-xp-mode does, although in that case
-;; the state is stored in `racket--xp-binding-completions', which it
-;; simply doesn't reset when there are errors. Whreas with pdb we're
-;; querying the back end for completions for a specific point, the
-;; back end owns/holds that state. So it is probably the entity that
-;; should preserve completion candidates.]
-
 (defun racket-pdb-complete-at-point ()
   (pcase-let
       ((`(,beg . ,end)
