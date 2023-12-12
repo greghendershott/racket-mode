@@ -1529,26 +1529,88 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
     (define-key map (kbd "RET") #'racket-repl-goto-error-location)
     map))
 
-(defun racket--format-error-location (loc)
-  (pcase loc
-    (`(,str ,_file ,_line ,_col ,_pos ,_span)
+;; Note about error locations: On the one hand, representing error
+;; locations using markers has a benefit: The user can edit the file
+;; to fix the error or test failure, without disturbing the ability to
+;; visit subsequent error locations. On the other hand, markers impose
+;; some cost on edit operations; and anyway we can only create a
+;; marker if a buffer already exists for the file. Our tactic to pay
+;; the cost only when we get the benefit: Initially create the
+;; locations using positions. When the user wants to visit a location,
+;; "upgrade" our values for that file to use markers (but only since
+;; the last run), visiting the file if necessary. And our
+;; before-run-hook that resets next-error also "downgrades" /all/ locs
+;; from markers back to positions.
+
+(defun racket--format-error-location (raw-loc)
+  ;; Initially racket-error-loc is (list file beg-pos end-pos).
+  (pcase raw-loc
+    (`(,str ,file ,_line ,_col ,pos ,span)
      (propertize str
+                 'racket-error-loc (list file pos (+ pos span))
                  'font-lock-face 'racket-repl-error-location
-                 'racket-error-loc loc
                  'keymap racket-repl-error-location-map))
     (_ (propertize "location N/A" 'font-lock-face 'italic))))
 
+(defun racket--repl-upgrade-error-locations (file)
+  ;; Change all racket-error-locs for FILE since the last run from the
+  ;; position form to the marker form, loading FILE in a buffer if
+  ;; necessary.
+  (let ((buf (or (get-file-buffer file)
+                 (let ((find-file-suppress-same-file-warnings t))
+                   (find-file-noselect file)))))
+    (save-excursion
+      (racket--repl-after-previous-field '(run))
+      (racket--map-error-locations
+       (lambda (v)
+         (pcase v
+           ((and `(,this-file ,beg ,end) (guard (equal this-file file)))
+            (ignore this-file) ;"unused lexical variable" on some Emacs
+            (list (set-marker (make-marker) beg buf)
+                  (set-marker (make-marker) end buf)))
+           (v v)))))))
+
+(defun racket--repl-downgrade-error-locations ()
+  ;; Change all racket-error-locs in the buffer from the marker form
+  ;; to the position form, and make the markers point nowhere.
+  (save-excursion
+    (goto-char (point-min))
+    (racket--map-error-locations
+     (lambda (v)
+       (pcase v
+         (`(,beg ,end)
+          (prog1 (list (buffer-file-name (marker-buffer beg))
+                       (marker-position beg)
+                       (marker-position end))
+            (set-marker beg nil)
+            (set-marker end nil)))
+         (v v))))))
+
+(defun racket--map-error-locations (proc)
+  (let ((inhibit-read-only t))
+    (while (ignore-errors
+             (goto-char (next-single-property-change (point) 'racket-error-loc)))
+      (let ((val (get-text-property (point) 'racket-error-loc))
+            (from (point)))
+        (goto-char (next-single-property-change (point) 'racket-error-loc))
+        (put-text-property from (point) 'racket-error-loc (funcall proc val))))))
+
 (defun racket-repl-goto-error-location ()
+  "When racket-error-loc prop exists at point, visit the location."
   (interactive)
   (pcase (get-text-property (point) 'racket-error-loc)
-    (`(,_str ,file ,_line ,_col ,pos ,span)
-     (with-current-buffer (or (get-file-buffer file)
-                              (let ((find-file-suppress-same-file-warnings t))
-                                (find-file-noselect file)))
+    ;; A racket-error-loc property using file plus position integers.
+    (`(,file ,_beg ,_end)
+     (racket--repl-upgrade-error-locations file)
+     (racket-repl-goto-error-location))
+    ;; A racket-error-loc property using markers pointing into the
+    ;; buffer.
+    (`(,beg ,end)
+     (with-current-buffer (marker-buffer beg)
        (display-buffer (current-buffer))
-       (goto-char pos)
-       (set-window-point (get-buffer-window (current-buffer)) pos)
-       (pulse-momentary-highlight-region pos (+ pos span))))))
+       (goto-char beg)
+       (set-window-point (get-buffer-window (current-buffer)) beg)
+       (pulse-momentary-highlight-region beg end)))))
 
 (defvar-local racket--errors-reset t)
 (defvar-local racket--errors-point-min nil)
@@ -1557,6 +1619,7 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
 Although they remain clickable they will be ignored by
 `next-error' and `previous-error'."
   (with-racket-repl-buffer
+    (racket--repl-downgrade-error-locations)
     (setq racket--errors-reset t)
     (setq racket--errors-point-min (point-max))
     ;; Set this so `next-error-find-buffer' chooses us.
