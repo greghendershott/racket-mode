@@ -1525,7 +1525,6 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
 
 (defvar racket-repl-error-location-map
   (let ((map (make-sparse-keymap)))
-    (define-key map [mouse-2] #'racket-repl-goto-error-location)
     (define-key map (kbd "RET") #'racket-repl-goto-error-location)
     map))
 
@@ -1596,7 +1595,7 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
         (put-text-property from (point) 'racket-error-loc (funcall proc val))))))
 
 (defun racket-repl-goto-error-location ()
-  "When racket-error-loc prop exists at point, visit the location."
+  "When racket-error-loc prop exists at point, `compilation-goto-locus'."
   (interactive)
   (pcase (get-text-property (point) 'racket-error-loc)
     ;; A racket-error-loc property using file plus position integers.
@@ -1606,11 +1605,7 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
     ;; A racket-error-loc property using markers pointing into the
     ;; buffer.
     (`(,beg ,end)
-     (with-current-buffer (marker-buffer beg)
-       (display-buffer (current-buffer))
-       (goto-char beg)
-       (set-window-point (get-buffer-window (current-buffer)) beg)
-       (pulse-momentary-highlight-region beg end)))))
+     (compilation-goto-locus (point-marker) beg end))))
 
 (defvar-local racket--errors-reset t)
 (defvar-local racket--errors-point-min nil)
@@ -1647,12 +1642,9 @@ Although they remain clickable they will be ignored by
           (when (get) (go-prev))
           (go-prev)
           (unless (get) (go-prev))))
-      (cond ((get)
-             ;; Show in REPL buffer
-             (set-window-point (get-buffer-window (current-buffer)) (point))
-             ;; Show in edit buffer
-             (racket-repl-goto-error-location))
-            (t (user-error "No more errors"))))))
+      (unless (get)
+        (user-error "No more errors"))
+      (racket-repl-goto-error-location))))
 
 ;;; Nav
 
