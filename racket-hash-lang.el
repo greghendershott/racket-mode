@@ -826,7 +826,7 @@ When the lang lexer token is...
                        ,(point))
                      (pcase-lambda (`(,_beg ,_end (,kind . ,_)))
                        (cl-case kind
-                         ((whitespace) (user-error "ambiguous; did nothing"))
+                         ((white-space) (message "whitespace; did nothing"))
                          ((text) (fill-paragraph prefix))
                          ((comment) (fill-comment-paragraph prefix))
                          (otherwise (prog-indent-sexp prefix))))))
