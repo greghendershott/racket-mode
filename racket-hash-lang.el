@@ -148,8 +148,8 @@ of these modes, and instead just use the simple delimiter
 matching built into `racket-hash-lang-mode'; see
 `racket-hash-lang-pairs'.
 
-As another example, if you prefer richer font-lock than just
-tokens, choices include:
+As another example, if you prefer more colors than just tokens,
+choices include:
 
 - Enable `racket-xp-mode' in `racket-hash-lang-mode-hook' and in
   the module language hook locally set
@@ -159,8 +159,10 @@ tokens, choices include:
   (setq-local racket-xp-add-binding-faces t)
 #+END_SRC
 
-- Or, use some of the regexp search-based fontification from
-  classic `racket-mode' for rackety module languages:
+  OR
+
+- Use some of the regexp search-based fontification from classic
+  `racket-mode' for rackety module languages:
 
 #+BEGIN_SRC elisp
   (require \\='racket-font-lock)
@@ -206,18 +208,15 @@ In your Emacs configuration, you may want to update the
 variable `auto-mode-alist' to use `racket-hash-lang-mode' for
 file extensions like \".rkt\", \".scrbl\", and/or \".rhm\".
 
-See also the customization variable
-`racket-hash-lang-token-face-alist' and the hook variable
-`racket-hash-lang-module-language-hook'.
+Languages supply colors for lexer tokens like strings and
+comments; see the customization variable
+`racket-hash-lang-token-face-alist'. For more colors see the hook
+variable `racket-hash-lang-module-language-hook', which can also
+be used to vary configurations per language.
 
 A discussion of the information provided by a Racket language:
 
   <https://docs.racket-lang.org/tools/lang-languages-customization.html>
-
-Note that langs supply colors only for lexer tokens like strings
-and comments. If you enable the minor mode `racket-xp-mode', it
-can contribute more colors; see the customization variable
-`racket-xp-binding-font-lock-face-modes'.
 
 \\{racket-hash-lang-mode-map}
 "
