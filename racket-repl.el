@@ -291,6 +291,7 @@ live prompt this marker will be at `point-max'.")
                 ;; w/errortrace is useless noise).
                 (cond (srclocs
                        (dolist (loc srclocs)
+                         (insert " ")
                          (insert (racket--format-error-location loc))
                          (newline)))
                       (context-names-and-locs
@@ -1547,52 +1548,56 @@ See also the command `racket-repl-clear-leaving-last-prompt'."
     (`(,str ,file ,_line ,_col ,pos ,span)
      (propertize str
                  'racket-error-loc (list file pos (+ pos span))
+                 'rear-nonsticky t
                  'font-lock-face 'racket-repl-error-location
                  'keymap racket-repl-error-location-map))
     (_ (propertize "location N/A" 'font-lock-face 'italic))))
 
 (defun racket--repl-upgrade-error-locations (file)
-  ;; Change all racket-error-locs for FILE since the last run from the
-  ;; position form to the marker form, loading FILE in a buffer if
-  ;; necessary.
+  ;; Change all racket-error-locs for FILE, since the last run, which
+  ;; use positions, instead to use markers, loading FILE in a buffer
+  ;; if necessary.
   (let ((buf (or (get-file-buffer file)
                  (let ((find-file-suppress-same-file-warnings t))
-                   (find-file-noselect file)))))
-    (save-excursion
-      (racket--repl-after-previous-field '(run))
-      (racket--map-error-locations
-       (lambda (v)
-         (pcase v
-           ((and `(,this-file ,beg ,end) (guard (equal this-file file)))
-            (ignore this-file) ;"unused lexical variable" on some Emacs
-            (list (set-marker (make-marker) beg buf)
-                  (set-marker (make-marker) end buf)))
-           (v v)))))))
-
-(defun racket--repl-downgrade-error-locations ()
-  ;; Change all racket-error-locs in the buffer from the marker form
-  ;; to the position form, and make the markers point nowhere.
-  (save-excursion
-    (goto-char (point-min))
+                   (find-file-noselect file))))
+        (from (save-excursion
+                (racket--repl-after-previous-field '(run))
+                (point))))
     (racket--map-error-locations
+     from
      (lambda (v)
        (pcase v
-         (`(,beg ,end)
-          (prog1 (list (buffer-file-name (marker-buffer beg))
-                       (marker-position beg)
-                       (marker-position end))
-            (set-marker beg nil)
-            (set-marker end nil)))
+         ((and `(,this-file ,beg ,end) (guard (equal this-file file)))
+          (ignore this-file) ;"unused lexical variable" on some Emacs
+          (list (set-marker (make-marker) beg buf)
+                (set-marker (make-marker) end buf)))
          (v v))))))
 
-(defun racket--map-error-locations (proc)
-  (let ((inhibit-read-only t))
-    (while (ignore-errors
-             (goto-char (next-single-property-change (point) 'racket-error-loc)))
-      (let ((val (get-text-property (point) 'racket-error-loc))
-            (from (point)))
-        (goto-char (next-single-property-change (point) 'racket-error-loc))
-        (put-text-property from (point) 'racket-error-loc (funcall proc val))))))
+(defun racket--repl-downgrade-error-locations ()
+  ;; Change all racket-error-locs in the buffer, which use markers,
+  ;; instead to use positions, and make the old markers point nowhere.
+  (racket--map-error-locations
+   (point-min)
+   (lambda (v)
+     (pcase v
+       (`(,beg ,end)
+        (prog1 (list (buffer-file-name (marker-buffer beg))
+                     (marker-position beg)
+                     (marker-position end))
+          (set-marker beg nil)
+          (set-marker end nil)))
+       (v v)))))
+
+(defun racket--map-error-locations (start fun)
+  ;; Apply FUN to racket-error-loc property spans after START to eob.
+  (let ((inhibit-read-only t)
+        (prop 'racket-error-loc))
+    (while
+        (when-let ((beg (next-single-property-change start prop))
+                   (end (next-single-property-change beg   prop))
+                   (val (get-text-property beg prop)))
+          (put-text-property beg end prop (funcall fun val))
+          (setq start end)))))
 
 (defun racket-repl-goto-error-location ()
   "When racket-error-loc prop exists at point, `compilation-goto-locus'."
