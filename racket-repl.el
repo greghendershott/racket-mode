@@ -1707,7 +1707,7 @@ When point is within output, delete all of that congtiguous
 output."
   (interactive)
   (let* ((pt (point))
-         (output-fields '(value stdout stderr))
+         (output-fields '(value stdout stderr error deleted))
          (beg-of-output (progn
                           ;; Skip backward over non-output fields
                           (unless (memq (get-text-property (point) 'field) output-fields)
@@ -1729,16 +1729,18 @@ output."
                                                (eq ?\n (char-after)))))
                             (goto-char (field-end (point) t)))
                           (point))))
-    (if (< beg-of-output end-of-output)
+    (if (and (< beg-of-output end-of-output)
+             (not (eq (field-at-pos (1+ beg-of-output)) 'deleted)))
         (let ((inhibit-read-only t))
           (delete-region beg-of-output end-of-output)
           (save-excursion
             (goto-char beg-of-output)
             (insert (propertize "(output deleted)\n"
+                                'field 'deleted
                                 'read-only t
                                 'font-lock-face racket-repl-message))))
-      (user-error "Can't find output to delete")
-      (goto-char pt))))
+      (goto-char pt)
+      (user-error "Can't find output to delete"))))
 
 ;;; Input history
 
