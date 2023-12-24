@@ -216,54 +216,42 @@ To insert Unicode symbols generally, see `racket-unicode-input-method-enable'."
 ;;; racket--beginning-of-defun
 
 (defun racket--beginning-of-defun-function ()
-  "Like `beginning-of-defun' but aware of Racket module forms."
-  (let ((orig (point)))
+  "A value for `beginning-of-defun-function'.
+
+Aware of module forms and sexp comment prefixes.
+
+Note: This is the old flavor that takes no arguments and returns
+a boolean whether it moved. As a result `beginning-of-defun-raw'
+when given a negative argument will use `end-of-defun-function',
+which we leave at the default, i.e., `forward-sexp'. AFAIK that's
+been OK, so I don't want to deal with the newer, more complicated
+flavor here."
+  (let ((parse-sexp-ignore-comments t)
+        (orig (point)))
     (racket--escape-string-or-comment)
-    (pcase (racket--module-level-form-start)
-      (`() (ignore-errors (backward-sexp 1)))
-      (pos (goto-char pos)))
+    ;; Move to outermost form, but stop before any module form.
+    (while
+        (condition-case nil
+            (let ((pt (point)))
+              (goto-char (scan-lists (point) -1 1))
+              (or (not (looking-at racket-module-forms))
+                  (progn (goto-char pt) nil)))
+          (scan-error nil)))
+    ;; Unless we moved, try a simple `backward-sexp'.
+    (unless (/= orig (point))
+      (condition-case nil (backward-sexp 1) (scan-error nil)))
+    ;; When we moved, also move before any preceding "#;".
+    (when (/= orig (point))
+      (when-let (sexp-comment-start
+                 (save-excursion
+                   (while (memq (char-before) '(32 ?\n))
+                     (goto-char (1- (point))))
+                   (let ((beg (- (point) 2)))
+                     (when (<= (point-min) beg)
+                       (when (string= "#;" (buffer-substring beg (point)))
+                         beg)))))
+        (goto-char sexp-comment-start)))
     (/= orig (point))))
-
-(defun racket--module-level-form-start ()
-  "Start position of the module-level form point is within.
-
-A module-level form is the outermost form not nested in a Racket
-module form.
-
-If point is not within a module-level form, returns nil.
-
-If point is already exactly at the start of a module-level form,
--- i.e. on the opening ?\( -- returns nil.
-
-If point is within a string or comment, returns nil.
-
-This is NOT suitable for the variable `syntax-begin-function'
-because it (i) doesn't move point, and (ii) doesn't know how to
-find the start of a string or comment."
-  (save-excursion
-    (ignore-errors
-      (let ((pos nil)
-            (parse-sexp-ignore-comments t))
-        (while (ignore-errors
-                 (goto-char (scan-lists (point) -1 1))
-                 (unless (looking-at-p racket-module-forms)
-                   (setq pos (point)))
-                 t))
-        (and pos
-             (or (racket--sexp-comment-start pos)
-                 pos))))))
-
-(defun racket--sexp-comment-start (pos)
-  "Start pos of sexp comment (if any) immediately before POS.
-
-Allows #; to be followed by zero or more space or newline chars."
-  (save-excursion
-    (goto-char pos)
-    (while (memq (char-before) '(32 ?\n))
-      (goto-char (1- (point))))
-    (when (string= "#;" (buffer-substring-no-properties (- (point) 2) (point)))
-      (- (point) 2))))
-
 
 ;;; racket--what-to-run
 
