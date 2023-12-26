@@ -32,7 +32,7 @@ The returned string has text properties:
   an index of 0 for `get-text-property'."
   (when (racket--in-require-form-p)
     (save-excursion
-      (condition-case ()
+      (condition-case _
           (progn
             (forward-sexp 1)
             (backward-sexp 1)
@@ -43,7 +43,7 @@ The returned string has text properties:
                 ((and (pred identity) sexp)
                  (let* ((relative-p (stringp sexp))
                         (multi-in-prefix
-                         (condition-case ()
+                         (condition-case _
                              (progn
                                (backward-up-list 1)
                                (backward-sexp 2)

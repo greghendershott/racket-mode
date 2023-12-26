@@ -15,7 +15,7 @@
   (and (racket--cmd-open-p)
        (> (point) (point-min))
        (save-excursion
-         (condition-case nil
+         (condition-case _
              ;; The char-before and looking-at-p checks below are to
              ;; skip when the sexp is quoted or when its first elem
              ;; couldn't be a Racket function name.

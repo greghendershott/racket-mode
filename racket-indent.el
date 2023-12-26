@@ -198,7 +198,7 @@ need."
     (let ((indent-point (point))
           (state        nil))
       (racket--escape-string-or-comment)
-      (condition-case nil (backward-up-list 1) (scan-error nil))
+      (condition-case _ (backward-up-list 1) (scan-error nil))
       (while (< (point) indent-point)
         (setq state (parse-partial-sexp (point) indent-point 0)))
       (let ((strp (racket--ppss-string-p state))
@@ -366,7 +366,7 @@ Any additional, non-distinguished forms get normal indent."
                              (skip-chars-forward " \t\n")
                              (current-column)))
         (count -1))
-    (condition-case nil
+    (condition-case _
         (while (and (<= (point) indent-point)
                     (not (eobp)))
           (forward-sexp 1)

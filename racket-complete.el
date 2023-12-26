@@ -12,7 +12,7 @@
 
 (defun racket--call-with-completion-prefix-positions (proc)
   (if forward-sexp-function ;not necessarily sexp lang
-      (condition-case nil
+      (condition-case _
           (save-excursion
             (let ((beg (progn (forward-sexp -1) (point)))
                   (end (progn (forward-sexp  1) (point))))
@@ -22,7 +22,7 @@
   (let ((beg (save-excursion (skip-syntax-backward "^-()>") (point))))
     (unless (or (eq beg (point-max))
                 (member (char-syntax (char-after beg)) '(?\" ?\( ?\))))
-      (condition-case nil
+      (condition-case _
           (save-excursion
             (goto-char beg)
             (forward-sexp 1)
@@ -38,7 +38,7 @@
         (racket--escape-string-or-comment)
         (let ((done nil)
               (result nil))
-          (condition-case ()
+          (condition-case _
               (while (not done)
                 (backward-up-list)
                 (when (looking-at-p (rx ?\( (or "require" "#%require")))

@@ -161,7 +161,7 @@ at the top, marked with \"->\".
 candidates or (point-max)."
   (save-excursion
     (goto-char (point-min))
-    (condition-case ()
+    (condition-case _
         (1- (re-search-forward "\n"))
       (error (point-max)))))
 

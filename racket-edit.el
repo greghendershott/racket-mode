@@ -224,7 +224,7 @@ point."
     (let ((first-beg nil)
           (requires nil))
       (while
-          (condition-case nil
+          (condition-case _
               (let ((end (progn (forward-sexp  1) (point)))
                     (beg (progn (forward-sexp -1) (point))))
                 (unless (equal end (point-max))
@@ -246,7 +246,7 @@ around point. This could be \"(point-min)\" if point is within no
 module form, meaning the outermost, file module."
   (save-excursion
     (racket--escape-string-or-comment)
-    (condition-case ()
+    (condition-case _
         (progn
           (while (not (racket--looking-at-module-form))
             (backward-up-list))
@@ -416,7 +416,7 @@ Only call F when the couple's sexprs are on the same line.
 
 When LISTP is true, expects couples to be `[id val]`, else `id val`."
   (save-excursion
-    (condition-case ()
+    (condition-case _
         (while t
           (when listp
             (down-list))

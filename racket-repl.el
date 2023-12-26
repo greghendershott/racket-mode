@@ -457,7 +457,7 @@ Otherwise send to current-input-port of user program."
 
 (defun racket--repl-complete-sexp-p ()
   "Is there at least one complete sexp at REPL prompt?"
-  (condition-case nil
+  (condition-case _
       (let* ((beg (racket--repl-prompt-mark-end))
              (end (save-excursion
                     (goto-char beg)

@@ -393,7 +393,7 @@ similar, it will already be there."
 
 (defun racket--inside-complete-sexp ()
   "Return whether point is inside a complete sexp."
-  (condition-case ()
+  (condition-case _
       (save-excursion (backward-up-list) (forward-sexp 1) t)
     (error nil)))
 

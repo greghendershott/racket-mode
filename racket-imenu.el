@@ -62,7 +62,7 @@ If sexp at point is a Racket module form create a submenu."
     (forward-sexp -1)))
 
 (defun racket--imenu-goto-start-of-following-sexp ()
-  (condition-case nil
+  (condition-case _
       (progn
         (forward-sexp 1)
         (let ((orig (point)))

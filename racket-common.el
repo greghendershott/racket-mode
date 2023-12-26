@@ -232,7 +232,7 @@ flavor here."
     ;; Try to move up to outermost form, but stopping at or before any
     ;; module form.
     (while
-        (condition-case nil
+        (condition-case _
             (let ((prev (point)))
               (goto-char (scan-lists (point) -1 1))
               (if (looking-at racket-module-forms)
@@ -249,7 +249,7 @@ flavor here."
     ;; already at the module level, and just need to move to the
     ;; previous module-level item.
     (unless (/= orig (point))
-      (condition-case nil (backward-sexp 1) (scan-error nil)))
+      (condition-case _ (backward-sexp 1) (scan-error nil)))
     ;; When we moved, also move before any preceding "#;".
     (when (/= orig (point))
       (when-let (sexp-comment-start
@@ -318,7 +318,7 @@ Ignores module forms nested (at any depth) in any sort of plain
 or syntax quoting, because those won't be valid Racket syntax."
   (save-excursion
     (let ((xs nil))
-      (condition-case ()
+      (condition-case _
           (progn
             (racket--escape-string-or-comment)
             (while t
