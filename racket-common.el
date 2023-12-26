@@ -218,7 +218,7 @@ To insert Unicode symbols generally, see `racket-unicode-input-method-enable'."
 (defun racket--beginning-of-defun-function ()
   "A value for `beginning-of-defun-function'.
 
-Aware of module forms and sexp comment prefixes.
+Aware of `racket-module-forms' and sexp comment prefixes.
 
 Note: This is the old flavor that takes no arguments and returns
 a boolean whether it moved. As a result `beginning-of-defun-raw'
@@ -229,15 +229,25 @@ flavor here."
   (let ((parse-sexp-ignore-comments t)
         (orig (point)))
     (racket--escape-string-or-comment)
-    ;; Move to outermost form, but stop before any module form.
+    ;; Try to move up to outermost form, but stopping at or before any
+    ;; module form.
     (while
         (condition-case nil
-            (let ((pt (point)))
+            (let ((prev (point)))
               (goto-char (scan-lists (point) -1 1))
-              (or (not (looking-at racket-module-forms))
-                  (progn (goto-char pt) nil)))
+              (if (looking-at racket-module-forms)
+                  ;; Stop -- either directly on this module form, or,
+                  ;; back down from where we just came.
+                  (if (= (1+ (point)) prev)
+                      nil
+                    (goto-char prev)
+                    nil)
+                ;; Continue moving up.
+                t))
           (scan-error nil)))
-    ;; Unless we moved, try a simple `backward-sexp'.
+    ;; Unless we moved, try a simple `backward-sexp': Maybe we're
+    ;; already at the module level, and just need to move to the
+    ;; previous module-level item.
     (unless (/= orig (point))
       (condition-case nil (backward-sexp 1) (scan-error nil)))
     ;; When we moved, also move before any preceding "#;".
