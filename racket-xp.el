@@ -874,7 +874,7 @@ If point is instead on a definition, then go to its first use."
                        (user-error "Can only rename local definitions, not imports")))
        (def-loc      uses-prop)
        (locs         (cons def-loc uses-locs))
-       (new-id       (read-from-minibuffer (format "Rename %s to: " old-id)))
+       (new-id       (read-string (format "Rename %s to: " old-id) nil nil old-id))
        (marker-pairs (mapcar (lambda (loc)
                                (let ((beg (make-marker))
                                      (end (make-marker)))
