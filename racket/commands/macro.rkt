@@ -22,8 +22,10 @@
          macro-stepper/next)
 
 (define step/c (cons/c (or/c 'original string? 'final) string?))
-(define step-proc/c (-> (or/c 'next 'all) (listof step/c)))
+(define step-proc/c (-> (or/c 'next 'all)
+                        (or/c 'nothing (listof step/c))))
 (define step-proc #f)
+(define (nothing-step-proc _) 'nothing)
 
 (define/contract (make-expr-stepper str)
   (-> string? step-proc/c)
@@ -73,7 +75,7 @@
                      (stepper-text stx
                                    (if into-base? (λ _ #t) (not-in-base)))))
   (define step-num #f)
-  (define step-last-after "")
+  (define step-last-after (pretty-format-syntax stx))
   (log-racket-mode-debug "~v ~v ~v" path into-base? raw-step)
   (define/contract (step what) step-proc/c
     (cond [(not step-num)
@@ -131,11 +133,9 @@
   (macro-stepper/next 'next))
 
 (define/contract (macro-stepper/next what) step-proc/c
-  (unless step-proc
-    (error 'macro-stepper "Nothing to expand"))
   (define v (step-proc what))
   (match v
-    [(list (cons 'final _)) (set! step-proc #f)]
+    [(list (cons 'final _)) (set! step-proc nothing-step-proc)]
     [_ (void)])
   v)
 

@@ -417,7 +417,7 @@ want to use the value of `racket-program' at run time."
 (module foo racket/base (#%module-begin (define x 42) x))
 
 «f:Final»
-
+(module foo racket/base (#%module-begin (define x 42) x))
 ")
 
 (ert-deftest racket-tests/expand-file-shallow ()
