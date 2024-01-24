@@ -136,7 +136,7 @@
     [`(no-op)                          #t]
     [`(logger ,v)                      (channel-put logger-command-channel v)]
     [`(check-syntax ,path-str ,code)   (check-syntax path-str code)]
-    [`(macro-stepper ,str ,into-base?) (macro-stepper str into-base?)]
+    [`(macro-stepper ,path ,str ,pol)  (macro-stepper path str pol)]
     [`(macro-stepper/next ,what)       (macro-stepper/next what)]
     [`(module-names)                   (module-names)]
     [`(requires/tidy ,reqs)            (requires/tidy reqs)]

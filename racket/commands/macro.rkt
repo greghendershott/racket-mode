@@ -5,6 +5,8 @@
 
 (require (only-in macro-debugger/stepper-text
                   stepper-text)
+         (only-in macro-debugger/model/hiding-policies
+                  policy->predicate)
          racket/contract
          racket/file
          racket/format
@@ -22,61 +24,49 @@
          macro-stepper/next)
 
 (define step/c (cons/c (or/c 'original string? 'final) string?))
-(define step-proc/c (-> (or/c 'next 'all)
-                        (or/c 'nothing (listof step/c))))
-(define step-proc #f)
-(define (nothing-step-proc _) 'nothing)
+(define step-proc/c (-> (or/c 'next 'all) (listof step/c)))
 
-(define/contract (make-expr-stepper str)
-  (-> string? step-proc/c)
-  (unless (current-session-id)
-    (error 'make-expr-stepper "Does not work without a running REPL"))
-  (define step-num #f)
-  (define last-stx (string->namespace-syntax str))
-  (define/contract (step what) step-proc/c
-    (cond [(not step-num)
-           (set! step-num 0)
-           (list (cons 'original
-                       (pretty-format-syntax last-stx)))]
-          [else
-           (define result
-             (let loop ()
-               (define this-stx (expand-once last-stx))
-               (cond [(equal? (syntax->datum last-stx)
-                              (syntax->datum this-stx))
-                      (cond [(eq? what 'all)
-                             (list (cons 'final
-                                         (pretty-format-syntax this-stx)))]
-                            [else (list)])]
-                     [else
-                      (set! step-num (add1 step-num))
-                      (define step
-                        (cons (~a step-num ": expand-once")
-                              (diff-text (pretty-format-syntax last-stx)
-                                         (pretty-format-syntax this-stx)
-                                         #:unified 3)))
-                      (set! last-stx this-stx)
-                      (cond [(eq? what 'all) (cons step (loop))]
-                            [else (list step)])])))
-           (match result
-             [(list) (list (cons 'final
-                                 (pretty-format-syntax last-stx)))]
-             [v v])]))
-  step)
+(define (nothing-step-proc _) null)
 
-(define/contract (make-file-stepper path into-base?)
-  (-> (and/c path-string? absolute-path?) boolean? step-proc/c)
-  (assert-file-stepper-works)
-  (define stx (file->syntax path))
+(define step-proc nothing-step-proc)
+
+(define/contract (macro-stepper path expression-str hiding-policy)
+  (-> (and/c path-string? complete-path?) any/c any/c
+      (list/c step/c))
+  (assert-macro-debugger-stepper-works)
+  (define-values (stx ns)
+    (cond
+      [(string? expression-str)
+       (unless (current-session-id)
+         (error 'macro-stepper "Does not work without a running REPL"))
+       (values (string->namespace-syntax expression-str)
+               (current-namespace))]
+      [else
+       (values (file->syntax path)
+               (make-base-namespace))]))
+  (set! step-proc
+        (make-stepper path stx ns hiding-policy))
+  (macro-stepper/next 'next))
+
+(define/contract (macro-stepper/next what) step-proc/c
+  (define v (step-proc what))
+  (match v
+    [(list (cons 'final _)) (set! step-proc nothing-step-proc)]
+    [_ (void)])
+  v)
+
+(define/contract (make-stepper path stx ns elisp-hiding-policy)
+  (-> (and/c path-string? complete-path?) syntax? namespace? any/c
+      step-proc/c)
   (define dir (path-only path))
-  (define ns (make-base-namespace))
+  (define policy (elisp-policy->policy elisp-hiding-policy))
+  (define predicate (policy->predicate policy))
   (define raw-step (parameterize ([current-load-relative-directory dir]
                                   [current-namespace               ns])
-                     (stepper-text stx
-                                   (if into-base? (λ _ #t) (not-in-base)))))
+                     (stepper-text stx predicate)))
   (define step-num #f)
   (define step-last-after (pretty-format-syntax stx))
-  (log-racket-mode-debug "~v ~v ~v" path into-base? raw-step)
+  (log-racket-mode-debug "~v ~v ~v" path policy raw-step)
   (define/contract (step what) step-proc/c
     (cond [(not step-num)
            (set! step-num 0)
@@ -105,6 +95,26 @@
                   (list (cons 'final step-last-after))])]))
   step)
 
+(define (elisp-policy->policy e)
+  ;; See macro-debugger/model/hiding-policies.rkt):
+  ;;
+  ;; A Policy is one of
+  ;;   'disable
+  ;;   'standard
+  ;;   (list 'custom boolean boolean boolean boolean (listof Entry))
+  ;;
+  ;; Of the Entry rules, although the free=? one can't work because it
+  ;; needs a live syntax object identifier, I think most of the rest
+  ;; should be fine.
+  (match e
+    [(or 'disable 'standard) e]
+    [(list (app as-racket-bool hide-racket?)
+           (app as-racket-bool hide-libs?)
+           (app as-racket-bool hide-contracts?)
+           (app as-racket-bool hide-phase1?)
+           rules)
+     (list 'custom hide-racket? hide-libs? hide-contracts? hide-phase1? rules)]))
+
 (define (read-step)
   (define title (read-line))
   (define before (read))
@@ -116,39 +126,6 @@
     [_ (list title
             (pretty-format #:mode 'write before)
             (pretty-format #:mode 'write  after))]))
-
-(define (assert-file-stepper-works)
-  (define step (stepper-text #'(module example racket/base 42)))
-  (unless (step 'next)
-    (error 'macro-debugger/stepper-text
-           "does not work in your version of Racket.\nPlease try an older or newer version.")))
-
-(define/contract (macro-stepper what into-base?)
-  (-> (or/c (cons/c 'expr string?) (cons/c 'file path-string?)) elisp-bool/c
-      (list/c step/c))
-  (set! step-proc
-        (match what
-          [(cons 'expr str)  (make-expr-stepper str)]
-          [(cons 'file path) (make-file-stepper path (as-racket-bool into-base?))]))
-  (macro-stepper/next 'next))
-
-(define/contract (macro-stepper/next what) step-proc/c
-  (define v (step-proc what))
-  (match v
-    [(list (cons 'final _)) (set! step-proc nothing-step-proc)]
-    [_ (void)])
-  v)
-
-;; Borrowed from xrepl.
-(define not-in-base
-  (λ () (let ([base-stxs #f])
-          (unless base-stxs
-            (set! base-stxs ; all ids that are bound to a syntax in racket/base
-                  (parameterize ([current-namespace (make-base-namespace)])
-                    (let-values ([(vals stxs) (module->exports 'racket/base)])
-                      (map (λ (s) (namespace-symbol->identifier (car s)))
-                           (cdr (assq 0 stxs)))))))
-          (λ (id) (not (ormap (λ (s) (free-identifier=? id s)) base-stxs))))))
 
 (define (diff-text before-text after-text #:unified [-U 3])
   (define template "racket-mode-syntax-diff-~a")
@@ -176,3 +153,9 @@
 
 (define (pretty-format-syntax stx)
   (pretty-format #:mode 'write (syntax->datum stx)))
+
+(define (assert-macro-debugger-stepper-works)
+  (define step (stepper-text #'(module example racket/base 42)))
+  (unless (step 'next)
+    (error 'macro-debugger/stepper-text
+           "does not work in your version of Racket.\nPlease try an older or newer version.")))

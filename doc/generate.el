@@ -190,6 +190,7 @@
     racket-xp-highlight-unused-regexp
     racket-xp-add-binding-faces
     racket-documentation-search-location
+    racket-expand-hiding
     "Hash lang variables"
     racket-hash-lang-token-face-alist
     racket-hash-lang-pairs

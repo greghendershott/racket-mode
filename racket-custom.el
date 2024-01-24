@@ -572,6 +572,45 @@ ignore POS. Examples: `racket-show-echo-area' and
   :risky t
   :group 'racket-other)
 
+(defcustom racket-expand-hiding 'standard
+  "The macro hiding policy for commands like `racket-expand-file'."
+  :tag "Racket Expand Hiding"
+  :type '(choice
+          (const :tag "Disable" disable)
+          (const :tag "Standard" standard)
+          (list :tag "Custom" :value (t t t t nil)
+                (boolean :tag "Hide racket syntax")
+                (boolean :tag "Hide library syntax")
+                (boolean :tag "Hide contracts")
+                (boolean :tag "Hide phase>0")
+                (repeat
+                 :tag "More rules (see macro-debugger/model/hiding-policies \"Entry\" and \"Condition\")"
+                 (list (choice (const :tag "show-if" show-if)
+                               (const :tag "hide-if" hide-if))
+                       (choice (const :tag "lexical" (lexical))
+                               (const :tag "unbound" (unbound))
+                               (const :tag "from-kernel-module" (from-kernel-module))
+                               (list :tag "from-def-module"
+                                     (const from-def-module)
+                                     (choice :tag "module path" string symbol))
+                               (list :tag "from-nom-module"
+                                     (const from-nom-module)
+                                     (choice :tag "module path" string symbol))
+                               (list :tag "from-collection"
+                                     (const from-collection)
+                                     (repeat :tag "collection-string" string))
+                               (list :tag "symbol=?"
+                                     (const symbol=?)
+                                     (symbol))
+                               (list :tag "symbol-like"
+                                     (const symbol-like)
+                                     (string :tag "racket regexp"))
+                               (list :tag "phase>=?"
+                                     (const phase>=?)
+                                     (natnum :tag "natural number"))
+                               (sexp :tag "sexp"))))))
+  :group 'racket-other)
+
 ;;; Faces
 
 (defgroup racket-faces nil

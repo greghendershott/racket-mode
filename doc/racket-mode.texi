@@ -208,6 +208,7 @@ General variables
 * racket-xp-highlight-unused-regexp::
 * racket-xp-add-binding-faces::
 * racket-documentation-search-location::
+* racket-expand-hiding::
 
 Hash lang variables
 
@@ -2781,6 +2782,8 @@ Used by the commands @ref{racket-expand-file},
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
+@item @kbd{g} 
+@tab @code{racket-stepper-refresh}
 @item @kbd{k} 
 @tab @code{racket-stepper-previous-item}
 @item @kbd{p} 
@@ -2816,8 +2819,8 @@ If the file is non-trivial and/or is not compiled to a .zo
 bytecode file, then it might take many seconds before the
 original form is displayed and you can start stepping.
 
-With @kbd{C-u}  also expands syntax from racket/base
--- which can result in very many expansion steps.
+With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
+were 'disabled.
 
 @node racket-expand-region
 @subsection racket-expand-region
@@ -2829,6 +2832,9 @@ Expand the active region using @ref{racket-stepper-mode}.
 Uses Racket's @code{expand-once} in the namespace from the most recent
 @ref{racket-run}.
 
+With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
+were 'disabled.
+
 @node racket-expand-definition
 @subsection racket-expand-definition
 
@@ -2839,6 +2845,9 @@ Expand the definition around point using @ref{racket-stepper-mode}.
 Uses Racket's @code{expand-once} in the namespace from the most recent
 @ref{racket-run}.
 
+With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
+were 'disabled.
+
 @node racket-expand-last-sexp
 @subsection racket-expand-last-sexp
 
@@ -2848,6 +2857,9 @@ Expand the sexp before point using @ref{racket-stepper-mode}.
 
 Uses Racket's @code{expand-once} in the namespace from the most recent
 @ref{racket-run}.
+
+With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
+were 'disabled.
 
 @node Other
 @section Other
@@ -2982,6 +2994,7 @@ Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 * racket-xp-highlight-unused-regexp::
 * racket-xp-add-binding-faces::
 * racket-documentation-search-location::
+* racket-expand-hiding::
 @end menu
 
 @node racket-program
@@ -3139,6 +3152,11 @@ Otherwise, the value is a string recognizable by @code{format}, with
 after applying @code{url-hexify-string}. Apart from ``%s'', the
 string should be a properly encoded URL@.
 @end itemize
+
+@node racket-expand-hiding
+@subsection racket-expand-hiding
+
+The macro hiding policy for commands like @ref{racket-expand-file}.
 
 @node Hash lang variables
 @section Hash lang variables

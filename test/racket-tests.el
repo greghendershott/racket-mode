@@ -393,7 +393,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
      (call-process racket-program nil t nil "--version")
      (buffer-substring-no-properties (point-min) (point-max)))))
 
-(defun racket-tests/expected-result-for-expand-p (result)
+(defun racket-tests/expected-result-for-expand-file-p (result)
   "Test expected to fail because macro-debugger broken in Racket 7.6.
 For use with :expected-result '(satisfies PRED). This matters
 because ert-deftest is a macro evaluated at compile time, and we
@@ -402,18 +402,34 @@ want to use the value of `racket-program' at run time."
       (ert-test-failed-p result)
     (ert-test-passed-p result)))
 
+(defun racket-tests/racket-8.11.1-or-newer-p ()
+  (zerop
+   (call-process
+    racket-program nil nil nil
+    "-e" "(require version/utils) (unless (version<? \"8.11\" (version)) (exit 255))")))
+
+(defun racket-tests/expected-result-for-expand-expression-p (result)
+  "Test expected to fail because expansion differs in older Racket."
+  (if (racket-tests/racket-8.11.1-or-newer-p)
+      (ert-test-passed-p result)
+    (ert-test-failed-p result)))
+
 ;;; Macro stepper: File "shallow"
 
 (defconst racket-tests/expand-mod-name "foo")
 
 (defconst racket-tests/expand-shallow-0
-  "«f:Original»
+  "«:button:racket-expand-hiding»: standard
+
+«f:Original»
 (module foo racket/base (#%module-begin (define x 42) x))
 
 ")
 
 (defconst racket-tests/expand-shallow-1
-  "«f:Original»
+  "«:button:racket-expand-hiding»: standard
+
+«f:Original»
 (module foo racket/base (#%module-begin (define x 42) x))
 
 «f:Final»
@@ -421,7 +437,7 @@ want to use the value of `racket-program' at run time."
 ")
 
 (ert-deftest racket-tests/expand-file-shallow ()
-  :expected-result '(satisfies racket-tests/expected-result-for-expand-p)
+  :expected-result '(satisfies racket-tests/expected-result-for-expand-file-p)
   (message "racket-tests/expand-file-shallow")
   (racket-tests/with-back-end-settings
     (let* ((dir  (make-temp-file "test" t))
@@ -429,7 +445,8 @@ want to use the value of `racket-program' at run time."
            (code "#lang racket/base\n(define x 42)\nx"))
       (write-region code nil path nil 'no-wrote-file-message)
       (find-file path)
-      (racket-expand-file)
+      (let ((racket-expand-hiding 'standard))
+        (racket-expand-file))
       (set-buffer "*Racket Stepper </>*")
       (should (eq major-mode 'racket-stepper-mode))
       (should (equal header-line-format "Press RET to step. C-u RET to step all. C-h m to see help."))
@@ -444,13 +461,17 @@ want to use the value of `racket-program' at run time."
 ;;; Macro stepper: File "deep"
 
 (defconst racket-tests/expand-deep-0
-  "«f:Original»
+  "«f:macro hiding disabled by command prefix»
+
+«f:Original»
 (module foo racket/base (#%module-begin (define x 42) x))
 
 ")
 
 (defconst racket-tests/expand-deep-1
-  "«f:Original»
+  "«f:macro hiding disabled by command prefix»
+
+«f:Original»
 (module foo racket/base (#%module-begin (define x 42) x))
 
 «f:1: Macro transformation»
@@ -469,7 +490,9 @@ want to use the value of `racket-program' at run time."
 ")
 
 (defconst racket-tests/expand-deep-2
-  "«f:Original»
+  "«f:macro hiding disabled by command prefix»
+
+«f:Original»
 (module foo racket/base (#%module-begin (define x 42) x))
 
 «f:1: Macro transformation»
@@ -511,7 +534,7 @@ want to use the value of `racket-program' at run time."
 
 (unless (eq system-type 'windows-nt)    ;requires `diff` program
   (ert-deftest racket-tests/expand-file-deep ()
-    :expected-result '(satisfies racket-tests/expected-result-for-expand-p)
+    :expected-result '(satisfies racket-tests/expected-result-for-expand-file-p)
     (message "racket-tests/expand-file-deep")
     (racket-tests/with-back-end-settings
       (let* ((dir  (make-temp-file "test" t))
@@ -536,85 +559,82 @@ want to use the value of `racket-program' at run time."
 
 ;;; Macro stepper: Expression
 
-(defconst racket-tests/expand-expression-0
-  "«f:Original»
+(defconst racket-tests/expand-expression-original
+  "«f:macro hiding disabled by command prefix»
+
+«f:Original»
 (cond ((< 1 2) #t) (else #f))
 
 ")
 
-(defconst racket-tests/expand-expression-1
-  "«f:Original»
+(defconst racket-tests/expand-expression-final
+  "«f:macro hiding disabled by command prefix»
+
+«f:Original»
 (cond ((< 1 2) #t) (else #f))
 
-«f:1: expand-once»
+«f:1: Macro transformation»
 «x:@@ -1 +1 @@»
 «:diff-removed:-(cond ((< 1 2) #t) (else #f))»
-«:diff-added:+(if (< 1 2) (let-values () #t) (let-values () #f))»
+«:diff-added:+(if:1 (< 1 2) (let-values:1 () #t) (let-values:1 () #f))»
 
-")
-
-(defconst racket-tests/expand-expression-2
-  "«f:Original»
-(cond ((< 1 2) #t) (else #f))
-
-«f:1: expand-once»
+«f:2: Add explicit #%app»
 «x:@@ -1 +1 @@»
-«:diff-removed:-(cond ((< 1 2) #t) (else #f))»
-«:diff-added:+(if (< 1 2) (let-values () #t) (let-values () #f))»
+«:diff-removed:-(if:1 (< 1 2) (let-values:1 () #t) (let-values:1 () #f))»
+«:diff-added:+(if:1 (#%app < 1 2) (let-values:1 () #t) (let-values:1 () #f))»
 
-«f:2: expand-once»
+«f:3: Macro transformation»
 «x:@@ -1 +1 @@»
-«:diff-removed:-(if (< 1 2) (let-values () #t) (let-values () #f))»
-«:diff-added:+(if (#%app < 1 2) (let-values () '#t) (let-values () '#f))»
+«:diff-removed:-(if:1 (#%app < 1 2) (let-values:1 () #t) (let-values:1 () #f))»
+«:diff-added:+(if:1 (#%app:2 < 1 2) (let-values:1 () #t) (let-values:1 () #f))»
 
-")
-
-(defconst racket-tests/expand-expression-3
-  "«f:Original»
-(cond ((< 1 2) #t) (else #f))
-
-«f:1: expand-once»
+«f:4: Add explicit #%datum»
 «x:@@ -1 +1 @@»
-«:diff-removed:-(cond ((< 1 2) #t) (else #f))»
-«:diff-added:+(if (< 1 2) (let-values () #t) (let-values () #f))»
+«:diff-removed:-(if:1 (#%app:2 < 1 2) (let-values:1 () #t) (let-values:1 () #f))»
+«:diff-added:+(if:1 (#%app:2 < (#%datum . 1) 2) (let-values:1 () #t) (let-values:1 () #f))»
 
-«f:2: expand-once»
+«f:5: Macro transformation»
 «x:@@ -1 +1 @@»
-«:diff-removed:-(if (< 1 2) (let-values () #t) (let-values () #f))»
-«:diff-added:+(if (#%app < 1 2) (let-values () '#t) (let-values () '#f))»
+«:diff-removed:-(if:1 (#%app:2 < (#%datum . 1) 2) (let-values:1 () #t) (let-values:1 () #f))»
+«:diff-added:+(if:1 (#%app:2 < '1 2) (let-values:1 () #t) (let-values:1 () #f))»
 
-«f:3: expand-once»
+«f:6: Add explicit #%datum»
 «x:@@ -1 +1 @@»
-«:diff-removed:-(if (#%app < 1 2) (let-values () '#t) (let-values () '#f))»
-«:diff-added:+(if (#%app < '1 '2) (let-values () '#t) (let-values () '#f))»
+«:diff-removed:-(if:1 (#%app:2 < '1 2) (let-values:1 () #t) (let-values:1 () #f))»
+«:diff-added:+(if:1 (#%app:2 < '1 (#%datum . 2)) (let-values:1 () #t) (let-values:1 () #f))»
 
-")
-
-(defconst racket-tests/expand-expression-4
-  "«f:Original»
-(cond ((< 1 2) #t) (else #f))
-
-«f:1: expand-once»
+«f:7: Macro transformation»
 «x:@@ -1 +1 @@»
-«:diff-removed:-(cond ((< 1 2) #t) (else #f))»
-«:diff-added:+(if (< 1 2) (let-values () #t) (let-values () #f))»
+«:diff-removed:-(if:1 (#%app:2 < '1 (#%datum . 2)) (let-values:1 () #t) (let-values:1 () #f))»
+«:diff-added:+(if:1 (#%app:2 < '1 '2) (let-values:1 () #t) (let-values:1 () #f))»
 
-«f:2: expand-once»
+«f:8: Add explicit #%datum»
 «x:@@ -1 +1 @@»
-«:diff-removed:-(if (< 1 2) (let-values () #t) (let-values () #f))»
-«:diff-added:+(if (#%app < 1 2) (let-values () '#t) (let-values () '#f))»
+«:diff-removed:-(if:1 (#%app:2 < '1 '2) (let-values:1 () #t) (let-values:1 () #f))»
+«:diff-added:+(if:1 (#%app:2 < '1 '2) (let-values:1 () (#%datum . #t)) (let-values:1 () #f))»
 
-«f:3: expand-once»
+«f:9: Macro transformation»
 «x:@@ -1 +1 @@»
-«:diff-removed:-(if (#%app < 1 2) (let-values () '#t) (let-values () '#f))»
-«:diff-added:+(if (#%app < '1 '2) (let-values () '#t) (let-values () '#f))»
+«:diff-removed:-(if:1 (#%app:2 < '1 '2) (let-values:1 () (#%datum . #t)) (let-values:1 () #f))»
+«:diff-added:+(if:1 (#%app:2 < '1 '2) (let-values:1 () '#t) (let-values:1 () #f))»
+
+«f:10: Add explicit #%datum»
+«x:@@ -1 +1 @@»
+«:diff-removed:-(if:1 (#%app:2 < '1 '2) (let-values:1 () '#t) (let-values:1 () #f))»
+«:diff-added:+(if:1 (#%app:2 < '1 '2) (let-values:1 () '#t) (let-values:1 () (#%datum . #f)))»
+
+«f:11: Macro transformation»
+«x:@@ -1 +1 @@»
+«:diff-removed:-(if:1 (#%app:2 < '1 '2) (let-values:1 () '#t) (let-values:1 () (#%datum . #f)))»
+«:diff-added:+(if:1 (#%app:2 < '1 '2) (let-values:1 () '#t) (let-values:1 () '#f))»
 
 «f:Final»
-(if (#%app < '1 '2) (let-values () '#t) (let-values () '#f))
+(if:1 (#%app:2 < '1 '2) (let-values:1 () '#t) (let-values:1 () '#f))
 ")
 
 (unless (eq system-type 'windows-nt)    ;requires `diff` program
   (ert-deftest racket-tests/expand-expression ()
+    :expected-result '(satisfies racket-tests/expected-result-for-expand-expression-p)
     (message "racket-tests/expand-expression")
     (racket-tests/with-back-end-settings
       (let* ((path (make-temp-file "test" nil ".rkt"))
@@ -630,25 +650,17 @@ want to use the value of `racket-program' at run time."
           (should (racket-tests/see-back (concat "\n" name "> "))))
 
         (goto-char (point-max))         ;after the cond expression
-        (racket-expand-last-sexp)
+        (racket-expand-last-sexp 4) ;; i.e. C-u prefix
         (set-buffer "*Racket Stepper </>*")
         (should (eq major-mode 'racket-stepper-mode))
         (should (equal header-line-format "Press RET to step. C-u RET to step all. C-h m to see help."))
-        (racket-tests/should-eventually
-         (faceup-test-font-lock-buffer nil racket-tests/expand-expression-0))
 
-        (racket-tests/press "RET")
         (racket-tests/should-eventually
-         (faceup-test-font-lock-buffer nil racket-tests/expand-expression-1))
-        (racket-tests/press "RET")
+         (faceup-test-font-lock-buffer nil racket-tests/expand-expression-original))
+
+        (racket-tests/press "C-u RET")
         (racket-tests/should-eventually
-         (faceup-test-font-lock-buffer nil racket-tests/expand-expression-2))
-        (racket-tests/press "RET")
-        (racket-tests/should-eventually
-         (faceup-test-font-lock-buffer nil racket-tests/expand-expression-3))
-        (racket-tests/press "RET")
-        (racket-tests/should-eventually
-         (faceup-test-font-lock-buffer nil racket-tests/expand-expression-4))
+         (faceup-test-font-lock-buffer nil racket-tests/expand-expression-final))
 
         (quit-window)
         (with-racket-repl-buffer
