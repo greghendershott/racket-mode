@@ -83,8 +83,7 @@ were \\='disabled."
 (defun racket-expand-region (&optional no-hiding)
   "Expand the active region using `racket-stepper-mode'.
 
-Uses Racket's `expand-once` in the namespace from the most recent
-`racket-run'.
+Uses the `macro-debugger` package to do the expansion.
 
 With \\[universal-argument] behaves as if `racket-expand-hiding'
 were \\='disabled."
@@ -100,8 +99,7 @@ were \\='disabled."
 (defun racket-expand-definition (&optional no-hiding)
   "Expand the definition around point using `racket-stepper-mode'.
 
-Uses Racket's `expand-once` in the namespace from the most recent
-`racket-run'.
+Uses the `macro-debugger` package to do the expansion.
 
 With \\[universal-argument] behaves as if `racket-expand-hiding'
 were \\='disabled."
@@ -116,8 +114,7 @@ were \\='disabled."
 (defun racket-expand-last-sexp (&optional no-hiding)
   "Expand the sexp before point using `racket-stepper-mode'.
 
-Uses Racket's `expand-once` in the namespace from the most recent
-`racket-run'.
+Uses the `macro-debugger` package to do the expansion.
 
 With \\[universal-argument] behaves as if `racket-expand-hiding'
 were \\='disabled."

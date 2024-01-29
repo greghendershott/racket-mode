@@ -2829,8 +2829,7 @@ were 'disabled.
 
 Expand the active region using @ref{racket-stepper-mode}.
 
-Uses Racket's @code{expand-once} in the namespace from the most recent
-@ref{racket-run}.
+Uses the @code{macro-debugger} package to do the expansion.
 
 With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
 were 'disabled.
@@ -2842,8 +2841,7 @@ were 'disabled.
 
 Expand the definition around point using @ref{racket-stepper-mode}.
 
-Uses Racket's @code{expand-once} in the namespace from the most recent
-@ref{racket-run}.
+Uses the @code{macro-debugger} package to do the expansion.
 
 With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
 were 'disabled.
@@ -2855,8 +2853,7 @@ were 'disabled.
 
 Expand the sexp before point using @ref{racket-stepper-mode}.
 
-Uses Racket's @code{expand-once} in the namespace from the most recent
-@ref{racket-run}.
+Uses the @code{macro-debugger} package to do the expansion.
 
 With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
 were 'disabled.
