@@ -1,6 +1,6 @@
 ;;; racket-indent.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -31,23 +31,6 @@
 ;; (`racket--calculate-indent') in our `indent-line-function',
 ;; `racket-indent-line'. That just directly calls
 ;; `racket-indent-function'.
-
-;; Having said all that, we still have the matter of `paredit-mode'.
-;; It directly calls `lisp-indent-line' instead of
-;; `indent-line-function'. And, it directly calls `indent-sexp'
-;; instead of `prog-indent-sexp'. Therefore it gets `lisp-mode'
-;; indent, not ours. To address this, advise those two functions to do
-;; the right thing when one of our major modes is active.
-(defun racket--lisp-indent-line-advice (orig &rest args)
-  "If `racket--mode-edits-racket-p' use the variable `indent-line-function'."
-  (apply (if (racket--mode-edits-racket-p) indent-line-function orig)
-         args))
-(defun racket--indent-sexp-advice (orig &rest args)
-  "If `racket--mode-edits-racket-p' use `prog-indent-sexp'."
-  (apply (if (racket--mode-edits-racket-p) #'prog-indent-sexp orig)
-         args))
-(advice-add 'lisp-indent-line :around #'racket--lisp-indent-line-advice)
-(advice-add 'indent-sexp      :around #'racket--indent-sexp-advice)
 
 (defun racket-indent-line (&optional _whole-exp)
   "Indent current line as Racket code.

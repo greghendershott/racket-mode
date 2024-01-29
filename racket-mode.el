@@ -1,6 +1,6 @@
 ;;; racket-mode.el --- Racket editing, REPL, and more  -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2023 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 
 ;; Package: racket-mode
 ;; Package-Requires: ((emacs "25.1"))
@@ -36,6 +36,7 @@
 (require 'racket-repl)
 (require 'racket-repl-buffer-name)
 (require 'racket-collection)
+(require 'racket-lisp-mode)
 (require 'racket-bug-report)
 (require 'racket-util)
 (require 'easymenu)
