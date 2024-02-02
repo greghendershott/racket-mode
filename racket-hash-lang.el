@@ -10,6 +10,8 @@
 
 (require 'cl-lib)
 (require 'elec-pair)
+(require 'ob-core)
+(require 'org-src)
 (require 'seq)
 (require 'racket-cmd)
 (require 'racket-mode)
@@ -261,48 +263,27 @@ A discussion of the information provided by a Racket language:
   (setq-local completion-at-point-functions nil) ;rely on racket-xp-mode
   (setq-local eldoc-documentation-function nil)
   (setq racket-submodules-at-point-function nil) ;might change in on-new-lang
-  ;; Create back end hash-lang object.
-  ;;
-  ;; On the one hand, `racket--cmd/await' would be simpler to use
-  ;; here. On the other hand, when the back end isn't running, there's
-  ;; a delay for that to start, during which the buffer isn't
-  ;; displayed and Emacs seems frozen. On the third hand, if we use
-  ;; `racket--cmd/async' naively the buffer could try to interact with
-  ;; a back end object that doesn't yet exist, and error.
-  ;;
-  ;; Warm bowl of porridge: Make buffer read-only and use async
-  ;; command to create hash-lang object. Only when the response
-  ;; arrives, i.e. the back end object is ready, enable read/write and
-  ;; set various hook functions that depend on `racket--hash-lang-id'.
-  ;;
-  ;; Also, handle the back end returning nil for the create -- meaning
-  ;; there's no sufficiently new syntax-color-lib -- by downgrading to
-  ;; plain `prog-mode'.
-  (setq-local racket--hash-lang-id nil) ;until async command response
-  (setq-local racket--hash-lang-generation 1)
-  (unless (racket--cmd-open-p)
-    (setq-local header-line-format "Waiting for back end to start..."))
-  (setq-local buffer-read-only t)
-  (racket--cmd/async
-   nil
-   `(hash-lang create
-               ,(cl-incf racket--hash-lang-next-id)
-               ,nil
-               ,(buffer-substring-no-properties (point-min) (point-max)))
-   (lambda (maybe-id)
-     (setq-local header-line-format nil)
-     (cond
-      (maybe-id
-       (setq-local racket--hash-lang-id maybe-id)
-       ;; These need non-nil `racket--hash-lang-id':
-       (setq-local font-lock-fontify-region-function #'racket--hash-lang-fontify-region)
-       (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
-       (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
-       (add-hook 'change-major-mode-hook #'racket--hash-lang-delete t t)
-       (setq-local buffer-read-only nil))
-      (t
-       (prog-mode) ;wipes all local variables including buffer-read-only
-       (message "hash-lang support not available; needs newer syntax-color-lib")))))  )
+  (setq-local racket--hash-lang-id
+              (racket--cmd/await
+               nil
+               `(hash-lang
+                 create
+                 ,(cl-incf racket--hash-lang-next-id)
+                 ,nil
+                 ,(buffer-substring-no-properties (point-min) (point-max)))))
+  (cond
+   (racket--hash-lang-id
+    (setq-local racket--hash-lang-generation 1)
+    ;; These need non-nil `racket--hash-lang-id':
+    (setq-local font-lock-fontify-region-function #'racket--hash-lang-fontify-region)
+    (setq-local font-lock-ensure-function #'racket--hash-lang-font-lock-ensure)
+    (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
+    (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
+    (add-hook 'change-major-mode-hook #'racket--hash-lang-delete t t)
+    (message ""))
+   (t
+    (prog-mode)  ;note: resets all buffer-local variables
+    (message "hash-lang support not available; needs newer syntax-color-lib"))))
 
 (defun racket--hash-lang-delete ()
   (when racket--hash-lang-id
@@ -316,6 +297,200 @@ A discussion of the information provided by a Racket language:
          `(hash-lang delete ,racket--hash-lang-id))))
     (setq-local racket--hash-lang-id nil)
     (setq-local racket--hash-lang-generation 1)))
+
+;;; Defining per-lang major modes derived from racket-hash-lang-mode
+
+(defmacro racket-define-hash-lang (lang ext)
+  "Define a major mode for LANG.
+
+The major mode is derived from `racket-hash-lang-mode' and is
+named `racket-hash-lang:LANG-mode'.
+
+LANG should be an unquoted symbol, same as you would use in a
+Racket #lang line.
+
+EXT should be a string with the file extension for LANG, /not/
+including any dot.
+
+Example: (racket-define-hash-lang rhombus \"rhm\")
+
+In addition do defining the major mode, this will:
+
+1. Add the language to things like `auto-mode-alist',
+   `org-src-lang-modes', and `org-babel-tangle-lang-exts'.
+
+2. Define a org-babel-edit-prep:<lang> function.
+
+3. Define a org-babel-execute:<lang> function, which delegates to
+   `racket--hash-lang-org-babel-execute'. See its doc string for
+   more information -- including about why we don't define any
+   org-babel-expand-body:<lang> function here.
+
+4. Allow a buffer to omit the explicit #lang line, when it is
+   created by `org-mode' for user editing or formatting of a
+   source code block whose language property is \"rhombus\".
+
+Discussion:
+
+Although `racket-hash-lang-mode' works for any Racket hash-lang
+simply by starting the buffer with a #lang line, some features in
+Emacs expect that each language will have its own major mode. A
+motivating example is `org-mode' source blocks: In general these
+assume that the language will have a dedicated major mode, and
+therefore in many scenarios the language property value is not
+available for use by a \"generic\" major mode like
+`racket-hash-lang-mode'. To accommodate this it is simplest to
+define a major mode for each org source block language.
+
+In addition, because each derived mode gets its own hook, as well
+as running parent mode hooks, you get more specific hooks to use
+for configuration."
+  (let* ((lang-str (symbol-name lang))
+         (lighter (concat "#lang:" lang-str))
+         (doc (format "Major mode for #lang %s derived from `racket-hash-lang-mode'."
+                      lang))
+         (ext-rx (concat "\\." ext "\\'"))
+         (full-mode-name (intern (concat "racket-hash-lang:" lang-str "-mode")))
+         (shorter-mode-name (intern (concat "racket-hash-lang:" lang-str)))
+         (org-babel-execute-name (intern (concat "org-babel-execute:" lang-str)))
+         (org-babel-edit-prep-name (intern (concat "org-babel-edit-prep:" lang-str))))
+    `(progn
+       ;; The usual extension => mode mapping for use by `find-file'.
+       ;; But add only if ext not already present, because e.g. many
+       ;; hash-langs might use .rkt.
+       (unless (assoc ,ext-rx auto-mode-alist)
+         (push (cons ,ext-rx ',full-mode-name) auto-mode-alist))
+
+       ;; Tell `org-mode' that this org source block language is
+       ;; handled by this mode -- note that the -mode suffix is
+       ;; intentionally omitted here.
+       (require 'org-src)
+       (add-to-list 'org-src-lang-modes (cons ,lang-str ',shorter-mode-name))
+
+       ;; Tell `org-babel-tangle' to write source blocks to files with
+       ;; this extension (when no property specifies a filename).
+       (require 'ob-tangle)
+       (add-to-list 'org-babel-tangle-lang-exts (cons ,lang-str ,ext))
+
+       ;; Note: In this macro we follow the (usually) best practice of
+       ;; delegating most of the work to normal helper functions
+       ;; (restricting to the macro things that only be done via
+       ;; macro).
+
+       ;; Define a suitable org-babel-execute:<lang> function.
+       (defun ,org-babel-execute-name (body params)
+         ,(format "A %s lang wrapper for `racket--hash-lang-org-babel-execute'."
+                  lang-str)
+         (racket--hash-lang-org-babel-execute ,lang-str body params))
+
+       ;; Define a suitable org-babel-edit-prep:<lang> function.
+       (defun ,org-babel-edit-prep-name (_babel-info)
+         (racket--hash-lang-org-babel-edit-prep ,lang-str))
+
+       (define-derived-mode ,full-mode-name racket-hash-lang-mode
+         ,lighter
+         ,doc
+         (racket--hash-lang-init-derived-mode ,lang-str)))))
+
+(defun racket--hash-lang-init-derived-mode (lang-str)
+  ;; Allow buffers to omit the #lang line, which can be useful
+  ;; when the buffer is being used from an `org-mode' source
+  ;; block to do formatting (font-lock).
+  ;;
+  ;; Use the option (also used by the REPL) where we give the back end
+  ;; hash-lang object the lang line directly, instead of it looking in
+  ;; the normal program text.
+  ;;
+  ;; Note that we have no opportunity to run before the parent mode
+  ;; function, so all we can do here is RE-create the hash-lang
+  ;; object.
+  (let ((lang-line-text (concat "#lang " lang-str "\n")))
+    (racket--hash-lang-delete)
+    (setq-local racket--hash-lang-id
+                (racket--cmd/await
+                 nil
+                 `(hash-lang
+                   create
+                   ,(cl-incf racket--hash-lang-next-id)
+                   ,lang-line-text
+                   ,(buffer-substring-no-properties (point-min) (point-max)))))
+    (unless racket--hash-lang-id
+      (prog-mode) ;note: resets all buffer-local variables
+      (message "hash-lang support not available; needs newer syntax-color-lib"))))
+
+(defun racket--hash-lang-org-babel-edit-prep (lang-str)
+  (racket--hash-lang-maybe-add-lang-line lang-str t))
+
+(defun racket--hash-lang-org-babel-execute (lang-str body params)
+  "A basic way to run Racket programs using any #lang.
+
+If a lang-specific org-babel-expand-body:<lang> function exists
+it is called with BODY, to support optional functionality that we
+can't possibly know how to do for any given lang's syntax and
+semantics, for example :vars input.
+
+Only supports :result-type output -- not values."
+  (let* ((processed-params (org-babel-process-params params))
+         (result-params (assq :result-params processed-params))
+         (result-type (cdr (assq :result-type processed-params)))
+         (_ (unless (eq result-type 'output)
+              (error "Can only handle :result-type output.")))
+         (expand-body (intern (concat "org-babel-expand-body:" lang-str)))
+         (body (if (fboundp expand-body)
+                   (funcall expand-body body params processed-params)
+                 body))
+         (tmp-src-file (org-babel-temp-file "racket-hash-lang-src-" ".rkt"))
+         (_ (with-temp-file tmp-src-file
+              (insert body)
+              (racket--hash-lang-maybe-add-lang-line lang-str nil)))
+         (cmdline (concat racket-program " " tmp-src-file))
+         (result (org-babel-eval cmdline "")))
+    (delete-file tmp-src-file)
+    (org-babel-result-cond result-params result)))
+
+(defun racket--hash-lang-maybe-add-lang-line (lang-str &optional set-write-back-p)
+  "When the buffer lacks a lang line, add one.
+
+Otherwise things like `racket-xp-mode' will report errors.
+
+IFF we add one, arrange for a write-back function to remove it.
+This is possible starting in Org 9.0.9 which IIUC is in Emacs
+25.2+, due to the `org-src--allow-write-back' var, which may be a
+function value. Note: Because `org-src--contents-for-write-back'
+strips text properties, we can't insert a propertized string to
+look for later, so we must rely on searching for the literal text
+we actually added, if any."
+  (let* ((lang-line-str (concat "#lang " lang-str "\n"))
+         (end-pos (1+ (length lang-line-str))))
+    (unless (string= (buffer-substring-no-properties (point-min) end-pos)
+                     lang-line-str)
+      (save-excursion
+        (goto-char (point-min))
+        (insert lang-line-str))
+      (when (and set-write-back-p
+                 (boundp 'org-src--allow-write-back)) ;>25.1
+        (setq org-src--allow-write-back
+              (lambda ()
+                (when (string= (buffer-substring-no-properties (point-min) end-pos)
+                               lang-line-str)
+                  (delete-region (point-min) end-pos))))))))
+
+;; org-babel support
+;;
+;; The above suffices for font-lock, edit and tangle. Suffices for
+;; execute in simple cases, and leaves it up to a user-defined
+;; org-babel-expand-body:<lang> to do fancier but totally
+;; lang-dependent things like handling input vars by wrapping user
+;; program in bindings or definitions.
+;;
+;; See https://orgmode.org/worg/org-contrib/babel/languages/index.html
+;; and https://git.sr.ht/~bzg/worg/tree/master/item/org-contrib/babel/ob-template.el
+;;
+;; See ob-c, ob-clojure, and others for examples.
+
+;; Go ahead and define such derived modes for a few common hash-langs.
+(racket-define-hash-lang rhombus "rhm")
+(racket-define-hash-lang scribble "scrbl")
 
 ;;; Handle back end stopping
 
@@ -486,6 +661,36 @@ being called from Emacs C redisplay engine."
                          (lambda (tokens)
                            (racket--hash-lang-tokens+fontify beg end tokens))))
     `(jit-lock-bounds ,beg . ,end)))
+
+(defun racket--hash-lang-font-lock-ensure (beg end)
+  "Like `racket--hash-lang-fontify-region, but blocking -- fontify /now/.
+
+Needed for things like `org-src-font-lock-fontify-block' that
+call `font-lock-ensure' expecting it will mean things are
+fontified eagerly not lazily."
+  (when racket--hash-lang-id
+    ;; Also need blocking equivalent of after-change-hook here because
+    ;; `org-src-font-lock-fontify-block' inserts text with
+    ;; `inhibit-modification-hooks', so we need to update the back end
+    ;; hash-lang object before getting tokens to fontify.
+    (racket--cmd/await
+     nil
+     `(hash-lang update
+                 ,racket--hash-lang-id
+                 ,(cl-incf racket--hash-lang-generation)
+                 ,beg
+                 ,(- end beg)
+                 ,(if (eq major-mode 'racket-repl-mode)
+                      (racket--hash-lang-repl-buffer-string beg end)
+                    (buffer-substring-no-properties beg end))))
+    (racket--hash-lang-tokens+fontify
+     beg end
+     (racket--cmd/await nil
+                        `(hash-lang get-tokens
+                                    ,racket--hash-lang-id
+                                    ,racket--hash-lang-generation
+                                    ,beg
+                                    ,end)))))
 
 (defun racket--hash-lang-tokens+fontify (beg end tokens)
   "Put token properties and do \"normal\" keyword fontification, both.
