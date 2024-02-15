@@ -408,7 +408,7 @@ manually."
     (racket--cmd/async
      nil
      `(check-syntax ,(racket-file-name-front-to-back
-                      (or (racket--buffer-file-name) (buffer-name)))
+                      (racket--buffer-file-name t))
                     ,(save-restriction
                        (widen)
                        (buffer-substring-no-properties (point-min) (point-max))))
@@ -460,7 +460,7 @@ manually."
           (`(error ,path ,beg ,end ,str)
            (let ((path (racket-file-name-back-to-front path)))
              (racket--xp-add-error path beg str)
-             (when (equal path (racket--buffer-file-name))
+             (when (equal path (racket--buffer-file-name t))
                (remove-text-properties
                 beg end
                 (list 'help-echo     nil
@@ -648,7 +648,7 @@ press F1 or C-h in its pop up completion list."
        ;; will treat it as a file module identifier.
        (let ((how (pcase (get-text-property (point) 'racket-xp-doc)
                     (`(,path ,anchor) `(,path . ,anchor))
-                    (_                (racket--buffer-file-name)))))
+                    (_                (racket--buffer-file-name t)))))
          (racket--do-describe how nil str))))))
 
 (defun racket-xp-eldoc-function ()
@@ -685,7 +685,7 @@ Lisp, you will be disappointed.
 
 A more satisfying experience is to use `racket-xp-describe'
 or `racket-repl-describe'."
-  (racket--do-eldoc (racket--buffer-file-name) nil))
+  (racket--do-eldoc (racket--buffer-file-name t) nil))
 
 (defun racket--add-overlay (beg end face &optional priority)
   (let ((o (make-overlay beg end)))
@@ -835,7 +835,9 @@ command prefixes you supply.
     ((and `(,path ,anchor) (guard (not prefix)))
      (racket-browse-file-url path anchor))
     (_
-     (racket--doc prefix (buffer-file-name) racket--xp-binding-completions))))
+     (racket--doc prefix
+                  (racket--buffer-file-name t)
+                  racket--xp-binding-completions))))
 
 ;;; Navigation
 
@@ -1025,7 +1027,7 @@ around at the first and last errors."
       (pcase-let ((`(,path ,pos ,str)
                    (aref racket--xp-errors
                          racket--xp-errors-index)))
-        (cond ((equal path (racket--buffer-file-name))
+        (cond ((equal path (racket--buffer-file-name t))
                (goto-char pos))
               (t
                (find-file path)
@@ -1079,7 +1081,7 @@ around at the first and last errors."
       (pcase (racket--cmd/await nil
                                 `(def/drr
                                    ,(racket-file-name-front-to-back
-                                     (racket--buffer-file-name))
+                                     (racket--buffer-file-name t))
                                    ,(racket-file-name-front-to-back path)
                                    ,subs
                                    ,ids))
@@ -1100,7 +1102,7 @@ around at the first and last errors."
    ;; Something that, for whatever reason, drracket/check-syntax did
    ;; not annotate.
    (pcase (racket--cmd/await nil `(def ,(racket-file-name-front-to-back
-                                         (racket--buffer-file-name))
+                                         (racket--buffer-file-name t))
                                        ,(substring-no-properties str)))
      (`(,path ,line ,col)
       (list (xref-make str
