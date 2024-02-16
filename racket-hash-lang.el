@@ -663,34 +663,27 @@ being called from Emacs C redisplay engine."
     `(jit-lock-bounds ,beg . ,end)))
 
 (defun racket--hash-lang-font-lock-ensure (beg end)
-  "Like `racket--hash-lang-fontify-region, but blocking -- fontify /now/.
+  "Our value for the variable `font-lock-ensure-function'.
 
-Needed for things like `org-src-font-lock-fontify-block' that
-call `font-lock-ensure' expecting it will mean things are
-fontified eagerly not lazily."
+Provided for things like `org-src-font-lock-fontify-block' that
+call `font-lock-ensure' expecting it means ensured /now/."
   (when racket--hash-lang-id
-    ;; Also need blocking equivalent of after-change-hook here because
-    ;; `org-src-font-lock-fontify-block' inserts text with
-    ;; `inhibit-modification-hooks', so we need to update the back end
-    ;; hash-lang object before getting tokens to fontify.
-    (racket--cmd/await
-     nil
-     `(hash-lang update
-                 ,racket--hash-lang-id
-                 ,(cl-incf racket--hash-lang-generation)
-                 ,beg
-                 ,(- end beg)
-                 ,(if (eq major-mode 'racket-repl-mode)
-                      (racket--hash-lang-repl-buffer-string beg end)
-                    (buffer-substring-no-properties beg end))))
-    (racket--hash-lang-tokens+fontify
-     beg end
-     (racket--cmd/await nil
-                        `(hash-lang get-tokens
-                                    ,racket--hash-lang-id
-                                    ,racket--hash-lang-generation
-                                    ,beg
-                                    ,end)))))
+    ;; Because `org-src-font-lock-fontify-block' inserts text with
+    ;; `inhibit-modification-hooks', we need to update the back end
+    ;; hash-lang object before getting tokens to fontify. It's fine to
+    ;; reuse the after-change hook here: although it issues the
+    ;; hash-lang update command async, it also increments
+    ;; `racket--hash-lang-generation', so the subsequent hash-lang
+    ;; get-tokens command will block until the update has completed
+    ;; through that generation.
+    (racket--hash-lang-after-change-hook beg end (- end beg))
+    (let ((tokens (racket--cmd/await nil
+                                     `(hash-lang get-tokens
+                                                 ,racket--hash-lang-id
+                                                 ,racket--hash-lang-generation
+                                                 ,beg
+                                                 ,end))))
+      (racket--hash-lang-tokens+fontify beg end tokens ))))
 
 (defun racket--hash-lang-tokens+fontify (beg end tokens)
   "Put token properties and do \"normal\" keyword fontification, both.
