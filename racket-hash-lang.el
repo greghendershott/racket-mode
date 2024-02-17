@@ -298,26 +298,26 @@ A discussion of the information provided by a Racket language:
     (setq-local racket--hash-lang-id nil)
     (setq-local racket--hash-lang-generation 1)))
 
-;;; Defining per-lang major modes derived from racket-hash-lang-mode
+;;; Org babel support
 
-(defmacro racket-define-hash-lang (lang ext)
-  "Define a major mode for LANG.
-
-The major mode is derived from `racket-hash-lang-mode' and is
-named `racket-hash-lang:LANG-mode'.
+(defmacro racket-declare-hash-lang-for-org-babel (lang ext)
+  "Arrange for a Racket hash-lang to work with org-babel.
 
 LANG should be an unquoted symbol, same as you would use in a
-Racket #lang line.
+Racket =#lang= line.
 
 EXT should be a string with the file extension for LANG, /not/
 including any dot.
 
 Example: (racket-define-hash-lang rhombus \"rhm\")
 
-In addition do defining the major mode, this will:
+This will:
 
-1. Add the language to things like `auto-mode-alist',
-   `org-src-lang-modes', and `org-babel-tangle-lang-exts'.
+0. Define a major mode derived from `racket-hash-lang-mode' named
+   `racket-hash-lang:LANG-mode'.
+
+1. Add the language to `org-src-lang-modes' and
+   `org-babel-tangle-lang-exts'.
 
 2. Define a org-babel-edit-prep:<lang> function.
 
@@ -332,40 +332,46 @@ In addition do defining the major mode, this will:
 
 Discussion:
 
-Although `racket-hash-lang-mode' works for any Racket hash-lang
-simply by starting the buffer with a #lang line, some features in
-Emacs expect that each language will have its own major mode. A
-motivating example is `org-mode' source blocks: In general these
-assume that the language will have a dedicated major mode, and
-therefore in many scenarios the language property value is not
-available for use by a \"generic\" major mode like
-`racket-hash-lang-mode'. To accommodate this it is simplest to
-define a major mode for each org source block language.
+A valid Racket program consists of one outermost module per
+source file, using one lang. Typically this is expressed using a
+=#lang= line -- which must occur exactly once, and be the first
+non-comment thing in the file.
 
-In addition, because each derived mode gets its own hook, as well
-as running parent mode hooks, you get more specific hooks to use
-for configuration."
+`racket-hash-lang-mode' works for any Racket hash-lang simply by
+starting the buffer with exactly one #lang line,
+
+When using multiple `org-mode' source blocks of the same lang,
+this is tricky.
+
+- You could start /every/ block with a lang line, but that's
+  tedious, and org-tangle will combine them into an invalid
+  program.
+
+- On the other hand, if you start only the /first/ block with a
+  lang line, then various org-babel features won't work properly
+  with the subsequent blocks. Basically this is because org
+  creates a hidden buffer using `racket-hash-lang-mode', but the
+  source block's lang property value is not available to that
+  buffer, so it can't know what lang line to add automatically.
+
+  Org assumes that each lang will have a major mode that knows
+  enough to do what is required. To accommodate this it is
+  simplest to define a distinct major mode for each org source
+  block language."
   (let* ((lang-str (symbol-name lang))
          (lighter (concat "#lang:" lang-str))
          (doc (format "Major mode for #lang %s derived from `racket-hash-lang-mode'."
                       lang))
-         (ext-rx (concat "\\." ext "\\'"))
-         (full-mode-name (intern (concat "racket-hash-lang:" lang-str "-mode")))
-         (shorter-mode-name (intern (concat "racket-hash-lang:" lang-str)))
+         (no-suffix-mode-name (intern (concat "racket-hash-lang:" lang-str)))
+         (full-mode-name (intern (concat (symbol-name no-suffix-mode-name) "-mode")))
          (org-babel-execute-name (intern (concat "org-babel-execute:" lang-str)))
          (org-babel-edit-prep-name (intern (concat "org-babel-edit-prep:" lang-str))))
     `(progn
-       ;; The usual extension => mode mapping for use by `find-file'.
-       ;; But add only if ext not already present, because e.g. many
-       ;; hash-langs might use .rkt.
-       (unless (assoc ,ext-rx auto-mode-alist)
-         (push (cons ,ext-rx ',full-mode-name) auto-mode-alist))
-
        ;; Tell `org-mode' that this org source block language is
-       ;; handled by this mode -- note that the -mode suffix is
+       ;; handled by our major mode -- note that the -mode suffix is
        ;; intentionally omitted here.
        (require 'org-src)
-       (add-to-list 'org-src-lang-modes (cons ,lang-str ',shorter-mode-name))
+       (add-to-list 'org-src-lang-modes (cons ,lang-str ',no-suffix-mode-name))
 
        ;; Tell `org-babel-tangle' to write source blocks to files with
        ;; this extension (when no property specifies a filename).
@@ -373,9 +379,8 @@ for configuration."
        (add-to-list 'org-babel-tangle-lang-exts (cons ,lang-str ,ext))
 
        ;; Note: In this macro we follow the (usually) best practice of
-       ;; delegating most of the work to normal helper functions
-       ;; (restricting to the macro things that only be done via
-       ;; macro).
+       ;; delegating most of the work to plain old helper functions
+       ;; (limiting the macro things that can only be done via macro).
 
        ;; Define a suitable org-babel-execute:<lang> function.
        (defun ,org-babel-execute-name (body params)
@@ -475,8 +480,6 @@ we actually added, if any."
                                lang-line-str)
                   (delete-region (point-min) end-pos))))))))
 
-;; org-babel support
-;;
 ;; The above suffices for font-lock, edit and tangle. Suffices for
 ;; execute in simple cases, and leaves it up to a user-defined
 ;; org-babel-expand-body:<lang> to do fancier but totally
@@ -488,9 +491,10 @@ we actually added, if any."
 ;;
 ;; See ob-c, ob-clojure, and others for examples.
 
-;; Go ahead and define such derived modes for a few common hash-langs.
-(racket-define-hash-lang rhombus "rhm")
-(racket-define-hash-lang scribble "scrbl")
+;; Go ahead and define derived modes for some common hash-langs.
+
+(racket-declare-hash-lang-for-org-babel rhombus "rhm")
+(racket-declare-hash-lang-for-org-babel scribble "scrbl")
 
 ;;; Handle back end stopping
 
