@@ -1030,7 +1030,18 @@ around at the first and last errors."
   'racket-xp-xref)
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql racket-xp-xref)))
-  (thing-at-point 'symbol))
+  (or (seq-some (lambda (prop)
+                  (when (get-text-property (point) prop)
+                    (let* ((end (next-single-property-change (point) prop))
+                           (beg (previous-single-property-change end prop)))
+                      (buffer-substring beg end))))
+                ;; Consider same props our xref-backend-definitions
+                ;; method looks for.
+                '(racket-xp-require
+                  racket-xp-visit
+                  racket-xp-use
+                  racket-xp-def))
+      (thing-at-point 'symbol)))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql racket-xp-xref)))
   (completion-table-dynamic
