@@ -190,7 +190,9 @@
       (,(rx (syntax open-parenthesis)
             "def" (0+ (or (syntax word) (syntax symbol) (syntax punctuation)))
             (1+ space)
-            (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation)))))
+            (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation)
+                           ;; allow e.g. @ in identifier name
+                           (syntax expression-prefix)))))
        1 font-lock-variable-name-face)
       (,(rx (syntax open-parenthesis)
             (or "define-syntaxes"
@@ -207,7 +209,9 @@
             "def" (0+ (or (syntax word) (syntax symbol) (syntax punctuation)))
             (1+ space)
             (1+ (syntax open-parenthesis)) ;1+ b/c curried define
-            (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation)))))
+            (group (1+ (or (syntax word) (syntax symbol) (syntax punctuation)
+                           ;; allow e.g. @ in identifier name
+                           (syntax expression-prefix)))))
        1 font-lock-function-name-face)
 
       ;; let identifiers
