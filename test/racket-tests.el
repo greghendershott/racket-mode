@@ -402,15 +402,15 @@ want to use the value of `racket-program' at run time."
       (ert-test-failed-p result)
     (ert-test-passed-p result)))
 
-(defun racket-tests/racket-8.11.1-or-newer-p ()
+(defun racket-tests/racket-8.10-or-newer-p ()
   (zerop
    (call-process
     racket-program nil nil nil
-    "-e" "(require version/utils) (unless (version<? \"8.11\" (version)) (exit 255))")))
+    "-e" "(require version/utils) (unless (version<=? \"8.10\" (version)) (exit 255))")))
 
 (defun racket-tests/expected-result-for-expand-expression-p (result)
   "Test expected to fail because expansion differs in older Racket."
-  (if (racket-tests/racket-8.11.1-or-newer-p)
+  (if (racket-tests/racket-8.10-or-newer-p)
       (ert-test-passed-p result)
     (ert-test-failed-p result)))
 
