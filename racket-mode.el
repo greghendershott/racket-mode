@@ -39,6 +39,7 @@
 (require 'racket-lisp-mode)
 (require 'racket-bug-report)
 (require 'racket-util)
+(require 'racket-pcomplete)
 (require 'easymenu)
 
 (defvar racket-mode-map
