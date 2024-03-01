@@ -463,9 +463,9 @@ manually."
                     'racket-xp-def nil
                     'racket-xp-use nil))
              (racket--add-overlay beg end racket-xp-error-face)
-             (add-text-properties
-              beg end
-              (list 'help-echo str)))))
+             (put-text-property beg end
+                                'help-echo
+                                (racket--error-message-sans-location-prefix str)))))
         (`(info ,beg ,end ,str)
          (put-text-property beg end 'help-echo str)
          (when (and (string-equal str "no bound occurrences")
@@ -525,6 +525,20 @@ manually."
           beg end
           (list 'racket-xp-doc
                 (list (racket-file-name-back-to-front path) anchor))))))))
+
+(defun racket--error-message-sans-location-prefix (str)
+  "Remove \"/path/to/file.rkt:line:col: \" location prefix from an
+error message, which is just noise for a help-echo at that
+point."
+  (save-match-data
+    (if (string-match (rx bos
+                          (+? anything) ?: (+ digit) (any ?: ?.) (+ digit) ?:
+                          (+? space)
+                          (group-n 1 (+? anything))
+                          eos)
+                      str)
+        (match-string 1 str)
+      str)))
 
 (defun racket--xp-add-binding-face (beg end face)
   (add-text-properties beg end
