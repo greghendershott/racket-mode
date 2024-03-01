@@ -31,6 +31,7 @@
 (define-obsolete-variable-alias 'racket-racket-program 'racket-program "2017-06-02")
 (define-obsolete-variable-alias 'racket-raco-program   'racket-program "2017-06-02")
 
+(defvar racket--macp (eq 'darwin system-type))
 (defvar racket--winp (eq 'windows-nt system-type))
 
 (defcustom racket-program (if racket--winp "Racket.exe" "racket")
@@ -65,8 +66,13 @@ their response asychronously."
 (make-obsolete-variable 'racket-path-from-racket-to-emacs-function nil "2020-08-26")
 
 (defcustom racket-browse-url-function
-  'racket-browse-url-using-temporary-file
-  "Function to call to browse a URL."
+  (if racket--macp
+      'racket-browse-url-using-temporary-file
+    'browse-url)
+  "Function to call to browse a URL.
+
+Defaults to `racket-browse-url-using-temporary-file' on macOS and
+`browse-url' on other platforms."
   :tag "Browse URL Function"
   :type 'function
   :risky t
