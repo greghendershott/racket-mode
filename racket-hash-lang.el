@@ -309,9 +309,12 @@ Racket =#lang= line.
 EXT should be a string with the file extension for LANG, /not/
 including any dot.
 
-Example: (racket-define-hash-lang rhombus \"rhm\")
+Examples:
 
-This will:
+  (racket-define-hash-lang rhombus \"rhm\")
+  (racket-define-hash-lang scribble/manual \"scrbl\")
+
+This macro will:
 
 0. Define a major mode derived from `racket-hash-lang-mode' named
    `racket-hash-lang:LANG-mode'.
@@ -319,32 +322,29 @@ This will:
 1. Add the language to `org-src-lang-modes' and
    `org-babel-tangle-lang-exts'.
 
-2. Define a org-babel-edit-prep:<lang> function.
+2. Define a org-babel-edit-prep:LANG function.
 
-3. Define a org-babel-execute:<lang> function, which delegates to
+3. Define a org-babel-execute:LANG function, which delegates to
    `racket--hash-lang-org-babel-execute'. See its doc string for
-   more information -- including about why we don't define any
-   org-babel-expand-body:<lang> function here.
+   more information -- including why this macro /cannot/ also
+   define a org-babel-expand-body:LANG function.
 
 4. Allow a buffer to omit the explicit #lang line, when it is
    created by `org-mode' for user editing or formatting of a
-   source code block whose language property is \"rhombus\".
+   source code block whose language property is LANG.
 
 Discussion:
 
 A valid Racket program consists of one outermost module per
 source file, using one lang. Typically this is expressed using a
-=#lang= line -- which must occur exactly once, and be the first
-non-comment thing in the file.
-
-`racket-hash-lang-mode' works for any Racket hash-lang simply by
-starting the buffer with exactly one #lang line,
+=#lang= line -- which must occur exactly once at the start of the
+file. In such a buffer, `racket-hash-lang-mode' \"just works\".
 
 When using multiple `org-mode' source blocks of the same lang,
-this is tricky.
+the situation is trickier:
 
-- You could start /every/ block with a lang line, but that's
-  tedious, and org-tangle will combine them into an invalid
+- Although you could start /every/ block with a lang line, that's
+  tedious, and org-tangle will concatenate them into an invalid
   program.
 
 - On the other hand, if you start only the /first/ block with a
@@ -354,10 +354,14 @@ this is tricky.
   source block's lang property value is not available to that
   buffer, so it can't know what lang line to add automatically.
 
-  Org assumes that each lang will have a major mode that knows
-  enough to do what is required. To accommodate this it is
-  simplest to define a distinct major mode for each org source
-  block language."
+- Similarly, if you use the :shebang property to tangle
+  correctly, that property value is not available in the hidden
+  buffers created by org mode.
+
+TL;DR: Org assumes that each lang will have a major mode that
+knows enough to do what is required. To accommodate this it is
+simplest to define a distinct major mode for each org source
+block language."
   (let* ((lang-str (symbol-name lang))
          (lighter (concat "#lang:" lang-str))
          (doc (format "Major mode for #lang %s derived from `racket-hash-lang-mode'."
