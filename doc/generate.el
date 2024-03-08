@@ -59,6 +59,7 @@
     (racket-hash-lang-up ,racket-hash-lang-mode-map)
     (racket-hash-lang-down ,racket-hash-lang-mode-map)
     (racket-hash-lang-C-M-q-dwim ,racket-hash-lang-mode-map)
+    racket-declare-hash-lang-for-org-babel
     "Explore"
     racket-xp-mode
     (racket-xp-describe ,racket-xp-mode-map)

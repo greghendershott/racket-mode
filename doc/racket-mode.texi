@@ -120,6 +120,7 @@ Hash Langs
 * racket-hash-lang-up::
 * racket-hash-lang-down::
 * racket-hash-lang-C-M-q-dwim::
+* racket-declare-hash-lang-for-org-babel::
 
 Explore
 
@@ -1543,6 +1544,7 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 * racket-hash-lang-up::
 * racket-hash-lang-down::
 * racket-hash-lang-C-M-q-dwim::
+* racket-declare-hash-lang-for-org-babel::
 @end menu
 
 @node racket-hash-lang-mode
@@ -1682,6 +1684,83 @@ When the lang lexer token is@dots{}
 @item
 anything else, do @code{prog-indent-sexp}.
 @end itemize
+
+@node racket-declare-hash-lang-for-org-babel
+@subsection racket-declare-hash-lang-for-org-babel
+
+Arrange for a Racket hash-lang to work with org-babel.
+
+LANG should be an unquoted symbol, same as you would use in a
+Racket @samp{#lang} line.
+
+EXT should be a string with the file extension for LANG, @emph{not}
+including any dot.
+
+Examples:
+
+(racket-define-hash-lang rhombus ``rhm'')
+(racket-define-hash-lang scribble/manual ``scrbl'')
+
+This macro will:
+
+@enumerate
+@item
+Define a major mode derived from @ref{racket-hash-lang-mode} named
+@code{racket-hash-lang:LANG-mode}.
+
+@item
+Add the language to @code{org-src-lang-modes} and
+@code{org-babel-tangle-lang-exts}.
+
+@item
+Define a org-babel-edit-prep:LANG function.
+
+@item
+Define a org-babel-execute:LANG function, which delegates to
+@code{racket--hash-lang-org-babel-execute}. See its doc string for
+more information -- including why this macro @emph{cannot} also
+define a org-babel-expand-body:LANG function.
+
+@item
+Allow a buffer to omit the explicit #lang line, when it is
+created by @code{org-mode} for user editing or formatting of a
+source code block whose language property is LANG@.
+@end enumerate
+
+Discussion:
+
+A valid Racket program consists of one outermost module per
+source file, using one lang. Typically this is expressed using a
+@samp{#lang} line -- which must occur exactly once at the start of the
+file. In such a buffer, @ref{racket-hash-lang-mode} ``just works''.
+
+When using multiple @code{org-mode} source blocks of the same lang,
+the situation is trickier:
+
+@itemize
+@item
+Although you could start @emph{every} block with a lang line, that's
+tedious, and org-tangle will concatenate them into an invalid
+program.
+
+@item
+On the other hand, if you start only the @emph{first} block with a
+lang line, then various org-babel features won't work properly
+with the subsequent blocks. Basically this is because org
+creates a hidden buffer using @ref{racket-hash-lang-mode}, but the
+source block's lang property value is not available to that
+buffer, so it can't know what lang line to add automatically.
+
+@item
+Similarly, if you use the :shebang property to tangle
+correctly, that property value is not available in the hidden
+buffers created by org mode.
+@end itemize
+
+TL;DR: Org assumes that each lang will have a major mode that
+knows enough to do what is required. To accommodate this it is
+simplest to define a distinct major mode for each org source
+block language.
 
 @node Explore
 @section Explore
