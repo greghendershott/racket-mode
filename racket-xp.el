@@ -409,7 +409,9 @@ manually."
      nil
      `(check-syntax ,(racket-file-name-front-to-back
                       (or (racket--buffer-file-name) (buffer-name)))
-                    ,(buffer-substring-no-properties (point-min) (point-max)))
+                    ,(save-restriction
+                       (widen)
+                       (buffer-substring-no-properties (point-min) (point-max))))
      (lambda (response)
        (when (= generation-of-our-request racket--xp-edit-generation)
          (racket-show "")
@@ -450,81 +452,83 @@ manually."
 (defun racket--xp-insert (xs)
   "Insert text properties."
   (with-silent-modifications
-    (overlay-recenter (point-max))
-    (dolist (x xs)
-      (pcase x
-        (`(error ,path ,beg ,end ,str)
-         (let ((path (racket-file-name-back-to-front path)))
-           (racket--xp-add-error path beg str)
-           (when (equal path (racket--buffer-file-name))
-             (remove-text-properties
-              beg end
-              (list 'help-echo     nil
-                    'racket-xp-def nil
-                    'racket-xp-use nil))
-             (racket--add-overlay beg end racket-xp-error-face)
-             (put-text-property beg end
-                                'help-echo
-                                (racket--error-message-sans-location-prefix str)))))
-        (`(info ,beg ,end ,str)
-         (put-text-property beg end 'help-echo str)
-         (when (and (string-equal str "no bound occurrences")
-                    (string-match-p racket-xp-highlight-unused-regexp
-                                    (buffer-substring beg end)))
-           (racket--add-overlay beg end racket-xp-unused-face)))
-        (`(unused-require ,beg ,end)
-         (put-text-property beg end 'help-echo "unused require")
-         (racket--add-overlay beg end racket-xp-unused-face))
-        (`(require ,beg ,end ,file)
-         (put-text-property beg end 'racket-xp-require file))
-        (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
-         (let ((def-beg (copy-marker def-beg t))
-               (def-end (copy-marker def-end t))
-               (uses    (mapcar (lambda (use)
-                                  (mapcar (lambda (pos)
-                                            (copy-marker pos t))
-                                          use))
-                                uses)))
-           (put-text-property (marker-position def-beg)
-                              (marker-position def-end)
-                              'racket-xp-def (list req id uses))
-           (when racket-xp-add-binding-faces
-             (racket--xp-add-def-face (marker-position def-beg)
-                                      (marker-position def-end)
-                                      req))
-           (dolist (use uses)
-             (pcase-let* ((`(,use-beg ,use-end) use))
-               (put-text-property (marker-position use-beg)
-                                  (marker-position use-end)
-                                  'racket-xp-use (list def-beg def-end))
-               (when racket-xp-add-binding-faces
-                 (racket--xp-add-use-face (marker-position use-beg)
-                                          (marker-position use-end)
-                                          req))))))
-        (`(target/tails ,target ,calls)
-         (let ((target (copy-marker target t))
-               (calls  (mapcar (lambda (call)
-                                 (copy-marker call t))
-                               calls)))
-           (put-text-property (marker-position target)
-                              (1+ (marker-position target))
-                              'racket-xp-tail-target
-                              calls)
-           (dolist (call calls)
-             (put-text-property (marker-position call)
-                                (1+ (marker-position call))
-                                'racket-xp-tail-position
-                                target))))
-        (`(jump ,beg ,end ,path ,subs ,ids)
-         (add-text-properties
-          beg end
-          (list 'racket-xp-visit
-                (list (racket-file-name-back-to-front path) subs ids))))
-        (`(doc ,beg ,end ,path ,anchor)
-         (add-text-properties
-          beg end
-          (list 'racket-xp-doc
-                (list (racket-file-name-back-to-front path) anchor))))))))
+    (save-restriction
+      (widen)
+      (overlay-recenter (point-max))
+      (dolist (x xs)
+        (pcase x
+          (`(error ,path ,beg ,end ,str)
+           (let ((path (racket-file-name-back-to-front path)))
+             (racket--xp-add-error path beg str)
+             (when (equal path (racket--buffer-file-name))
+               (remove-text-properties
+                beg end
+                (list 'help-echo     nil
+                      'racket-xp-def nil
+                      'racket-xp-use nil))
+               (racket--add-overlay beg end racket-xp-error-face)
+               (put-text-property beg end
+                                  'help-echo
+                                  (racket--error-message-sans-location-prefix str)))))
+          (`(info ,beg ,end ,str)
+           (put-text-property beg end 'help-echo str)
+           (when (and (string-equal str "no bound occurrences")
+                      (string-match-p racket-xp-highlight-unused-regexp
+                                      (buffer-substring beg end)))
+             (racket--add-overlay beg end racket-xp-unused-face)))
+          (`(unused-require ,beg ,end)
+           (put-text-property beg end 'help-echo "unused require")
+           (racket--add-overlay beg end racket-xp-unused-face))
+          (`(require ,beg ,end ,file)
+           (put-text-property beg end 'racket-xp-require file))
+          (`(def/uses ,def-beg ,def-end ,req ,id ,uses)
+           (let ((def-beg (copy-marker def-beg t))
+                 (def-end (copy-marker def-end t))
+                 (uses    (mapcar (lambda (use)
+                                    (mapcar (lambda (pos)
+                                              (copy-marker pos t))
+                                            use))
+                                  uses)))
+             (put-text-property (marker-position def-beg)
+                                (marker-position def-end)
+                                'racket-xp-def (list req id uses))
+             (when racket-xp-add-binding-faces
+               (racket--xp-add-def-face (marker-position def-beg)
+                                        (marker-position def-end)
+                                        req))
+             (dolist (use uses)
+               (pcase-let* ((`(,use-beg ,use-end) use))
+                 (put-text-property (marker-position use-beg)
+                                    (marker-position use-end)
+                                    'racket-xp-use (list def-beg def-end))
+                 (when racket-xp-add-binding-faces
+                   (racket--xp-add-use-face (marker-position use-beg)
+                                            (marker-position use-end)
+                                            req))))))
+          (`(target/tails ,target ,calls)
+           (let ((target (copy-marker target t))
+                 (calls  (mapcar (lambda (call)
+                                   (copy-marker call t))
+                                 calls)))
+             (put-text-property (marker-position target)
+                                (1+ (marker-position target))
+                                'racket-xp-tail-target
+                                calls)
+             (dolist (call calls)
+               (put-text-property (marker-position call)
+                                  (1+ (marker-position call))
+                                  'racket-xp-tail-position
+                                  target))))
+          (`(jump ,beg ,end ,path ,subs ,ids)
+           (add-text-properties
+            beg end
+            (list 'racket-xp-visit
+                  (list (racket-file-name-back-to-front path) subs ids))))
+          (`(doc ,beg ,end ,path ,anchor)
+           (add-text-properties
+            beg end
+            (list 'racket-xp-doc
+                  (list (racket-file-name-back-to-front path) anchor)))))))))
 
 (defun racket--error-message-sans-location-prefix (str)
   "Remove \"/path/to/file.rkt:line:col: \" location prefix from an
@@ -707,85 +711,87 @@ or `racket-repl-describe'."
 
 (defun racket-xp-pre-redisplay (window)
   (with-current-buffer (window-buffer window)
-    (let ((point (window-point window)))
-      (unless (equal point (window-parameter window 'racket-xp-point))
-        (set-window-parameter window 'racket-xp-point point)
-        (pcase (get-text-property point 'help-echo)
-          ((and s (pred racket--non-empty-string-p))
-           (racket-show
-            s
-            ;; Because some `racket-show' flavors present a tooltip, a
-            ;; position after the end of the span is preferable: less
-            ;; likely to hide the target of the annotation.
-            (pcase (or (next-single-property-change point 'help-echo)
-                       (point-max))
-              ((and end (guard (pos-visible-in-window-p end window))) end)
-              ;; But if end isn't visible (#629) prefer beginning.
-              (end
-               (pcase (or (previous-single-property-change end 'help-echo)
-                          (point-min))
-                 ((and beg (guard (pos-visible-in-window-p beg window))) beg)
-                 ;; But if neither beginning nor end are visible, just
-                 ;; show starting at top line of window.
-                 (_ (save-excursion
-                      (goto-char (window-start window))
-                      (forward-line -1)
-                      (point))))))))
-          (_ (racket-show "")))
-        (let ((def (get-text-property point 'racket-xp-def))
-              (use (get-text-property point 'racket-xp-use)))
-          (unless (and (equal def (window-parameter window 'racket-xp-def))
-                       (equal use (window-parameter window 'racket-xp-use)))
-            (set-window-parameter window 'racket-xp-def def)
-            (set-window-parameter window 'racket-xp-use use)
-            (racket--remove-overlays-in-buffer racket-xp-def-face
-                                               racket-xp-use-face)
-            (pcase def
-              (`(,kind ,_id ,(and uses `((,beg ,_end) . ,_)))
-               (when (or (eq kind 'local)
-                         racket-xp-highlight-imports-p)
-                 (pcase (get-text-property beg 'racket-xp-use)
-                   (`(,beg ,end)
-                    (racket--add-overlay beg end racket-xp-def-face)))
-                 (dolist (use uses)
-                   (pcase use
+    (save-restriction
+      (widen)
+      (let ((point (window-point window)))
+        (unless (equal point (window-parameter window 'racket-xp-point))
+          (set-window-parameter window 'racket-xp-point point)
+          (pcase (get-text-property point 'help-echo)
+            ((and s (pred racket--non-empty-string-p))
+             (racket-show
+              s
+              ;; Because some `racket-show' flavors present a tooltip, a
+              ;; position after the end of the span is preferable: less
+              ;; likely to hide the target of the annotation.
+              (pcase (or (next-single-property-change point 'help-echo)
+                         (point-max))
+                ((and end (guard (pos-visible-in-window-p end window))) end)
+                ;; But if end isn't visible (#629) prefer beginning.
+                (end
+                 (pcase (or (previous-single-property-change end 'help-echo)
+                            (point-min))
+                   ((and beg (guard (pos-visible-in-window-p beg window))) beg)
+                   ;; But if neither beginning nor end are visible, just
+                   ;; show starting at top line of window.
+                   (_ (save-excursion
+                        (goto-char (window-start window))
+                        (forward-line -1)
+                        (point))))))))
+            (_ (racket-show "")))
+          (let ((def (get-text-property point 'racket-xp-def))
+                (use (get-text-property point 'racket-xp-use)))
+            (unless (and (equal def (window-parameter window 'racket-xp-def))
+                         (equal use (window-parameter window 'racket-xp-use)))
+              (set-window-parameter window 'racket-xp-def def)
+              (set-window-parameter window 'racket-xp-use use)
+              (racket--remove-overlays-in-buffer racket-xp-def-face
+                                                 racket-xp-use-face)
+              (pcase def
+                (`(,kind ,_id ,(and uses `((,beg ,_end) . ,_)))
+                 (when (or (eq kind 'local)
+                           racket-xp-highlight-imports-p)
+                   (pcase (get-text-property beg 'racket-xp-use)
                      (`(,beg ,end)
-                      (racket--add-overlay beg end racket-xp-use-face)))))))
-            (pcase use
-              (`(,def-beg ,def-end)
-               (pcase (get-text-property def-beg 'racket-xp-def)
-                 (`(,kind ,_id ,uses)
-                  (when (or (eq kind 'local)
-                            racket-xp-highlight-imports-p)
-                    (racket--add-overlay def-beg def-end racket-xp-def-face)
-                    (dolist (use uses)
-                      (pcase use
-                        (`(,beg ,end)
-                         (racket--add-overlay beg end racket-xp-use-face)))))))))))
-        (let ((target  (get-text-property point 'racket-xp-tail-target))
-              (context (get-text-property point 'racket-xp-tail-position)))
-          (unless (and (equal target (window-parameter window 'racket-xp-tail-target))
-                       (equal context   (window-parameter window 'racket-xp-tail-position)))
-            (set-window-parameter window 'racket-xp-tail-target  target)
-            (set-window-parameter window 'racket-xp-tail-position context)
-            (racket--remove-overlays-in-buffer racket-xp-tail-target-face
-                                               racket-xp-tail-position-face)
-            ;; This is slightly simpler than def/uses because there are
-            ;; no beg..end ranges, just single positions.
-            (pcase target
-              ((and (pred listp) contexts `(,pos . ,_))
-               (pcase (get-text-property pos 'racket-xp-tail-position)
-                 ((and (pred markerp) pos)
-                  (racket--add-overlay pos (1+ pos) 'racket-xp-tail-target-face 1)
-                  (dolist (context contexts)
-                    (racket--add-overlay context (1+ context) 'racket-xp-tail-position-face 2))))))
-            (pcase context
-              ((and (pred markerp) target-pos)
-               (pcase (get-text-property target-pos 'racket-xp-tail-target)
-                 ((and (pred listp) contexts)
-                  (racket--add-overlay target-pos (1+ target-pos) 'racket-xp-tail-target-face 1)
-                  (dolist (context contexts)
-                    (racket--add-overlay context (1+ context) 'racket-xp-tail-position-face 2))))))))))))
+                      (racket--add-overlay beg end racket-xp-def-face)))
+                   (dolist (use uses)
+                     (pcase use
+                       (`(,beg ,end)
+                        (racket--add-overlay beg end racket-xp-use-face)))))))
+              (pcase use
+                (`(,def-beg ,def-end)
+                 (pcase (get-text-property def-beg 'racket-xp-def)
+                   (`(,kind ,_id ,uses)
+                    (when (or (eq kind 'local)
+                              racket-xp-highlight-imports-p)
+                      (racket--add-overlay def-beg def-end racket-xp-def-face)
+                      (dolist (use uses)
+                        (pcase use
+                          (`(,beg ,end)
+                           (racket--add-overlay beg end racket-xp-use-face)))))))))))
+          (let ((target  (get-text-property point 'racket-xp-tail-target))
+                (context (get-text-property point 'racket-xp-tail-position)))
+            (unless (and (equal target (window-parameter window 'racket-xp-tail-target))
+                         (equal context   (window-parameter window 'racket-xp-tail-position)))
+              (set-window-parameter window 'racket-xp-tail-target  target)
+              (set-window-parameter window 'racket-xp-tail-position context)
+              (racket--remove-overlays-in-buffer racket-xp-tail-target-face
+                                                 racket-xp-tail-position-face)
+              ;; This is slightly simpler than def/uses because there are
+              ;; no beg..end ranges, just single positions.
+              (pcase target
+                ((and (pred listp) contexts `(,pos . ,_))
+                 (pcase (get-text-property pos 'racket-xp-tail-position)
+                   ((and (pred markerp) pos)
+                    (racket--add-overlay pos (1+ pos) 'racket-xp-tail-target-face 1)
+                    (dolist (context contexts)
+                      (racket--add-overlay context (1+ context) 'racket-xp-tail-position-face 2))))))
+              (pcase context
+                ((and (pred markerp) target-pos)
+                 (pcase (get-text-property target-pos 'racket-xp-tail-target)
+                   ((and (pred listp) contexts)
+                    (racket--add-overlay target-pos (1+ target-pos) 'racket-xp-tail-target-face 1)
+                    (dolist (context contexts)
+                      (racket--add-overlay context (1+ context) 'racket-xp-tail-position-face 2)))))))))))))
 
 (defun racket-xp--force-redisplay (window)
   (dolist (param '(racket-xp-point
@@ -1048,7 +1054,7 @@ around at the first and last errors."
                   (when (get-text-property (point) prop)
                     (let* ((end (next-single-property-change (point) prop))
                            (beg (previous-single-property-change end prop)))
-                      (buffer-substring beg end))))
+                      (save-restriction (widen) (buffer-substring beg end)))))
                 ;; Consider same props our xref-backend-definitions
                 ;; method looks for.
                 '(racket-xp-require
@@ -1084,7 +1090,7 @@ around at the first and last errors."
    (pcase (get-text-property 0 'racket-xp-use str)
      (`(,beg ,end)
       (list
-       (xref-make (buffer-substring beg end)
+       (xref-make (save-restriction (widen) (buffer-substring beg end))
                   (xref-make-buffer-location (current-buffer)
                                              (marker-position beg))))))
    ;; Annotated by dr/cs as imported module; visit the module
@@ -1121,7 +1127,7 @@ around at the first and last errors."
          (mapcar (lambda (use)
                    (pcase-let ((`(,beg ,end) use))
                      (xref-make
-                      (buffer-substring beg end)
+                      (save-restriction (widen) (buffer-substring beg end))
                       (xref-make-buffer-location
                        (current-buffer) (marker-position beg)))))
                  uses)))
