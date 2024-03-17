@@ -58,7 +58,7 @@ Centralizes how to issue doc command and handle response correctly."
 
 (defun racket--search-doc-locally (str)
   (racket--doc-assert-local-back-end)
-  (call-process (expand-file-name racket-program)
+  (call-process racket-program
                 nil ;INFILE: none
                 0   ;DESTINATION: discard/don't wait
                 nil ;DISPLAY: none
