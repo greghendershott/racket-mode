@@ -13,13 +13,33 @@
 
 (provide get-interaction)
 
+;; This input port holds the unread remainder of the most-recent
+;; submission string from the current-submissions channel. (Although
+;; commonly each submission is one read-able value, like "1\n", it
+;; might contain more than one read-able value, e.g. the user submits
+;; "1 2 3\n". In that case we want to print each result on its own
+;; line, without excess prompts.)
+(define current-submission-input-port (make-parameter (open-input-string "")))
+
 (define (get-interaction prompt)
   (maybe-warn-for-session)
-  (repl-output-prompt (string-append prompt ">"))
-  (define str (get-submission))
-  (define in (open-input-string str))
-  (with-stack-checkpoint
-    ((current-read-interaction) 'racket-mode-repl in)))
+  (define (get)
+    (with-handlers ([exn:fail:read?
+                     (λ (exn)
+                       ;; Discard remainder after this read error.
+                       (current-submission-input-port (open-input-string ""))
+                       (raise exn))])
+      (current-get-interaction-input-port (λ () (current-submission-input-port)))
+      (with-stack-checkpoint
+        ((current-read-interaction) 'racket-mode-repl (current-submission-input-port)))))
+  (define v (get))
+  (cond
+    [(eof-object? v)
+     (repl-output-prompt (string-append prompt ">"))
+     (current-submission-input-port (open-input-string (get-submission)))
+     (port-count-lines! (current-submission-input-port))
+     (get)]
+    [else v]))
 
 (define current-get-interaction-evt
   (dynamic-require 'racket/base 'current-get-interaction-evt (λ () #f)))
