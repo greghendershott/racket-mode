@@ -26,7 +26,7 @@ customization."
 
 ;;;###autoload
 (defun racket-repl-buffer-name-shared ()
-  "All `racket-mode' edit buffers share one `racket-repl-mode' buffer per back end.
+  "Share one `racket-repl-mode' buffer per back end.
 
 A value for the variable `racket-repl-buffer-name-function'."
   (interactive)
@@ -45,14 +45,15 @@ A value for the variable `racket-repl-buffer-name-function'."
 
 ;;;###autoload
 (defun racket-repl-buffer-name-project ()
-  "All `racket-mode' buffers in a project share a `racket-repl-mode' buffer.
+  "Share a `racket-repl-mode' buffer per back end and per project.
 
 A value for the variable `racket-repl-buffer-name-function'.
 
 The \"project\" is determined by `racket-project-root'."
   (interactive)
   (setq-local racket-repl-buffer-name
-              (format "*Racket REPL <%s>*"
+              (format "*Racket REPL <%s %s>*"
+                      (racket-back-end-name)
                       (racket--file-name-sans-remote-method
                        (racket-project-root (racket--buffer-file-name))))))
 

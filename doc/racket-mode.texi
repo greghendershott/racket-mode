@@ -3092,6 +3092,9 @@ The following values will @emph{not} work:
 
 Function to call to browse a URL@.
 
+Defaults to @ref{racket-browse-url-using-temporary-file} on macOS and
+@code{browse-url} on other platforms.
+
 @node racket-xp-after-change-refresh-delay
 @subsection racket-xp-after-change-refresh-delay
 
@@ -3713,7 +3716,7 @@ A value for the variable @ref{racket-show-functions}.
 @code{(racket-repl-buffer-name-shared)}
 
 
-All @ref{racket-mode} edit buffers share one @ref{racket-repl-mode} buffer per back end.
+Share one @ref{racket-repl-mode} buffer per back end.
 
 A value for the variable @ref{racket-repl-buffer-name-function}.
 
@@ -3733,7 +3736,7 @@ A value for the variable @ref{racket-repl-buffer-name-function}.
 @code{(racket-repl-buffer-name-project)}
 
 
-All @ref{racket-mode} buffers in a project share a @ref{racket-repl-mode} buffer.
+Share a @ref{racket-repl-mode} buffer per back end and per project.
 
 A value for the variable @ref{racket-repl-buffer-name-function}.
 
@@ -3930,6 +3933,17 @@ are a few examples.
     ;; to be "xvfb-run racket".
     (racket-add-back-end "/ssh:headless:~/gui-project/"
                          :racket-program "xvfb-run racket")
+@end lisp
+
+If you use various versions of Racket by setting PATH values via
+direnv, .envrc files and @code{envrc-global-mode}, then you need a
+distinct back end for each such project subdirectory. One
+approach is to use @ref{racket-add-back-end} for each project in your
+Emacs init file. Another way to is to have a .dir-locals.el file
+alongside each .envrc file:
+
+@lisp
+    ((nil . ((eval . (racket-add-back-end default-directory)))))
 @end lisp
 
 @node Running racket and raco commands in a shell or terminal (1)

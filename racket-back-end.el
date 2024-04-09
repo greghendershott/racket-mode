@@ -200,6 +200,17 @@ are a few examples.
     (racket-add-back-end \"/ssh:headless:~/gui-project/\"
                          :racket-program \"xvfb-run racket\")
 #+END_SRC
+
+If you use various versions of Racket by setting PATH values via
+direnv, .envrc files and `envrc-global-mode', then you need a
+distinct back end for each such project subdirectory. One
+approach is to use `racket-add-back-end' for each project in your
+Emacs init file. Another way to is to have a .dir-locals.el file
+alongside each .envrc file:
+
+#+BEGIN_SRC lisp
+    ((nil . ((eval . (racket-add-back-end default-directory)))))
+#+END_SRC
 "
   (unless (and (stringp directory) (file-name-absolute-p directory))
     (error "racket-add-back-end: directory must be file-name-absolute-p"))
@@ -443,13 +454,13 @@ a possibly slow remote connection."
 (defun racket--back-end-args->command (back-end racket-command-args)
   "Given RACKET-COMMAND-ARGS, prepend path to racket for BACK-END."
   (if (racket--back-end-local-p back-end)
-      `(,(or (plist-get back-end :racket-program)
-             (executable-find racket-program)
-             (user-error
-              "Cannot find Racket executable\nracket-program: %S\nexec-path: %S"
-              racket-program
-              exec-path))
-        ,@racket-command-args)
+      (cons (or (executable-find (or (plist-get back-end :racket-program)
+                                     racket-program))
+                (error
+                 "Cannot executable-find Racket:\n  racket-program: %S\n  exec-path: %S"
+                 racket-program
+                 exec-path))
+            racket-command-args)
     (pcase-let ((`(,host ,user ,port ,_name)
                  (racket--file-name->host+user+port+name
                   (plist-get back-end :directory))))
