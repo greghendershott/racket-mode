@@ -169,6 +169,9 @@ The \"project\" is determined by trying, in order:
     (user-error "%S works only in racket-mode or racket-hash-lang-mode edit buffers, or racket-repl-mode buffers"
                 this-command)))
 
+;; Avoid circular require
+(declare-function racket-hash-lang-forward-sexp "racket-hash-lang" (&optional arg))
+
 (defun racket--sexp-edit-mode-p ()
   "Either `racket-mode' or `racket-hash-lang-mode', provided the
 latter has /not/ set the variable `forward-sexp-function' because
@@ -176,7 +179,7 @@ the hash-lang uses racket-grouping-position. In other words, when
 `forward-sexp-function' is nil we may assume that the lang uses
 s-expressions."
   (and (racket--edit-mode-p)
-       (not forward-sexp-function)))
+       (not (equal forward-sexp-function #'racket-hash-lang-forward-sexp))))
 
 (defun racket--assert-sexp-edit-mode ()
   (unless (racket--sexp-edit-mode-p)
