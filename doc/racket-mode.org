@@ -412,11 +412,13 @@ In the common case there is only one back end, on the same local host as Emacs, 
 
 {{{img(scenario-0, Emacs front end and one local back end)}}}
 
-However you can configure using any number of back ends on any number of local or remote hosts.
+However you can configure using any number of back ends on any number of local or remote host paths.
 
 As one example, you can have multiple back ends on the local host. One back end is used for a project under a specific subdirectory, and the other back end for all others. (Perhaps one project needs Racket built from source, and everything else uses an installed, older version of Racket. By using different back ends, not only will ~racket-run~ use the desired version of Racket for a file, so will commands for documentation or visiting definitions.)
 
 {{{img(scenario-1, Emacs front end and two local back ends --- one for a project path)}}}
+
+(Note: If you use various versions of Racket via [[https://direnv.net/][~direnv~]] combined with the [[https://github.com/purcell/envrc][~envrc~ Emacs package]], you still need a distinct back end for each project. To arrange this, add or modify a ~.dir-locals.el~ file next to each ~.envrc~ file; {{{see(racket-add-back-end)}}}.)
 
 Furthermore, you could work with a project located on a remote host, whose files you edit using TRAMP. You also want the back end to run there. For a remote host, Racket Mode copies its back end source files to the remote when necessary, and runs the back end using ssh.
 
