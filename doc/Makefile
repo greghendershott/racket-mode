@@ -24,7 +24,7 @@ racket-mode.info: racket-mode.texi
 	makeinfo --no-split $< -o $@
 
 racket-mode.html: racket-mode.texi
-	makeinfo --html --no-split --no-headers --no-number-sections --css-ref='racket-mode.css' $<
+	makeinfo --html --no-split --no-headers --no-number-sections --set-customization-variable DOCTYPE="<!doctype html>" --css-ref='racket-mode.css' $<
 
 
 ######################################################################
