@@ -21,6 +21,9 @@
 (require 'sh-script) ;for sh-heredoc face
 (require 'comint) ;for comint-simple-send in racket-shell-or-terminal
 
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; racket group
+
 (defgroup racket nil
   "Modes for the Racket language."
   :group 'languages
@@ -42,8 +45,7 @@ non-nil `racket-program` property list value. See
 `racket-add-back-end'."
   :tag "Racket Program"
   :type '(file :must-match t)
-  :risky t
-  :group 'racket)
+  :risky t)
 
 (make-obsolete-variable 'racket-command-port nil "2020-04-25")
 
@@ -58,8 +60,7 @@ response. Instead most Racket Mode commands these days receive
 their response asychronously."
   :tag "Command Timeout"
   :type 'integer
-  :risky t
-  :group 'racket)
+  :risky t)
 
 (make-obsolete-variable 'racket-path-from-emacs-to-racket-function nil "2020-08-26")
 
@@ -75,8 +76,7 @@ Defaults to `racket-browse-url-using-temporary-file' on macOS and
 `browse-url' on other platforms."
   :tag "Browse URL Function"
   :type 'function
-  :risky t
-  :group 'racket)
+  :risky t)
 
 (defcustom racket-documentation-search-location
   "https://docs.racket-lang.org/search/index.html?q=%s"
@@ -94,8 +94,7 @@ and `racket-repl-documentation' should look for the search page.
   :tag "Documentation Search Location"
   :type '(choice (string :tag "URL")
                  (const :tag "Local" local))
-  :safe (lambda (val) (or (stringp val) (eq val 'local)))
-  :group 'racket)
+  :safe (lambda (val) (or (stringp val) (eq val 'local))))
 
 (defcustom racket-shell-or-terminal-function 'racket-shell
   "How `racket-racket' and `racket-raco-test' run commands.
@@ -112,10 +111,10 @@ Predefined choices include `racket-shell', `racket-term',
              racket-term
              racket-ansi-term
              racket-vterm)
-  :risky t
-  :group 'racket)
+  :risky t)
 
-;;; Xp Mode
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; racket-xp group
 
 (defgroup racket-xp nil
   "`racket-xp-mode' options"
@@ -129,8 +128,7 @@ Set to nil to disable automatic refresh and manually use `racket-xp-annotate'."
   :tag "Racket XP Mode After Change Refresh Delay"
   :type '(choice (integer :tag "Seconds")
                  (const :tag "Off" nil))
-  :safe #'integerp
-  :group 'racket-xp)
+  :safe #'integerp)
 
 (defcustom racket-xp-mode-lighter
   '(:eval (racket--xp-mode-lighter))
@@ -139,8 +137,7 @@ Set to nil to disable automatic refresh and manually use `racket-xp-annotate'."
 Set to nil to disable the mode line completely."
   :tag "Racket Xp Mode Lighter"
   :type 'sexp
-  :risky t
-  :group 'racket-xp)
+  :risky t)
 
 (defcustom racket-xp-highlight-unused-regexp "^[^_]"
   "Only give `racket-xp-unused-face' to unused bindings that match this regexp.
@@ -149,8 +146,7 @@ The default is to highlight identifiers that do not start with
 an underline, which is a common convention."
   :tag "Racket Xp Mode Do Not Highlight Unused Regexp"
   :type 'regexp
-  :safe #'stringp
-  :group 'racket-xp)
+  :safe #'stringp)
 
 (defcustom racket-xp-add-binding-faces nil
   "Have `racket-xp-mode' fontify binding identifier sites.
@@ -170,10 +166,10 @@ This has a visible effect only when there is /not/ also a
 \\='face property applied by the major mode's fontification."
   :tag "Racket Xp Mode Binding Font Lock Face Modes"
   :type '(repeat symbol)
-  :safe #'listp
-  :group 'racket-xp)
+  :safe #'listp)
 
-;;; Hash Lang
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; racket-hash-lang group
 
 (defgroup racket-hash-lang nil
   "`racket-hash-lang-mode' options"
@@ -214,10 +210,10 @@ String tokens use `font-lock-string-face'. Text tokens, e.g.
 Scribble text, use the face `default'"
   :tag "Hash Lang Token Face Association List"
   :type '(alist :key-type symbol :value-type face)
-  :safe #'listp
-  :group 'racket-hash-lang)
+  :safe #'listp)
 
-;;; REPL
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; racket-repl group
 
 (defgroup racket-repl nil
   "`racket-repl-mode' options"
@@ -248,8 +244,7 @@ necessary."
                  (const :tag "One REPL buffer for all project edit buffers" racket-repl-buffer-name-project)
                  (const :tag "One REPL buffer for each edit buffer" racket-repl-buffer-name-unique)
                  (function :tag "Other function"))
-  :risky t
-  :group 'racket-repl)
+  :risky t)
 
 (defcustom racket-submodules-to-run '((test) (main))
   "Extra submodules to run.
@@ -271,8 +266,7 @@ It is NOT used by commands that run one specific module, such as:
  - `racket-profile'"
   :tag "Submodules to Run"
   :type '(repeat (repeat :tag "Module path" symbol))
-  :safe #'listp
-  :group 'racket-repl)
+  :safe #'listp)
 
 (defcustom racket-memory-limit 2048
   "Terminate the Racket process if memory use exceeds this value in MB.
@@ -286,8 +280,7 @@ terminated upon the first garbage collection where memory exceeds
 the limit (maybe by a significant amount)."
   :tag "Memory Limit"
   :type 'integer
-  :safe #'integerp
-  :group 'racket-repl)
+  :safe #'integerp)
 
 (defcustom racket-error-context 'medium
   "The amount of context for error messages.
@@ -315,8 +308,7 @@ more-helpful error message."
   :type '(radio (const :tag "Low" low)
                 (const :tag "Medium (better context but slower)" medium)
                 (const :tag "High (best context but slowest)" high))
-  :risky t
-  :group 'racket-repl)
+  :risky t)
 
 (make-obsolete-variable 'racket-retry-as-skeleton nil "2020-02-26")
 
@@ -324,23 +316,20 @@ more-helpful error message."
   (locate-user-emacs-file (file-name-as-directory "racket-mode"))
   "Directory for `racket-repl-mode' history files."
   :tag "REPL History Directory"
-  :type 'file
-  :group 'racket-repl)
+  :type 'file)
 
 (defcustom racket-history-filter-regexp "\\`\\s *\\'"
   "Input matching this regexp are NOT saved on the history list.
 Default value is a regexp to ignore input that is all whitespace."
   :tag "History Filter Regexp"
   :type 'regexp
-  :safe #'stringp
-  :group 'racket-repl)
+  :safe #'stringp)
 
 (defcustom racket-images-inline t
   "Whether to display inline images in the REPL."
   :tag "Images Inline"
   :type 'boolean
-  :safe #'booleanp
-  :group 'racket-repl)
+  :safe #'booleanp)
 
 (defcustom racket-imagemagick-props nil
   "Use ImageMagick with these properties for REPL images.
@@ -361,15 +350,13 @@ pixels, supply (:max-width 500)."
              (:width integer)
              (:height integer)
              (:rotation float))
-  :risky t
-  :group 'racket-repl)
+  :risky t)
 
 (defcustom racket-images-keep-last 100
   "How many images to keep in the image cache."
   :tag "Images Keep Last"
   :type 'integer
-  :safe #'integerp
-  :group 'racket-repl)
+  :safe #'integerp)
 
 (defcustom racket-images-system-viewer (if (eq system-type 'darwin)
                                            "open"
@@ -377,15 +364,13 @@ pixels, supply (:max-width 500)."
   "The image viewer program to use for `racket-view-image'."
   :tag "Images System Viewer"
   :type 'string
-  :risky t
-  :group 'racket-repl)
+  :risky t)
 
 (defcustom racket-pretty-print t
   "Use pretty-print instead of print in REPL?"
   :tag "Pretty Print"
   :type 'boolean
-  :safe #'booleanp
-  :group 'racket-repl)
+  :safe #'booleanp)
 
 (defcustom racket-use-repl-submit-predicate nil
   "Should `racket-repl-submit' use a drracket:submit-predicate?
@@ -395,8 +380,7 @@ language syntax is not s-expressions. When t `racket-repl-submit'
 will use this to decide whether to submit your input, yet."
   :tag "Use REPL Submit Predicate"
   :type 'boolean
-  :safe #'booleanp
-  :group 'racket-repl)
+  :safe #'booleanp)
 
 (defcustom racket-before-run-hook nil
   "Normal hook done before various Racket Mode run commands.
@@ -410,8 +394,7 @@ instead needs the `racket-repl-mode' buffer, it should get that
 from the variable `racket-repl-buffer-name'."
   :tag "Before Run Hook"
   :type 'hook
-  :risky t
-  :group 'racket-repl)
+  :risky t)
 
 (defcustom racket-after-run-hook nil
   "Normal hook done after various Racket Mode run commands.
@@ -425,18 +408,17 @@ instead needs the `racket-repl-mode' buffer, it should get that
 from the variable `racket-repl-buffer-name'."
   :tag "After Run Hook"
   :type 'hook
-  :risky t
-  :group 'racket-repl)
+  :risky t)
 
 (defcustom racket-repl-command-file
   (expand-file-name "repl.rkt"
                     (locate-user-emacs-file (file-name-as-directory "racket-mode")))
   "Name of the file used by `racket-repl'."
   :tag "REPL Command File"
-  :type 'file
-  :group 'racket-repl)
+  :type 'file)
 
-;;; Other
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; racket-other group
 
 (defgroup racket-other nil
   "Other Options"
@@ -450,8 +432,7 @@ This is indirectly disabled if `racket-indent-sequence-depth' is 0.
 This is safe to set as a file-local variable."
   :tag "Indent Curly As Sequence"
   :type 'boolean
-  :safe #'booleanp
-  :group 'racket-other)
+  :safe #'booleanp)
 
 (defcustom racket-indent-sequence-depth 0
   "To what depth should `racket-indent-line' search.
@@ -465,8 +446,7 @@ indentation noticeably slower. This is safe to set as a
 file-local variable."
   :tag "Indent Sequence Depth"
   :type 'integer
-  :safe #'integerp
-  :group 'racket-other)
+  :safe #'integerp)
 
 (defcustom racket-pretty-lambda nil
   "Display lambda keywords using λ. This is DEPRECATED.
@@ -475,8 +455,7 @@ Instead use `prettify-symbols-mode' in newer verisons of Emacs,
 or, use `racket-insert-lambda' to insert actual λ characters."
   :tag "Pretty Lambda"
   :type 'boolean
-  :safe #'booleanp
-  :group 'racket-other)
+  :safe #'booleanp)
 
 (defcustom racket-smart-open-bracket-enable nil
   "This variable is obsolete and has no effect.
@@ -486,8 +465,7 @@ Instead of using this variable, you may bind the `[` key to the
 and/or `racket-repl-mode-map' keymaps."
   :tag "Smart Open Bracket Enable"
   :type 'boolean
-  :safe #'booleanp
-  :group 'racket-other)
+  :safe #'booleanp)
 
 (defcustom racket-module-forms
   (rx (syntax ?\()
@@ -499,8 +477,7 @@ Affects what `beginning-of-defun' will move to. This is safe to
 set as a file-local variable."
   :tag "Top Level Forms"
   :type 'string
-  :safe #'stringp
-  :group 'racket-other)
+  :safe #'stringp)
 
 (defcustom racket-logger-config
   '((cm-accomplice           . warning)
@@ -537,8 +514,7 @@ like \"debug\" and not get overhwelmed by these noisy topics."
   :set (lambda (var val)
          (set-default var val)
          (when (fboundp 'racket--logger-activate-config)
-           (racket--logger-activate-config)))
-  :group 'racket-other)
+           (racket--logger-activate-config))))
 
 (defcustom racket-show-functions
   (list 'racket-show-pseudo-tooltip)
@@ -575,8 +551,7 @@ ignore POS. Examples: `racket-show-echo-area' and
              racket-show-echo-area
              racket-show-header-line
              racket-show-pos-tip)
-  :risky t
-  :group 'racket-other)
+  :risky t)
 
 (defcustom racket-expand-hiding 'standard
   "The macro hiding policy for commands like `racket-expand-file'."
@@ -614,10 +589,10 @@ ignore POS. Examples: `racket-show-echo-area' and
                                (list :tag "phase>=?"
                                      (const phase>=?)
                                      (natnum :tag "natural number"))
-                               (sexp :tag "sexp"))))))
-  :group 'racket-other)
+                               (sexp :tag "sexp")))))))
 
-;;; Faces
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+;;; racket-faces group
 
 (defgroup racket-faces nil
   "Racket Faces"
@@ -631,8 +606,7 @@ ignore POS. Examples: `racket-show-echo-area' and
      (defface ,id
        ,facespec
        ,docstr
-       :tag ,tag
-       :group 'racket-faces)))
+       :tag ,tag)))
 
 (defface-racket racket-xp-def-face
   '((t (:inherit match :underline (:style line))))
