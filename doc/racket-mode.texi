@@ -226,6 +226,7 @@ REPL variables
 * racket-imagemagick-props::
 * racket-images-keep-last::
 * racket-images-system-viewer::
+* racket-images-do-not-use-svg::
 * racket-pretty-print::
 * racket-repl-command-file::
 
@@ -3319,6 +3320,7 @@ Use some of the regexp search-based fontification from classic
 * racket-imagemagick-props::
 * racket-images-keep-last::
 * racket-images-system-viewer::
+* racket-images-do-not-use-svg::
 * racket-pretty-print::
 * racket-repl-command-file::
 @end menu
@@ -3412,6 +3414,15 @@ How many images to keep in the image cache.
 @subsection racket-images-system-viewer
 
 The image viewer program to use for @code{racket-view-image}.
+
+@node racket-images-do-not-use-svg
+@subsection racket-images-do-not-use-svg
+
+Do not use SVG to render images?
+
+Note: This value is used only when starting a back end -- @emph{not}
+for each run. If you change this, for it to take effect you must
+restart by using @code{racket-start-back-end}.
 
 @node racket-pretty-print
 @subsection racket-pretty-print

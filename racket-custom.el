@@ -338,6 +338,15 @@ pixels, supply (:max-width 500)."
   :type 'string
   :risky t)
 
+(defcustom racket-images-do-not-use-svg nil
+  "Do not use SVG to render images?
+
+Note: This value is used only when starting a back end -- /not/
+for each run. If you change this, for it to take effect you must
+restart by using `racket-start-back-end'."
+  :type 'boolean
+  :safe #'booleanp)
+
 (defcustom racket-pretty-print t
   "Use pretty-print instead of print in REPL?"
   :type 'boolean

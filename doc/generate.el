@@ -204,6 +204,7 @@
     racket-imagemagick-props
     racket-images-keep-last
     racket-images-system-viewer
+    racket-images-do-not-use-svg
     racket-pretty-print
     racket-repl-command-file
     "Other variables"

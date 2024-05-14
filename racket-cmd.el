@@ -94,7 +94,8 @@ Before doing anything runs the hook `racket-stop-back-end-hook'."
                           (if local-p
                               racket--rkt-source-dir
                             (racket--ensure-updated-back-end-on-remote))))
-           (svg-flag (if (and (boundp 'image-types)
+           (svg-flag (if (and (not racket-images-do-not-use-svg)
+                              (boundp 'image-types)
                               (fboundp 'image-type-available-p)
                               (or (and (memq 'svg image-types)
                                        (image-type-available-p 'svg))
