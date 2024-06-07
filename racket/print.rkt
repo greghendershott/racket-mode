@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -9,10 +9,7 @@
          "image.rkt"
          "repl-output.rkt")
 
-(provide make-racket-mode-print-handler
-         current-value-port)
-
-(define current-value-port (make-parameter #f))
+(provide make-racket-mode-print-handler)
 
 (define (make-racket-mode-print-handler pretty? columns pixels/char)
   (define (racket-mode-print-handler v)
@@ -31,7 +28,8 @@
              [(cons path-name _pixel-width)
               (write-special (cons 'image path-name))]
              [_
-              (print v)])]))
+              (print v)])
+           (newline)]))
       (drain-value-pipe in out)))
   racket-mode-print-handler)
 
