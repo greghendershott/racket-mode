@@ -90,6 +90,7 @@ Commands
 * Eval::
 * Collections::
 * Macro expand::
+* Packages::
 * Other::
 
 Edit
@@ -179,6 +180,12 @@ Macro expand
 * racket-expand-region::
 * racket-expand-definition::
 * racket-expand-last-sexp::
+
+Packages
+
+* list-racket-packages::
+* racket-package-mode::
+* describe-racket-package::
 
 Other
 
@@ -920,6 +927,7 @@ You can also view these by using the normal Emacs help mechanism:
 * Eval::
 * Collections::
 * Macro expand::
+* Packages::
 * Other::
 @end menu
 
@@ -2861,6 +2869,87 @@ Uses the @code{macro-debugger} package to do the expansion.
 
 With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
 were 'disabled.
+
+@node Packages
+@section Packages
+
+@menu
+* list-racket-packages::
+* racket-package-mode::
+* describe-racket-package::
+@end menu
+
+@node list-racket-packages
+@subsection list-racket-packages
+
+@kbd{M-x}  @code{list-racket-packages}
+
+Open a @ref{racket-package-mode} buffer for the active back end.
+
+@node racket-package-mode
+@subsection racket-package-mode
+
+@kbd{M-x}  @code{racket-package-mode}
+
+Major mode for Racket package management.
+
+The list of packages is equivalent to ``raco pkg show -all'' on
+the active back end.
+
+On each row you can press RET to @code{describe-racket-package}, which
+opens a buffer where you can view details, and use buttons to
+install/update/remove the package.
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaa}
+@item Key
+@tab Binding
+@item @kbd{RET} 
+@tab @code{racket-package-describe}
+@end multitable
+
+
+
+
+In addition to any hooks its parent mode @code{tabulated-list-mode} might
+have run, this mode runs the hook @code{racket-package-mode-hook}, as the
+final or penultimate step during initialization.
+
+@node describe-racket-package
+@subsection describe-racket-package
+
+@kbd{M-x}  @code{describe-racket-package}
+
+Describe details of a Racket package.
+
+Depending on the package status, buttons let you install, update,
+and/or remove the package and its dependencies. These convenience
+buttons are equivalent to using the command line on the active
+back end to do ``raco pkg @{install update remove@} --auto''. For
+other operations, you still need to use ``raco pkg'' yourself;
+see @uref{https://docs.racket-lang.org/pkg/cmdline.html}.
+
+Detail values are links when possible:
+
+@itemize
+@item
+The @emph{Catalog} (when ``@uref{https://pkgs.racket-lang.org}'') links to
+the package's web page, which may have additional details not
+available locally.
+
+@item
+The @emph{Source} links to the repo's web page or local filesystem.
+
+@item
+The @emph{Directory} for an installed package opens a dired buffer.
+
+@item
+Each @emph{Dependencies} name links to details about that package.
+
+@item
+For installed packages, each @emph{Modules} item links to the local
+file. There is also a button to each module's locally installed
+documentation, if any.
+@end itemize
 
 @node Other
 @section Other

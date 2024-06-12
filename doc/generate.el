@@ -20,6 +20,7 @@
 (require 'racket-smart-open)
 (require 'racket-repl-buffer-name)
 (require 'racket-hash-lang)
+(require 'racket-package)
 (require 'seq)
 
 (defun racket-generate-reference.org ()
@@ -106,6 +107,10 @@
     racket-expand-region
     racket-expand-definition
     racket-expand-last-sexp
+    "Packages"
+    list-racket-packages
+    racket-package-mode
+    describe-racket-package
     "Other"
     racket-debug-toggle-breakpoint
     racket-mode-start-faster

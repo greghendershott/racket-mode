@@ -84,7 +84,8 @@ that are require transformers."
                                 table)))
             (list beg
                   end
-                  (racket--completion-table table 'file)
+                  (racket--completion-table table
+                                            '((category . file)))
                   :exclusive 'no))))))))
 
 (defun racket--xp-make-company-location-proc ()

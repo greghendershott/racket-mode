@@ -88,6 +88,8 @@
     "---"
     ["Next Error or Link" next-error]
     ["Previous Error" previous-error]
+    "---"
+    ["List Racket Packages" list-racket-packages]
     ["Customize..." customize-mode]))
 
 (defvar-local racket--hash-lang-submit-predicate-p nil)

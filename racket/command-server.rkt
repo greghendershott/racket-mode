@@ -12,6 +12,7 @@
          (only-in "instrument.rkt" get-uncovered get-profile)
          "hash-lang-bridge.rkt"
          "logger.rkt"
+         "package.rkt"
          "repl.rkt"
          "repl-output.rkt"
          "repl-session.rkt"
@@ -88,7 +89,8 @@
                              repl-output-channel
                              logger-notify-channel
                              debug-notify-channel
-                             hash-lang-notify-channel))
+                             hash-lang-notify-channel
+                             package-notify-channel))
         (flush-output)
         (loop))))
 
@@ -146,6 +148,10 @@
     [`(doc-index-names)                (doc-index-names)]
     [`(doc-index-lookup ,str)          (doc-index-lookup str)]
     [`(hash-lang . ,more)              (apply hash-lang more)]
+    [`(pkg-list)                       (package-list)]
+    [`(pkg-details ,str)               (package-details str)]
+    [`(pkg-op ,verb ,name)             (package-op verb name)]
+    [`(pkg-doc-link ,name)             (catalog-package-doc-link name)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
     ;; namespace), if their first "how" argument is 'namespace.

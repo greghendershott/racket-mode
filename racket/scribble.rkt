@@ -24,7 +24,9 @@
          identifier->bluebox
          doc-index-names
          doc-index-lookup
-         libs-exporting-documented)
+         libs-exporting-documented
+         module-doc-path
+         refresh-module-doc-path-index!)
 
 (module+ test
   (require rackunit))
@@ -62,7 +64,7 @@
 
 (define racket-version->6.12? (version<? "6.12" (version)))
 
-(define bluebox-cache (delay (make-blueboxes-cache #t)))
+(define bluebox-cache (delay/thread (make-blueboxes-cache #t)))
 
 (define/contract (identifier->bluebox stx)
   (-> identifier? (or/c #f string?))
@@ -146,7 +148,6 @@
              (define libs (exported-index-desc-from-libs desc))
              (values kind libs)]
             [else
-             (println (reverse (explode-path path)))
              (values 'documentation
                      (list
                       (match (reverse (explode-path path))
@@ -198,3 +199,31 @@
               [(and (pregexp "^typed/racket/") v)
                (string-append "1_" v)]
               [v v])))))
+
+;; This is for package-details
+
+(define (build-module-doc-path-index)
+  (delay/thread
+   (define xref (force xref-promise))
+   (for*/hash ([entry (in-list (xref-index xref))]
+               [desc (in-value (entry-desc entry))]
+               [module? (in-value (module-path-index-desc? desc))]
+               [lang?   (in-value (language-index-desc? desc))]
+               #:when (or module? lang?))
+     (define k (cons (car (entry-words entry))
+                     lang?))
+     (define v (let-values ([(p a) (xref-tag->path+anchor xref (entry-tag entry))])
+                 (let ([p (path->string p)]
+                       [a a])
+                   (cons p a))))
+     (values k v))))
+
+(define module-doc-path-index (build-module-doc-path-index))
+
+(define (refresh-module-doc-path-index!)
+  (set! module-doc-path-index (build-module-doc-path-index)))
+
+(define (module-doc-path mod-path-str lang?)
+  (hash-ref (force module-doc-path-index)
+            (cons mod-path-str lang?)
+            #f))

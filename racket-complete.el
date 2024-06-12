@@ -56,10 +56,10 @@
 (add-to-list 'completion-category-defaults
              `(,racket--identifier-category (styles basic)))
 
-(defun racket--completion-table (completions &optional category)
-  "Like `completion-table-dynamic' but we supply category metadata.
+(defun racket--completion-table (completions &optional metadata)
+  "Like `completion-table-dynamic' but also metadata.
 
-CATEGORY defaults to `racket--identifier-category'.
+METADATA defaults to `((category . ,`racket--identifier-category')).
 
 Category metadata needs to be returned by the completion table
 function itself, unlike metadata supplied as properties in the
@@ -67,11 +67,10 @@ function itself, unlike metadata supplied as properties in the
 
 Supplying category metadata allows the user to configure a
 completion matching style for that category."
-  (let ((category (or category racket--identifier-category)))
-    (lambda (prefix predicate action)
-      (if (eq action 'metadata)
-          `(metadata (category . ,category))
-        (complete-with-action action completions prefix predicate)))))
+  (lambda (prefix predicate action)
+    (if (eq action 'metadata)
+        (cons 'metadata (or metadata `((category . ,racket--identifier-category))))
+      (complete-with-action action completions prefix predicate))))
 
 (provide 'racket-complete)
 
