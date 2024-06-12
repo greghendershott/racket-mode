@@ -329,6 +329,7 @@ All
 * racket-repl-error-location::
 * racket-repl-stdout::
 * racket-repl-stderr::
+* racket-hash-lang-text::
 
 @end detailmenu
 @end menu
@@ -3201,7 +3202,7 @@ list: Comment tokens use the face @code{font-lock-comment-face},
 sometimes blended with other faces. Parenthesis tokens use the
 face @code{parenthesis} if defined, as by the paren-face package.
 String tokens use @code{font-lock-string-face}. Text tokens, e.g.
-Scribble text, use the face @code{default}
+Scribble text, use the face @ref{racket-hash-lang-text}.
 
 @node racket-hash-lang-pairs
 @subsection racket-hash-lang-pairs
@@ -4053,6 +4054,7 @@ A value for the variable @ref{racket-shell-or-terminal-function}.
 * racket-repl-error-location::
 * racket-repl-stdout::
 * racket-repl-stderr::
+* racket-hash-lang-text::
 @end menu
 
 @node racket-keyword-argument-face
@@ -4245,5 +4247,10 @@ Face @ref{racket-repl-mode} uses for output to current-output-port.
 @subsection racket-repl-stderr
 
 Face @ref{racket-repl-mode} uses for output to current-error-port.
+
+@node racket-hash-lang-text
+@subsection racket-hash-lang-text
+
+Face @ref{racket-hash-lang-mode} uses for text tokens.
 
 @bye

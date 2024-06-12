@@ -280,7 +280,8 @@
     racket-repl-error-message
     racket-repl-error-location
     racket-repl-stdout
-    racket-repl-stderr)
+    racket-repl-stderr
+    racket-hash-lang-text)
   "Faces to include in the Reference.")
 
 (defun racket-generate--faces ()

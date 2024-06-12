@@ -190,7 +190,7 @@ list: Comment tokens use the face `font-lock-comment-face',
 sometimes blended with other faces. Parenthesis tokens use the
 face `parenthesis' if defined, as by the paren-face package.
 String tokens use `font-lock-string-face'. Text tokens, e.g.
-Scribble text, use the face `default'"
+Scribble text, use the face `racket-hash-lang-text'."
   :type '(alist :key-type symbol :value-type face)
   :safe #'listp)
 
@@ -770,6 +770,10 @@ See the variable `racket-browse-url-function'.")
 (defface-racket racket-repl-stderr
   '((t (:inherit error)))
   "Face `racket-repl-mode' uses for output to current-error-port.")
+
+(defface-racket racket-hash-lang-text
+  '((t (:inherit default)))
+  "Face `racket-hash-lang-mode' uses for text tokens.")
 
 (provide 'racket-custom)
 

@@ -559,7 +559,8 @@ that need be set."
                (put-face beg end (racket--sexp-comment-face (get-face-at beg))))
               ('parenthesis (when (facep 'parenthesis)
                               (put-face beg end 'parenthesis)))
-              ('text (put-stx beg end racket--plain-syntax-table))
+              ('text (put-stx beg end racket--plain-syntax-table)
+                     (put-face beg end racket-hash-lang-text))
               (kind
                (if-let (face (cdr (assq kind racket-hash-lang-token-face-alist)))
                    (put-face beg end face)
