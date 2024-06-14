@@ -75,7 +75,7 @@
    "catalog-show --all"
    (lambda ()
      (goto-char (point-min))
-     (while (search-forward-regexp (rx (*? "\n") "Package name: " (group (+? (not "\n"))) "\n")
+     (while (search-forward-regexp (rx (*? "\n") "Package name: " (group (+? (not (any "\n")))) "\n")
                                    nil t)
        (let ((name (match-string 1))
              (author "")
@@ -85,7 +85,7 @@
              (source "")
              (tags ""))
          (while (and (not (looking-at "\nPackage name:"))
-                     (search-forward-regexp (rx " " (group (+? (not ":"))) ":" (* " ") (group (*? (not "\n"))) "\n")
+                     (search-forward-regexp (rx " " (group (+? (not (any ":")))) ":" (* " ") (group (*? (not (any "\n")))) "\n")
                                             nil t))
            (let ((key (match-string 1))
                  (val (match-string 2)))
@@ -94,7 +94,7 @@
                ("Description" (setq description val))
                ("Checksum"    (setq checksum val))
                ("Dependencies" (while (and (not (looking-at "\nPackage name:"))
-                                           (search-forward-regexp (rx "  " (group (+? (not "\n"))) "\n")
+                                           (search-forward-regexp (rx "  " (group (+? (not (any "\n")))) "\n")
                                                                   nil t))
                                  (push (match-string 1) deps)))
                ("Source" (setq source val))
@@ -319,16 +319,16 @@
                  (cond
                   ((string-match (rx bos "("
                                      "catalog "
-                                     "\"" (+? (not "\"")) "\""
+                                     "\"" (+? (not (any "\""))) "\""
                                      " "
-                                     "\"" (group (+? (not "\""))) "\""
+                                     "\"" (group (+? (not (any "\"")))) "\""
                                      ")" eos)
                                  str)
                    (parse (match-string 1 str)))
                   ((string-match (rx bos "("
                                      (or "link" "static-link")
                                      " "
-                                     "\"" (group (+? (not "\""))) "\""
+                                     "\"" (group (+? (not (any "\"")))) "\""
                                      ")" eos)
                                  str)
                    (parse (match-string 1 str)))
@@ -346,7 +346,7 @@
                      (setf (url-filename u) path)
                      (url-recreate-url u)))
                   ;; Local file path; make file: url
-                  ((string-match (rx bos "/" (not "/"))
+                  ((string-match (rx bos "/" (not (any "/")))
                                  str)
                    (concat "file://" str))
                   (t str))))
