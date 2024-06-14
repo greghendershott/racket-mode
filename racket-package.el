@@ -263,15 +263,16 @@
                    (if firstp
                        (progn (setq firstp nil) (insert " "))
                      (insert "\n              "))
-                   (if-let (details (gethash (car (split-string name))
-                                             racket--package-installed+catalog))
-                       (insert (propertize name
-                                           'button '(t)
-                                           'category 'default-button
-                                           'follow-link t
-                                           'action #'describe-racket-package
-                                           'racket-package-details details))
-                     (insert name))))
+                   (let ((details (gethash (car (split-string name))
+                                           racket--package-installed+catalog)))
+                     (if details
+                         (insert (propertize name
+                                             'button '(t)
+                                             'category 'default-button
+                                             'follow-link t
+                                             'action #'describe-racket-package
+                                             'racket-package-details details))
+                       (insert name)))))
                (newline))
               (:source
                (insert " ")
@@ -305,8 +306,9 @@
       ;; detail buffer.
       (delete-region (point-min) end-details)
       (goto-char (point-min))
-      (when-let (details (gethash id racket--package-installed+catalog))
-        (racket--package-insert-details details))
+      (let ((details (gethash id racket--package-installed+catalog)))
+        (when details
+          (racket--package-insert-details details)))
       (goto-char (point-min)))))
 
 (defun racket--package-linkify-source (str)
