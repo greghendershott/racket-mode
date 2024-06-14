@@ -298,8 +298,9 @@
       (with-current-buffer "*Racket Packages*"
         (setq id (tabulated-list-get-id))
         (tabulated-list-revert)
-        (when-let (win (get-buffer-window (current-buffer)))
-          (set-window-point win (point))))
+        (let ((win (get-buffer-window (current-buffer))))
+          (when win
+            (set-window-point win (point)))))
       ;; Also refresh the status for this package, at the top of this
       ;; detail buffer.
       (delete-region (point-min) end-details)
