@@ -46,9 +46,16 @@
         (while (and (not (eobp))
                     (not (looking-at (rx "[" (1+ digit) " auto-installed packages not shown]"))))
           (cl-flet ((get (beg end)
-                         (string-trim
-                          (buffer-substring-no-properties (+ (point) beg)
-                                                          (+ (point) end)))))
+                         (let ((str (buffer-substring-no-properties (+ (point) beg)
+                                                                    (+ (point) end))))
+                           ;; string-trim not available in older Emacs, so...
+                           (string-match (rx bos
+                                             (*? (any " "))
+                                             (group (*? anything))
+                                             (*? (any " "))
+                                             eos)
+                                         str)
+                           (match-string 1 str))))
             (pcase-let* ((name* (get package-ofs checksum-ofs))
                          (`(,name . ,status) (if (string-match-p (rx (1+ any) "*" eos)
                                                                  name*)
