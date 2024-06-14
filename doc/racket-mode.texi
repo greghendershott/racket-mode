@@ -90,6 +90,7 @@ Commands
 * Eval::
 * Collections::
 * Macro expand::
+* Packages::
 * Other::
 
 Edit
@@ -179,6 +180,11 @@ Macro expand
 * racket-expand-region::
 * racket-expand-definition::
 * racket-expand-last-sexp::
+
+Packages
+
+* list-racket-packages::
+* describe-racket-package::
 
 Other
 
@@ -920,6 +926,7 @@ You can also view these by using the normal Emacs help mechanism:
 * Eval::
 * Collections::
 * Macro expand::
+* Packages::
 * Other::
 @end menu
 
@@ -2861,6 +2868,35 @@ Uses the @code{macro-debugger} package to do the expansion.
 
 With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
 were 'disabled.
+
+@node Packages
+@section Packages
+
+@menu
+* list-racket-packages::
+* describe-racket-package::
+@end menu
+
+@node list-racket-packages
+@subsection list-racket-packages
+
+@kbd{M-x}  @code{list-racket-packages}
+
+Uses raco pkg commands to populate a @code{racket-packages-mode} buffer.
+
+Press RET on a package to @code{describe-racket-package}, when opens a
+buffer where you can view details, and use buttons to
+install/update/remove the package.
+
+@node describe-racket-package
+@subsection describe-racket-package
+
+@kbd{M-x}  @code{describe-racket-package}
+
+Describe details of a Racket package.
+
+Buttons allow you to install/update/remove the package, depending
+on its status.
 
 @node Other
 @section Other

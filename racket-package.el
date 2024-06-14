@@ -190,7 +190,11 @@
              racket--package-installed))))
 
 (defun list-racket-packages ()
-  "Use raco pkg commands to populate a `racket-packages-mode' buffer."
+  "Uses raco pkg commands to populate a `racket-packages-mode' buffer.
+
+Press RET on a package to `describe-racket-package', when opens a
+buffer where you can view details, and use buttons to
+install/update/remove the package."
   (interactive)
   (with-current-buffer (get-buffer-create "*Racket Packages*")
     (unless (eq major-mode 'racket-packages-mode)
@@ -207,7 +211,10 @@
   (describe-racket-package (tabulated-list-get-id)))
 
 (defun describe-racket-package (&optional name-or-button)
-  "Describe details of a Racket package."
+  "Describe details of a Racket package.
+
+Buttons allow you to install/update/remove the package, depending
+on its status. "
   (interactive "sRacket package name: ")
   (let ((details (if name-or-button
                      (if (stringp name-or-button)
