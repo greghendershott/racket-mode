@@ -22,172 +22,144 @@
     (goto-char (point-min))
     (funcall k)))
 
-(defvar racket--package-installed nil)
-(defun racket--package-installed ()
-  (setq racket--package-installed nil)
-  (racket--package-raco-pkg "show --all --installation --long --dir"
-                            (racket--package-installed-parse 'installation))
-  (racket--package-raco-pkg "show --all --user --long --dir"
-                            (racket--package-installed-parse 'user)))
+(defun racket--package-get-installed ()
+  (append
+   (racket--package-raco-pkg "show --all --installation --long --dir"
+                             (racket--package-installed-parse 'installation))
+   (racket--package-raco-pkg "show --all --user --long --dir"
+                             (racket--package-installed-parse 'user))))
 
 (defun racket--package-installed-parse (scope)
   (lambda ()
-    (goto-char (point-min))
-    (when (search-forward-regexp (rx (group "Package" (? "[*=auto]") (1+ space))
-                                     (group "Checksum" (1+ space))
-                                     (group "Source" (1+ space))
-                                     (group "Directory" (0+ space))
-                                     "\n")
-                                 nil t)
-      (let ((package-ofs (1- (match-beginning 1)))
-            (checksum-ofs (1- (match-beginning 2)))
-            (source-ofs (1- (match-beginning 3)))
-            (dir-ofs (1- (match-beginning 4))))
-        (while (and (not (eobp))
-                    (not (looking-at (rx "[" (1+ digit) " auto-installed packages not shown]"))))
-          (cl-flet ((get (beg end)
-                         (let ((str (buffer-substring-no-properties (+ (point) beg)
-                                                                    (+ (point) end))))
-                           ;; string-trim not available in older Emacs, so...
-                           (string-match (rx bos
-                                             (*? (any " "))
-                                             (group (*? anything))
-                                             (*? (any " "))
-                                             eos)
-                                         str)
-                           (match-string 1 str))))
-            (pcase-let* ((name* (get package-ofs checksum-ofs))
-                         (`(,name . ,status) (if (string-match-p (rx (1+ any) "*" eos)
-                                                                 name*)
-                                                 (cons (substring name* 0 -1)
-                                                       'dependency)
-                                               (cons name* 'manual)))
-                         (checksum (get checksum-ofs source-ofs))
-                         (source (get source-ofs dir-ofs))
-                         (dir (get dir-ofs (- (save-excursion (forward-line 1) (point))
-                                              (point)
-                                              1)))
-                         (dir (if (string-match-p (rx bos "\"" (group (+ any)) "\"" eos)
-                                                  dir)
-                                  (substring dir 1 -1)
-                                dir)))
-              (push (list name scope status checksum source dir)
-                    racket--package-installed)))
-          (forward-line 1))))))
-
-(defvar racket--package-catalog nil)
-(defun racket--package-catalog ()
-  (setq racket--package-catalog nil)
-  (racket--package-raco-pkg
-   "catalog-show --all"
-   (lambda ()
-     (goto-char (point-min))
-     (while (search-forward-regexp (rx (*? "\n") "Package name: " (group (+? (not (any "\n")))) "\n")
+    (let ((results nil))
+      (goto-char (point-min))
+      (when (search-forward-regexp (rx (group "Package" (? "[*=auto]") (1+ space))
+                                       (group "Checksum" (1+ space))
+                                       (group "Source" (1+ space))
+                                       (group "Directory" (0+ space))
+                                       "\n")
                                    nil t)
-       (let ((name (match-string 1))
-             (author "")
-             (description "")
-             (checksum "")
-             (deps nil)
-             (source "")
-             (tags ""))
-         (while (and (not (looking-at "\nPackage name:"))
-                     (search-forward-regexp (rx " " (group (+? (not (any ":")))) ":" (* " ") (group (*? (not (any "\n")))) "\n")
-                                            nil t))
-           (let ((key (match-string 1))
-                 (val (match-string 2)))
-             (pcase key
-               ("Author" (setq author val))
-               ("Description" (setq description val))
-               ("Checksum"    (setq checksum val))
-               ("Dependencies" (while (and (not (looking-at "\nPackage name:"))
-                                           (search-forward-regexp (rx "  " (group (+? (not (any "\n")))) "\n")
-                                                                  nil t))
-                                 (push (match-string 1) deps)))
-               ("Source" (setq source val))
-               ("Tags" (setq tags val)))))
-         (push (list name description checksum (nreverse deps) author source tags)
-               racket--package-catalog)))
-     racket--package-catalog)))
+        (let ((package-ofs (1- (match-beginning 1)))
+              (checksum-ofs (1- (match-beginning 2)))
+              (source-ofs (1- (match-beginning 3)))
+              (dir-ofs (1- (match-beginning 4))))
+          (while (and (not (eobp))
+                      (not (looking-at (rx "[" (1+ digit) " auto-installed packages not shown]"))))
+            (cl-flet ((get (beg end)
+                           (let ((str (buffer-substring-no-properties (+ (point) beg)
+                                                                      (+ (point) end))))
+                             ;; string-trim not available in older Emacs, so...
+                             (string-match (rx bos
+                                               (*? (any " "))
+                                               (group (*? anything))
+                                               (*? (any " "))
+                                               eos)
+                                           str)
+                             (match-string 1 str))))
+              (pcase-let* ((name* (get package-ofs checksum-ofs))
+                           (`(,name . ,status) (if (string-match-p (rx (1+ any) "*" eos)
+                                                                   name*)
+                                                   (cons (substring name* 0 -1)
+                                                         'dependency)
+                                                 (cons name* 'manual)))
+                           (checksum (get checksum-ofs source-ofs))
+                           (source (get source-ofs dir-ofs))
+                           (dir (get dir-ofs (- (save-excursion (forward-line 1) (point))
+                                                (point)
+                                                1)))
+                           (dir (if (string-match-p (rx bos "\"" (group (+ any)) "\"" eos)
+                                                    dir)
+                                    (substring dir 1 -1)
+                                  dir)))
+                (push (list name scope status checksum source dir)
+                      results)))
+            (forward-line 1))))
+      results)))
 
-(defvar racket--package-installed+catalog (make-hash-table :test 'equal))
-(defun racket--package-installed+catalog ()
-  ;; Always refresh
-  (racket--package-installed)
-  ;; Never refresh
-  (unless racket--package-catalog
-    (racket--package-catalog))
-  (clrhash racket--package-installed+catalog)
-  (append
-   ;; Eveything from catalog, possibly also installed
-   (seq-map (pcase-lambda (`(,name ,description ,checksum ,deps ,author ,source ,tags))
-              (pcase-let* ((`(,scope ,status ,status-face ,checksum ,source ,dir)
-                            (pcase (assoc name racket--package-installed)
-                              (`(,_name ,scope ,status ,checksum ,source ,dir)
-                               (list (symbol-name scope) (symbol-name status) 'package-status-installed checksum source dir))
-                              (_
-                               (list nil "available" 'package-status-available checksum source nil))))
-                           (details (list :name name
-                                          :description description
-                                          :checksum checksum
-                                          :deps deps
-                                          :author author
-                                          :source source
-                                          :tags tags
-                                          :scope scope
-                                          :status status
-                                          :dir dir)))
-                (puthash name details racket--package-installed+catalog)
-                (list name
-                      (vector (propertize name
-                                          'face 'package-name
-                                          'font-lock-face 'package-name
-                                          'button '(t)
-                                          'category 'default-button
-                                          'follow-link t
-                                          'action #'describe-racket-package
-                                          'racket-package-details details)
-                              (propertize status
-                                          'font-lock-face status-face)
-                              (propertize (or scope "")
-                                          'font-lock-face status-face)
-                              (propertize checksum
-                                          'font-lock-face status-face)
-                              source
-                              description))))
-            racket--package-catalog)
-   ;; Any additional installed, such as links, not handled above
-   ;; because not also from catalog.
-   (seq-filter
-    #'identity
-    (seq-map (pcase-lambda (`(,name ,scope ,status ,checksum ,source ,dir))
-               (unless (assoc name racket--package-catalog)
-                 (let* ((status (symbol-name status))
-                        (scope (symbol-name scope))
-                        (details (list :name name
-                                       :scope scope
-                                       :status status
-                                       :checksum checksum
-                                       :source source
-                                       :dir dir)))
-                   (puthash name details racket--package-installed+catalog)
-                   (list name
-                         (vector (propertize name
-                                             'face 'package-name
-                                             'font-lock-face 'package-name
-                                             'button '(t)
-                                             'category 'default-button
-                                             'follow-link t
-                                             'action #'describe-racket-package
-                                             'racket-package-details details)
-                                 (propertize status
-                                             'font-lock-face 'package-status-installed)
-                                 (propertize scope
-                                             'font-lock-face 'package-status-installed)
-                                 (propertize checksum)
-                                 source
-                                 "")))))
-             racket--package-installed))))
+(defvar racket--package-catalog-cache nil)
+(defun racket--package-get-catalog (&optional refresh-p)
+  (when refresh-p
+    (setq racket--package-catalog-cache nil))
+  (unless racket--package-catalog-cache
+    (racket--package-raco-pkg
+     "catalog-show --all"
+     (lambda ()
+       (goto-char (point-min))
+       (while (search-forward-regexp (rx (*? "\n") "Package name: " (group (+? (not (any "\n")))) "\n")
+                                     nil t)
+         (let ((name (match-string 1))
+               (author "")
+               (description "")
+               (checksum "")
+               (deps nil)
+               (source "")
+               (tags ""))
+           (while (and (not (looking-at "\nPackage name:"))
+                       (search-forward-regexp (rx " " (group (+? (not (any ":")))) ":" (* " ") (group (*? (not (any "\n")))) "\n")
+                                              nil t))
+             (let ((key (match-string 1))
+                   (val (match-string 2)))
+               (pcase key
+                 ("Author" (setq author val))
+                 ("Description" (setq description val))
+                 ("Checksum"    (setq checksum val))
+                 ("Dependencies" (while (and (not (looking-at "\nPackage name:"))
+                                             (search-forward-regexp (rx "  " (group (+? (not (any "\n")))) "\n")
+                                                                    nil t))
+                                   (push (match-string 1) deps)))
+                 ("Source" (setq source val))
+                 ("Tags" (setq tags val)))))
+           (push (list name description checksum (nreverse deps) author source tags)
+                 racket--package-catalog-cache))))))
+  racket--package-catalog-cache)
+
+(defvar racket--package-details
+  (make-hash-table :test 'equal)
+  "Hash-table from packge name to package details property list;
+includes all packages, both installed and from catalog.")
+
+(defun racket--package-refresh-details (&optional refresh-catalog-p)
+  (let ((installed (racket--package-get-installed))
+        (catalog (racket--package-get-catalog refresh-catalog-p)))
+    (clrhash racket--package-details)
+    ;; Eveything from catalog -- some of which may be installed, in
+    ;; which case we want "merge" information.
+    (mapc (pcase-lambda (`(,name ,description ,checksum ,deps ,author ,source ,tags))
+            (pcase-let* ((`(,scope ,status ,checksum ,source ,dir)
+                          (pcase (assoc name installed)
+                            (`(,_name ,scope ,status ,checksum ,source ,dir)
+                             (list (symbol-name scope) (symbol-name status) checksum source dir))
+                            (_
+                             (list nil "available" checksum source nil))))
+                         (details (list :name name
+                                        :description description
+                                        :checksum checksum
+                                        :deps deps
+                                        :author author
+                                        :source source
+                                        :tags tags
+                                        :scope scope
+                                        :status status
+                                        :dir dir)))
+              (puthash name details racket--package-details)))
+          catalog)
+    ;; Any additional installed, such as links, not handled above
+    ;; because not also from catalog.
+    (mapc (pcase-lambda (`(,name ,scope ,status ,checksum ,source ,dir))
+            (unless (assoc name catalog)
+              (let* ((status (symbol-name status))
+                     (scope (symbol-name scope))
+                     (details (list :name name
+                                    :scope scope
+                                    :status status
+                                    :checksum checksum
+                                    :source source
+                                    :dir dir)))
+                (puthash name details racket--package-details))))
+          installed)))
+
+(defun racket--package-tabulated-list-revert-hook ()
+  (racket--package-refresh-details t))
 
 (defun list-racket-packages ()
   "Uses raco pkg commands to populate a `racket-packages-mode' buffer.
@@ -216,13 +188,12 @@ install/update/remove the package."
 Buttons allow you to install/update/remove the package, depending
 on its status. "
   (interactive "sRacket package name: ")
-  (let ((details (if name-or-button
-                     (if (stringp name-or-button)
-                         (gethash name-or-button
-                                  racket--package-installed+catalog)
-                       (button-get name-or-button 'racket-package-details))
-                   (gethash (tabulated-list-get-id)
-                            racket--package-installed+catalog))))
+  (let* ((name (if name-or-button
+                   (if (stringp name-or-button)
+                       name-or-button
+                     (button-label name-or-button))
+                 (tabulated-list-get-id)))
+         (details (gethash name racket--package-details)))
     (unless details (user-error "no package"))
     (help-setup-xref (list #'describe-racket-package (plist-get details :name))
                      (called-interactively-p 'interactive))
@@ -240,17 +211,20 @@ on its status. "
        (insert " is available to ")
        (insert (propertize (format "raco pkg install --auto %s" name)
                            'button '(t)
+                           'face '(button bold)
                            'category 'default-button
                            'action #'racket--raco-pkg-mutate)))
       ("manual"
        (insert " was manually installed\n\n")
        (insert (propertize (format "raco pkg update --auto %s" name)
                            'button '(t)
+                           'face '(button bold)
                            'category 'default-button
                            'action #'racket--raco-pkg-mutate))
        (insert " or ")
        (insert (propertize (format "raco pkg remove --auto %s" name)
                            'button '(t)
+                           'face '(button bold)
                            'category 'default-button
                            'action #'racket--raco-pkg-mutate)))
       ("dependency"
@@ -260,6 +234,7 @@ on its status. "
     (let ((lks `(("   Directory" :dir)
                  ("       Scope" :scope)
                  ("      Source" :source)
+                 ("    Checksum" :checksum)
                  ("      Author" :author)
                  ("        Tags" :tags)
                  ("Dependencies" :deps)
@@ -278,14 +253,13 @@ on its status. "
                        (progn (setq firstp nil) (insert " "))
                      (insert "\n              "))
                    (let ((details (gethash (car (split-string name))
-                                           racket--package-installed+catalog)))
+                                           racket--package-details)))
                      (if details
                          (insert (propertize name
                                              'button '(t)
                                              'category 'default-button
                                              'follow-link t
-                                             'action #'describe-racket-package
-                                             'racket-package-details details))
+                                             'action #'describe-racket-package))
                        (insert name)))))
                (newline))
               (:source
@@ -307,12 +281,14 @@ on its status. "
     (call-process-shell-command cmd nil t t)
     (newline)
     (insert "Done.")
-    ;; Fully refresh *Racket Packages* because "--auto" commands can
-    ;; install/remove/update multiple, dependency packages.
+    ;; Fully refresh *Racket Packages* install details because
+    ;; "--auto" commands can install/remove/update multiple,
+    ;; dependency packages. (But needn't refresh catalog details).
     (let ((id nil))
       (with-current-buffer "*Racket Packages*"
         (setq id (tabulated-list-get-id))
-        (tabulated-list-revert)
+        (racket--package-refresh-details nil)
+        (tabulated-list-print t)
         (let ((win (get-buffer-window (current-buffer))))
           (when win
             (set-window-point win (point)))))
@@ -320,7 +296,7 @@ on its status. "
       ;; detail buffer.
       (delete-region (point-min) end-details)
       (goto-char (point-min))
-      (let ((details (gethash id racket--package-installed+catalog)))
+      (let ((details (gethash id racket--package-details)))
         (when details
           (racket--package-insert-details details)))
       (goto-char (point-min)))))
@@ -400,11 +376,39 @@ on its status. "
   (setq tabulated-list-format
         `[("Name"      20 t)
           ("Status"    10 t)
-          ("Scope"      6 t)
           ("Checksum"   8 nil)
           ("Source"    15 t)
           ("Description" 15 t)])
-  (setq tabulated-list-entries #'racket--package-installed+catalog))
+  (racket--package-refresh-details t)
+  (setq tabulated-list-entries #'racket--package-tabulated-list-entries)
+  (add-hook 'tabulated-list-revert-hook #'racket--package-tabulated-list-revert-hook nil t))
+
+
+(defun racket--package-tabulated-list-entries ()
+  (let ((result nil))
+    (maphash
+     (lambda (name details)
+       (let ((status-face (pcase (plist-get details :status)
+                            ("available" 'package-status-available)
+                            (_           'package-status-installed))))
+         (push
+          (list name
+                (vector (propertize name
+                                    'face 'package-name
+                                    'font-lock-face 'package-name
+                                    'button '(t)
+                                    'category 'default-button
+                                    'follow-link t
+                                    'action #'describe-racket-package)
+                        (propertize (plist-get details :status)
+                                    'font-lock-face status-face)
+                        (propertize (or (plist-get details :checksum) "")
+                                    'font-lock-face status-face)
+                        (or (plist-get details :source) "")
+                        (or (plist-get details :description) "")))
+          result)))
+     racket--package-details)
+    result))
 
 (provide 'racket-package)
 
