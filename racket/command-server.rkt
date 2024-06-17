@@ -29,7 +29,8 @@
  ["commands/macro.rkt"        (macro-stepper macro-stepper/next)]
  ["commands/requires.rkt"     (requires/tidy requires/trim requires/base)]
  ["commands/module-names.rkt" (module-names)]
- ["find.rkt"                  (find-definition find-definition/drracket-jump)])
+ ["find.rkt"                  (find-definition find-definition/drracket-jump)]
+ ["commands/pkg.rkt"          (packages-summaries package-details)])
 
 (provide command-server-loop)
 
@@ -146,6 +147,8 @@
     [`(doc-index-names)                (doc-index-names)]
     [`(doc-index-lookup ,str)          (doc-index-lookup str)]
     [`(hash-lang . ,more)              (apply hash-lang more)]
+    [`(pkg-list)                       (packages-summaries)]
+    [`(pkg-details ,str)               (package-details str)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
     ;; namespace), if their first "how" argument is 'namespace.
