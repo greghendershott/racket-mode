@@ -8,7 +8,6 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
-(require 'cl-macs)
 (require 'seq)
 (require 'url-parse)
 (require 'racket-custom)
