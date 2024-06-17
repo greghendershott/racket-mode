@@ -14,6 +14,8 @@
 (require 'racket-back-end)
 (require 'racket-cmd)
 
+;;; summary
+
 (defun racket--package-buffer-name ()
    (format "*Racket Packages <%s>*" (racket-back-end-name)))
 
@@ -31,9 +33,34 @@ to install/update/remove the package."
     (tabulated-list-init-header)
     (tabulated-list-print)))
 
+(defvar racket-packages-mode-map
+  (let ((m (make-sparse-keymap)))
+    (set-keymap-parent m nil)
+    (mapc (lambda (x)
+            (define-key m (kbd (car x)) (cadr x)))
+          `(("RET" ,#'racket-package-menu-describe)))
+    m)
+  "Keymap for `racket-packages-mode'.")
+
+(define-derived-mode racket-packages-mode tabulated-list-mode
+  "RacketPackages"
+  "Major mode for Racket package management.
+
+\\{racket-package-mode-map}
+"
+  (setq show-trailing-whitespace nil)
+  (setq tabulated-list-sort-key '("Name" . nil))
+  (setq tabulated-list-padding 0)
+  (setq tabulated-list-format
+        `[("Name"      20 t)
+          ("Status"    10 t)
+          ("Description" 15 t)])
+  (setq tabulated-list-entries
+        #'racket-package-tabulated-list-entries))
+
 (defun racket-package-tabulated-list-entries ()
   (seq-map (lambda (summary)
-             (pcase-let* ((`(,name ,status ,checksum ,source ,desc) summary)
+             (pcase-let* ((`(,name ,status ,desc) summary)
                           (status-face (pcase status
                                          ("available" 'package-status-available)
                                          (_           'package-status-installed))))
@@ -47,11 +74,10 @@ to install/update/remove the package."
                                          'action #'describe-racket-package)
                              (propertize status
                                          'font-lock-face status-face)
-                             (propertize checksum
-                                         'font-lock-face status-face)
-                             source
                              desc))))
            (racket--cmd/await nil `(pkg-list))))
+
+;;; details
 
 (defun racket-package-menu-describe ()
   "Describe the package at point in a `racket-packages-mode' buffer."
@@ -98,14 +124,15 @@ on its status. "
        (insert " was automatically installed as a dependency")))
     (newline)
     (newline)
-    (let ((lks `(("   Directory" :dir)
+    (let ((lks `((" Description" :description)
+                 ("   Directory" :dir)
                  ("       Scope" :scope)
                  ("      Source" :source)
                  ("    Checksum" :checksum)
                  ("      Author" :author)
                  ("        Tags" :tags)
                  ("Dependencies" :deps)
-                 (" Description" :description))))
+                 ("     Modules" :modules))))
       (dolist (lk lks)
         (pcase-let* ((`(,l ,k) lk)
                      (v (plist-get details k)))
@@ -124,8 +151,20 @@ on its status. "
                                        'category 'default-button
                                        'follow-link t
                                        'action #'describe-racket-package))
-                   (dolist (v (cdr dep))
-                     (insert (format " %s" v)))))
+                   (insert " ")
+                   (insert (cdr dep))))
+               (newline))
+              (:modules
+               (let ((firstp t))
+                 (dolist (mod v)
+                   (if firstp
+                       (progn (setq firstp nil) (insert " "))
+                     (insert "\n              "))
+                   (insert mod)))
+               (newline))
+              (:tags
+               (insert " ")
+               (insert (string-join v " "))
                (newline))
               (:dir
                (insert " ")
@@ -137,7 +176,7 @@ on its status. "
                               'racket-package-url (concat "file://" v)))
                (newline))
               (:source
-               (let ((label (car v))
+               (let ((label (format "%s" (car v)))
                      (url (cdr v)))
                  (insert " ")
                  (insert
@@ -195,33 +234,6 @@ on its status. "
 
 (defun racket-package-browse-url (button)
   (browse-url (button-get button 'racket-package-url)))
-
-(defvar racket-packages-mode-map
-  (let ((m (make-sparse-keymap)))
-    (set-keymap-parent m nil)
-    (mapc (lambda (x)
-            (define-key m (kbd (car x)) (cadr x)))
-          `(("RET" ,#'racket-package-menu-describe)))
-    m)
-  "Keymap for `racket-packages-mode'.")
-
-(define-derived-mode racket-packages-mode tabulated-list-mode
-  "RacketPackages"
-  "Major mode for Racket package management.
-
-\\{racket-package-mode-map}
-"
-  (setq show-trailing-whitespace nil)
-  (setq tabulated-list-sort-key '("Name" . nil))
-  (setq tabulated-list-padding 2)
-  (setq tabulated-list-format
-        `[("Name"      20 t)
-          ("Status"    10 t)
-          ("Checksum"   8 nil)
-          ("Source"    15 t)
-          ("Description" 15 t)])
-  (setq tabulated-list-entries
-        #'racket-package-tabulated-list-entries))
 
 (provide 'racket-package)
 

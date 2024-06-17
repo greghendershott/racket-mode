@@ -1,9 +1,10 @@
 #lang racket/base
 
-(require racket/path
+(require (only-in racket/format ~a)
          racket/match
+         racket/path
+         (only-in racket/string string-join)
          pkg/db
-         pkg/name
          (only-in pkg/private/pkg-db pkg-directory) ;; private!!
          (only-in pkg/private/dirs pkg-installed-dir) ;; private!!
          (only-in pkg/lib
@@ -51,13 +52,8 @@
                             "dependency"
                             "manual")
                         "available"))
-     (define checksum (if ip
-                          (installed-pkg-checksum ip)
-                          (pkg-checksum p)))
      (list name
            status
-           checksum
-           (pkg-source p)
            (cleansed-pkg-desc p)))
    ;; Installed packages not from the catalogs, i.e. that we didn't
    ;; just handle above.
@@ -65,8 +61,6 @@
               #:when (not (hash-has-key? catalog name)))
      (list name
            "manual"
-           (installed-pkg-checksum pi)
-           ""
            ""))))
 
 (define (package-details name)
@@ -76,7 +70,13 @@
        (values p
                (list ':author (pkg-author p)
                      ':tags (get-pkg-tags name (pkg-catalog p))
-                     ':deps (get-pkg-dependencies name (pkg-catalog p) (pkg-checksum p))
+                     ':deps (for/list ([d (in-list (get-pkg-dependencies name (pkg-catalog p) (pkg-checksum p)))])
+                              (match-define (cons name qualifiers) d)
+                              (cons name (string-join (map ~a qualifiers) " ")))
+                     ':modules (for/list ([p (in-list (get-pkg-modules name (pkg-catalog p) (pkg-checksum p)))])
+                                 (match p
+                                   [`(lib ,path) path]
+                                   [other        (format "~v" other)]))
                      ':description (cleansed-pkg-desc p)))]
       [(list)
        (values #f null)]))
