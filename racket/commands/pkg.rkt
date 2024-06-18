@@ -4,18 +4,23 @@
          racket/match
          racket/path
          (only-in racket/string string-join)
-         pkg/db
-         (only-in pkg/private/pkg-db pkg-directory) ;; private!!
-         (only-in pkg/private/dirs pkg-installed-dir) ;; private!!
-         (only-in pkg/lib
-                  installed-pkg-table
-                  pkg-info-orig-pkg
-                  pkg-info-auto?
-                  pkg-info-checksum))
+         (except-in pkg/lib
+                    pkg-desc)
+         (only-in pkg/db
+                  get-pkgs
+                  pkg-name
+                  pkg-catalog
+                  pkg-checksum
+                  pkg-source
+                  pkg-author
+                  pkg-desc
+                  get-pkg-dependencies
+                  get-pkg-tags
+                  get-pkg-modules))
 
-(provide packages-summaries
+(provide package-list
          package-details
-         package-mutate)
+         package-config)
 
 (struct installed-pkg (scope orig-pkg auto? checksum) #:transparent)
 (define (installed-packages)
@@ -35,11 +40,12 @@
             (path->string
              (simple-form-path
               (path->complete-path (cadr orig-pkg)
-                                   (pkg-installed-dir))))
+                                   (get-pkgs-dir (current-pkg-scope)
+                                                 (current-pkg-scope-version)))))
             (cddr orig-pkg))]
     [else orig-pkg]))
 
-(define (packages-summaries)
+(define (package-list)
   (define installed (installed-packages))
   (define catalog (for/hash ([p (in-list (get-pkgs))])
                     (values (pkg-name p) p)))
@@ -70,6 +76,7 @@
        (values p
                (list ':author (pkg-author p)
                      ':tags (get-pkg-tags name (pkg-catalog p))
+                     ':catalog (pkg-catalog p)
                      ':deps (for/list ([d (in-list (get-pkg-dependencies name (pkg-catalog p) (pkg-checksum p)))])
                               (match-define (cons name qualifiers) d)
                               (cons name (string-join (map ~a qualifiers) " ")))
@@ -106,13 +113,6 @@
 (define (cleansed-pkg-desc p)
   (regexp-replace* "[\r\n]" (pkg-desc p) " "))
 
-;; TODO: Using the `pkg` module pkg-{install update remove}-command
-;; functions is easy enough -- but do we want to show the progress
-;; output in the details buffer like we do with the old design, and if
-;; so, how??
-(define (package-mutate name op)
-  #t)
-
 (require net/url-string)
 (define (source-url s)
   (match s
@@ -146,3 +146,12 @@
                 "file:///path/to/foo")
   (check-equal? (source-url "git://github.com/user/repo/blah?x=1")
                 "https://github.com/user/repo"))
+
+;;; package config; ~= "raco pkg config" output
+
+(define (package-config)
+  (list ":catalogs" (or (current-pkg-catalogs)
+                        (pkg-config-catalogs))
+        ":name" (current-pkg-scope-version)
+        ":default-scope" (~a (default-pkg-scope))
+        ":cache" (current-pkg-download-cache-dir)))

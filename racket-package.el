@@ -14,36 +14,37 @@
 (require 'racket-back-end)
 (require 'racket-cmd)
 
-;;; summary
+;;; racket-package-mode summary list of packages
 
 (defun racket--package-buffer-name ()
    (format "*Racket Packages <%s>*" (racket-back-end-name)))
 
+;;;###autoload
 (defun list-racket-packages ()
-  "Uses raco pkg commands to populate a `racket-packages-mode' buffer.
+  "Uses raco pkg commands to populate a `racket-package-mode' buffer.
 
 On each package you can press RET to `describe-racket-package',
 which opens a buffer where you can view details, and use buttons
 to install/update/remove the package."
   (interactive)
   (with-current-buffer (get-buffer-create (racket--package-buffer-name))
-    (unless (eq major-mode 'racket-packages-mode)
-      (racket-packages-mode))
+    (unless (eq major-mode 'racket-package-mode)
+      (racket-package-mode))
     (pop-to-buffer (current-buffer))
     (tabulated-list-init-header)
     (tabulated-list-print)))
 
-(defvar racket-packages-mode-map
+(defvar racket-package-mode-map
   (let ((m (make-sparse-keymap)))
     (set-keymap-parent m nil)
     (mapc (lambda (x)
             (define-key m (kbd (car x)) (cadr x)))
-          `(("RET" ,#'racket-package-menu-describe)))
+          `(("RET" ,#'racket-package-describe)))
     m)
-  "Keymap for `racket-packages-mode'.")
+  "Keymap for `racket-package-mode'.")
 
-(define-derived-mode racket-packages-mode tabulated-list-mode
-  "RacketPackages"
+(define-derived-mode racket-package-mode tabulated-list-mode
+  "Racket Package List"
   "Major mode for Racket package management.
 
 \\{racket-package-mode-map}
@@ -77,13 +78,14 @@ to install/update/remove the package."
                              desc))))
            (racket--cmd/await nil `(pkg-list))))
 
-;;; details
-
-(defun racket-package-menu-describe ()
-  "Describe the package at point in a `racket-packages-mode' buffer."
+(defun racket-package-describe ()
+  "Describe the package at point."
   (interactive)
   (describe-racket-package (tabulated-list-get-id)))
 
+;;; help buffer of details about a single package, and button actions
+
+;;;###autoload
 (defun describe-racket-package (&optional name-or-button)
   "Describe details of a Racket package.
 
@@ -127,6 +129,7 @@ on its status. "
     (let ((lks `((" Description" :description)
                  ("   Directory" :dir)
                  ("       Scope" :scope)
+                 ("     Catalog" :catalog)
                  ("      Source" :source)
                  ("    Checksum" :checksum)
                  ("      Author" :author)
@@ -195,7 +198,7 @@ on its status. "
          (cmd-str (string-join cmd-list " ")))
    (insert (propertize verb
                        'button '(t)
-                       'face '(button bold)
+                       'face 'custom-button
                        'category 'default-button
                        'action #'racket--raco-pkg-mutate
                        'raco-pkg-command cmd-str
