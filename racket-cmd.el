@@ -30,6 +30,9 @@
 (declare-function  racket--repl-on-output "racket-repl" (session-id kind value))
 (autoload         'racket--repl-on-output "racket-repl")
 
+(declare-function  racket--package-on-notify "racket-package" (v))
+(autoload         'racket--package-on-notify "racket-package")
+
 ;;;###autoload
 (defvar racket-start-back-end-hook nil
   "Hook run after `racket-start-back-end' finishes successfully.")
@@ -219,6 +222,8 @@ notifications."
      (run-at-time 0.001 nil #'racket--hash-lang-on-notify id vs))
     (`(repl-output ,session-id ,kind ,v)
      (run-at-time 0.001 nil #'racket--repl-on-output session-id kind v))
+    (`(pkg-op-notify . ,v)
+     (run-at-time 0.001 nil #'racket--package-on-notify v))
     (`(,nonce . ,response)
      (when-let (callback (gethash nonce racket--cmd-nonce->callback))
        (remhash nonce racket--cmd-nonce->callback)

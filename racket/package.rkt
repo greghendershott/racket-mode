@@ -16,34 +16,17 @@
                   pkg-desc
                   get-pkg-dependencies
                   get-pkg-tags
-                  get-pkg-modules))
+                  get-pkg-modules)
+         (only-in pkg
+                  pkg-install-command
+                  pkg-update-command
+                  pkg-remove-command))
 
 (provide package-list
          package-details
-         package-config)
-
-(struct installed-pkg (scope orig-pkg auto? checksum) #:transparent)
-(define (installed-packages)
-  (define ht (make-hash))
-  (for ([scope (in-list (list 'installation 'user))])
-    (for ([(name pi) (in-hash (installed-pkg-table #:scope scope))])
-      (hash-set! ht name (installed-pkg scope
-                                        (cleanse-orig-pkg (pkg-info-orig-pkg pi))
-                                        (pkg-info-auto? pi)
-                                        (or (pkg-info-checksum pi) "")))))
-  ht)
-
-(define (cleanse-orig-pkg orig-pkg)
-  (case (car orig-pkg)
-    [(link static-link clone)
-     (list* (car orig-pkg)
-            (path->string
-             (simple-form-path
-              (path->complete-path (cadr orig-pkg)
-                                   (get-pkgs-dir (current-pkg-scope)
-                                                 (current-pkg-scope-version)))))
-            (cddr orig-pkg))]
-    [else orig-pkg]))
+         package-config
+         package-op
+         package-notify-channel)
 
 (define (package-list)
   (define installed (installed-packages))
@@ -60,7 +43,7 @@
                         "available"))
      (list name
            status
-           (cleansed-pkg-desc p)))
+           (cleanse-pkg-desc p)))
    ;; Installed packages not from the catalogs, i.e. that we didn't
    ;; just handle above.
    (for/list ([(name pi) (in-hash installed)]
@@ -84,7 +67,7 @@
                                  (match p
                                    [`(lib ,path) path]
                                    [other        (format "~v" other)]))
-                     ':description (cleansed-pkg-desc p)))]
+                     ':description (cleanse-pkg-desc p)))]
       [(list)
        (values #f null)]))
   (define ip (hash-ref (installed-packages) name #f))
@@ -110,7 +93,30 @@
              catalog-only-props)]
     [else #f]))
 
-(define (cleansed-pkg-desc p)
+(struct installed-pkg (scope orig-pkg auto? checksum) #:transparent)
+(define (installed-packages)
+  (define ht (make-hash))
+  (for ([scope (in-list (list 'installation 'user))])
+    (for ([(name pi) (in-hash (installed-pkg-table #:scope scope))])
+      (hash-set! ht name (installed-pkg scope
+                                        (cleanse-orig-pkg (pkg-info-orig-pkg pi))
+                                        (pkg-info-auto? pi)
+                                        (or (pkg-info-checksum pi) "")))))
+  ht)
+
+(define (cleanse-orig-pkg orig-pkg)
+  (case (car orig-pkg)
+    [(link static-link clone)
+     (list* (car orig-pkg)
+            (path->string
+             (simple-form-path
+              (path->complete-path (cadr orig-pkg)
+                                   (get-pkgs-dir (current-pkg-scope)
+                                                 (current-pkg-scope-version)))))
+            (cddr orig-pkg))]
+    [else orig-pkg]))
+
+(define (cleanse-pkg-desc p)
   (regexp-replace* "[\r\n]" (pkg-desc p) " "))
 
 (require net/url-string)
@@ -155,3 +161,44 @@
         ":name" (current-pkg-scope-version)
         ":default-scope" (~a (default-pkg-scope))
         ":cache" (current-pkg-download-cache-dir)))
+
+
+;;; package operations
+
+(define package-notify-channel (make-channel))
+
+(define (package-op verb name)
+  (define act! (case verb
+                 ['install (λ () (pkg-install-command #:auto #t name))]
+                 ['update  (λ () (pkg-update-command name))]
+                 ['remove  (λ () (pkg-remove-command #:auto #t name))]
+                 [else     (error 'package-op "unknown verb")]))
+  (define (put v)
+    (channel-put package-notify-channel
+                 (cons 'pkg-op-notify v)))
+  (define-values (in out) (make-pipe))
+  (parameterize ([current-output-port out]
+                 [current-error-port out])
+    (define (pump)
+      (define bstr (make-bytes 1024))
+      (match (read-bytes-avail! bstr in)
+        [(? exact-nonnegative-integer? n)
+         (put (bytes->string/utf-8 (subbytes bstr 0 n)))
+         (pump)]
+        [(? eof-object?)
+         (put 'done)]))
+    (thread pump)
+    (with-handlers ([exn:fail? (λ (exn)
+                                 (list 'error (exn-message exn)))])
+      (act!))
+    (flush-output out)
+    (close-output-port out)))
+
+(module+ test
+  (define (pump)
+    (match (channel-get package-notify-channel)
+      [(? string? s) (display s) (pump)]
+      ['done (displayln "\n<Done>.")]
+      ['error (displayln "\n<Error>.")]))
+  (thread pump)
+  (package-op 'remove "ansi-color"))

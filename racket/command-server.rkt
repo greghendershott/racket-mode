@@ -12,6 +12,7 @@
          (only-in "instrument.rkt" get-uncovered get-profile)
          "hash-lang-bridge.rkt"
          "logger.rkt"
+         "package.rkt"
          "repl.rkt"
          "repl-output.rkt"
          "repl-session.rkt"
@@ -29,8 +30,7 @@
  ["commands/macro.rkt"        (macro-stepper macro-stepper/next)]
  ["commands/requires.rkt"     (requires/tidy requires/trim requires/base)]
  ["commands/module-names.rkt" (module-names)]
- ["find.rkt"                  (find-definition find-definition/drracket-jump)]
- ["commands/pkg.rkt"          (package-list package-details package-config)])
+ ["find.rkt"                  (find-definition find-definition/drracket-jump)])
 
 (provide command-server-loop)
 
@@ -89,7 +89,8 @@
                              repl-output-channel
                              logger-notify-channel
                              debug-notify-channel
-                             hash-lang-notify-channel))
+                             hash-lang-notify-channel
+                             package-notify-channel))
         (flush-output)
         (loop))))
 
@@ -149,6 +150,7 @@
     [`(hash-lang . ,more)              (apply hash-lang more)]
     [`(pkg-list)                       (package-list)]
     [`(pkg-details ,str)               (package-details str)]
+    [`(pkg-op ,verb ,name)             (package-op verb name)]
     [`(pkg-config)                     (package-config)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its

@@ -116,12 +116,12 @@ on its status. "
     (pcase status
       ("available"
        (insert " is available to ")
-       (racket--package-insert-raco-pkg-mutate-button "install" name))
+       (racket--package-insert-raco-pkg-op-button 'install name))
       ("manual"
        (insert " was manually installed: ")
-       (racket--package-insert-raco-pkg-mutate-button "update" name)
+       (racket--package-insert-raco-pkg-op-button 'update name)
        (insert " or ")
-       (racket--package-insert-raco-pkg-mutate-button "remove" name))
+       (racket--package-insert-raco-pkg-op-button 'remove name))
       ("dependency"
        (insert " was automatically installed as a dependency")))
     (newline)
@@ -189,54 +189,69 @@ on its status. "
                               'action #'racket-package-browse-url
                               'racket-package-url url))
                  (newline)))
-              (_ (insert (format " %s\n" v))))))))))
-
-(defun racket--package-insert-raco-pkg-mutate-button (verb name)
-  (let* ((cmd-list (racket--back-end-args->command
-                    (racket-back-end)
-                    (list "-l" "raco" "pkg" verb "--auto" name)))
-         (cmd-str (string-join cmd-list " ")))
-   (insert (propertize verb
-                       'button '(t)
-                       'face 'custom-button
-                       'category 'default-button
-                       'action #'racket--raco-pkg-mutate
-                       'raco-pkg-command cmd-str
-                       'raco-pkg-name name))))
-
-(defun racket--raco-pkg-mutate (&optional button)
-  (interactive)
-  (unless button (error "no raco pkg button here"))
-  (let ((cmd (button-get button 'raco-pkg-command))
-        (name (button-get button 'raco-pkg-name))
-        (inhibit-read-only t)
-        (_ (goto-char (point-max)))
-        (end-details (point)))
-    (newline)
-    (insert (propertize cmd 'font-lock-face 'bold))
-    (newline)
-    (call-process-shell-command cmd nil t t)
-    (newline)
-    (insert "Done.")
-    ;; Fully refresh *Racket Packages* install details because
-    ;; "--auto" commands can install/remove/update multiple,
-    ;; dependent packages.
-    (with-current-buffer (racket--package-buffer-name)
-      (tabulated-list-revert)
-      (let ((win (get-buffer-window (current-buffer))))
-        (when win
-          (set-window-point win (point)))))
-    ;; Also refresh the status for this package, at the top of this
-    ;; detail buffer.
-    (delete-region (point-min) end-details)
-    (goto-char (point-min))
-    (let ((details (racket--cmd/await nil `(pkg-details ,name))))
-      (when details
-        (racket--package-insert-details details)))
-    (goto-char (point-min))))
+              (_ (insert (format " %s\n" v)))))))))
+  (put-text-property (point-min) (point) 'racket-package-details t))
 
 (defun racket-package-browse-url (button)
   (browse-url (button-get button 'racket-package-url)))
+
+(defun racket--package-insert-raco-pkg-op-button (verb name)
+  (insert (propertize (symbol-name verb)
+                      'button '(t)
+                      'face 'custom-button
+                      'category 'default-button
+                      'action #'racket--raco-pkg-op
+                      'raco-pkg-verb verb
+                      'raco-pkg-name name)))
+
+(defvar racket--package-notify-name nil)
+(defvar racket--package-notify-buffer nil)
+
+(defun racket--raco-pkg-op (&optional button)
+  (interactive)
+  (unless button (error "no raco pkg button here"))
+  (let ((verb (button-get button 'raco-pkg-verb))
+        (name (button-get button 'raco-pkg-name))
+        (inhibit-read-only t))
+    (setq racket--package-notify-name name)
+    (setq racket--package-notify-buffer (current-buffer))
+    (goto-char (point-max))
+    (newline)
+    (racket--cmd/async nil `(pkg-op ,verb ,name))))
+
+(defun racket--package-on-notify (v)
+  (when (bufferp racket--package-notify-buffer)
+    (with-current-buffer racket--package-notify-buffer
+      (let ((inhibit-read-only t))
+        (pcase v
+          ('done
+           ;; Fully refresh *Racket Packages* list because "--auto" commands
+           ;; can install/remove/update multiple, dependent packages.
+           (with-current-buffer (racket--package-buffer-name)
+             (tabulated-list-revert)
+             (let ((win (get-buffer-window (current-buffer))))
+               (when win
+                 (set-window-point win (point)))))
+           ;; Also refresh the status for this package, at the top of this
+           ;; detail buffer.
+           (delete-region (point-min)
+                          (previous-single-property-change (point-max)
+                                                           'racket-package-details))
+           (goto-char (point-min))
+           (let ((details (racket--cmd/await nil
+                                             `(pkg-details ,racket--package-notify-name))))
+             (when details
+               (racket--package-insert-details details)))
+           (goto-char (point-min))
+           (setq racket--package-notify-buffer nil))
+          (`(error ,message)
+           (goto-char (point-max))
+           (insert message)
+           (setq racket--package-notify-buffer nil))
+          (str
+           (goto-char (point-max))
+           (insert (propertize str
+                               'face font-lock-comment-face))))))))
 
 (provide 'racket-package)
 
