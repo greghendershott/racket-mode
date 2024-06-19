@@ -2882,11 +2882,11 @@ were 'disabled.
 
 @kbd{M-x}  @code{list-racket-packages}
 
-Uses raco pkg commands to populate a @code{racket-packages-mode} buffer.
+Uses raco pkg commands to populate a @code{racket-package-mode} buffer.
 
-Press RET on a package to @code{describe-racket-package}, when opens a
-buffer where you can view details, and use buttons to
-install/update/remove the package.
+On each package you can press RET to @code{describe-racket-package},
+which opens a buffer where you can view details, and use buttons
+to install/update/remove the package.
 
 @node describe-racket-package
 @subsection describe-racket-package

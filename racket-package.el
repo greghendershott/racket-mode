@@ -215,7 +215,7 @@ on its status. "
     (racket--cmd/async nil `(pkg-op ,verb ,name))))
 
 (defun racket--package-notify-buffer-name ()
-  (format "*Racket Package Operation <%s>*" (racket-back-end-name)))
+  (format "*Racket Package Operations <%s>*" (racket-back-end-name)))
 
 (defun racket--package-on-notify (v)
   (with-current-buffer (get-buffer-create (racket--package-notify-buffer-name))
