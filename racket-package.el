@@ -204,54 +204,48 @@ on its status. "
                       'raco-pkg-verb verb
                       'raco-pkg-name name)))
 
-(defvar racket--package-notify-name nil)
-(defvar racket--package-notify-buffer nil)
-
 (defun racket--raco-pkg-op (&optional button)
   (interactive)
   (unless button (error "no raco pkg button here"))
   (let ((verb (button-get button 'raco-pkg-verb))
         (name (button-get button 'raco-pkg-name))
         (inhibit-read-only t))
-    (setq racket--package-notify-name name)
-    (setq racket--package-notify-buffer (current-buffer))
-    (goto-char (point-max))
-    (newline)
+    (pop-to-buffer (racket--package-notify-buffer-name)
+                   '(display-buffer-below-selected))
     (racket--cmd/async nil `(pkg-op ,verb ,name))))
 
+(defun racket--package-notify-buffer-name ()
+  (format "*Racket Package Operation <%s>*" (racket-back-end-name)))
+
 (defun racket--package-on-notify (v)
-  (when (bufferp racket--package-notify-buffer)
-    (with-current-buffer racket--package-notify-buffer
-      (let ((inhibit-read-only t))
-        (pcase v
-          ('done
-           ;; Fully refresh *Racket Packages* list because "--auto" commands
-           ;; can install/remove/update multiple, dependent packages.
-           (with-current-buffer (racket--package-buffer-name)
-             (tabulated-list-revert)
-             (let ((win (get-buffer-window (current-buffer))))
-               (when win
-                 (set-window-point win (point)))))
-           ;; Also refresh the status for this package, at the top of this
-           ;; detail buffer.
-           (delete-region (point-min)
-                          (previous-single-property-change (point-max)
-                                                           'racket-package-details))
-           (goto-char (point-min))
-           (let ((details (racket--cmd/await nil
-                                             `(pkg-details ,racket--package-notify-name))))
-             (when details
-               (racket--package-insert-details details)))
-           (goto-char (point-min))
-           (setq racket--package-notify-buffer nil))
-          (`(error ,message)
-           (goto-char (point-max))
-           (insert message)
-           (setq racket--package-notify-buffer nil))
-          (str
-           (goto-char (point-max))
-           (insert (propertize str
-                               'face font-lock-comment-face))))))))
+  (with-current-buffer (get-buffer-create (racket--package-notify-buffer-name))
+    (unless (eq major-mode 'special-mode)
+      (special-mode))
+    (let ((inhibit-read-only t))
+      (goto-char (point-max))
+      (pcase v
+        ('done
+         (insert (propertize "<done>\n\n"
+                             'face 'compilation-mode-line-exit))
+         (quit-window)
+         ;; Fully refresh *Racket Packages* list because "--auto" commands
+         ;; can install/remove/update multiple, dependent packages.
+         (with-current-buffer (racket--package-buffer-name)
+           (tabulated-list-revert)
+           (let ((win (get-buffer-window (current-buffer))))
+             (when win
+               (set-window-point win (point)))))
+         ;; Also refresh the status for this package in the *Help*
+         ;; buffer.
+         (with-current-buffer (help-buffer)
+           (revert-buffer)))
+        (`(error ,message)
+         (insert (propertize message
+                             'face 'compilation-error)))
+        (str
+         (insert (propertize str
+                             'face 'compilation-info))))
+      (goto-char (point-max)))))
 
 (provide 'racket-package)
 
