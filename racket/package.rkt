@@ -162,12 +162,17 @@
         ":default-scope" (~a (default-pkg-scope))
         ":cache" (current-pkg-download-cache-dir)))
 
-
 ;;; package operations
 
 (define package-notify-channel (make-channel))
 
+(define sema (make-semaphore 1))
+
 (define (package-op verb name)
+  (call-with-semaphore sema
+                       (λ () (raw-package-op verb name))))
+
+(define (raw-package-op verb name)
   (define act! (case verb
                  ['install (λ () (pkg-install-command #:auto #t name))]
                  ['update  (λ () (pkg-update-command name))]
@@ -180,7 +185,7 @@
   (parameterize ([current-output-port out]
                  [current-error-port out])
     (define (pump)
-      (define bstr (make-bytes 1024))
+      (define bstr (make-bytes 2048))
       (match (read-bytes-avail! bstr in)
         [(? exact-nonnegative-integer? n)
          (put (bytes->string/utf-8 (subbytes bstr 0 n)))
@@ -197,8 +202,10 @@
 (module+ test
   (define (pump)
     (match (channel-get package-notify-channel)
-      [(? string? s) (display s) (pump)]
-      ['done (displayln "\n<Done>.")]
-      ['error (displayln "\n<Error>.")]))
+      [(cons 'pkg-op-notify (? string? s)) (display s)]
+      [(cons 'pkg-op-notify 'done) (displayln "<Done>.")]
+      [(list 'pkg-op-notify 'error (? string? s)) (displayln s)])
+    (pump))
   (thread pump)
+  (package-op 'install "ansi-color")
   (package-op 'remove "ansi-color"))
