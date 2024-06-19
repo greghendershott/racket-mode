@@ -33,20 +33,19 @@
   (define catalog (for/hash ([p (in-list (get-pkgs))])
                     (values (pkg-name p) p)))
   (append
-   ;; All packages from the catalogs
+   ;; All packages from the catalogs:
    (for/list ([(name p) (in-hash catalog)])
      (define ip (hash-ref installed name #f))
-     (define status (if ip
-                        (if (installed-pkg-auto? ip)
-                            "dependency"
-                            "manual")
-                        "available"))
+     (define status (cond
+                      [(not ip)                 "available"]
+                      [(installed-pkg-auto? ip) "dependency"]
+                      [else                     "manual"]))
      (list name
            status
            (cleanse-pkg-desc p)))
    ;; Installed packages not from the catalogs, i.e. that we didn't
-   ;; just handle above.
-   (for/list ([(name pi) (in-hash installed)]
+   ;; already handle above:
+   (for/list ([name (in-hash-keys installed)]
               #:when (not (hash-has-key? catalog name)))
      (list name
            "manual"
