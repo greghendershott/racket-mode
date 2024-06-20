@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require (only-in racket/format ~a)
+(require (only-in racket/format ~a ~v ~s)
          racket/match
          racket/path
          (only-in racket/string string-join)
@@ -20,7 +20,9 @@
          (only-in pkg
                   pkg-install-command
                   pkg-update-command
-                  pkg-remove-command))
+                  pkg-remove-command)
+         pkg/name
+         net/url-string)
 
 (provide package-list
          package-details
@@ -72,11 +74,10 @@
   (define ip (hash-ref (installed-packages) name #f))
   (cond
     [ip
-     (define source (if p
-                        (pkg-source p)
-                        (installed-pkg-orig-pkg ip)))
      (append (list ':name name
-                   ':source (cons source (source-url source))
+                   ':source (if p
+                                (catalog-package-source p)
+                                (installed-package-source ip))
                    ':status (if (installed-pkg-auto? ip) "dependency" "manual")
                    ':checksum (installed-pkg-checksum ip)
                    ':scope (installed-pkg-scope ip)
@@ -86,11 +87,13 @@
              catalog-only-props)]
     [p
      (append (list ':name name
-                   ':source (cons (pkg-source p) (source-url (pkg-source p)))
+                   ':source (catalog-package-source p)
                    ':status "available"
                    ':checksum (pkg-checksum p))
              catalog-only-props)]
-    [else #f]))
+    [else
+     (list ':name name
+           ':status "Package neither installed nor available from a catalog")]))
 
 (struct installed-pkg (scope orig-pkg auto? checksum) #:transparent)
 (define (installed-packages)
@@ -98,68 +101,107 @@
   (for ([scope (in-list (list 'installation 'user))])
     (for ([(name pi) (in-hash (installed-pkg-table #:scope scope))])
       (hash-set! ht name (installed-pkg scope
-                                        (cleanse-orig-pkg (pkg-info-orig-pkg pi))
+                                        (pkg-info-orig-pkg pi)
                                         (pkg-info-auto? pi)
                                         (or (pkg-info-checksum pi) "")))))
   ht)
 
-(define (cleanse-orig-pkg orig-pkg)
-  (case (car orig-pkg)
-    [(link static-link clone)
-     (list* (car orig-pkg)
-            (path->string
-             (simple-form-path
-              (path->complete-path (cadr orig-pkg)
-                                   (get-pkgs-dir (current-pkg-scope)
-                                                 (current-pkg-scope-version)))))
-            (cddr orig-pkg))]
-    [else orig-pkg]))
-
 (define (cleanse-pkg-desc p)
   (regexp-replace* "[\r\n]" (pkg-desc p) " "))
 
-(require net/url-string)
-(define (source-url s)
+;; The "source" from a package /catalog/ seems to be always a simple
+;; string, whereas for /installed packages/ the pkg-info-orig-pkg
+;; field is an expression as documented at
+;; <https://docs.racket-lang.org/pkg/path.html>.
+;;
+;; For the front end we want to return:
+;;
+;; 1. A label to display, e.g. ~a or ~s of whatever original value.
+;;
+;; 2. A URL, or, a local filesystem path.
+;;
+;;    - For a URL, simplify it so it's likely to work in a web browser
+;;      to visit the user/repo.
+;;
+;;    - For a path, do stuff like package-source->path and/or
+;;      simple-form-path.
+;;
+;; 3. A flag as to which kind 2 is, so that the front end can know it
+;; should do back end -> front end translation for a local filesystem
+;; path when the back end is remote.
+
+(define (installed-package-source ip)
+  (define source (installed-pkg-orig-pkg ip))
+  (define scope (installed-pkg-scope ip))
+  (cons
+   (~s source)
+   (match source
+     ;; pkg-info-orig-pkg values for URLs
+     [(or (list (or 'catalog 'clone) _ url)
+          (list (or 'catalog 'git 'url) url))
+      (list 'url
+            (simplify-url url))]
+     ;; pkg-info-orig-pkg values for local paths
+     [(list (and type (or 'file 'dir 'link 'static-link)) path)
+      (list 'path
+            (path->string
+             (simplify-path
+              (path->complete-path (package-source->path path type)
+                                   (get-pkgs-dir scope
+                                                 (current-pkg-scope-version))))))])))
+
+(define git-protos-px #px"^(?:github|git|git\\+http|git\\+https)://")
+
+(define (simplify-url s)
   (match s
-    [(or (list (? symbol?) (? string? s))
-         (list (? symbol?) (? string?) (? string? s)))
-     (source-url s)]
-    [(pregexp "^(file://.+)[?]type=.+$" (list _ s))
-     s]
-    ;; git flavors: Use https and simplify the path+query to just user
-    ;; and repo elements.
-    [(pregexp "^github://|git://|git\\+http://|git\\+https://$")
+    ;; git flavors: Use https and simplify the path+query to just
+    ;; user and repo path elements.
+    [(pregexp git-protos-px)
      (define u (string->url s))
      (match-define (list* user repo _) (url-path u))
      (url->string (struct-copy url u
                                [scheme "https"]
                                [path (list user repo)]
                                [query null]))]
-    [(pregexp "^/[^/]")
-     (string-append "file://" s)]
     [s s]))
 
-(module+ test
-  (require rackunit)
-  (check-equal? (source-url '(static-link "/path/to/foo"))
-                "file:///path/to/foo")
-  (check-equal? (source-url '(catalog "git://github.com/user/repo/blah?x=1"))
-                "https://github.com/user/repo")
-  (check-equal? (source-url "file:///path/to/foo?type=static-link")
-                "file:///path/to/foo")
-  (check-equal? (source-url "/path/to/foo")
-                "file:///path/to/foo")
-  (check-equal? (source-url "git://github.com/user/repo/blah?x=1")
-                "https://github.com/user/repo"))
+(define (simple-path-string ps)
+  (let ([ps (simplify-path
+             (path->complete-path ps
+                                  (get-pkgs-dir (current-pkg-scope)
+                                                (current-pkg-scope-version))))])
+    (if (string? ps)
+        ps
+        (path->string ps))))
+
+(define (catalog-package-source p)
+  (define source (pkg-source p))
+  (cons
+   (~a source)
+   (match source
+     ;; package catalog strings for URLs
+     [(and s (pregexp git-protos-px))
+      (list 'url (simplify-url s))]
+     [(and s (pregexp "^https?://"))
+      (list 'url s)]
+     ;; package catalog strings for local paths
+     [(pregexp "^(file://.+)[?]type=(.+)$" (list _ path type))
+      (list 'path (simple-path-string
+                   (package-source->path path (string->symbol type))))]
+     [(and s (pregexp "^/[^/]"))
+      (list 'path (simple-path-string s))]
+     ;; Unknown
+     [_
+      (list 'unknown "")])))
 
 ;;; package config; ~= "raco pkg config" output
 
 (define (package-config)
-  (list ":catalogs" (or (current-pkg-catalogs)
+  (list ':catalogs (or (current-pkg-catalogs)
                         (pkg-config-catalogs))
-        ":name" (current-pkg-scope-version)
-        ":default-scope" (~a (default-pkg-scope))
-        ":cache" (current-pkg-download-cache-dir)))
+        ':name (current-pkg-scope-version)
+        ':default-scope (~a (default-pkg-scope))
+        ':cache (current-pkg-download-cache-dir)))
 
 ;;; package operations
 
@@ -198,7 +240,7 @@
     (flush-output out)
     (close-output-port out)))
 
-(module+ test
+(module+ example
   (define (pump)
     (match (channel-get package-notify-channel)
       [(cons 'pkg-op-notify (? string? s)) (display s)]
@@ -208,3 +250,4 @@
   (thread pump)
   (package-op 'install "ansi-color")
   (package-op 'remove "ansi-color"))
+

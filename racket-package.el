@@ -175,25 +175,34 @@ on its status. "
                   (propertize v
                               'button '(t)
                               'category 'default-button
-                              'action #'racket-package-browse-url
-                              'racket-package-url (concat "file://" v)))
+                              'action #'racket-package-visit-path
+                              'racket-package-path (racket-file-name-back-to-front v)))
                (newline))
               (:source
-               (let ((label (format "%s" (car v)))
-                     (url (cdr v)))
-                 (insert " ")
-                 (insert
-                  (propertize label
-                              'button '(t)
-                              'category 'default-button
-                              'action #'racket-package-browse-url
-                              'racket-package-url url))
-                 (newline)))
-              (_ (insert (format " %s\n" v)))))))))
-  (put-text-property (point-min) (point) 'racket-package-details t))
+               (insert " ")
+               (pcase v
+                 (`(,label url ,url)
+                  (insert
+                   (propertize label
+                               'button '(t)
+                               'category 'default-button
+                               'action #'racket-package-browse-url
+                               'racket-package-url url)))
+                 (`(,label path ,path)
+                  (insert
+                   (propertize label
+                               'button '(t)
+                               'category 'default-button
+                               'action #'racket-package-visit-path
+                               'racket-package-path (racket-file-name-back-to-front path)))))
+               (newline))
+              (_ (insert (format " %s\n" v))))))))))
 
 (defun racket-package-browse-url (button)
   (browse-url (button-get button 'racket-package-url)))
+
+(defun racket-package-visit-path (button)
+  (find-file (button-get button 'racket-package-path)))
 
 (defun racket--package-insert-raco-pkg-op-button (verb name)
   (insert (propertize (symbol-name verb)
