@@ -23,10 +23,16 @@
   :group 'languages
   :link '(url-link :tag "README on GitHub" "https://github.com/greghendershott/racket-mode/blob/master/README.md"))
 
-;; These aliases need be _before_ the `defcustom' of `racket-program'
+;; This alias must be _before_ the `defcustom' of `racket-program'
 ;; (see note in doc for `define-obsolete-variable-alias').
 (define-obsolete-variable-alias 'racket-racket-program 'racket-program "2017-06-02")
-(define-obsolete-variable-alias 'racket-raco-program   'racket-program "2017-06-02")
+
+;; racket-raco-program is obsolete, but /not/ an alias for
+;; `racket-program'.
+(make-obsolete-variable
+ 'racket-raco-program
+ "raco is now run using \"`racket-program' racket -l raco\"."
+ "2017-06-02")
 
 (defvar racket--macp (eq 'darwin system-type))
 (defvar racket--winp (eq 'windows-nt system-type))
