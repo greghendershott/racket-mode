@@ -505,6 +505,9 @@ even when the module language doesn't provide any binding for
 (declare-function racket-repl-buffer-name-unique "racket-repl-buffer-name" ())
 (autoload        'racket-repl-buffer-name-unique "racket-repl-buffer-name")
 
+(declare-function racket-mode "racket-mode" ())
+(autoload        'racket-mode "racket-mode")
+
 ;;;###autoload
 (defun racket-repl (&optional noselect)
   "Show a Racket REPL buffer in some window.
@@ -532,6 +535,8 @@ require other modules, or whatever."
   ;; Visit the file without selecting it, and run it.
   (let ((racket-repl-buffer-name-function #'racket-repl-buffer-name-unique))
     (with-current-buffer (find-file-noselect racket-repl-command-file)
+      (unless (racket--edit-mode-p)
+        (racket-mode)) ;ensure: see #713
       (racket--repl-run
        (list racket-repl-command-file)
        nil
