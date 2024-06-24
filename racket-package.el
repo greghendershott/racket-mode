@@ -21,11 +21,7 @@
 
 ;;;###autoload
 (defun list-racket-packages ()
-  "Uses raco pkg commands to populate a `racket-package-mode' buffer.
-
-On each package you can press RET to `describe-racket-package',
-which opens a buffer where you can view details, and use buttons
-to install/update/remove the package."
+  "Open a `racket-package-mode' buffer for the active back end."
   (interactive)
   (with-current-buffer (get-buffer-create (racket--package-buffer-name))
     (unless (eq major-mode 'racket-package-mode)
@@ -46,6 +42,13 @@ to install/update/remove the package."
 (define-derived-mode racket-package-mode tabulated-list-mode
   "Racket Package List"
   "Major mode for Racket package management.
+
+The list of packages is the equivalent of doing \"raco pkg show\"
+on the active back end.
+
+On row you can press RET to `describe-racket-package', which
+opens a buffer where you can view details, and use buttons to
+install/update/remove the package.
 
 \\{racket-package-mode-map}
 "
@@ -79,7 +82,7 @@ to install/update/remove the package."
            (racket--cmd/await nil `(pkg-list))))
 
 (defun racket-package-describe ()
-  "Describe the package at point."
+  "`describe-racket-package' the package at point."
   (interactive)
   (describe-racket-package (tabulated-list-get-id)))
 
@@ -89,8 +92,10 @@ to install/update/remove the package."
 (defun describe-racket-package (&optional name-or-button)
   "Describe details of a Racket package.
 
-Buttons allow you to install/update/remove the package, depending
-on its status. "
+Depending on the package status, buttons let you install, update,
+and/or remove the package. These operations are equivalent to the
+using the command line on the active back end to do a simple
+\"raco pkg {install update remove} --auto\"."
   (interactive "sRacket package name: ")
   (let ((name (if name-or-button
                   (if (stringp name-or-button)
@@ -129,8 +134,8 @@ on its status. "
     (let ((lks `((" Description" :description)
                  ("   Directory" :dir)
                  ("       Scope" :scope)
-                 ("     Catalog" :catalog)
                  ("      Source" :source)
+                 ("     Catalog" :catalog)
                  ("    Checksum" :checksum)
                  ("      Author" :author)
                  ("        Tags" :tags)
@@ -156,6 +161,19 @@ on its status. "
                                        'action #'describe-racket-package))
                    (insert " ")
                    (insert (cdr dep))))
+               (newline))
+              (:catalog
+               (insert " ")
+               (if (equal v "https://pkgs.racket-lang.org")
+                   (insert
+                    (propertize v
+                                'button '(t)
+                                'category 'default-button
+                                'action #'racket-package-browse-url
+                                'racket-package-url (concat v
+                                                            "/package/"
+                                                            name)))
+                 v)
                (newline))
               (:modules
                (let ((firstp t))

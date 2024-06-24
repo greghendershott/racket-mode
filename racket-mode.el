@@ -29,6 +29,7 @@
 (require 'racket-custom)
 (require 'racket-smart-open)
 (require 'racket-imenu)
+(require 'racket-package)
 (require 'racket-profile)
 (require 'racket-logger)
 (require 'racket-shell)
@@ -121,6 +122,7 @@
     ["Trim Requires" racket-trim-requires]
     ["Use #lang racket/base" racket-base-requires]
     "---"
+    ["List Racket Packages" list-racket-packages]
     ["Start Faster" racket-mode-start-faster]
     ["Customize..." customize-mode]))
 
