@@ -95,7 +95,20 @@ install/update/remove the package.
 Depending on the package status, buttons let you install, update,
 and/or remove the package. These operations are equivalent to the
 using the command line on the active back end to do a simple
-\"raco pkg {install update remove} --auto\"."
+\"raco pkg {install update remove} --auto\".
+
+Details are live links when possible:
+
+- When the Catalog is https://pkgs.racket-lang.org, the link is
+  to the https://pkgs.racket-lang.org/package/<package-name>, a
+  web page with further links such as rendered documentation and
+  build status.
+
+- The Source links to the web page or local filesystem.
+
+- The Directory for an installed package opens a dired buffer.
+
+- Each dependency links to details about that package."
   (interactive "sRacket package name: ")
   (let ((name (if name-or-button
                   (if (stringp name-or-button)

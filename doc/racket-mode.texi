@@ -2896,6 +2896,25 @@ and/or remove the package. These operations are equivalent to the
 using the command line on the active back end to do a simple
 ``raco pkg @{install update remove@} --auto''.
 
+Details are live links when possible:
+
+@itemize
+@item
+When the Catalog is @uref{https://pkgs.racket-lang.org}, the link is
+to the @uref{https://pkgs.racket-lang.org/package/}<package-name>, a
+web page with further links such as rendered documentation and
+build status.
+
+@item
+The Source links to the web page or local filesystem.
+
+@item
+The Directory for an installed package opens a dired buffer.
+
+@item
+Each dependency links to details about that package.
+@end itemize
+
 @node Other
 @section Other
 
