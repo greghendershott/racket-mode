@@ -22,12 +22,13 @@
                   pkg-update-command
                   pkg-remove-command)
          pkg/name
-         net/url-string)
+         net/url)
 
 (provide package-list
          package-details
          package-config
          package-op
+         package-doc-link
          package-notify-channel)
 
 (define (package-list)
@@ -72,28 +73,35 @@
       [(list)
        (values #f null)]))
   (define ip (hash-ref (installed-packages) name #f))
-  (cond
-    [ip
-     (append (list ':name name
-                   ':source (if p
-                                (catalog-package-source p)
-                                (installed-package-source ip))
-                   ':status (if (installed-pkg-auto? ip) "dependency" "manual")
-                   ':checksum (installed-pkg-checksum ip)
-                   ':scope (installed-pkg-scope ip)
-                   ':dir (path->string
-                          (simple-form-path
-                           (pkg-directory name))))
-             catalog-only-props)]
-    [p
-     (append (list ':name name
-                   ':source (catalog-package-source p)
-                   ':status "available"
-                   ':checksum (pkg-checksum p))
-             catalog-only-props)]
-    [else
-     (list ':name name
-           ':status "Package neither installed nor available from a catalog")]))
+  (define vs
+    (cond
+      [ip
+       (append (list ':name name
+                     ':source (if p
+                                  (catalog-package-source p)
+                                  (installed-package-source ip))
+                     ':status (if (installed-pkg-auto? ip) "dependency" "manual")
+                     ':checksum (installed-pkg-checksum ip)
+                     ':scope (installed-pkg-scope ip)
+                     ':dir (path->string
+                            (simple-form-path
+                             (pkg-directory name))))
+               catalog-only-props)]
+      [p
+       (append (list ':name name
+                     ':source (catalog-package-source p)
+                     ':status "available"
+                     ':checksum (pkg-checksum p))
+               catalog-only-props)]
+      [else
+       (list ':name name
+             ':status "Package neither installed nor available from a catalog")]))
+  ;; Replace any blank string values with #f
+  (for/list ([v (in-list vs)])
+    (if (and (string? v)
+             (regexp-match? #rx"^[ ]*$" v))
+        #f
+        v)))
 
 (struct installed-pkg (scope orig-pkg auto? checksum) #:transparent)
 (define (installed-packages)
@@ -193,6 +201,19 @@
      ;; Unknown
      [_
       (list 'unknown "")])))
+
+(define (package-doc-link name)
+  (with-handlers ([exn:fail? (λ _ null)])
+    (match (call/input-url (string->url
+                            (format "https://pkgs.racket-lang.org/pkg/~a"
+                                    name))
+                           get-pure-port
+                           read)
+      [(hash-table ('build
+                    (hash-table
+                     ('docs (list* (list _ _ path) _)))))
+       (string-append "https://pkg-build.racket-lang.org/" path)]
+      [_ #f])))
 
 ;;; package config; ~= "raco pkg config" output
 

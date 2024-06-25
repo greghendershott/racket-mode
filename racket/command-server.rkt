@@ -151,6 +151,7 @@
     [`(pkg-list)                       (package-list)]
     [`(pkg-details ,str)               (package-details str)]
     [`(pkg-op ,verb ,name)             (package-op verb name)]
+    [`(pkg-doc-link ,name)             (package-doc-link name)]
     [`(pkg-config)                     (package-config)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its

@@ -109,6 +109,7 @@
     racket-expand-last-sexp
     "Packages"
     list-racket-packages
+    racket-package-mode
     describe-racket-package
     "Other"
     racket-debug-toggle-breakpoint

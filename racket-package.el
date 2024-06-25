@@ -43,10 +43,10 @@
   "Racket Package List"
   "Major mode for Racket package management.
 
-The list of packages is the equivalent of doing \"raco pkg show\"
-on the active back end.
+The list of packages is equivalent to \"raco pkg show -all\" on
+the active back end.
 
-On row you can press RET to `describe-racket-package', which
+On each row you can press RET to `describe-racket-package', which
 opens a buffer where you can view details, and use buttons to
 install/update/remove the package.
 
@@ -93,22 +93,23 @@ install/update/remove the package.
   "Describe details of a Racket package.
 
 Depending on the package status, buttons let you install, update,
-and/or remove the package. These operations are equivalent to the
-using the command line on the active back end to do a simple
-\"raco pkg {install update remove} --auto\".
+and/or remove the package and its dependencies. These convenience
+buttons are equivalent to using the command line on the active
+back end to do \"raco pkg {install update remove} --auto\". For
+other operations, you still need to use \"raco pkg\" yourself;
+see <https://docs.racket-lang.org/pkg/cmdline.html>.
 
-Details are live links when possible:
+Detail values are links when possible:
 
-- When the Catalog is https://pkgs.racket-lang.org, the link is
-  to the https://pkgs.racket-lang.org/package/<package-name>, a
-  web page with further links such as rendered documentation and
-  build status.
+- The /Catalog/ (when \"https://pkgs.racket-lang.org\") links to
+  the package's web page, which may have additional details not
+  available locally.
 
-- The Source links to the web page or local filesystem.
+- The /Source/ links to the repo's web page or local filesystem.
 
-- The Directory for an installed package opens a dired buffer.
+- The /Directory/ for an installed package opens a dired buffer.
 
-- Each dependency links to details about that package."
+- Each /Dependencies/ name links to details about that package."
   (interactive "sRacket package name: ")
   (let ((name (if name-or-button
                   (if (stringp name-or-button)
@@ -144,16 +145,27 @@ Details are live links when possible:
        (insert " was automatically installed as a dependency")))
     (newline)
     (newline)
-    (let ((lks `((" Description" :description)
-                 ("   Directory" :dir)
-                 ("       Scope" :scope)
-                 ("      Source" :source)
-                 ("     Catalog" :catalog)
-                 ("    Checksum" :checksum)
-                 ("      Author" :author)
-                 ("        Tags" :tags)
-                 ("Dependencies" :deps)
-                 ("     Modules" :modules))))
+    (when (equal (plist-get details :catalog)
+                 "https://pkgs.racket-lang.org")
+      (insert (propertize "Documentation: "
+                          'face 'package-help-section-name))
+      (insert (propertize "query online"
+                          'button '(t)
+                          'face 'custom-button
+                          'category 'default-button
+                          'action #'racket-package-check-doc
+                          'racket-package-name name))
+      (newline))
+    (let ((lks `(("  Description" :description)
+                 ("    Directory" :dir)
+                 ("        Scope" :scope)
+                 ("       Source" :source)
+                 ("      Catalog" :catalog)
+                 ("     Checksum" :checksum)
+                 ("       Author" :author)
+                 ("         Tags" :tags)
+                 (" Dependencies" :deps)
+                 ("      Modules" :modules))))
       (dolist (lk lks)
         (pcase-let* ((`(,l ,k) lk)
                      (v (plist-get details k)))
@@ -166,12 +178,13 @@ Details are live links when possible:
                  (dolist (dep v)
                    (if firstp
                        (progn (setq firstp nil) (insert " "))
-                     (insert "\n              "))
-                   (insert (propertize (car dep)
-                                       'button '(t)
-                                       'category 'default-button
-                                       'follow-link t
-                                       'action #'describe-racket-package))
+                     (insert "\n               "))
+                   (insert
+                    (propertize (car dep)
+                                'button '(t)
+                                'category 'default-button
+                                'follow-link t
+                                'action #'describe-racket-package))
                    (insert " ")
                    (insert (cdr dep))))
                (newline))
@@ -186,14 +199,14 @@ Details are live links when possible:
                                 'racket-package-url (concat v
                                                             "/package/"
                                                             name)))
-                 v)
+                 (insert v))
                (newline))
               (:modules
                (let ((firstp t))
                  (dolist (mod v)
                    (if firstp
                        (progn (setq firstp nil) (insert " "))
-                     (insert "\n              "))
+                     (insert "\n               "))
                    (insert mod)))
                (newline))
               (:tags
@@ -234,6 +247,18 @@ Details are live links when possible:
 
 (defun racket-package-visit-path (button)
   (find-file (button-get button 'racket-package-path)))
+
+(defun racket-package-check-doc (&optional button)
+  (interactive)
+  (let ((name (button-get button 'racket-package-name)))
+    (racket--cmd/async
+     nil
+     `(pkg-doc-link ,name)
+     (lambda (maybe-url)
+       (if maybe-url
+           (browse-url maybe-url)
+         (message "No rendered documentation found for %s on pkg-build.racket-lang.org"
+                  name))))))
 
 (defun racket--package-insert-raco-pkg-op-button (verb name)
   (insert (propertize (symbol-name verb)
