@@ -7,8 +7,6 @@ help:
 # default on PATH. e.g. `EMACS=/path/to/emacs make`.
 EMACS ?= emacs
 RACKET ?= racket
-# Allow another locations for Emacs packages.
-EMACS_PACKAGES ?= ~/.emacs.d/elpa
 
 show-versions:
 	@echo `which $(RACKET)`
@@ -18,7 +16,7 @@ show-versions:
 
 batch-emacs := \
   $(EMACS) --batch -Q -L . \
-  --eval '(setq package-user-dir "$(EMACS_PACKAGES)")' \
+  --eval '(require (quote package))' \
   --eval '(package-initialize)'
 
 byte-compile := \
@@ -52,7 +50,6 @@ melpa-url := https://melpa.org/packages/
 deps:
 	$(batch-emacs) \
       --eval '(add-to-list (quote package-archives) (cons "melpa" "$(melpa-url)"))' \
-      --eval '(package-initialize)' \
       --eval '(package-refresh-contents)' \
       --eval '(package-install (quote faceup))' \
       --eval '(package-install (quote paredit))'
