@@ -14,6 +14,7 @@
 (require 'rx)
 (require 'sh-script) ;for sh-heredoc face
 (require 'comint) ;for comint-simple-send in racket-shell-or-terminal
+(require 'seq)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; racket group
@@ -481,10 +482,10 @@ level quieter. That way you can set the \"*\" topic to a level
 like \"debug\" and not get overhwelmed by these noisy topics."
   :type '(alist :key-type symbol :value-type symbol)
   :safe (lambda (xs)
-          (cl-every (lambda (x)
-                      (and (symbolp (car x))
-                           (symbolp (cdr x))))
-                    xs))
+          (seq-every-p (lambda (x)
+                         (and (symbolp (car x))
+                              (symbolp (cdr x))))
+                       xs))
   :load "racket-cmd"
   :set (lambda (var val)
          (set-default var val)
