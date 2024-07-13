@@ -17,6 +17,7 @@
          scribble/tag
          setup/xref
          syntax/parse/define
+         version/utils
          "elisp.rkt")
 
 (provide binding->path+anchor
@@ -59,13 +60,13 @@
 
 ;;; Blueboxes
 
-(define racket-version-6.10? (equal? (version) "6.10"))
+(define racket-version->6.12? (version<? "6.12" (version)))
 
 (define bluebox-cache (delay (make-blueboxes-cache #t)))
 
 (define/contract (identifier->bluebox stx)
   (-> identifier? (or/c #f string?))
-  (match (and (not racket-version-6.10?)
+  (match (and racket-version->6.12?
               (xref-binding->definition-tag (force xref-promise) stx 0))
     [(? tag? tag)
      (match (fetch-blueboxes-strs tag #:blueboxes-cache (force bluebox-cache))
@@ -83,7 +84,7 @@
   ;; younger, I am choosing to ignore this, for now.
   ;;
   ;; Probably https://github.com/racket/drracket/issues/118
-  (unless racket-version-6.10?
+  (when racket-version->6.12?
     (check-equal? (identifier->bluebox #'list)
                   "(list v ...) -> list?\n  v : any/c"))
   (check-false (identifier->bluebox (datum->syntax #f (gensym)))))
