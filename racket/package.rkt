@@ -4,11 +4,13 @@
          (only-in racket/hash hash-union!)
          racket/match
          racket/path
+         racket/promise
          (only-in racket/string string-join)
          (except-in pkg/lib
                     pkg-desc)
          (only-in pkg/db
                   pkg?
+                  current-pkg-catalog-file
                   get-pkgs
                   pkg-name
                   pkg-catalog
@@ -37,7 +39,12 @@
          catalog-package-doc-link
          package-notify-channel)
 
+(define catalog-local-cache
+  (delay/thread (pkg-catalog-update-local #:quiet? #t)
+                'ready))
+
 (define (package-list)
+  (force catalog-local-cache)
   (define installed (installed-packages))
   (define catalog (for/hash ([p (in-list (get-pkgs))])
                     (values (pkg-name p) p)))
@@ -62,6 +69,7 @@
            ""))))
 
 (define (package-details name)
+  (force catalog-local-cache)
   (define props (make-hasheq))
   (define (merge! . kvs)
     (hash-union! props (apply hash kvs) #:combine (λ (_a b) b)))
