@@ -183,6 +183,7 @@ Macro expand
 
 Packages
 
+* racket-package-refresh::
 * list-racket-packages::
 * racket-package-mode::
 * describe-racket-package::
@@ -2874,10 +2875,21 @@ were 'disabled.
 @section Packages
 
 @menu
+* racket-package-refresh::
 * list-racket-packages::
 * racket-package-mode::
 * describe-racket-package::
 @end menu
+
+@node racket-package-refresh
+@subsection racket-package-refresh
+
+@kbd{M-x}  @code{racket-package-refresh}
+
+Refresh the local copy of package catalogs.
+
+Will make HTTP requests to remote catalog servers. May take a few
+seconds to complete.
 
 @node list-racket-packages
 @subsection list-racket-packages
@@ -2894,7 +2906,10 @@ Open a @ref{racket-package-mode} buffer for the active back end.
 Major mode for Racket package management.
 
 The list of packages is equivalent to ``raco pkg show -all'' on
-the active back end.
+the active back end -- that is, all packages installed manually
+or as dependencies -- plus packages available from your
+configured catalogs, assuming you have run the command
+@ref{racket-package-refresh}.
 
 On each row you can press RET to @code{describe-racket-package}, which
 opens a buffer where you can view details, and use buttons to
@@ -2950,6 +2965,10 @@ For installed packages, each @emph{Modules} item links to the local
 file. There is also a button to each module's locally installed
 documentation, if any.
 @end itemize
+
+If the package is available from a catalog, additional details
+will be shown, assuming you have run the command
+@ref{racket-package-refresh}.
 
 @node Other
 @section Other

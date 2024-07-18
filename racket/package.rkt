@@ -22,7 +22,6 @@
                   get-pkg-tags
                   get-pkg-modules)
          (only-in pkg
-                  pkg-config-command
                   pkg-install-command
                   pkg-update-command
                   pkg-remove-command)
@@ -39,12 +38,7 @@
          catalog-package-doc-link
          package-notify-channel)
 
-(define catalog-local-cache
-  (delay/thread (pkg-catalog-update-local #:quiet? #t)
-                'ready))
-
 (define (package-list)
-  (force catalog-local-cache)
   (define installed (installed-packages))
   (define catalog (for/hash ([p (in-list (get-pkgs))])
                     (values (pkg-name p) p)))
@@ -69,7 +63,6 @@
            ""))))
 
 (define (package-details name)
-  (force catalog-local-cache)
   (define props (make-hasheq))
   (define (merge! . kvs)
     (hash-union! props (apply hash kvs) #:combine (λ (_a b) b)))
@@ -297,6 +290,7 @@
                  ['install (λ () (pkg-install-command #:auto #t name))]
                  ['update  (λ () (pkg-update-command name))]
                  ['remove  (λ () (pkg-remove-command #:auto #t name))]
+                 ['refresh (λ () (pkg-catalog-update-local))]
                  [else     (error 'package-op "unknown verb")]))
   (define (put v)
     (channel-put package-notify-channel

@@ -108,6 +108,7 @@
     racket-expand-definition
     racket-expand-last-sexp
     "Packages"
+    racket-package-refresh
     list-racket-packages
     racket-package-mode
     describe-racket-package

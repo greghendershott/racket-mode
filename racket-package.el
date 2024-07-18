@@ -47,7 +47,10 @@
   "Major mode for Racket package management.
 
 The list of packages is equivalent to \"raco pkg show -all\" on
-the active back end.
+the active back end -- that is, all packages installed manually
+or as dependencies -- plus packages available from your
+configured catalogs, assuming you have run the command
+`racket-package-refresh'.
 
 On each row you can press RET to `describe-racket-package', which
 opens a buffer where you can view details, and use buttons to
@@ -115,7 +118,11 @@ Detail values are links when possible:
 
 - For installed packages, each /Modules/ item links to the local
   file. There is also a button to each module's locally installed
-  documentation, if any."
+  documentation, if any.
+
+If the package is available from a catalog, additional details
+will be shown, assuming you have run the command
+`racket-package-refresh'."
   (interactive (racket--package-completing-read))
   (let ((name (if name-or-button
                   (if (stringp name-or-button)
@@ -375,6 +382,14 @@ Allows users to customize via `completion-category-overrides'.")
                        'racket-package-url url))
           (newline))))))
 
+(defun racket-package-refresh ()
+  "Refresh the local copy of package catalogs.
+
+Will make HTTP requests to remote catalog servers. May take a few
+seconds to complete."
+  (interactive)
+  (racket--do-pkg-op 'refresh nil))
+
 (defun racket--package-insert-raco-pkg-op-button (verb name)
   (insert-text-button (symbol-name verb)
                       :type 'racket-package-op
@@ -388,12 +403,13 @@ Allows users to customize via `completion-category-overrides'.")
 (defun racket-raco-pkg-op (&optional button)
   (interactive)
   (unless button (error "no raco pkg button here"))
-  (let ((verb (button-get button 'raco-pkg-verb))
-        (name (button-get button 'raco-pkg-name))
-        (inhibit-read-only t))
-    (pop-to-buffer (racket--package-notify-buffer-name)
-                   '(display-buffer-below-selected))
-    (racket--cmd/async nil `(pkg-op ,verb ,name))))
+  (racket--do-pkg-op (button-get button 'raco-pkg-verb)
+                     (button-get button 'raco-pkg-name)))
+
+(defun racket--do-pkg-op (verb name)
+  (pop-to-buffer (racket--package-notify-buffer-name)
+                 '(display-buffer-below-selected))
+  (racket--cmd/async nil `(pkg-op ,verb ,name)))
 
 (defun racket--package-notify-buffer-name ()
   (format "*Racket Package Operations <%s>*" (racket-back-end-name)))
@@ -411,15 +427,16 @@ Allows users to customize via `completion-category-overrides'.")
          (quit-window)
          ;; Fully refresh *Racket Packages* list because "--auto" commands
          ;; can install/remove/update multiple, dependent packages.
-         (with-current-buffer (racket--package-buffer-name)
-           (tabulated-list-revert)
-           (let ((win (get-buffer-window (current-buffer))))
-             (when win
-               (set-window-point win (point)))))
+         (when-let (buf (get-buffer (racket--package-buffer-name)))
+           (with-current-buffer buf
+             (tabulated-list-revert)
+             (let ((win (get-buffer-window buf)))
+               (when win
+                 (set-window-point win (point))))))
          ;; Also refresh the status for this package in the *Help*
          ;; buffer.
          (with-current-buffer (help-buffer)
-           (revert-buffer)))
+           (help-mode-revert-buffer nil nil)))
         (`(error ,message)
          (insert (propertize message
                              'face 'compilation-error)))
