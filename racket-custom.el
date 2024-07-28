@@ -12,9 +12,10 @@
 ;;; This makes it easier to provide a consistent UI.
 
 (require 'rx)
-(require 'sh-script) ;for sh-heredoc face
-(require 'comint) ;for comint-simple-send in racket-shell-or-terminal
 (require 'seq)
+(require 'sh-script) ;for sh-heredoc face
+(require 'comint) ;for `comint-simple-send' in racket-shell-or-terminal
+(require 'browse-url) ;for `browse-url-browser-function'.
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; racket group
@@ -68,11 +69,11 @@ their response asychronously."
 (defcustom racket-browse-url-function
   (if racket--macp
       'racket-browse-url-using-temporary-file
-    'browse-url)
+    browse-url-browser-function)
   "Function to call to browse a URL.
 
 Defaults to `racket-browse-url-using-temporary-file' on macOS and
-`browse-url' on other platforms."
+`browse-url-browser-function' on other platforms."
   :type 'function
   :risky t)
 

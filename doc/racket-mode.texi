@@ -3205,7 +3205,7 @@ The following values will @emph{not} work:
 Function to call to browse a URL@.
 
 Defaults to @ref{racket-browse-url-using-temporary-file} on macOS and
-@code{browse-url} on other platforms.
+@code{browse-url-browser-function} on other platforms.
 
 @node racket-xp-after-change-refresh-delay
 @subsection racket-xp-after-change-refresh-delay
