@@ -1107,7 +1107,7 @@ else returns STR."
      (or
       ;; Something annotated as add-open-require-menu by drracket/check-syntax
       (when-let (path (get-text-property 0 'racket-xp-require str))
-        (list (xref-make str (xref-make-file-location path 1 0))))
+        (xref-make str (xref-make-file-location path 1 0)))
       ;; Something annotated for jump-to-definition by drracket/check-syntax
       (pcase (get-text-property 0 'racket-xp-visit str)
         (`(,path ,subs ,ids)
