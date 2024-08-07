@@ -120,7 +120,7 @@ this mode."
               #'racket-pdb-pre-redisplay
               nil t)
     (racket--cmd/async
-     nil '(pdb-available?)
+     nil '(pdb available?)
      (lambda (response)
        (unless response
          (racket-pdb-mode -1)
@@ -151,9 +151,9 @@ this mode."
 (defun racket-pdb-submodules-at-point ()
   (racket--cmd/await
    nil
-   `(pdb-submodules
-     ,(racket-file-name-front-to-back (racket--buffer-file-name))
-     ,(point))))
+   `(pdb submodules
+         ,(racket-file-name-front-to-back (racket--buffer-file-name))
+         ,(point))))
 
 (defvar-local racket--pdb-motion-timer nil)
 (defvar-local racket--pdb-motion-generation 0
@@ -190,10 +190,11 @@ this mode."
       (when racket-pdb-mode
         (racket--cmd/async
          nil
-         `(pdb-point-info ,(racket-file-name-front-to-back (racket--buffer-file-name))
-                          ,point
-                          ,start
-                          ,(window-end window))
+         `(pdb point-info
+               ,(racket-file-name-front-to-back (racket--buffer-file-name))
+               ,point
+               ,start
+               ,(window-end window))
          (lambda (response)             ;called later
            (when (and (= generation-of-our-request racket--pdb-motion-generation)
                       (racket--pdb-analysis-is-up-to-date-p))
@@ -441,9 +442,10 @@ This is ad hoc and forensic."
         (window (selected-window))) ;might change before response arrives
     (racket--cmd/async
      nil
-     `(pdb-analyze-path ,(racket-file-name-front-to-back
-                          (or (racket--buffer-file-name) (buffer-name)))
-                        ,(buffer-substring-no-properties (point-min) (point-max)))
+     `(pdb analyze-path
+           ,(racket-file-name-front-to-back
+             (or (racket--buffer-file-name) (buffer-name)))
+           ,(buffer-substring-no-properties (point-min) (point-max)))
      (lambda (response) ;arrives later
        (when (= generation-of-our-request racket--pdb-change-generation)
          (setq racket--pdb-change-response-generation generation-of-our-request)
@@ -466,8 +468,9 @@ Uses pdb to query for sites among multiple files."
   (pcase-let*
       ((back-end-path (racket-file-name-front-to-back (racket--buffer-file-name)))
        (files-and-sites (racket--cmd/await nil
-                                           `(pdb-rename-sites ,back-end-path
-                                                              ,(point))))
+                                           `(pdb rename-sites
+                                                 ,back-end-path
+                                                 ,(point))))
        (_ (unless files-and-sites
             (user-error "Not a definition or use site")))
        (`(,num-files . ,num-sites)
@@ -542,10 +545,10 @@ Uses pdb to query for sites among multiple files."
 
 (cl-defmethod xref-backend-definitions ((_backend (eql racket-pdb-xref)) str)
   (pcase (racket--cmd/await nil
-                            `(pdb-visit
-                              ,(racket-file-name-front-to-back
-                                (racket--buffer-file-name))
-                              ,(point)))
+                            `(pdb visit
+                                  ,(racket-file-name-front-to-back
+                                    (racket--buffer-file-name))
+                                  ,(point)))
     (`(,path ,beg ,_end)
      (let ((file (racket-file-name-back-to-front path)))
        (with-current-buffer
@@ -567,8 +570,7 @@ Uses pdb to query for sites among multiple files."
          (point (get-text-property 0 'racket-pdb-xref-point str))
          (files-and-sites (racket--cmd/await
                            nil
-                           `(pdb-rename-sites ,back-end-path
-                                              ,point)))
+                           `(pdb rename-sites ,back-end-path ,point)))
          (results nil))
     (dolist (file-and-sites files-and-sites)
       (let ((file (racket-file-name-back-to-front (car file-and-sites)))
@@ -604,7 +606,7 @@ Uses pdb to query for sites among multiple files."
                         nil))
               (racket--do-describe path nil str)
             (message "No documentation available"))
-        (racket--cmd/async nil `(pdb-doc-link ,path ,(point))
+        (racket--cmd/async nil `(pdb doc-link ,path ,(point))
                            (lambda (path+anchor)
                              (if path+anchor
                                  (racket--do-describe path+anchor nil "")
@@ -616,7 +618,7 @@ Uses pdb to query for sites among multiple files."
   (let ((path (racket--buffer-file-name)))
     (if prefix
         (racket--doc prefix path nil)
-      (racket--cmd/async nil `(pdb-doc-link ,path ,(point))
+      (racket--cmd/async nil `(pdb doc-link ,path ,(point))
                          (lambda (path+anchor)
                            (if path+anchor
                                (racket-browse-file-url (car path+anchor)
@@ -668,11 +670,12 @@ Uses pdb to query for sites among multiple files."
           (completion-table-dynamic
            (lambda (prefix)
              (all-completions prefix
-                              (racket--cmd/await nil
-                                                 `(pdb-completions
-                                                   ,(racket-file-name-front-to-back
-                                                     (racket--buffer-file-name))
-                                                   ,(point))))))
+                              (racket--cmd/await
+                               nil
+                               `(pdb completions
+                                     ,(racket-file-name-front-to-back
+                                       (racket--buffer-file-name))
+                                     ,(point))))))
           :predicate          #'identity
           :exclusive          'no
           ;; TODO: Change these not to use the "def" and "doc"

@@ -10,14 +10,7 @@
          syntax/parse/define
          "../util.rkt")
 
-(provide pdb-available?
-         pdb-analyze-path
-         pdb-submodules
-         pdb-completions
-         pdb-point-info
-         pdb-doc-link
-         pdb-visit
-         pdb-rename-sites)
+(provide pdb-command)
 
 ;;; pdb checked syntax (if available)
 
@@ -29,14 +22,25 @@
                           (log-racket-mode-info "Using classic check-syntax:\n~a"
                                                 (exn-message e))
                           (values (λ () #f)
-                                  #,@(map (lambda _ #'void) (syntax->list #'(id ...)))))])
+                                  'id ...))])
          (values (λ () #t)
                  (dynamic-require 'pdb 'id) ...)))])
 
-(define-from-pdb pdb-available?
+(define-from-pdb available?
   [analyze-path get-errors get-submodule-names get-completion-candidates
                 get-point-info get-doc-link get-require-path
                 use->def rename-sites])
+
+(define (pdb-command . args)
+  (match args
+    [`(available?)                      (available?)]
+    [`(analyze-path ,path ,code)        (pdb-analyze-path path code)]
+    [`(submodules ,path ,pos)           (pdb-submodules path pos)]
+    [`(completions ,path ,pos)          (pdb-completions path pos)]
+    [`(point-info ,path ,pos ,beg ,end) (pdb-point-info path pos beg end)]
+    [`(doc-link ,path ,pos)             (pdb-doc-link path pos)]
+    [`(visit ,path, pos)                (pdb-visit path pos)]
+    [`(rename-sites ,path ,pos)         (pdb-rename-sites path pos)]))
 
 (define (pdb-analyze-path path-str code-str)
   (define path (string->path path-str))

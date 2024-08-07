@@ -25,14 +25,7 @@
 
 (lazy-require
  ["commands/check-syntax.rkt" (check-syntax)]
- ["commands/pdb.rkt"          (pdb-available?
-                               pdb-visit
-                               pdb-rename-sites
-                               pdb-analyze-path
-                               pdb-completions
-                               pdb-submodules
-                               pdb-point-info
-                               pdb-doc-link)]
+ ["commands/pdb.rkt"          (pdb-command)]
  ["commands/describe.rkt"     (describe type)]
  ["commands/find-module.rkt"  (find-module)]
  ["commands/help.rkt"         (doc)]
@@ -171,18 +164,11 @@
     [`(doc-index-names)                (doc-index-names)]
     [`(doc-index-lookup ,str)          (doc-index-lookup str)]
     [`(hash-lang . ,more)              (apply hash-lang more)]
+    [`(pdb . ,more)                    (apply pdb-command more)]
     [`(pkg-list)                       (package-list)]
     [`(pkg-details ,str)               (package-details str)]
     [`(pkg-op ,verb ,name)             (package-op verb name)]
     [`(pkg-doc-link ,name)             (catalog-package-doc-link name)]
-    [`(pdb-available?)                 (pdb-available?)]
-    [`(pdb-analyze-path ,path ,code)   (pdb-analyze-path path code)]
-    [`(pdb-submodules ,path ,pos)      (pdb-submodules path pos)]
-    [`(pdb-completions ,path ,pos)     (pdb-completions path pos)]
-    [`(pdb-point-info ,path ,pos ,beg ,end) (pdb-point-info path pos beg end)]
-    [`(pdb-doc-link ,path ,pos)        (pdb-doc-link path pos)]
-    [`(pdb-visit ,path, pos)           (pdb-visit path pos)]
-    [`(pdb-rename-sites ,path ,pos)    (pdb-rename-sites path pos)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
     ;; namespace), if their first "how" argument is 'namespace.
