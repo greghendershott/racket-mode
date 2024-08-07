@@ -683,6 +683,62 @@ Uses pdb to query for sites among multiple files."
           :company-location   (racket--xp-make-company-location-proc)
           :company-doc-buffer (racket--xp-make-company-doc-buffer-proc))))
 
+;;; Housekeeping
+
+(defun racket-pdb-forget-file (filename)
+  "Tell pdb to forget analyses involving FILENAME."
+  (interactive "FForget file: ")
+  (racket--cmd/async nil `(pdb forget-path ,filename)))
+
+(defun racket-pdb-add-directory (always directory import-depth)
+  "Tell pdb to analyze files in and under DIRECTORY.
+
+Useful to add all files for a project. In general, pdb can
+analyze files on-demand, including for commands like
+`xref-find-definitions'. However commands like
+`xref-find-references' can only find references in files that
+have already analyzed, which is where proactive analysis can
+help.
+
+The analysis proceeds asynchronously. The results are stored in
+the pdb database.
+
+When IMPORT-DEPTH is greater than zero, it means to also analyze
+imported files. For example a depth of 1 means to analyze only
+immediate, direct imports. A very lage depth, like 1,000, means
+to analyze imports until they reach modules like #%core or
+#%runtime.
+
+When ALWAYS is not nil -- as with a command prefix when used
+interactively -- even if the database appears to have up-to-date
+results, the analysis will be redone. "
+  (interactive "P\nDAnalyze files in and under directory:\nnImport depth: ")
+  (unless directory
+    (setq directory default-directory))
+  (racket--cmd/async nil `(pdb add-directory
+                               ,(and always t)
+                               ,directory
+                               ,import-depth)))
+
+(defun racket-pdb-forget-directory (directory)
+  "Tell pdb to forget analyses involving files in and under DIRECTORY."
+  (interactive "GForget files in and under directory: ")
+  (racket--cmd/async nil `(pdb forget-directory ,directory)))
+
+(defun racket-pdb-stats ()
+  "Show statistics about the pdb package's database."
+  (interactive)
+  (racket--cmd/async
+   nil `(pdb db-stats)
+   (lambda (str)
+     (help-setup-xref (list #'racket-pdb-stats)
+                      (called-interactively-p 'interactive))
+     (with-help-window (help-buffer)
+       (with-current-buffer standard-output
+         (insert (propertize "pdb database statistics\n\n"
+                             'font-lock-face 'package-help-section-name))
+         (insert str))))))
+
 ;;; Mode line status
 
 (defvar-local racket--pdb-mode-status nil)

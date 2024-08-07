@@ -8,7 +8,8 @@
          racket/set
          racket/string
          syntax/parse/define
-         "../util.rkt")
+         "../util.rkt"
+         "../elisp.rkt")
 
 (provide pdb-command)
 
@@ -27,20 +28,27 @@
                  (dynamic-require 'pdb 'id) ...)))])
 
 (define-from-pdb available?
-  [analyze-path get-errors get-submodule-names get-completion-candidates
-                get-point-info get-doc-link get-require-path
-                use->def rename-sites])
+  [analyze-path forget-path
+   add-directory forget-directory
+   get-errors get-submodule-names get-completion-candidates
+   get-point-info get-doc-link get-require-path
+   use->def rename-sites
+   db-stats])
 
 (define (pdb-command . args)
   (match args
     [`(available?)                      (available?)]
     [`(analyze-path ,path ,code)        (pdb-analyze-path path code)]
+    [`(forget-path ,path)               (pdb-forget-path path)]
+    [`(add-directory ,path ,depth ,always) (pdb-add-directory path depth always)]
+    [`(forget-directory ,path)          (pdb-forget-directory path)]
     [`(submodules ,path ,pos)           (pdb-submodules path pos)]
     [`(completions ,path ,pos)          (pdb-completions path pos)]
     [`(point-info ,path ,pos ,beg ,end) (pdb-point-info path pos beg end)]
     [`(doc-link ,path ,pos)             (pdb-doc-link path pos)]
     [`(visit ,path, pos)                (pdb-visit path pos)]
-    [`(rename-sites ,path ,pos)         (pdb-rename-sites path pos)]))
+    [`(rename-sites ,path ,pos)         (pdb-rename-sites path pos)]
+    [`(db-stats)                        (db-stats)]))
 
 (define (pdb-analyze-path path-str code-str)
   (define path (string->path path-str))
@@ -48,6 +56,19 @@
   (if (exn:break? result)
       `(break) ;abandoned due to newer request; ignore/cleanup
       (list (cons 'errors (get-errors path)))))
+
+(define (pdb-forget-path path-str)
+  (define path (string->path path-str))
+  (forget-path path))
+
+(define (pdb-add-directory path-str depth always)
+  (define path (string->path path-str))
+  (define always? (as-racket-bool always))
+  (add-directory path #:import-depth depth #:always always?))
+
+(define (pdb-forget-directory path-str)
+  (define path (string->path path-str))
+  (forget-directory))
 
 (define (pdb-submodules path-str pos)
   (define path (string->path path-str))
