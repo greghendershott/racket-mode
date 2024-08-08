@@ -8,6 +8,7 @@
          racket/format
          racket/match
          racket/set
+         (only-in racket/sequence in-syntax)
          racket/string
          racket/class
          drracket/check-syntax

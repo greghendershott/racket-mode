@@ -7,7 +7,7 @@
          racket/format
          racket/match
          racket/set
-         "util.rkt")
+         (only-in racket/sequence in-syntax))
 
 (provide imports)
 

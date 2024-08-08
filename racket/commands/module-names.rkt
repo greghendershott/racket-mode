@@ -5,12 +5,9 @@
 
 (require racket/contract
          racket/match
+         racket/path
          racket/set
-         racket/string
-         (only-in "../util.rkt"
-                  path-has-extension?
-                  path-replace-extension
-                  some-system-path->string))
+         racket/string)
 
 (provide module-names)
 
@@ -31,8 +28,7 @@
           (define-values (_base _name dir?) (split-path p))
           (when (and (use? p)
                      (or dir?
-                         (path-has-extension? p #".rkt")
-                         (path-has-extension? p #".ss")))
+                         (member (path-get-extension p '(#".rkt" #".ss")))))
             (match-define (cons last-part first-parts) (reverse (explode-path p)))
             (define path-parts
               (reverse
