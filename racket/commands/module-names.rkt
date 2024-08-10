@@ -28,7 +28,7 @@
           (define-values (_base _name dir?) (split-path p))
           (when (and (use? p)
                      (or dir?
-                         (member (path-get-extension p '(#".rkt" #".ss")))))
+                         (member (path-get-extension p) '(#".rkt" #".ss"))))
             (match-define (cons last-part first-parts) (reverse (explode-path p)))
             (define path-parts
               (reverse
