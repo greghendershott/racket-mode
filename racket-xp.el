@@ -1170,13 +1170,26 @@ else returns STR."
   ;; references project-wide.
   (or (pcase (get-text-property 0 'racket-xp-def str)
         (`(,_any-kind ,_def ,uses)
-         (mapcar (lambda (use)
-                   (pcase-let ((`(,beg ,end) use))
-                     (xref-make
-                      (save-restriction (widen) (buffer-substring beg end))
-                      (xref-make-buffer-location
-                       (current-buffer) (marker-position beg)))))
-                 uses)))
+         (save-restriction
+           (widen)
+           (mapcar (lambda (use)
+                     (pcase-let*
+                         ((`(,beg ,end) use)
+                          (before (buffer-substring (save-excursion
+                                                      (goto-char beg)
+                                                      (line-beginning-position))
+                                                    beg))
+                          (match (propertize (buffer-substring beg end)
+                                             'face 'match))
+                          (after (buffer-substring end
+                                                   (save-excursion
+                                                     (goto-char end)
+                                                     (line-end-position))))
+                          (label (concat before match after))
+                          (loc (xref-make-buffer-location
+                                (current-buffer) (marker-position beg))))
+                       (xref-make label loc)))
+                   uses))))
       ;; As a fallback use the xref-backend-references default
       ;; implementation, which greps major-mode files within the
       ;; project. Be careful to strip properties because it is given
