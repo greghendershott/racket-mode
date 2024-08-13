@@ -101,38 +101,6 @@ When installed as a package, this can be found from the variable
 (defun racket--non-empty-string-p (v)
   (and (stringp v) (not (string-blank-p v))))
 
-(defun racket--symbol-at-point-or-prompt (force-prompt-p
-                                          prompt
-                                          &optional
-                                          completions
-                                          allow-blank-p)
-  "If symbol at point return it, else prompt user.
-
-When FORCE-PROMPT-P always prompt. The prompt uses
-`read-from-minibuffer' when COMPLETIONS is nil, else
-`completing-read'.
-
-Returns `stringp' not `symbolp' to simplify using the result in a
-sexpr that can be passed to Racket backend. Likewise the string
-is trimmed and text properties are stripped.
-
-Unless ALLOW-BLANK-P, a blank string after trimming returns nil
-as if the user had C-g to quit."
-  (let ((sap (thing-at-point 'symbol t)))
-    (if (or force-prompt-p
-            (not sap))
-        (let* ((s (if completions
-                      (completing-read prompt completions nil nil sap)
-                    (read-from-minibuffer prompt sap)))
-               (s (if s
-                      (string-trim (substring-no-properties s))
-                    s)))
-          (if (or (not s)
-                  (and (not allow-blank-p) (string-blank-p s)))
-              nil
-            s))
-      sap)))
-
 (defun racket-project-root (file)
   "Given an absolute pathname for FILE, return its project root directory.
 
@@ -185,6 +153,55 @@ s-expressions."
   (unless (racket--sexp-edit-mode-p)
     (user-error "%S only works in racket-mode, or, racket-hash-lang-mode when the lang uses sexps"
                 this-command)))
+
+;;; Mouse event posn (for context menus) as well as `point'.
+
+(defun racket--menu-position ()
+  (ignore-errors
+    (posn-point (event-start (aref (this-command-keys-vector) 0)))))
+
+(defun racket--point ()
+  (or (racket--menu-position)
+      (point)))
+
+(defun racket--thing-at-point (thing &optional no-properties)
+  (if-let (pos (racket--menu-position))
+      (save-excursion
+        (goto-char pos)
+        (thing-at-point thing no-properties))
+    (thing-at-point thing no-properties)))
+
+(defun racket--symbol-at-point-or-prompt (force-prompt-p
+                                          prompt
+                                          &optional
+                                          completions
+                                          allow-blank-p)
+  "Return `racket-thing-at-point` symbol or prompt user.
+
+When FORCE-PROMPT-P always prompt. The prompt uses
+`read-from-minibuffer' when COMPLETIONS is nil, else
+`completing-read'.
+
+Returns `stringp' not `symbolp' to simplify using the result in a
+sexpr that can be passed to Racket backend. Likewise the string
+is trimmed and text properties are stripped.
+
+Unless ALLOW-BLANK-P, a blank string after trimming returns nil
+as if the user had C-g to quit."
+  (let ((sap (racket--thing-at-point 'symbol t)))
+    (if (or force-prompt-p
+            (not sap))
+        (let* ((s (if completions
+                      (completing-read prompt completions nil nil sap)
+                    (read-from-minibuffer prompt sap)))
+               (s (if s
+                      (string-trim (substring-no-properties s))
+                    s)))
+          (if (or (not s)
+                  (and (not allow-blank-p) (string-blank-p s)))
+              nil
+            s))
+      sap)))
 
 (provide 'racket-util)
 

@@ -774,7 +774,7 @@ command prefixes you supply.
   would like to see documentation for all identifiers named
   \"define\", for example."
   (interactive "P")
-  (pcase (get-text-property (point) 'racket-xp-doc)
+  (pcase (get-text-property (racket--point) 'racket-xp-doc)
     ((and `(,path ,anchor) (guard (not prefix)))
      (racket-browse-file-url path anchor))
     (_
@@ -788,7 +788,7 @@ command prefixes you supply.
 Moving before/after the first/last use wraps around.
 
 If point is instead on a definition, then go to its first use."
-  (pcase (get-text-property (point) 'racket-xp-use)
+  (pcase (get-text-property (racket--point) 'racket-xp-use)
     (`(,beg ,_end)
      (pcase (get-text-property beg 'racket-xp-def)
        (`(,_kind ,_id ,uses)
@@ -803,7 +803,7 @@ If point is instead on a definition, then go to its first use."
                           (if (< ix-next 0) (1- (length uses)) ix-next)))
                (next (nth ix-next uses)))
           (goto-char (car next))))))
-    (_ (pcase (get-text-property (point) 'racket-xp-def)
+    (_ (pcase (get-text-property (racket--point) 'racket-xp-def)
          (`(,_kind ,_id ((,beg ,_end) . ,_)) (goto-char beg))))))
 
 (defun racket-xp-next-use ()
@@ -821,8 +821,8 @@ If point is instead on a definition, then go to its first use."
   (interactive)
   (pcase-let*
       (;; Try to get a def prop and a use prop at point
-       (def-prop     (get-text-property (point) 'racket-xp-def))
-       (uses-prop    (get-text-property (point) 'racket-xp-use))
+       (def-prop     (get-text-property (racket--point) 'racket-xp-def))
+       (uses-prop    (get-text-property (racket--point) 'racket-xp-use))
        (_            (unless (or uses-prop def-prop)
                        (user-error "Not a definition or use")))
        ;; OK, we have one of the props. Use it to get the the other one.
@@ -868,7 +868,7 @@ If moved, return the new position, else nil."
   (let ((f (cl-case amt
              (-1 #'previous-single-property-change)
              ( 1 #'next-single-property-change))))
-    (pcase (and f (funcall f (point) prop))
+    (pcase (and f (funcall f (racket--point) prop))
       ((and (pred integerp) pos)
        ;; Unless this is where the prop starts, find that.
        (unless (get-text-property pos prop)
@@ -895,7 +895,7 @@ When point is on the opening parenthesis of an expression in tail
 position, go its \"target\" -- that is, go to the enclosing
 expression with the same continuation as the tail expression."
   (interactive)
-  (pcase (get-text-property (point) 'racket-xp-tail-position)
+  (pcase (get-text-property (racket--point) 'racket-xp-tail-position)
     ((and (pred markerp) pos)
      (goto-char pos))
     (_ (user-error "Expression not in tail position"))))
@@ -903,7 +903,7 @@ expression with the same continuation as the tail expression."
 (defun racket-xp-tail-down ()
   "Go \"down\" to the first tail position enclosed by the current expression."
   (interactive)
-  (pcase (get-text-property (point) 'racket-xp-tail-target)
+  (pcase (get-text-property (racket--point) 'racket-xp-tail-target)
     (`(,pos . ,_) (goto-char pos))
     (_ (user-error "Expression does not enclose an expression in tail position"))))
 
@@ -911,7 +911,7 @@ expression with the same continuation as the tail expression."
   "When point is on a tail, go AMT tails forward. AMT may be negative.
 
 Moving before/after the first/last tail wraps around."
-  (pcase (get-text-property (point) 'racket-xp-tail-position)
+  (pcase (get-text-property (racket--point) 'racket-xp-tail-position)
     ((and (pred markerp) pos)
      (pcase (get-text-property pos 'racket-xp-tail-target)
        ((and (pred listp) tails)
@@ -1043,7 +1043,7 @@ press F1 or C-h in its pop up completion list."
        ;; supply the file's path, and the "describe" command will
        ;; treat str as a file module identifier.
        (let ((how (pcase (and (not prefix)
-                              (get-text-property (point) 'racket-xp-doc))
+                              (get-text-property (racket--point) 'racket-xp-doc))
                     (`(,path ,anchor) `(,path . ,anchor))
                     (_                (racket--buffer-file-name)))))
          (racket--do-describe how nil str))))))
@@ -1085,12 +1085,12 @@ else returns STR."
 
 (cl-defmethod xref-backend-identifier-at-point ((_backend (eql racket-xp-xref)))
   (or (seq-some (lambda (prop)
-                  (when (get-text-property (point) prop)
-                    (let* ((end (next-single-property-change (point) prop))
+                  (when (get-text-property (racket--point) prop)
+                    (let* ((end (next-single-property-change (racket--point) prop))
                            (beg (previous-single-property-change end prop)))
                       (save-restriction (widen) (buffer-substring beg end)))))
                 racket--xp-props-for-xref)
-      (thing-at-point 'symbol)))
+      (racket--thing-at-point 'symbol)))
 
 (cl-defmethod xref-backend-identifier-completion-table ((_backend (eql racket-xp-xref)))
   racket--xp-completion-table-all)
