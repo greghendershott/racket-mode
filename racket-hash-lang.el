@@ -20,9 +20,6 @@
    `((("C-c C-c"
        "C-c C-k")   ,#'racket-run-module-at-point)
      ("C-c C-z"     ,#'racket-edit-switch-to-repl)
-     ("<f5>"        ,#'racket-run-and-switch-to-repl)
-     ("M-C-<f5>"    ,#'racket-racket)
-     ("C-<f5>"      ,#'racket-test)
      ("C-c C-t"     ,#'racket-test)
      ("C-c C-l"     ,#'racket-logger)
      ("C-c C-o"     ,#'racket-profile)
@@ -45,7 +42,8 @@
      ("C-M-f"       ,#'racket-hash-lang-forward)
      ("C-M-u"       ,#'racket-hash-lang-up)
      ("C-M-d"       ,#'racket-hash-lang-down)
-     ("C-M-q"       ,#'racket-hash-lang-C-M-q-dwim))))
+     ("C-M-q"       ,#'racket-hash-lang-C-M-q-dwim)
+     ,@racket--f5-bindings)))
 
 (easy-menu-define racket-hash-lang-mode-menu racket-hash-lang-mode-map
   "Menu for `racket-hash-lang-mode'."
@@ -222,6 +220,7 @@ A discussion of the information provided by a Racket language:
 
 \\{racket-hash-lang-mode-map}
 "
+  (racket--polite-user-f-keys racket-hash-lang-mode-map racket--f5-bindings)
   (racket-call-racket-repl-buffer-name-function)
   (add-hook 'kill-buffer-hook
             #'racket-mode-maybe-offer-to-kill-repl-buffer

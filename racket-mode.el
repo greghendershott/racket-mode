@@ -44,33 +44,31 @@
 
 (defvar racket-mode-map
   (racket--easy-keymap-define
-   '((("C-c C-c"
+   `((("C-c C-c"
        "C-c C-k")   racket-run-module-at-point)
-     ("C-c C-z"     racket-edit-switch-to-repl)
-     ("<f5>"        racket-run-and-switch-to-repl)
-     ("M-C-<f5>"    racket-racket)
-     ("C-<f5>"      racket-test)
-     ("C-c C-t"     racket-test)
-     ("C-c C-l"     racket-logger)
-     ("C-c C-o"     racket-profile)
+     ("C-c C-z"     ,#'racket-edit-switch-to-repl)
+     ("C-c C-t"     ,#'racket-test)
+     ("C-c C-l"     ,#'racket-logger)
+     ("C-c C-o"     ,#'racket-profile)
      ("M-C-x"       racket-send-definition)
      ("C-x C-e"     racket-send-last-sexp)
      ("C-c C-r"     racket-send-region)
      ("C-c C-e f"   racket-expand-file)
-     ("C-c C-e x"   racket-expand-definition)
+     ("C-c C-e x"   ,#'racket-expand-definition)
      ("C-c C-e e"   racket-expand-last-sexp)
      ("C-c C-e r"   racket-expand-region)
-     ("C-c C-x C-f" racket-open-require-path)
-     ("TAB"         indent-for-tab-command)
+     ("C-c C-x C-f" ,#'racket-open-require-path)
+     ("TAB"         ,#'indent-for-tab-command)
      ("M-C-u"       racket-backward-up-list)
-     ("C-c C-p"     racket-cycle-paren-shapes)
+     ("C-c C-p"     ,#'racket-cycle-paren-shapes)
      ("M-C-y"       racket-insert-lambda)
      ("C-c C-d"     racket-documentation-search)
      (("C-c C-s"
        "C-c C-.")   racket-describe-search)
      ("C-c C-f"     racket-fold-all-tests)
      ("C-c C-u"     racket-unfold-all-tests)
-     ((")" "]" "}") racket-insert-closing)))
+     ((")" "]" "}") racket-insert-closing)
+     ,@racket--f5-bindings))
   "Keymap for Racket mode.")
 
 (easy-menu-define racket-mode-menu racket-mode-map
@@ -135,6 +133,7 @@
   "Major mode for editing Racket source files.
 
 \\{racket-mode-map}"
+  (racket--polite-user-f-keys racket-mode-map racket--f5-bindings)
   ;;; Syntax
   (set-syntax-table racket-mode-syntax-table)
   (setq-local multibyte-syntax-as-symbol t)

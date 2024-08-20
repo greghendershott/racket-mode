@@ -203,6 +203,39 @@ as if the user had C-g to quit."
             s))
       sap)))
 
+(defconst racket--f5-bindings
+  '(("<f5>"     racket-run-and-switch-to-repl)
+    ("M-C-<f5>" racket-racket)
+    ("C-<f5>"   racket-test))
+  "On the one hand, we want to allow `racket-mode-map' and
+`racket-hash-lang-mode-map' to bind <f5> as a convenience for
+users coming from DrRacket.
+
+On the other hand, Emacs convention reserves <f5> for user
+bindings. See issue #714.
+
+On the third hand, we want to initialize the major mode's keymaps
+with these, for use by doc/generate.el, to document the default
+bindings.
+
+Solution: Append these in the keymap initialization, and also
+call `racket--polite-user-f-keys' in the major mode
+initialization function. That adds/remove the binding based on
+whether it would shadow an end user binding in the global map.")
+
+(defun racket--polite-user-f-keys (major-mode-keymap keys+cmds)
+  "Politely bind/unbind KEYS+CMDS in MAJOR-MODE-KEYMAP."
+  (dolist (k+c keys+cmds)
+    (let ((key (kbd (car k+c)))
+          (cmd (cadr k+c)))
+      ;; Avoid shadowing a binding user has made in the global map.
+      (if (lookup-key (current-global-map) key)
+          (define-key major-mode-keymap key nil)
+        ;; Unless user has modified binding in major-mode-keymap,
+        ;; restore our binding there.
+        (unless (lookup-key major-mode-keymap key)
+          (define-key major-mode-keymap key cmd))))))
+
 (provide 'racket-util)
 
 ;; racket-util.el ends here
