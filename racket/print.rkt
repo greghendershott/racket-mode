@@ -41,6 +41,11 @@
 ;; to accumulate all the pretty-printed bytes and specials. Finally
 ;; drain it using read-bytes-avail! to consolidate runs of bytes
 ;; (interrupted only by specials, if any) up to a fixed buffer size.
+;;
+;; One wrinkle: bytes->string/utf-8 could fail if we happen to read
+;; only some of a multi byte utf-8 sequence; issue #715. In that case,
+;; read more bytes and try decoding again. If the buffer is full, grow
+;; it just a little.
 
 (define (make-value-pipe)
   (make-pipe-with-specials))
@@ -48,20 +53,33 @@
 (define (drain-value-pipe in out)
   (flush-output out)
   (close-output-port out)
-  (define buffer (make-bytes 2048))
-  (let loop ()
-    (match (read-bytes-avail! buffer in)
+  (let loop ([buffer (make-bytes 8192)]
+             [buffer-read-pos 0])
+    (match (read-bytes-avail! buffer in buffer-read-pos)
+      ;; When read-bytes-avail! returns 0, it means there are bytes
+      ;; available to read but no buffer space remaining. Grow buffer
+      ;; by 8 bytes; 4 bytes max utf-8 sequence plus margin.
+      [0
+       (loop (bytes-append buffer (make-bytes 8))
+             (bytes-length buffer))]
       [(? exact-nonnegative-integer? len)
-       (define v (bytes->string/utf-8 (subbytes buffer 0 len)))
-       (repl-output-value v)
-       (loop)]
+       (match (safe-bytes->string/utf-8 buffer len)
+         [#f
+          (loop buffer (+ buffer-read-pos len))]
+         [(? string? s)
+          (repl-output-value s)
+          (loop buffer 0)])]
       [(? procedure? read-special)
        ;; m-p-w-specials ignores the position arguments so just pass
        ;; something satisfying the contract.
        (define v (read-special #f #f #f 1))
        (repl-output-value-special v)
-       (loop)]
+       (loop buffer 0)]
       [(? eof-object?) (void)])))
+
+(define (safe-bytes->string/utf-8 buffer len)
+  (with-handlers ([exn:fail:contract? (λ _ #f)])
+    (bytes->string/utf-8 buffer #f 0 len)))
 
 ;; pretty-print uses separate size and print hooks -- and the size
 ;; hook can even be called more than once per object. Avoid calling
