@@ -388,6 +388,8 @@ Allows users to customize via `completion-category-overrides'.")
 Will make HTTP requests to remote catalog servers. May take a few
 seconds to complete."
   (interactive)
+  (help-setup-xref (list #'ignore)
+                   (called-interactively-p 'interactive))
   (racket--do-pkg-op 'refresh nil))
 
 (defun racket--package-insert-raco-pkg-op-button (verb name)
