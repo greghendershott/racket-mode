@@ -8,11 +8,37 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(require 'dom)
 (require 'seq)
 (require 'shr)
 (require 'subr-x)
 (require 'url-util)
 (require 'tramp)
+
+(eval-when-compile
+  (unless (fboundp 'dom-remove-node)    ;added circa Emacs 27
+    (defun dom-remove-node (dom node)
+      "Remove NODE from DOM."
+      ;; If we're removing the top level node, just return nil.
+      (dolist (child (dom-children dom))
+        (cond
+         ((eq node child)
+          (delq node dom))
+         ((not (stringp child))
+          (dom-remove-node child node))))))
+
+  (unless (fboundp 'dom-search)         ;added circa Emacs 27
+    (defun dom-search (dom predicate)
+      "Return elements in DOM where PREDICATE is non-nil.
+PREDICATE is called with the node as its only parameter."
+      (let ((matches (cl-loop for child in (dom-children dom)
+			      for matches = (and (not (stringp child))
+					         (dom-search child predicate))
+			      when matches
+			      append matches)))
+        (if (funcall predicate dom)
+	    (cons dom matches)
+          matches)))))
 
 (defconst racket--scribble-temp-nbsp #x2020
   "Character we substitute for #xA0 non-breaking-space.
@@ -33,41 +59,22 @@ This will ensure that the non-breaking-space chars actually have
 the effect of being non-breaking.")
 
 (defun racket--scribble-path->shr-dom (path)
-  (with-temp-message (format "Getting and formatting documentation %s..."
-                             path)
-    (let* ((tramp-verbose 2) ;avoid excessive messages
-           (base (file-name-directory path))
-           (dom  (racket--html-file->dom path))
-           (body (racket--scribble-body dom))
-           (body (racket--massage-scribble-dom path base body)))
-      `(html ()
-             (head () (base ((href . ,base))))
-             ,body))))
+  (let* ((tramp-verbose 2) ;avoid excessive messages
+         (base (file-name-directory path))
+         (dom  (with-temp-message (format "Getting %s..." path)
+                 (racket--html-file->dom path)))
+         (body (with-temp-message (format "Adjusting %s..." path)
+                 (racket--massage-scribble-dom path
+                                               base
+                                               (dom-child-by-tag dom 'body)))))
+    `(html ()
+           (head () (base ((href . ,base))))
+           ,body)))
 
 (defun racket--html-file->dom (path)
   (with-temp-buffer
     (insert-file-contents-literally path)
     (libxml-parse-html-region (point-min) (point-max))))
-
-(defun racket--scribble-body (dom)
-  "Return a body with the interesting elements in DOM.
-
-With a normal Racket documentation page produced by Scribble,
-these are only elements from the maincolumn/main div -- not the
-tocset sibling.
-
-With other doc pages, e.g. from r5rs, these are simply all the
-body elements."
-  (pcase (seq-some (lambda (v)
-                     (pcase v (`(body . ,_) v)))
-                   dom)
-    (`(body ,_
-            (div ((class . "tocset")) . ,_)
-            (div ((class . "maincolumn"))
-                 (div ((class . "main")) . ,xs))
-            . ,_)
-     `(body () ,@xs))
-    (body body)))
 
 ;; Dynamically bound (like Racket parameters).
 (defvar racket--scribble-file nil)
@@ -251,6 +258,11 @@ In some cases we resort to returning custom elements for
     (`(span ((style . "font-style: italic")) . ,xs)
      `(i () ,@(mapcar #'racket--walk-dom xs)))
 
+    ;; <span class="mywbr"> </span> added in e.g. "tocsub" for
+    ;; "case/equal". As rendered in shr, undesired space.
+    (`(span ((class . "mywbr")) . ,_)
+     "")
+
     ;; Delete some things that produce unwanted blank lines and/or
     ;; indents.
     (`(blockquote ((class . ,(or "SVInsetFlow" "SubFlow"))) . ,xs)
@@ -277,8 +289,8 @@ In some cases we resort to returning custom elements for
     ((and (pred stringp) s)
      (subst-char-in-string #xA0 racket--scribble-temp-nbsp s))
     ((and (pred numberp) n) (string n))
-    (`() "")
-    (sym (racket--html-char-entity-symbol->string sym))))
+    ((and (pred symbolp) s) (racket--html-char-entity-symbol->string s))
+    (_ "")))
 
 (defun racket--scribble-file->data-uri (image-file-name)
   (concat
@@ -546,8 +558,9 @@ In some cases we resort to returning custom elements for
 (defun racket--html-char-entity-symbol->string (sym)
   "HTML entity symbols to strings.
 From <https://github.com/GNOME/libxml2/blob/master/HTMLparser.c>."
-  (string (or (cdr (assq sym racket--html-char-entities))
-              ??)))
+  (if-let (ch (cdr (assq sym racket--html-char-entities)))
+      (string ch)
+    (format "&%s;" sym)))
 
 (provide 'racket-scribble)
 

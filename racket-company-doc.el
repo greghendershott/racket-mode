@@ -8,6 +8,7 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(require 'cl-macs)
 (require 'seq)
 (require 'shr)
 (require 'racket-back-end)
@@ -34,11 +35,8 @@
   (with-temp-message (format "Getting and formatting documentation %s %s ..."
                              path anchor)
     (let* ((tramp-verbose 2)            ;avoid excessive messages
-           (dom   (racket--html-file->dom path))
-           (body  (racket--scribble-body dom))
-           (elems (racket--company-elements-for-anchor body anchor))
-           (dom   `(div () ,@elems))
-           (dom   (racket--walk-dom dom)))
+           (dom (racket--scribble-path->shr-dom path))
+           (dom (racket--company-elements-for-anchor dom anchor)))
       (ignore tramp-verbose)
       (save-excursion
         (let ((shr-use-fonts nil)
@@ -48,29 +46,32 @@
       (while (re-search-forward (string racket--scribble-temp-nbsp) nil t)
         (replace-match " " t t)))))
 
-(defun racket--company-elements-for-anchor (xs anchor)
-  "Return the subset of XS dom elements pertaining to ANCHOR."
-  (while (and xs (not (racket--anchored-element (car xs) anchor)))
-    (setq xs (cdr xs)))
-  (and xs
-       (let ((result nil))
-         (push (car xs) result)
-         (setq xs (cdr xs))
-         (while (and xs (not (or (racket--heading-element (car xs))
-                                 (racket--anchored-element (car xs)))))
-           (push (car xs) result)
-           (setq xs (cdr xs)))
-         (reverse result))))
-
-(defun racket--heading-element (x)
-  (and (listp x)
-       (memq (car x) '(h1 h2 h3 h4 h5 h6))))
-
-(defun racket--anchored-element (x &optional name)
-  (pcase x
-    (`(a ((name . ,a)) . ,_) (or (not name) (equal name a)))
-    (`(,_tag ,_as . ,es) (seq-some (lambda (v) (racket--anchored-element v name))
-                                   es))))
+(defun racket--company-elements-for-anchor (dom anchor)
+  "Return the subset of DOM elements pertaining to ANCHOR."
+  (cl-labels
+      ((heading-p (x)
+         (memq (dom-tag x) '(h1 h2 h3 h4 h5 h6)))
+       (anchor-p (x name)
+         (if (and (eq 'racket-anchor (dom-tag x))
+                  (or (not name) (equal name (dom-attr x 'name))))
+             t
+           (seq-some (lambda (v) (anchor-p v name))
+                     (dom-non-text-children x)))))
+    ;; Consider immediate children of the "main" div.
+    (let ((result nil)
+          (xs (dom-children (car (dom-by-class dom "main\\'")))))
+      ;; Discard elements before the one containing a matching anchor.
+      (while (and xs (not (anchor-p (car xs) anchor)))
+        (setq xs (cdr xs)))
+      ;; Accumulate result up to another anchor or a heading.
+      (when xs
+        (push (car xs) result)
+        (setq xs (cdr xs))
+        (while (and xs (not (or (heading-p (car xs))
+                                (anchor-p (car xs) nil))))
+          (push (car xs) result)
+          (setq xs (cdr xs))))
+      (racket--walk-dom `(div () ,@(reverse result))))))
 
 (provide 'racket-company-doc)
 

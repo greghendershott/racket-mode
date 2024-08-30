@@ -151,7 +151,8 @@ anchor. If numberp, move to that position."
              (racket-ext-link   . ,#'racket-render-tag-racket-ext-link)
              (racket-anchor     . ,#'racket-render-tag-racket-anchor)
              (racket-nav        . ,#'racket-render-tag-racket-nav))))
-      (shr-insert-document dom))
+      (shr-insert-document
+       (racket--describe-handle-toc-nodes dom)))
     ;; See doc string for `racket--scribble-temp-nbsp'.
     (goto-char (point-min))
     (while (re-search-forward (string racket--scribble-temp-nbsp) nil t)
@@ -177,18 +178,61 @@ text. We want point left where `racket-search-describe' can use
     ((numberp goto)
      goto)
     ((stringp goto)
-     (or (let ((i nil)) ;silence byte-compiler warning...
-           i            ;...on all versions of emacs
-           (cl-loop for i being the intervals
-                    if (equal (get-text-property (car i) 'racket-anchor)
-                              goto)
-                    return (cl-loop for j from (car i) to (point-max)
-                                    if (not (get-text-property j 'racket-anchor))
-                                    return j)))
+     (or (racket--describe-anchor->position goto)
          (point-min)))
     (t (point-min))))
   (setq racket--describe-here
         (cons (car racket--describe-here) (point))))
+
+(defun racket--describe-anchor->position (anchor)
+  (let ((i nil)) ;silence byte-compiler warning...
+    i            ;...on all versions of emacs
+    (cl-loop for i being the intervals
+             if (equal (get-text-property (car i) 'racket-anchor)
+                       anchor)
+             return (cl-loop for j from (car i) to (point-max)
+                             if (not (get-text-property j 'racket-anchor))
+                             return j))))
+
+(defvar-local racket--describe-on-this-page nil)
+
+(defun racket--describe-handle-toc-nodes (dom)
+  "Handle nodes that render as a \"left nav panel\" in a web browser.
+
+These aren't effective in a shr buffer, due to window width and
+lack of independent scrolling columns. Instead:
+
+- \"tocview\": Just delete it. User can nav up to see.
+
+- \"tocsub\" a.k.a. \"On this page:\": Useful, but present via
+  `imenu'.
+
+Both are children of a \"tocscet\" div."
+  (setq-local
+   racket--describe-on-this-page
+   (let* ((tocsublist-table (car (dom-by-class dom "tocsublist")))
+          (trs (dom-children tocsublist-table)))
+     (seq-map (lambda (tr)
+                (let* ((td (car (dom-children tr)))
+                       (num (car (dom-by-class td "tocsublinknumber")))
+                       (link (dom-child-by-tag td 'racket-doc-link))
+                       (label (concat (dom-texts num "")
+                                      (dom-texts link "")))
+                       (label (subst-char-in-string racket--scribble-temp-nbsp
+                                                    32
+                                                    label))
+                       (anchor (dom-attr link 'anchor)))
+                  (cons label anchor)))
+              trs)))
+  (pcase (dom-by-class dom "tocset")
+    (`(,node . ,_) (dom-remove-node dom node)))
+  dom)
+
+(defun racket--describe-imenu-create-index ()
+  (seq-map (lambda (v)
+             (cons (car v)
+                   (racket--describe-anchor->position (cdr v))))
+           racket--describe-on-this-page))
 
 (defconst racket--shr-faces
   '(("RktSym"                . font-lock-keyword-face)
@@ -474,7 +518,15 @@ browser program -- are given `racket-describe-ext-link-face'.
 \\{racket-describe-mode-map}"
   (setq show-trailing-whitespace nil)
   (setq-local revert-buffer-function #'racket-describe-mode-revert-buffer)
-  (buffer-disable-undo))
+  (buffer-disable-undo)
+  ;; imenu
+  (setq-local imenu-create-index-function
+              #'racket--describe-imenu-create-index)
+  (when (boundp 'imenu-auto-rescan)
+    (setq-local imenu-auto-rescan t))
+  (when (boundp 'imenu-max-items)
+    (setq-local imenu-max-items 999))
+  (imenu-add-to-menubar "On this page"))
 
 ;;; Search and disambiguation using local docs
 
