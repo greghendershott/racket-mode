@@ -258,9 +258,9 @@ In some cases we resort to returning custom elements for
     (`(p ((class . "RForeground")) . ,xs)
      `(div () ,@(mapcar #'racket--walk-dom xs)))
 
-    ;; Images in refpara blocks; remove
+    ;; Images in refpara blocks
     (`(img ((src . ,(or "finger.png" "magnify.png")) . ,_))
-     `(span))
+     `(span () (strong () ,(racket--html-char-entity-symbol->string 'loz))))
 
     ;; Images generally: Convert src to data: uri scheme. "inline".
     ;; (Otherwise shr would try to `url-queue-retrieve' these.)
