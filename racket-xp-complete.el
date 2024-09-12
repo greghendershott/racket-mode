@@ -1,6 +1,6 @@
 ;;; racket-xp-complete.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2020 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -11,7 +11,7 @@
 (require 'seq)
 (require 'racket-complete)
 (require 'racket-describe)
-(require 'racket-company-doc)
+(require 'racket-scribble-anchor)
 
 (defvar-local racket--xp-completion-table-all nil
   "A completion table of all bindings; for use by a CAPF.

@@ -8,7 +8,7 @@
 @c %**end of header
 
 @copying
-Copyright (C) 2013-2022 by Greg Hendershott.
+Copyright (C) 2013-2024 by Greg Hendershott.
 
 SPDX-License-Identifier: GPL-3.0-or-later
 @end copying
@@ -215,6 +215,7 @@ General variables
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
 * racket-xp-add-binding-faces::
+* racket-xp-eldoc-level::
 * racket-documentation-search-location::
 * racket-expand-hiding::
 
@@ -822,20 +823,21 @@ You can customize where the REPL buffer is displayed by adding an item to the Em
 @node eldoc
 @section eldoc
 
-By default Racket Mode sets @code{eldoc-documentation-function} to @code{nil} --- no @code{eldoc-mode} support. You may set it to @code{racket-eldoc-function} in a @code{racket-mode-hook} and @code{racket-repl-mode-hook} if you really want to use @code{eldoc-mode} with Racket. But it is not a very satisfying experience because Racket is not a very ``eldoc-friendly'' language. Although Racket Mode attempts to discover argument lists, contracts, or types this doesn't work in many common cases:
+Various modes add local hooks to @code{eldoc-documentation-functions}.
 
 @itemize
 @item
-Many Racket primitives are defined in @code{#%kernel} or @code{#%runtime}. There's no easy way to determine their argument lists. Most do not @code{provide} a contract.
+The minor mode @code{racket-xp-mode} adds hooks to document the identifiers at point or at an apparent s-expression application head position. The identifiers are documented from check-syntax annotations. You may customize the variable @ref{racket-xp-eldoc-level} to choose how much information is shown.
 
 @item
-Many of the interesting Racket forms are syntax (macros) not functions. There's no easy way to determine their ``argument lists''.
-
-@item
-When a form has documentation, Racket Mode can show the \``bluebox\'' -- but often that does not fit in a single line as you would normally expect with eldoc.
+The major mode @code{racket-repl-mode} adds hooks to describe the namespace identifers at point or at an apparent s-expression application head position. The description is a signature from surface syntax, or a Typed Racket type, or a ``bluebox'' for the namespace identifier.
 @end itemize
 
-A more satisfying experience is to use @ref{racket-xp-describe} or @ref{racket-xp-documentation}.
+Tip: With an @code{eldoc-documentation-strategy} of @code{eldoc-documentation-default}, these hooks show info about point when available, @emph{or else} for the s-expression application head. You may change that to @code{eldoc-documentation-compose} to show info for @emph{both} positions when available.
+
+Tip: Some people use the third-party package @code{eldoc-box} to show information in a child frame (near point, or in a corner of the main frame) instead of the echo area.
+
+Note: Racket Mode does not support the ``old'' eldoc API that uses @code{eldoc-documentation-function}, singular.
 
 @node Start faster
 @section Start faster
@@ -1298,21 +1300,6 @@ even ``let'' forms:
 
 Minor mode to let you always type @code{[}' to insert @code{(} or @code{[} automatically.
 
-This is a minor mode.  If called interactively, toggle the
-@code{Racket-Smart-Open-Bracket mode} mode.  If the prefix argument is
-positive, enable the mode, and if it is zero or negative, disable
-the mode.
-
-If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
-the mode if ARG is nil, omitted, or is a positive number.
-Disable the mode if ARG is a negative number.
-
-To check whether the minor mode is enabled in the current buffer,
-evaluate @ref{racket-smart-open-bracket-mode}.
-
-The mode's hook is called both when the mode is enabled and when
-it is disabled.
-
 Behaves like the ``Automatically adjust opening square brackets''
 feature in Dr. Racket.
 
@@ -1354,6 +1341,21 @@ the variable @code{minor-mode-map-alist}.
 Tip: When using this with @ref{racket-hash-lang-mode}, you may want
 to use @ref{racket-hash-lang-module-language-hook} to enable it IFF
 the module langugage is something like ``racket''.
+
+This is a minor mode.  If called interactively, toggle the
+@code{Racket-Smart-Open-Bracket mode} mode.  If the prefix argument is
+positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
+the mode if ARG is nil, omitted, or is a positive number.
+Disable the mode if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate @ref{racket-smart-open-bracket-mode}.
+
+The mode's hook is called both when the mode is enabled and when
+it is disabled.
 
 @node racket-insert-closing
 @subsection racket-insert-closing
@@ -1724,20 +1726,6 @@ anything else, do @code{prog-indent-sexp}.
 
 A minor mode that analyzes expanded code to explain and explore.
 
-This is a minor mode.  If called interactively, toggle the
-@code{Racket-Xp mode} mode.  If the prefix argument is positive,
-enable the mode, and if it is zero or negative, disable the mode.
-
-If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
-the mode if ARG is nil, omitted, or is a positive number.
-Disable the mode if ARG is a negative number.
-
-To check whether the minor mode is enabled in the current buffer,
-evaluate @ref{racket-xp-mode}.
-
-The mode's hook is called both when the mode is enabled and when
-it is disabled.
-
 This minor mode is an optional enhancement to @ref{racket-mode} edit
 buffers. Like any minor mode, you can turn it on or off for a
 specific buffer. If you always want to use it, put the following
@@ -1879,7 +1867,7 @@ will stop after the first syntax error, some like Typed Racket
 will try to collect and report multiple errors.
 
 You may use @code{xref-find-definitions} @kbd{M-.} ,
-@code{xref-pop-marker-stack} @kbd{M-,} , and
+@code{xref-pop-marker-stack} @kbd{M-x}  @code{xref-pop-marker-stack}, and
 @code{xref-find-references}: @ref{racket-xp-mode} adds a backend to the
 variable @code{xref-backend-functions}. This backend uses information
 from the drracket/check-syntax static analysis. Its ability to
@@ -1935,6 +1923,22 @@ commands directly to whatever keys you prefer.
 @item @kbd{C-c # j} 
 @tab @ref{racket-xp-next-definition}
 @end multitable
+
+
+
+This is a minor mode.  If called interactively, toggle the
+@code{Racket-Xp mode} mode.  If the prefix argument is positive,
+enable the mode, and if it is zero or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
+the mode if ARG is nil, omitted, or is a positive number.
+Disable the mode if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate @ref{racket-xp-mode}.
+
+The mode's hook is called both when the mode is enabled and when
+it is disabled.
 
 @node racket-xp-describe
 @subsection racket-xp-describe
@@ -2181,7 +2185,7 @@ Racket Describe buffer for that module's version of the thing.
 Major mode for Racket REPL@.
 
 You may use @code{xref-find-definitions} @kbd{M-.}  and
-@code{xref-pop-marker-stack} @kbd{M-,} :
+@code{xref-pop-marker-stack} @kbd{M-x}  @code{xref-pop-marker-stack}:
 @ref{racket-repl-mode} adds a backend to the variable
 @code{xref-backend-functions}. This backend uses information about
 identifier bindings and modules from the REPL's namespace.
@@ -2547,20 +2551,6 @@ or penultimate step during initialization.
 
 Minor mode for debug breaks.
 
-This is a minor mode.  If called interactively, toggle the
-@code{Racket-Debug mode} mode.  If the prefix argument is positive,
-enable the mode, and if it is zero or negative, disable the mode.
-
-If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
-the mode if ARG is nil, omitted, or is a positive number.
-Disable the mode if ARG is a negative number.
-
-To check whether the minor mode is enabled in the current buffer,
-evaluate @ref{racket-debug-mode}.
-
-The mode's hook is called both when the mode is enabled and when
-it is disabled.
-
 This feature is @strong{@strong{EXPERIMENTAL}}!!! It is likely to have
 significant limitations and bugs. You are welcome to open an
 issue to provide feedback. Please understand that this feature
@@ -2627,6 +2617,22 @@ provides shortcut keys:
 @item @kbd{SPC} 
 @tab @code{racket-debug-step}
 @end multitable
+
+
+
+This is a minor mode.  If called interactively, toggle the
+@code{Racket-Debug mode} mode.  If the prefix argument is positive,
+enable the mode, and if it is zero or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
+the mode if ARG is nil, omitted, or is a positive number.
+Disable the mode if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate @ref{racket-debug-mode}.
+
+The mode's hook is called both when the mode is enabled and when
+it is disabled.
 
 @node racket-repl-clear
 @subsection racket-repl-clear
@@ -3102,6 +3108,7 @@ Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 * racket-xp-after-change-refresh-delay::
 * racket-xp-highlight-unused-regexp::
 * racket-xp-add-binding-faces::
+* racket-xp-eldoc-level::
 * racket-documentation-search-location::
 * racket-expand-hiding::
 @end menu
@@ -3245,6 +3252,29 @@ local definitions, using @ref{racket-xp-binding-local-face} and
 
 This has a visible effect only when there is @emph{not} also a
 'face property applied by the major mode's fontification.
+
+@node racket-xp-eldoc-level
+@subsection racket-xp-eldoc-level
+
+How much documentation to show via @code{eldoc}.
+
+Used by @code{racket-xp-eldoc-point} and @code{racket-xp-eldoc-sexp-app}.
+
+@itemize
+@item
+Minimal: Only the help-echo string.
+
+@item
+Summary: Also the signature a.k.a. ``blubox'' from the
+documentation.
+
+@item
+Complete: Also the complete prose documentation.
+@end itemize
+
+A third-party package like @code{eldoc-box} can be useful for all but
+the minimal level. Even some bluebox signatures can take many
+lines to show on screen.
 
 @node racket-documentation-search-location
 @subsection racket-documentation-search-location

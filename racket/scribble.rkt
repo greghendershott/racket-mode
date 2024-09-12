@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -22,6 +22,7 @@
 
 (provide binding->path+anchor
          identifier->bluebox
+         bluebox-command
          doc-index-names
          doc-index-lookup
          libs-exporting-documented
@@ -66,17 +67,25 @@
 
 (define bluebox-cache (delay/thread (make-blueboxes-cache #t)))
 
+(define (get-bluebox-string tag)
+  (match (and racket-version->6.12?
+              (fetch-blueboxes-strs tag
+                                    #:blueboxes-cache (force bluebox-cache)))
+    [(list* _kind strs)
+     (string-replace (string-join strs "\n")
+                     "\u00A0"
+                     " ")]
+    [_ #f]))
+
 (define/contract (identifier->bluebox stx)
   (-> identifier? (or/c #f string?))
-  (match (and racket-version->6.12?
-              (xref-binding->definition-tag (force xref-promise) stx 0))
-    [(? tag? tag)
-     (match (fetch-blueboxes-strs tag #:blueboxes-cache (force bluebox-cache))
-       [(list* _kind strs)
-        (string-replace (string-join strs "\n")
-                        "\u00A0"
-                        " ")]
-       [_ #f])]
+  (match (xref-binding->definition-tag (force xref-promise) stx 0)
+    [(? tag? tag) (get-bluebox-string tag)]
+    [_ #f]))
+
+(define (bluebox-command str)
+  (match (read (open-input-string str))
+    [(? tag? tag) (get-bluebox-string tag)]
     [_ #f]))
 
 (module+ test

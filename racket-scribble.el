@@ -1,6 +1,6 @@
 ;;; racket-scribble.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2021-2022 by Greg Hendershott.
+;; Copyright (c) 2021-2024 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -92,6 +92,12 @@ In some cases we resort to returning custom elements for
 
 (defun racket--walk-dom (dom)
   (pcase dom
+    ;; Optimiziation: Early check for simple, atomic elements.
+    ((and (pred stringp) s)
+     (subst-char-in-string #xA0 racket--scribble-temp-nbsp s))
+    ((and (pred numberp) n) (string n))
+    ((and (pred symbolp) s) (racket--html-char-entity-symbol->string s))
+
     ;; Page navigation. Obtain from suitable navsettop. Ignore others.
     (`(div ((class . "navsettop"))
            (span ((class . "navleft"))
@@ -283,13 +289,9 @@ In some cases we resort to returning custom elements for
                                            racket--scribble-base)))
                   (assq-delete-all 'src as))))
 
-    ;; Otherwise generic HTML
+    ;; Some other generic HTML.
     (`(,tag ,as . ,xs)
      `(,tag ,as ,@(mapcar #'racket--walk-dom xs)))
-    ((and (pred stringp) s)
-     (subst-char-in-string #xA0 racket--scribble-temp-nbsp s))
-    ((and (pred numberp) n) (string n))
-    ((and (pred symbolp) s) (racket--html-char-entity-symbol->string s))
     (_ "")))
 
 (defun racket--scribble-file->data-uri (image-file-name)

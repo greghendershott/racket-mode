@@ -192,7 +192,6 @@
   (setq-local beginning-of-defun-function #'racket--beginning-of-defun-function)
   (setq-local imenu-create-index-function #'racket-imenu-create-index-function)
   (setq-local completion-at-point-functions (list #'racket-complete-at-point))
-  (setq-local eldoc-documentation-function nil)
   (add-hook 'xref-backend-functions
             #'racket-mode-xref-backend-function
             nil t)

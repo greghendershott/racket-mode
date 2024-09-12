@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -17,6 +17,7 @@
          "repl-output.rkt"
          "repl-session.rkt"
          (only-in "scribble.rkt"
+                  bluebox-command
                   doc-index-names
                   doc-index-lookup
                   libs-exporting-documented)
@@ -152,6 +153,7 @@
     [`(pkg-details ,str)               (package-details str)]
     [`(pkg-op ,verb ,name)             (package-op verb name)]
     [`(pkg-doc-link ,name)             (catalog-package-doc-link name)]
+    [`(bluebox ,tag)                   (bluebox-command tag)]
 
     ;; Commands that MIGHT need a REPL session for context (e.g. its
     ;; namespace), if their first "how" argument is 'namespace.

@@ -24,7 +24,7 @@
 :COPYING: t
 :END:
 
-Copyright (C) 2013-2022 by Greg Hendershott.
+Copyright (C) 2013-2024 by Greg Hendershott.
 
 SPDX-License-Identifier: GPL-3.0-or-later
 
@@ -366,15 +366,17 @@ You can customize where the REPL buffer is displayed by adding an item to the Em
 
 ** eldoc
 
-By default Racket Mode sets ~eldoc-documentation-function~ to ~nil~ --- no ~eldoc-mode~ support. You may set it to ~racket-eldoc-function~ in a ~racket-mode-hook~ and ~racket-repl-mode-hook~ if you really want to use ~eldoc-mode~ with Racket. But it is not a very satisfying experience because Racket is not a very "eldoc-friendly" language. Although Racket Mode attempts to discover argument lists, contracts, or types this doesn't work in many common cases:
+Various modes add local hooks to ~eldoc-documentation-functions~.
 
-- Many Racket primitives are defined in ~#%kernel~ or ~#%runtime~. There's no easy way to determine their argument lists. Most do not ~provide~ a contract.
+- The minor mode ~racket-xp-mode~ adds hooks to document the identifiers at point or at an apparent s-expression application head position. The identifiers are documented from check-syntax annotations. You may customize the variable {{{ref(racket-xp-eldoc-level)}}} to choose how much information is shown.
 
-- Many of the interesting Racket forms are syntax (macros) not functions. There's no easy way to determine their "argument lists".
+- The major mode ~racket-repl-mode~ adds hooks to describe the namespace identifers at point or at an apparent s-expression application head position. The description is a signature from surface syntax, or a Typed Racket type, or a "bluebox" for the namespace identifier.
 
-- When a form has documentation, Racket Mode can show the \"bluebox\" -- but often that does not fit in a single line as you would normally expect with eldoc.
+Tip: With an ~eldoc-documentation-strategy~ of ~eldoc-documentation-default~, these hooks show info about point when available, /or else/ for the s-expression application head. You may change that to ~eldoc-documentation-compose~ to show info for /both/ positions when available.
 
-A more satisfying experience is to use {{{ref(racket-xp-describe)}}} or {{{ref(racket-xp-documentation)}}}.
+Tip: Some people use the third-party package ~eldoc-box~ to show information in a child frame (near point, or in a corner of the main frame) instead of the echo area.
+
+Note: Racket Mode does not support the "old" eldoc API that uses ~eldoc-documentation-function~, singular.
 
 ** Start faster
 

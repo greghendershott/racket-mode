@@ -1,6 +1,6 @@
 ;;; racket-repl.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2023 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 ;; Image portions Copyright (C) 2012 Jose Antonio Ortega Ruiz.
 
@@ -10,7 +10,7 @@
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 (require 'racket-browse-url)
-(require 'racket-company-doc)
+(require 'racket-scribble-anchor)
 (require 'racket-complete)
 (require 'racket-describe)
 (require 'racket-doc)
@@ -1209,34 +1209,56 @@ to supply this quickly enough or at all."
                             `(def-in-namespace ,str))
     (`(,path ,line ,_) (cons path line))))
 
+;;; eldoc
+
+(defun racket-repl-eldoc-point (callback &rest _more)
+  "Call eldoc CALLBACK about the identifier at point.
+A value for the variable `eldoc-documentation-functions'. Use
+information from back end \"type\" command."
+  (when (racket--cmd-open-p)
+    (racket--eldoc-type callback (point))))
+
+(defun racket-repl-eldoc-sexp-app (callback &rest _more)
+  "Call eldoc CALLBACK about sexp application around point.
+A value for the variable `eldoc-documentation-functions'. Use
+information from back end \"type\" command."
+  (when (and (racket--cmd-open-p)
+             (> (point) (point-min)))
+    ;; Preserve point during the dynamic extent of the eldoc calls,
+    ;; because things like eldoc-box may dismiss the UI if they notice
+    ;; point has moved.
+    (when-let (pos (condition-case _
+                       (save-excursion
+                         (backward-up-list)
+                         (forward-char 1)
+                         (point))
+                     (scan-error nil)))
+      (racket--eldoc-type callback pos))))
+
+(defun racket--eldoc-type (callback pos)
+  "Obtain a \"type\" summary string from the back end.
+This might be a bluebox, or a function signature discovered from
+the surface syntax, or Typed Racket type information."
+  (condition-case _
+      (let* ((end (save-excursion (progn (goto-char pos) (forward-sexp) (point))))
+             (thing (buffer-substring-no-properties pos end)))
+        (when thing
+          (when-let (str (racket--cmd/await
+                          (racket--repl-session-id)
+                          `(type namespace ,thing)))
+            (racket--eldoc-do-callback callback
+                                       thing
+                                       (if (string-match-p "\n" str)
+                                           (concat "\n" str)
+                                         str)))))
+    (scan-error nil)))
+
 (defun racket-repl-eldoc-function ()
-  "A value for the variable `eldoc-documentation-function'.
+  "A value for the obsolete variable `eldoc-documentation-function'.
 
-By default `racket-repl-mode' sets `eldoc-documentation-function'
-to nil -- no `eldoc-mode' support. You may set it to this
-function in a `racket-repl-mode-hook' if you really want to use
-`eldoc-mode'. But it is not a very satisfying experience because
-Racket is not a very \"eldoc friendly\" language.
-
-Sometimes we can discover argument lists from source -- but this
-can be slow.
-
-For code that has been run in the REPL, we can use its namespace
-to discover contracts or types -- but otherwise we cannot.
-
-Many interesting Racket forms are syntax (macros) without any
-easy way to discover their \"argument lists\". Similarly many
-Racket functions or syntax are defined in #%kernel and the source
-is not available. If they have documentation with a \"bluebox\",
-we can show it -- but often it is not a single-line format
-typical for eldoc.
-
-So if you are expecting an eldoc experience similar to Emacs
-Lisp, you will be disappointed.
-
-A more satisfying experience is to use `racket-repl-describe' or
-`racket-repl-documentation'."
-  (racket--do-eldoc 'namespace (racket--repl-session-id)))
+Obsolete: Newer versions of Emacs instead use the variable
+`eldoc-documentation-functions', plural."
+  nil)
 
 ;;; describe
 
@@ -1451,7 +1473,13 @@ identifier bindings and modules from the REPL's namespace.
   (setq-local indent-line-function #'racket-indent-line)
   (setq-local indent-tabs-mode nil)
   (setq-local completion-at-point-functions (list #'racket-repl-complete-at-point))
-  (setq-local eldoc-documentation-function nil)
+  (when (boundp 'eldoc-documentation-functions)
+    (add-hook 'eldoc-documentation-functions
+              #'racket-repl-eldoc-sexp-app
+              nil t)
+    (add-hook 'eldoc-documentation-functions
+              #'racket-repl-eldoc-point
+              nil t))
   (setq-local next-error-function #'racket-repl-next-error)
   (racket-repl-read-history)
   (add-hook 'kill-buffer-hook #'racket-repl-write-history nil t)

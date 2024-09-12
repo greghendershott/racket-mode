@@ -1,6 +1,6 @@
 ;;; racket-hash-lang.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2020-2023 by Greg Hendershott.
+;; Copyright (c) 2020-2024 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -260,7 +260,6 @@ A discussion of the information provided by a Racket language:
   (setq-local blink-paren-function nil)
   (setq-local imenu-create-index-function nil)
   (setq-local completion-at-point-functions nil) ;rely on racket-xp-mode
-  (setq-local eldoc-documentation-function nil)
   (setq racket-submodules-at-point-function nil) ;might change in on-new-lang
   ;; Create back end hash-lang object.
   ;;

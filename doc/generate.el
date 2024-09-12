@@ -195,6 +195,7 @@
     racket-xp-after-change-refresh-delay
     racket-xp-highlight-unused-regexp
     racket-xp-add-binding-faces
+    racket-xp-eldoc-level
     racket-documentation-search-location
     racket-expand-hiding
     "Hash lang variables"

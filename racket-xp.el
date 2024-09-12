@@ -1,6 +1,6 @@
 ;;; racket-xp.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2021 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -9,11 +9,12 @@
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 (require 'racket-custom)
+(require 'racket-scribble-anchor)
 (require 'racket-browse-url)
 (require 'racket-doc)
+(require 'racket-eldoc)
 (require 'racket-repl)
 (require 'racket-describe)
-(require 'racket-eldoc)
 (require 'racket-imenu)
 (require 'racket-util)
 (require 'racket-visit)
@@ -286,7 +287,16 @@ commands directly to whatever keys you prefer.
          (setq-local next-error-function #'racket-xp-next-error-function)
          (add-hook 'pre-redisplay-functions
                    #'racket-xp-pre-redisplay
-                   nil t))
+                   nil t)
+         (when (boundp 'eldoc-documentation-functions)
+           (add-hook 'eldoc-documentation-functions
+                     #'racket-xp-eldoc-sexp-app
+                     nil t)
+           (add-hook 'eldoc-documentation-functions
+                     #'racket-xp-eldoc-point
+                     nil t))
+         (when (boundp 'eldoc-box-buffer-hook)
+           (setq-local eldoc-box-buffer-hook nil)))
         (t
          (racket-show nil)
          (racket--xp-clear)
@@ -306,7 +316,13 @@ commands directly to whatever keys you prefer.
                       t)
          (remove-hook 'pre-redisplay-functions
                       #'racket-xp-pre-redisplay
-                      t))))
+                      t)
+         (when (boundp 'eldoc-documentation-functions)
+           (dolist (hook (list #'racket-xp-eldoc-sexp-app
+                               #'racket-xp-eldoc-point))
+            (remove-hook 'eldoc-documentation-functions
+                         hook
+                         t))))))
 
 ;;; Change hook and idle timer
 
@@ -524,11 +540,11 @@ manually."
             beg end
             (list 'racket-xp-visit
                   (list (racket-file-name-back-to-front path) subs ids))))
-          (`(doc ,beg ,end ,path ,anchor)
+          (`(doc ,beg ,end ,path ,anchor ,tag)
            (add-text-properties
             beg end
             (list 'racket-xp-doc
-                  (list (racket-file-name-back-to-front path) anchor)))))))))
+                  (list (racket-file-name-back-to-front path) anchor tag)))))))))
 
 (defun racket--error-message-sans-location-prefix (str)
   "Remove \"/path/to/file.rkt:line:col: \" location prefix from an
@@ -594,41 +610,78 @@ point."
                                     ;; remove only those.
                                     'font-lock-face          nil)))))
 
+(defun racket-xp-eldoc-point (callback &rest _more)
+  "Call eldoc CALLBACK about the identifier at point.
+A value for the variable `eldoc-documentation-functions'. Use
+racket-xp-doc and help-echo text properties added by
+`racket-xp-mode'. See `racket-xp-eldoc-level'."
+  (when (racket--cmd-open-p)
+    (racket--xp-eldoc callback (point))))
+
+(defun racket-xp-eldoc-sexp-app (callback &rest _more)
+  "Call eldoc CALLBACK about sexp application around point.
+A value for the variable `eldoc-documentation-functions'. Use
+racket-xp-doc and help-echo text properties added by
+`racket-xp-mode'. See `racket-xp-eldoc-level'."
+  (when (and (racket--cmd-open-p)
+             (> (point) (point-min)))
+    ;; Preserve point during the dynamic extent of the eldoc calls,
+    ;; because things like eldoc-box may dismiss the UI if they notice
+    ;; point has moved.
+    (when-let (pos (condition-case _
+                       (save-excursion
+                         (backward-up-list)
+                         (forward-char 1)
+                         (point))
+                     (scan-error nil)))
+      ;; Avoid returning the same result as `racket-xp-eldoc-point',
+      ;; in case `eldoc-documentation-strategy' composes multiple.
+      (cl-flet* ((bounds (pos prop)
+                   (cdr (racket--get-text-property/bounds pos prop)))
+                 (same (a b prop)
+                   (equal (bounds a prop) (bounds b prop))))
+        (unless (and (boundp 'eldoc-documentation-functions)
+                     (member #'racket-xp-eldoc-point
+                                eldoc-documentation-functions)
+                     (same pos (point) 'racket-xp-doc)
+                     (same pos (point) 'help-echo))
+          (racket--xp-eldoc callback pos))))))
+
+(defun racket--xp-eldoc (callback pos)
+  (pcase (racket--get-text-property/bounds pos 'racket-xp-doc)
+    (`((,path ,anchor ,tag) ,beg ,end)
+     (let ((thing (buffer-substring-no-properties beg end))
+           (help-echo (if-let (s (get-text-property pos 'help-echo))
+                           (concat s "\n")
+                        "")))
+       (let ((str
+              (pcase racket-xp-eldoc-level
+                ('summary (racket--cmd/await nil `(bluebox ,tag)))
+                ('complete (racket--path+anchor->string path anchor)))))
+         (when (or help-echo str)
+           (racket--eldoc-do-callback callback thing (concat help-echo str))))))
+    (_
+     (pcase (racket--get-text-property/bounds pos 'help-echo)
+       (`(,str ,beg ,end)
+        (let ((thing (buffer-substring-no-properties beg end)))
+          (racket--eldoc-do-callback callback thing str)))))))
+
+(defun racket--get-text-property/bounds (pos prop)
+  "Like `get-text-property' but also returning the bounds."
+  (when-let (val (get-text-property pos prop))
+    (let* ((beg (if (not (get-text-property (1- pos) prop))
+                    pos
+                  (previous-single-property-change pos prop)))
+           (end (or (next-single-property-change beg prop)
+                    (point-max))))
+      (list val beg end))))
+
 (defun racket-xp-eldoc-function ()
-  "A value for the variable `eldoc-documentation-function'.
+  "A value for the obsolete variable `eldoc-documentation-function'.
 
-By default `racket-xp-mode' sets `eldoc-documentation-function'
-to nil -- no `eldoc-mode' support. You may set it to this
-function in a `racket-xp-mode-hook' if you really want to use
-`eldoc-mode'. But it is not a very satisfying experience because
-Racket is not a very \"eldoc friendly\" language.
-
-Sometimes we can discover function signatures from source -- but
-this can be slow.
-
-Many interesting Racket forms are syntax (macros) without any
-easy way to discover their \"argument lists\". Similarly many
-Racket functions or syntax are defined in #%kernel and the source
-is not available. If they have documentation with a \"bluebox\",
-we can show it -- but often it is not a single-line format
-typical for eldoc.
-
-Finally, when `racket-xp-after-change-refresh-delay' is a small
-value, you may start to type some expression, and pause for
-guidance from `eldoc-mode'. However in its incomplete form your
-expression might be a syntax error. The resulting error message
-might \"fight\" with `eldoc-mode' in the echo area. You could
-avoid this by setting the variable `racket-show-functions' not to
-include `racket-show-echo-area'. Even so, and worse, the syntax
-error might result in a namespace that is empty -- in which case
-we won't find blueboxes, types, or contracts.
-
-So if you are expecting an eldoc experience similar to Emacs
-Lisp, you will be disappointed.
-
-A more satisfying experience is to use `racket-xp-describe'
-or `racket-repl-describe'."
-  (racket--do-eldoc (racket--buffer-file-name) nil))
+Obsolete: Newer versions of Emacs instead use the variable
+`eldoc-documentation-functions', plural."
+  nil)
 
 (defun racket--add-overlay (beg end face &optional priority)
   (let ((o (make-overlay beg end)))
@@ -775,7 +828,7 @@ command prefixes you supply.
   \"define\", for example."
   (interactive "P")
   (pcase (get-text-property (racket--point) 'racket-xp-doc)
-    ((and `(,path ,anchor) (guard (not prefix)))
+    ((and `(,path ,anchor ,_tag) (guard (not prefix)))
      (racket-browse-file-url path anchor))
     (_
      (racket--doc prefix (buffer-file-name) racket--xp-completion-table-imports))))
@@ -1044,8 +1097,8 @@ press F1 or C-h in its pop up completion list."
        ;; treat str as a file module identifier.
        (let ((how (pcase (and (not prefix)
                               (get-text-property (racket--point) 'racket-xp-doc))
-                    (`(,path ,anchor) `(,path . ,anchor))
-                    (_                (racket--buffer-file-name)))))
+                    (`(,path ,anchor ,_tag) `(,path . ,anchor))
+                    (_                      (racket--buffer-file-name)))))
          (racket--do-describe how nil str))))))
 
 ;;; xref

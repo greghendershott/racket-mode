@@ -1,6 +1,6 @@
 ;;; racket-custom.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -158,6 +158,26 @@ A \\='font-lock-face property is added for bindings from:
 This has a visible effect only when there is /not/ also a
 \\='face property applied by the major mode's fontification."
   :type '(repeat symbol)
+  :safe #'listp)
+
+(defcustom racket-xp-eldoc-level 'summary
+  "How much documentation to show via `eldoc'.
+
+Used by `racket-xp-eldoc-point' and `racket-xp-eldoc-sexp-app'.
+
+- Minimal: Only the help-echo string.
+
+- Summary: Also the signature a.k.a. \"blubox\" from the
+  documentation.
+
+- Complete: Also the complete prose documentation.
+
+A third-party package like `eldoc-box' can be useful for all but
+the minimal level. Even some bluebox signatures can take many
+lines to show on screen."
+  :type '(radio (const :tag "Minimal" nil)
+                (const :tag "Summary" summary)
+                (const :tag "Complete" complete))
   :safe #'listp)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
