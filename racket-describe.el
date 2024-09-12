@@ -593,7 +593,7 @@ point if any.
      (lambda (result)
        (pcase result
          (`()
-          (message "No documention found for %s" name))
+          (message "No documentation found for %s" name))
          (`((,_term ,_what ,_from ,path ,anchor))
           (racket-describe-search-visit name
                                         (racket-file-name-back-to-front path)
