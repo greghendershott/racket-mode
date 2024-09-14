@@ -79,9 +79,8 @@ Possible exceptions:
 
 Each entry in the list is a cons cell, where the car is the key
 sequence (a string) and the cdr is the corresponding Unicode
-character (a string). These mappings are added to the default Racket
-Unicode translations when the input method is activated.  )
-
+character (a string).  These mappings are added to the default Racket
+Unicode translations when the input method is activated.")
 
 (defun racket-custom-unicode-bind-key-sequence (keys binding)
   "Binds KEYS to a Unicode character BINDING in `racket-custom-Unicode-input`.
