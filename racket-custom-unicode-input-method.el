@@ -15,6 +15,11 @@
 
 ;;;###autoload
 (defun racket-custom-unicode-input-method-enable ()
+  "Enable the Racket custom Unicode input method.
+
+This function sets up and activates the `racket-custom-unicode` input method.
+When called interactively, it prepares the custom Unicode bindings for Racket
+programming and sets it as the active input method."
   (interactive)
   (racket-custom-unicode-setup)
   (set-input-method "racket-custom-unicode"))
@@ -38,6 +43,24 @@
  t)                                     ;simple
 
 (defun quail-package->translations (qp)
+  "Retrieve the translations for a given Quail package.
+
+This function activates the input method specified by QP, builds its decode map,
+and returns a list of translations.
+
+Arguments:
+  QP -- The name of the Quail package as a string.
+
+Returns:
+  A list of cons cells where each car is a key sequence (string) and each cdr is
+  the corresponding Unicode character (string).
+
+Example usage:
+  (quail-package->translations \"racket-custom-unicode\")
+  ;; => ((\"lambda\" . \"λ\") (\"pi\" . \"π\") ...)
+
+Possible exceptions:
+  This function raises an error if QP is not a valid Quail package."
   (with-temp-buffer
     (activate-input-method qp)
     (unless (quail-package qp)
@@ -48,12 +71,39 @@
 
 (defvar racket-custom-unicode-tweaks
   nil
-  "A list of functions that tweak the keys in the `racket-custom-unicode-bindings`.")
+  "A list of functions applied to keys in `racket-custom-unicode`.")
 
 (defvar racket-custom-unicode-user-translations
-  nil)
+  nil
+  "A list of user-defined bindings the `racket-custom-unicode` input method.
+
+Each entry in the list is a cons cell, where the car is the key
+sequence (a string) and the cdr is the corresponding Unicode
+character (a string). These mappings are added to the default Racket
+Unicode translations when the input method is activated.  )
+
 
 (defun racket-custom-unicode-bind-key-sequence (keys binding)
+  "Binds KEYS to a Unicode character BINDING in `racket-custom-Unicode-input`.
+
+This function updates the `racket-custom-unicode-user-translations` with
+the provided key sequence to Unicode character mapping.  If the key
+sequence already has a binding, the new binding is added to the existing
+list of bindings for that key sequence.
+
+Arguments:
+  KEYS -- A string representing the key sequence to be bound.
+
+  BINDING -- A string representing the Unicode character to be bound to
+  the key sequence.
+
+Example usage:
+  (racket-custom-unicode-bind-key-sequence \"\\\" ⟜\")
+
+  ;; After running the above code, whenever the key sequence \"\\\" is typed,
+  ;; the Unicode character ⟜ will be inserted.
+
+This function can be used interactively."
   (interactive
    (list
     (read-string "Enter the key sequence: ")
@@ -63,7 +113,27 @@
     (setf (alist-get keys racket-custom-unicode-user-translations)
           (cons binding bindings))))
 
+;;;###autoload
 (defun racket-custom-unicode-add-tweaks! (&rest tweaks)
+  "Add TWEAKS to `racket-custom-unicode-bindings`.
+
+Each tweak is a function that can modify the key sequences used
+in the Racket Unicode input method.
+
+TWEAKS are functions that take a single string argument and return
+a modified string.
+
+Arguments:
+  TWEAKS -- A list of functions that take a string and return a modified string.
+
+Example usage:
+  (racket-custom-unicode-add-tweaks!
+   (prefix-with \"rkt-\")
+   (remove-suffix \"-temp\"))
+
+Possible exceptions:
+  This function itself does not raise exceptions, but the TWEAKS functions
+  provided should handle any errors internally."
   (setq racket-custom-unicode-tweaks
         (append racket-custom-unicode-tweaks tweaks)))
 
@@ -100,8 +170,7 @@ Example usage:
 
   (let ((strip-er (remove-suffix \"xyz\")))
     (strip-er \"abcdef\"))
-  ;; => \"abcdef\"
-"
+  ;; => \"abcdef\""
   (lambda (string)
     (if (and (string-suffix-p suffix string)
              (>= (length string) (length suffix)))
