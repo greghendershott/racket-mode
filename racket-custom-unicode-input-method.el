@@ -177,6 +177,26 @@ Example usage:
       string)))
 
 (defun sequence1 (&rest fns)
+  "Compose a sequence of functions, FNS, into a single function.
+
+This function returns a new function that, when called with an argument,
+will pass the argument through each function in FNS in turn.
+
+Arguments:
+  FNS -- A list of functions to be composed.
+
+Returns:
+  A function that takes an argument and processes it through the sequence of
+  functions in FNS.
+
+Example usage:
+  (let ((pipeline (sequence1 (prefix-with \"pre-\") (suffix-with \"-post\"))))
+    (funcall pipeline \"middle\"))
+  ;; => \"pre-middle-post\"
+
+\(fn X)
+;; The returned lambda function takes a single argument X and applies each
+;; function in FNS to X in sequence."
   (lambda (x)
     (let ((out x))
       (dolist (f fns)
@@ -184,15 +204,51 @@ Example usage:
       out)))
 
 (defun racket-custom-unicode-apply-tweaks ()
+  "Apply custom tweaks to the `racket-custom-unicode` input method.
+
+This function applies all the tweaks defined in
+`racket-custom-unicode-tweaks` to the key sequences of the Racket Unicode
+input method.  The tweaks are applied to both the default translations and
+user-defined translations.
+
+Returns:
+  A list of modified key sequence and Unicode character pairs after applying
+  all the tweaks.
+
+Example usage:
+  (setq racket-custom-unicode-tweaks
+        (list (prefix-with \"rkt-\")
+              (remove-suffix \"-temp\")))
+  (racket-custom-unicode-apply-tweaks)
+  ;; => ((\"rkt-lambda\" . \"λ\") (\"rkt-pi\" . \"π\") ...)
+
+This function is generally called internally by `racket-custom-unicode-setup`."
   (let ((tweak
          (apply #'sequence1 racket-custom-unicode-tweaks)))
     (mapcar (lambda (mapping)
               (cons (funcall tweak (car mapping))
                     (cdr mapping)))
-            (append (quail-package->translations "racket-unicode")
+            (append (quail-package->translations "racket-custom-unicode")
                     racket-custom-unicode-user-translations))))
 
 (defun racket-custom-unicode-setup ()
+  "Set up the custom Unicode input method for Racket.
+
+This function initializes the `racket-custom-unicode` input method,
+applying any user tweaks and custom key sequence bindings.
+
+It prepares the input method by applying all tweaks defined in
+`racket-custom-unicode-tweaks` and adding the user-defined translations.
+The configured input method is then ready to be activated.
+
+Example usage:
+  (racket-custom-unicode-setup)
+  ;; This will set up the custom Racket Unicode input method with any
+  ;; defined tweaks and user mappings.
+
+Possible exceptions:
+  This function will raise an error if any of the custom mappings from
+  `racket-custom-unicode-user-translations` are invalid."
   (with-temp-buffer
     (set-input-method "racket-custom-unicode")
     (dolist (tr (racket-custom-unicode-apply-tweaks))
