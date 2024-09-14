@@ -64,12 +64,13 @@
           (cons binding bindings))))
 
 (defun racket-custom-unicode-add-tweaks! (&rest tweaks)
-  (append racket-custom-unicode-tweaks tweaks))
+  (setq racket-custom-unicode-tweaks
+        (append racket-custom-unicode-tweaks tweaks)))
 
-(defun prefix-with (suffix)
+(defun prefix-with (prefix)
   "Return a function that takes a string and prepends PREFIX to it."
   (lambda (keys)
-    (concat keys suffix)))
+    (concat prefix keys)))
 
 (defun suffix-with (suffix)
   "Return a function that takes a string and appends SUFFIX to it."
@@ -77,6 +78,30 @@
     (concat keys suffix)))
 
 (defun remove-suffix (suffix)
+  "Return a function that removes the SUFFIX from a STRING, if present.
+If the SUFFIX is not found at the end of the STRING or if the
+STRING is shorter than the SUFFIX, the function returns the STRING unchanged.
+
+Arguments:
+  SUFFIX -- The suffix to be removed from the end of a string.
+
+Returns:
+  A function that takes a single argument STRING and returns it
+  without the SUFFIX if the SUFFIX is present at the end.
+
+Example usage:
+  (let ((strip-er (remove-suffix \"er\")))
+    (strip-er \"player\"))
+  ;; => \"play\"
+
+  (let ((strip-er (remove-suffix \"ing\")))
+    (strip-er \"playing\"))
+  ;; => \"play\"
+
+  (let ((strip-er (remove-suffix \"xyz\")))
+    (strip-er \"abcdef\"))
+  ;; => \"abcdef\"
+"
   (lambda (string)
     (if (and (string-suffix-p suffix string)
              (>= (length string) (length suffix)))
@@ -101,7 +126,7 @@
 
 (defun racket-custom-unicode-setup ()
   (with-temp-buffer
-    (racket-custom-unicode-input-method-enable)
+    (set-input-method "racket-custom-unicode")
     (dolist (tr (racket-custom-unicode-apply-tweaks))
       (quail-defrule (car tr) (cdr tr) "racket-custom-unicode" t))))
 
