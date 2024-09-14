@@ -130,7 +130,7 @@ can turn it off by setting `input-method-highlight-flag' to nil."
  ("prod "               ["∏"])
  ("coprod"              ["∐"])
  ("integrate "          ["∫"])
- ("oint "               ["∮"])
+ ("Oint "               ["∮"])
  ("vee "                ["∨"])
  ("wedge "              ["∧"])
  ("follows "            ["∘"])
