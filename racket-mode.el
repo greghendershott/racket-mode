@@ -40,6 +40,7 @@
 (require 'racket-lisp-mode)
 (require 'racket-bug-report)
 (require 'racket-util)
+(require 'racket-input)
 (require 'easymenu)
 
 (defvar racket-mode-map
@@ -102,6 +103,7 @@
     "---"
     ["Comment" comment-dwim]
     ["Insert λ" racket-insert-lambda]
+    ["Insert Symbol" racket-insert-symbol]
     ["Indent Region" indent-region]
     ["Cycle Paren Shapes" racket-cycle-paren-shapes]
     ["Align" racket-align]

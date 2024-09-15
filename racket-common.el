@@ -207,7 +207,7 @@ property whose value is STRING. The close | syntax is set by
 (defun racket-insert-lambda ()
   "Insert λ.
 
-To insert Unicode symbols generally, see `racket-unicode-input-method-enable'."
+To insert Unicode symbols generally, see `racket-input-mode'."
   (interactive)
   (insert-char racket-lambda-char 1))
 (put 'racket-insert-lambda 'delete-selection t)

@@ -76,6 +76,7 @@
     "---"
     ["Comment" comment-dwim]
     ["Insert λ" racket-insert-lambda]
+    ["Insert Symbol" racket-insert-symbol]
     ["Indent Region" indent-region]
     ["Cycle Paren Shapes" racket-cycle-paren-shapes :active (racket--sexp-edit-mode-p)]
     ["Align" racket-align :active (racket--sexp-edit-mode-p)]

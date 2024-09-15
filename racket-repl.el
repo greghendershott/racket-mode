@@ -1422,6 +1422,7 @@ The command varies based on how many \\[universal-argument] command prefixes you
     ["Exit" racket-repl-exit]
     "---"
     ["Insert Lambda" racket-insert-lambda] ;λ in string breaks menu
+    ["Insert Symbol" racket-insert-symbol]
     ["Indent Region" indent-region]
     ["Cycle Paren Shapes" racket-cycle-paren-shapes]
     ("Macro Expand"

@@ -382,20 +382,13 @@ Note: Racket Mode does not support the "old" eldoc API that uses ~eldoc-document
 
 You can use {{{ref(racket-mode-start-faster)}}} to make the Racket REPL start faster.
 
-** Unicode input method
+** Inserting Unicode math symbols
 
-An optional Emacs input method, ~racket-unicode~, lets you easily type various Unicode symbols that might be useful when writing Racket code.
+To insert various Unicode math symbols, you can:
 
-To automatically enable the ~racket-unicode~ input method in ~racket-mode~ and ~racket-repl-mode~ buffers, put the following code in your Emacs init file:
+- Use a command: {{{see(racket-insert-symbol)}}}.
 
-#+BEGIN_SRC lisp
-(add-hook 'racket-mode-hook      #'racket-unicode-input-method-enable)
-(add-hook 'racket-repl-mode-hook #'racket-unicode-input-method-enable)
-#+END_SRC
-
-{{{see(racket-unicode-input-method-enable)}}}.
-
-{{{see(racket-insert-lambda)}}}.
+- Use an Emacs input method, which you can enable in a buffer using a minor mode: {{{see(racket-input-mode)}}}.
 
 ** Ligatures
 

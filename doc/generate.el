@@ -16,7 +16,7 @@
 (require 'racket-xp)
 (require 'racket-util)
 (require 'racket-show)
-(require 'racket-unicode-input-method)
+(require 'racket-input)
 (require 'racket-smart-open)
 (require 'racket-repl-buffer-name)
 (require 'racket-hash-lang)
@@ -38,6 +38,7 @@
   `("Edit"
     racket-mode
     racket-insert-lambda
+    racket-insert-symbol
     racket-fold-all-tests
     racket-unfold-all-tests
     racket-tidy-requires
@@ -49,7 +50,7 @@
     racket-insert-closing
     racket-cycle-paren-shapes
     racket-backward-up-list
-    racket-unicode-input-method-enable
+    racket-input-mode
     racket-align
     racket-unalign
     racket-complete-at-point
@@ -228,7 +229,10 @@
     "Showing information"
     racket-show-functions
     "Running racket and raco commands in a shell or terminal"
-    racket-shell-or-terminal-function)
+    racket-shell-or-terminal-function
+    "Racket input method"
+    racket-input-prefix
+    racket-input-translations)
   "Variables to include in the Reference.")
 
 (defun racket-generate--variables ()

@@ -77,7 +77,7 @@ Configure
 * Edit buffers and REPL buffers::
 * eldoc::
 * Start faster::
-* Unicode input method::
+* Inserting Unicode math symbols::
 * Ligatures::
 
 Commands
@@ -97,6 +97,7 @@ Edit
 
 * racket-mode::
 * racket-insert-lambda::
+* racket-insert-symbol::
 * racket-fold-all-tests::
 * racket-unfold-all-tests::
 * racket-tidy-requires::
@@ -108,7 +109,7 @@ Edit
 * racket-insert-closing::
 * racket-cycle-paren-shapes::
 * racket-backward-up-list::
-* racket-unicode-input-method-enable::
+* racket-input-mode::
 * racket-align::
 * racket-unalign::
 * racket-complete-at-point::
@@ -203,6 +204,7 @@ Variables
 * Experimental debugger variables::
 * Showing information::
 * Running racket and raco commands in a shell or terminal::
+* Racket input method::
 
 General variables
 
@@ -261,6 +263,11 @@ Showing information
 Running racket and raco commands in a shell or terminal
 
 * racket-shell-or-terminal-function::
+
+Racket input method
+
+* racket-input-prefix::
+* racket-input-translations::
 
 Configuration functions
 
@@ -557,7 +564,7 @@ You can @code{setq} this directly in your Emacs init file (@samp{~/.emacs} or @s
 * Edit buffers and REPL buffers::
 * eldoc::
 * Start faster::
-* Unicode input method::
+* Inserting Unicode math symbols::
 * Ligatures::
 @end menu
 
@@ -844,21 +851,18 @@ Note: Racket Mode does not support the ``old'' eldoc API that uses @code{eldoc-d
 
 You can use @ref{racket-mode-start-faster} to make the Racket REPL start faster.
 
-@node Unicode input method
-@section Unicode input method
+@node Inserting Unicode math symbols
+@section Inserting Unicode math symbols
 
-An optional Emacs input method, @code{racket-unicode}, lets you easily type various Unicode symbols that might be useful when writing Racket code.
+To insert various Unicode math symbols, you can:
 
-To automatically enable the @code{racket-unicode} input method in @code{racket-mode} and @code{racket-repl-mode} buffers, put the following code in your Emacs init file:
+@itemize
+@item
+Use a command: @xref{racket-insert-symbol}.
 
-@lisp
-(add-hook 'racket-mode-hook      #'racket-unicode-input-method-enable)
-(add-hook 'racket-repl-mode-hook #'racket-unicode-input-method-enable)
-@end lisp
-
-@xref{racket-unicode-input-method-enable}.
-
-@xref{racket-insert-lambda}.
+@item
+Use an Emacs input method, which you can enable in a buffer using a minor mode: @xref{racket-input-mode}.
+@end itemize
 
 @node Ligatures
 @section Ligatures
@@ -940,6 +944,7 @@ You can also view these by using the normal Emacs help mechanism:
 @menu
 * racket-mode::
 * racket-insert-lambda::
+* racket-insert-symbol::
 * racket-fold-all-tests::
 * racket-unfold-all-tests::
 * racket-tidy-requires::
@@ -951,7 +956,7 @@ You can also view these by using the normal Emacs help mechanism:
 * racket-insert-closing::
 * racket-cycle-paren-shapes::
 * racket-backward-up-list::
-* racket-unicode-input-method-enable::
+* racket-input-mode::
 * racket-align::
 * racket-unalign::
 * racket-complete-at-point::
@@ -1034,7 +1039,21 @@ penultimate step during initialization.
 
 Insert λ.
 
-To insert Unicode symbols generally, see @ref{racket-unicode-input-method-enable}.
+To insert Unicode symbols generally, see @ref{racket-input-mode}.
+
+@node racket-insert-symbol
+@subsection racket-insert-symbol
+
+@kbd{M-x}  @code{racket-insert-symbol}
+
+Insert a symbol from @ref{racket-input-translations}.
+
+A command alternative to the ``Racket'' input method activated by
+@ref{racket-input-mode}.
+
+Presents a @code{completing-read} UI, in which the symbols that would
+be inserted are shown as annotations -- a preview unlike what is
+currently provided by the Emacs UI for input method.
 
 @node racket-fold-all-tests
 @subsection racket-fold-all-tests
@@ -1390,70 +1409,54 @@ especially not repeatedly. Instead, initially use
 string or comment, if any, then use normal @code{backward-up-list}
 repeatedly.
 
-@node racket-unicode-input-method-enable
-@subsection racket-unicode-input-method-enable
+@node racket-input-mode
+@subsection racket-input-mode
 
-@kbd{M-x}  @code{racket-unicode-input-method-enable}
+@kbd{M-x}  @code{racket-input-mode}
 
-Set input method to racket-unicode.
+A minor mode to enable the ``Racket'' input method.
 
-The racket-unicode input method lets you easily type various
-Unicode symbols that might be useful when writing Racket code.
+The Racket input method lets you type @ref{racket-input-prefix},
+followed by a key sequence from @ref{racket-input-translations},
+directly in a buffer, to insert a symbol.
 
-To automatically enable the racket-unicode input method in
-racket-mode and racket-repl-mode buffers, put the following code
-in your Emacs init file:
+For example when @ref{racket-input-prefix} is the default ``\'', you
+can type ``\All'' and it is immediately replaced with ``∀''.
 
-@lisp
-    (add-hook 'racket-mode-hook #'racket-unicode-input-method-enable)
-    (add-hook 'racket-repl-mode-hook #'racket-unicode-input-method-enable)
-@end lisp
-
-To temporarily enable this input method for a single buffer you
-can use ``M-x racket-unicode-input-method-enable''.
-
-Use the standard Emacs key C-\ to toggle the input method.
-
-When the racket-unicode input method is active, you can for
-example type ``All'' and it is immediately replaced with ``∀''. A
-few other examples:
-
-@multitable {aaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaa}
-@item omega
-@tab ω
-@item x@math{_1}
-@tab x₁
-@item x@math{^1}
-@tab x¹
-@item A
-@tab 𝔸
-@item test-->>E
-@tab test-->>∃ (racket/redex)
-@item vdash
-@tab ⊢
-@end multitable
-
-To see a table of all key sequences use ``M-x
-describe-input-method <RET> racket-unicode''.
-
-If you want to add your own mappings to the ``racket-unicode''
-input method, you may add code like the following example in your
-Emacs init file:
+To enable @ref{racket-input-mode} (and the Racket input method) for
+all new buffers, put the following in your Emacs init file:
 
 @lisp
-    ;; Either (require 'racket-mode) here, or, if you use
-    ;; use-package, put the code below in the :config section.
-    (with-temp-buffer
-      (racket-unicode-input-method-enable)
-      (set-input-method "racket-unicode")
-      (let ((quail-current-package (assoc "racket-unicode"
-                                          quail-package-alist)))
-        (quail-define-rules ((append . t))
-                            ("^o" ["ᵒ"]))))
+    (dolist (hook '(racket-mode-hook
+                    racket-hash-lang-mode-hook
+                    racket-repl-mode-hook))
+      (add-hook hook #'racket-input-mode))
 @end lisp
 
-If you don’t like the highlighting of partially matching tokens you
-can turn it off by setting @code{input-method-highlight-flag} to nil.
+Tip: You may use the standard Emacs key C-\ to toggle the
+current input method.
+
+Tip: If you don’t like the highlighting of partially matching
+tokens you can disable that using @code{input-method-highlight-flag}.
+
+See the Emacs manual for other information about input methods.
+
+Tip: Another way to use @ref{racket-input-translations} is by using a
+command: @ref{racket-insert-symbol}.
+
+This is a minor mode.  If called interactively, toggle the
+@code{Racket-Input mode} mode.  If the prefix argument is positive,
+enable the mode, and if it is zero or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
+the mode if ARG is nil, omitted, or is a positive number.
+Disable the mode if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate @ref{racket-input-mode}.
+
+The mode's hook is called both when the mode is enabled and when
+it is disabled.
 
 @node racket-align
 @subsection racket-align
@@ -3093,6 +3096,7 @@ Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 * Experimental debugger variables::
 * Showing information::
 * Running racket and raco commands in a shell or terminal::
+* Racket input method::
 @end menu
 
 @node General variables
@@ -3769,6 +3773,46 @@ send a newline or enter.
 
 Predefined choices include @ref{racket-shell}, @ref{racket-term},
 @ref{racket-ansi-term}, and @ref{racket-vterm}.
+
+@node Racket input method
+@section Racket input method
+
+@menu
+* racket-input-prefix::
+* racket-input-translations::
+@end menu
+
+@node racket-input-prefix
+@subsection racket-input-prefix
+
+A prefix used by the ``Racket'' input method.
+
+This string is prepended to the key sequence strings in
+@ref{racket-input-translations}, when setting up the input method.
+
+Using some non-nil, non-blank prefix avoids conflicts between key
+sequences and portions of normal words. For example ``oint''
+would insert ``∮'' while you're typing ``point'' -- but not
+``\oint''.
+
+If you change this setting manually with @code{setq} (instead of using
+the customization buffer or @code{setopt}) you need to call
+@code{racket-input-setup} in order for the change to take effect.
+
+@node racket-input-translations
+@subsection racket-input-translations
+
+A list of translations.
+
+Each element is (KEY-SEQUENCE-STRING TRANSLATION-STRING).
+
+Used by the ``Racket'' input method activated by
+@ref{racket-input-mode}, as well as by the @ref{racket-insert-symbol}
+command.
+
+If you change this setting manually with @code{setq} (instead of using
+the customization buffer or @code{setopt}) you need to call
+@code{racket-input-setup} in order for the change to take effect.
 
 @node Configuration functions
 @chapter Configuration functions
