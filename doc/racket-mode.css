@@ -15,6 +15,9 @@ h1 {
     font-size: 3em;
     color: #666
 }
+h1.top {
+    margin-top: 0;
+}
 h2, h4.footnotes-heading {
     font-size: 3em;
     color: #666;
@@ -88,8 +91,5 @@ hr {
     display: none;
 }
 h2.contents-heading {
-    display: none;
-}
-h1.top {
     display: none;
 }
