@@ -27,7 +27,8 @@
            (kill-buffer buf)))
        (with-current-buffer (get-buffer-create name)
          (goto-char (point-min))
-         (racket--scribble-path+anchor-insert path anchor)
+         ;; width 76 for company-quickhelp-mode
+         (racket--scribble-path+anchor-insert path anchor 76)
          (goto-char (point-min))
          (setq buffer-read-only t)
          (current-buffer))))))
@@ -56,7 +57,7 @@ Uses `racket--path+anchor-cache'."
        (ring-insert racket--path+anchor-ring item)
        str))))
 
-(defun racket--scribble-path+anchor-insert (path anchor)
+(defun racket--scribble-path+anchor-insert (path anchor &optional width)
   (let* ((tramp-verbose 2) ;avoid excessive tramp messages
          (dom (racket--html-file->dom path))
          (dom (racket--elements-for-anchor dom anchor))
@@ -67,7 +68,7 @@ Uses `racket--path+anchor-cache'."
     (save-excursion
       (let ((shr-use-fonts nil)
             (shr-external-rendering-functions `((span . ,#'racket-render-tag-span)))
-            (shr-width 76)) ;for company-quickhelp-mode
+            (shr-width width))
         (shr-insert-document dom)))
     (while (re-search-forward (string racket--scribble-temp-nbsp) nil t)
       (replace-match " " t t))))
