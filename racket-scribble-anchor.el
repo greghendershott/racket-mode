@@ -9,6 +9,7 @@
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 (require 'cl-macs)
+(require 'ring)
 (require 'seq)
 (require 'shr)
 (require 'racket-back-end)
@@ -31,11 +32,29 @@
          (setq buffer-read-only t)
          (current-buffer))))))
 
+(defvar racket--path+anchor-ring (make-ring 16)
+  "A small MRU cache of the N most recent strings.
+Each ring item is (cons (cons path anchor) str).")
+
 (defun racket--path+anchor->string (path anchor)
-  "A wrapper for `racket--scribble-path+anchor-insert'."
-  (with-temp-buffer
-    (racket--scribble-path+anchor-insert path anchor)
-    (buffer-string)))
+  "A wrapper for `racket--scribble-path+anchor-insert'.
+Uses `racket--path+anchor-cache'."
+  (pcase (seq-some (lambda (item)
+                     (and (equal (car item) (cons path anchor))
+                          item))
+                   (ring-elements racket--path+anchor-ring))
+    ((and `(,_path+anchor . ,str) item)
+     ;; Re-insert as newest.
+     (ring-remove+insert+extend racket--path+anchor-ring item)
+     str)
+    (_
+     (let* ((str (with-temp-buffer
+                   (racket--scribble-path+anchor-insert path anchor)
+                   (buffer-string)))
+            (item (cons (cons path anchor) str)))
+       ;; Insert as newest; oldest discarded when ring full.
+       (ring-insert racket--path+anchor-ring item)
+       str))))
 
 (defun racket--scribble-path+anchor-insert (path anchor)
   (let* ((tramp-verbose 2) ;avoid excessive tramp messages
