@@ -82,7 +82,6 @@ the effect of being non-breaking.")
 
 (defun racket--massage-scribble-dom (file base dom)
   "Simplify the HTML so that `shr-insert-document' renders better.
-
 In some cases we resort to returning custom elements for
 `racket-describe' to handle specially."
   (let ((racket--scribble-file file)
@@ -90,209 +89,204 @@ In some cases we resort to returning custom elements for
     (save-match-data
       (racket--walk-dom dom))))
 
-(defun racket--walk-dom (dom)
-  (pcase dom
-    ;; Optimiziation: Early check for simple, atomic elements.
-    ((and (pred stringp) s)
-     (subst-char-in-string #xA0 racket--scribble-temp-nbsp s))
-    ((and (pred numberp) n) (string n))
-    ((and (pred symbolp) s) (racket--html-char-entity-symbol->string s))
+(defsubst racket--walk-kids (v)
+  "A DRY convenience for `racket--walk-dom'. `defsubst' to
+avoid penalty."
+  (mapcar #'racket--walk-dom (dom-children v)))
 
-    ;; Page navigation. Obtain from suitable navsettop. Ignore others.
-    (`(div ((class . "navsettop"))
-           (span ((class . "navleft"))
-                 (form . ,_)
-                 ,_
-                 (a ((href . ,top) . ,_) . ,_)
-                 . ,_)
-           (span ((class . "navright"))
-                 ,_
-                 ,(or `(a ((href . ,prev) . ,_) . ,_)
-                      (app ignore prev))
-                 ,_
-                 (a ((href . ,up)   . ,_) . ,_)
-                 ,_
-                 ,(or `(a ((href . ,next) . ,_) . ,_)
-                      (app ignore next)))
-           . ,_)
-     `(racket-nav ((top  . ,(expand-file-name top  racket--scribble-base))
+(defun racket--walk-dom (v)
+  "Recursively walk and massage the dom V."
+  (cond
+   ;; Optimization: First do fast checks for frequent, atomic
+   ;; elements.
+   ((stringp v) (subst-char-in-string #xA0 racket--scribble-temp-nbsp v))
+   ((numberp v) (string v))
+   ((symbolp v) (racket--html-char-entity-symbol->string v))
+   (t
+    (pcase (dom-tag v)
+      ('span
+       (pcase (dom-attr v 'class)
+         ;; Ignore new <span class="button-group"> elements.
+         ("button-group" `(span))
+         ;; <span class="mywbr"> </span> added in e.g. "tocsub" for
+         ;; "case/equal". As rendered in shr, undesired space.
+         ("mywbr" "")
+         (_
+          (pcase (dom-attr v 'style)
+            ;; For some reason scribble renders this, which shr
+            ;; doesn't handle, instead of <i>, which it does.
+            ("font-style: italic"
+             `(i () ,@(racket--walk-kids v)))
+            (_
+             `(span ,(dom-attributes v) ,@(racket--walk-kids v)))))))
+
+      ('p
+       (pcase (dom-attr v 'class)
+         ;; Unwanted blank lines or indents
+         ("RForeground"
+          `(div () ,@(mapcar #'racket--walk-dom (dom-children v))))
+         (_
+          `(p ,(dom-attributes v) ,@(racket--walk-kids v)))))
+      ('div
+       (pcase (dom-attr v 'class)
+         ;; Page navigation.
+         ("navsettop"
+          (pcase-let* ((navleft (car (dom-by-class v "navleft")))
+                       (top (dom-attr (car (dom-by-tag navleft 'a)) 'href))
+                       (navright (car (dom-by-class v "navright")))
+                       (`(,prev ,up ,next)
+                        (mapcar (lambda (v) (dom-attr v 'href))
+                                (dom-by-tag navright 'a))))
+            (if (and top up)
+                `(racket-nav
+                  ((top  . ,(expand-file-name top racket--scribble-base))
                    (prev . ,(and prev (expand-file-name prev racket--scribble-base)))
-                   (up   . ,(expand-file-name up   racket--scribble-base))
-                   (next . ,(and next (expand-file-name next racket--scribble-base))))))
-    (`(div ((class . ,"navsettop")) . ,_)
-     `(span))
-    (`(div ((class . ,"navsetbottom")) . ,_)
-     `(span))
-
-    ;; The kind (e.g. procedure or syntax): Add <hr>
-    (`(div ((class . "RBackgroundLabel SIEHidden"))
-           (div ((class . "RBackgroundLabelInner"))
-                (p () . ,xs)))
-     `(div ()
-           (hr)
-           (span ((class . "RktCmt"))
-                 ,@(mapcar #'racket--walk-dom xs))))
-
-    ;; Change SIntrapara div to p, which helps shr supply sufficient
-    ;; line-breaks.
-    (`(div ((class . "SIntrapara")) . ,xs)
-     `(p () ,@(mapcar #'racket--walk-dom xs)))
-
-    ;; RktValDef|RktStxDef is the name of the thing in the bluebox.
-    ;; This is likely also nested in a (span ([class "RktSym"])), so
-    ;; we'll get that face as well, but unlinkfy preserving the class
-    ;; for `racket-render-tag-span'.
-    ((and `(a ,as . ,xs)
-          (guard (member (dom-attr dom 'class) '("RktValDef RktValLink"
-                                                 "RktStxDef RktStxLink"))))
-     `(span ,as ,@(mapcar #'racket--walk-dom xs)))
-
-    ;; Hack: Handle tables of class "RktBlk" whose tr's contain only a
-    ;; single td --- which, weirdly, Scribble uses for code blocks
-    ;; like "Examples" --- by "un-table-izing" them to simple divs.
-    ;; This is to prevent shr from trying too hard to handle table
-    ;; widths and indent but just messing it up for code blocks (e.g.
-    ;; the first and second lines will be indented too much).
-    ((and `(table ,_ . ,rows)
-          (guard (equal (dom-attr dom 'class) "RktBlk")))
-     `(div ()
-           ,@(mapcar
-              (pcase-lambda (`(tr ,_ (td ,_ . ,xs)))
-                ;; Unwrap Rkt{Res Out Err} in a <p> that causes excess
-                ;; line breaks.
-                (let ((xs (pcase xs
-                            (`((p ,_ . ,xs)) xs)
-                            (xs              xs))))
-                  `(div () ,@(mapcar #'racket--walk-dom xs))))
-              rows)))
-
-    ;; Hack: Ensure blank line after defmodule blocks
-    ((and `(table ,_ . ,xs)
-          (guard (equal (dom-attr dom 'class) "defmodule")))
-     `(div ()
-           (table () ,@(mapcar #'racket--walk-dom xs))
-           (p ())))
-
-    ;; Replace some <a> with <racket-anchor> because shr in Emacs 25.2
-    ;; doesn't seem to handle these well.
-    (`(a ((name . ,name)) . ,xs)
-     `(racket-anchor ((name . ,name)) . ,xs))
-
-    ;; Ignore new <span class="button-group"> elements.
-    (`(span ((class . "button-group")) . ,_)
-     `(span))
-
-    ;; Replace <a> with <racket-doc-link> or <racket-ext-link>. The
-    ;; former are links to follow using racket-describe-mode, the
-    ;; latter using browse-url (a general-purpose, probably external
-    ;; web browser).
-    (`(a ,_ . ,xs)
-     (pcase (dom-attr dom 'href)
-       ;; No href.
-       (`() `(span () ,@(mapcar #'racket--walk-dom xs)))
-       ;; Handle "local-redirect" links. Scribble writes these as
-       ;; external links, and generates doc/local-redirect.js to
-       ;; adjust these on page load. Partially mimic that js here.
-       ((and href
-             (or
-              (pred
-               (string-match ;as for installed releases
-                "^https?://download.racket-lang.org/releases/[^/]+/doc/local-redirect/index.html[?]\\(.*\\)$"))
-              (pred
-               (string-match ;as for local builds from source
-                "^https?://docs.racket-lang.org/local-redirect/index.html[?]\\(.*\\)$"))
-              (pred
-               (string-match ;as for installed snapshot builds
-                "^https?://.+?/snapshots/[^/]+/doc/local-redirect/index.html[?]\\(.*\\)$"))))
-        (let ((qps (url-parse-query-string (match-string 1 href))))
-          (if (assoc "tag" qps)
-              `(span () ,@(mapcar #'racket--walk-dom xs)) ;don't handle
-            ;; Assume local-redirect.js has a "boring" link_dirs where
-            ;; the second element of each sub-array is simply the
-            ;; first one with "../" prepended. We can simply use the
-            ;; value of the `doc` query parameter with "../"
-            ;; prepended.
-            (let* ((doc (cadr (assoc "doc" qps)))
-                   (rel (cadr (assoc "rel" qps)))
-                   (rel-path (concat "../" doc "/" rel))
-                   (abs-path (expand-file-name rel-path racket--scribble-base)))
-              ;; recur to do our usual path/anchor processing for
-              ;; local hrefs
-              (racket--walk-dom
-               `(a ((href  . ,abs-path)
-                    (class . ,(dom-attr dom 'class)))
-                   ,@xs))))))
-       ;; Some other, truly external links
-       ((and href (pred (string-match-p "^https?://")))
-        `(racket-ext-link ((href  . ,href)
-                           (class . ,(dom-attr dom 'class)))
-                          ,@(mapcar #'racket--walk-dom xs)))
-       ((and href (pred (string-match-p "^mailto:")))
-        `(racket-ext-link ((href  . ,href)
-                           (class . ,(dom-attr dom 'class)))
-                          ,@(mapcar #'racket--walk-dom xs)))
-       ;; Lazy hack to remove the "go to specific" links on the top
-       ;; doc/index.html page. FIXME: Instead remove entire paragraph?
-       ((pred (string-match-p "#$"))
-        `(span))
-       ;; Otherwise the common case is some combo of path and/or anchor.
-       (href
-        (pcase-let* ((`(,path . ,anchor)
-                      (save-match-data
-                        (cond
-                         ((equal href "")
-                          (cons racket--scribble-file nil))
-                         ((string-match "^#\\(.+\\)$" href)
-                          (cons racket--scribble-file (match-string 1 href)))
-                         ((string-match "^\\(.*\\)#\\(.+\\)$" href)
-                          (cons (expand-file-name (match-string 1 href)
-                                                  racket--scribble-base)
-                                (match-string 2 href)))
-                         ((string-match "^\\(.+\\)$" href)
-                          (cons (expand-file-name (match-string 1 href)
-                                                  racket--scribble-base)
-                                nil))
-                         (t (error "unexpected href")))))
-                     (anchor (and anchor (url-unhex-string anchor))))
-          `(racket-doc-link ((path   . ,path)
-                             (anchor . ,anchor)
-                             (class  . ,(dom-attr dom 'class)))
-                            ,@(mapcar #'racket--walk-dom xs))))))
-
-    ;; For some reason scribble renders this, which shr doesn't
-    ;; handle, instead of <i>, which it does.
-    (`(span ((style . "font-style: italic")) . ,xs)
-     `(i () ,@(mapcar #'racket--walk-dom xs)))
-
-    ;; <span class="mywbr"> </span> added in e.g. "tocsub" for
-    ;; "case/equal". As rendered in shr, undesired space.
-    (`(span ((class . "mywbr")) . ,_)
-     "")
-
-    ;; Delete some things that produce unwanted blank lines and/or
-    ;; indents.
-    (`(blockquote ((class . ,(or "SVInsetFlow" "SubFlow"))) . ,xs)
-     `(span () ,@(mapcar #'racket--walk-dom xs)))
-    (`(p ((class . "RForeground")) . ,xs)
-     `(div () ,@(mapcar #'racket--walk-dom xs)))
-
-    ;; Images in refpara blocks
-    (`(img ((src . ,(or "finger.png" "magnify.png")) . ,_))
-     `(span () (strong () ,(racket--html-char-entity-symbol->string 'loz))))
-
-    ;; Images generally: Convert src to data: uri scheme. "inline".
-    ;; (Otherwise shr would try to `url-queue-retrieve' these.)
-    (`(img ,as)
-     `(img ,(cons (cons 'src
-                        (racket--scribble-file->data-uri
-                         (expand-file-name (dom-attr dom 'src)
-                                           racket--scribble-base)))
-                  (assq-delete-all 'src as))))
-
-    ;; Some other generic HTML.
-    (`(,tag ,as . ,xs)
-     `(,tag ,as ,@(mapcar #'racket--walk-dom xs)))
-    (_ "")))
+                   (up   . ,(expand-file-name up racket--scribble-base))
+                   (next . ,(and next (expand-file-name next racket--scribble-base)))))
+              `(span))))
+         ("navsetbottom" `(span))
+         ;; The kind (e.g. "procedure" or "syntax"): Add <hr>
+         ("RBackgroundLabel SIEHidden"
+          `(div ()
+                (hr)
+                (span ((class . "RktCmt")) ,(dom-texts v))))
+         ;; Change SIntrapara div to p, which helps shr supply
+         ;; sufficient line-breaks.
+         ("SIntrapara"
+          `(p () ,@(racket--walk-kids v)))
+         (_
+          `(div ,(dom-attributes v) ,@(racket--walk-kids v)))))
+      ('table
+       (pcase (dom-attr v 'class)
+         ;; Hack: Handle tables of class "RktBlk" whose tr's contain
+         ;; only a single td --- which, weirdly, Scribble uses for
+         ;; code blocks like "Examples" --- by "un-table-izing" them
+         ;; to simple divs. This is to prevent shr from trying too
+         ;; hard to handle table widths and indent but just messing it
+         ;; up for code blocks (e.g. the first and second lines will
+         ;; be indented too much).
+         ("RktBlk"
+          `(div ()
+                ,@(mapcar
+                   (pcase-lambda (`(tr ,_ (td ,_ . ,xs)))
+                     ;; Unwrap Rkt{Res Out Err} in a <p> that causes excess
+                     ;; line breaks.
+                     (let ((xs (pcase xs
+                                 (`((p ,_ . ,xs)) xs)
+                                 (xs              xs))))
+                       `(div () ,@(mapcar #'racket--walk-dom xs))))
+                   (dom-children v))))
+         ;; Hack: Ensure blank line after defmodule blocks
+         ("defmodule"
+          `(div ()
+                (table () ,@(racket--walk-kids v))
+                (p ())))
+         (_
+          `(table ,(dom-attributes v) ,@(racket--walk-kids v)))))
+      ('a
+       ;; Replace some <a> with <racket-anchor> because shr in Emacs
+       ;; 25.2 doesn't seem to handle these well.
+       (if-let (name (dom-attr v 'name))
+           `(racket-anchor ,(dom-attributes v) ,@(racket--walk-kids v))
+         ;; Replace <a> with <racket-doc-link> or <racket-ext-link>.
+         ;; The former are links to follow using racket-describe-mode,
+         ;; the latter using browse-url (a general-purpose, probably
+         ;; external web browser).
+         (if-let (href (dom-attr v 'href))
+             (cond
+              ;; Handle "local-redirect" links. Scribble writes these
+              ;; as external links, and generates
+              ;; doc/local-redirect.js to adjust these on page load.
+              ;; Partially mimic that js here.
+              ((or
+                (string-match         ;as for installed releases
+                 "^https?://download.racket-lang.org/releases/[^/]+/doc/local-redirect/index.html[?]\\(.*\\)$"
+                 href)
+                (string-match       ;as for local builds from source
+                 "^https?://docs.racket-lang.org/local-redirect/index.html[?]\\(.*\\)$"
+                 href)
+                (string-match      ;as for installed snapshot builds
+                 "^https?://.+?/snapshots/[^/]+/doc/local-redirect/index.html[?]\\(.*\\)$"
+                 href))
+               (let ((qps (url-parse-query-string (match-string 1 href))))
+                 (if (assoc "tag" qps)
+                     ;; don't handle
+                     `(span () ,@(racket--walk-kids v))
+                   ;; Assume local-redirect.js has a "boring"
+                   ;; link_dirs where the second element of each
+                   ;; sub-array is simply the first one with "../"
+                   ;; prepended. We can simply use the value of the
+                   ;; `doc` query parameter with "../" prepended.
+                   (let* ((doc (cadr (assoc "doc" qps)))
+                          (rel (cadr (assoc "rel" qps)))
+                          (rel-path (concat "../" doc "/" rel))
+                          (abs-path (expand-file-name rel-path racket--scribble-base)))
+                     ;; recur to do our usual path/anchor processing for
+                     ;; local hrefs
+                     (racket--walk-dom
+                      `(a ((href  . ,abs-path)
+                           (class . ,(dom-attr v 'class)))
+                          ,@(dom-children v)))))))
+              ;; Some other, truly external links
+              ((or (string-match-p "^https?://" href)
+                   (string-match-p "^mailto:" href))
+               `(racket-ext-link ((href  . ,href)
+                                  (class . ,(dom-attr v 'class)))
+                                 ,@(racket--walk-kids v)))
+              ;; Lazy hack to remove the "go to specific" links on the
+              ;; top doc/index.html page. FIXME: Instead remove entire
+              ;; paragraph?
+              ((string-match-p "#$" href) `(span))
+              ;; Otherwise the general case is some combo of local
+              ;; path and/or anchor.
+              (t
+               (pcase-let*
+                   ((`(,path . ,anchor)
+                     (save-match-data
+                       (cond
+                        ((equal href "")
+                         (cons racket--scribble-file nil))
+                        ((string-match "^#\\(.+\\)$" href)
+                         (cons racket--scribble-file (match-string 1 href)))
+                        ((string-match "^\\(.*\\)#\\(.+\\)$" href)
+                         (cons (expand-file-name (match-string 1 href)
+                                                 racket--scribble-base)
+                               (match-string 2 href)))
+                        ((string-match "^\\(.+\\)$" href)
+                         (cons (expand-file-name (match-string 1 href)
+                                                 racket--scribble-base)
+                               nil))
+                        (t (error "unexpected href")))))
+                    (anchor (and anchor (url-unhex-string anchor))))
+                 `(racket-doc-link ((path   . ,path)
+                                    (anchor . ,anchor)
+                                    (class  . ,(dom-attr v 'class)))
+                                   ,@(racket--walk-kids v)))))
+           `(span () ,@(racket--walk-kids v)))))
+      ('blockquote
+       (pcase (dom-attr v 'class)
+         ;; Unwanted blank lines or indents
+         ((or "SVInsetFlow" "SubFlow")
+          `(span () ,@(mapcar #'racket--walk-dom (dom-children v))))
+         (_
+          `(blockquote ,(dom-attributes v) ,@(racket--walk-kids v)))))
+      ('img
+       (pcase (dom-attr v 'src)
+         ;; Finger or magnifier images in refpara blocks: Replace with
+         ;; &loz;
+         ((or "finger.png" "magnify.png")
+          `(span () (strong () ,(racket--html-char-entity-symbol->string 'loz))))
+         ;; Images generally: Convert src to "data:" uri scheme,
+         ;; (Otherwise shr would try to `url-queue-retrieve' these.)
+         (_
+          (dom-set-attribute v
+                             'src
+                             (racket--scribble-file->data-uri
+                              (expand-file-name (dom-attr v 'src)
+                                                racket--scribble-base)))
+          v)))
+      (tag
+       `(,tag ,(dom-attributes v) ,@(racket--walk-kids v)))))))
 
 (defun racket--scribble-file->data-uri (image-file-name)
   (concat
