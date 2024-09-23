@@ -418,13 +418,20 @@ manually."
 
 (defvar-local racket--xp-imenu-index nil)
 
+(defun racket--xp-buffer-file-name ()
+  "Allow racket-xp-mode to work in buffers with no buffer-file-name.
+Although no file need exist, our back end check-syntax command
+needs /some/ path-string? as a unique index."
+  (or (racket--buffer-file-name)
+      (expand-file-name (buffer-name))))
+
 (defun racket--xp-annotate (&optional after-thunk)
   (racket--xp-set-status 'running)
   (let ((generation-of-our-request racket--xp-edit-generation))
     (racket--cmd/async
      nil
      `(check-syntax ,(racket-file-name-front-to-back
-                      (or (racket--buffer-file-name) (buffer-name)))
+                      (racket--xp-buffer-file-name))
                     ,(save-restriction
                        (widen)
                        (buffer-substring-no-properties (point-min) (point-max))))
@@ -476,7 +483,7 @@ manually."
           (`(error ,path ,beg ,end ,str)
            (let ((path (racket-file-name-back-to-front path)))
              (racket--xp-add-error path beg str)
-             (when (equal path (racket--buffer-file-name))
+             (when (equal path (racket--xp-buffer-file-name))
                (remove-text-properties
                 beg end
                 (list 'help-echo     nil
@@ -831,7 +838,9 @@ command prefixes you supply.
     ((and `(,path ,anchor ,_tag) (guard (not prefix)))
      (racket-browse-file-url path anchor))
     (_
-     (racket--doc prefix (buffer-file-name) racket--xp-completion-table-imports))))
+     (racket--doc prefix
+                  (racket--xp-buffer-file-name)
+                  racket--xp-completion-table-imports))))
 
 ;;; Navigation
 
@@ -1021,7 +1030,7 @@ around at the first and last errors."
       (pcase-let ((`(,path ,pos ,str)
                    (aref racket--xp-errors
                          racket--xp-errors-index)))
-        (cond ((equal path (racket--buffer-file-name))
+        (cond ((equal path (racket--xp-buffer-file-name))
                (goto-char pos))
               (t
                (find-file path)
@@ -1098,7 +1107,7 @@ press F1 or C-h in its pop up completion list."
        (let ((how (pcase (and (not prefix)
                               (get-text-property (racket--point) 'racket-xp-doc))
                     (`(,path ,anchor ,_tag) `(,path . ,anchor))
-                    (_                      (racket--buffer-file-name)))))
+                    (_                      (racket--xp-buffer-file-name)))))
          (racket--do-describe how nil str))))))
 
 ;;; xref
@@ -1167,7 +1176,7 @@ else returns STR."
          (pcase (racket--cmd/await nil
                                    `(def/drr
                                       ,(racket-file-name-front-to-back
-                                        (racket--buffer-file-name))
+                                        (racket--xp-buffer-file-name))
                                       ,(racket-file-name-front-to-back path)
                                       ,subs
                                       ,ids))
@@ -1195,7 +1204,7 @@ else returns STR."
       ;; not submodules, since all we give it is a plain string and no
       ;; position.)
       (pcase (racket--cmd/await nil `(def ,(racket-file-name-front-to-back
-                                            (racket--buffer-file-name))
+                                            (racket--xp-buffer-file-name))
                                           ,(substring-no-properties str)))
         (`(,path ,line ,col)
          (xref-make str
