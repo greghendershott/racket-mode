@@ -22,22 +22,26 @@
   (interactive)
   (unless (string-match-p "^racket-" (symbol-name major-mode))
     (user-error "Please run from a Racket Mode buffer in which you're having a problem"))
-  (let ((help-window-select t)
+  (let ((original-buffer (current-buffer))
+        (help-window-select t)
         (print-length nil) ;for `pp'
         (print-level nil)) ;for `pp'
     (cl-flet* ((-section (label thunk)
-                         (princ (format "<h2>%s</h2>\n" label))
-                         (princ "<dl>\n")
-                         (funcall thunk)
-                         (princ "</dl>\n"))
+                 (princ (format "<h2>%s</h2>\n" label))
+                 (princ "<dl>\n")
+                 (funcall thunk)
+                 (princ "</dl>\n"))
                (show (label value)
-                     (princ (format "<dt>%s</dt>" label))
-                     (princ "<dd><pre>")
-                     (pp value)
-                     (princ "</pre></dd>\n"))
-               (show-vars (syms) (dolist (sym syms)
-                                   (ignore-errors (show sym (symbol-value sym)))))
-               (symbol-less-p (a b) (string-lessp (symbol-name a) (symbol-name b))))
+                 (princ (format "<dt>%s</dt>" label))
+                 (princ "<dd><pre>")
+                 (pp value)
+                 (princ "</pre></dd>\n"))
+               (show-vars (syms)
+                 (with-current-buffer original-buffer
+                   (dolist (sym syms)
+                     (ignore-errors (show sym (symbol-value sym))))))
+               (symbol-less-p (a b)
+                 (string-lessp (symbol-name a) (symbol-name b))))
       (cl-macrolet ((section (title &rest body)
                              `(-section ,title (lambda () ,@body))))
         (with-help-window "*racket-mode bug report*"
@@ -63,6 +67,8 @@
                                 before-change-functions
                                 completion-at-point-functions
                                 eldoc-documentation-function
+                                eldoc-documentation-strategy
+                                eldoc-documentation-functions
                                 font-lock-defaults
                                 pre-command-hook
                                 post-command-hook
@@ -71,26 +77,31 @@
           (section "Racket Mode values"
                    (show 'racket--cmd-open-p (racket--cmd-open-p))
                    (show-vars
-                    (sort (append (racket--bug-report-customs)
-                                  '(racket-mode-hook
-                                    racket-hash-lang-mode-hook
-                                    racket-hash-lang-module-language-hook
-                                    racket-repl-mode-hook
-                                    racket-back-end-configurations))
-                          #'symbol-less-p)))
+                    (sort
+                     (seq-uniq
+                      (append
+                       (racket--bug-report-customs)
+                       '(racket-mode-hook
+                         racket-hash-lang-mode-hook
+                         racket-hash-lang-module-language-hook
+                         racket-repl-mode-hook
+                         racket-back-end-configurations)))
+                     #'symbol-less-p)))
           (section "Minor modes"
                    (let* ((minor-modes (seq-uniq
                                         (append minor-mode-list
                                                 (mapcar #'car minor-mode-alist))))
                           (minor-modes (sort minor-modes #'symbol-less-p))
-                          (enabled (seq-filter (lambda (sym)
-                                                 (when (ignore-errors (symbol-value sym))
-                                                   sym))
-                                               minor-modes))
-                          (disabled (seq-filter (lambda (sym)
-                                                  (unless (ignore-errors (symbol-value sym))
-                                                    sym))
-                                                minor-modes)))
+                          (enabled (with-current-buffer original-buffer
+                                     (seq-filter (lambda (sym)
+                                                   (when (ignore-errors (symbol-value sym))
+                                                     sym))
+                                                 minor-modes)))
+                          (disabled (with-current-buffer original-buffer
+                                      (seq-filter (lambda (sym)
+                                                    (unless (ignore-errors (symbol-value sym))
+                                                      sym))
+                                                  minor-modes))))
                      (show 'enabled  (mapcar #'list enabled)) ;so pp line-breaks
                      (princ "<details><summary>Disabled minor modes</summary>\n")
                      (show 'disabled (mapcar #'list disabled))
@@ -100,12 +111,18 @@
 
 (defun racket--bug-report-customs ()
   (let ((syms nil))
-    (cl-labels ((item (v) (pcase v
-                            (`(,sym custom-variable) (push sym syms))
-                            (`(,sym custom-group)    (group sym))))
-                (group (sym) (dolist (v (custom-group-members sym nil))
-                               (item v))))
+    (cl-labels ((item (v)
+                  (pcase v
+                    (`(,sym custom-variable) (push sym syms))
+                    (`(,sym custom-group)    (group sym))))
+                (group (sym)
+                  (dolist (v (custom-group-members sym nil))
+                    (item v))))
       (group 'racket)
+      (group 'racket-xp)
+      (group 'racket-repl)
+      (group 'racket-hash-lang)
+      (group 'racket-other)
       syms)))
 
 (provide 'racket-bug-report)
