@@ -5,19 +5,35 @@
 
 (require racket/match
          racket/port
+         (only-in racket/string string-trim)
+         (only-in racket/system system/exit-code)
          version/utils
          "command-server.rkt"
          (only-in "image.rkt" set-use-svg?!))
 
-(module+ main
-  ;; Assert Racket minimum version
-  (define minimum-version "6.12")
+(define (assert-racket-version minimum-version)
   (define actual-version (version))
   (unless (version<=? minimum-version actual-version)
     (error '|Racket Mode back end| "Need Racket ~a or newer but ~a is ~a"
            minimum-version
            (find-executable-path (find-system-path 'exec-file))
-           actual-version))
+           actual-version)))
+
+(define (macos-sequoia-or-newer?)
+  (and (eq? 'macosx (system-type 'os))
+       ;; Note: This is conservative; will return false if `sw_vers`
+       ;; can't be found or doesn't produce a valid version string.
+       (let ([out (open-output-string)])
+         (parameterize ([current-output-port out])
+           (and (zero? (system/exit-code "sw_vers -productVersion"))
+                (let ([ver (string-trim (get-output-string out))])
+                  (and (valid-version? ver)
+                       (version<=? "15.0" ver))))))))
+
+(module+ main
+  (assert-racket-version (if (macos-sequoia-or-newer?)
+                             "8.14.0.4" ;issue #722
+                             "6.12"))   ;general requirement
 
   ;; Command-line flags (from Emacs front end invoking us)
   (match (current-command-line-arguments)
