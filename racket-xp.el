@@ -295,8 +295,9 @@ commands directly to whatever keys you prefer.
            (add-hook 'eldoc-documentation-functions
                      #'racket-xp-eldoc-point
                      nil t))
-         (when (boundp 'eldoc-box-buffer-hook)
-           (setq-local eldoc-box-buffer-hook nil)))
+         (when (boundp 'eldoc-box-buffer-setup-function)
+           (setq-local eldoc-box-buffer-setup-function
+                       #'racket-xp-eldoc-box-buffer-setup-function)))
         (t
          (racket-show nil)
          (racket--xp-clear)
@@ -322,7 +323,9 @@ commands directly to whatever keys you prefer.
                                #'racket-xp-eldoc-point))
             (remove-hook 'eldoc-documentation-functions
                          hook
-                         t))))))
+                         t)))
+         (when (and (boundp 'eldoc-box-buffer-setup-function))
+           (kill-local-variable eldoc-box-buffer-setup-function)))))
 
 ;;; Change hook and idle timer
 
@@ -666,12 +669,18 @@ racket-xp-doc and help-echo text properties added by
                 ('summary (racket--cmd/await nil `(bluebox ,tag)))
                 ('complete (racket--path+anchor->string path anchor)))))
          (when (or help-echo str)
-           (racket--eldoc-do-callback callback thing (concat help-echo str))))))
+           (racket--eldoc-do-callback callback thing
+                                      (propertize
+                                       (concat help-echo str)
+                                       'racket-xp-eldoc t))))))
     (_
      (pcase (racket--get-text-property/bounds pos 'help-echo)
        (`(,str ,beg ,end)
         (let ((thing (buffer-substring-no-properties beg end)))
-          (racket--eldoc-do-callback callback thing str)))))))
+          (racket--eldoc-do-callback callback thing
+                                     (propertize
+                                      str
+                                      'racket-xp-eldoc t))))))))
 
 (defun racket--get-text-property/bounds (pos prop)
   "Like `get-text-property' but also returning the bounds."
@@ -1258,6 +1267,27 @@ else returns STR."
       ;; to grep. Also be careful with major-mode-alist regexps as
       ;; they're given to grep.
       (cl-call-next-method backend (substring-no-properties str))))
+
+;;; eldoc-box
+
+(defun racket-xp-eldoc-box-buffer-setup-function (_original-buffer)
+  "Avoid the default markdown adjustments and `visual-line-mode'."
+  ;; First we need to replicate most of `eldoc-box-buffer-setup'. We
+  ;; might even need to update this, if that evolves. (Although not my
+  ;; ideal design choice, I appreciate the eldoc-box author took time
+  ;; to do something for us; so let's work with it.)
+  (setq mode-line-format nil)
+  (setq header-line-format nil)
+  (setq-local cursor-type t)
+  (when (and (bound-and-true-p global-tab-line-mode)
+             (boundp 'tab-line-format))
+    (setq tab-line-format nil))
+  (buffer-face-set 'eldoc-box-body)
+  (when (boundp 'eldoc-box-hover-mode)
+    (setq eldoc-box-hover-mode t))
+  ;; Finally what we care about: Avoid `eldoc-buffer-setup-hook', and,
+  ;; disable `visual-line-mode'.
+  (visual-line-mode -1))
 
 ;;; Mode line status
 
