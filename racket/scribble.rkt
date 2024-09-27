@@ -12,7 +12,28 @@
          (only-in scribble/core
                   tag?)
          scribble/blueboxes
-         scribble/manual-struct
+         (only-in scribble/manual-struct
+                  ;; i.e. Not the newer exported-index-desc*
+                  ;; accessors, which we need to dynamic-require below
+                  ;; when running on Racket <= 8.14.0, else provide
+                  ;; stubs. We can't import them here, too. Note that
+                  ;; except-in errors for items that aren't actually
+                  ;; exported, so we can't use that here.
+                  constructor-index-desc?
+                  exported-index-desc?
+                  exported-index-desc-name
+                  module-path-index-desc?
+                  language-index-desc?
+                  reader-index-desc?
+                  form-index-desc?
+                  procedure-index-desc?
+                  thing-index-desc?
+                  struct-index-desc?
+                  class-index-desc?
+                  interface-index-desc?
+                  mixin-index-desc?
+                  method-index-desc?
+                  exported-index-desc-from-libs)
          scribble/xref
          scribble/tag
          setup/xref
@@ -120,21 +141,42 @@
         (elisp-write term))
       (newline))))
 
+;; Newer exported-index-desc* struct introduced after Racket 8.14.
+(define exported-index-desc*?
+  (dynamic-require 'scribble/manual-struct 'exported-index-desc*?
+                   (λ () (λ (_) #f))))
+(define exported-index-desc*-extras
+  (dynamic-require 'scribble/manual-struct 'exported-index-desc*-extras
+                   (λ () (λ (_) (hasheq)))))
+
 (define (doc-index-lookup str)
   (with-less-memory-pressure
     (define xref (force xref-promise))
     (define results
       (for*/set ([entry (in-list (xref-index xref))]
                  [desc (in-value (entry-desc entry))]
-                 #:when (not (constructor-index-desc? desc))
+                 #:when (not
+                         (or (constructor-index-desc? desc)
+                             (and (exported-index-desc*? desc)
+                                  (let ([ht (exported-index-desc*-extras desc)])
+                                    (for/or ([key (in-list
+                                                   (list 'hidden?
+                                                         'constructor?))])
+                                      (hash-ref ht key #f))))))
                  [term (in-value (car (entry-words entry)))]
-                 #:when (equal? str term))
+                 #:when (string=? str term))
         (define tag (entry-tag entry))
         (define-values (path anchor) (xref-tag->path+anchor xref tag))
         (define-values (what from)
           (cond
             [(module-path-index-desc? desc)
              (values 'module null)]
+            [(and (exported-index-desc*? desc)
+                  (hash-ref (exported-index-desc*-extras desc) 'kind #f))
+             =>
+             (λ (kind)
+               (values kind
+                       (exported-index-desc-from-libs desc)))]
             [(exported-index-desc? desc)
              (define kind
                (match desc
