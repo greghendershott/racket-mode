@@ -1,12 +1,13 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
 
 (require (for-syntax racket/base)
-         syntax/stx
          syntax/parse/define
-         racket/format)
+         racket/format
+         "define-fallbacks.rkt"
+         "safe-dynamic-require.rkt")
 
 (provide string->namespace-syntax
          syntax-or-sexpr->syntax
@@ -21,7 +22,8 @@
          log-racket-mode-fatal
          time-apply/log
          with-time/log
-         define-polyfill)
+         (all-from-out "define-fallbacks.rkt")
+         (all-from-out "safe-dynamic-require.rkt"))
 
 (define (string->namespace-syntax str)
   (namespace-syntax-introduce
@@ -56,13 +58,3 @@
 
 (define-simple-macro (with-time/log what e ...+)
   (time-apply/log what (λ () e ...) '()))
-
-;; dynamic-require with backup implementation
-
-(define-simple-macro (define-polyfill (id:id arg:expr ...)
-                       #:module mod:id
-                       body:expr ...+)
-  (define id
-    (with-handlers ([exn:fail? (λ (_exn)
-                                 (λ (arg ...) body ...))])
-      (dynamic-require 'mod 'id))))

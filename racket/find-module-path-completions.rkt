@@ -22,8 +22,7 @@
 ;;; devoted to this. For example "HELLO?\n" => "OK\n\n" / "ERROR\n\n".
 ;;; Thereafter the status quo loop.)
 
-(require racket/match
-         "util.rkt")
+(require "safe-dynamic-require.rkt")
 
 (module+ main
   (define dir (current-directory)) ;FIXME: Get from command-line
@@ -37,9 +36,10 @@
       (loop)))
   (exit 0))
 
-(define-polyfill (find-module-path-completions dir)
-  #:module drracket/find-module-path-completions
-  (λ (_str) (list)))
+(define find-module-path-completions
+  (safe-dynamic-require 'drracket/find-module-path-completions
+                        'find-module-path-completions
+                        (λ () (λ (_dir) (λ (_str) null)))))
 
 (define (init dir)
   (define get (find-module-path-completions dir))

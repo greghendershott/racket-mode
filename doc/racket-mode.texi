@@ -243,6 +243,8 @@ REPL variables
 
 Other variables
 
+* racket-doc-index-directory::
+* racket-doc-index-predicate-function::
 * racket-indent-curly-as-sequence::
 * racket-indent-sequence-depth::
 * racket-pretty-lambda::
@@ -2144,21 +2146,6 @@ the Racket ``Search Manuals'' page.
 
 Search installed documentation; view using @code{racket-describe-mode}.
 
-Always prompts you to enter a symbol, defaulting to the symbol at
-point if any.
-
-@itemize
-@item
-If just one module exports the name, you go directly to a
-Racket Describe buffer with its documentation.
-
-@item
-If multiple modules export the name, you go first to a
-``disambiguation'' buffer similar to the Racket ``Search
-Manuals'' web page. You may press RET on any item to get a
-Racket Describe buffer for that module's version of the thing.
-@end itemize
-
 @node Run
 @section Run
 
@@ -3581,6 +3568,8 @@ Name of the file used by @ref{racket-repl}.
 @section Other variables
 
 @menu
+* racket-doc-index-directory::
+* racket-doc-index-predicate-function::
 * racket-indent-curly-as-sequence::
 * racket-indent-sequence-depth::
 * racket-pretty-lambda::
@@ -3590,6 +3579,26 @@ Name of the file used by @ref{racket-repl}.
 * racket-after-run-hook::
 * racket-sexp-comment-fade::
 @end menu
+
+@node racket-doc-index-directory
+@subsection racket-doc-index-directory
+
+Directory for @ref{racket-describe-search} doc index files.
+
+@node racket-doc-index-predicate-function
+@subsection racket-doc-index-predicate-function
+
+A function used by @ref{racket-describe-search} to filter results.
+
+The default value, the @code{always} function, filters nothing.
+
+The function is given four string arguments -- TERM, WHAT,
+FROM-LIBS, and FAMILIES -- and should return whether to include
+the item in the list of completion candidates. An example that
+limits candidates to the ``Rhombus'' family:
+
+(lambda (@math{_term} _what _from-libs families)
+  (string-equal families ``Rhombus'')
 
 @node racket-indent-curly-as-sequence
 @subsection racket-indent-curly-as-sequence

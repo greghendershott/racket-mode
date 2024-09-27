@@ -8,7 +8,8 @@
          racket/match
          racket/port
          net/url
-         "../../racket/lang-info.rkt")
+         "../../racket/lang-info.rkt"
+         "../../racket/util.rkt")
 
 (define hash-lang%
   (with-handlers ([exn:fail:filesystem:missing-module?
@@ -425,27 +426,27 @@
                   (24 25 parenthesis))
                 "other-lang-source used to tokenize using #lang scribble/manual instead of default #lang racket"))
 
-(unless (getenv "CI") ;needs github.com:mflatt/shrubbery-rhombus-0.git
+(when (rhombus-installed?)
   (let* ([o (test-create "#lang rhombus\n@//{block comment}")]
          ;;               01234567890123 4567890123456789012
          ;;                         1          2         3
          [gen-1-tokens (send o get-tokens 1)])
     (check-equal? (test-update! o 2 16 0 " ")
-                  '((14 15 #hasheq((rhombus-type . at) (type . at)))
+                  '((14 15 #hasheq((invisible-open-count . 1) (rhombus-type . at) (type . at)))
                     (15 16 #hasheq((rhombus-type . operator) (type . operator)))
                     (16 17 #hasheq((rhombus-type . whitespace) (type . white-space)))
                     (17 18 #hasheq((rhombus-type . operator) (type . operator)))
                     (18 19 #hasheq((rhombus-type . opener) (type . parenthesis)))
-                    (19 24 #hasheq((rhombus-type . identifier) (type . symbol)))
+                    (19 24 #hasheq((invisible-open-count . 1) (rhombus-type . identifier) (type . symbol)))
                     (24 25 #hasheq((rhombus-type . whitespace) (type . white-space)))
-                    (25 32 #hasheq((rhombus-type . identifier) (type . symbol)))
-                    (32 33 #hasheq((rhombus-type . closer) (type . parenthesis))))
+                    (25 32 #hasheq((invisible-close-count . 1) (rhombus-type . identifier) (type . symbol)))
+                    (32 33 #hasheq((invisible-close-count . 1) (rhombus-type . closer) (type . parenthesis))))
                   "non-zero backup amounts are used: edit removes block comment")
     (check-equal? (test-update! o 3 16 1 "")
-                  '((14 17 #hasheq((rhombus-type . at-comment) (type . comment)))
+                  '((14 17 #hasheq((invisible-open-count . 1) (rhombus-type . at-comment) (type . comment)))
                     (17 18 #hasheq((comment? . #t) (rhombus-type . at-opener) (type . parenthesis)))
                     (18 31 #hasheq((comment? . #t) (rhombus-type . at-content) (type . text)))
-                    (31 32 #hasheq((comment? . #t) (rhombus-type . at-closer) (type . parenthesis))))
+                    (31 32 #hasheq((invisible-close-count . 1) (comment? . #t) (rhombus-type . at-closer) (type . parenthesis))))
                   "non-zero backup amounts are used: edit restores block comment")
     (check-equal? gen-1-tokens
                   (send o get-tokens 3)

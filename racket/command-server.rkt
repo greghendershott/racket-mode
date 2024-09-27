@@ -18,8 +18,7 @@
          "repl-session.rkt"
          (only-in "scribble.rkt"
                   bluebox-command
-                  doc-index-names
-                  doc-index-lookup
+                  doc-index
                   libs-exporting-documented)
          "util.rkt")
 
@@ -146,8 +145,7 @@
     [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
     [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]
     [`(requires/find ,str)             (libs-exporting-documented str)]
-    [`(doc-index-names)                (doc-index-names)]
-    [`(doc-index-lookup ,str)          (doc-index-lookup str)]
+    [`(doc-index ,etag)                (doc-index etag)]
     [`(hash-lang . ,more)              (apply hash-lang more)]
     [`(pkg-list)                       (package-list)]
     [`(pkg-details ,str)               (package-details str)]

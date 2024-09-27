@@ -243,6 +243,19 @@ whether it would shadow an end user binding in the global map.")
         (unless (lookup-key major-mode-keymap key)
           (define-key major-mode-keymap key cmd))))))
 
+(defun racket--file-name-slug (str)
+  "Change STR to a string that is a valid file name."
+  ;; 2. But not leading or trailing ?-
+  (replace-regexp-in-string
+   (rx (or (seq bos (+ ?-))
+           (seq (+ ?-) eos)))
+   ""
+   ;; 1. Replace runs of anything that is not alnum with a single ?-.
+   (replace-regexp-in-string
+    (rx (+ (not (any alnum))))
+    "-"
+    str)))
+
 (provide 'racket-util)
 
 ;; racket-util.el ends here

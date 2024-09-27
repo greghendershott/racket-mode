@@ -222,6 +222,28 @@ Scribble text, use the face `racket-hash-lang-text'."
   :type '(alist :key-type symbol :value-type face)
   :safe #'listp)
 
+(defcustom racket-doc-index-directory
+  (locate-user-emacs-file (file-name-as-directory "racket-mode"))
+  "Directory for `racket-describe-search' doc index files."
+  :type 'file)
+
+(defcustom racket-doc-index-predicate-function
+  'always
+  "A function used by `racket-describe-search' to filter results.
+
+The default value, the `always' function, filters nothing.
+
+The function is given four string arguments -- TERM, WHAT,
+FROM-LIBS, and FAMILIES -- and should return whether to include
+the item in the list of completion candidates. An example that
+limits candidates to the \"Rhombus\" family:
+
+    (lambda (_term _what _from-libs families)
+      (string-equal families \"Rhombus\")
+"
+  :type 'function
+  :risky t)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; racket-repl group
 
@@ -595,6 +617,7 @@ ignore POS. Examples: `racket-show-echo-area' and
   :group 'racket)
 
 (defmacro defface-racket (id facespec docstr)
+  (declare (indent defun))
   `(progn
      (defconst ,id ',id)
      (defface ,id
@@ -802,6 +825,18 @@ See the variable `racket-browse-url-function'.")
 (defface-racket racket-hash-lang-text
   '((t (:inherit default)))
   "Face `racket-hash-lang-mode' uses for text tokens.")
+
+(defface-racket racket-describe-search-kind
+  '((t (:inherit font-lock-type-face)))
+  "Face `racket-describe-search' uses for kinds.")
+
+(defface-racket racket-describe-search-from-libs
+  '((t (:inherit font-lock-string-face)))
+  "Face `racket-describe-search' uses for library modules.")
+
+(defface-racket racket-describe-search-lang-fams
+  '((t (:inherit font-lock-doc-face)))
+  "Face `racket-describe-search' uses for language families.")
 
 (provide 'racket-custom)
 

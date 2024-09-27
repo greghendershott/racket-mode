@@ -1497,19 +1497,6 @@ A suitable value for the hook `kill-emacs-hook'."
       (when (eq major-mode 'racket-repl-mode)
         (racket-repl-write-history)))))
 
-(defun racket--buffer-name-slug ()
-  "Change `buffer-name' to a string that is a valid filename."
-  ;; 2. But not leading or trailing ?-
-  (replace-regexp-in-string
-   (rx (or (seq bos (+ ?-))
-           (seq (+ ?-) eos)))
-   ""
-   ;; 1. Replace runs of anything that is not alnum with a single ?-.
-   (replace-regexp-in-string
-    (rx (+ (not (any alnum))))
-    "-"
-    (buffer-name))))
-
 ;;; Clearing the REPL
 
 (defun racket-repl-clear ()
@@ -1822,7 +1809,8 @@ output."
 
 (defun racket--repl-history-filename ()
   (make-directory racket-repl-history-directory t)
-  (expand-file-name (concat "input-history-" (racket--buffer-name-slug))
+  (expand-file-name (concat "input-history-"
+                            (racket--file-name-slug (buffer-name)))
                     racket-repl-history-directory))
 
 (defun racket-repl-write-history ()
