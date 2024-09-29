@@ -50,6 +50,7 @@ melpa-url := https://melpa.org/packages/
 deps:
 	$(batch-emacs) \
       --eval '(add-to-list (quote package-archives) (cons "melpa" "$(melpa-url)"))' \
+      --eval '(unless (fboundp (quote lisp-data-mode)) (defalias (quote lisp-data-mode) (quote emacs-lisp-mode)))' \
       --eval '(package-refresh-contents)' \
       --eval '(package-install (quote faceup))' \
       --eval '(package-install (quote paredit))'
