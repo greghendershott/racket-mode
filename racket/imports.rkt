@@ -41,7 +41,7 @@
   (->* (syntax?) hash?)
   (define ht (make-hash))
   (define (update! rmp f)
-    (hash-update! ht (->str rmp) f (set)))
+    (hash-update! ht (~a (syntax->datum rmp)) f (set)))
   (define (add! rmp v)
     (update! rmp (λ (s) (set-add s (->str v)))))
   (define (remove! rmp v)
