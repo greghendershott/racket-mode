@@ -141,7 +141,8 @@
         (elisp-write term))
       (newline))))
 
-;; Newer exported-index-desc* struct introduced after Racket 8.14.
+;; When available use new exported-index-desc* struct, introduced c.
+;; Racket 8.14.0.5.
 (define exported-index-desc*?
   (dynamic-require 'scribble/manual-struct 'exported-index-desc*?
                    (λ () (λ (_) #f))))
@@ -154,68 +155,78 @@
     (define xref (force xref-promise))
     (define results
       (for*/set ([entry (in-list (xref-index xref))]
-                 [desc (in-value (entry-desc entry))]
-                 #:when (not
-                         (or (constructor-index-desc? desc)
-                             (and (exported-index-desc*? desc)
-                                  (let ([ht (exported-index-desc*-extras desc)])
-                                    (for/or ([key (in-list
-                                                   (list 'hidden?
-                                                         'constructor?))])
-                                      (hash-ref ht key #f))))))
                  [term (in-value (car (entry-words entry)))]
-                 #:when (string=? str term))
+                 #:when (string=? str term)
+                 [desc (in-value (entry-desc entry))]
+                 #:when desc
+                 [_ (in-value (println desc))] ;;; DEBUG
+                 ;;;[_ (in-value (println (entry-content entry)))] ;;; DEBUG
+                 #:unless (or (constructor-index-desc? desc)
+                              (and (exported-index-desc*? desc)
+                                   (let ([ht (exported-index-desc*-extras desc)])
+                                     (or (hash-ref ht 'hidden? #f)
+                                         (hash-ref ht 'constructor? #f))))))
         (define tag (entry-tag entry))
+        (define (what/method tag)
+          (cond
+            [(method-tag? tag)
+             (define-values (c/i _m) (get-class/interface-and-method tag))
+             (format "method of ~a" c/i)]
+            [else "method"]))
         (define-values (path anchor) (xref-tag->path+anchor xref tag))
         (define-values (what from)
           (cond
-            [(module-path-index-desc? desc)
-             (values 'module null)]
-            [(and (exported-index-desc*? desc)
-                  (hash-ref (exported-index-desc*-extras desc) 'kind #f))
-             =>
-             (λ (kind)
-               (values kind
-                       (exported-index-desc-from-libs desc)))]
+            [(exported-index-desc*? desc)
+             (define ht (exported-index-desc*-extras desc))
+             (define kind (hash-ref ht 'kind))
+             (define what (if (string=? kind "method")
+                              (what/method tag)
+                              kind))
+             (define libs (exported-index-desc-from-libs desc))
+             (values what libs)]
             [(exported-index-desc? desc)
              (define kind
                (match desc
-                 [(? language-index-desc?)  'language]
-                 [(? reader-index-desc?)    'reader]
-                 [(? form-index-desc?)      'syntax]
-                 [(? procedure-index-desc?) 'procedure]
-                 [(? thing-index-desc?)     'value]
-                 [(? struct-index-desc?)    'structure]
-                 [(? class-index-desc?)     'class]
-                 [(? interface-index-desc?) 'interface]
-                 [(? mixin-index-desc?)     'mixin]
-                 [(? method-index-desc?)
-                  (cond
-                    [(method-tag? tag)
-                     (define-values (c/i _m) (get-class/interface-and-method tag))
-                     (cons 'method c/i)]
-                    [else 'method])]
+                 [(? language-index-desc?)  "language"]
+                 [(? reader-index-desc?)    "reader"]
+                 [(? form-index-desc?)      "syntax"]
+                 [(? procedure-index-desc?) "procedure"]
+                 [(? thing-index-desc?)     "value"]
+                 [(? struct-index-desc?)    "structure"]
+                 [(? class-index-desc?)     "class"]
+                 [(? interface-index-desc?) "interface"]
+                 [(? mixin-index-desc?)     "mixin"]
+                 [(? method-index-desc?)    (what/method tag)]
                  [_ ""]))
              (define libs (exported-index-desc-from-libs desc))
              (values kind libs)]
+            [(module-path-index-desc? desc)
+             (values "module" null)]
             [else
-             (values 'documentation
-                     (list
+             (values (format "in ~a"
                       (match (reverse (explode-path path))
                         [(list* _ v _) (path->string v)]
-                        [_             (~a tag)])))]))
-        (list term what from path anchor)))
+                        [_             (~a tag)]))
+                     null)]))
+        (define from-str (string-join (map ~s from) ", "))
+        (list term what from-str path anchor)))
     (sort (set->list results)
           string<?
           #:cache-keys? #t
           #:key
           (match-lambda
-            [(list* _term _what (cons from _) _path _anchor)
-             (match (~a from)
+            [(list* _term _what from _path _anchor)
+             (match from
+               ;; sort things from some distinguished libs first
                [(and (pregexp "^racket/") v)
-                (string-append "0_" v)]
+                (string-append " 0_" v)]
                [(and (pregexp "^typed/racket/") v)
-                (string-append "1_" v)]
+                (string-append " 1_" v)]
+               [(and (pregexp "^rhombus") v)
+                (string-append " 2_" v)]
+               ;; not from any libs: sort last
+               [""
+                (make-string 128 #\z)]
                [v v])]
             [(cons term _) term]))))
 
