@@ -159,8 +159,7 @@
                  #:when (string=? str term)
                  [desc (in-value (entry-desc entry))]
                  #:when desc
-                 [_ (in-value (println desc))] ;;; DEBUG
-                 ;;;[_ (in-value (println (entry-content entry)))] ;;; DEBUG
+                 ;;; [_ (in-value (println desc))] ;;; DEBUG
                  #:unless (or (constructor-index-desc? desc)
                               (and (exported-index-desc*? desc)
                                    (let ([ht (exported-index-desc*-extras desc)])
@@ -185,7 +184,7 @@
              (define libs (exported-index-desc-from-libs desc))
              (values what libs)]
             [(exported-index-desc? desc)
-             (define kind
+             (define what
                (match desc
                  [(? language-index-desc?)  "language"]
                  [(? reader-index-desc?)    "reader"]
@@ -199,15 +198,20 @@
                  [(? method-index-desc?)    (what/method tag)]
                  [_ ""]))
              (define libs (exported-index-desc-from-libs desc))
-             (values kind libs)]
+             (values what libs)]
             [(module-path-index-desc? desc)
              (values "module" null)]
             [else
-             (values (format "in ~a"
-                      (match (reverse (explode-path path))
-                        [(list* _ v _) (path->string v)]
-                        [_             (~a tag)]))
-                     null)]))
+             (define where
+               (match (reverse (explode-path path))
+                 [(list* html-file dir _)
+                  (format "in ~a ~a"
+                          (path->string dir)
+                          (path->string (path-replace-extension html-file
+                                                                #"")))]
+                 [_
+                  (format "tag ~a") tag]))
+             (values where null)]))
         (define from-str (string-join (map ~s from) ", "))
         (list term what from-str path anchor)))
     (sort (set->list results)

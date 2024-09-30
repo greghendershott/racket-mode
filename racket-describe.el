@@ -623,7 +623,7 @@ point if any.
               (setq tabulated-list-format
                     (vector (list "Name" (max max-term (length "Name ")) nil)
                             (list "Kind" (max max-what (length "Kind ")) t)
-                            (list "From" 99                              t)))
+                            (list "Provided from" 99 t)))
               (setq tabulated-list-padding 0)
               (tabulated-list-init-header)
               (tabulated-list-print)
