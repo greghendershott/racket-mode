@@ -607,24 +607,17 @@ point if any.
               (setq tabulated-list-entries
                     (mapcar
                      (pcase-lambda (`(,term ,what ,from ,path ,anchor))
-                       (let ((from (format "%s" from))
-                             (what (pcase what
-                                     (`(,m . ,c) (concat (symbol-name m)
-                                                         " of "
-                                                         (symbol-name c)))
-                                     (`() "")
-                                     (_ (symbol-name what)))))
-                         (setq max-term (max max-term (length term)))
-                         (setq max-what (max max-what (length what)))
-                         (list nil
-                               (vector
-                                (list term
-                                      'name   term
-                                      'path   (racket-file-name-back-to-front path)
-                                      'anchor anchor
-                                      'action #'racket-describe-search-button)
-                                what
-                                from))))
+                       (setq max-term (max max-term (length term)))
+                       (setq max-what (max max-what (length what)))
+                       (list nil
+                             (vector
+                              (list term
+                                    'name   term
+                                    'path   (racket-file-name-back-to-front path)
+                                    'anchor anchor
+                                    'action #'racket-describe-search-button)
+                              what
+                              from)))
                      vs))
               (setq tabulated-list-sort-key nil)
               (setq tabulated-list-format
