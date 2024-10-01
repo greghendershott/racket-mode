@@ -1270,24 +1270,37 @@ else returns STR."
 
 ;;; eldoc-box
 
-(defun racket-xp-eldoc-box-buffer-setup-function (_original-buffer)
-  "Avoid the default markdown adjustments and `visual-line-mode'."
-  ;; First we need to replicate most of `eldoc-box-buffer-setup'. We
-  ;; might even need to update this, if that evolves. (Although not my
-  ;; ideal design choice, I appreciate the eldoc-box author took time
-  ;; to do something for us; so let's work with it.)
-  (setq mode-line-format nil)
-  (setq header-line-format nil)
-  (setq-local cursor-type t)
-  (when (and (bound-and-true-p global-tab-line-mode)
-             (boundp 'tab-line-format))
-    (setq tab-line-format nil))
-  (buffer-face-set 'eldoc-box-body)
-  (when (boundp 'eldoc-box-hover-mode)
-    (setq eldoc-box-hover-mode t))
-  ;; Finally what we care about: Avoid `eldoc-buffer-setup-hook', and,
-  ;; disable `visual-line-mode'.
-  (visual-line-mode -1))
+(defun racket-xp-eldoc-box-buffer-setup-function (original-buffer)
+  "Called by eldoc-box with its child frame buffer current.
+
+Although most of `eldoc-box-buffer-setup' is necessary for
+eldoc-box to work correctly, we want to avoid two default
+behaviors:
+
+1. It runs `eldoc-buffer-hook' functions to massage markdown; N/A.
+
+2. It enables `visual-line-mode', which might add line breaks.
+
+To further avoid extra line breaks and continuation marks in the
+fringe, we also want to enable `truncate-lines', as does
+`racket-describe-mode'.
+
+Extra line breaks are especially bad when `racket-xp-eldoc-level'
+is \\='complete and we're showing a fragment of full Racket
+documentation HTML, which makes heavy use of HTML tables, and
+we've worked hard to help shr to convert these correctly."
+  (when (and (fboundp 'eldoc-box-buffer-setup)
+             (boundp 'eldoc-box-buffer-hook))
+    ;; Call `eldoc-box-buffer-setup' for most of the work it does --
+    ;; but during the dynamic extent of the call, "disable"
+    ;; visual-line-mode and the hook.
+    (cl-letf (((symbol-function #'visual-line-mode) #'ignore)
+              ((default-value 'eldoc-box-buffer-hook) nil))
+      (eldoc-box-buffer-setup original-buffer))
+    ;; Although the above should suffice, belt+suspenders.
+    (visual-line-mode -1)
+    ;; Finally, enable `truncate-lines'.
+    (setq-local truncate-lines t)))
 
 ;;; Mode line status
 
