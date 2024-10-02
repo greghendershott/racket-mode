@@ -594,7 +594,7 @@ point if any.
        (pcase result
          (`()
           (message "No documentation found for %s" name))
-         (`((,_term ,_what ,_from ,path ,anchor))
+         (`((,_term ,_what ,_from ,_fams ,path ,anchor))
           (racket-describe-search-visit name
                                         (racket-file-name-back-to-front path)
                                         anchor))
@@ -603,12 +603,14 @@ point if any.
               (get-buffer-create buf-name)
             (racket-describe-search-mode)
             (let ((max-term 0)
-                  (max-what 0))
+                  (max-what 0)
+                  (max-from 0))
               (setq tabulated-list-entries
                     (mapcar
-                     (pcase-lambda (`(,term ,what ,from ,path ,anchor))
+                     (pcase-lambda (`(,term ,what ,from ,fams ,path ,anchor))
                        (setq max-term (max max-term (length term)))
                        (setq max-what (max max-what (length what)))
+                       (setq max-from (max max-from (length from)))
                        (list nil
                              (vector
                               (list term
@@ -617,13 +619,15 @@ point if any.
                                     'anchor anchor
                                     'action #'racket-describe-search-button)
                               what
-                              from)))
+                              from
+                              fams)))
                      vs))
               (setq tabulated-list-sort-key nil)
               (setq tabulated-list-format
                     (vector (list "Name" (max max-term (length "Name ")) nil)
                             (list "Kind" (max max-what (length "Kind ")) t)
-                            (list "Provided from" 99 t)))
+                            (list "Provided from" (max max-from (length "Provided from")) t)
+                            (list "Language families" 99 t)))
               (setq tabulated-list-padding 0)
               (tabulated-list-init-header)
               (tabulated-list-print)
