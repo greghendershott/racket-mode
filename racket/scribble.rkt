@@ -10,7 +10,8 @@
          racket/set
          racket/string
          (only-in scribble/core
-                  tag?)
+                  tag?
+                  content->string)
          scribble/blueboxes
          (only-in scribble/manual-struct
                   ;; i.e. Not the newer exported-index-desc*
@@ -39,7 +40,8 @@
          setup/xref
          syntax/parse/define
          version/utils
-         "elisp.rkt")
+         "elisp.rkt"
+         "util.rkt")
 
 (provide binding->path+anchor
          identifier->bluebox
@@ -130,25 +132,38 @@
 ;; making _another_ 30K+ list, by returning a thunk for elisp-write
 ;; to call, to do "streaming" writes.
 
+;; When available use new index structs circa Racket 8.14.0.6.
+(define-polyfill (exported-index-desc*? _)
+  #:module scribble/manual-struct
+  #f)
+(define-polyfill (exported-index-desc*-extras _)
+  #:module scribble/manual-struct
+  #hasheq())
+(define-polyfill (index-desc? _)
+  #:module scribble/manual-struct
+  #f)
+(define-polyfill (index-desc-extras _)
+  #:module scribble/manual-struct
+  #hasheq())
+
+(define (hide-desc? desc)
+  ;; Don't show doc for constructors; class doc suffices.
+  (or (constructor-index-desc? desc)
+      (and (exported-index-desc*? desc)
+           (let ([ht (exported-index-desc*-extras desc)])
+             (or (hash-ref ht 'hidden? #f)
+                 (hash-ref ht 'constructor? #f))))))
+
 (define ((doc-index-names))
   (with-less-memory-pressure
     (with-parens
       (define xref (force xref-promise))
       (for* ([entry (in-list (xref-index xref))]
              [desc (in-value (entry-desc entry))]
-             #:when (not (constructor-index-desc? desc))
+             #:unless (hide-desc? desc)
              [term (in-value (car (entry-words entry)))])
         (elisp-write term))
       (newline))))
-
-;; When available use new exported-index-desc* struct, introduced c.
-;; Racket 8.14.0.5.
-(define exported-index-desc*?
-  (dynamic-require 'scribble/manual-struct 'exported-index-desc*?
-                   (λ () (λ (_) #f))))
-(define exported-index-desc*-extras
-  (dynamic-require 'scribble/manual-struct 'exported-index-desc*-extras
-                   (λ () (λ (_) (hasheq)))))
 
 (define (doc-index-lookup str)
   (with-less-memory-pressure
@@ -159,12 +174,8 @@
                  #:when (string=? str term)
                  [desc (in-value (entry-desc entry))]
                  #:when desc
-                 ;;; [_ (in-value (println desc))] ;;; DEBUG
-                 #:unless (or (constructor-index-desc? desc)
-                              (and (exported-index-desc*? desc)
-                                   (let ([ht (exported-index-desc*-extras desc)])
-                                     (or (hash-ref ht 'hidden? #f)
-                                         (hash-ref ht 'constructor? #f))))))
+                 [_ (in-value (println desc))] ;;; DEBUG
+                 #:unless (hide-desc? desc))
         (define tag (entry-tag entry))
         (define (what/method tag)
           (cond
@@ -173,16 +184,53 @@
              (format "method of ~a" c/i)]
             [else "method"]))
         (define-values (path anchor) (xref-tag->path+anchor xref tag))
-        (define-values (what from)
+        (define (doc-in)
+          (match (reverse (explode-path path))
+            [(list* html-file dir _)
+             (format "in ~a ~a"
+                     (path->string dir)
+                     (path->string (path-replace-extension html-file
+                                                           #"")))]
+            [_
+             (format "tag ~a") tag]))
+        (define-values (what from fams)
           (cond
+            ;; New structs
             [(exported-index-desc*? desc)
              (define ht (exported-index-desc*-extras desc))
              (define kind (hash-ref ht 'kind))
              (define what (if (string=? kind "method")
                               (what/method tag)
                               kind))
-             (define libs (exported-index-desc-from-libs desc))
-             (values what libs)]
+             (define from
+               (string-join (match (hash-ref ht 'display-from-libs #f)
+                              [(? list? contents)
+                               (map content->string contents)]
+                              [#f
+                               (map ~s (exported-index-desc-from-libs desc))])
+                            ", "))
+             (define fams (match (hash-ref ht 'language-family #f)
+                            [(? list? fams) (string-join (map ~a fams) ", ")]
+                            [#f "Racket"]))
+             (values what from fams)]
+            [(index-desc? desc)
+             (define ht (index-desc-extras desc))
+             (define what (match (hash-ref ht 'module-kind #f)
+                            ['lib    "module"]
+                            ['lang   "language"]
+                            ['reader "reader"]
+                            [#f      "documentation"]
+                            [v       (~a v)]))
+             (define from
+               (match (hash-ref ht 'display-from-libs #f)
+                 [(? list? contents)
+                  (string-join (map content->string contents) ", ")]
+                 [#f (doc-in)]))
+             (define fams (match (hash-ref ht 'language-family #f)
+                            [(? list? fams) (string-join (map ~a fams) ", ")]
+                            [#f "Racket"]))
+             (values what from fams)]
+            ;; Older structs
             [(exported-index-desc? desc)
              (define what
                (match desc
@@ -197,29 +245,19 @@
                  [(? mixin-index-desc?)     "mixin"]
                  [(? method-index-desc?)    (what/method tag)]
                  [_ ""]))
-             (define libs (exported-index-desc-from-libs desc))
-             (values what libs)]
+             (define from (string-join (map ~s (exported-index-desc-from-libs desc)) ", "))
+             (values what from "")]
             [(module-path-index-desc? desc)
-             (values "module" null)]
+             (values "module" "" "")]
             [else
-             (define where
-               (match (reverse (explode-path path))
-                 [(list* html-file dir _)
-                  (format "in ~a ~a"
-                          (path->string dir)
-                          (path->string (path-replace-extension html-file
-                                                                #"")))]
-                 [_
-                  (format "tag ~a") tag]))
-             (values where null)]))
-        (define from-str (string-join (map ~s from) ", "))
-        (list term what from-str path anchor)))
+             (values "documentation" (doc-in) "")]))
+        (list term what from fams path anchor)))
     (sort (set->list results)
           string<?
           #:cache-keys? #t
           #:key
           (match-lambda
-            [(list* _term _what from _path _anchor)
+            [(list* _term _what from _fams _path _anchor)
              (match from
                ;; sort things from some distinguished libs first
                [(and (pregexp "^racket/") v)
