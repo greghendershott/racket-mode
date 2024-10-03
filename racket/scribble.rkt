@@ -3,7 +3,8 @@
 
 #lang racket/base
 
-(require racket/contract
+(require (for-syntax racket/base)
+         racket/contract
          racket/format
          racket/match
          racket/promise
@@ -13,28 +14,7 @@
                   tag?
                   content->string)
          scribble/blueboxes
-         (only-in scribble/manual-struct
-                  ;; i.e. Not the newer exported-index-desc*
-                  ;; accessors, which we need to dynamic-require below
-                  ;; when running on Racket <= 8.14.0, else provide
-                  ;; stubs. We can't import them here, too. Note that
-                  ;; except-in errors for items that aren't actually
-                  ;; exported, so we can't use that here.
-                  constructor-index-desc?
-                  exported-index-desc?
-                  exported-index-desc-name
-                  module-path-index-desc?
-                  language-index-desc?
-                  reader-index-desc?
-                  form-index-desc?
-                  procedure-index-desc?
-                  thing-index-desc?
-                  struct-index-desc?
-                  class-index-desc?
-                  interface-index-desc?
-                  mixin-index-desc?
-                  method-index-desc?
-                  exported-index-desc-from-libs)
+         scribble/manual-struct
          scribble/xref
          scribble/tag
          setup/xref
@@ -42,6 +22,14 @@
          version/utils
          "elisp.rkt"
          "util.rkt")
+
+;; Fallbacks when new index structs aren't available, before c. Racket
+;; 8.14.0.6.
+(define-fallbacks scribble/manual-struct
+  [(exported-index-desc*? _) #f]
+  [(exported-index-desc*-extras _) #hasheq()]
+  [(index-desc? _) #f]
+  [(index-desc-extras _) #hasheq()])
 
 (provide binding->path+anchor
          identifier->bluebox
@@ -131,20 +119,6 @@
 ;; peak going even higher. Furthermore in doc-index-names we avoid
 ;; making _another_ 30K+ list, by returning a thunk for elisp-write
 ;; to call, to do "streaming" writes.
-
-;; When available use new index structs circa Racket 8.14.0.6.
-(define-polyfill (exported-index-desc*? _)
-  #:module scribble/manual-struct
-  #f)
-(define-polyfill (exported-index-desc*-extras _)
-  #:module scribble/manual-struct
-  #hasheq())
-(define-polyfill (index-desc? _)
-  #:module scribble/manual-struct
-  #f)
-(define-polyfill (index-desc-extras _)
-  #:module scribble/manual-struct
-  #hasheq())
 
 (define (hide-desc? desc)
   ;; Don't show doc for constructors; class doc suffices.
