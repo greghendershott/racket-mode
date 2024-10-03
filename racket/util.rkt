@@ -4,7 +4,6 @@
 #lang racket/base
 
 (require (for-syntax racket/base)
-         syntax/stx
          syntax/parse/define
          racket/format)
 
@@ -21,7 +20,8 @@
          log-racket-mode-fatal
          time-apply/log
          with-time/log
-         define-polyfill)
+         define-polyfill
+         define-fallbacks)
 
 (define (string->namespace-syntax str)
   (namespace-syntax-introduce
@@ -57,7 +57,7 @@
 (define-simple-macro (with-time/log what e ...+)
   (time-apply/log what (λ () e ...) '()))
 
-;; dynamic-require with backup implementation
+;;; dynamic-require with backup implementation
 
 (define-simple-macro (define-polyfill (id:id arg:expr ...)
                        #:module mod:id
@@ -66,3 +66,25 @@
     (with-handlers ([exn:fail? (λ (_exn)
                                  (λ (arg ...) body ...))])
       (dynamic-require 'mod 'id))))
+
+;;; similar, but defining fallbacks only for items not imported by a
+;;; normal require
+
+;; advantage: Things like go-to definition work as expected in the
+;; normal, non-fallback case. Whereas with define-polyfill, the
+;; identifier _always_ results from the dynamic-require, and go-to def
+;; always goes there.
+
+(define-syntax-parser define-fallback
+  [(_ mod:id (id:id arg:expr ...) body:expr ...+)
+   (if (with-handlers ([exn:fail? (λ _ #f)])
+         (dynamic-require (syntax-e #'mod) (syntax-e #'id)))
+       #'(void)
+       #'(define (id arg ...)
+           body ...))])
+
+(define-syntax-parser define-fallbacks
+  [(_ mod:id [(id:id arg:expr ...) body:expr ...+] ...+)
+   #'(begin
+       (define-fallback mod (id arg ...) body ...) ...)])
+
