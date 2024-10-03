@@ -174,7 +174,7 @@
                  #:when (string=? str term)
                  [desc (in-value (entry-desc entry))]
                  #:when desc
-                 [_ (in-value (println desc))] ;;; DEBUG
+                 ;;;[_ (in-value (println desc))] ;;; DEBUG
                  #:unless (hide-desc? desc))
         (define tag (entry-tag entry))
         (define (what/method tag)
