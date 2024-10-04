@@ -255,7 +255,8 @@
                     [(list "match" "syntax" "racket/match, racket" family
                            _path _anchor)
                      (equal? family (if older? "" "Racket"))]
-                    [_ #f])))
+                    [_ #f]))
+                (format "~v" results))
     (when (rhombus-installed?)
       (check-true (for/or ([v (in-list results)])
                     (match v
@@ -263,21 +264,24 @@
                              _path _anchor)
                        (and (equal? family (if older? "" "Rhombus"))
                             (equal? kind (if older? "value" "expression")))]
-                      [_ #f])))))
+                      [_ #f]))
+                  (format "~v" results))))
   (let ([results (doc-index-lookup "set-label")])
     (check-true (for/or ([v (in-list results)])
                   (match v
                     [(list "set-label" "method of message%" "racket/gui/base, racket/gui" family
                            _path _anchor)
                      (equal? family (if older? "" "Racket"))]
-                    [_ #f]))))
+                    [_ #f]))
+                (format "~v" results)))
   (let ([results (doc-index-lookup "print")])
     (check-true (for/or ([v (in-list results)])
                   (match v
                     [(list "print" "procedure" "racket/base, racket" family
                            _path _anchor)
                      (equal? family (if older? "" "Racket"))]
-                    [_ #f])))
+                    [_ #f]))
+                (format "~v" results))
     (when (rhombus-installed?)
       (check-true (for/or ([v (in-list results)])
                     (match v
@@ -286,7 +290,8 @@
                        (and (equal? libs (if older? "(lib rhombus/rx.rhm)" "rhombus/rx"))
                             (equal? family (if older? "" "Rhombus"))
                             (equal? kind (if older? "value" "regexp charset operator")))]
-                      [_ #f]))))))
+                      [_ #f]))
+                  (format "~v" results)))))
 
 ;;; This is for the requires/find command
 
