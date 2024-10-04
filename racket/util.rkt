@@ -21,7 +21,8 @@
          time-apply/log
          with-time/log
          define-polyfill
-         define-fallbacks)
+         define-fallbacks
+         rhombus-installed?)
 
 (define (string->namespace-syntax str)
   (namespace-syntax-introduce
@@ -88,3 +89,10 @@
    #'(begin
        (define-fallback mod (id arg ...) body ...) ...)])
 
+;;; Predicate mainly intended for use by tests
+
+(define rhombus-installed?
+  (let ([v (with-handlers ([exn:fail? (λ _ #f)])
+             (dynamic-require 'rhombus #f)
+             #t)])
+    (λ () v)))
