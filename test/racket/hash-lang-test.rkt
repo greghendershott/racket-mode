@@ -8,7 +8,8 @@
          racket/match
          racket/port
          net/url
-         "../../racket/lang-info.rkt")
+         "../../racket/lang-info.rkt"
+         "../../racket/util.rkt")
 
 (define hash-lang%
   (with-handlers ([exn:fail:filesystem:missing-module?
@@ -425,7 +426,7 @@
                   (24 25 parenthesis))
                 "other-lang-source used to tokenize using #lang scribble/manual instead of default #lang racket"))
 
-(unless (getenv "CI") ;needs github.com:mflatt/shrubbery-rhombus-0.git
+(when (rhombus-installed?)
   (let* ([o (test-create "#lang rhombus\n@//{block comment}")]
          ;;               01234567890123 4567890123456789012
          ;;                         1          2         3
