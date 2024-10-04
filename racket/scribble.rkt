@@ -246,6 +246,48 @@
                [v v])]
             [(cons term _) term]))))
 
+(module+ test
+  (define older?
+    (not (dynamic-require 'scribble/manual-struct 'index-desc? (λ () #f))))
+  (let ([results (doc-index-lookup "match")])
+    (check-true (for/or ([v (in-list results)])
+                  (match v
+                    [(list "match" "syntax" "racket/match, racket" family
+                           _path _anchor)
+                     (equal? family (if older? "" "Racket"))]
+                    [_ #f])))
+    (when (rhombus-installed?)
+      (check-true (for/or ([v (in-list results)])
+                    (match v
+                      [(list "match" kind "rhombus" family
+                             _path _anchor)
+                       (and (equal? family (if older? "" "Rhombus"))
+                            (equal? kind (if older? "value" "expression")))]
+                      [_ #f])))))
+  (let ([results (doc-index-lookup "set-label")])
+    (check-true (for/or ([v (in-list results)])
+                  (match v
+                    [(list "set-label" "method of message%" "racket/gui/base, racket/gui" family
+                           _path _anchor)
+                     (equal? family (if older? "" "Racket"))]
+                    [_ #f]))))
+  (let ([results (doc-index-lookup "print")])
+    (check-true (for/or ([v (in-list results)])
+                  (match v
+                    [(list "print" "procedure" "racket/base, racket" family
+                           _path _anchor)
+                     (equal? family (if older? "" "Racket"))]
+                    [_ #f])))
+    (when (rhombus-installed?)
+      (check-true (for/or ([v (in-list results)])
+                    (match v
+                      [(list "print" kind libs family
+                             _path _anchor)
+                       (and (equal? libs (if older? "(lib rhombus/rx.rhm)" "rhombus/rx"))
+                            (equal? family (if older? "" "Rhombus"))
+                            (equal? kind (if older? "value" "regexp charset operator")))]
+                      [_ #f]))))))
+
 ;;; This is for the requires/find command
 
 ;; Given some symbol as a string, return the modules providing it,
