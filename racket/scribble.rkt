@@ -74,7 +74,7 @@
 
 (define racket-newer-than-6.12 (version<? "6.12" (version)))
 
-(define bluebox-cache (delay/thread (make-blueboxes-cache #t)))
+(define bluebox-cache (delay (make-blueboxes-cache #t)))
 
 (define (get-bluebox-string tag)
   (match (and racket-newer-than-6.12
@@ -245,9 +245,9 @@
             [(cons term _) term]))))
 
 (module+ test
-  ;; Experimental hack to debug test failures happening only on CI,
-  ;; where xref-index seems to return an empty list, but only for
-  ;; Racket 6.12 (not stable or snapshot versions).
+  ;; Experimental hack to debug test failures happening only on CI and
+  ;; only for Racket 6.12 (not stable or snapshot versions), where
+  ;; xref-index seems to return an empty list.
   (when (getenv "CI")
     (let loop ()
       (when (null? (xref-index (load-collections-xref)))
