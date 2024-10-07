@@ -6,6 +6,7 @@
 (require racket/format
          racket/gui/dynamic
          racket/set
+         "safe-dynamic-require.rkt"
          "gui.rkt"
          "repl-output.rkt"
          "repl-session.rkt"
@@ -42,7 +43,7 @@
     [else v]))
 
 (define current-get-interaction-evt
-  (dynamic-require 'racket/base 'current-get-interaction-evt (λ () #f)))
+  (safe-dynamic-require 'racket/base 'current-get-interaction-evt))
 
 ;; Get a string from current-submissions channel in the best manner
 ;; available given the version of Racket. Avoids hard dependency on

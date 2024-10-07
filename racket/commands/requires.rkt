@@ -69,10 +69,10 @@
                                          (list/c 'drop   module-path? number?))))
 (define mod+level? (list/c module-path? number?))
 
-
-(define-polyfill (show-requires _)
-  #:module macro-debugger/analysis/check-requires
-  (error 'requires "Won't work until you `raco pkg install macro-debugger-lib`"))
+(define show-requires
+  (safe-dynamic-require 'macro-debugger/analysis/check-requires
+                        'show-requires
+                        (λ () (error 'requires "Won't work until you `raco pkg install macro-debugger-lib`"))))
 
 (define/contract (analyze path-str)
   (-> path-string? requires-analysis?)

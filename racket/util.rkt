@@ -1,11 +1,13 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
 
 (require (for-syntax racket/base)
          syntax/parse/define
-         racket/format)
+         racket/format
+         "define-fallbacks.rkt"
+         "safe-dynamic-require.rkt")
 
 (provide string->namespace-syntax
          syntax-or-sexpr->syntax
@@ -20,9 +22,8 @@
          log-racket-mode-fatal
          time-apply/log
          with-time/log
-         define-polyfill
-         define-fallbacks
-         rhombus-installed?)
+         (all-from-out "define-fallbacks.rkt")
+         (all-from-out "safe-dynamic-require.rkt"))
 
 (define (string->namespace-syntax str)
   (namespace-syntax-introduce
@@ -57,42 +58,3 @@
 
 (define-simple-macro (with-time/log what e ...+)
   (time-apply/log what (λ () e ...) '()))
-
-;;; dynamic-require with backup implementation
-
-(define-simple-macro (define-polyfill (id:id arg:expr ...)
-                       #:module mod:id
-                       body:expr ...+)
-  (define id
-    (with-handlers ([exn:fail? (λ (_exn)
-                                 (λ (arg ...) body ...))])
-      (dynamic-require 'mod 'id))))
-
-;;; similar, but defining fallbacks only for items not imported by a
-;;; normal require
-
-;; advantage: Things like go-to definition work as expected in the
-;; normal, non-fallback case. Whereas with define-polyfill, the
-;; identifier _always_ results from the dynamic-require, and go-to def
-;; always goes there.
-
-(define-syntax-parser define-fallback
-  [(_ mod:id (id:id arg:expr ...) body:expr ...+)
-   (if (with-handlers ([exn:fail? (λ _ #f)])
-         (dynamic-require (syntax-e #'mod) (syntax-e #'id)))
-       #'(void)
-       #'(define (id arg ...)
-           body ...))])
-
-(define-syntax-parser define-fallbacks
-  [(_ mod:id [(id:id arg:expr ...) body:expr ...+] ...+)
-   #'(begin
-       (define-fallback mod (id arg ...) body ...) ...)])
-
-;;; Predicate mainly intended for use by tests
-
-(define rhombus-installed?
-  (let ([v (with-handlers ([exn:fail? (λ _ #f)])
-             (dynamic-require 'rhombus #f)
-             #t)])
-    (λ () v)))
