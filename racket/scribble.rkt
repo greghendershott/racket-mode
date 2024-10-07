@@ -248,50 +248,27 @@
 
 (module+ test
   (define older?
-    (not (dynamic-require 'scribble/manual-struct 'index-desc? (λ () #f))))
-  (let ([results (doc-index-lookup "match")])
-    (check-true (for/or ([v (in-list results)])
-                  (match v
-                    [(list "match" "syntax" "racket/match, racket" family
-                           _path _anchor)
-                     (equal? family (if older? "" "Racket"))]
-                    [_ #f]))
-                (format "~v" results))
-    (when (rhombus-installed?)
-      (check-true (for/or ([v (in-list results)])
-                    (match v
-                      [(list "match" kind "rhombus" family
-                             _path _anchor)
-                       (and (equal? family (if older? "" "Rhombus"))
-                            (equal? kind (if older? "value" "expression")))]
-                      [_ #f]))
-                  (format "~v" results))))
-  (let ([results (doc-index-lookup "set-label")])
-    (check-true (for/or ([v (in-list results)])
-                  (match v
-                    [(list "set-label" "method of message%" "racket/gui/base, racket/gui" family
-                           _path _anchor)
-                     (equal? family (if older? "" "Racket"))]
-                    [_ #f]))
-                (format "~v" results)))
-  (let ([results (doc-index-lookup "print")])
-    (check-true (for/or ([v (in-list results)])
-                  (match v
-                    [(list "print" "procedure" "racket/base, racket" family
-                           _path _anchor)
-                     (equal? family (if older? "" "Racket"))]
-                    [_ #f]))
-                (format "~v" results))
-    (when (rhombus-installed?)
-      (check-true (for/or ([v (in-list results)])
-                    (match v
-                      [(list "print" kind libs family
-                             _path _anchor)
-                       (and (equal? libs (if older? "(lib rhombus/rx.rhm)" "rhombus/rx"))
-                            (equal? family (if older? "" "Rhombus"))
-                            (equal? kind (if older? "value" "regexp charset operator")))]
-                      [_ #f]))
-                  (format "~v" results)))))
+    (not (safe-dynamic-require 'scribble/manual-struct 'index-desc?)))
+  (define (check-lookup term kind libs fams)
+    (define results (doc-index-lookup term))
+    (check-true
+     (for/or ([v (in-list results)])
+       (match v
+         [(list (== term) (== kind) (== libs) (== (if older? "" fams))
+                _path _anchor)
+          #t]
+         [_ #f]))
+     (format "~s not found in ~s" (list term kind libs fams) results)))
+  (check-lookup "match" "syntax" "racket/match, racket" "Racket")
+  (when (rhombus-installed?)
+    (check-lookup "match" (if older? "value" "expression") "rhombus" "Rhombus"))
+  (check-lookup "set-label" "method of message%" "racket/gui/base, racket/gui" "Racket")
+  (check-lookup "print" "procedure" "racket/base, racket" "Racket")
+  (when (rhombus-installed?)
+    (check-lookup "print"
+                  (if older? "value" "regexp charset operator")
+                  (if older? "(lib rhombus/rx.rhm)" "rhombus/rx")
+                  "Rhombus")))
 
 ;;; This is for the requires/find command
 
