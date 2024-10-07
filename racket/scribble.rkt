@@ -245,6 +245,15 @@
             [(cons term _) term]))))
 
 (module+ test
+  ;; Experimental hack to debug test failures happening only on CI,
+  ;; where xref-index seems to return an empty list, but only for
+  ;; Racket 6.12 (not stable or snapshot versions).
+  (when (getenv "CI")
+    (let loop ()
+      (when (null? (xref-index (load-collections-xref)))
+        (displayln "Waiting 5 seconds for xref-index...")
+        (sleep 5)
+        (loop))))
   (define older?
     (not (safe-dynamic-require 'scribble/manual-struct 'index-desc?)))
   (define (check-lookup term kind libs fams)
