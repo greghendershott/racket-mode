@@ -74,12 +74,12 @@
 
 ;;; Blueboxes
 
-(define racket-version->6.12? (version<? "6.12" (version)))
+(define racket-newer-than-6.12 (version<? "6.12" (version)))
 
 (define bluebox-cache (delay/thread (make-blueboxes-cache #t)))
 
 (define (get-bluebox-string tag)
-  (match (and racket-version->6.12?
+  (match (and racket-newer-than-6.12
               (fetch-blueboxes-strs tag
                                     #:blueboxes-cache (force bluebox-cache)))
     [(list* _kind strs)
@@ -106,7 +106,7 @@
   ;; younger, I am choosing to ignore this, for now.
   ;;
   ;; Probably https://github.com/racket/drracket/issues/118
-  (when racket-version->6.12?
+  (when racket-newer-than-6.12
     (check-equal? (identifier->bluebox #'list)
                   "(list v ...) -> list?\n  v : any/c"))
   (check-false (identifier->bluebox (datum->syntax #f (gensym)))))
