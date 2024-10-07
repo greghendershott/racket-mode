@@ -9,7 +9,7 @@
          racket/contract
          racket/format
          racket/match
-        "../identifier.rkt")
+         "../identifier.rkt")
 
 (provide doc)
 
@@ -23,14 +23,12 @@
 ;; that case, let's always open the browser one consistent way -- in
 ;; Emacs using browse-url.
 
-;; We are lazy-required so `delay`-ing would be N/A.
-(define xref (load-collections-xref))
-
 (define/contract (doc how str)
   (-> how/c string? (or/c #f string?))
   (->identifier how str stx->uri-string))
 
 (define (stx->uri-string stx)
+  (define xref (load-collections-xref))
   (match (and xref (xref-binding->definition-tag xref stx 0))
     [(? tag? tag)
      (define-values (path anchor) (xref-tag->path+anchor xref tag))
