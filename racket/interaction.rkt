@@ -15,11 +15,11 @@
 (provide get-interaction)
 
 ;; This input port holds the unread remainder of the most-recent
-;; submission string from the current-submissions channel. (Although
+;; submission string from the current-submissions channel. Although
 ;; commonly each submission is one read-able value, like "1\n", it
-;; might contain more than one read-able value, e.g. the user submits
-;; "1 2 3\n". In that case we want to print each result on its own
-;; line, without excess prompts.)
+;; might contain more than one read-able value, e.g. if the user
+;; submits "1 2 3\n". We want to read all. Furthermore, we don't want
+;; to display unnecessary prompts for the subsequent ones.
 (define current-submission-input-port (make-parameter (open-input-string "")))
 
 (define (get-interaction prompt)
