@@ -43,8 +43,6 @@
 (module+ test
   (require rackunit))
 
-(define xref-promise (delay/thread (load-collections-xref)))
-
 ;; When running on a machine with little memory, such as a small VPS
 ;; or AWS instance, I have seen the oom-killer terminate the process
 ;; after we try to handle a back end command that does some of these
@@ -63,7 +61,7 @@
 (define/contract (binding->path+anchor stx)
   (-> identifier? (or/c #f (cons/c path-string? (or/c #f string?))))
   (with-less-memory-pressure
-    (let* ([xref (force xref-promise)]
+    (let* ([xref (load-collections-xref)]
            [tag  (xref-binding->definition-tag xref stx 0)]
            [p+a  (and tag (tag->path+anchor xref tag))])
       p+a)))
@@ -90,7 +88,7 @@
 
 (define/contract (identifier->bluebox stx)
   (-> identifier? (or/c #f string?))
-  (match (xref-binding->definition-tag (force xref-promise) stx 0)
+  (match (xref-binding->definition-tag (load-collections-xref) stx 0)
     [(? tag? tag) (get-bluebox-string tag)]
     [_ #f]))
 
@@ -131,7 +129,7 @@
 (define ((doc-index-names))
   (with-less-memory-pressure
     (with-parens
-      (define xref (force xref-promise))
+      (define xref (load-collections-xref))
       (for* ([entry (in-list (xref-index xref))]
              [desc (in-value (entry-desc entry))]
              #:unless (hide-desc? desc)
@@ -141,7 +139,7 @@
 
 (define (doc-index-lookup str)
   (with-less-memory-pressure
-    (define xref (force xref-promise))
+    (define xref (load-collections-xref))
     (define results
       (for*/set ([entry (in-list (xref-index xref))]
                  [term (in-value (car (entry-words entry)))]
@@ -276,7 +274,7 @@
 ;; sorted by most likely to be desired.
 (define (libs-exporting-documented sym-as-str)
   (with-less-memory-pressure
-    (define xref (force xref-promise))
+    (define xref (load-collections-xref))
     (define results
       (for*/set ([entry (in-list (xref-index xref))]
                  [desc (in-value (entry-desc entry))]
@@ -306,7 +304,7 @@
 
 (define (build-module-doc-path-index)
   (delay/thread
-   (define xref (force xref-promise))
+   (define xref (load-collections-xref))
    (for*/hash ([entry (in-list (xref-index xref))]
                [desc (in-value (entry-desc entry))]
                [module? (in-value (module-path-index-desc? desc))]
