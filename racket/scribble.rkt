@@ -74,12 +74,14 @@
 
 (define racket-newer-than-6.12 (version<? "6.12" (version)))
 
-(define bluebox-cache (delay (make-blueboxes-cache #t)))
+(define bluebox-cache #f)
 
 (define (get-bluebox-string tag)
+  (unless bluebox-cache
+    (set! bluebox-cache (make-blueboxes-cache #t)))
   (match (and racket-newer-than-6.12
               (fetch-blueboxes-strs tag
-                                    #:blueboxes-cache (force bluebox-cache)))
+                                    #:blueboxes-cache bluebox-cache))
     [(list* _kind strs)
      (string-replace (string-join strs "\n")
                      "\u00A0"
