@@ -23,8 +23,8 @@
          "elisp.rkt"
          "util.rkt")
 
-;; Fallbacks when new index structs aren't available, before c. Racket
-;; 8.14.0.6.
+;; Fallbacks when new index structs aren't available (before
+;; scribble-lib 1.54, which ~= Racket 8.14.0.6).
 (define-fallbacks scribble/manual-struct
   [(exported-index-desc*? _) #f]
   [(exported-index-desc*-extras _) #hasheq()]
@@ -148,7 +148,7 @@
                  #:when (string=? str term)
                  [desc (in-value (entry-desc entry))]
                  #:when desc
-                 ;;;[_ (in-value (println desc))] ;;; DEBUG
+                 ;;[_ (in-value (println desc))] ;;; DEBUG
                  #:unless (hide-desc? desc))
         (define tag (entry-tag entry))
         (define (what/method tag)
@@ -167,7 +167,7 @@
                                                            #"")))]
             [_
              (format "tag ~a") tag]))
-        (define-values (what from fams)
+        (define-values (what from fams sort-order)
           (cond
             ;; New structs
             [(exported-index-desc*? desc)
@@ -186,7 +186,8 @@
              (define fams (match (hash-ref ht 'language-family #f)
                             [(? list? fams) (string-join (map ~a fams) ", ")]
                             [#f "Racket"]))
-             (values what from fams)]
+             (define sort-order (hash-ref ht 'sort-order 0))
+             (values what from fams sort-order)]
             [(index-desc? desc)
              (define ht (index-desc-extras desc))
              (define what (match (hash-ref ht 'module-kind #f)
@@ -203,7 +204,8 @@
              (define fams (match (hash-ref ht 'language-family #f)
                             [(? list? fams) (string-join (map ~a fams) ", ")]
                             [#f "Racket"]))
-             (values what from fams)]
+             (define sort-order (hash-ref ht 'sort-order 0))
+             (values what from fams sort-order)]
             ;; Older structs
             [(exported-index-desc? desc)
              (define what
@@ -220,31 +222,36 @@
                  [(? method-index-desc?)    (what/method tag)]
                  [_ ""]))
              (define from (string-join (map ~s (exported-index-desc-from-libs desc)) ", "))
-             (values what from "")]
+             (values what from "" 0)]
             [(module-path-index-desc? desc)
-             (values "module" "" "")]
+             (values "module" "" "" 0)]
             [else
-             (values "documentation" (doc-in) "")]))
-        (list term what from fams path anchor)))
-    (sort (set->list results)
-          string<?
-          #:cache-keys? #t
-          #:key
-          (match-lambda
-            [(list* _term _what from _fams _path _anchor)
-             (match from
-               ;; sort things from some distinguished libs first
-               [(and (pregexp "^racket/") v)
-                (string-append " 0_" v)]
-               [(and (pregexp "^typed/racket/") v)
-                (string-append " 1_" v)]
-               [(and (pregexp "^rhombus") v)
-                (string-append " 2_" v)]
-               ;; not from any libs: sort last
-               [""
-                (make-string 128 #\z)]
-               [v v])]
-            [(cons term _) term]))))
+             (values "documentation" (doc-in) "" 0)]))
+        (list sort-order term what from fams path anchor)))
+    (map
+     cdr
+     (sort (set->list results)
+           string<?
+           #:cache-keys? #t
+           #:key
+           (match-lambda
+             [(list sort-order _term what from fams _path _anchor)
+              (string-append (match fams
+                               ["Racket" " Racket"]
+                               [v v])
+                             (~r sort-order
+                                 #:min-width 9
+                                 #:pad-string "0")
+                             (match from
+                               [(and (pregexp "^racket/") v)
+                                (string-append " 0_" v)]
+                               [(and (pregexp "^typed/racket/") v)
+                                (string-append " 1_" v)]
+                               [(and (pregexp "^rhombus") v)
+                                (string-append " 2_" v)]
+                               ["" (make-string 64 #\z)]
+                               [v v])
+                             what)])))))
 
 (module+ test
   ;; Experimental hack to debug test failures happening only on CI and
