@@ -35,7 +35,7 @@ returns strings stripped of all text properties -- unless a
 command is able to find a suitable matching string in the buffer
 and use its text properties.
 
-The table includes category and affixation-funciton metadata.")
+The table includes category and affixation-function metadata.")
 
 (defun racket--set-xp-binding-completions (mods+syms)
   ;; The back end gives us data optimized for space when serializing:
@@ -43,7 +43,7 @@ The table includes category and affixation-funciton metadata.")
   ;;  ((modA symA0 symA1 ...)
   ;;   (modB symB0 symB1 ...) ...)
   ;;
-  ;; Reshape that to a list of strings, each propertized with is mod,
+  ;; Reshape that to a list of strings, each propertized with its mod,
   ;; for use as completion table.
   (let ((all nil)
         (imports nil)
