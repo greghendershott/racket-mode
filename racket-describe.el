@@ -584,7 +584,7 @@ point if any.
   (interactive)
   (let* ((name (racket--symbol-at-point-or-prompt t "Describe: "
                                                   (racket--describe-terms)))
-         (buf-name (format "*Racket Search Describe `%s` <%s>*"
+         (buf-name (format "*Racket Describe Search `%s` <%s>*"
                            name
                            (racket-back-end-name))))
     (racket--cmd/async
@@ -626,7 +626,7 @@ point if any.
               (setq tabulated-list-format
                     (vector (list "Name" (max max-term (length "Name ")) nil)
                             (list "Kind" (max max-what (length "Kind ")) t)
-                            (list "Provided from" (max max-from (length "Provided from")) t)
+                            (list "From" (max max-from (length "From")) t)
                             (list "Language families" 99 t)))
               (setq tabulated-list-padding 0)
               (tabulated-list-init-header)

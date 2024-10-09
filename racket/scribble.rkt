@@ -17,6 +17,7 @@
          scribble/manual-struct
          scribble/xref
          scribble/tag
+         setup/main-doc
          setup/xref
          syntax/parse/define
          version/utils
@@ -149,24 +150,25 @@
                  [desc (in-value (entry-desc entry))]
                  #:when desc
                  ;;[_ (in-value (println desc))] ;;; DEBUG
-                 #:unless (hide-desc? desc))
-        (define tag (entry-tag entry))
-        (define (what/method tag)
+                 #:unless (hide-desc? desc)
+                 [tag (in-value (entry-tag entry))])
+        (define-values (path anchor) (xref-tag->path+anchor xref tag))
+        (define (method-what)
           (cond
             [(method-tag? tag)
              (define-values (c/i _m) (get-class/interface-and-method tag))
              (format "method of ~a" c/i)]
             [else "method"]))
-        (define-values (path anchor) (xref-tag->path+anchor xref tag))
-        (define (doc-in)
-          (match (reverse (explode-path path))
-            [(list* html-file dir _)
-             (format "in ~a ~a"
-                     (path->string dir)
-                     (path->string (path-replace-extension html-file
-                                                           #"")))]
-            [_
-             (format "tag ~a") tag]))
+        (define (doc-from)
+          (string-append
+           "◊ "
+           (match (path->main-doc-relative path)
+             [(cons 'doc byte-strings)
+              (define path-parts (map bytes->path byte-strings))
+              (define rel-html (apply build-path path-parts))
+              (path->string
+               (path-replace-extension rel-html #""))]
+             [_ (~a tag)])))
         (define-values (what from fams sort-order)
           (cond
             ;; New structs
@@ -174,7 +176,7 @@
              (define ht (exported-index-desc*-extras desc))
              (define kind (hash-ref ht 'kind))
              (define what (if (string=? kind "method")
-                              (what/method tag)
+                              (method-what)
                               kind))
              (define from
                (string-join (match (hash-ref ht 'display-from-libs #f)
@@ -200,7 +202,7 @@
                (match (hash-ref ht 'display-from-libs #f)
                  [(? list? contents)
                   (string-join (map content->string contents) ", ")]
-                 [#f (doc-in)]))
+                 [#f (doc-from)]))
              (define fams (match (hash-ref ht 'language-family #f)
                             [(? list? fams) (string-join (map ~a fams) ", ")]
                             [#f "Racket"]))
@@ -219,39 +221,41 @@
                  [(? class-index-desc?)     "class"]
                  [(? interface-index-desc?) "interface"]
                  [(? mixin-index-desc?)     "mixin"]
-                 [(? method-index-desc?)    (what/method tag)]
+                 [(? method-index-desc?)    (method-what)]
                  [_ ""]))
              (define from (string-join (map ~s (exported-index-desc-from-libs desc)) ", "))
              (values what from "" 0)]
             [(module-path-index-desc? desc)
              (values "module" "" "" 0)]
             [else
-             (values "documentation" (doc-in) "" 0)]))
+             (values "documentation" (doc-from) "" 0)]))
         (list sort-order term what from fams path anchor)))
-    (map
-     cdr
-     (sort (set->list results)
-           string<?
-           #:cache-keys? #t
-           #:key
-           (match-lambda
-             [(list sort-order _term what from fams _path _anchor)
-              (string-append (match fams
-                               ["Racket" " Racket"]
-                               [v v])
-                             (~r sort-order
-                                 #:min-width 9
-                                 #:pad-string "0")
-                             (match from
-                               [(and (pregexp "^racket/") v)
-                                (string-append " 0_" v)]
-                               [(and (pregexp "^typed/racket/") v)
-                                (string-append " 1_" v)]
-                               [(and (pregexp "^rhombus") v)
-                                (string-append " 2_" v)]
-                               ["" (make-string 64 #\z)]
-                               [v v])
-                             what)])))))
+    (define sort-key
+      (match-lambda
+        [(list sort-order _term what from fams _path _anchor)
+         (string-append (match fams
+                          ["Racket" " Racket"]
+                          [v v])
+                        (~r sort-order
+                            #:min-width 9
+                            #:pad-string "0")
+                        (match from
+                          [(and (pregexp "^racket/") v)
+                           (string-append " 0_" v)]
+                          [(and (pregexp "^typed/racket/") v)
+                           (string-append " 1_" v)]
+                          [(and (pregexp "^rhombus") v)
+                           (string-append " 2_" v)]
+                          ["" (make-string 64 #\z)]
+                          [v v])
+                        what)]))
+    (define sorted
+      (sort (set->list results)
+            string<?
+            #:cache-keys? #t
+            #:key sort-key))
+    ;; Slice off the first, "sort-order" element
+    (map cdr sorted)))
 
 (module+ test
   ;; Experimental hack to debug test failures happening only on CI and
