@@ -528,132 +528,143 @@ browser program -- are given `racket-describe-ext-link-face'.
     (setq-local imenu-max-items 999))
   (imenu-add-to-menubar "On this page"))
 
-;;; Search and disambiguation using local docs
+;;; Search local docs
 
 ;; For people who don't want to use a web browser at all: Search local
-;; documentation, disambiguate in a buffer, and view in a
-;; racket-describe-mode buffer.
+;; documentation, and view in a `racket-describe-mode' buffer.
 
-(defvar racket--describe-terms (make-hash-table :test 'equal)
-  "Used for completion candidates.")
+(defvar racket--describe-index (make-hash-table :test 'equal)
+  "Hash-table from back end name to association list of doc index info.")
 
-(defun racket--remove-describe-terms ()
-  "A `racket-stop-back-end-hook' to clean up `racket--describe-terms'."
+(defun racket--remove-describe-index ()
+  "A `racket-stop-back-end-hook' to clean up `racket--describe-index'."
+  (when-let (key (racket-back-end-name))
+    (remhash key racket--describe-index)))
+
+(add-hook 'racket-stop-back-end-hook #'racket--remove-describe-index)
+
+(defun racket--describe-index ()
   (let ((key (racket-back-end-name)))
-    (when key
-      (remhash key racket--describe-terms))))
-
-(add-hook 'racket-stop-back-end-hook #'racket--remove-describe-terms)
-
-(defun racket--describe-terms ()
-  (let ((key (racket-back-end-name)))
-    (pcase (gethash key racket--describe-terms)
-      (`nil
-       (puthash key 'fetching
-                racket--describe-terms)
-       (racket--cmd/async nil
-                          '(doc-index-names)
-                          (lambda (names)
-                            (puthash key
-                                     (sort names #'string-lessp)
-                                     racket--describe-terms)))
+    (pcase (gethash key racket--describe-index)
+      (`()
+       (puthash key 'fetching racket--describe-index)
+       (racket--cmd/async
+        nil
+        '(doc-index)
+        (lambda (items)
+          (puthash key
+                   (racket--describe-index-make-alist items)
+                   racket--describe-index)))
        ;; Wait for response but if waiting too long just return nil,
        ;; and use the response next time.
-       (with-temp-message "Getting completion candidates from back end..."
-        (with-timeout (5 nil)
-          (while (equal 'fetching (gethash key racket--describe-terms))
+       (with-temp-message "Getting doc index from back end..."
+        (with-timeout (15 nil)
+          (while (equal 'fetching (gethash key racket--describe-index))
             (accept-process-output nil 0.01))
-          (gethash key racket--describe-terms))))
-      ('fetching nil)
-      ((and (pred listp) names) names))))
+          (gethash key racket--describe-index))))
+      ('fetching (make-hash-table :test 'equal))
+      ((and (pred listp) alist) alist))))
+
+(defun racket--describe-index-make-alist (items)
+  "Given back end ITEMS make an association list.
+
+A list is a valid collection for completion, where the `car' is
+the completion string. For this we use a string with invisible
+text to influence sorting, appended to the visible search term.
+This is vastly faster than using a :display-sort-function.
+
+Our affixation function gets the propertized string, so we can
+tuck the values it needs into a text property.
+
+However the final result from `completing-read' is stripped of
+text properties -- which is the only reason we need an
+association list, to look up the path and anchor."
+  (cl-flet ((wstr (width s)
+              (let ((len (length s)))
+                (if (<= len width)
+                    (concat s
+                            (make-string (- width len) 32))
+                  (substring s 0 width)))))
+    (mapcar
+     (pcase-lambda (`(,uid ,term ,sort ,what ,from ,fams ,path ,anchor))
+       (let* ((term (propertize term
+                                'racket-affix (list term what from fams)))
+              (sort (let ((fams (wstr 32
+                                      (pcase fams
+                                        ("Racket" " Racket")
+                                        (v v))))
+                          (from (wstr 64
+                                      (cond
+                                       ((string-match-p "^racket/" from)
+                                        (concat " 0_" from))
+                                       ((string-match-p "^typed/racket/" from)
+                                        (concat " 1_" from))
+                                       ((string-match-p "^rhombus" from)
+                                        (concat " 2_" from))
+                                       ((string-equal "" from)
+                                        (make-string 16 ?z))
+                                       (t from))))
+                          (what (wstr 32 what))
+                          (sort (format "%09d" sort))
+                          (uid  (format "%05d" uid)))
+                      ;; We need uid only to guarantee uniqueness, not
+                      ;; to influence sorting, so it goes last.
+                      (concat fams from what sort uid)))
+              (str (concat term (propertize sort 'display ""))))
+         (list str path anchor)))
+     items)))
+
+(defun racket--describe-index-affixator (strs)
+  "Value for :affixation-function."
+  (let ((max-term 16)
+        (max-what 16)
+        (max-from 32))
+    (dolist (str strs)
+      (pcase-let ((`(,term ,what ,from ,_fams)
+                   (get-text-property 0 'racket-affix str)))
+        (setq max-term (max max-term (1+ (length term))))
+        (setq max-what (max max-what (1+ (length what))))
+        (setq max-from (max max-from (1+ (length from))))))
+    (seq-map (lambda (str)
+               (pcase-let*
+                   ((`(,term ,what ,from ,fams)
+                     (get-text-property 0 'racket-affix str))
+                    (suffix (concat
+                             (make-string (- max-term (length term)) 32)
+                             what
+                             (make-string (- max-what (length what)) 32)
+                             from
+                             (make-string (- max-from (length from)) 32)
+                             fams))
+                    (suffix (propertize suffix
+                                        'face 'completions-annotations)))
+                 (list str "" suffix)))
+             strs)))
 
 (defun racket-describe-search ()
   "Search installed documentation; view using `racket-describe-mode'.
 
-Always prompts you to enter a symbol, defaulting to the symbol at
-point if any.
-
-- If just one module exports the name, you go directly to a
-  Racket Describe buffer with its documentation.
-
-- If multiple modules export the name, you go first to a
-  \"disambiguation\" buffer similar to the Racket \"Search
-  Manuals\" web page. You may press RET on any item to get a
-  Racket Describe buffer for that module's version of the thing.
-"
+Tip: Use M-p -- the Emacs \"future history\" feature -- to yank
+the symbol at point into the minibuffer."
   (interactive)
-  (let* ((name (racket--symbol-at-point-or-prompt t "Describe: "
-                                                  (racket--describe-terms)))
-         (buf-name (format "*Racket Describe Search `%s` <%s>*"
-                           name
-                           (racket-back-end-name))))
-    (racket--cmd/async
-     nil
-     `(doc-index-lookup ,name)
-     (lambda (result)
-       (pcase result
-         (`()
-          (message "No documentation found for %s" name))
-         (`((,_term ,_what ,_from ,_fams ,path ,anchor))
-          (racket-describe-search-visit name
-                                        (racket-file-name-back-to-front path)
-                                        anchor))
-         (vs
-          (with-current-buffer
-              (get-buffer-create buf-name)
-            (racket-describe-search-mode)
-            (let ((max-term 0)
-                  (max-what 0)
-                  (max-from 0))
-              (setq tabulated-list-entries
-                    (mapcar
-                     (pcase-lambda (`(,term ,what ,from ,fams ,path ,anchor))
-                       (setq max-term (max max-term (length term)))
-                       (setq max-what (max max-what (length what)))
-                       (setq max-from (max max-from (length from)))
-                       (list nil
-                             (vector
-                              (list term
-                                    'name   term
-                                    'path   (racket-file-name-back-to-front path)
-                                    'anchor anchor
-                                    'action #'racket-describe-search-button)
-                              what
-                              from
-                              fams)))
-                     vs))
-              (setq tabulated-list-sort-key nil)
-              (setq tabulated-list-format
-                    (vector (list "Name" (max max-term (length "Name ")) nil)
-                            (list "Kind" (max max-what (length "Kind ")) t)
-                            (list "From" (max max-from (length "From")) t)
-                            (list "Language families" 99 t)))
-              (setq tabulated-list-padding 0)
-              (tabulated-list-init-header)
-              (tabulated-list-print)
-              (pop-to-buffer (current-buffer))))))))))
-
-(defun racket-describe-search-button (button)
-  (racket-describe-search-visit
-   (button-get button 'name)
-   (button-get button 'path)
-   (button-get button 'anchor)))
-
-(defun racket-describe-search-visit (term path anchor)
-  (racket--do-describe
-   (cons path anchor)
-   nil
-   term))
-
-(defvar racket-describe-search-mode-map
-  (let ((map (racket--easy-keymap-define
-              '(("C-c C-s"       racket-describe-search)))))
-    map))
-
-(define-derived-mode racket-describe-search-mode tabulated-list-mode
-  "RacketSearchDescribe"
-  "Major mode for disambiguating documentation search results.
-\\{racket-describe-search-mode-map}")
+  (when-let (str
+             (completing-read
+              "Describe: "
+              (racket--completion-table
+               (racket--describe-index)
+               `((category . ,racket--identifier-category)
+                 (affixation-function . ,#'racket--describe-index-affixator)))
+              nil                       ;predicate
+              t                         ;require-match
+              nil                       ;initial-input
+              nil                       ;hist
+              (racket--thing-at-point 'symbol t)))
+    (pcase (assoc str (racket--describe-index))
+      (`(,_str ,path ,anchor)
+       (racket--do-describe (cons (racket-file-name-back-to-front path)
+                                  anchor)
+                            nil
+                            (substring-no-properties str))))))
 
 (provide 'racket-describe)
 

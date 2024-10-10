@@ -2141,20 +2141,8 @@ the Racket ``Search Manuals'' page.
 
 Search installed documentation; view using @code{racket-describe-mode}.
 
-Always prompts you to enter a symbol, defaulting to the symbol at
-point if any.
-
-@itemize
-@item
-If just one module exports the name, you go directly to a
-Racket Describe buffer with its documentation.
-
-@item
-If multiple modules export the name, you go first to a
-``disambiguation'' buffer similar to the Racket ``Search
-Manuals'' web page. You may press RET on any item to get a
-Racket Describe buffer for that module's version of the thing.
-@end itemize
+Tip: Use M-p -- the Emacs ``future history'' feature -- to yank
+the symbol at point into the minibuffer.
 
 @node Run
 @section Run

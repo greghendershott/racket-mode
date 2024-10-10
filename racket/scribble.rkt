@@ -21,8 +21,8 @@
          setup/xref
          syntax/parse/define
          version/utils
-         "elisp.rkt"
-         "util.rkt")
+         "define-fallbacks.rkt"
+         "elisp.rkt")
 
 ;; Fallbacks when new index structs aren't available (before
 ;; scribble-lib 1.54, which ~= Racket 8.14.0.6).
@@ -35,8 +35,7 @@
 (provide binding->path+anchor
          identifier->bluebox
          bluebox-command
-         doc-index-names
-         doc-index-lookup
+         doc-index
          libs-exporting-documented
          module-doc-path
          refresh-module-doc-path-index!)
@@ -129,166 +128,95 @@
              (or (hash-ref ht 'hidden? #f)
                  (hash-ref ht 'constructor? #f))))))
 
-(define ((doc-index-names))
+(define ((doc-index))
   (with-less-memory-pressure
-    (with-parens
-      (define xref (load-collections-xref))
-      (for* ([entry (in-list (xref-index xref))]
-             [desc (in-value (entry-desc entry))]
-             #:unless (hide-desc? desc)
-             [term (in-value (car (entry-words entry)))])
-        (elisp-write term))
-      (newline))))
-
-(define (doc-index-lookup str)
-  (with-less-memory-pressure
-    (define xref (load-collections-xref))
-    (define results
-      (for*/set ([entry (in-list (xref-index xref))]
-                 [term (in-value (car (entry-words entry)))]
-                 #:when (string=? str term)
-                 [desc (in-value (entry-desc entry))]
-                 #:when desc
-                 ;;[_ (in-value (println desc))] ;;; DEBUG
-                 #:unless (hide-desc? desc)
-                 [tag (in-value (entry-tag entry))])
-        (define-values (path anchor) (xref-tag->path+anchor xref tag))
-        (define (method-what)
-          (cond
-            [(method-tag? tag)
-             (define-values (c/i _m) (get-class/interface-and-method tag))
-             (format "method of ~a" c/i)]
-            [else "method"]))
-        (define (doc-from)
-          (string-append
-           "◊ "
-           (match (path->main-doc-relative path)
-             [(cons 'doc byte-strings)
-              (define path-parts (map bytes->path byte-strings))
-              (define rel-html (apply build-path path-parts))
-              (path->string
-               (path-replace-extension rel-html #""))]
-             [_ (~a tag)])))
-        (define-values (what from fams sort-order)
-          (cond
-            ;; New structs
-            [(exported-index-desc*? desc)
-             (define ht (exported-index-desc*-extras desc))
-             (define kind (hash-ref ht 'kind))
-             (define what (if (string=? kind "method")
-                              (method-what)
-                              kind))
-             (define from
-               (string-join (match (hash-ref ht 'display-from-libs #f)
-                              [(? list? contents)
-                               (map content->string contents)]
-                              [#f
-                               (map ~s (exported-index-desc-from-libs desc))])
-                            ", "))
-             (define fams (match (hash-ref ht 'language-family #f)
-                            [(? list? fams) (string-join (map ~a fams) ", ")]
-                            [#f "Racket"]))
-             (define sort-order (hash-ref ht 'sort-order 0))
-             (values what from fams sort-order)]
-            [(index-desc? desc)
-             (define ht (index-desc-extras desc))
-             (define what (match (hash-ref ht 'module-kind #f)
-                            ['lib    "module"]
-                            ['lang   "language"]
-                            ['reader "reader"]
-                            [#f      "documentation"]
-                            [v       (~a v)]))
-             (define from
-               (match (hash-ref ht 'display-from-libs #f)
-                 [(? list? contents)
-                  (string-join (map content->string contents) ", ")]
-                 [#f (doc-from)]))
-             (define fams (match (hash-ref ht 'language-family #f)
-                            [(? list? fams) (string-join (map ~a fams) ", ")]
-                            [#f "Racket"]))
-             (define sort-order (hash-ref ht 'sort-order 0))
-             (values what from fams sort-order)]
-            ;; Older structs
-            [(exported-index-desc? desc)
-             (define what
-               (match desc
-                 [(? language-index-desc?)  "language"]
-                 [(? reader-index-desc?)    "reader"]
-                 [(? form-index-desc?)      "syntax"]
-                 [(? procedure-index-desc?) "procedure"]
-                 [(? thing-index-desc?)     "value"]
-                 [(? struct-index-desc?)    "structure"]
-                 [(? class-index-desc?)     "class"]
-                 [(? interface-index-desc?) "interface"]
-                 [(? mixin-index-desc?)     "mixin"]
-                 [(? method-index-desc?)    (method-what)]
-                 [_ ""]))
-             (define from (string-join (map ~s (exported-index-desc-from-libs desc)) ", "))
-             (values what from "" 0)]
-            [(module-path-index-desc? desc)
-             (values "module" "" "" 0)]
-            [else
-             (values "documentation" (doc-from) "" 0)]))
-        (list sort-order term what from fams path anchor)))
-    (define sort-key
-      (match-lambda
-        [(list sort-order _term what from fams _path _anchor)
-         (string-append (match fams
-                          ["Racket" " Racket"]
-                          [v v])
-                        (~r sort-order
-                            #:min-width 9
-                            #:pad-string "0")
-                        (match from
-                          [(and (pregexp "^racket/") v)
-                           (string-append " 0_" v)]
-                          [(and (pregexp "^typed/racket/") v)
-                           (string-append " 1_" v)]
-                          [(and (pregexp "^rhombus") v)
-                           (string-append " 2_" v)]
-                          ["" (make-string 64 #\z)]
-                          [v v])
-                        what)]))
-    (define sorted
-      (sort (set->list results)
-            string<?
-            #:cache-keys? #t
-            #:key sort-key))
-    ;; Slice off the first, "sort-order" element
-    (map cdr sorted)))
-
-(module+ test
-  ;; Experimental hack to debug test failures happening only on CI and
-  ;; only for Racket 6.12 (not stable or snapshot versions), where
-  ;; xref-index seems to return an empty list.
-  (when (getenv "CI")
-    (let loop ()
-      (when (null? (xref-index (load-collections-xref)))
-        (displayln "Waiting 5 seconds for xref-index...")
-        (sleep 5)
-        (loop))))
-  (define older?
-    (not (safe-dynamic-require 'scribble/manual-struct 'index-desc?)))
-  (define (check-lookup term kind libs fams)
-    (define results (doc-index-lookup term))
-    (check-true
-     (for/or ([v (in-list results)])
-       (match v
-         [(list (== term) (== kind) (== libs) (== (if older? "" fams))
-                _path _anchor)
-          #t]
-         [_ #f]))
-     (format "~s not found in ~s" (list term kind libs fams) results)))
-  (check-lookup "match" "syntax" "racket/match, racket" "Racket")
-  (when (rhombus-installed?)
-    (check-lookup "match" (if older? "value" "expression") "rhombus" "Rhombus"))
-  (check-lookup "set-label" "method of message%" "racket/gui/base, racket/gui" "Racket")
-  (check-lookup "print" "procedure" "racket/base, racket" "Racket")
-  (when (rhombus-installed?)
-    (check-lookup "print"
-                  (if older? "value" "regexp charset operator")
-                  (if older? "(lib rhombus/rx.rhm)" "rhombus/rx")
-                  "Rhombus")))
+   (with-parens
+     (define xref (load-collections-xref))
+     (for* ([(entry uid) (in-indexed (xref-index xref))]
+            [desc (in-value (entry-desc entry))]
+            #:when desc
+            #:unless (hide-desc? desc)
+            [term (in-value (car (entry-words entry)))]
+            [tag (in-value (entry-tag entry))])
+       (define-values (path anchor) (xref-tag->path+anchor xref tag))
+       (define (method-what)
+         (cond
+           [(method-tag? tag)
+            (define-values (c/i _m) (get-class/interface-and-method tag))
+            (format "method of ~a" c/i)]
+           [else "method"]))
+       (define (doc-from)
+         (string-append
+          "◊ "
+          (match (path->main-doc-relative path)
+            [(cons 'doc byte-strings)
+             (define path-parts (map bytes->path byte-strings))
+             (define rel-html (apply build-path path-parts))
+             (path->string
+              (path-replace-extension rel-html #""))]
+            [_ (~a tag)])))
+       (define-values (what from fams sort-order)
+         (cond
+           ;; New structs
+           [(exported-index-desc*? desc)
+            (define ht (exported-index-desc*-extras desc))
+            (define kind (hash-ref ht 'kind))
+            (define what (if (string=? kind "method")
+                             (method-what)
+                             kind))
+            (define from
+              (string-join (match (hash-ref ht 'display-from-libs #f)
+                             [(? list? contents)
+                              (map content->string contents)]
+                             [#f
+                              (map ~s (exported-index-desc-from-libs desc))])
+                           ", "))
+            (define fams (match (hash-ref ht 'language-family #f)
+                           [(? list? fams) (string-join (map ~a fams) ", ")]
+                           [#f "Racket"]))
+            (define sort-order (hash-ref ht 'sort-order 0))
+            (values what from fams sort-order)]
+           [(index-desc? desc)
+            (define ht (index-desc-extras desc))
+            (define what (match (hash-ref ht 'module-kind #f)
+                           ['lib    "module"]
+                           ['lang   "language"]
+                           ['reader "reader"]
+                           [#f      "documentation"]
+                           [v       (~a v)]))
+            (define from
+              (match (hash-ref ht 'display-from-libs #f)
+                [(? list? contents)
+                 (string-join (map content->string contents) ", ")]
+                [#f (doc-from)]))
+            (define fams (match (hash-ref ht 'language-family #f)
+                           [(? list? fams) (string-join (map ~a fams) ", ")]
+                           [#f "Racket"]))
+            (define sort-order (hash-ref ht 'sort-order 0))
+            (values what from fams sort-order)]
+           ;; Older structs
+           [(exported-index-desc? desc)
+            (define what
+              (match desc
+                [(? language-index-desc?)  "language"]
+                [(? reader-index-desc?)    "reader"]
+                [(? form-index-desc?)      "syntax"]
+                [(? procedure-index-desc?) "procedure"]
+                [(? thing-index-desc?)     "value"]
+                [(? struct-index-desc?)    "structure"]
+                [(? class-index-desc?)     "class"]
+                [(? interface-index-desc?) "interface"]
+                [(? mixin-index-desc?)     "mixin"]
+                [(? method-index-desc?)    (method-what)]
+                [_ ""]))
+            (define from (string-join (map ~s (exported-index-desc-from-libs desc)) ", "))
+            (values what from "" 0)]
+           [(module-path-index-desc? desc)
+            (values "module" "" "" 0)]
+           [else
+            (values "documentation" (doc-from) "" 0)]))
+       (elisp-writeln (list uid term sort-order what from fams path anchor)))
+     (newline))))
 
 ;;; This is for the requires/find command
 
