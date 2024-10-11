@@ -687,7 +687,9 @@ the symbol at point into the minibuffer."
                (racket--doc-index)
                `((category . ,racket--identifier-category)
                  (affixation-function . ,#'racket--doc-index-affixator)))
-              nil                       ;predicate
+              (lambda (v)
+                (apply racket-doc-index-predicate-function
+                       (get-text-property 0 'racket-affix (car v))))
               t                         ;require-match
               nil                       ;initial-input
               nil                       ;hist
