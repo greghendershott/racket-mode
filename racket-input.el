@@ -7,19 +7,17 @@
 
 ;; PROVENANCE: This is a copy and modification of the MIT licensed
 ;; <https://github.com/emacsmirror/agda2-mode/agda-input.el>. Most of
-;; the modification consists of just changing "agda-" name prefixes to
-;; "racket-".
+;; the modifications just change "agda-" name prefixes to "racket-".
 ;;
 ;; On the one hand, most of this code is applicable to defining and
 ;; customizing any input method. Ideally, we'd like it to exist as a
-;; distinct, "generic" package -- named e.g. "quail-customize"? -- for
-;; use by any input method, so we could use it that way.
+;; distinct, "generic" package, for use by any input method.
 ;;
 ;; On the other hand, it doesn't exist in that form. Even if we wanted
-;; to advise users to install the speific agda2-mode package (i.e. use
-;; it as a "library"), they ship it via via Stack/Cabal -- not via any
-;; Emacs Lisp package repo. We can't ask a typical user install it
-;; that way.
+;; to advise users to install the agda2-mode package (i.e. we use it
+;; as a "library"), it ships via Stack/Cabal -- not via any Emacs Lisp
+;; package repo. That's not a reasonable way to ask a typical Emacs or
+;; Racket user to install it.
 ;;
 ;; Finally, I would be happy to copy-paste this exactly, using the
 ;; "agda-" prefixed names. But if an Agda user happens to have it
@@ -138,12 +136,13 @@ This suffix is dropped."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Customization
 
-;; The :set keyword is set to 'racket-input-incorporate-changed-setting
-;; so that the input method gets updated immediately when users
-;; customize it. However, the setup functions cannot be run before all
-;; variables have been defined. Hence the :initialize keyword is set to
-;; 'custom-initialize-default to ensure that the setup is not performed
-;; until racket-input-setup is called at the end of this file.
+;; The :set keyword is 'racket-input-incorporate-changed-setting so
+;; that the input method gets updated immediately when users customize
+;; it. However, the setup functions cannot be run before all variables
+;; have been defined. Hence the :initialize keyword is set to
+;; 'custom-initialize-default to ensure that the setup is not
+;; performed until racket-input-setup is called at the end of this
+;; file.
 
 (defgroup racket-input nil
   "The Racket input method.
@@ -165,7 +164,6 @@ pairs. (Note that the translations can be anything accepted by
 If you change this setting manually (without using the
 customization buffer) you need to call `racket-input-setup' in
 order for the change to take effect."
-  :group 'racket-input
   :set 'racket-input-incorporate-changed-setting
   :initialize 'custom-initialize-default
   :type 'sexp)
@@ -196,7 +194,6 @@ The inherited translation pairs are added last, after
 If you change this setting manually (without using the
 customization buffer) you need to call `racket-input-setup' in
 order for the change to take effect."
-  :group 'racket-input
   :set 'racket-input-incorporate-changed-setting
   :initialize 'custom-initialize-default
   :type '(repeat (cons (string :tag "Quail package")
@@ -1360,7 +1357,6 @@ from other input methods (see `racket-input-inherit').
 If you change this setting manually (without using the
 customization buffer) you need to call `racket-input-setup' in
 order for the change to take effect."
-  :group 'racket-input
   :set 'racket-input-incorporate-changed-setting
   :initialize 'custom-initialize-default
   :type '(repeat (cons (string :tag "Key sequence")
@@ -1373,7 +1369,6 @@ customizations since by default it is empty.
 These translation pairs are included first, before those in
 `racket-input-translations' and the ones inherited from other input
 methods."
-  :group 'racket-input
   :set 'racket-input-incorporate-changed-setting
   :initialize 'custom-initialize-default
   :type '(repeat (cons (string :tag "Key sequence")
