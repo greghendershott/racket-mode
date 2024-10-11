@@ -241,6 +241,7 @@ REPL variables
 
 Other variables
 
+* racket-doc-index-directory::
 * racket-indent-curly-as-sequence::
 * racket-indent-sequence-depth::
 * racket-pretty-lambda::
@@ -3565,6 +3566,7 @@ Name of the file used by @ref{racket-repl}.
 @section Other variables
 
 @menu
+* racket-doc-index-directory::
 * racket-indent-curly-as-sequence::
 * racket-indent-sequence-depth::
 * racket-pretty-lambda::
@@ -3574,6 +3576,11 @@ Name of the file used by @ref{racket-repl}.
 * racket-after-run-hook::
 * racket-sexp-comment-fade::
 @end menu
+
+@node racket-doc-index-directory
+@subsection racket-doc-index-directory
+
+Directory for @ref{racket-describe-search} doc index files.
 
 @node racket-indent-curly-as-sequence
 @subsection racket-indent-curly-as-sequence

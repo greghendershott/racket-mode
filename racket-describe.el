@@ -533,39 +533,72 @@ browser program -- are given `racket-describe-ext-link-face'.
 ;; For people who don't want to use a web browser at all: Search local
 ;; documentation, and view in a `racket-describe-mode' buffer.
 
-(defvar racket--describe-index (make-hash-table :test 'equal)
+(defvar racket--doc-index (make-hash-table :test 'equal)
   "Hash-table from back end name to association list of doc index info.")
 
-(defun racket--remove-describe-index ()
-  "A `racket-stop-back-end-hook' to clean up `racket--describe-index'."
+(defun racket--remove-doc-index ()
+  "A `racket-stop-back-end-hook' to clean up `racket--doc-index'."
   (when-let (key (racket-back-end-name))
-    (remhash key racket--describe-index)))
+    (remhash key racket--doc-index)))
 
-(add-hook 'racket-stop-back-end-hook #'racket--remove-describe-index)
+(add-hook 'racket-stop-back-end-hook #'racket--remove-doc-index)
 
-(defun racket--describe-index ()
+(defun racket--doc-index-file-name (key)
+  (make-directory racket-doc-index-directory t)
+  (expand-file-name (concat (racket--file-name-slug
+                             (concat "doc-index-" key))
+                            ".eld")
+                    racket-doc-index-directory))
+
+(defun racket--doc-index-file-write (key data)
+  (write-region (format ";; -*- no-byte-compile: t; lexical-binding: nil -*-\n%S"
+                        data)
+                nil
+                (racket--doc-index-file-name key)
+                nil
+                'no-message))
+
+(defun racket--doc-index-file-read (key)
+  (with-temp-buffer
+    (ignore-errors
+      (insert-file-contents (racket--doc-index-file-name key))
+      (goto-char (point-min))
+      (read (current-buffer)))))
+
+(defun racket--doc-index ()
+  "Get the doc index items.
+
+For the item format, see `racket--doc-index-make-alist'.
+
+Because the doc index is somewhat large and slow to get from the
+back end, we use a couple levels of caching: 1. Memory, for the
+duration of the Emacs session or back end lifetime, whichever is
+shorter. 2. Local file system, between sessions. For this latter
+we do want to make sure the file isn't outdated, e.g. user
+installed new packages. The back end commands works like an HTTP
+request with an If-None-Match header: We supply an \"etag\" value
+it previously gave us. If that still matches the response is just
+\"not modified\", otherwise a new etag and items."
   (let ((key (racket-back-end-name)))
-    (pcase (gethash key racket--describe-index)
-      (`()
-       (puthash key 'fetching racket--describe-index)
-       (racket--cmd/async
-        nil
-        '(doc-index)
-        (lambda (items)
-          (puthash key
-                   (racket--describe-index-make-alist items)
-                   racket--describe-index)))
-       ;; Wait for response but if waiting too long just return nil,
-       ;; and use the response next time.
-       (with-temp-message "Getting doc index from back end..."
-        (with-timeout (15 nil)
-          (while (equal 'fetching (gethash key racket--describe-index))
-            (accept-process-output nil 0.01))
-          (gethash key racket--describe-index))))
-      ('fetching (make-hash-table :test 'equal))
-      ((and (pred listp) alist) alist))))
+    (or
+     (gethash key racket--doc-index)
+     (pcase-let*
+         ((`(,old-etag . ,old-items) (racket--doc-index-file-read key))
+          (items
+           (pcase (with-temp-message "Checking back end doc index..."
+                    (racket--cmd/await nil `(doc-index ,old-etag)))
+             ('not-modified old-items)
+             (`(,etag . ,items)
+              (with-temp-message "Doc index changed; updating local file..."
+                (racket--doc-index-file-write key (cons etag items)))
+              items)))
+          (items
+           (with-temp-message "Processing doc index items for memory cache..."
+             (racket--doc-index-make-alist items))))
+       (puthash key items racket--doc-index)
+       items))))
 
-(defun racket--describe-index-make-alist (items)
+(defun racket--doc-index-make-alist (items)
   "Given back end ITEMS make an association list.
 
 A list is a valid collection for completion, where the `car' is
@@ -614,8 +647,8 @@ association list, to look up the path and anchor."
          (list str path anchor)))
      items)))
 
-(defun racket--describe-index-affixator (strs)
-  "Value for :affixation-function."
+(defun racket--doc-index-affixator (strs)
+  "Value for completion :affixation-function."
   (let ((max-term 16)
         (max-what 16)
         (max-from 32))
@@ -651,15 +684,15 @@ the symbol at point into the minibuffer."
              (completing-read
               "Describe: "
               (racket--completion-table
-               (racket--describe-index)
+               (racket--doc-index)
                `((category . ,racket--identifier-category)
-                 (affixation-function . ,#'racket--describe-index-affixator)))
+                 (affixation-function . ,#'racket--doc-index-affixator)))
               nil                       ;predicate
               t                         ;require-match
               nil                       ;initial-input
               nil                       ;hist
               (racket--thing-at-point 'symbol t)))
-    (pcase (assoc str (racket--describe-index))
+    (pcase (assoc str (racket--doc-index))
       (`(,_str ,path ,anchor)
        (racket--do-describe (cons (racket-file-name-back-to-front path)
                                   anchor)
