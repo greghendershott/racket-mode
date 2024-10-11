@@ -227,6 +227,23 @@ Scribble text, use the face `racket-hash-lang-text'."
   "Directory for `racket-describe-search' doc index files."
   :type 'file)
 
+(defcustom racket-doc-index-predicate-function
+  'always
+  "A function used by `racket-describe-search' to filter results.
+
+The default value, the `always' function, filters nothing.
+
+The function is given four string arguments -- TERM, WHAT,
+FROM-LIBS, and FAMILIES -- and should return whether to include
+the item in the list of completion candidates. An example that
+limits candidates to the \"Rhombus\" family:
+
+    (lambda (_term _what _from-libs families)
+      (string-equal families \"Rhombus\")
+"
+  :type 'function
+  :risky t)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; racket-repl group
 

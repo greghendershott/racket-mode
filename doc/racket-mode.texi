@@ -244,6 +244,7 @@ REPL variables
 Other variables
 
 * racket-doc-index-directory::
+* racket-doc-index-predicate-function::
 * racket-indent-curly-as-sequence::
 * racket-indent-sequence-depth::
 * racket-pretty-lambda::
@@ -3571,6 +3572,7 @@ Name of the file used by @ref{racket-repl}.
 
 @menu
 * racket-doc-index-directory::
+* racket-doc-index-predicate-function::
 * racket-indent-curly-as-sequence::
 * racket-indent-sequence-depth::
 * racket-pretty-lambda::
@@ -3585,6 +3587,21 @@ Name of the file used by @ref{racket-repl}.
 @subsection racket-doc-index-directory
 
 Directory for @ref{racket-describe-search} doc index files.
+
+@node racket-doc-index-predicate-function
+@subsection racket-doc-index-predicate-function
+
+A function used by @ref{racket-describe-search} to filter results.
+
+The default value, the @code{always} function, filters nothing.
+
+The function is given four string arguments -- TERM, WHAT,
+FROM-LIBS, and FAMILIES -- and should return whether to include
+the item in the list of completion candidates. An example that
+limits candidates to the ``Rhombus'' family:
+
+(lambda (@math{_term} _what _from-libs families)
+  (string-equal families ``Rhombus'')
 
 @node racket-indent-curly-as-sequence
 @subsection racket-indent-curly-as-sequence
