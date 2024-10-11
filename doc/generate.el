@@ -216,6 +216,7 @@
     racket-pretty-print
     racket-repl-command-file
     "Other variables"
+    racket-doc-index-directory
     racket-indent-curly-as-sequence
     racket-indent-sequence-depth
     racket-pretty-lambda

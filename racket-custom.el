@@ -222,6 +222,11 @@ Scribble text, use the face `racket-hash-lang-text'."
   :type '(alist :key-type symbol :value-type face)
   :safe #'listp)
 
+(defcustom racket-doc-index-directory
+  (locate-user-emacs-file (file-name-as-directory "racket-mode"))
+  "Directory for `racket-describe-search' doc index files."
+  :type 'file)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; racket-repl group
 

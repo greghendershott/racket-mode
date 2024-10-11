@@ -145,7 +145,7 @@
     [`(requires/trim ,path-str ,reqs)  (requires/trim path-str reqs)]
     [`(requires/base ,path-str ,reqs)  (requires/base path-str reqs)]
     [`(requires/find ,str)             (libs-exporting-documented str)]
-    [`(doc-index)                      (doc-index)]
+    [`(doc-index ,etag)                (doc-index etag)]
     [`(hash-lang . ,more)              (apply hash-lang more)]
     [`(pkg-list)                       (package-list)]
     [`(pkg-details ,str)               (package-details str)]
