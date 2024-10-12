@@ -675,31 +675,28 @@ association list, to look up the path and anchor."
              strs)))
 
 (defun racket-describe-search ()
-  "Search installed documentation; view using `racket-describe-mode'.
-
-Tip: Use M-p -- the Emacs \"future history\" feature -- to yank
-the symbol at point into the minibuffer."
+  "Search installed documentation; view using `racket-describe-mode'."
   (interactive)
-  (when-let (str
-             (completing-read
-              "Describe: "
-              (racket--completion-table
-               (racket--doc-index)
-               `((category . ,racket--identifier-category)
-                 (affixation-function . ,#'racket--doc-index-affixator)))
-              (lambda (v)
-                (apply racket-doc-index-predicate-function
-                       (get-text-property 0 'racket-affix (car v))))
-              t                         ;require-match
-              nil                       ;initial-input
-              nil                       ;hist
-              (racket--thing-at-point 'symbol t)))
-    (pcase (assoc str (racket--doc-index))
-      (`(,_str ,path ,anchor)
-       (racket--do-describe (cons (racket-file-name-back-to-front path)
-                                  anchor)
-                            nil
-                            (substring-no-properties str))))))
+  (let ((collection (racket--completion-table
+                     (racket--doc-index)
+                     `((category . ,racket--identifier-category)
+                       (affixation-function . ,#'racket--doc-index-affixator))))
+        (predicate (lambda (v)
+                     (apply racket-doc-index-predicate-function
+                            (get-text-property 0 'racket-affix (car v)))))
+        (require-match t)
+        (initial-input (racket--thing-at-point 'symbol t)))
+    (when-let (str (completing-read "Describe: "
+                                    collection
+                                    predicate
+                                    require-match
+                                    initial-input))
+      (pcase (assoc str (racket--doc-index))
+        (`(,_str ,path ,anchor)
+         (racket--do-describe (cons (racket-file-name-back-to-front path)
+                                    anchor)
+                              nil
+                              (substring-no-properties str)))))))
 
 (provide 'racket-describe)
 
