@@ -2146,9 +2146,6 @@ the Racket ``Search Manuals'' page.
 
 Search installed documentation; view using @code{racket-describe-mode}.
 
-Tip: Use M-p -- the Emacs ``future history'' feature -- to yank
-the symbol at point into the minibuffer.
-
 @node Run
 @section Run
 
