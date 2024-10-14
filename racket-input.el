@@ -139,10 +139,10 @@ This suffix is dropped."
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;; Customization
 
-;; The :set keyword is 'racket-input-incorporate-changed-setting so
-;; that the input method gets updated immediately when users customize
-;; it. However, the setup functions cannot be run before all variables
-;; have been defined. Hence the :initialize keyword is set to
+;; The :set keyword is 'racket-custom-set so that the input method
+;; gets updated immediately when users customize it. However, the
+;; setup functions cannot be run before all variables have been
+;; defined. Hence the :initialize keyword is set to
 ;; 'custom-initialize-default to ensure that the setup is not
 ;; performed until racket-input-setup is called at the end of this
 ;; file.
@@ -155,8 +155,10 @@ translations using `racket-input-show-translations'."
 
 (defcustom racket-input-tweak-all
   '(racket-input-compose
-    (racket-input-prepend "\\")
-    (racket-input-nonempty))
+    (racket-input-nonempty)
+    (racket-input-compose
+     (racket-input-prepend "\\")
+     (racket-input-drop '())))
   "An expression yielding a function which can be used to tweak
 all translations before they are included in the input method.
 The resulting function (if non-nil) is applied to every
@@ -164,10 +166,17 @@ The resulting function (if non-nil) is applied to every
 pairs. (Note that the translations can be anything accepted by
 `quail-defrule'.)
 
+Common tweaks to the default expression.
+
+- Change the default prefix string with `racket-input-prepend'.
+
+- Remove some default translations by adding strings to the list
+  argument of `racket-input-drop'.
+
 If you change this setting manually (without using the
 customization buffer) you need to call `racket-input-setup' in
 order for the change to take effect."
-  :set 'racket-input-incorporate-changed-setting
+  :set 'racket-custom-set
   :initialize 'custom-initialize-default
   :type 'sexp)
 
@@ -202,7 +211,7 @@ For example:
 If you change this setting manually (without using the
 customization buffer) you need to call `racket-input-setup' in
 order for the change to take effect."
-  :set 'racket-input-incorporate-changed-setting
+  :set 'racket-custom-set
   :initialize 'custom-initialize-default
   :type '(repeat (cons (string :tag "Quail package")
                        (sexp :tag "Tweaking function"))))
@@ -217,19 +226,15 @@ order for the change to take effect."
     ;; Turnstile
     ("vdash"        . ("⊢"))
     ("gg"           . ("≫"))
-    ("rightarrow"   . ("→"))
-    ("Rightarrow"   . ("⇒"))
-    ("Leftarrow"    . ("⇐"))
     ("succ"         . ("≻"))
     ;; Other type rule symbols
     ("times"              . ("×"))
     ("Uparrow"            . ("⇑"))
     ("Downarrow"          . ("⇓"))
-    ("Leftrightarrow"     . ("⇔"))
-    ("rightarrow"         . ("→"))
-    ("leftarrow"          . ("←"))
-    ("Rightarrow"         . ("⇒"))
     ("Leftarrow"          . ("⇐"))
+    ("Rightarrow"         . ("⇒"))
+    ("leftarrow"          . ("←"))
+    ("rightarrow"         . ("→"))
     ("nwarrow"            . ("↖"))
     ("nearrow"            . ("↗"))
     ("uparrow"            . ("↑"))
@@ -408,7 +413,7 @@ from other input methods (see `racket-input-inherit').
 If you change this setting manually (without using the
 customization buffer) you need to call `racket-input-setup' in
 order for the change to take effect."
-  :set 'racket-input-incorporate-changed-setting
+  :set 'racket-custom-set
   :initialize 'custom-initialize-default
   :type '(repeat (cons (string :tag "Key sequence")
                        (repeat :tag "Translations" string))))
@@ -420,7 +425,7 @@ customizations since by default it is empty.
 These translation pairs are included first, before those in
 `racket-input-translations' and the ones inherited from other input
 methods."
-  :set 'racket-input-incorporate-changed-setting
+  :set 'racket-custom-set
   :initialize 'custom-initialize-default
   :type '(repeat (cons (string :tag "Key sequence")
                        (repeat :tag "Translations" string))))
@@ -506,7 +511,7 @@ variables and underlying input methods."
     (racket-input-inherit-package (car def)
                                   (eval (cdr def)))))
 
-(defun racket-input-incorporate-changed-setting (sym val)
+(defun racket-custom-set (sym val)
   "Update the Racket input method based on the customisable
 variables and underlying input methods.
 Suitable for use in the :set field of `defcustom'."
@@ -514,20 +519,19 @@ Suitable for use in the :set field of `defcustom'."
   (racket-input-setup))
 
 ;; Set up the input method.
-
 (racket-input-setup)
 
 ;;; Convenience minor mode
 
 (define-minor-mode racket-input-mode
-  "A minor mode convenience to enable the racket input method.
+  "A minor mode to enable the Racket input method.
 
 The racket input method lets you easily type various Unicode
 symbols that might be useful when writing Racket code.
 
-To automatically enable the racket-unicode input method in
-racket-mode and racket-repl-mode buffers, put the following code
-in your Emacs init file:
+To automatically enable the Racket input method in racket-mode
+and racket-repl-mode buffers, put the following code in your
+Emacs init file:
 
 #+BEGIN_SRC elisp
     (add-hook \\='racket-mode-hook #\\='racket-input-mode)
@@ -537,7 +541,7 @@ in your Emacs init file:
 You may use the standard Emacs key C-\\ to toggle the current
 input method.
 
-When the racket input method is active, you can for example type
+When the Racket input method is active, you can for example type
 \"\\All\" and it is immediately replaced with \"∀\". A few other
 examples:
 
@@ -552,7 +556,9 @@ Use \"M-x describe-input-method racket\" to see a table of
 all key sequences.
 
 Use \"M-x customize-group racket-input\" to customize the input
-method.
+method. The `racket-input-tweak-all' expression is a quick way to
+change the default \"\\\" prefix or remove a few default
+translations.
 
 If you don’t like the highlighting of partially matching tokens you
 can turn it off by setting `input-method-highlight-flag' to nil."
