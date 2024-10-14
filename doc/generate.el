@@ -16,7 +16,7 @@
 (require 'racket-xp)
 (require 'racket-util)
 (require 'racket-show)
-(require 'racket-unicode-input-method)
+(require 'racket-input)
 (require 'racket-smart-open)
 (require 'racket-repl-buffer-name)
 (require 'racket-hash-lang)
@@ -49,7 +49,7 @@
     racket-insert-closing
     racket-cycle-paren-shapes
     racket-backward-up-list
-    racket-unicode-input-method-enable
+    racket-input-mode
     racket-align
     racket-unalign
     racket-complete-at-point

@@ -40,6 +40,7 @@
 (require 'racket-lisp-mode)
 (require 'racket-bug-report)
 (require 'racket-util)
+(require 'racket-input)
 (require 'easymenu)
 
 (defvar racket-mode-map

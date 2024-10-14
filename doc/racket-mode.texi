@@ -77,7 +77,7 @@ Configure
 * Edit buffers and REPL buffers::
 * eldoc::
 * Start faster::
-* Unicode input method::
+* Input method::
 * Ligatures::
 
 Commands
@@ -108,7 +108,7 @@ Edit
 * racket-insert-closing::
 * racket-cycle-paren-shapes::
 * racket-backward-up-list::
-* racket-unicode-input-method-enable::
+* racket-input-mode::
 * racket-align::
 * racket-unalign::
 * racket-complete-at-point::
@@ -556,7 +556,7 @@ You can @code{setq} this directly in your Emacs init file (@samp{~/.emacs} or @s
 * Edit buffers and REPL buffers::
 * eldoc::
 * Start faster::
-* Unicode input method::
+* Input method::
 * Ligatures::
 @end menu
 
@@ -842,19 +842,19 @@ A more satisfying experience is to use @ref{racket-xp-describe} or @ref{racket-x
 
 You can use @ref{racket-mode-start-faster} to make the Racket REPL start faster.
 
-@node Unicode input method
-@section Unicode input method
+@node Input method
+@section Input method
 
-An optional Emacs input method, @code{racket-unicode}, lets you easily type various Unicode symbols that might be useful when writing Racket code.
+An optional Emacs input method, @code{Racket}, lets you easily type various Unicode symbols that might be useful when writing Racket code.
 
-To automatically enable the @code{racket-unicode} input method in @code{racket-mode} and @code{racket-repl-mode} buffers, put the following code in your Emacs init file:
+To automatically enable the @code{Racket} input method in @code{racket-mode} and @code{racket-repl-mode} buffers, put the following code in your Emacs init file:
 
 @lisp
-(add-hook 'racket-mode-hook      #'racket-unicode-input-method-enable)
-(add-hook 'racket-repl-mode-hook #'racket-unicode-input-method-enable)
+(add-hook 'racket-mode-hook      #'racket-input-mode)
+(add-hook 'racket-repl-mode-hook #'racket-input-mode)
 @end lisp
 
-@xref{racket-unicode-input-method-enable}.
+@xref{racket-input-mode}.
 
 @xref{racket-insert-lambda}.
 
@@ -949,7 +949,7 @@ You can also view these by using the normal Emacs help mechanism:
 * racket-insert-closing::
 * racket-cycle-paren-shapes::
 * racket-backward-up-list::
-* racket-unicode-input-method-enable::
+* racket-input-mode::
 * racket-align::
 * racket-unalign::
 * racket-complete-at-point::
@@ -1032,7 +1032,7 @@ penultimate step during initialization.
 
 Insert λ.
 
-To insert Unicode symbols generally, see @ref{racket-unicode-input-method-enable}.
+To insert Unicode symbols generally, see @ref{racket-input-mode}.
 
 @node racket-fold-all-tests
 @subsection racket-fold-all-tests
@@ -1298,21 +1298,6 @@ even ``let'' forms:
 
 Minor mode to let you always type @code{[}' to insert @code{(} or @code{[} automatically.
 
-This is a minor mode.  If called interactively, toggle the
-@code{Racket-Smart-Open-Bracket mode} mode.  If the prefix argument is
-positive, enable the mode, and if it is zero or negative, disable
-the mode.
-
-If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
-the mode if ARG is nil, omitted, or is a positive number.
-Disable the mode if ARG is a negative number.
-
-To check whether the minor mode is enabled in the current buffer,
-evaluate @ref{racket-smart-open-bracket-mode}.
-
-The mode's hook is called both when the mode is enabled and when
-it is disabled.
-
 Behaves like the ``Automatically adjust opening square brackets''
 feature in Dr. Racket.
 
@@ -1355,6 +1340,21 @@ Tip: When using this with @ref{racket-hash-lang-mode}, you may want
 to use @ref{racket-hash-lang-module-language-hook} to enable it IFF
 the module langugage is something like ``racket''.
 
+This is a minor mode.  If called interactively, toggle the
+@code{Racket-Smart-Open-Bracket mode} mode.  If the prefix argument is
+positive, enable the mode, and if it is zero or negative, disable
+the mode.
+
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
+the mode if ARG is nil, omitted, or is a positive number.
+Disable the mode if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate @ref{racket-smart-open-bracket-mode}.
+
+The mode's hook is called both when the mode is enabled and when
+it is disabled.
+
 @node racket-insert-closing
 @subsection racket-insert-closing
 
@@ -1388,70 +1388,69 @@ especially not repeatedly. Instead, initially use
 string or comment, if any, then use normal @code{backward-up-list}
 repeatedly.
 
-@node racket-unicode-input-method-enable
-@subsection racket-unicode-input-method-enable
+@node racket-input-mode
+@subsection racket-input-mode
 
-@kbd{M-x}  @code{racket-unicode-input-method-enable}
+@kbd{M-x}  @code{racket-input-mode}
 
-Set input method to racket-unicode.
+A minor mode convenience to enable the racket input method.
 
-The racket-unicode input method lets you easily type various
-Unicode symbols that might be useful when writing Racket code.
+The racket input method lets you easily type various Unicode
+symbols that might be useful when writing Racket code.
 
 To automatically enable the racket-unicode input method in
 racket-mode and racket-repl-mode buffers, put the following code
 in your Emacs init file:
 
 @lisp
-    (add-hook 'racket-mode-hook #'racket-unicode-input-method-enable)
-    (add-hook 'racket-repl-mode-hook #'racket-unicode-input-method-enable)
+    (add-hook 'racket-mode-hook #'racket-input-mode)
+    (add-hook 'racket-repl-mode-hook #'racket-input-mode)
 @end lisp
 
-To temporarily enable this input method for a single buffer you
-can use ``M-x racket-unicode-input-method-enable''.
+You may use the standard Emacs key C-\ to toggle the current
+input method.
 
-Use the standard Emacs key C-\ to toggle the input method.
+When the racket input method is active, you can for example type
+``\All'' and it is immediately replaced with ``∀''. A few other
+examples:
 
-When the racket-unicode input method is active, you can for
-example type ``All'' and it is immediately replaced with ``∀''. A
-few other examples:
-
-@multitable {aaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaa}
-@item omega
+@multitable {aaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaa}
+@item ω
 @tab ω
-@item x@math{_1}
+@item \x@math{_1}
 @tab x₁
-@item x@math{^1}
+@item \x@math{^1}
 @tab x¹
-@item A
+@item \A
 @tab 𝔸
-@item test-->>E
+@item \test-->>E
 @tab test-->>∃ (racket/redex)
-@item vdash
+@item \vdash
 @tab ⊢
 @end multitable
 
-To see a table of all key sequences use ``M-x
-describe-input-method <RET> racket-unicode''.
+Use ``M-x describe-input-method racket'' to see a table of
+all key sequences.
 
-If you want to add your own mappings to the ``racket-unicode''
-input method, you may add code like the following example in your
-Emacs init file:
-
-@lisp
-    ;; Either (require 'racket-mode) here, or, if you use
-    ;; use-package, put the code below in the :config section.
-    (with-temp-buffer
-      (racket-unicode-input-method-enable)
-      (set-input-method "racket-unicode")
-      (let ((quail-current-package (assoc "racket-unicode"
-                                          quail-package-alist)))
-        (quail-define-rules ((append . t))
-                            ("^o" ["ᵒ"]))))
-@end lisp
+Use ``M-x customize-group racket-input'' to customize the input
+method.
 
 If you don’t like the highlighting of partially matching tokens you
 can turn it off by setting @code{input-method-highlight-flag} to nil.
+
+This is a minor mode.  If called interactively, toggle the
+@code{Racket-Input mode} mode.  If the prefix argument is positive,
+enable the mode, and if it is zero or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
+the mode if ARG is nil, omitted, or is a positive number.
+Disable the mode if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate @ref{racket-input-mode}.
+
+The mode's hook is called both when the mode is enabled and when
+it is disabled.
 
 @node racket-align
 @subsection racket-align
@@ -1724,20 +1723,6 @@ anything else, do @code{prog-indent-sexp}.
 
 A minor mode that analyzes expanded code to explain and explore.
 
-This is a minor mode.  If called interactively, toggle the
-@code{Racket-Xp mode} mode.  If the prefix argument is positive,
-enable the mode, and if it is zero or negative, disable the mode.
-
-If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
-the mode if ARG is nil, omitted, or is a positive number.
-Disable the mode if ARG is a negative number.
-
-To check whether the minor mode is enabled in the current buffer,
-evaluate @ref{racket-xp-mode}.
-
-The mode's hook is called both when the mode is enabled and when
-it is disabled.
-
 This minor mode is an optional enhancement to @ref{racket-mode} edit
 buffers. Like any minor mode, you can turn it on or off for a
 specific buffer. If you always want to use it, put the following
@@ -1879,7 +1864,7 @@ will stop after the first syntax error, some like Typed Racket
 will try to collect and report multiple errors.
 
 You may use @code{xref-find-definitions} @kbd{M-.} ,
-@code{xref-pop-marker-stack} @kbd{M-,} , and
+@code{xref-pop-marker-stack} @kbd{M-x}  @code{xref-pop-marker-stack}, and
 @code{xref-find-references}: @ref{racket-xp-mode} adds a backend to the
 variable @code{xref-backend-functions}. This backend uses information
 from the drracket/check-syntax static analysis. Its ability to
@@ -1935,6 +1920,22 @@ commands directly to whatever keys you prefer.
 @item @kbd{C-c # j} 
 @tab @ref{racket-xp-next-definition}
 @end multitable
+
+
+
+This is a minor mode.  If called interactively, toggle the
+@code{Racket-Xp mode} mode.  If the prefix argument is positive,
+enable the mode, and if it is zero or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
+the mode if ARG is nil, omitted, or is a positive number.
+Disable the mode if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate @ref{racket-xp-mode}.
+
+The mode's hook is called both when the mode is enabled and when
+it is disabled.
 
 @node racket-xp-describe
 @subsection racket-xp-describe
@@ -2181,7 +2182,7 @@ Racket Describe buffer for that module's version of the thing.
 Major mode for Racket REPL@.
 
 You may use @code{xref-find-definitions} @kbd{M-.}  and
-@code{xref-pop-marker-stack} @kbd{M-,} :
+@code{xref-pop-marker-stack} @kbd{M-x}  @code{xref-pop-marker-stack}:
 @ref{racket-repl-mode} adds a backend to the variable
 @code{xref-backend-functions}. This backend uses information about
 identifier bindings and modules from the REPL's namespace.
@@ -2547,20 +2548,6 @@ or penultimate step during initialization.
 
 Minor mode for debug breaks.
 
-This is a minor mode.  If called interactively, toggle the
-@code{Racket-Debug mode} mode.  If the prefix argument is positive,
-enable the mode, and if it is zero or negative, disable the mode.
-
-If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
-the mode if ARG is nil, omitted, or is a positive number.
-Disable the mode if ARG is a negative number.
-
-To check whether the minor mode is enabled in the current buffer,
-evaluate @ref{racket-debug-mode}.
-
-The mode's hook is called both when the mode is enabled and when
-it is disabled.
-
 This feature is @strong{@strong{EXPERIMENTAL}}!!! It is likely to have
 significant limitations and bugs. You are welcome to open an
 issue to provide feedback. Please understand that this feature
@@ -2627,6 +2614,22 @@ provides shortcut keys:
 @item @kbd{SPC} 
 @tab @code{racket-debug-step}
 @end multitable
+
+
+
+This is a minor mode.  If called interactively, toggle the
+@code{Racket-Debug mode} mode.  If the prefix argument is positive,
+enable the mode, and if it is zero or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
+the mode if ARG is nil, omitted, or is a positive number.
+Disable the mode if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate @ref{racket-debug-mode}.
+
+The mode's hook is called both when the mode is enabled and when
+it is disabled.
 
 @node racket-repl-clear
 @subsection racket-repl-clear
