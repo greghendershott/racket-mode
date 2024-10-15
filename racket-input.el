@@ -47,6 +47,9 @@
 
 (require 'quail)
 (require 'cl-lib)
+(require 'racket-complete)
+(require 'racket-util)
+
 ;; Quail is quite stateful, so be careful when editing this code.  Note
 ;; that with-temp-buffer is used below whenever buffer-local state is
 ;; modified.
@@ -521,7 +524,11 @@ Suitable for use in the :set field of `defcustom'."
 ;; Set up the input method.
 (racket-input-setup)
 
-;;; Convenience minor mode
+;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+
+;;;; Some conveniences in the original agda input method
+
+;;; Minor mode
 
 (define-minor-mode racket-input-mode
   "A minor mode to enable the Racket input method.
@@ -572,6 +579,77 @@ can turn it off by setting `input-method-highlight-flag' to nil."
   'racket-unicode-input-method-enable
   #'racket-input-mode
   "2024-10-15")
+
+;;; Command using completing-read
+
+(defun racket-insert-symbol ()
+  "A command alternative to the \"Racket\" input method.
+
+Presents `completing-read' UI to choose and insert from
+`racket-input-translations' and `racket-input-user-translations'.
+
+When there is a symbol `thing-at-point', that is the initial
+input to `completing-read'. When that exactly matches the chosen
+symbol name, the name is deleted from the buffer, as well as
+inserting the symbol."
+  (interactive)
+  (pcase (racket--bounds-of-thing-at-point 'symbol)
+    (`(,beg . ,end)
+     (let ((thing (buffer-substring-no-properties beg end)))
+       (pcase (racket--choose-symbol thing)
+         (`(,key . ,str)
+          (when (string-equal key thing)
+            (delete-region beg end))
+          (insert str)))))
+    (_ (pcase (racket--choose-symbol)
+         (`(,_key . ,str)
+          (insert str))))))
+
+(defun racket--choose-symbol (&optional initial-input)
+  "Caveat: When a translation has multiple choices for a key,
+ignores all but the first one."
+  (let* ((translations ;make alist with single, string value
+          (seq-map (pcase-lambda (`(,k . ,v))
+                     (cons k
+                           (cond
+                            ((characterp v) (make-string 1 v))
+                            ((stringp v) v)
+                            ((sequencep v)
+                             (let ((v (seq-elt v 0)))
+                               (cond
+                                ((characterp v) (make-string 1 v))
+                                ((stringp v) v))))
+                            (t ""))))
+                   (append racket-input-user-translations
+                           racket-input-translations)))
+         (collection
+          (racket--completion-table
+           translations
+           `((category . racket-symbol-name)
+             (affixation-function . ,(racket--input-make-affixator translations)))))
+         (predicate nil)
+         (require-match t))
+    (when-let (str (completing-read "Symbol: "
+                                    collection
+                                    predicate
+                                    require-match
+                                    initial-input))
+      (assoc str translations))))
+
+(defun racket--input-make-affixator (translations)
+  (lambda (strs)
+   (let ((max-len 16))
+     (dolist (str strs)
+       (setq max-len (max max-len (1+ (length str)))))
+     (seq-map (lambda (str)
+                (let ((v (cdr (assoc str translations))))
+                  (list str
+                        ""
+                        (concat
+                         (make-string (- max-len (length str)) 32)
+                         (propertize v 'face 'bold)))))
+              strs))))
+
 
 (provide 'racket-input)
 

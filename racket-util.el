@@ -171,6 +171,13 @@ s-expressions."
         (thing-at-point thing no-properties))
     (thing-at-point thing no-properties)))
 
+(defun racket--bounds-of-thing-at-point (thing)
+  (if-let (pos (racket--menu-position))
+      (save-excursion
+        (goto-char pos)
+        (bounds-of-thing-at-point thing))
+    (bounds-of-thing-at-point thing)))
+
 (defun racket--symbol-at-point-or-prompt (force-prompt-p
                                           prompt
                                           &optional
