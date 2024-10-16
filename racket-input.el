@@ -158,10 +158,10 @@ translations using `racket-input-show-translations'."
 
 (defcustom racket-input-tweak-all
   '(racket-input-compose
-    (racket-input-nonempty)
+    (racket-input-prepend "\\")
     (racket-input-compose
-     (racket-input-prepend "\\")
-     (racket-input-drop '())))
+     (racket-input-drop ())
+     (racket-input-nonempty)))
   "An expression yielding a function which can be used to tweak
 all translations before they are included in the input method.
 The resulting function (if non-nil) is applied to every
@@ -608,48 +608,43 @@ inserting the symbol."
 (defun racket--choose-symbol (&optional initial-input)
   "Caveat: When a translation has multiple choices for a key,
 ignores all but the first one."
-  (let* ((translations ;make alist with single, string value
-          (seq-map (pcase-lambda (`(,k . ,v))
-                     (cons k
-                           (cond
-                            ((characterp v) (make-string 1 v))
-                            ((stringp v) v)
-                            ((sequencep v)
-                             (let ((v (seq-elt v 0)))
-                               (cond
-                                ((characterp v) (make-string 1 v))
-                                ((stringp v) v))))
-                            (t ""))))
-                   (append racket-input-user-translations
-                           racket-input-translations)))
-         (collection
-          (racket--completion-table
-           translations
-           `((category . racket-symbol-name)
-             (affixation-function . ,(racket--input-make-affixator translations)))))
-         (predicate nil)
-         (require-match t))
-    (when-let (str (completing-read "Symbol: "
-                                    collection
-                                    predicate
-                                    require-match
-                                    initial-input))
-      (assoc str translations))))
-
-(defun racket--input-make-affixator (translations)
-  (lambda (strs)
-   (let ((max-len 16))
-     (dolist (str strs)
-       (setq max-len (max max-len (1+ (length str)))))
-     (seq-map (lambda (str)
-                (let ((v (cdr (assoc str translations))))
-                  (list str
-                        ""
-                        (concat
-                         (make-string (- max-len (length str)) 32)
-                         (propertize v 'face 'bold)))))
-              strs))))
-
+  (cl-labels ((->str (v)
+                (cond
+                 ((characterp v) (make-string 1 v))
+                 ((stringp v)    v)
+                 ((sequencep v)  (->str (seq-elt v 0)))
+                 (t ""))))
+   (let* ((translations ;make alist with single, string value
+           (seq-map (pcase-lambda (`(,k . ,v))
+                      (cons k (->str v)))
+                    (append racket-input-user-translations
+                            racket-input-translations)))
+          (affixator
+           (lambda (strs)
+             (let ((max-len 16))
+               (dolist (str strs)
+                 (setq max-len (max max-len (1+ (length str)))))
+               (seq-map (lambda (str)
+                          (let ((v (cdr (assoc str translations))))
+                            (list str
+                                  ""
+                                  (concat
+                                   (make-string (- max-len (length str)) 32)
+                                   (propertize v 'face 'bold)))))
+                        strs))))
+          (collection
+           (racket--completion-table
+            translations
+            `((category . racket-symbol-name)
+              (affixation-function . ,affixator))))
+          (predicate nil)
+          (require-match t))
+     (when-let (str (completing-read "Symbol: "
+                                     collection
+                                     predicate
+                                     require-match
+                                     initial-input))
+       (assoc str translations)))))
 
 (provide 'racket-input)
 

@@ -38,6 +38,7 @@
   `("Edit"
     racket-mode
     racket-insert-lambda
+    racket-insert-symbol
     racket-fold-all-tests
     racket-unfold-all-tests
     racket-tidy-requires
@@ -227,7 +228,12 @@
     "Showing information"
     racket-show-functions
     "Running racket and raco commands in a shell or terminal"
-    racket-shell-or-terminal-function)
+    racket-shell-or-terminal-function
+    "Racket input method"
+    racket-input-tweak-all
+    racket-input-inherit
+    racket-input-translations
+    racket-input-user-translations)
   "Variables to include in the Reference.")
 
 (defun racket-generate--variables ()

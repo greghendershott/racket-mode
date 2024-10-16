@@ -97,6 +97,7 @@ Edit
 
 * racket-mode::
 * racket-insert-lambda::
+* racket-insert-symbol::
 * racket-fold-all-tests::
 * racket-unfold-all-tests::
 * racket-tidy-requires::
@@ -203,6 +204,7 @@ Variables
 * Experimental debugger variables::
 * Showing information::
 * Running racket and raco commands in a shell or terminal::
+* Racket input method::
 
 General variables
 
@@ -260,6 +262,13 @@ Showing information
 Running racket and raco commands in a shell or terminal
 
 * racket-shell-or-terminal-function::
+
+Racket input method
+
+* racket-input-tweak-all::
+* racket-input-inherit::
+* racket-input-translations::
+* racket-input-user-translations::
 
 Configuration functions
 
@@ -856,7 +865,9 @@ To automatically enable the @code{Racket} input method in @code{racket-mode} and
 
 @xref{racket-input-mode}.
 
-@xref{racket-insert-lambda}.
+@xref{racket-input-tweak-all}.
+
+@xref{racket-insert-symbol}.
 
 @node Ligatures
 @section Ligatures
@@ -938,6 +949,7 @@ You can also view these by using the normal Emacs help mechanism:
 @menu
 * racket-mode::
 * racket-insert-lambda::
+* racket-insert-symbol::
 * racket-fold-all-tests::
 * racket-unfold-all-tests::
 * racket-tidy-requires::
@@ -1033,6 +1045,21 @@ penultimate step during initialization.
 Insert λ.
 
 To insert Unicode symbols generally, see @ref{racket-input-mode}.
+
+@node racket-insert-symbol
+@subsection racket-insert-symbol
+
+@kbd{M-x}  @code{racket-insert-symbol}
+
+A command alternative to the ``Racket'' input method.
+
+Presents @code{completing-read} UI to choose and insert from
+@ref{racket-input-translations} and @ref{racket-input-user-translations}.
+
+When there is a symbol @code{thing-at-point}, that is the initial
+input to @code{completing-read}. When that exactly matches the chosen
+symbol name, the name is deleted from the buffer, as well as
+inserting the symbol.
 
 @node racket-fold-all-tests
 @subsection racket-fold-all-tests
@@ -1393,14 +1420,14 @@ repeatedly.
 
 @kbd{M-x}  @code{racket-input-mode}
 
-A minor mode convenience to enable the racket input method.
+A minor mode to enable the Racket input method.
 
 The racket input method lets you easily type various Unicode
 symbols that might be useful when writing Racket code.
 
-To automatically enable the racket-unicode input method in
-racket-mode and racket-repl-mode buffers, put the following code
-in your Emacs init file:
+To automatically enable the Racket input method in racket-mode
+and racket-repl-mode buffers, put the following code in your
+Emacs init file:
 
 @lisp
     (add-hook 'racket-mode-hook #'racket-input-mode)
@@ -1410,7 +1437,7 @@ in your Emacs init file:
 You may use the standard Emacs key C-\ to toggle the current
 input method.
 
-When the racket input method is active, you can for example type
+When the Racket input method is active, you can for example type
 ``\All'' and it is immediately replaced with ``∀''. A few other
 examples:
 
@@ -1433,7 +1460,9 @@ Use ``M-x describe-input-method racket'' to see a table of
 all key sequences.
 
 Use ``M-x customize-group racket-input'' to customize the input
-method.
+method. The @ref{racket-input-tweak-all} expression is a quick way to
+change the default ``\'' prefix or remove a few default
+translations.
 
 If you don’t like the highlighting of partially matching tokens you
 can turn it off by setting @code{input-method-highlight-flag} to nil.
@@ -3090,6 +3119,7 @@ Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 * Experimental debugger variables::
 * Showing information::
 * Running racket and raco commands in a shell or terminal::
+* Racket input method::
 @end menu
 
 @node General variables
@@ -3742,6 +3772,107 @@ send a newline or enter.
 
 Predefined choices include @ref{racket-shell}, @ref{racket-term},
 @ref{racket-ansi-term}, and @ref{racket-vterm}.
+
+@node Racket input method
+@section Racket input method
+
+@menu
+* racket-input-tweak-all::
+* racket-input-inherit::
+* racket-input-translations::
+* racket-input-user-translations::
+@end menu
+
+@node racket-input-tweak-all
+@subsection racket-input-tweak-all
+
+An expression yielding a function which can be used to tweak
+all translations before they are included in the input method.
+The resulting function (if non-nil) is applied to every
+(KEY-SEQUENCE . TRANSLATION) pair and should return a list of such
+pairs. (Note that the translations can be anything accepted by
+@code{quail-defrule}.)
+
+Common tweaks to the default expression.
+
+@itemize
+@item
+Change the default prefix string with @code{racket-input-prepend}.
+
+@item
+Remove some default translations by adding strings to the list
+argument of @code{racket-input-drop}.
+@end itemize
+
+If you change this setting manually (without using the
+customization buffer) you need to call @code{racket-input-setup} in
+order for the change to take effect.
+
+@node racket-input-inherit
+@subsection racket-input-inherit
+
+A list of Quail input methods whose translations should be
+inherited by the Racket input method (with the exception of
+translations corresponding to ASCII characters).
+
+The list consists of pairs (qp . tweak), where qp is the name of
+a Quail package, and tweak is an expression of the same kind as
+@ref{racket-input-tweak-all} which is used to tweak the translation
+pairs of the input method.
+
+The inherited translation pairs are added last, after
+@ref{racket-input-user-translations} and @ref{racket-input-translations}.
+
+For example:
+
+@lisp
+    (("TeX" . (racket-input-compose
+                 (racket-input-drop '("geq" "leq" "bullet" "qed" "par"))
+                 (racket-input-or
+                  (racket-input-drop-prefix "\\")
+                  (racket-input-or
+                   (racket-input-compose
+                    (racket-input-drop '("^l" "^o" "^r" "^v"))
+                    (racket-input-prefix "^"))
+                   (racket-input-prefix "_"))))))
+@end lisp
+
+If you change this setting manually (without using the
+customization buffer) you need to call @code{racket-input-setup} in
+order for the change to take effect.
+
+@node racket-input-translations
+@subsection racket-input-translations
+
+A list of translations specific to the Racket input method.
+Each element is a pair (KEY-SEQUENCE-STRING . LIST-OF-TRANSLATION-STRINGS).
+All the translation strings are possible translations
+of the given key sequence; if there is more than one you can choose
+between them using the arrow keys.
+
+Note that if you customize this setting you will not
+automatically benefit (or suffer) from modifications to its
+default value when the library is updated.  If you just want to
+add some bindings it is probably a better idea to customize
+@ref{racket-input-user-translations}.
+
+These translation pairs are included after those in
+@ref{racket-input-user-translations}, but before the ones inherited
+from other input methods (see @ref{racket-input-inherit}).
+
+If you change this setting manually (without using the
+customization buffer) you need to call @code{racket-input-setup} in
+order for the change to take effect.
+
+@node racket-input-user-translations
+@subsection racket-input-user-translations
+
+Like @ref{racket-input-translations}, but more suitable for user
+customizations since by default it is empty.
+
+These translation pairs are included first, before those in
+@ref{racket-input-translations} and the ones inherited from other input
+methods.
 
 @node Configuration functions
 @chapter Configuration functions
