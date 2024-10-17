@@ -393,8 +393,6 @@ To automatically enable the ~Racket~ input method in ~racket-mode~ and ~racket-r
 
 {{{see(racket-input-mode)}}}.
 
-{{{see(racket-input-tweak-all)}}}.
-
 {{{see(racket-insert-symbol)}}}.
 
 ** Ligatures

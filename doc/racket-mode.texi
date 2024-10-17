@@ -265,10 +265,8 @@ Running racket and raco commands in a shell or terminal
 
 Racket input method
 
-* racket-input-tweak-all::
-* racket-input-inherit::
+* racket-input-prefix::
 * racket-input-translations::
-* racket-input-user-translations::
 
 Configuration functions
 
@@ -865,8 +863,6 @@ To automatically enable the @code{Racket} input method in @code{racket-mode} and
 
 @xref{racket-input-mode}.
 
-@xref{racket-input-tweak-all}.
-
 @xref{racket-insert-symbol}.
 
 @node Ligatures
@@ -1053,8 +1049,8 @@ To insert Unicode symbols generally, see @ref{racket-input-mode}.
 
 A command alternative to the ``Racket'' input method.
 
-Presents @code{completing-read} UI to choose and insert from
-@ref{racket-input-translations} and @ref{racket-input-user-translations}.
+Presents a @code{completing-read} UI to choose and insert from
+@ref{racket-input-translations}.
 
 When there is a symbol @code{thing-at-point}, that is the initial
 input to @code{completing-read}. When that exactly matches the chosen
@@ -1460,7 +1456,7 @@ Use ``M-x describe-input-method racket'' to see a table of
 all key sequences.
 
 Use ``M-x customize-group racket-input'' to customize the input
-method. The @ref{racket-input-tweak-all} expression is a quick way to
+method. The @code{nil} expression is a quick way to
 change the default ``\'' prefix or remove a few default
 translations.
 
@@ -3777,102 +3773,29 @@ Predefined choices include @ref{racket-shell}, @ref{racket-term},
 @section Racket input method
 
 @menu
-* racket-input-tweak-all::
-* racket-input-inherit::
+* racket-input-prefix::
 * racket-input-translations::
-* racket-input-user-translations::
 @end menu
 
-@node racket-input-tweak-all
-@subsection racket-input-tweak-all
+@node racket-input-prefix
+@subsection racket-input-prefix
 
-An expression yielding a function which can be used to tweak
-all translations before they are included in the input method.
-The resulting function (if non-nil) is applied to every
-(KEY-SEQUENCE . TRANSLATION) pair and should return a list of such
-pairs. (Note that the translations can be anything accepted by
-@code{quail-defrule}.)
-
-Common tweaks to the default expression.
-
-@itemize
-@item
-Change the default prefix string with @code{racket-input-prepend}.
-
-@item
-Remove some default translations by adding strings to the list
-argument of @code{racket-input-drop}.
-@end itemize
+A prefix automatically prepended to all @ref{racket-input-translations}.
 
 If you change this setting manually (without using the
-customization buffer) you need to call @code{racket-input-setup} in
-order for the change to take effect.
-
-@node racket-input-inherit
-@subsection racket-input-inherit
-
-A list of Quail input methods whose translations should be
-inherited by the Racket input method (with the exception of
-translations corresponding to ASCII characters).
-
-The list consists of pairs (qp . tweak), where qp is the name of
-a Quail package, and tweak is an expression of the same kind as
-@ref{racket-input-tweak-all} which is used to tweak the translation
-pairs of the input method.
-
-The inherited translation pairs are added last, after
-@ref{racket-input-user-translations} and @ref{racket-input-translations}.
-
-For example:
-
-@lisp
-    (("TeX" . (racket-input-compose
-                 (racket-input-drop '("geq" "leq" "bullet" "qed" "par"))
-                 (racket-input-or
-                  (racket-input-drop-prefix "\\")
-                  (racket-input-or
-                   (racket-input-compose
-                    (racket-input-drop '("^l" "^o" "^r" "^v"))
-                    (racket-input-prefix "^"))
-                   (racket-input-prefix "_"))))))
-@end lisp
-
-If you change this setting manually (without using the
-customization buffer) you need to call @code{racket-input-setup} in
-order for the change to take effect.
+customization buffer or @code{setopt}) you need to call
+@code{racket-input-setup} in order for the change to take effect.
 
 @node racket-input-translations
 @subsection racket-input-translations
 
 A list of translations specific to the Racket input method.
-Each element is a pair (KEY-SEQUENCE-STRING . LIST-OF-TRANSLATION-STRINGS).
-All the translation strings are possible translations
-of the given key sequence; if there is more than one you can choose
-between them using the arrow keys.
 
-Note that if you customize this setting you will not
-automatically benefit (or suffer) from modifications to its
-default value when the library is updated.  If you just want to
-add some bindings it is probably a better idea to customize
-@ref{racket-input-user-translations}.
-
-These translation pairs are included after those in
-@ref{racket-input-user-translations}, but before the ones inherited
-from other input methods (see @ref{racket-input-inherit}).
+Each element is (KEY-SEQUENCE-STRING TRANSLATION-STRING).
 
 If you change this setting manually (without using the
-customization buffer) you need to call @code{racket-input-setup} in
-order for the change to take effect.
-
-@node racket-input-user-translations
-@subsection racket-input-user-translations
-
-Like @ref{racket-input-translations}, but more suitable for user
-customizations since by default it is empty.
-
-These translation pairs are included first, before those in
-@ref{racket-input-translations} and the ones inherited from other input
-methods.
+customization buffer or @code{setopt}) you need to call
+@code{racket-input-setup} in order for the change to take effect.
 
 @node Configuration functions
 @chapter Configuration functions

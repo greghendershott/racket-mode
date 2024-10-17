@@ -1,223 +1,29 @@
 ;;; racket-input.el -*- lexical-binding: t; -*-
 
 ;; Copyright (c) 2024 by Greg Hendershott
-;; See PROVENANCE note below
 
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
-;; PROVENANCE: This is a copy and modification of the MIT licensed
-;; <https://github.com/emacsmirror/agda2-mode/agda-input.el>. Most of
-;; the modifications just change "agda-" name prefixes to "racket-".
-;;
-;; On the one hand, most of this code is applicable to defining and
-;; customizing any input method. Ideally, we'd like it to exist as a
-;; distinct, "generic" package, for use by any input method.
-;;
-;; On the other hand, it doesn't exist in that form. Even if we wanted
-;; to advise users to install the agda2-mode package (i.e. we use it
-;; as a "library"), it ships via Stack/Cabal -- not via any Emacs Lisp
-;; package repo. That's not a reasonable way to ask a typical Emacs or
-;; Racket user to install it.
-;;
-;; Finally, I would be happy to copy-paste this exactly, using the
-;; "agda-" prefixed names. But if an Agda user happens to have it
-;; installed the official way, that would conflict.
-;;
-;; TL;DR: Although doing a copy and rename is a bad way to reuse this
-;; code, it seems the least worst way. :(
-
-;;; Original commentary:
-
-;; A highly customisable input method which can inherit from other
-;; Quail input methods. By default the input method is geared towards
-;; the input of mathematical and other symbols in Agda programs.
-;;
-;; Use M-x customize-group agda-input to customise this input method.
-;; Note that the functions defined under "Functions used to tweak
-;; translation pairs" below can be used to tweak both the key
-;; translations inherited from other input methods as well as the
-;; ones added specifically for this one.
-;;
-;; Use agda-input-show-translations to see all the characters which
-;; can be typed using this input method (except for those
-;; corresponding to ASCII characters).
-
 (require 'quail)
-(require 'cl-lib)
 (require 'racket-complete)
 (require 'racket-util)
 
-;; Quail is quite stateful, so be careful when editing this code.  Note
-;; that with-temp-buffer is used below whenever buffer-local state is
-;; modified.
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Utility functions
-
-(defun racket-input-concat-map (f xs)
-  "Concat (map F XS)."
-  (apply 'append (mapcar f xs)))
-
-(defun racket-input-to-string-list (s)
-  "Convert a string S to a list of one-character strings, after
-removing all space and newline characters."
-  (racket-input-concat-map
-   (lambda (c) (if (member c (string-to-list " \n"))
-              nil
-            (list (string c))))
-   (string-to-list s)))
-
-(defun racket-input-character-range (from to)
-  "A string consisting of the characters from FROM to TO."
-  (let (seq)
-    (dotimes (i (1+ (- to from)))
-      (setq seq (cons (+ from i) seq)))
-    (concat (nreverse seq))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Functions used to tweak translation pairs
-
-(defun racket-input-compose (f g)
-  "λ x -> concatMap F (G x)"
-    (lambda (x) (racket-input-concat-map f (funcall g x))))
-
-(defun racket-input-or (f g)
-  "λ x -> F x ++ G x"
-    (lambda (x) (append (funcall f x) (funcall g x))))
-
-(defun racket-input-nonempty ()
-  "Only keep pairs with a non-empty first component."
-  (lambda (x) (if (> (length (car x)) 0) (list x))))
-
-(defun racket-input-prepend (prefix)
-  "Prepend PREFIX to all key sequences."
-    (lambda (x) `((,(concat prefix (car x)) . ,(cdr x)))))
-
-(defun racket-input-prefix (prefix)
-  "Only keep pairs whose key sequence starts with PREFIX."
-    (lambda (x)
-      (if (equal (substring (car x) 0 (length prefix)) prefix)
-          (list x))))
-
-(defun racket-input-suffix (suffix)
-  "Only keep pairs whose key sequence ends with SUFFIX."
-    (lambda (x)
-      (if (equal (substring (car x)
-                            (- (length (car x)) (length suffix)))
-                 suffix)
-          (list x))))
-
-(defun racket-input-drop (ss)
-  "Drop pairs matching one of the given key sequences.
-SS should be a list of strings."
-    (lambda (x) (unless (member (car x) ss) (list x))))
-
-(defun racket-input-drop-beginning (n)
-  "Drop N characters from the beginning of each key sequence."
-    (lambda (x) `((,(substring (car x) n) . ,(cdr x)))))
-
-(defun racket-input-drop-end (n)
-  "Drop N characters from the end of each key sequence."
-    (lambda (x)
-      `((,(substring (car x) 0 (- (length (car x)) n)) .
-         ,(cdr x)))))
-
-(defun racket-input-drop-prefix (prefix)
-  "Only keep pairs whose key sequence starts with PREFIX.
-This prefix is dropped."
-  (racket-input-compose
-   (racket-input-drop-beginning (length prefix))
-   (racket-input-prefix prefix)))
-
-(defun racket-input-drop-suffix (suffix)
-  "Only keep pairs whose key sequence ends with SUFFIX.
-This suffix is dropped."
-    (racket-input-compose
-     (racket-input-drop-end (length suffix))
-     (racket-input-suffix suffix)))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Customization
-
-;; The :set keyword is 'racket-custom-set so that the input method
-;; gets updated immediately when users customize it. However, the
-;; setup functions cannot be run before all variables have been
-;; defined. Hence the :initialize keyword is set to
-;; 'custom-initialize-default to ensure that the setup is not
-;; performed until racket-input-setup is called at the end of this
-;; file.
-
 (defgroup racket-input nil
-  "The Racket input method.
-After tweaking these settings you may want to inspect the resulting
-translations using `racket-input-show-translations'."
+  "The Racket input method."
   :group 'racket)
 
-(defcustom racket-input-tweak-all
-  '(racket-input-compose
-    (racket-input-prepend "\\")
-    (racket-input-compose
-     (racket-input-drop ())
-     (racket-input-nonempty)))
-  "An expression yielding a function which can be used to tweak
-all translations before they are included in the input method.
-The resulting function (if non-nil) is applied to every
-\(KEY-SEQUENCE . TRANSLATION) pair and should return a list of such
-pairs. (Note that the translations can be anything accepted by
-`quail-defrule'.)
+(defcustom racket-input-prefix "\\"
+  "A prefix for all `racket-input-translations', when used by the
+Racket input method.
 
-Common tweaks to the default expression.
-
-- Change the default prefix string with `racket-input-prepend'.
-
-- Remove some default translations by adding strings to the list
-  argument of `racket-input-drop'.
-
-If you change this setting manually (without using the
-customization buffer) you need to call `racket-input-setup' in
-order for the change to take effect."
-  :set 'racket-custom-set
-  :initialize 'custom-initialize-default
-  :type 'sexp)
-
-(defcustom racket-input-inherit
-  nil
-  "A list of Quail input methods whose translations should be
-inherited by the Racket input method (with the exception of
-translations corresponding to ASCII characters).
-
-The list consists of pairs (qp . tweak), where qp is the name of
-a Quail package, and tweak is an expression of the same kind as
-`racket-input-tweak-all' which is used to tweak the translation
-pairs of the input method.
-
-The inherited translation pairs are added last, after
-`racket-input-user-translations' and `racket-input-translations'.
-
-For example:
-
-#+BEGIN_SRC elisp
-    ((\"TeX\" . (racket-input-compose
-                 (racket-input-drop \\='(\"geq\" \"leq\" \"bullet\" \"qed\" \"par\"))
-                 (racket-input-or
-                  (racket-input-drop-prefix \"\\\\\")
-                  (racket-input-or
-                   (racket-input-compose
-                    (racket-input-drop \\='(\"^l\" \"^o\" \"^r\" \"^v\"))
-                    (racket-input-prefix \"^\"))
-                   (racket-input-prefix \"_\"))))))
-#+END_SRC
-
-If you change this setting manually (without using the
-customization buffer) you need to call `racket-input-setup' in
-order for the change to take effect."
-  :set 'racket-custom-set
-  :initialize 'custom-initialize-default
-  :type '(repeat (cons (string :tag "Quail package")
-                       (sexp :tag "Tweaking function"))))
+If you change this setting manually with `setq' (instead of using
+the customization buffer or `setopt') you need to call
+`racket-input-setup' in order for the change to take effect."
+  :type '(choice (string :tag "Prefix")
+                 (const :tag "None" nil)))
 
 (defcustom racket-input-translations
   '(;; Typed Racket
@@ -397,96 +203,24 @@ order for the change to take effect."
     ("^7" "⁷")
     ("^8" "⁸")
     ("^9" "⁹"))
-  "A list of translations specific to the Racket input method.
-Each element is a pair (KEY-SEQUENCE-STRING . LIST-OF-TRANSLATION-STRINGS).
-All the translation strings are possible translations
-of the given key sequence; if there is more than one you can choose
-between them using the arrow keys.
+  "A list of translations.
 
-Note that if you customize this setting you will not
-automatically benefit (or suffer) from modifications to its
-default value when the library is updated.  If you just want to
-add some bindings it is probably a better idea to customize
-`racket-input-user-translations'.
+Each element is (KEY-SEQUENCE-STRING TRANSLATION-STRING).
 
-These translation pairs are included after those in
-`racket-input-user-translations', but before the ones inherited
-from other input methods (see `racket-input-inherit').
+Used by the \"Racket\" input method as well as the
+`racket-insert-symbol' command.
 
-If you change this setting manually (without using the
-customization buffer) you need to call `racket-input-setup' in
-order for the change to take effect."
+If you change this setting manually with `setq' (instead of using
+the customization buffer or `setopt') you need to call
+`racket-input-setup' in order for the change to take effect."
   :set 'racket-custom-set
   :initialize 'custom-initialize-default
-  :type '(repeat (cons (string :tag "Key sequence")
-                       (repeat :tag "Translations" string))))
-
-(defcustom racket-input-user-translations nil
-  "Like `racket-input-translations', but more suitable for user
-customizations since by default it is empty.
-
-These translation pairs are included first, before those in
-`racket-input-translations' and the ones inherited from other input
-methods."
-  :set 'racket-custom-set
-  :initialize 'custom-initialize-default
-  :type '(repeat (cons (string :tag "Key sequence")
-                       (repeat :tag "Translations" string))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Inspecting and modifying translation maps
-
-(defun racket-input-get-translations (qp)
-  "Return a list containing all translations from the Quail
-package QP (except for those corresponding to ASCII).
-Each pair in the list has the form (KEY-SEQUENCE . TRANSLATION)."
-  (with-temp-buffer
-    (activate-input-method qp) ; To make sure that the package is loaded.
-    (unless (quail-package qp)
-      (error "%s is not a Quail package." qp))
-    (let ((decode-map (list 'decode-map)))
-      (quail-build-decode-map (list (quail-map)) "" decode-map 0)
-      (cdr decode-map))))
-
-(defun racket-input-show-translations (qp)
-  "Display all translations used by the Quail package QP (a string).
-\(Except for those corresponding to ASCII)."
-  (interactive (list (read-input-method-name
-                      "Quail input method (default %s): " "Racket")))
-  (let ((buf (concat "*" qp " input method translations*")))
-    (with-output-to-temp-buffer buf
-      (with-current-buffer buf
-        (quail-insert-decode-map
-         (cons 'decode-map (racket-input-get-translations qp)))))))
-
-(defun racket-input-add-translations (trans)
-  "Add the given translations TRANS to the Racket input method.
-TRANS is a list of pairs (KEY-SEQUENCE . TRANSLATION). The
-translations are appended to the current translations."
-  (with-temp-buffer
-    (dolist (tr (racket-input-concat-map (eval racket-input-tweak-all) trans))
-      (quail-defrule (car tr) (cdr tr) "Racket" t))))
-
-(defun racket-input-inherit-package (qp &optional fun)
-  "Let the Racket input method inherit the translations from the
-Quail package QP (except for those corresponding to ASCII).
-
-The optional function FUN can be used to modify the translations.
-It is given a pair (KEY-SEQUENCE . TRANSLATION) and should return
-a list of such pairs."
-  (let ((trans (racket-input-get-translations qp)))
-    (racket-input-add-translations
-     (if fun (racket-input-concat-map fun trans)
-       trans))))
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Setting up the input method
+  :type '(repeat (list (string :tag "Key sequence")
+                       (string :tag "Translation"))))
 
 (defun racket-input-setup ()
-  "Set up the Racket input method based on the customisable
-variables and underlying input methods."
-
-  ;; Create (or reset) the input method.
+  "Set up the Racket input method based on the customization
+variables."
   (with-temp-buffer
     (quail-define-package
      "Racket"                           ;name
@@ -505,35 +239,27 @@ variables and underlying input methods."
      nil                                ;update-translation-function
      nil                                ;conversion-keys
      t))                                ;simple
-
-  (racket-input-add-translations
-   (mapcar (lambda (tr) (cons (car tr) (vconcat (cdr tr))))
-           (append racket-input-user-translations
-                   racket-input-translations)))
-  (dolist (def racket-input-inherit)
-    (racket-input-inherit-package (car def)
-                                  (eval (cdr def)))))
+  (dolist (tr racket-input-translations)
+    (pcase-let* ((`(,key ,translation) tr)
+                 (key (concat racket-input-prefix key)))
+     (quail-defrule key translation "Racket" t))))
 
 (defun racket-custom-set (sym val)
-  "Update the Racket input method based on the customisable
-variables and underlying input methods.
-Suitable for use in the :set field of `defcustom'."
   (set-default sym val)
   (racket-input-setup))
 
 ;; Set up the input method.
 (racket-input-setup)
 
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-
-;;;; Some conveniences in the original agda input method
-
 ;;; Minor mode
 
-(define-minor-mode racket-input-mode
-  "A minor mode to enable the Racket input method.
+;; This is a convenience for user configuration, as well as a good
+;; documentation location.
 
-The racket input method lets you easily type various Unicode
+(define-minor-mode racket-input-mode
+  "A minor mode to enable the \"Racket\" input method.
+
+The Racket input method lets you easily use various Unicode
 symbols that might be useful when writing Racket code.
 
 To automatically enable the Racket input method in racket-mode
@@ -548,24 +274,12 @@ Emacs init file:
 You may use the standard Emacs key C-\\ to toggle the current
 input method.
 
-When the Racket input method is active, you can for example type
-\"\\All\" and it is immediately replaced with \"∀\". A few other
-examples:
+When the Racket input method is active, and `racket-input-prefix'
+is the default \"\\\", you can for example type \"\\All\" and it
+is immediately replaced with \"∀\".
 
-| \\omega     | ω                        |
-| \\x_1       | x₁                       |
-| \\x^1       | x¹                       |
-| \\A         | 𝔸                        |
-| \\test-->>E | test-->>∃ (racket/redex) |
-| \\vdash     | ⊢                        |
-
-Use \"M-x describe-input-method racket\" to see a table of
-all key sequences.
-
-Use \"M-x customize-group racket-input\" to customize the input
-method. The `racket-input-tweak-all' expression is a quick way to
-change the default \"\\\" prefix or remove a few default
-translations.
+See `racket-input-translations' for the full list of translations,
+which is also used by the `racket-insert-symbol' command.
 
 If you don’t like the highlighting of partially matching tokens you
 can turn it off by setting `input-method-highlight-flag' to nil."
@@ -580,49 +294,24 @@ can turn it off by setting `input-method-highlight-flag' to nil."
   #'racket-input-mode
   "2024-10-15")
 
-;;; Command using completing-read
+;;; Command flavor, using completing-read with annotations
 
 (defun racket-insert-symbol ()
   "A command alternative to the \"Racket\" input method.
 
-Presents `completing-read' UI to choose and insert from
-`racket-input-translations' and `racket-input-user-translations'.
-
-When there is a symbol `thing-at-point', that is the initial
-input to `completing-read'. When that exactly matches the chosen
-symbol name, the name is deleted from the buffer, as well as
-inserting the symbol."
+Presents a `completing-read' UI to choose and insert from
+`racket-input-translations'. The symbols that would be inserted
+are shown as annotations -- serves as a preview unlike what is
+currently provided by the Emacs UI for input method."
   (interactive)
-  (pcase (racket--bounds-of-thing-at-point 'symbol)
-    (`(,beg . ,end)
-     (let ((thing (buffer-substring-no-properties beg end)))
-       (pcase (racket--choose-symbol thing)
-         (`(,key . ,str)
-          (when (string-equal key thing)
-            (delete-region beg end))
-          (insert str)))))
-    (_ (pcase (racket--choose-symbol)
-         (`(,_key . ,str)
-          (insert str))))))
-
-(defun racket--choose-symbol (&optional initial-input)
-  "Caveat: When a translation has multiple choices for a key,
-ignores all but the first one."
-  (let* ((translations           ;make alist with single, string value
-          (seq-map (pcase-lambda (`(,k ,v . ,_more))
-                     (cons k (cond
-                              ((characterp v) (make-string 1 v))
-                              ((stringp v)    v)
-                              (t ""))))
-                   (append racket-input-user-translations
-                           racket-input-translations)))
+  (let* ((translations racket-input-translations)
          (affixator
           (lambda (strs)
             (let ((max-len 16))
               (dolist (str strs)
                 (setq max-len (max max-len (1+ (length str)))))
               (seq-map (lambda (str)
-                         (let ((v (cdr (assoc str translations))))
+                         (let ((v (cadr (assoc str translations))))
                            (list str
                                  ""
                                  (concat
@@ -639,9 +328,8 @@ ignores all but the first one."
     (when-let (str (completing-read "Symbol: "
                                     collection
                                     predicate
-                                    require-match
-                                    initial-input))
-      (assoc str translations))))
+                                    require-match))
+      (insert (cadr (assoc str racket-input-translations))))))
 
 (provide 'racket-input)
 

@@ -230,10 +230,8 @@
     "Running racket and raco commands in a shell or terminal"
     racket-shell-or-terminal-function
     "Racket input method"
-    racket-input-tweak-all
-    racket-input-inherit
-    racket-input-translations
-    racket-input-user-translations)
+    racket-input-prefix
+    racket-input-translations)
   "Variables to include in the Reference.")
 
 (defun racket-generate--variables ()
