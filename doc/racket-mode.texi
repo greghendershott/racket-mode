@@ -77,7 +77,7 @@ Configure
 * Edit buffers and REPL buffers::
 * eldoc::
 * Start faster::
-* Input method::
+* Inserting Unicode math symbols::
 * Ligatures::
 
 Commands
@@ -563,7 +563,7 @@ You can @code{setq} this directly in your Emacs init file (@samp{~/.emacs} or @s
 * Edit buffers and REPL buffers::
 * eldoc::
 * Start faster::
-* Input method::
+* Inserting Unicode math symbols::
 * Ligatures::
 @end menu
 
@@ -849,21 +849,25 @@ A more satisfying experience is to use @ref{racket-xp-describe} or @ref{racket-x
 
 You can use @ref{racket-mode-start-faster} to make the Racket REPL start faster.
 
-@node Input method
-@section Input method
+@node Inserting Unicode math symbols
+@section Inserting Unicode math symbols
 
-An optional Emacs input method, @code{Racket}, lets you easily type various Unicode symbols that might be useful when writing Racket code.
+To insert various Unicode math symbols, you can:
 
-To automatically enable the @code{Racket} input method in @code{racket-mode} and @code{racket-repl-mode} buffers, put the following code in your Emacs init file:
+@itemize
+@item
+Use a command: @xref{racket-insert-symbol}.
+
+@item
+Use an optional Emacs input method, which you enable/disable in a buffer using @ref{racket-input-mode}. To enable it for all new buffers, put the following in  your Emacs init file:
+@end itemize
 
 @lisp
-(add-hook 'racket-mode-hook      #'racket-input-mode)
-(add-hook 'racket-repl-mode-hook #'racket-input-mode)
+(dolist (hook '(racket-mode-hook
+                racket-hash-lang-mode-hook
+                racket-repl-mode-hook))
+  (add-hook hook #'racket-input-mode))
 @end lisp
-
-@xref{racket-input-mode}.
-
-@xref{racket-insert-symbol}.
 
 @node Ligatures
 @section Ligatures
