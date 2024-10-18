@@ -101,16 +101,15 @@ Do not `setq' directly; instead call `racket--xp-set-module-completions'.")
 - Otherwise, when completing a symbol: Candidates are bindings as
   found by drracket/check-syntax plus our own back end analysis
   of imported bindings."
-  (cond ((racket--in-require-form-p)
-         (or (racket--call-with-completion-prefix-positions
-              (lambda (beg end)
-                (if (eq ?\( (char-syntax (char-before beg)))
-                    (racket--xp-capf-require-transformers beg end)
-                  (racket--xp-capf-absolute-module-paths beg end))))
-             (racket--xp-capf-relative-module-paths)))
-        (t
-         (racket--call-with-completion-prefix-positions
-          #'racket--xp-capf-bindings))))
+  (if (racket--in-require-form-p)
+      (or (racket--call-with-completion-prefix-positions
+           (lambda (beg end)
+             (if (eq ?\( (char-syntax (char-before beg)))
+                 (racket--xp-capf-require-transformers beg end)
+               (racket--xp-capf-absolute-module-paths beg end))))
+          (racket--xp-capf-relative-module-paths))
+    (racket--call-with-completion-prefix-positions
+     #'racket--xp-capf-bindings)))
 
 (defun racket--xp-capf-bindings (beg end)
   (list beg
