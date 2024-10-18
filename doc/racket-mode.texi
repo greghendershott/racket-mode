@@ -1050,12 +1050,9 @@ To insert Unicode symbols generally, see @ref{racket-input-mode}.
 A command alternative to the ``Racket'' input method.
 
 Presents a @code{completing-read} UI to choose and insert from
-@ref{racket-input-translations}.
-
-When there is a symbol @code{thing-at-point}, that is the initial
-input to @code{completing-read}. When that exactly matches the chosen
-symbol name, the name is deleted from the buffer, as well as
-inserting the symbol.
+@ref{racket-input-translations}. The symbols that would be inserted
+are shown as annotations -- serves as a preview unlike what is
+currently provided by the Emacs UI for input method.
 
 @node racket-fold-all-tests
 @subsection racket-fold-all-tests
@@ -1416,10 +1413,17 @@ repeatedly.
 
 @kbd{M-x}  @code{racket-input-mode}
 
-A minor mode to enable the Racket input method.
+A minor mode to enable the ``Racket'' input method.
 
-The racket input method lets you easily type various Unicode
+The Racket input method lets you easily use various Unicode
 symbols that might be useful when writing Racket code.
+
+When the Racket input method is active, and @ref{racket-input-prefix}
+is the default ``\'', you can for example type ``\All'' and it
+is immediately replaced with ``∀''.
+
+See @ref{racket-input-translations} for the full list of translations,
+which is also used by the @ref{racket-insert-symbol} command.
 
 To automatically enable the Racket input method in racket-mode
 and racket-repl-mode buffers, put the following code in your
@@ -1432,33 +1436,6 @@ Emacs init file:
 
 You may use the standard Emacs key C-\ to toggle the current
 input method.
-
-When the Racket input method is active, you can for example type
-``\All'' and it is immediately replaced with ``∀''. A few other
-examples:
-
-@multitable {aaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaa}
-@item ω
-@tab ω
-@item \x@math{_1}
-@tab x₁
-@item \x@math{^1}
-@tab x¹
-@item \A
-@tab 𝔸
-@item \test-->>E
-@tab test-->>∃ (racket/redex)
-@item \vdash
-@tab ⊢
-@end multitable
-
-Use ``M-x describe-input-method racket'' to see a table of
-all key sequences.
-
-Use ``M-x customize-group racket-input'' to customize the input
-method. The @code{nil} expression is a quick way to
-change the default ``\'' prefix or remove a few default
-translations.
 
 If you don’t like the highlighting of partially matching tokens you
 can turn it off by setting @code{input-method-highlight-flag} to nil.
@@ -3780,21 +3757,26 @@ Predefined choices include @ref{racket-shell}, @ref{racket-term},
 @node racket-input-prefix
 @subsection racket-input-prefix
 
-A prefix automatically prepended to all @ref{racket-input-translations}.
+A prefix for the Racket input method.
 
-If you change this setting manually (without using the
-customization buffer or @code{setopt}) you need to call
+The prefix is applied to the @ref{racket-input-translations}.
+
+If you change this setting manually with @code{setq} (instead of using
+the customization buffer or @code{setopt}) you need to call
 @code{racket-input-setup} in order for the change to take effect.
 
 @node racket-input-translations
 @subsection racket-input-translations
 
-A list of translations specific to the Racket input method.
+A list of translations.
 
 Each element is (KEY-SEQUENCE-STRING TRANSLATION-STRING).
 
-If you change this setting manually (without using the
-customization buffer or @code{setopt}) you need to call
+Used by the ``Racket'' input method as well as the
+@ref{racket-insert-symbol} command.
+
+If you change this setting manually with @code{setq} (instead of using
+the customization buffer or @code{setopt}) you need to call
 @code{racket-input-setup} in order for the change to take effect.
 
 @node Configuration functions

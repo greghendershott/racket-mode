@@ -16,8 +16,9 @@
   :group 'racket)
 
 (defcustom racket-input-prefix "\\"
-  "A prefix for all `racket-input-translations', when used by the
-Racket input method.
+  "A prefix for the Racket input method.
+
+The prefix is applied to the `racket-input-translations'.
 
 If you change this setting manually with `setq' (instead of using
 the customization buffer or `setopt') you need to call
@@ -262,6 +263,13 @@ variables."
 The Racket input method lets you easily use various Unicode
 symbols that might be useful when writing Racket code.
 
+When the Racket input method is active, and `racket-input-prefix'
+is the default \"\\\", you can for example type \"\\All\" and it
+is immediately replaced with \"∀\".
+
+See `racket-input-translations' for the full list of translations,
+which is also used by the `racket-insert-symbol' command.
+
 To automatically enable the Racket input method in racket-mode
 and racket-repl-mode buffers, put the following code in your
 Emacs init file:
@@ -273,13 +281,6 @@ Emacs init file:
 
 You may use the standard Emacs key C-\\ to toggle the current
 input method.
-
-When the Racket input method is active, and `racket-input-prefix'
-is the default \"\\\", you can for example type \"\\All\" and it
-is immediately replaced with \"∀\".
-
-See `racket-input-translations' for the full list of translations,
-which is also used by the `racket-insert-symbol' command.
 
 If you don’t like the highlighting of partially matching tokens you
 can turn it off by setting `input-method-highlight-flag' to nil."
