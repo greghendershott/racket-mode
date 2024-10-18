@@ -1,6 +1,6 @@
 ;;; racket-complete.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2023 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -11,25 +11,27 @@
 (require 'racket-common)
 
 (defun racket--call-with-completion-prefix-positions (proc)
-  (if forward-sexp-function ;not necessarily sexp lang
-      (condition-case _
-          (save-excursion
-            (let ((beg (progn (forward-sexp -1) (point)))
-                  (end (progn (forward-sexp  1) (point))))
-              (when (<= (+ beg 2) end)  ;prefix at least 2 chars
+  (cl-flet ((maybe-call (beg end)
+              (when (and (<= (+ beg 2) end) ;prefix at least 2 chars
+                         (eq (line-number-at-pos beg)
+                             (line-number-at-pos end)))
                 (funcall proc beg end))))
-        (error nil))
-    (let ((beg (save-excursion (skip-syntax-backward "^-()>") (point))))
-      (unless (or (eq beg (point-max))
-                  (member (char-syntax (char-after beg)) '(?\" ?\( ?\))))
+    (if forward-sexp-function ;not necessarily sexp lang
         (condition-case _
             (save-excursion
-              (goto-char beg)
-              (forward-sexp 1)
-              (let ((end (point)))
-                (when (<= (+ beg 2) end) ;prefix at least 2 chars
-                  (funcall proc beg end))))
-          (error nil))))))
+              (let ((beg (progn (forward-sexp -1) (point)))
+                    (end (progn (forward-sexp  1) (point))))
+                (maybe-call beg end)))
+          (error nil))
+      (let ((beg (save-excursion (skip-syntax-backward "^-()>") (point))))
+        (unless (or (eq beg (point-max))
+                    (member (char-syntax (char-after beg)) '(?\" ?\( ?\))))
+          (condition-case _
+              (save-excursion
+                (goto-char beg)
+                (forward-sexp 1)
+                (maybe-call beg (point)))
+            (error nil)))))))
 
 (defun racket--in-require-form-p ()
   (unless forward-sexp-function ;not necessarily sexp lang
