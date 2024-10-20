@@ -92,21 +92,24 @@ displaying inappropriate annotations."
 (defun racket--affix (prop min-widths strs)
   "Use with `apply-partially' to make an :affixation-function.
 
-PROP is a text property attached from index 0 of each of the STRS,
-the value of which is a list of suffix columns.
+PROP is the symbol name of a text property that must be attached
+to all of the STRS, the value of which is a list of strings --
+the suffix column values to show as annotations.
 
 MIN-WIDTHS is a vector of minimum widths for each column -- one
 for the string itself, plus the length of the list of suffix
 columns.
 
-This function arranges for each suffix column to be aligned,
-considering the maximum width of the previous column. Also it
-adds the face `completions-annotations' to the suffixes.
+Arrange for each suffix column to be aligned, considering the
+minimum width and the maximum width of the previous column. Add
+the face `completions-annotations'.
 
 When the STRS end in text made invisible by a \\='display \"\"
 property -- as is done by `racket--doc-index-make-alist' --
 ignore that for purposes of calculating widths."
-  (let* ((widths (seq-copy min-widths))
+  ;; Note: Below we use `cl-loop' because `seq-do-indexed' and
+  ;; `seq-map-indexed' are unavailable in Emacs 25.
+  (let* ((max-widths (seq-copy min-widths))
          (rows
           (seq-map (lambda (str)
                      (let ((visible-str
@@ -116,34 +119,37 @@ ignore that for purposes of calculating widths."
                                                           'display ""
                                                           str)))
                            (suffixes (get-text-property 0 prop str)))
-                       (seq-do-indexed (lambda (col ix)
-                                         (aset widths ix
-                                               (max (aref widths ix)
-                                                    (1+ (length col)))))
-                                       (cons visible-str suffixes))
+                       ;; Mutate `max-widths'.
+                       (cl-loop
+                        for col in (cons visible-str suffixes)
+                        for ix from 0
+                        do (aset max-widths ix
+                                 (max (aref max-widths ix)
+                                      (1+ (length col)))))
                        (cons str suffixes)))
                    strs))
-         (suffix-offsets (make-vector (length widths) 0))
-         (_ (let ((offset 0))
-              (seq-do-indexed (lambda (width ix)
-                                (setq offset (+ offset width))
-                                (aset suffix-offsets ix offset))
-                              widths))))
+         (suffix-offsets
+          (apply #'vector
+                 (let ((offset 0))
+                   (cl-loop
+                    for max-width across max-widths
+                    for ix from 0
+                    collect
+                    (setq offset (+ offset max-width)))))))
     (seq-map
      (pcase-lambda (`(,str . ,suffixes))
-       (list str
-             ""
-             (apply
-              #'concat
-              (seq-map-indexed
-               (lambda (suffix ix)
-                 (concat
-                  (propertize " "
-                              'display
-                              `(space :align-to ,(aref suffix-offsets ix)))
-                  (propertize (or suffix "")
-                              'face 'completions-annotations)))
-               suffixes))))
+       (let ((suffixes-str
+              (cl-loop
+               for suffix in suffixes
+               for offset across suffix-offsets
+               concat
+               (concat
+                (propertize " "
+                            'display
+                            `(space :align-to ,offset))
+                (propertize (or suffix "")
+                            'face 'completions-annotations)))))
+         (list str "" suffixes-str)))
      rows)))
 
 (provide 'racket-complete)
