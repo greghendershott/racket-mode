@@ -45,35 +45,21 @@ The table includes category and affixation-function metadata.")
   ;;
   ;; Reshape that to a list of strings, each propertized with its mod,
   ;; for use as completion table.
-  (let ((all nil)
-        (imports nil)
-        (metadata `((category . ,racket--identifier-category)
-                    (affixation-function . ,#'racket--xp-binding-completion-affixator))))
+  (let* ((all nil)
+         (imports nil)
+         (affixator (apply-partially #'racket--affix 'racket-affix [32 0]))
+         (metadata `((category . ,racket--identifier-category)
+                     (affixation-function . ,affixator))))
     (dolist (mod+syms mods+syms)
       (pcase-let ((`(,mod . ,syms) mod+syms))
         (dolist (sym syms)
-          (push (propertize sym 'racket-module mod) all)
+          (push (propertize sym 'racket-affix (list mod)) all)
           (when mod
-            (push (propertize sym 'racket-module mod) imports)))))
+            (push (propertize sym 'racket-affix (list mod)) imports)))))
     (setq racket--xp-completion-table-all
           (racket--completion-table all metadata))
     (setq racket--xp-completion-table-imports
           (racket--completion-table imports metadata))))
-
-(defun racket--xp-binding-completion-affixator (strs)
-  "Value for :affixation-function."
-  (let ((max-len (seq-reduce (lambda (max-len str)
-                               (max max-len (1+ (length str))))
-                             strs
-                             15)))
-    (seq-map (lambda (str)
-               (let* ((leading-space (make-string (- max-len (length str)) 32))
-                      (mod (get-text-property 0 'racket-module str))
-                      (suffix (or mod ""))
-                      (suffix (propertize suffix 'face 'completions-annotations))
-                      (suffix (concat leading-space suffix)))
-                 (list str "" suffix)))
-             strs)))
 
 (defvar-local racket--xp-module-completions nil
   "A completion table for available collection module paths.
@@ -115,7 +101,7 @@ Do not `setq' directly; instead call `racket--xp-set-module-completions'.")
   (list beg
         end
         racket--xp-completion-table-all
-        :affixation-function #'racket--xp-binding-completion-affixator
+        ;; ^table metadata already has :affixation-function
         :exclusive           'no
         :company-location    (racket--xp-make-company-location-proc)
         :company-doc-buffer  (racket--xp-make-company-doc-buffer-proc)))

@@ -317,20 +317,12 @@ Presents a `completing-read' UI, in which the symbols that would
 be inserted are shown as annotations -- a preview unlike what is
 currently provided by the Emacs UI for input method."
   (interactive)
-  (let* ((translations racket-input-translations)
+  (let* ((translations
+          (seq-map (pcase-lambda (`(,str ,v . _more))
+                     (propertize str 'racket-affix (list v)))
+                   racket-input-translations))
          (affixator
-          (lambda (strs)
-            (let ((max-len 16))
-              (dolist (str strs)
-                (setq max-len (max max-len (1+ (length str)))))
-              (seq-map (lambda (str)
-                         (let ((v (cadr (assoc str translations))))
-                           (list str
-                                 ""
-                                 (concat
-                                  (make-string (- max-len (length str)) 32)
-                                  (propertize v 'face 'bold)))))
-                       strs))))
+          (apply-partially #'racket--affix 'racket-affix [16 0]))
          (collection
           (racket--completion-table
            translations

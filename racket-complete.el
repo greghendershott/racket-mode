@@ -89,6 +89,63 @@ displaying inappropriate annotations."
       (_
        (complete-with-action action completions prefix predicate)))))
 
+(defun racket--affix (prop min-widths strs)
+  "Use with `apply-partially' to make an :affixation-function.
+
+PROP is a text property attached from index 0 of each of the STRS,
+the value of which is a list of suffix columns.
+
+MIN-WIDTHS is a vector of minimum widths for each column -- one
+for the string itself, plus the length of the list of suffix
+columns.
+
+This function arranges for each suffix column to be aligned,
+considering the maximum width of the previous column. Also it
+adds the face `completions-annotations' to the suffixes.
+
+When the STRS end in text made invisible by a \\='display \"\"
+property -- as is done by `racket--doc-index-make-alist' --
+ignore that for purposes of calculating widths."
+  (let* ((widths (seq-copy min-widths))
+         (rows
+          (seq-map (lambda (str)
+                     (let ((visible-str
+                            (substring str
+                                       0
+                                       (text-property-any 0 (length str)
+                                                          'display ""
+                                                          str)))
+                           (suffixes (get-text-property 0 prop str)))
+                       (seq-do-indexed (lambda (col ix)
+                                         (aset widths ix
+                                               (max (aref widths ix)
+                                                    (1+ (length col)))))
+                                       (cons visible-str suffixes))
+                       (cons str suffixes)))
+                   strs))
+         (suffix-offsets (make-vector (length widths) 0))
+         (_ (let ((offset 0))
+              (seq-do-indexed (lambda (width ix)
+                                (setq offset (+ offset width))
+                                (aset suffix-offsets ix offset))
+                              widths))))
+    (seq-map
+     (pcase-lambda (`(,str . ,suffixes))
+       (list str
+             ""
+             (apply
+              #'concat
+              (seq-map-indexed
+               (lambda (suffix ix)
+                 (concat
+                  (propertize " "
+                              'display
+                              `(space :align-to ,(aref suffix-offsets ix)))
+                  (propertize (or suffix "")
+                              'face 'completions-annotations)))
+               suffixes))))
+     rows)))
+
 (provide 'racket-complete)
 
 ;; racket-complete.el ends here

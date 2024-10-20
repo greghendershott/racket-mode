@@ -530,7 +530,7 @@ browser program -- are given `racket-describe-ext-link-face'.
 
 ;;; Search local docs
 
-;; For people who don't want to use a web browser at all: Search local
+;; For people who don't want to use a web browser: Search local
 ;; documentation, and view in a `racket-describe-mode' buffer.
 
 (defvar racket--doc-index (make-hash-table :test 'equal)
@@ -621,7 +621,7 @@ association list, to look up the path and anchor."
     (mapcar
      (pcase-lambda (`(,uid ,term ,sort ,what ,from ,fams ,path ,anchor))
        (let* ((term (propertize term
-                                'racket-affix (list term what from fams)))
+                                'racket-affix (list what from fams)))
               (sort (let ((fams (wstr 32
                                       (pcase fams
                                         ("Racket" " Racket")
@@ -647,45 +647,21 @@ association list, to look up the path and anchor."
          (list str path anchor)))
      items)))
 
-(defun racket--doc-index-affixator (strs)
-  "Value for completion :affixation-function."
-  (let ((max-term 16)
-        (max-what 16)
-        (max-from 32))
-    (dolist (str strs)
-      (pcase-let ((`(,term ,what ,from ,_fams)
-                   (get-text-property 0 'racket-affix str)))
-        (setq max-term (max max-term (1+ (length term))))
-        (setq max-what (max max-what (1+ (length what))))
-        (setq max-from (max max-from (1+ (length from))))))
-    (seq-map (lambda (str)
-               (pcase-let*
-                   ((`(,term ,what ,from ,fams)
-                     (get-text-property 0 'racket-affix str))
-                    (suffix (concat
-                             (make-string (- max-term (length term)) 32)
-                             what
-                             (make-string (- max-what (length what)) 32)
-                             from
-                             (make-string (- max-from (length from)) 32)
-                             fams))
-                    (suffix (propertize suffix
-                                        'face 'completions-annotations)))
-                 (list str "" suffix)))
-             strs)))
-
 (defun racket-describe-search ()
   "Search installed documentation; view using `racket-describe-mode'."
   (interactive)
-  (let ((collection (racket--completion-table
-                     (racket--doc-index)
-                     `((category . ,racket--identifier-category)
-                       (affixation-function . ,#'racket--doc-index-affixator))))
-        (predicate (lambda (v)
-                     (apply racket-doc-index-predicate-function
-                            (get-text-property 0 'racket-affix (car v)))))
-        (require-match t)
-        (initial-input (racket--thing-at-point 'symbol t)))
+  (let* ((affixator (apply-partially #'racket--affix
+                                     'racket-affix
+                                     [16 16 32 0]))
+         (collection (racket--completion-table
+                      (racket--doc-index)
+                      `((category . ,racket--identifier-category)
+                        (affixation-function . ,affixator))))
+         (predicate (lambda (v)
+                      (apply racket-doc-index-predicate-function
+                             (get-text-property 0 'racket-affix (car v)))))
+         (require-match t)
+         (initial-input (racket--thing-at-point 'symbol t)))
     (when-let (str (completing-read "Describe: "
                                     collection
                                     predicate

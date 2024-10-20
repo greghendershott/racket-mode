@@ -151,30 +151,11 @@ Allows users to customize via `completion-category-overrides'.")
   "Arrange for :category and :affixation-function to show metadata."
   (pcase-let*
       ((pkgs (racket--cmd/await nil `(pkg-list)))
-       ;; Find longest name and stat values, for use by
-       ;; affixation-function to align items.
-       (`(,max-name . ,max-stat)
-        (seq-reduce (pcase-lambda (`(,max-name . ,max-stat)
-                                   `(,name ,stat ,_desc))
-                      (cons (max max-name (1+ (length name)))
-                            (max max-stat (1+ (length stat)))))
-                    pkgs
-                    (cons 0 0)))
-       (affix
-        (lambda (vs)
-          (seq-map
-           (lambda (v)
-             (pcase (assoc v pkgs)
-               (`(,name ,stat ,desc)
-                (list v
-                      ""
-                      (propertize
-                       (concat (make-string (- max-name (length name)) 32)
-                               stat
-                               (make-string (- max-stat (length stat)) 32)
-                               desc)
-                       'face 'completions-annotations)))))
-           vs)))
+       (pkgs (seq-map (pcase-lambda (`(,name ,stat ,desc))
+                        (propertize name
+                                    'racket-affix (list stat desc)))
+                      pkgs))
+       (affix (apply-partially #'racket--affix 'racket-affix [16 10 0]))
        (val (completing-read "Describe Racket package: "
                              (racket--completion-table
                               pkgs
