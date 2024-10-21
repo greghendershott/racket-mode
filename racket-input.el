@@ -321,13 +321,11 @@ currently provided by the Emacs UI for input method."
           (seq-map (pcase-lambda (`(,str ,v . _more))
                      (propertize str 'racket-affix (list v)))
                    racket-input-translations))
-         (affixator
-          (apply-partially #'racket--affix 'racket-affix [16 0]))
-         (collection
-          (racket--completion-table
-           translations
-           `((category . racket-symbol-name)
-             (affixation-function . ,affixator))))
+         (affixator (racket--make-affix [16 0]))
+         (collection (racket--completion-table
+                      translations
+                      `((category . racket-symbol-name)
+                        (affixation-function . ,affixator))))
          (predicate nil)
          (require-match t))
     (when-let (str (completing-read "Symbol: "

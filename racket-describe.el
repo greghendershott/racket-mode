@@ -650,9 +650,7 @@ association list, to look up the path and anchor."
 (defun racket-describe-search ()
   "Search installed documentation; view using `racket-describe-mode'."
   (interactive)
-  (let* ((affixator (apply-partially #'racket--affix
-                                     'racket-affix
-                                     [16 16 32 0]))
+  (let* ((affixator (racket--make-affix [16 16 32 0]))
          (collection (racket--completion-table
                       (racket--doc-index)
                       `((category . ,racket--identifier-category)

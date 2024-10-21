@@ -155,7 +155,7 @@ Allows users to customize via `completion-category-overrides'.")
                         (propertize name
                                     'racket-affix (list stat desc)))
                       pkgs))
-       (affix (apply-partially #'racket--affix 'racket-affix [16 10 0]))
+       (affix (racket--make-affix [16 10 0]))
        (val (completing-read "Describe Racket package: "
                              (racket--completion-table
                               pkgs
