@@ -90,7 +90,10 @@ displaying inappropriate annotations."
        (complete-with-action action completions prefix predicate)))))
 
 (defun racket--make-affix (specs &optional prop)
-  "Make an :affixation-function that aligns suffix columns.
+  "Make an affixation-function to show completion annotations.
+
+For more information about affixation-function completion
+metadata, see Info node `(elisp)Programmed Completion'.
 
 PROP is the symbol name of a text property that must be attached
 to each of the completion candidate strings. The value of the
@@ -109,12 +112,14 @@ completions-anntoations. An explicit nil value in the spec means
 not to add a face, because the string is already propertized with
 one.
 
-Arrange for each suffix column to be aligned, considering the
-minimum width and the maximum width of the previous column.
+The affixation-function arranges for each suffix column to be
+aligned, considering the minimum width and the maximum width of
+the previous column.
 
-When the STRS end in text made invisible by a \\='display \"\"
-property -- as is done by `racket--doc-index-make-alist' --
-ignore that for purposes of calculating widths."
+When a candidate string ends with text made invisible by a
+\\='display \"\" property -- as is done by
+`racket--doc-index-make-alist' -- that text is ignored for
+purposes of calculating widths."
   ;; Note: Below we use `cl-loop' because `seq-do-indexed' and
   ;; `seq-map-indexed' are unavailable in Emacs 25.
   (let ((min-widths (cl-loop
