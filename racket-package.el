@@ -68,18 +68,20 @@ install/update/remove the package.
   (setq tabulated-list-entries
         #'racket-package-tabulated-list-entries))
 
+(defun racket--package-status-face (status)
+  (pcase status
+    ("available" 'package-status-available)
+    (_           'package-status-installed)))
+
 (defun racket-package-tabulated-list-entries ()
   (seq-map (lambda (summary)
-             (pcase-let* ((`(,name ,status ,desc) summary)
-                          (status-face (pcase status
-                                         ("available" 'package-status-available)
-                                         (_           'package-status-installed))))
+             (pcase-let* ((`(,name ,status ,desc) summary))
                (list name
                      (vector (list name
                                    :type 'describe-racket-package
                                    'face 'package-name)
                              (propertize status
-                                         'font-lock-face status-face)
+                                         'font-lock-face (racket--package-status-face status))
                              desc))))
            (racket--cmd/await nil `(pkg-list))))
 
@@ -153,9 +155,13 @@ Allows users to customize via `completion-category-overrides'.")
       ((pkgs (racket--cmd/await nil `(pkg-list)))
        (pkgs (seq-map (pcase-lambda (`(,name ,stat ,desc))
                         (propertize name
-                                    'racket-affix (list stat desc)))
+                                    'racket-affix
+                                    (list (propertize stat
+                                                      'face
+                                                      (racket--package-status-face stat))
+                                          desc)))
                       pkgs))
-       (affix (racket--make-affix [16 10 0]))
+       (affix (racket--make-affix [16 [10 nil] 0]))
        (val (completing-read "Describe Racket package: "
                              (racket--completion-table
                               pkgs

@@ -617,6 +617,7 @@ ignore POS. Examples: `racket-show-echo-area' and
   :group 'racket)
 
 (defmacro defface-racket (id facespec docstr)
+  (declare (indent defun))
   `(progn
      (defconst ,id ',id)
      (defface ,id
@@ -824,6 +825,18 @@ See the variable `racket-browse-url-function'.")
 (defface-racket racket-hash-lang-text
   '((t (:inherit default)))
   "Face `racket-hash-lang-mode' uses for text tokens.")
+
+(defface-racket racket-describe-search-kind
+  '((t (:inherit font-lock-type-face)))
+  "Face `racket-describe-search' uses for kinds.")
+
+(defface-racket racket-describe-search-from-libs
+  '((t (:inherit font-lock-string-face)))
+  "Face `racket-describe-search' uses for library modules.")
+
+(defface-racket racket-describe-search-lang-fams
+  '((t (:inherit font-lock-doc-face)))
+  "Face `racket-describe-search' uses for language families.")
 
 (provide 'racket-custom)
 

@@ -89,30 +89,47 @@ displaying inappropriate annotations."
       (_
        (complete-with-action action completions prefix predicate)))))
 
-(defun racket--make-affix (min-widths &optional prop)
+(defun racket--make-affix (specs &optional prop)
   "Make an :affixation-function that aligns suffix columns.
 
 PROP is the symbol name of a text property that must be attached
 to all of the STRS, the value of which is a list of strings --
-the suffix column values to show as annotations.
+the suffix column values to show as annotations. The prop name
+defaults to \\='racket-affix.
 
-MIN-WIDTHS is a vector of minimum widths for each column -- one
-for the string itself, plus the length of the list of suffix
-columns.
+SPECS is a vector of specs for each column -- one for the
+completion candidate string, plus the length of the list of
+suffix columns. Each spec may be an integer, which is a minimum
+width, or [WIDTH FACE]. Note: The width is N/A for the last
+suffix column. The face is N/A for the first column, which shows
+the candidate string. For suffix columns, the face defaults to
+completions-anntoations. An explicit nil value in the spec means
+not to add a face, because the string is already propertized with
+one.
 
 Arrange for each suffix column to be aligned, considering the
-minimum width and the maximum width of the previous column. Add
-the face `completions-annotations'.
+minimum width and the maximum width of the previous column.
 
 When the STRS end in text made invisible by a \\='display \"\"
 property -- as is done by `racket--doc-index-make-alist' --
 ignore that for purposes of calculating widths."
   ;; Note: Below we use `cl-loop' because `seq-do-indexed' and
   ;; `seq-map-indexed' are unavailable in Emacs 25.
-  (let ((max-widths (seq-copy min-widths))
+  (let ((min-widths (seq-map (lambda (spec)
+                               (pcase spec
+                                 (`[,width ,_face] width)
+                                 ((and (pred numberp) width) width)
+                                 (_ 0)))
+                             specs))
+        (suffix-faces (seq-map (lambda (spec)
+                                 (pcase spec
+                                   (`[,_width ,face] face)
+                                   (_ 'completions-annotations)))
+                               (seq-drop specs 1)))
         (prop (or prop 'racket-affix)))
     (lambda (strs)
-      (let* ((rows
+      (let* ((max-widths (apply #'vector min-widths))
+             (rows
               (seq-map (lambda (str)
                          (let ((visible-str
                                 (substring str
@@ -131,26 +148,27 @@ ignore that for purposes of calculating widths."
                            (cons str suffixes)))
                        strs))
              (suffix-offsets
-              (apply #'vector
-                     (let ((offset 0))
-                       (cl-loop
-                        for max-width across max-widths
-                        for ix from 0
-                        collect
-                        (setq offset (+ offset max-width)))))))
+              (let ((offset 0))
+                (cl-loop
+                 for max-width across max-widths
+                 collect
+                 (setq offset (+ offset max-width))))))
         (seq-map
          (pcase-lambda (`(,str . ,suffixes))
            (let ((suffixes-str
                   (cl-loop
                    for suffix in suffixes
-                   for offset across suffix-offsets
+                   for offset in suffix-offsets
+                   for face in suffix-faces
                    concat
                    (concat
                     (propertize " "
                                 'display
                                 `(space :align-to ,offset))
-                    (propertize (or suffix "")
-                                'face 'completions-annotations)))))
+                    (if face
+                        (propertize (or suffix "")
+                                    'face face)
+                      (or suffix ""))))))
              (list str "" suffixes-str)))
          rows)))))
 

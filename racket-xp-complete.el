@@ -47,7 +47,7 @@ The table includes category and affixation-function metadata.")
   ;; for use as completion table.
   (let* ((all nil)
          (imports nil)
-         (affixator (racket--make-affix [32 0]))
+         (affixator (racket--make-affix [16 0]))
          (metadata `((category . ,racket--identifier-category)
                      (affixation-function . ,affixator))))
     (dolist (mod+syms mods+syms)

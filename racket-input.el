@@ -321,7 +321,7 @@ currently provided by the Emacs UI for input method."
           (seq-map (pcase-lambda (`(,str ,v . _more))
                      (propertize str 'racket-affix (list v)))
                    racket-input-translations))
-         (affixator (racket--make-affix [16 0]))
+         (affixator (racket--make-affix [16 [0 bold]]))
          (collection (racket--completion-table
                       translations
                       `((category . racket-symbol-name)
