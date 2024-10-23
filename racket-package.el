@@ -153,10 +153,17 @@ Allows users to customize via `completion-category-overrides'.")
   (pcase-let*
       ((pkgs (racket--cmd/await nil `(pkg-list)))
        (pkgs (seq-map (pcase-lambda (`(,name ,stat ,desc))
-                        (propertize name
-                                    'racket-affix (list stat desc)))
+                        (let* ((stat-face
+                                (pcase stat
+                                  ("installed"  'font-lock-escape-face)
+                                  ("dependency" 'font-lock-keyword-face)
+                                  ("available"  'completions-annotations)))
+                               (stat (propertize stat 'face stat-face))
+                               (desc (propertize desc 'face 'font-lock-doc-face)))
+                         (propertize name
+                                     'racket-affix (list stat desc))))
                       pkgs))
-       (affix (racket--make-affix [16 11 [0 font-lock-doc-face]]))
+       (affix (racket--make-affix [16 [11 nil] [0 nil]]))
        (val (completing-read "Describe Racket package: "
                              (racket--completion-table
                               pkgs
