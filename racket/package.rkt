@@ -50,7 +50,7 @@
      (define status (cond
                       [(not ip)            "available"]
                       [(pkg-info-auto? pi) "dependency"]
-                      [else                "manual"]))
+                      [else                "installed"]))
      (list name
            status
            (cleanse-pkg-desc p)))
@@ -59,7 +59,7 @@
    (for/list ([name (in-hash-keys installed)]
               #:when (not (hash-has-key? catalog name)))
      (list name
-           "manual"
+           "installed"
            ""))))
 
 (define (package-details name)
@@ -100,7 +100,7 @@
      (define single? (sc-pkg-info? pi))
      (define dir (simple-form-path (pkg-directory name)))
      (merge! 'source (installed-package-source ip)
-             'status (if (pkg-info-auto? pi) "dependency" "manual")
+             'status (if (pkg-info-auto? pi) "dependency" "installed")
              'checksum (pkg-info-checksum pi)
              'scope (installed-package-scope ip)
              'dir (path->string dir)
