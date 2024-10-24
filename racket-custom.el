@@ -376,7 +376,17 @@ restart by using `racket-start-back-end'."
   :safe #'booleanp)
 
 (defcustom racket-pretty-print t
-  "Use pretty-print instead of print in REPL?"
+  "Set current-print to pretty-print instead of print, when possible?
+
+The current-print parameter is used by read-eval-print-loop to
+print values in the REPL, and by #%module-begin to print top
+level values when the program is run.
+
+Note: Even when this variable is true, avoid pretty-print when
+global-port-print-handler is set to something other than
+default-global-port-print-handler. In that case the language
+might not use s-expressions (as racket/pretty assumes), and
+anyway might print \"prettily\" by default."
   :type 'boolean
   :safe #'booleanp)
 

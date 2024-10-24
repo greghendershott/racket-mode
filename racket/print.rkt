@@ -11,6 +11,16 @@
 
 (provide make-racket-mode-print-handler)
 
+;; On older versions of Racket where `global-port-print-handler`
+;; doesn't exist, this always returns true. Otherwise return true only
+;; if the handler is the default handler; see issue #725.
+(define ok-to-use-racket/pretty?
+  (with-handlers ([exn:fail? (λ _ (λ () #t))])
+    (let* ([dr (λ (id) (dynamic-require 'racket/base id))]
+           [h  (dr 'global-port-print-handler)]
+           [dh (dr 'default-global-port-print-handler)])
+      (λ () (equal? (h) dh)))))
+
 (define (make-racket-mode-print-handler pretty? columns pixels/char)
   (define (racket-mode-print-handler v)
     (unless (void? v)
@@ -18,7 +28,8 @@
       (parameterize ([current-output-port out]
                      [print-syntax-width +inf.0])
         (cond
-          [pretty?
+          [(and pretty?
+                (ok-to-use-racket/pretty?))
            (parameterize ([pretty-print-columns columns]
                           [pretty-print-size-hook (make-pp-size-hook pixels/char)]
                           [pretty-print-print-hook (make-pp-print-hook)])
