@@ -89,7 +89,7 @@
                        (for/list ([p (in-list (get-pkg-modules name (pkg-catalog p) (pkg-checksum p)))])
                          (match p
                            [`(lib ,path) path]
-                           [other        (format "~v" other)]))
+                           [other        (format "~s" other)]))
                        string<?)
              'description (cleanse-pkg-desc p))]
     [(list) (void)])

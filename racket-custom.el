@@ -398,7 +398,15 @@ restart by using `racket-start-back-end'."
   :safe #'booleanp)
 
 (defcustom racket-pretty-print t
-  "Use pretty-print instead of print in REPL?"
+  "Use pretty-print instead of plain print?
+
+When true, before each run set global-port-print-handler to use
+pretty-print from racket/pretty, which is suitable for
+s-expressions.
+
+Note: A configure-runtime submodule might replace this initial
+value with its own global port print handler -- for example to
+implement printing a non-s-expression syntax."
   :type 'boolean
   :safe #'booleanp)
 
@@ -800,7 +808,7 @@ See the variable `racket-browse-url-function'.")
 
 (defface-racket racket-repl-value
   '((t (:inherit font-lock-constant-face)))
-  "Face `racket-repl-mode' uses for values output by current-print.")
+  "Face `racket-repl-mode' uses for `print'-ed values.")
 
 (defface-racket racket-repl-error-message
   '((t (:inherit error)))

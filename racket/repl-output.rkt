@@ -5,6 +5,8 @@
 
 (require racket/async-channel
          racket/match
+         (only-in racket/port make-pipe-with-specials)
+         "image.rkt"
          "repl-session.rkt")
 
 (provide repl-output-channel
@@ -18,7 +20,8 @@
          make-repl-output-manager
          make-repl-output-port
          make-repl-error-port
-         repl-error-port?)
+         repl-error-port?
+         repl-output-print-value?)
 
 ;;; REPL output
 
@@ -29,7 +32,7 @@
 ;; Instead we want structured output -- distinctly separated:
 ;;  - current-output-port
 ;;  - current-error-port
-;;  - current-print values
+;;  - printed values
 ;;    - strings
 ;;    - image files
 ;;  - prompts
@@ -151,27 +154,13 @@
 (define (repl-output-exit)
   (repl-output 'exit "REPL session ended"))
 
-;; For current-print
 (define (repl-output-value v)
   (repl-output 'value v))
 
 (define (repl-output-value-special v)
   (repl-output 'value-special v))
 
-;; Output port wrappers around repl-output:
-
-;; Tuck the port in a struct just for a simple, reliable
-;; repl-error-port? predicate.
-(struct repl-error-port (p)
-  #:property prop:output-port 0)
-(define (make-repl-error-port)
-  (repl-error-port (make-repl-port 'stderr)))
-
-;; And do same for this, just for conistency.
-(struct repl-output-port (p)
-  #:property prop:output-port 0)
-(define (make-repl-output-port)
-  (repl-output-port (make-repl-port 'stdout)))
+;;; Output port wrappers around repl-output:
 
 (define (make-repl-port kind)
   (define name (format "racket-mode-repl-~a" kind))
@@ -183,3 +172,90 @@
                     repl-output-channel
                     write-out
                     close))
+
+;; Tuck the port in a struct just for a simple, reliable
+;; repl-error-port? predicate.
+(struct repl-error-port (p)
+  #:property prop:output-port 0)
+(define (make-repl-error-port)
+  (repl-error-port (make-repl-port 'stderr)))
+
+;; And do same for this, just for consistency.
+(struct repl-output-port (p)
+  #:property prop:output-port 0)
+(define (make-repl-output-port)
+  (define out (repl-output-port (make-repl-port 'stdout)))
+  (port-print-handler out (make-value-pipe-handler))
+  out)
+
+;; A flag for our global-port-print-handler (see print.rkt) that it's
+;; being used for a REPL output port and that it should convert
+;; images (which isn't appropriate to do for ports generally).
+(define repl-output-print-value? (make-parameter #f))
+
+;; We want to avoid many calls to repl-output-value with short
+;; strings. This can happen for example with pretty-print, which does
+;; a print for each value within a list, plus for each space and
+;; newline, etc.
+;;
+;; Use a pipe of unlimited size to accumulate all the printed bytes
+;; and specials. Finally drain it using read-bytes-avail! to
+;; consolidate runs of bytes (interrupted only by specials, if any) up
+;; to a fixed buffer size.
+;;
+;; One wrinkle: bytes->string/utf-8 could fail if we happen to read
+;; only some of a multi byte utf-8 sequence; issue #715. In that case,
+;; read more bytes and try decoding again. If the buffer is full, grow
+;; it just a little.
+
+(define (make-value-pipe-handler)
+  ;; Account for recursive calls to us, e.g. when the global port
+  ;; print handler does pretty printing.
+  (define outermost? (make-parameter #t))
+  (define-values (pin pout) (make-value-pipe))
+  (define (handler v _out [depth 0])
+    (parameterize ([outermost? #f]
+                   [repl-output-print-value? #t])
+      (match (convert-image v #:remove-from-cache? #t)
+        [(cons path-name _pixel-width)
+         (write-special (cons 'image path-name) pout)]
+        [#f
+         ((global-port-print-handler) v pout depth)]))
+    (when (outermost?)
+      (drain-value-pipe pin pout)
+      (set!-values (pin pout) (make-value-pipe))))
+  handler)
+
+(define (make-value-pipe)
+  (make-pipe-with-specials))
+
+(define (drain-value-pipe in out)
+  (flush-output out)
+  (close-output-port out)
+  (let loop ([buffer (make-bytes 8192)]
+             [buffer-read-pos 0])
+    (match (read-bytes-avail! buffer in buffer-read-pos)
+      ;; When read-bytes-avail! returns 0, it means there are bytes
+      ;; available to read but no buffer space remaining. Grow buffer
+      ;; by 8 bytes: 4 bytes max utf-8 sequence plus margin.
+      [0
+       (loop (bytes-append buffer (make-bytes 8))
+             (bytes-length buffer))]
+      [(? exact-nonnegative-integer? len)
+       (match (safe-bytes->string/utf-8 buffer len)
+         [#f
+          (loop buffer (+ buffer-read-pos len))]
+         [(? string? s)
+          (repl-output-value s)
+          (loop buffer 0)])]
+      [(? procedure? read-special)
+       ;; m-p-w-specials ignores the position arguments so just pass
+       ;; something satisfying the contract.
+       (define v (read-special #f #f #f 1))
+       (repl-output-value-special v)
+       (loop buffer 0)]
+      [(? eof-object?) (void)])))
+
+(define (safe-bytes->string/utf-8 buffer len)
+  (with-handlers ([exn:fail:contract? (λ _ #f)])
+    (bytes->string/utf-8 buffer #f 0 len)))

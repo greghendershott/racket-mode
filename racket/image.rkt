@@ -18,24 +18,35 @@
 (define use-svg? #t)
 (define (set-use-svg?! v) (set! use-svg? v))
 
-(define (convert-image v)
+;; For a given value, pretty-print-size-hook can be called multiple
+;; times (!) followed once by pretty-print-print-hook. So because
+;; convert-and-save does non-trivial work, we cache.
+(define ht (make-weak-hasheq)) ;weak because #624
+
+(define (convert-image v #:remove-from-cache? [remove? #f])
   (and (convertible? v)
-       ;; Rationale for the order here:
-       ;;
-       ;; - Try bounded before unbounded flavors. Because we want
-       ;;   accurate image width, if available, for pretty-printing.
-       ;;
-       ;; - Within each flavor: Try svg (if this Emacs can use it)
-       ;;   before png. Because space.
-       (let ([fmts/exts (if use-svg?
-                            '((svg-bytes+bounds "svg")
-                              (png-bytes+bounds "png")
-                              (svg-bytes        "svg")
-                              (png-bytes        "png"))
-                            '((png-bytes+bounds "png")
-                              (png-bytes        "png")))])
-         (for/or ([fmt/ext (in-list fmts/exts)])
-           (apply convert-and-save v fmt/ext)))))
+       (begin0 (hash-ref! ht v
+                          (λ () (raw-convert-image v)))
+         (when remove?
+           (hash-remove! ht v)))))
+
+(define (raw-convert-image v)
+  ;; Rationale for the order here:
+  ;;
+  ;; - Try bounded before unbounded flavors. Because we want
+  ;;   accurate image width, if available, for pretty-printing.
+  ;;
+  ;; - Within each flavor: Try svg (if this Emacs can use it)
+  ;;   before png. Because space.
+  (define fmts/exts (if use-svg?
+                        '((svg-bytes+bounds "svg")
+                          (png-bytes+bounds "png")
+                          (svg-bytes        "svg")
+                          (png-bytes        "png"))
+                        '((png-bytes+bounds "png")
+                          (png-bytes        "png"))))
+  (for/or ([fmt/ext (in-list fmts/exts)])
+    (apply convert-and-save v fmt/ext)))
 
 (define (convert-and-save v fmt ext)
   (define (default-width _) 4096)

@@ -51,7 +51,7 @@
 
 (define (time-apply/log what proc args)
   (define-values (vs cpu real gc) (time-apply proc args))
-  (define (fmt n) (~v #:align 'right #:min-width 4 n))
+  (define (fmt n) (~s #:align 'right #:min-width 4 n))
   (log-racket-mode-debug "~a cpu | ~a real | ~a gc :: ~a"
                          (fmt cpu) (fmt real) (fmt gc) what)
   (apply values vs))

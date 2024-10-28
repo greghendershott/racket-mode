@@ -118,7 +118,7 @@
   (-> list? (listof (listof symbol?)) number? elisp-bool/c number? number? context-level? list? (listof path-string?)
       list?)
   (unless (current-repl-msg-chan)
-    (error 'run "current-repl-msg-chan was #f; current-session-id=~v"
+    (error 'run "current-repl-msg-chan was #f; current-session-id=~s"
            (current-session-id)))
   (define mod-path
     (match what
@@ -164,7 +164,7 @@
 ;;; REPL sessions
 
 (define ((repl-manager-thread-thunk session-id ready-ch))
-  (log-racket-mode-info "starting repl session ~v" session-id)
+  (log-racket-mode-info "starting repl session ~s" session-id)
   ;; Make pipe for user program input (as distinct form repl-submit
   ;; input).
   (parameterize* ([current-session-id          session-id]
@@ -216,12 +216,13 @@
   (define (repl-thunk)
     ;; Command line arguments
     (current-command-line-arguments cmd-line-args)
-    ;; Set ports, current-print handler, and output handlers
+    ;; Set ports
     (current-input-port user-pipe-in)
     (current-output-port (make-repl-output-port))
     (current-error-port  (make-repl-error-port))
-    (current-print (make-racket-mode-print-handler pretty-print? columns pixels/char))
-    (set-output-handlers)
+    (when pretty-print?
+      (global-port-print-handler
+       (make-pretty-global-port-print-handler columns pixels/char)))
     ;; Record as much info about our session as we can, before
     ;; possibly entering module->namespace.
     (set-session! (current-session-id) maybe-mod)
@@ -294,7 +295,7 @@
       [`(input ,bstr)    (write-bytes bstr user-pipe-out)
                          (get-message)]
       ['exit             (our-exit)]
-      [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~v" v)
+      [v (log-racket-mode-warning "ignoring unknown repl-msg-chan message: ~s" v)
          (get-message)])))
 
 (define (make-prompt-read maybe-mod)
@@ -358,21 +359,3 @@
   (unless (memq '#%top-interaction (namespace-mapped-symbols))
     (repl-output-message
      "Because the language used by this module provides no #%top-interaction\n you will be unable to evaluate expressions here in the REPL.")))
-
-;;; Output handlers; see issues #381 #397
-
-;; These are plain procedures not parameters. Therefore to reset them
-;; for each user program run, we must call them each time with the
-;; original value. What original value? It suffices to use the value
-;; in effect when this back end starts, i.e. the default
-;; port-xxx-handler.
-
-(define the-default-output-handlers
-  (for/hash ([get/set (in-list (list port-write-handler
-                                     port-display-handler
-                                     port-print-handler))])
-    (values get/set (get/set (current-output-port)))))
-
-(define (set-output-handlers)
-  (for ([(get/set v) (in-hash the-default-output-handlers)])
-    (get/set (current-output-port) v)))

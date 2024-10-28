@@ -77,7 +77,7 @@
          (? symbol? v)
          (? string? v)) (write v)]
     [(? bytes? bstr)    (write (bytes->string/utf-8 bstr))] ; ???
-    [v                  (eprintf "elisp-write can't write Racket value ~v\n" v)
+    [v                  (eprintf "elisp-write can't write Racket value ~s\n" v)
                         (void)]))
 
 (module+ test

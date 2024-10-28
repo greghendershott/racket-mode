@@ -42,7 +42,7 @@
                                    (current-submissions)
                                    maybe-mod
                                    (current-namespace)))
-  (log-racket-mode-debug @~a{(set-session! @~v[sid] @~v[maybe-mod]) => sessions: @~v[sessions]}))
+  (log-racket-mode-debug @~a{(set-session! @~s[sid] @~s[maybe-mod]) => sessions: @~s[sessions]}))
 
 (define (remove-session! sid)
   (hash-remove! sessions sid)

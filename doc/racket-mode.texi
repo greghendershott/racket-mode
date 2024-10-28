@@ -3557,7 +3557,15 @@ restart by using @code{racket-start-back-end}.
 @node racket-pretty-print
 @subsection racket-pretty-print
 
-Use pretty-print instead of print in REPL@?
+Use pretty-print instead of plain print?
+
+When true, before each run set global-port-print-handler to use
+pretty-print from racket/pretty, which is suitable for
+s-expressions.
+
+Note: A configure-runtime submodule might replace this initial
+value with its own global port print handler -- for example to
+implement printing a non-s-expression syntax.
 
 @node racket-repl-command-file
 @subsection racket-repl-command-file
@@ -4417,7 +4425,7 @@ Face @ref{racket-repl-mode} uses for prompts.
 @node racket-repl-value
 @subsection racket-repl-value
 
-Face @ref{racket-repl-mode} uses for values output by current-print.
+Face @ref{racket-repl-mode} uses for @code{print}-ed values.
 
 @node racket-repl-error-message
 @subsection racket-repl-error-message

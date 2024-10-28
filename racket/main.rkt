@@ -41,7 +41,7 @@
     [(vector "--do-not-use-svg") (set-use-svg?! #f)]
     [v
      (error '|Racket Mode back end|
-            "Bad command-line arguments:\n~v\n" v)])
+            "Bad command-line arguments:\n~s\n" v)])
 
   ;; Save original current-{input output}-port to give to
   ;; command-server-loop for command I/O.
