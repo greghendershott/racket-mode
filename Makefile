@@ -22,7 +22,7 @@ batch-emacs := \
 byte-compile := \
   $(batch-emacs) \
   -l bytecomp \
-  --eval '(setq byte-compile-warnings t)' \
+  --eval '(setq byte-compile-warnings (quote (not obsolete)))' \
   --eval '(setq byte-compile-error-on-warn t)' \
   -f batch-byte-compile
 
