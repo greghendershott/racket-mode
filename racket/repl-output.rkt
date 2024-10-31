@@ -15,13 +15,11 @@
          repl-output-run
          repl-output-prompt
          repl-output-exit
-         repl-output-value
-         repl-output-value-special
          make-repl-output-manager
          make-repl-output-port
          make-repl-error-port
          repl-error-port?
-         repl-output-print-value?)
+         print-images-as-specials?)
 
 ;;; REPL output
 
@@ -188,10 +186,12 @@
   (port-print-handler out (make-value-pipe-handler))
   out)
 
-;; A flag for our global-port-print-handler (see print.rkt) that it's
-;; being used for a REPL output port and that it should convert
-;; images (which isn't appropriate to do for ports generally).
-(define repl-output-print-value? (make-parameter #f))
+;; A flag set by the port-print-handler for our repl-output-port.
+;; Intended for use by our global-port-print-handler (see print.rkt).
+;; When true, use racket/convert to write-special image values as
+;; (cons 'image image-file-path-name) -- which obviously isn't
+;; appropriate to do for ports generally.
+(define print-images-as-specials? (make-parameter #f))
 
 ;; We want to avoid many calls to repl-output-value with short
 ;; strings. This can happen for example with pretty-print, which does
@@ -213,9 +213,9 @@
   ;; print handler does pretty printing.
   (define outermost? (make-parameter #t))
   (define-values (pin pout) (make-value-pipe))
-  (define (handler v _out [depth 0])
+  (define (racket-repl-output-port-handler v _out [depth 0])
     (parameterize ([outermost? #f]
-                   [repl-output-print-value? #t])
+                   [print-images-as-specials? #t])
       (match (convert-image v #:remove-from-cache? #t)
         [(cons path-name _pixel-width)
          (write-special (cons 'image path-name) pout)]
@@ -224,7 +224,7 @@
     (when (outermost?)
       (drain-value-pipe pin pout)
       (set!-values (pin pout) (make-value-pipe))))
-  handler)
+  racket-repl-output-port-handler)
 
 (define (make-value-pipe)
   (make-pipe-with-specials))

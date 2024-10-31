@@ -7,14 +7,14 @@
          racket/pretty
          "image.rkt"
          (only-in "repl-output.rkt"
-                  repl-output-print-value?))
+                  print-images-as-specials?))
 
 (provide make-pretty-global-port-print-handler)
 
 (define (make-pretty-global-port-print-handler columns pixels/char)
   (define (racket-mode-pretty-global-port-print-handler v out [depth 0])
     (unless (void? v)
-      (if (repl-output-print-value?)
+      (if (print-images-as-specials?)
           (parameterize ([print-syntax-width     +inf.0]
                          [pretty-print-columns   columns]
                          [pretty-print-size-hook (size-hook pixels/char)]
