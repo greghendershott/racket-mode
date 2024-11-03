@@ -139,6 +139,7 @@ Explore
 * racket-xp-tail-next-sibling::
 * racket-xp-tail-previous-sibling::
 * racket-documentation-search::
+* racket-describe-mode::
 * racket-describe-search::
 
 Run
@@ -971,61 +972,53 @@ You can also view these by using the normal Emacs help mechanism:
 
 Major mode for editing Racket source files.
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{@}} 
-@tab @ref{racket-insert-closing}
-@item @kbd{]} 
-@tab @ref{racket-insert-closing}
-@item @kbd{)} 
-@tab @ref{racket-insert-closing}
 @item @kbd{TAB} 
 @tab @code{indent-for-tab-command}
-@item @kbd{C-x C-e} 
-@tab @ref{racket-send-last-sexp}
-@item @kbd{C-M-y} 
-@tab @ref{racket-insert-lambda}
 @item @kbd{C-M-u} 
 @tab @ref{racket-backward-up-list}
-@item @kbd{C-M-x} 
-@tab @ref{racket-send-definition}
-@item @kbd{C-c C-u} 
-@tab @ref{racket-unfold-all-tests}
-@item @kbd{C-c C-f} 
-@tab @ref{racket-fold-all-tests}
-@item @kbd{C-c C-.} 
-@tab @ref{racket-describe-search}
-@item @kbd{C-c C-s} 
+@item @kbd{C-c C-p} 
+@tab @ref{racket-cycle-paren-shapes}
+@item @kbd{C-c C-s} , @kbd{C-c C-.} 
 @tab @ref{racket-describe-search}
 @item @kbd{C-c C-d} 
 @tab @ref{racket-documentation-search}
-@item @kbd{C-c C-p} 
-@tab @ref{racket-cycle-paren-shapes}
-@item @kbd{C-c C-x C-f} 
-@tab @ref{racket-open-require-path}
-@item @kbd{C-c C-e r} 
-@tab @ref{racket-expand-region}
-@item @kbd{C-c C-e e} 
-@tab @ref{racket-expand-last-sexp}
+@item @kbd{C-c C-z} 
+@tab @code{racket-edit-switch-to-repl}
 @item @kbd{C-c C-e x} 
 @tab @ref{racket-expand-definition}
 @item @kbd{C-c C-e f} 
 @tab @ref{racket-expand-file}
-@item @kbd{C-c C-r} 
-@tab @ref{racket-send-region}
-@item @kbd{C-c C-o} 
-@tab @ref{racket-profile}
+@item @kbd{C-c C-e e} 
+@tab @ref{racket-expand-last-sexp}
+@item @kbd{C-c C-e r} 
+@tab @ref{racket-expand-region}
+@item @kbd{C-c C-f} 
+@tab @ref{racket-fold-all-tests}
+@item @kbd{)} , @kbd{]} , @kbd{@}} 
+@tab @ref{racket-insert-closing}
+@item @kbd{C-M-y} 
+@tab @ref{racket-insert-lambda}
 @item @kbd{C-c C-l} 
 @tab @ref{racket-logger}
+@item @kbd{C-c C-x C-f} 
+@tab @ref{racket-open-require-path}
+@item @kbd{C-c C-o} 
+@tab @ref{racket-profile}
+@item @kbd{C-c C-c} , @kbd{C-c C-k} 
+@tab @ref{racket-run-module-at-point}
+@item @kbd{C-M-x} 
+@tab @ref{racket-send-definition}
+@item @kbd{C-x C-e} 
+@tab @ref{racket-send-last-sexp}
+@item @kbd{C-c C-r} 
+@tab @ref{racket-send-region}
 @item @kbd{C-c C-t} 
 @tab @ref{racket-test}
-@item @kbd{C-c C-z} 
-@tab @code{racket-edit-switch-to-repl}
-@item @kbd{C-c C-k} 
-@tab @ref{racket-run-module-at-point}
-@item @kbd{C-c C-c} 
-@tab @ref{racket-run-module-at-point}
+@item @kbd{C-c C-u} 
+@tab @ref{racket-unfold-all-tests}
 @end multitable
 
 
@@ -1589,59 +1582,57 @@ A discussion of the information provided by a Racket language:
 
 @uref{https://docs.racket-lang.org/tools/lang-languages-customization.html}
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{DEL} 
-@tab @code{racket-hash-lang-delete-backward-char}
-@item @kbd{RET} 
-@tab @code{newline-and-indent}
 @item @kbd{TAB} 
 @tab @code{indent-for-tab-command}
-@item @kbd{C-x C-e} 
-@tab @ref{racket-send-last-sexp}
-@item @kbd{C-M-q} 
-@tab @ref{racket-hash-lang-C-M-q-dwim}
-@item @kbd{C-M-d} 
-@tab @ref{racket-hash-lang-down}
-@item @kbd{C-M-u} 
-@tab @ref{racket-hash-lang-up}
-@item @kbd{C-M-f} 
-@tab @ref{racket-hash-lang-forward}
-@item @kbd{C-M-b} 
-@tab @ref{racket-hash-lang-backward}
-@item @kbd{C-M-y} 
-@tab @ref{racket-insert-lambda}
-@item @kbd{C-M-x} 
-@tab @ref{racket-send-definition}
-@item @kbd{C-c C-u} 
-@tab @ref{racket-unfold-all-tests}
-@item @kbd{C-c C-f} 
-@tab @ref{racket-fold-all-tests}
-@item @kbd{C-c C-x C-f} 
-@tab @ref{racket-open-require-path}
-@item @kbd{C-c C-e r} 
-@tab @ref{racket-expand-region}
-@item @kbd{C-c C-e e} 
-@tab @ref{racket-expand-last-sexp}
+@item @kbd{RET} 
+@tab @code{newline-and-indent}
+@item @kbd{C-c C-z} 
+@tab @code{racket-edit-switch-to-repl}
 @item @kbd{C-c C-e x} 
 @tab @ref{racket-expand-definition}
 @item @kbd{C-c C-e f} 
 @tab @ref{racket-expand-file}
-@item @kbd{C-c C-r} 
-@tab @ref{racket-send-region}
-@item @kbd{C-c C-o} 
-@tab @ref{racket-profile}
+@item @kbd{C-c C-e e} 
+@tab @ref{racket-expand-last-sexp}
+@item @kbd{C-c C-e r} 
+@tab @ref{racket-expand-region}
+@item @kbd{C-c C-f} 
+@tab @ref{racket-fold-all-tests}
+@item @kbd{C-M-q} 
+@tab @ref{racket-hash-lang-C-M-q-dwim}
+@item @kbd{C-M-b} 
+@tab @ref{racket-hash-lang-backward}
+@item @kbd{DEL} 
+@tab @code{racket-hash-lang-delete-backward-char}
+@item @kbd{C-M-d} 
+@tab @ref{racket-hash-lang-down}
+@item @kbd{C-M-f} 
+@tab @ref{racket-hash-lang-forward}
+@item @kbd{C-M-u} 
+@tab @ref{racket-hash-lang-up}
+@item @kbd{C-M-y} 
+@tab @ref{racket-insert-lambda}
 @item @kbd{C-c C-l} 
 @tab @ref{racket-logger}
+@item @kbd{C-c C-x C-f} 
+@tab @ref{racket-open-require-path}
+@item @kbd{C-c C-o} 
+@tab @ref{racket-profile}
+@item @kbd{C-c C-c} , @kbd{C-c C-k} 
+@tab @ref{racket-run-module-at-point}
+@item @kbd{C-M-x} 
+@tab @ref{racket-send-definition}
+@item @kbd{C-x C-e} 
+@tab @ref{racket-send-last-sexp}
+@item @kbd{C-c C-r} 
+@tab @ref{racket-send-region}
 @item @kbd{C-c C-t} 
 @tab @ref{racket-test}
-@item @kbd{C-c C-z} 
-@tab @code{racket-edit-switch-to-repl}
-@item @kbd{C-c C-k} 
-@tab @ref{racket-run-module-at-point}
-@item @kbd{C-c C-c} 
-@tab @ref{racket-run-module-at-point}
+@item @kbd{C-c C-u} 
+@tab @ref{racket-unfold-all-tests}
 @end multitable
 
 
@@ -1721,6 +1712,7 @@ anything else, do @code{prog-indent-sexp}.
 * racket-xp-tail-next-sibling::
 * racket-xp-tail-previous-sibling::
 * racket-documentation-search::
+* racket-describe-mode::
 * racket-describe-search::
 @end menu
 
@@ -1888,45 +1880,43 @@ type, remember that as an Emacs user, you are free to bind this
 map to a more convenient prefix, and/or bind any individual
 commands directly to whatever keys you prefer.
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{M-.} 
-@tab @code{xref-find-definitions}
-@item @kbd{C-c C-s} 
-@tab @ref{racket-describe-search}
-@item @kbd{C-c C-d} 
-@tab @ref{racket-xp-documentation}
-@item @kbd{C-c C-.} 
-@tab @ref{racket-xp-describe}
-@item @kbd{C-c # P} 
-@tab @code{previous-error}
 @item @kbd{C-c # N} 
 @tab @code{next-error}
+@item @kbd{C-c # P} 
+@tab @code{previous-error}
+@item @kbd{C-c C-s} 
+@tab @ref{racket-describe-search}
 @item @kbd{C-c # g} 
 @tab @code{racket-xp-annotate}
-@item @kbd{C-c # <} 
-@tab @ref{racket-xp-tail-previous-sibling}
-@item @kbd{C-c # >} 
-@tab @ref{racket-xp-tail-next-sibling}
-@item @kbd{C-c # v} 
-@tab @ref{racket-xp-tail-down}
-@item @kbd{C-c # ^} 
-@tab @ref{racket-xp-tail-up}
-@item @kbd{C-c # r} 
-@tab @code{racket-xp-rename}
-@item @kbd{C-c # ?} 
-@tab @code{xref-find-references}
-@item @kbd{C-c # .} 
-@tab @code{xref-find-definitions}
-@item @kbd{C-c # p} 
-@tab @ref{racket-xp-previous-use}
+@item @kbd{C-c C-.} 
+@tab @ref{racket-xp-describe}
+@item @kbd{C-c C-d} 
+@tab @ref{racket-xp-documentation}
+@item @kbd{C-c # j} 
+@tab @ref{racket-xp-next-definition}
 @item @kbd{C-c # n} 
 @tab @ref{racket-xp-next-use}
 @item @kbd{C-c # k} 
 @tab @ref{racket-xp-previous-definition}
-@item @kbd{C-c # j} 
-@tab @ref{racket-xp-next-definition}
+@item @kbd{C-c # p} 
+@tab @ref{racket-xp-previous-use}
+@item @kbd{C-c # r} 
+@tab @code{racket-xp-rename}
+@item @kbd{C-c # v} 
+@tab @ref{racket-xp-tail-down}
+@item @kbd{C-c # >} 
+@tab @ref{racket-xp-tail-next-sibling}
+@item @kbd{C-c # <} 
+@tab @ref{racket-xp-tail-previous-sibling}
+@item @kbd{C-c # ^} 
+@tab @ref{racket-xp-tail-up}
+@item @kbd{M-.} , @kbd{C-c # .} 
+@tab @code{xref-find-definitions}
+@item @kbd{C-c # ?} 
+@tab @code{xref-find-references}
 @end multitable
 
 
@@ -1986,7 +1976,7 @@ at point if any.
 @kbd{C-u}  @kbd{C-u}  @kbd{C-c C-.} 
 
 This is an alias for @ref{racket-describe-search}, which uses
-installed documentation in a @code{racket-describe-mode} buffer
+installed documentation in a @ref{racket-describe-mode} buffer
 instead of an external web browser.
 @end itemize
 
@@ -2139,12 +2129,73 @@ This command does not try to go directly to the help topic for a
 definition provided by any specific module. Instead it goes to
 the Racket ``Search Manuals'' page.
 
+@node racket-describe-mode
+@subsection racket-describe-mode
+
+@kbd{M-x}  @code{racket-describe-mode}
+
+Major mode for viewing Racket documentation.
+
+Many of the default key bindings are similar to @code{Info-mode}, as
+listed below.
+
+To see ``On this page'' links, use @kbd{M-g i}  for @code{imenu}, or,
+when @code{context-menu-mode} is enabled, right click the mouse.
+
+Internal, intra-doc links -- which go to other doc pages in the
+same @ref{racket-describe-mode} buffer in Emacs -- are given
+@code{nil} unless the documentation
+specifies some non-default face.
+
+External links -- which are opened using the variable
+@ref{racket-browse-url-function}, by default in an external web
+browser program -- are given @code{nil}.
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@item Key
+@tab Binding
+@item @kbd{<} 
+@tab @code{beginning-of-buffer}
+@item @kbd{>} 
+@tab @code{end-of-buffer}
+@item @kbd{q} 
+@tab @code{quit-window}
+@item @kbd{l} , @kbd{b} , @kbd{C-c C-b} 
+@tab @code{racket-describe-back}
+@item @kbd{x} 
+@tab @code{racket-describe-browse-external}
+@item @kbd{r} , @kbd{f} , @kbd{C-c C-f} 
+@tab @code{racket-describe-forward}
+@item @kbd{n} 
+@tab @code{racket-describe-nav-next}
+@item @kbd{p} 
+@tab @code{racket-describe-nav-prev}
+@item @kbd{C-^} 
+@tab @code{racket-describe-nav-top}
+@item @kbd{^} 
+@tab @code{racket-describe-nav-up}
+@item @kbd{i} , @kbd{C-c C-s} 
+@tab @ref{racket-describe-search}
+@item @kbd{g} 
+@tab @code{revert-buffer}
+@item @kbd{DEL} , @kbd{S-SPC} 
+@tab @code{scroll-down-command}
+@item @kbd{SPC} 
+@tab @code{scroll-up-command}
+@end multitable
+
+
+
+In addition to any hooks its parent mode @code{special-mode} might have
+run, this mode runs the hook @code{racket-describe-mode-hook}, as the final
+or penultimate step during initialization.
+
 @node racket-describe-search
 @subsection racket-describe-search
 
 @kbd{C-c C-.}  or @kbd{C-c C-s} 
 
-Search installed documentation; view using @code{racket-describe-mode}.
+Search installed documentation; view using @ref{racket-describe-mode}.
 
 @node Run
 @section Run
@@ -2180,61 +2231,57 @@ You may use @code{xref-find-definitions} @kbd{M-.}  and
 @code{xref-backend-functions}. This backend uses information about
 identifier bindings and modules from the REPL's namespace.
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{@}} 
-@tab @ref{racket-insert-closing}
-@item @kbd{]} 
-@tab @ref{racket-insert-closing}
-@item @kbd{)} 
-@tab @ref{racket-insert-closing}
-@item @kbd{C-c C-\} 
-@tab @code{racket-repl-exit}
-@item @kbd{C-c C-c} 
-@tab @code{racket-repl-break}
-@item @kbd{C-c C-l} 
-@tab @ref{racket-logger}
-@item @kbd{C-c C-z} 
-@tab @code{racket-repl-switch-to-edit}
-@item @kbd{C-c C-s} 
-@tab @ref{racket-describe-search}
-@item @kbd{C-c C-.} 
-@tab @ref{racket-repl-describe}
-@item @kbd{C-c C-d} 
-@tab @ref{racket-repl-documentation}
-@item @kbd{C-c C-e r} 
-@tab @ref{racket-expand-region}
-@item @kbd{C-c C-e e} 
-@tab @ref{racket-expand-last-sexp}
-@item @kbd{C-c C-e x} 
-@tab @ref{racket-expand-definition}
-@item @kbd{C-c C-e f} 
-@tab @ref{racket-expand-file}
-@item @kbd{C-c C-o} 
-@tab @code{racket-repl-delete-output}
-@item @kbd{C-c C-n} 
-@tab @code{racket-repl-next-prompt-or-run}
-@item @kbd{C-c C-p} 
-@tab @code{racket-repl-previous-prompt-or-run}
-@item @kbd{C-c C-u} 
-@tab @code{racket-repl-clear-input}
-@item @kbd{C-M-y} 
-@tab @ref{racket-insert-lambda}
-@item @kbd{M-n} 
-@tab @code{racket-repl-next-input}
-@item @kbd{M-p} 
-@tab @code{racket-repl-previous-input}
-@item @kbd{C-M-q} 
-@tab @code{prog-indent-sexp}
-@item @kbd{C-M-u} 
-@tab @ref{racket-backward-up-list}
 @item @kbd{TAB} 
 @tab @code{indent-for-tab-command}
 @item @kbd{C-j} 
 @tab @code{newline-and-indent}
+@item @kbd{C-M-q} 
+@tab @code{prog-indent-sexp}
+@item @kbd{C-M-u} 
+@tab @ref{racket-backward-up-list}
+@item @kbd{C-c C-s} 
+@tab @ref{racket-describe-search}
+@item @kbd{C-c C-e x} 
+@tab @ref{racket-expand-definition}
+@item @kbd{C-c C-e f} 
+@tab @ref{racket-expand-file}
+@item @kbd{C-c C-e e} 
+@tab @ref{racket-expand-last-sexp}
+@item @kbd{C-c C-e r} 
+@tab @ref{racket-expand-region}
+@item @kbd{)} , @kbd{]} , @kbd{@}} 
+@tab @ref{racket-insert-closing}
+@item @kbd{C-M-y} 
+@tab @ref{racket-insert-lambda}
+@item @kbd{C-c C-l} 
+@tab @ref{racket-logger}
+@item @kbd{C-c C-c} 
+@tab @code{racket-repl-break}
+@item @kbd{C-c C-u} 
+@tab @code{racket-repl-clear-input}
+@item @kbd{C-c C-o} 
+@tab @code{racket-repl-delete-output}
+@item @kbd{C-c C-.} 
+@tab @ref{racket-repl-describe}
+@item @kbd{C-c C-d} 
+@tab @ref{racket-repl-documentation}
+@item @kbd{C-c C-\} 
+@tab @code{racket-repl-exit}
+@item @kbd{M-n} 
+@tab @code{racket-repl-next-input}
+@item @kbd{C-c C-n} 
+@tab @code{racket-repl-next-prompt-or-run}
+@item @kbd{M-p} 
+@tab @code{racket-repl-previous-input}
+@item @kbd{C-c C-p} 
+@tab @code{racket-repl-previous-prompt-or-run}
 @item @kbd{RET} 
 @tab @code{racket-repl-submit}
+@item @kbd{C-c C-z} 
+@tab @code{racket-repl-switch-to-edit}
 @end multitable
 
 
@@ -2385,7 +2432,7 @@ at point if any.
 @kbd{C-u}  @kbd{C-u}  @kbd{C-c C-.} 
 
 This is an alias for @ref{racket-describe-search}, which uses
-installed documentation in a @code{racket-describe-mode} buffer
+installed documentation in a @ref{racket-describe-mode} buffer
 instead of an external web browser.
 @end itemize
 
@@ -2467,21 +2514,19 @@ delete compiled/*.zo files.
 
 Major mode for results of @ref{racket-profile}.
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{RET} 
-@tab @code{racket-profile-visit}
-@item @kbd{.} 
-@tab @code{racket-profile-visit}
+@item @kbd{q} 
+@tab @code{quit-window}
+@item @kbd{g} 
+@tab @code{racket-profile-refresh}
 @item @kbd{f} 
 @tab @code{racket-profile-show-non-project}
 @item @kbd{z} 
 @tab @code{racket-profile-show-zero}
-@item @kbd{g} 
-@tab @code{racket-profile-refresh}
-@item @kbd{q} 
-@tab @code{quit-window}
+@item @kbd{.} , @kbd{RET} 
+@tab @code{racket-profile-visit}
 @end multitable
 
 
@@ -2517,14 +2562,14 @@ For more information see:
 @tab Binding
 @item @kbd{g} 
 @tab @code{racket-logger-clear}
-@item @kbd{p} 
-@tab @code{racket-logger-previous-item}
 @item @kbd{n} 
 @tab @code{racket-logger-next-item}
-@item @kbd{w} 
-@tab @code{toggle-truncate-lines}
+@item @kbd{p} 
+@tab @code{racket-logger-previous-item}
 @item @kbd{l} 
 @tab @code{racket-logger-topic-level}
+@item @kbd{w} 
+@tab @code{toggle-truncate-lines}
 @end multitable
 
 
@@ -2582,30 +2627,30 @@ provides shortcut keys:
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
+@item @kbd{c} 
+@tab @code{racket-debug-continue}
+@item @kbd{g} 
+@tab @code{racket-debug-go}
 @item @kbd{?} 
 @tab @code{racket-debug-help}
-@item @kbd{h} 
-@tab @code{racket-debug-run-to-here}
-@item @kbd{!} 
-@tab @ref{racket-debug-toggle-breakpoint}
-@item @kbd{P} 
-@tab @code{racket-debug-prev-breakpoint}
+@item @kbd{n} 
+@tab @code{racket-debug-next-breakable}
 @item @kbd{N} 
 @tab @code{racket-debug-next-breakpoint}
 @item @kbd{p} 
 @tab @code{racket-debug-prev-breakable}
-@item @kbd{n} 
-@tab @code{racket-debug-next-breakable}
-@item @kbd{g} 
-@tab @code{racket-debug-go}
-@item @kbd{c} 
-@tab @code{racket-debug-continue}
+@item @kbd{P} 
+@tab @code{racket-debug-prev-breakpoint}
+@item @kbd{h} 
+@tab @code{racket-debug-run-to-here}
+@item @kbd{SPC} 
+@tab @code{racket-debug-step}
 @item @kbd{u} 
 @tab @code{racket-debug-step-out}
 @item @kbd{o} 
 @tab @code{racket-debug-step-over}
-@item @kbd{SPC} 
-@tab @code{racket-debug-step}
+@item @kbd{!} 
+@tab @ref{racket-debug-toggle-breakpoint}
 @end multitable
 
 
@@ -2788,19 +2833,15 @@ Used by the commands @ref{racket-expand-file},
 @ref{racket-expand-definition}, @ref{racket-expand-region}, and
 @ref{racket-expand-last-sexp}.
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
+@item @kbd{n} , @kbd{j} 
+@tab @code{racket-stepper-next-item}
+@item @kbd{p} , @kbd{k} 
+@tab @code{racket-stepper-previous-item}
 @item @kbd{g} 
 @tab @code{racket-stepper-refresh}
-@item @kbd{k} 
-@tab @code{racket-stepper-previous-item}
-@item @kbd{p} 
-@tab @code{racket-stepper-previous-item}
-@item @kbd{j} 
-@tab @code{racket-stepper-next-item}
-@item @kbd{n} 
-@tab @code{racket-stepper-next-item}
 @item @kbd{RET} 
 @tab @code{racket-stepper-step}
 @end multitable
@@ -4391,7 +4432,7 @@ Face for @ref{racket-logger-mode} debug level.
 @node racket-doc-link-face
 @subsection racket-doc-link-face
 
-Face @code{racket-describe-mode} uses for links within documentation.
+Face @ref{racket-describe-mode} uses for links within documentation.
 Note: When some special face is already specified by the
 documentation, then to avoid visual clutter this face is NOT also
 added.
@@ -4399,18 +4440,18 @@ added.
 @node racket-ext-link-face
 @subsection racket-ext-link-face
 
-Face @code{racket-describe-mode} uses for external links.
+Face @ref{racket-describe-mode} uses for external links.
 See the variable @ref{racket-browse-url-function}.
 
 @node racket-doc-output-face
 @subsection racket-doc-output-face
 
-Face @code{racket-describe-mode} uses for Scribble @@example or @@interactions output.
+Face @ref{racket-describe-mode} uses for Scribble @@example or @@interactions output.
 
 @node racket-doc-litchar-face
 @subsection racket-doc-litchar-face
 
-Face @code{racket-describe-mode} uses for Scribble @@litchar.
+Face @ref{racket-describe-mode} uses for Scribble @@litchar.
 
 @node racket-repl-message
 @subsection racket-repl-message

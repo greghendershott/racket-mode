@@ -76,6 +76,7 @@
     (racket-xp-tail-next-sibling ,racket-xp-mode-map)
     (racket-xp-tail-previous-sibling ,racket-xp-mode-map)
     racket-documentation-search
+    racket-describe-mode
     racket-describe-search
     "Run"
     racket-repl-mode
@@ -368,8 +369,7 @@ unescaping too."
             ;; Insert an org-mode table
             (when km
               (insert "|Key|Binding|\n")
-              (mapc #'racket-generate--insert-keymap-table-row
-                    (cdr km))
+              (racket-generate--insert-keymap km)
               (newline))))
          ((looking-at
            ;; Text of the form \\[foo-command]
@@ -387,18 +387,49 @@ unescaping too."
           (forward-char 1))))
       (buffer-string))))
 
-(defun racket-generate--insert-keymap-table-row (v &optional keys)
-  (pcase v
-    (`(,(and key (pred numberp)) keymap ,(and key+sym (pred consp)))
-     (racket-generate--insert-keymap-table-row key+sym (cons key keys)))
-    (`(,(and key (pred numberp)) keymap . ,(and more (pred consp)))
-     (mapc (lambda (v)
-             (racket-generate--insert-keymap-table-row v (cons key keys)))
-           more))
-    (`(,(and key (pred numberp)) . ,(and sym (pred symbolp)))
-     (insert (format "|{{{kbd(%s)}}}|%s|\n"
-                     (racket-generate--key-description (reverse (cons key keys)))
-                     (racket-generate--ref-or-code sym))))))
+(defun racket-generate--insert-keymap (km)
+  "Insert org table for keymap KM.
+
+Filter \"noise\" like bindings for `negative-argument' and
+`digit-argument'.
+
+Insert sorted by command name.
+
+When multiple key-bindings for a command, group into one row of
+table, sorted shortest first."
+  (let ((result (make-hash-table)))
+    (cl-labels
+        ((keymap (v prefix-keys)
+           (dolist (v (cdr v))
+             (pcase v
+               (`(,(and key (pred numberp)) . ,(and km (pred keymapp)))
+                (keymap km (cons key prefix-keys)))
+               (`(,(and key (pred numberp)) keymap ,(and km (pred keymapp)))
+                (keymap km (cons key prefix-keys)))
+               (`(,(and key (pred numberp)) . ,(and sym (pred symbolp)))
+                (unless (member sym '(negative-argument
+                                      digit-argument
+                                      describe-mode))
+                  (puthash sym
+                           (cons (reverse (cons key prefix-keys))
+                                 (gethash sym result))
+                           result)))))))
+      (keymap km nil)
+      (let* ((alist nil)
+             (_ (maphash (lambda (sym keys)
+                           (push (cons sym keys) alist))
+                         result)))
+        (dolist (v (seq-sort-by (lambda (v) (symbol-name (car v)))
+                                #'string<
+                                alist))
+          (let* ((command-str (racket-generate--ref-or-code (car v)))
+                 (keys-strs (seq-map (lambda (binding)
+                                       (format "{{{kbd(%s)}}}"
+                                               (racket-generate--key-description binding)))
+                                     (cdr v)))
+                 (keys-str (string-join (seq-sort-by #'length #'< keys-strs)
+                                        ", ")))
+            (insert "|" keys-str "|" command-str "|\n")))))))
 
 (defun racket-generate--key-description (xs)
   "Like `key-description' but escapes some chars for our \"KBD\" texi macro."
