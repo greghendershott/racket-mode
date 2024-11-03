@@ -487,24 +487,11 @@ The anchor is the first one at or before point, if any."
   "RacketDescribe"
   "Major mode for viewing Racket documentation.
 
-Many of the default key bindings are similar to `Info-mode', such
-as:
+Many of the default key bindings are similar to `Info-mode', as
+listed below.
 
-- TAB and S-TAB to move among links.
-
-- RET to follow the link at point.
-
-- ^/n/p for up/next/prev page.
-
-- l/r for back/forward history.
-
-- i or C-c C-s to search the documentation index.
-
-Also notable:
-
-- C-^ to go to the very top documentation index page.
-
-- x to open the page using `racket-describe-browse-external'.
+To see \"On this page\" links, use \\[imenu] for `imenu', or,
+when `context-menu-mode' is enabled, right click the mouse.
 
 Internal, intra-doc links -- which go to other doc pages in the
 same `racket-describe-mode' buffer in Emacs -- are given
