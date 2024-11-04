@@ -495,12 +495,12 @@ when `context-menu-mode' is enabled, right click the mouse.
 
 Internal, intra-doc links -- which go to other doc pages in the
 same `racket-describe-mode' buffer in Emacs -- are given
-`racket-describe-doc-link-face' unless the documentation
-specifies some non-default face.
+`racket-doc-link-face' unless the documentation specifies some
+non-default face.
 
 External links -- which are opened using the variable
 `racket-browse-url-function', by default in an external web
-browser program -- are given `racket-describe-ext-link-face'.
+browser program -- are given `racket-ext-link-face'.
 
 \\{racket-describe-mode-map}"
   (setq show-trailing-whitespace nil)

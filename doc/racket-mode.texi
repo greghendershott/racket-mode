@@ -2144,12 +2144,12 @@ when @code{context-menu-mode} is enabled, right click the mouse.
 
 Internal, intra-doc links -- which go to other doc pages in the
 same @ref{racket-describe-mode} buffer in Emacs -- are given
-@code{nil} unless the documentation
-specifies some non-default face.
+@ref{racket-doc-link-face} unless the documentation specifies some
+non-default face.
 
 External links -- which are opened using the variable
 @ref{racket-browse-url-function}, by default in an external web
-browser program -- are given @code{nil}.
+browser program -- are given @ref{racket-ext-link-face}.
 
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
