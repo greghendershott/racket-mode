@@ -1,6 +1,6 @@
 ;;; generate.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;;; Generate a reference.org file from doc strings
@@ -8,6 +8,9 @@
 ;; The reference.org file is included by racket-mode.org as its last,
 ;; "Reference" section. Then racket-mode.org is used to create both
 ;; Info and HTML format documentation.
+;;
+;; Note: This file isn't loaded when running Racket Mode -- only to
+;; build docs. In doc/Makefile see the reference.org target.
 
 (require 'racket-mode)
 (require 'racket-debug)
@@ -24,17 +27,19 @@
 (require 'seq)
 
 (defun racket-generate-reference.org ()
-  (find-file "reference.org")
-  (delete-region (point-min) (point-max))
-  (insert (racket-generate--commands))
-  (insert (racket-generate--variables))
-  (insert (racket-generate--configuration-functions))
-  (insert (racket-generate--faces))
-  (save-buffer 0)) ;don't create reference.org~ backup
+  (with-temp-buffer
+    (racket--insert-org-contents)
+    (write-region nil nil "reference.org")))
+
+(defun racket--insert-org-contents ()
+  (racket--insert-commands)
+  (racket--insert-variables)
+  (racket--insert-functions)
+  (racket--insert-faces))
 
 ;;; Interactive command functions
 
-(defconst racket-generate--commands
+(defconst racket--commands
   `("Edit"
     racket-mode
     racket-insert-lambda
@@ -120,37 +125,35 @@
     racket-mode-start-slower)
   "Commands to include in the Reference.")
 
-(defun racket-generate--commands ()
-  (apply
-   #'concat
-   "* Commands\n\n"
-   (mapcar (lambda (s)
-             (pcase s
-               ((and str (pred stringp))
-                (format "** %s\n\n" s))
-               ((and sym (pred symbolp))
-                (racket-generate--command-or-function sym racket-mode-map))
-               (`(,sym ,keymap)
-                (racket-generate--command-or-function sym keymap))))
-           racket-generate--commands)))
+(defun racket--insert-commands ()
+  (insert "* Commands\n\n")
+  (dolist (s racket--commands)
+    (pcase s
+      ((and str (pred stringp))
+       (insert (format "** %s\n\n" str)))
+      ((and sym (pred symbolp))
+       (insert-command-or-function sym racket-mode-map))
+      (`(,sym ,keymap)
+       (insert-command-or-function sym keymap)))))
 
-(defun racket-generate--command-or-function (sym keymap)
+(defun insert-command-or-function (sym keymap)
   (unless (fboundp sym)
     (error "not defined %s" sym))
-  (concat (format "*** %s\n" sym)
+  (insert (format "*** %s\n" sym)
           (if keymap
-              (when (interactive-form sym)
-                (racket-generate--bindings-as-kbd sym keymap))
+              (if (interactive-form sym)
+                  (racket--bindings-as-kbd sym keymap)
+                "")
             (format "~%s~\n" (cons sym (help-function-arglist sym))))
           "\n\n"
-          (racket-generate--format-doc-string
+          (racket--format-doc-string
            (or (documentation sym t)
                "No documentation.\n\n"))
           "\n\n"))
 
 ;;; Configuration functions
 
-(defconst racket-generate--configuration-functions
+(defconst racket--functions
   `("Showing information"
     racket-show-pseudo-tooltip
     racket-show-echo-area
@@ -172,21 +175,18 @@
     racket-vterm)
   "Configuration functions to include in the Reference.")
 
-(defun racket-generate--configuration-functions ()
-  (apply
-   #'concat
-   "* Configuration functions\n\n"
-   (mapcar (lambda (s)
-             (pcase s
-               ((and str (pred stringp))
-                (format "** %s\n\n" s))
-               ((and sym (pred symbolp))
-                (racket-generate--command-or-function sym nil))))
-           racket-generate--configuration-functions)))
+(defun racket--insert-functions ()
+  (insert "* Configuration functions\n\n")
+  (dolist (s racket--functions)
+    (pcase s
+      ((and str (pred stringp))
+       (insert (format "** %s\n\n" str)))
+      ((and sym (pred symbolp))
+       (insert-command-or-function sym nil)))))
 
 ;;; Variables
 
-(defconst racket-generate--variables
+(defconst racket--variables
   '("General variables"
     racket-program
     racket-command-timeout
@@ -238,30 +238,27 @@
     racket-input-translations)
   "Variables to include in the Reference.")
 
-(defun racket-generate--variables ()
-  (apply
-   #'concat
-   "* Variables\n\n"
-   (mapcar (lambda (s)
-             (if (stringp s)
-                 (format "** %s\n\n" s)
-               (unless (boundp s)
-                 (error "variable does not exist: %s" s))
-               (concat
-                (format "*** %s\n" s)
-                (racket-generate--format-doc-string
-                 (or (documentation-property s 'variable-documentation t)
-                     ;; Do check for function documentation here,
-                     ;; to support documenting values for
-                     ;; `-functions' variables.
-                     (documentation s t)
-                     "No documentation.\n\n"))
-                "\n\n")))
-           racket-generate--variables)))
+(defun racket--insert-variables ()
+  (insert "* Variables\n\n")
+  (dolist (s racket--variables)
+    (if (stringp s)
+        (insert (format "** %s\n\n" s))
+      (unless (boundp s)
+        (error "variable does not exist: %s" s))
+      (insert
+       (format "*** %s\n" s)
+       (racket--format-doc-string
+        (or (documentation-property s 'variable-documentation t)
+            ;; Do check for function documentation here,
+            ;; to support documenting values for
+            ;; `-functions' variables.
+            (documentation s t)
+            "No documentation.\n\n"))
+       "\n\n"))))
 
 ;;; Faces
 
-(defconst racket-generate--faces
+(defconst racket--faces
   '(racket-keyword-argument-face
     racket-reader-quoted-symbol-face
     racket-reader-syntax-quoted-symbol-face
@@ -298,23 +295,20 @@
     racket-hash-lang-text)
   "Faces to include in the Reference.")
 
-(defun racket-generate--faces ()
-  (apply
-   #'concat
-   "* Faces\n\n"
-   "** All\n\n"
-   (mapcar (lambda (symbol)
-             (concat
-              (format "*** %s\n" symbol)
-              (racket-generate--format-doc-string
-               (or (documentation-property symbol 'face-documentation t)
-                   "No documentation.\n\n"))
-              "\n\n"))
-           racket-generate--faces)))
+(defun racket--insert-faces ()
+  (insert "* Faces\n\n"
+          "** All\n\n")
+  (dolist (s racket--faces)
+    (insert
+     (format "*** %s\n" s)
+     (racket--format-doc-string
+      (or (documentation-property s 'face-documentation t)
+          "No documentation.\n\n"))
+     "\n\n")))
 
 ;;; Utility
 
-(defun racket-generate--format-doc-string (docstring)
+(defun racket--format-doc-string (docstring)
   "Convert command key references and keymap references
 in DOCSTRING to buttons.
 
@@ -341,7 +335,7 @@ unescaping too."
                  (name (match-string-no-properties 1))
                  (sym (intern-soft name)))
             (delete-region (point) (+ (point) len))
-            (insert (racket-generate--ref-or-code sym))))
+            (insert (racket--ref-or-code sym))))
          ((looking-at
            ;; Text of the form `contents' or `contents`
            (rx "`" (group (+ (not (in "`'")))) (in "`'")))
@@ -369,7 +363,7 @@ unescaping too."
             ;; Insert an org-mode table
             (when km
               (insert "|Key|Binding|\n")
-              (racket-generate--insert-keymap km)
+              (racket--insert-keymap km)
               (newline))))
          ((looking-at
            ;; Text of the form \\[foo-command]
@@ -381,25 +375,33 @@ unescaping too."
             (insert
              (if (string-equal name "universal-argument")
                  "{{{kbd(C-u)}}}"
-               (racket-generate--bindings-as-kbd (intern-soft name) keymap)))))
+               (racket--bindings-as-kbd (intern-soft name) keymap)))))
          ;; Don't modify other characters.
          (t
           (forward-char 1))))
       (buffer-string))))
 
-(defun racket-generate--insert-keymap (km)
-  "Insert org table for keymap KM.
+(defun racket--insert-keymap (km)
+  "Insert org table describing keymap KM.
 
 Filter \"noise\" like bindings for `negative-argument' and
 `digit-argument'.
 
 Insert sorted by command name.
 
-When multiple key-bindings for a command, group into one row of
-table, sorted shortest first."
-  (let ((result (make-hash-table)))
+When multiple key-bindings for a command, group into one row,
+sorted shortest key sequences first."
+  ;; Accumulate nested keymaps into a flat association list. Each key
+  ;; is a command symbol. Each value is a list of lists of keys
+  ;; (potentially more than one key sequence bound for each command).
+  (let ((alist nil))
     (cl-labels
-        ((keymap (v prefix-keys)
+        ((add (sym keys)
+           (let ((cell (assq sym alist)))
+             (if cell
+                 (setcdr cell (push keys (cdr cell)))
+               (push (cons sym (list keys)) alist))))
+         (keymap (v prefix-keys)
            (dolist (v (cdr v))
              (pcase v
                (`(,(and key (pred numberp)) . ,(and km (pred keymapp)))
@@ -410,28 +412,24 @@ table, sorted shortest first."
                 (unless (member sym '(negative-argument
                                       digit-argument
                                       describe-mode))
-                  (puthash sym
-                           (cons (reverse (cons key prefix-keys))
-                                 (gethash sym result))
-                           result)))))))
+                  (add sym (reverse (cons key prefix-keys)))))))))
+      ;; Recursively mutate `alist'.
       (keymap km nil)
-      (let* ((alist nil)
-             (_ (maphash (lambda (sym keys)
-                           (push (cons sym keys) alist))
-                         result)))
-        (dolist (v (seq-sort-by (lambda (v) (symbol-name (car v)))
-                                #'string<
-                                alist))
-          (let* ((command-str (racket-generate--ref-or-code (car v)))
-                 (keys-strs (seq-map (lambda (binding)
-                                       (format "{{{kbd(%s)}}}"
-                                               (racket-generate--key-description binding)))
-                                     (cdr v)))
-                 (keys-str (string-join (seq-sort-by #'length #'< keys-strs)
-                                        ", ")))
-            (insert "|" keys-str "|" command-str "|\n")))))))
+      ;; Navigate `alist' sorted by command.
+      (dolist (v (seq-sort-by (lambda (v) (symbol-name (car v)))
+                              #'string<
+                              alist))
+        (let* ((command-str (racket--ref-or-code (car v)))
+               (keys-strs (seq-map (lambda (binding)
+                                     (format "{{{kbd(%s)}}}"
+                                             (racket--key-description
+                                              binding)))
+                                   (cdr v)))
+               (keys-str (string-join (seq-sort-by #'length #'< keys-strs)
+                                      " or ")))
+          (insert "|" keys-str "|" command-str "|\n"))))))
 
-(defun racket-generate--key-description (xs)
+(defun racket--key-description (xs)
   "Like `key-description' but escapes some chars for our \"KBD\" texi macro."
   (with-temp-buffer
     (insert (key-description xs))
@@ -443,38 +441,39 @@ table, sorted shortest first."
         (insert str)))
     (buffer-string)))
 
-(defun racket-generate--bindings-as-kbd (symbol keymap)
-  (let* ((bindings (or (racket-generate--where-is/no-menu symbol keymap)
-                       (racket-generate--where-is/no-menu symbol racket-mode-map)))
+(defun racket--bindings-as-kbd (symbol keymap)
+  (let* ((bindings (or (racket--where-is symbol keymap)
+                       (racket--where-is symbol racket-mode-map)))
          (strs (and
                 bindings
                 (seq-filter
                  #'identity
                  (mapcar (lambda (binding)
-                           (let ((desc (racket-generate--key-description binding)))
+                           (let ((desc (racket--key-description binding)))
                              ;; I don't know how to escape { or }
                              ;; for texi
                              (unless (string-match-p "[{}]" desc)
                                (format "{{{kbd(%s)}}}" desc))))
                          bindings)))))
     (if strs
-        (string-join strs " or ")
+        (string-join strs "or ")
       (format "{{{kbd(M-x)}}} ~%s~" symbol))))
 
-(defun racket-generate--where-is/no-menu (symbol keymap)
+(defun racket--where-is (symbol keymap)
+  "Like `where-is-internal' but omits menu items."
   (seq-filter (lambda (binding) (not (eq (aref binding 0) 'menu-bar)))
               (where-is-internal symbol keymap)))
 
-(defun racket-generate--ref-or-code (sym)
+(defun racket--ref-or-code (sym)
   "Return either a reference or code formatting for SYM."
   (if (or (seq-some (lambda (v)
                       (or (eq v sym)
                           (and (listp v)
                                (eq (car v) sym))))
-                    racket-generate--commands)
-          (member sym racket-generate--configuration-functions)
-          (member sym racket-generate--variables)
-          (member sym racket-generate--faces))
+                    racket--commands)
+          (member sym racket--functions)
+          (member sym racket--variables)
+          (member sym racket--faces))
       (format "@@texinfo:@ref{%s}@@" sym)
     (format "~%s~" sym)))
 
