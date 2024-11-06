@@ -1,6 +1,6 @@
 ;;; racket-describe.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -465,6 +465,88 @@ The anchor is the first one at or before point, if any."
         (racket-browse-url (concat page "#" (url-hexify-string anchor)))
       (racket-browse-url page))))
 
+(defun racket--describe-label-for-point ()
+  "A bookmark name or org-link description for point.
+Use the line containing a racket-anchor, starting with the
+current line and looking back."
+  (let* ((beg (or (previous-single-property-change (line-end-position)
+                                                   'racket-anchor)
+                  (point-min)))
+         (beg (save-excursion (goto-char beg) (line-beginning-position)))
+         (end (save-excursion (goto-char beg) (line-end-position)))
+         (text (buffer-substring beg end))
+         (_ ;Delete invisible characters, as used for racket-anchor
+          (while (when-let (ix (text-property-any 0 (length text)
+                                                  'display "" text))
+                   (setq text
+                         (concat (substring text 0 ix)
+                                 (substring text (1+ ix) (length text)))))))
+         ;; Strip text properties
+         (text (substring-no-properties text))
+         ;; Strip leading/trailing space
+         (text (save-match-data
+                 (string-match (rx bos (* space) (group (*? any)) (* space) eos)
+                               text)
+                 (match-string 1 text)))
+         ;; Replace runs of spaces with just one space
+         (_ (save-match-data
+              (while (string-match (rx space (+ space)) text)
+                (setq text (replace-match " " t t text))))))
+    text))
+
+;; bookmark support
+
+(declare-function bookmark-make-record-default
+                  "bookmark" (&optional no-file no-context posn))
+(declare-function bookmark-prop-get
+                  "bookmark" (bookmark prop))
+
+(defun racket-describe-bookmark-make-record ()
+  "A value for `bookmark-make-record-function'."
+  (when (boundp 'bookmark-current-bookmark)
+    ;; Don't propose previous name as default
+    (setq-local bookmark-current-bookmark nil))
+  `(,(racket--describe-label-for-point)
+    (filename . ,(car racket--describe-here))
+    (position . ,(point))
+    (last-modified . ,(current-time))
+    (handler . racket-describe-bookmark-jump)))
+
+(defun racket-describe-bookmark-jump (bmk)
+  (racket--do-describe (cons (bookmark-prop-get bmk 'filename)
+                             (bookmark-prop-get bmk 'position))
+                       nil ""))
+(put 'racket-describe-bookmark-jump 'bookmark-handler-type "Racket docs")
+
+;; org-link support
+
+(declare-function org-link-types "ext:ol" ())
+(declare-function org-link-store-props "ext:ol" (&rest plist))
+(declare-function org-link-get-parameter "ext:ol" (type key))
+
+(defconst racket--describe-org-link-type "racket-describe")
+
+(defun racket--describe-add-support-for-org-links ()
+  (when (and (fboundp 'org-link-set-parameters)
+             (not (member racket--describe-org-link-type (org-link-types))))
+    (org-link-set-parameters racket--describe-org-link-type
+                             :store #'racket--describe-org-link-store
+                             :follow #'racket--describe-org-link-follow)))
+
+(defun racket--describe-org-link-store ()
+  (when (derived-mode-p 'racket-describe-mode)
+    (org-link-store-props :type racket--describe-org-link-type
+                          :link (format "%s:%S"
+                                        racket--describe-org-link-type
+                                        (cons (car racket--describe-here)
+                                              (point)))
+                          :description (racket--describe-label-for-point))))
+
+(defun racket--describe-org-link-follow (link)
+  (racket--do-describe (read link) nil ""))
+
+;; keymap and major mode
+
 (defvar racket-describe-mode-map
   (let ((map (racket--easy-keymap-define
               `(("<tab>"             ,#'forward-button)
@@ -493,6 +575,11 @@ listed below.
 To see \"On this page\" links, use \\[imenu] for `imenu', or,
 when `context-menu-mode' is enabled, right click the mouse.
 
+Supports bookmarks: `bookmark-set'.
+
+Supports org links: `org-store-link', `org-insert-link', and
+`org-open-at-point'.
+
 Internal, intra-doc links -- which go to other doc pages in the
 same `racket-describe-mode' buffer in Emacs -- are given
 `racket-doc-link-face' unless the documentation specifies some
@@ -513,7 +600,13 @@ browser program -- are given `racket-ext-link-face'.
     (setq-local imenu-auto-rescan t))
   (when (boundp 'imenu-max-items)
     (setq-local imenu-max-items 999))
-  (imenu-add-to-menubar "On this page"))
+  (imenu-add-to-menubar "On this page")
+  ;; bookmark
+  (when (boundp 'bookmark-make-record-function)
+    (setq-local bookmark-make-record-function
+                #'racket-describe-bookmark-make-record))
+  ;; org-link
+  (racket--describe-add-support-for-org-links))
 
 ;;; Search local docs
 

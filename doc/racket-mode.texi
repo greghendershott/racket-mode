@@ -2142,6 +2142,11 @@ listed below.
 To see ``On this page'' links, use @kbd{M-g i}  for @code{imenu}, or,
 when @code{context-menu-mode} is enabled, right click the mouse.
 
+Supports bookmarks: @code{bookmark-set}.
+
+Supports org links: @code{org-store-link}, @code{org-insert-link}, and
+@code{org-open-at-point}.
+
 Internal, intra-doc links -- which go to other doc pages in the
 same @ref{racket-describe-mode} buffer in Emacs -- are given
 @ref{racket-doc-link-face} unless the documentation specifies some
