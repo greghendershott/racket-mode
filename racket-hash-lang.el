@@ -630,7 +630,7 @@ We never use `racket-indent-line' from traditional
 
 ;; Motion
 
-(defun racket-hash-lang-move (direction &optional count)
+(defun racket-hash-lang-move (direction count &optional scan-error-p)
   (let ((count (or count 1)))
     (pcase (racket--cmd/await       ; await = :(
             nil
@@ -643,9 +643,16 @@ We never use `racket-indent-line' from traditional
                         ,count))
       ((and (pred numberp) pos)
        (goto-char pos))
-      (_ (user-error "Cannot move %s%s" direction (if (memq count '(-1 0 1))
-                                                      ""
-                                                    (format " %s times" count)))))))
+      (_
+       (if scan-error-p
+           (signal 'scan-error
+                   (list (format "Cannot move %s" direction)
+                         (point) (point)))
+         (user-error "Cannot move %s%s"
+                     direction
+                     (if (memq count '(-1 0 1))
+                         ""
+                       (format " %s times" count))))))))
 
 (defun racket-hash-lang-backward (&optional count)
   "Like `backward-sexp' but uses #lang supplied navigation."
@@ -679,7 +686,7 @@ However other users don't need that, so we supply this
   (let* ((arg (or arg 1))
          (dir (if (< arg 0) 'backward 'forward))
          (cnt (abs arg)))
-    (racket-hash-lang-move dir cnt)))
+    (racket-hash-lang-move dir cnt t)))
 
 ;;; Pairs
 
