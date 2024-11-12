@@ -39,12 +39,15 @@
   ;; - Within each flavor: Try svg (if this Emacs can use it)
   ;;   before png. Because space.
   (define fmts/exts (if use-svg?
-                        '((svg-bytes+bounds "svg")
-                          (png-bytes+bounds "png")
-                          (svg-bytes        "svg")
-                          (png-bytes        "png"))
-                        '((png-bytes+bounds "png")
-                          (png-bytes        "png"))))
+                        '((svg-bytes+bounds8 "svg")
+                          (png-bytes+bounds8 "png")
+                          (svg-bytes+bounds  "svg")
+                          (png-bytes+bounds  "png")
+                          (svg-bytes         "svg")
+                          (png-bytes         "png"))
+                        '((png-bytes+bounds8 "png")
+                          (png-bytes+bounds  "png")
+                          (png-bytes         "png"))))
   (for/or ([fmt/ext (in-list fmts/exts)])
     (apply convert-and-save v fmt/ext)))
 
