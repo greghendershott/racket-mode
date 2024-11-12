@@ -610,150 +610,134 @@ browser program -- are given `racket-ext-link-face'.
 
 ;;; Search local docs
 
-;; For people who don't want to use a web browser: Search local
-;; documentation, and view in a `racket-describe-mode' buffer.
-
-(defvar racket--doc-index (make-hash-table :test 'equal)
-  "Hash-table from back end name to association list of doc index info.")
-
-(defun racket--remove-doc-index ()
-  "A `racket-stop-back-end-hook' to clean up `racket--doc-index'."
-  (when-let (key (racket-back-end-name))
-    (remhash key racket--doc-index)))
-
-(add-hook 'racket-stop-back-end-hook #'racket--remove-doc-index)
-
-(defun racket--doc-index-file-name (key)
-  (make-directory racket-doc-index-directory t)
-  (expand-file-name (concat (racket--file-name-slug
-                             (concat "doc-index-" key))
-                            ".eld")
-                    racket-doc-index-directory))
-
-(defun racket--doc-index-file-write (key data)
-  (write-region (format ";; -*- no-byte-compile: t; lexical-binding: nil -*-\n%S"
-                        data)
-                nil
-                (racket--doc-index-file-name key)
-                nil
-                'no-message))
-
-(defun racket--doc-index-file-read (key)
-  (with-temp-buffer
-    (ignore-errors
-      (insert-file-contents (racket--doc-index-file-name key))
-      (goto-char (point-min))
-      (read (current-buffer)))))
-
-(defun racket--doc-index ()
-  "Get the doc index items.
-
-For the item format, see `racket--doc-index-make-alist'.
-
-Because the doc index is somewhat large and slow to get from the
-back end, we use a couple levels of caching: 1. Memory, for the
-duration of the Emacs session or back end lifetime, whichever is
-shorter. 2. Local file system, between sessions. For this latter
-we do want to make sure the file isn't outdated, e.g. user
-installed new packages. The back end commands works like an HTTP
-request with an If-None-Match header: We supply an \"etag\" value
-it previously gave us. If that still matches the response is just
-\"not modified\", otherwise a new etag and items."
-  (let ((key (racket-back-end-name)))
-    (or
-     (gethash key racket--doc-index)
-     (pcase-let*
-         ((`(,old-etag . ,old-items) (racket--doc-index-file-read key))
-          (items
-           (pcase (with-temp-message "Checking back end doc index..."
-                    (racket--cmd/await nil `(doc-index ,old-etag)))
-             ('not-modified old-items)
-             (`(,etag . ,items)
-              (with-temp-message "Doc index changed; updating local file..."
-                (racket--doc-index-file-write key (cons etag items)))
-              items)))
-          (items
-           (with-temp-message "Processing doc index items for memory cache..."
-             (racket--doc-index-make-alist items))))
-       (puthash key items racket--doc-index)
-       items))))
-
-(defun racket--doc-index-make-alist (items)
-  "Given back end ITEMS make an association list.
-
-A list is a valid collection for completion, where the `car' is
-the completion string. For this we use a string with invisible
-text to influence sorting, appended to the visible search term.
-This is vastly faster than using a :display-sort-function.
-
-Our affixation function gets the propertized string, so we can
-tuck the values it needs into a text property.
-
-However the final result from `completing-read' is stripped of
-text properties -- which is the only reason we need an
-association list, to look up the path and anchor."
-  (cl-flet ((wstr (width s)
-              (let ((len (length s)))
-                (if (<= len width)
-                    (concat s
-                            (make-string (- width len) 32))
-                  (substring s 0 width)))))
-    (mapcar
-     (pcase-lambda (`(,uid ,term ,sort ,what ,from ,fams ,path ,anchor))
-       (let* ((term (propertize term
-                                'racket-affix (list what from fams)))
-              (sort (let ((fams (wstr 32
-                                      (pcase fams
-                                        ("Racket" " Racket")
-                                        (v v))))
-                          (from (wstr 64
-                                      (cond
-                                       ((string-match-p "^racket/" from)
-                                        (concat " 0_" from))
-                                       ((string-match-p "^typed/racket/" from)
-                                        (concat " 1_" from))
-                                       ((string-match-p "^rhombus" from)
-                                        (concat " 2_" from))
-                                       ((string-equal "" from)
-                                        (make-string 16 ?z))
-                                       (t from))))
-                          (what (wstr 32 what))
-                          (sort (format "%09d" sort))
-                          (uid  (format "%05d" uid)))
-                      ;; We need uid only to guarantee uniqueness, not
-                      ;; to influence sorting, so it goes last.
-                      (concat fams from what sort uid)))
-              (str (concat term (propertize sort 'display ""))))
-         (list str path anchor)))
-     items)))
-
 (defun racket-describe-search ()
   "Search installed documentation; view using `racket-describe-mode'."
   (interactive)
+  (pcase (racket--describe-search-completing-read)
+    (`(,term ,path ,anchor ,_lib)
+     (racket--do-describe (cons (racket-file-name-back-to-front path)
+                                anchor)
+                          nil
+                          term))))
+
+(defun racket--describe-search-completing-read ()
+  "A `completing-read' UX for user to pick doc index item.
+Return nil or \(term path anchor lib\)."
   (let* ((affixator (racket--make-affix [16
                                          [16 racket-describe-search-kind]
                                          [32 racket-describe-search-from-libs]
+                                         16
                                          [0  racket-describe-search-lang-fams]]))
-         (collection (racket--completion-table
-                      (racket--doc-index)
-                      `((category . ,racket--identifier-category)
-                        (affixation-function . ,affixator))))
-         (predicate (lambda (v)
-                      (apply racket-doc-index-predicate-function
-                             (get-text-property 0 'racket-affix (car v)))))
+         (candidates nil)
+         (collection
+          (lambda (string predicate action)
+            (cond
+             ((eq action 'metadata)
+              `(metadata
+                (category              . ,racket--identifier-category)
+                (display-sort-function . ,#'racket--describe-search-display-sort)
+                (affixation-function   . ,affixator)))
+             ((eq (car-safe action) 'boundaries) nil)
+             (t
+              (when (eq action t)
+                (setq candidates
+                      (racket--describe-search-make-strings
+                       (racket--cmd/await nil `(doc-search ,string)))))
+              (funcall (cond
+                        ((null action) #'try-completion)
+                        ((eq action t) #'all-completions)
+                        (t             #'test-completion))
+                       string
+                       candidates
+                       predicate)))))
+         (predicate
+          (lambda (v)
+            (apply racket-doc-index-predicate-function
+                   (get-text-property 0 'racket-affix v))))
+         (prompt "Search Racket documentation: ")
          (require-match t)
-         (initial-input (racket--thing-at-point 'symbol t)))
-    (when-let (str (completing-read "Describe: "
+         (initial-input nil)
+         (history 'racket-identifier)
+         (default (racket--thing-at-point 'symbol t))
+         (history-add-new-input nil)) ;we'll add history below
+    (when-let (str (completing-read prompt
                                     collection
                                     predicate
                                     require-match
-                                    initial-input))
-      (pcase (assoc str (racket--doc-index))
-        (`(,_str ,path ,anchor)
-         (racket--do-describe (cons (racket-file-name-back-to-front path)
-                                    anchor)
-                              nil
-                              (substring-no-properties str)))))))
+                                    initial-input
+                                    history
+                                    default))
+      (pcase (racket--describe-search-parse-result str)
+        (`(,term ,path ,anchor ,lib)
+         (add-to-history 'racket-identifier term) ;just term
+         (list term path anchor lib))))))
+
+(defun racket--describe-search-make-strings (items)
+  "Make a list of candidate strings from back end ITEMS.
+
+Each string has text properties needed by our affixation and
+display-sort functions.
+
+However `completing-read' returns a string stripped of text
+properties. :( So we append the path and anchor, tab separated,
+as invisible text. Use `racket--describe-search-parse-result' to
+extract."
+  (mapcar
+   (pcase-lambda (`(,term ,sort ,what ,from ,fams  (,pkg ,pkg-sort)
+                          ,path ,anchor))
+     (let* ((term (propertize term
+                              'racket-affix (list what from pkg fams)
+                              'racket-sort (list (format "%09d" sort)
+                                                 (format "%09d" pkg-sort))))
+            (lib (substring from 0 (string-match (rx ?,) from)))
+            (data (concat "\t" path "\t" anchor "\t" lib))
+            (data (propertize data 'display "")))
+       (concat term data)))
+   items))
+
+(defun racket--describe-search-parse-result (str)
+  (when (string-match (rx bos
+                          (group-n 1 (+? (not (any ?\t)))) ?\t
+                          (group-n 2 (+? (not (any ?\t)))) ?\t
+                          (group-n 3 (+? (not (any ?\t)))) ?\t
+                          (group-n 4 (+? any))
+                          eos)
+                      str)
+    (list (match-string 1 str)
+          (match-string 2 str)
+          (match-string 3 str)
+          (match-string 4 str))))
+
+(defun racket--describe-search-display-sort (strs)
+  "A value for display-sort-function metadata."
+  (cl-flet*
+      ((term (s)
+         (substring s 0 (string-match (rx ?\t) s)))
+       (adjust-fams (fams)
+         (pcase fams
+           ("Racket" " Racket")
+           (v v)))
+       (key (v)
+         (pcase-let
+             ((`(,what ,from ,fams) (get-text-property 0 'racket-affix v))
+              (`(,sort ,pkg-sort) (get-text-property 0 'racket-sort v)))
+           (list (term v)
+                 (adjust-fams fams)
+                 pkg-sort
+                 from
+                 what
+                 sort)))
+       (key< (as bs)
+         (cl-loop for a in as
+                  for b in bs
+                  unless (string= a b) return (string< a b)
+                  finally return nil)))
+    ;; `seq-sort-by' unavailable in Emacs 25, so instead of
+    ;; (seq-sort-by #'key #'key< strs) spell it out:
+    (seq-sort (lambda (a b)
+                (key< (key a)
+                      (key b)))
+              strs)))
 
 (provide 'racket-describe)
 

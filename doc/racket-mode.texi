@@ -1157,15 +1157,29 @@ typed/racket/base''.
 
 @kbd{M-x}  @code{racket-add-require-for-identifier}
 
-Add a require for the identifier at point.
+Add a require for an identifier.
+
+Useful when you know the name of an export but don't remember
+from what module it is exported.
+
+At the prompt:
+
+Use @kbd{<XF86Forward>} or @kbd{<next>} or @kbd{M-n}  to load the identifier at point.
+You may also need to @kbd{C-e} or @kbd{<end>}  to see candidates.
+
+Or type anything.
+
+After you choose:
+
+The identifier you chose is inserted at point if not already
+there.
+
+A ``require'' form is inserted, followed by doing a
+@ref{racket-tidy-requires}.
 
 When more than one module supplies an identifer with the same
-name, they are listed for you to choose one. The list is sorted
-alphabetically, except modules starting with ``racket/'' and
-``typed/racket/'' are sorted before others.
-
-A ``require'' form is inserted into the buffer, followed by doing
-a @ref{racket-tidy-requires}.
+name, the first is used -- for example ``racket/base'' instead of
+``racket''.
 
 Caveat: This works in terms of identifiers that are documented.
 The mechanism is similar to that used for Racket's ``Search

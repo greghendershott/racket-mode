@@ -5,11 +5,11 @@
 
 (require (only-in scribble/core tag?)
          scribble/xref
-         setup/xref
          racket/contract
          racket/format
          racket/match
-         "../identifier.rkt")
+         "../identifier.rkt"
+         "../xref.rkt")
 
 (provide doc)
 
@@ -28,7 +28,6 @@
   (->identifier how str stx->uri-string))
 
 (define (stx->uri-string stx)
-  (define xref (load-collections-xref))
   (match (and xref (xref-binding->definition-tag xref stx 0))
     [(? tag? tag)
      (define-values (path anchor) (xref-tag->path+anchor xref tag))

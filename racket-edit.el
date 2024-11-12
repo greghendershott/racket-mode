@@ -263,15 +263,30 @@ module form, meaning the outermost, file module."
          (looking-at-p "require"))))
 
 (defun racket-add-require-for-identifier ()
-  "Add a require for the identifier at point.
+  "Add a require for an identifier.
+
+Useful when you know the name of an export but don't remember
+from what module it is exported.
+
+At the prompt:
+\\<minibuffer-local-map>
+
+Use \\[next-history-element] to load the identifier at point.
+You may also need to \\[move-end-of-line] to see candidates.
+
+Or type anything.
+
+After you choose:
+
+The identifier you chose is inserted at point if not already
+there.
+
+A \"require\" form is inserted, followed by doing a
+`racket-tidy-requires'.
 
 When more than one module supplies an identifer with the same
-name, they are listed for you to choose one. The list is sorted
-alphabetically, except modules starting with \"racket/\" and
-\"typed/racket/\" are sorted before others.
-
-A \"require\" form is inserted into the buffer, followed by doing
-a `racket-tidy-requires'.
+name, the first is used -- for example \"racket/base\" instead of
+\"racket\".
 
 Caveat: This works in terms of identifiers that are documented.
 The mechanism is similar to that used for Racket's \"Search
@@ -279,35 +294,18 @@ Manuals\" feature. Today there exists no system-wide database of
 identifiers that are exported but not documented."
   (interactive)
   (racket--assert-sexp-edit-mode)
-  (let ((sym-at-point (thing-at-point 'symbol t)))
-    (unless sym-at-point
-      (user-error "There does not seem to be an identifier at point"))
-    (racket--cmd/async
-     nil
-     `(requires/find ,sym-at-point)
-     (lambda (result)
-       (let ((lib
-              (pcase result
-                (`()
-                 (message "\"%s\" is not a documented export of any installed library"
-                          sym-at-point)
-                 nil)
-                (`(,lib)
-                 lib)
-                (libs
-                 (completing-read
-                  (format "\"%s\" is provided by multiple libraries, choose one: "
-                          sym-at-point)
-                  libs)))))
-         (when lib
-           (let ((pt  (copy-marker (point)))
+  (when-let (result (racket--describe-search-completing-read))
+    (pcase-let* ((`(,term ,_path ,_anchor ,lib) result)
                  (req `(require ,(intern lib))))
-             (racket--tidy-requires
-              (list req)
-              (lambda (result)
-                (goto-char pt)
-                (when result
-                  (message "Added \"%s\" and did racket-tidy-requires" req)))))))))))
+      (unless (equal (racket--thing-at-point 'symbol) term)
+        (insert term))
+      (let ((pt  (copy-marker (point))))
+        (racket--tidy-requires
+         (list req)
+         (lambda (result)
+           (goto-char pt)
+           (when result
+             (message "Added \"%s\" and did racket-tidy-requires" req))))))))
 
 ;;; align
 

@@ -22,6 +22,7 @@
          log-racket-mode-fatal
          time-apply/log
          with-time/log
+         with-memory-use/log
          (all-from-out "define-fallbacks.rkt")
          (all-from-out "safe-dynamic-require.rkt"))
 
@@ -58,3 +59,21 @@
 
 (define-simple-macro (with-time/log what e ...+)
   (time-apply/log what (λ () e ...) '()))
+
+(define (memory-use/log what thunk)
+  (define before (current-memory-use))
+  (begin0 (thunk)
+    (let ([after (current-memory-use)])
+      (define (mb n)
+        (~a (~r #:min-width 4
+                #:precision 0
+                (/ n 1024.0 1024.0))
+            " MB"))
+      (log-racket-mode-debug "~a [~a => ~a] :: ~a"
+                             (mb (- after before))
+                             (mb before)
+                             (mb after)
+                             what))))
+
+(define-simple-macro (with-memory-use/log what e ...+)
+  (memory-use/log what (λ () e ...)))

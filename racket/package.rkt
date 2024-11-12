@@ -30,7 +30,7 @@
          net/url
          (only-in "scribble.rkt"
                   module-doc-path
-                  refresh-module-doc-path-index!))
+                  refresh-doc-index!))
 
 (provide package-list
          package-details
@@ -312,7 +312,7 @@
       (act!))
     (flush-output out)
     (close-output-port out)
-    (refresh-module-doc-path-index!)))
+    (refresh-doc-index!)))
 
 (module+ example
   (define (pump)
