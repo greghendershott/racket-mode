@@ -719,8 +719,10 @@ extract."
            (v v)))
        (key (v)
          (pcase-let
-             ((`(,what ,from ,fams) (get-text-property 0 'racket-affix v))
-              (`(,sort ,pkg-sort) (get-text-property 0 'racket-sort v)))
+             ((`(,what ,from ,_pkg ,fams)
+               (get-text-property 0 'racket-affix v))
+              (`(,sort ,pkg-sort)
+               (get-text-property 0 'racket-sort v)))
            (list (term v)
                  (adjust-fams fams)
                  pkg-sort
