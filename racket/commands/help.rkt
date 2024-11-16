@@ -28,6 +28,7 @@
   (->identifier how str stx->uri-string))
 
 (define (stx->uri-string stx)
+  (define xref (get-xref))
   (match (and xref (xref-binding->definition-tag xref stx 0))
     [(? tag? tag)
      (define-values (path anchor) (xref-tag->path+anchor xref tag))

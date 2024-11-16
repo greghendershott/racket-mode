@@ -5,9 +5,13 @@
 
 (require setup/xref)
 
-(provide xref
-         xref-ready-evt)
+(provide get-xref)
 
-(define xref-ready-evt never-evt)
-(define xref (begin0 (load-collections-xref)
-               (set! xref-ready-evt always-evt)))
+;; A single xref instance for all our modules to share.
+;;
+;; Will block safely until ready, if used from e.g. delay/thread or
+;; delay/idle (which, although we're not doing now, we've done before,
+;; and might do again someday).
+(define sema (make-semaphore 1))
+(define xref (call-with-semaphore sema load-collections-xref))
+(define (get-xref) (call-with-semaphore sema (λ () xref)))

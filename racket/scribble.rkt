@@ -44,7 +44,8 @@
 
 (define/contract (binding->path+anchor stx)
   (-> identifier? (or/c #f (cons/c path-string? (or/c #f string?))))
-  (let* ([tag (xref-binding->definition-tag xref stx 0)]
+  (let* ([xref (get-xref)]
+         [tag (xref-binding->definition-tag xref stx 0)]
          [p+a (and tag (tag->path+anchor xref tag))])
     p+a))
 
@@ -72,7 +73,7 @@
 
 (define/contract (identifier->bluebox stx)
   (-> identifier? (or/c #f string?))
-  (match (xref-binding->definition-tag xref stx 0)
+  (match (xref-binding->definition-tag (get-xref) stx 0)
     [(? tag? tag) (get-bluebox-string tag)]
     [_ #f]))
 
@@ -169,7 +170,7 @@
              (let ([ht (exported-index-desc*-extras desc)])
                (or (hash-ref ht 'hidden? #f)
                    (hash-ref ht 'constructor? #f))))))
-  (for* ([entry (in-list (xref-index xref))]
+  (for* ([entry (in-list (xref-index (get-xref)))]
          [desc (in-value (entry-desc entry))]
          #:when desc
          #:unless (hide-desc? desc)
@@ -181,7 +182,7 @@
   root)
 
 (define (doc-trie-value desc term tag)
-  (define-values (path anchor) (xref-tag->path+anchor xref tag))
+  (define-values (path anchor) (xref-tag->path+anchor (get-xref) tag))
   (define (method-what)
     (cond
       [(method-tag? tag)
