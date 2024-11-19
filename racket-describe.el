@@ -683,7 +683,7 @@ properties. :( So we append the path and anchor, tab separated,
 as invisible text. Use `racket--describe-search-parse-result' to
 extract."
   (mapcar
-   (pcase-lambda (`(,term ,sort ,what ,from ,fams  (,pkg ,pkg-sort)
+   (pcase-lambda (`(,term ,sort ,what ,from ,fams (,pkg ,pkg-sort)
                           ,path ,anchor))
      (let* ((term (propertize term
                               'racket-affix (list what from pkg fams)
@@ -699,8 +699,8 @@ extract."
   (when (string-match (rx bos
                           (group-n 1 (+? (not (any ?\t)))) ?\t
                           (group-n 2 (+? (not (any ?\t)))) ?\t
-                          (group-n 3 (+? (not (any ?\t)))) ?\t
-                          (group-n 4 (+? any))
+                          (group-n 3 (*? (not (any ?\t)))) ?\t
+                          (group-n 4 (*? any))
                           eos)
                       str)
     (list (match-string 1 str)
