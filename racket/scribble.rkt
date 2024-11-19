@@ -226,7 +226,8 @@
        (values what from fams pkg sort-order)]
       [(index-desc? desc)
        (define ht (index-desc-extras desc))
-       (define what (match (hash-ref ht 'module-kind #f)
+       (define module-kind (hash-ref ht 'module-kind #f))
+       (define what (match module-kind
                       ['lib    "module"]
                       ['lang   "language"]
                       ['reader "reader"]
@@ -236,12 +237,15 @@
          (match (hash-ref ht 'display-from-libs #f)
            [(? list? contents)
             (string-join (map content->string contents) ", ")]
-           [#f (doc-from)]))
+           [#f
+            (match module-kind
+              [(or 'lib 'lang 'reader) term]
+              [_ (doc-from)])]))
        (define fams (match (hash-ref ht 'language-family #f)
                       [(? list? fams) (string-join (map ~a fams) ", ")]
                       [#f "Racket"]))
        (define pkg (lib-pkg
-                    (match (hash-ref ht 'module-kind #f)
+                    (match module-kind
                       ['lib (string->symbol term)]
                       [_    #f])))
        (define sort-order (hash-ref ht 'sort-order 0))
