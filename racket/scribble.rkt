@@ -8,7 +8,6 @@
          racket/format
          racket/match
          racket/promise
-         racket/set
          racket/string
          (only-in scribble/core
                   tag?
@@ -96,17 +95,18 @@
 
 ;;; Documentation search
 
-;; A trie where a node's children are represented as a hash-table from
-;; char to node. Each node also has a set of zero or more values
-;; (multiple, since we have so many duplicate keys e.g. various
-;; flavors of "define" or "print"). The values are promises: Although
-;; the trie is built for all search terms, the initial promise
-;; contains just a `desc` and tag; the full doc-index-value is not
-;; computed until retrieved.
-(struct node (kids values))
-;; kids:   (hash/c char? node?)
-;; values: (set/c (promise/c doc-trie-value))
-(define (empty-node) (node (make-hasheq) (set)))
+;; A trie where a Node's children are represented as an alist from
+;; char to Node. Each Node also has zero or more values (multiple,
+;; because we have so many duplicate keys e.g. various flavors of
+;; "define" or "print"). The values are promises: Although the trie is
+;; built for all search terms, the initial promise contains just a
+;; `desc` and tag; the full doc-trie-value is not computed until
+;; needed for a search.
+(struct Node
+  ([kids   #:mutable] ;(list/c (cons/c char? node?))
+   [values #:mutable] ;(list/c (promise/c doc-trie-value))
+   ))
+(define (empty-node) (Node null null))
 
 (define doc-index-trie-root #f)
 
@@ -121,46 +121,57 @@
     (refresh-doc-index!))
   (trie-find doc-index-trie-root prefix limit))
 
+(define (alist-ref a k default-thunk)
+  (define ((make-pred a) b)
+    (char=? a b))
+  (match (assf (make-pred k) a)
+    [(cons _k v) v]
+    [_ (default-thunk)]))
+
 ;; Find values for all nodes for which `prefix` is an exact match, and
 ;; up to `limit` nodes for which `prefix` is an initial match.
 ;; Oriented toward producing completion candidates.
 (define (trie-find root prefix limit)
   (match (string->list prefix)
-    [(list)
-     null]
+    [(list) null]
     [chs
-     (define results (mutable-set))
-     (let find! ([n   root]
-                 [chs chs])
-       (match-define (cons ch more) chs)
-       (define sub (hash-ref (node-kids n) ch (empty-node)))
+     (define results null)
+     (let find! ([node root]
+                 [chs  chs])
+       (match-define (cons ch more-chs) chs)
+       (define sub-node (alist-ref (Node-kids node) ch empty-node))
        (cond
-         [(null? more)
-          (define (report! n)
-            (for ([v (in-set (node-values n))])
-              (set-add! results (force v)))
-            (when (< (set-count results) limit)
-              (for ([n (in-hash-values (node-kids n))])
-                (report! n))))
-          (report! sub)]
+         [(null? more-chs)
+          (define (report! node)
+            (for ([v (in-list (Node-values node))])
+              (set! results (cons (force v) results)))
+            (when (< (length results) limit)
+              (for ([kv (in-list (Node-kids node))])
+                (report! (cdr kv)))))
+          (report! sub-node)]
          [else
-          (find! sub more)]))
-     (set->list results)]))
+          (find! sub-node more-chs)]))
+     results]))
 
 (define (trie-add! root str value)
-  (let add! ([n   root]
-             [chs (string->list str)])
-    (match chs
-      [(list ch)
-       (hash-update! (node-kids n)
-                     ch
-                     (λ (n)
-                       (node (node-kids n)
-                             (set-add (node-values n) value)))
-                     empty-node)]
-      [(cons ch more)
-       (add! (hash-ref! (node-kids n) ch (empty-node))
-             more)])))
+  (let add! ([node root]
+             [chs  (string->list str)])
+    (match-define (cons ch more-chs) chs)
+    (define sub-node
+      (alist-ref (Node-kids node) ch
+                 (λ ()
+                   (define sub-node (empty-node))
+                   (define new-mapping (cons ch sub-node))
+                   (set-Node-kids! node
+                                   (cons new-mapping
+                                         (Node-kids node)))
+                   sub-node)))
+    (cond
+      [(null? more-chs)
+       (set-Node-values! sub-node
+                         (cons value (Node-values sub-node)))]
+      [else
+       (add! sub-node more-chs)])))
 
 (define (build-doc-search-trie)
   (define root (empty-node))
