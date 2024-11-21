@@ -190,15 +190,9 @@
        (format "method of ~a" c/i)]
       [else "method"]))
   (define (doc-from)
-    (string-append
-     "◊ "
-     (match (path->main-doc-relative path)
-       [(cons 'doc byte-strings)
-        (define path-parts (map bytes->path byte-strings))
-        (define rel-html (apply build-path path-parts))
-        (path->string
-         (path-replace-extension rel-html #""))]
-       [_ (~a tag)])))
+    (match (path->main-doc-relative path)
+      [(list* 'doc dir _) (~a "in " dir)]
+      [_ ""]))
   (define-values (what from fams pkg sort-order)
     (cond
       ;; New structs
