@@ -205,7 +205,7 @@
     (match (path->main-doc-relative path)
       [(list* 'doc dir _) (~a "in " dir)]
       [_ ""]))
-  (define-values (what from fams pkg sort-order)
+  (define-values (what from fams pkg-sort sort-order)
     (cond
       ;; New structs
       [(exported-index-desc*? desc)
@@ -224,12 +224,12 @@
        (define fams (match (hash-ref ht 'language-family #f)
                       [(? list? fams) (string-join (map ~a fams) ", ")]
                       [#f "Racket"]))
-       (define pkg (lib-pkg
-                    (match (exported-index-desc-from-libs desc)
-                      [(cons lib _) lib]
-                      [_            #f])))
+       (define pkg-sort (lib-pkg-sort
+                         (match (exported-index-desc-from-libs desc)
+                           [(cons lib _) lib]
+                           [_            #f])))
        (define sort-order (hash-ref ht 'sort-order 0))
-       (values what from fams pkg sort-order)]
+       (values what from fams pkg-sort sort-order)]
       [(index-desc? desc)
        (define ht (index-desc-extras desc))
        (define module-kind (hash-ref ht 'module-kind #f))
@@ -250,12 +250,12 @@
        (define fams (match (hash-ref ht 'language-family #f)
                       [(? list? fams) (string-join (map ~a fams) ", ")]
                       [#f "Racket"]))
-       (define pkg (lib-pkg
-                    (match module-kind
-                      ['lib (string->symbol term)]
-                      [_    #f])))
+       (define pkg-sort (lib-pkg-sort
+                         (match module-kind
+                           ['lib (string->symbol term)]
+                           [_    #f])))
        (define sort-order (hash-ref ht 'sort-order 0))
-       (values what from fams pkg sort-order)]
+       (values what from fams pkg-sort sort-order)]
       ;; Older structs
       [(exported-index-desc? desc)
        (define what
@@ -272,18 +272,18 @@
            [(? method-index-desc?)    (method-what)]
            [_ ""]))
        (define from (string-join (map ~s (exported-index-desc-from-libs desc)) ", "))
-       (define pkg (lib-pkg
-                    (match (exported-index-desc-from-libs desc)
-                      [(cons lib _) lib]
-                      [_            #f])))
-       (values what from "" pkg 0)]
+       (define pkg-sort (lib-pkg-sort
+                         (match (exported-index-desc-from-libs desc)
+                           [(cons lib _) lib]
+                           [_            #f])))
+       (values what from "" pkg-sort 0)]
       [(module-path-index-desc? desc)
-       (define pkg (lib-pkg (string->symbol term)))
-       (values "module" "" "" pkg 0)]
+       (define pkg-sort (lib-pkg-sort (string->symbol term)))
+       (values "module" "" "" pkg-sort 0)]
       [else
-       (define pkg (lib-pkg #f))
-       (values "documentation" (doc-from) "" pkg 0)]))
-  (list term sort-order what from fams pkg path anchor))
+       (define pkg-sort (lib-pkg-sort #f))
+       (values "documentation" (doc-from) "" pkg-sort 0)]))
+  (list term sort-order what from fams pkg-sort path anchor))
 
 ;; This is for package-details
 (define (module-doc-path mod-path-str lang?)

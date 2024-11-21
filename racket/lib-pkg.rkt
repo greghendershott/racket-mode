@@ -16,7 +16,7 @@
   [(get-base-documentation-packages) '("racket-doc")]
   [(get-distribution-documentation-packages) '("main-distribution") ])
 
-(provide lib-pkg)
+(provide lib-pkg-sort)
 
 ;; This code for classifying packages as "base" or "main-dist" is
 ;; borrowed from racket-index/scribblings/main/private/pkg.rkt
@@ -77,8 +77,10 @@
 ;; all 32K+ xref-index items) and cached.
 
 (define pkg-cache-for-path->pkg (make-hash))
+(define ns (make-base-namespace))
 (define (pkg-name mp)
-  (match (resolve-module-path mp)
+  (match (parameterize ([current-namespace ns])
+           (resolve-module-path mp))
     [(or (? path? p)
          (list* 'submod (? path? p)))
      (path->pkg p
@@ -86,17 +88,14 @@
     [_ #f]))
 
 (define cache (make-hash))
-(define (lib-pkg maybe-mod-path) ;=> (list pkg-name, sort)
+(define (lib-pkg-sort maybe-mod-path)
   (hash-ref!
    cache
    maybe-mod-path
    (λ ()
-     (cond
-       [(module-path? maybe-mod-path)
-        (define p (pkg-name maybe-mod-path))
-        (list (or p "")
-              (cond [(not p)                         0]
-                    [(member p (get-base-pkgs))      1]
-                    [(member p (get-main-dist-pkgs)) 2]
-                    [else                            3]))]
-       [else (list "" 9)]))))
+     (with-handlers ([exn:fail? (λ _ 9)])
+       (define p (pkg-name maybe-mod-path))
+       (cond [(not p)                         0]
+             [(member p (get-base-pkgs))      1]
+             [(member p (get-main-dist-pkgs)) 2]
+             [else                            3])))))

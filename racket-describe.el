@@ -626,7 +626,6 @@ Return nil or \(term path anchor lib\)."
   (let* ((affixator (racket--make-affix [16
                                          [16 racket-describe-search-kind]
                                          [32 racket-describe-search-from-libs]
-                                         16
                                          [0  racket-describe-search-lang-fams]]))
          (candidates nil)
          (collection
@@ -683,10 +682,10 @@ properties. :( So we append the path and anchor, tab separated,
 as invisible text. Use `racket--describe-search-parse-result' to
 extract."
   (mapcar
-   (pcase-lambda (`(,term ,sort ,what ,from ,fams (,pkg ,pkg-sort)
+   (pcase-lambda (`(,term ,sort ,what ,from ,fams ,pkg-sort
                           ,path ,anchor))
      (let* ((term (propertize term
-                              'racket-affix (list what from pkg fams)
+                              'racket-affix (list what from fams)
                               'racket-sort (list (format "%09d" sort)
                                                  (format "%09d" pkg-sort))))
             (lib (substring from 0 (string-match (rx ?,) from)))
@@ -719,7 +718,7 @@ extract."
            (v v)))
        (key (v)
          (pcase-let
-             ((`(,what ,from ,_pkg ,fams)
+             ((`(,what ,from ,fams)
                (get-text-property 0 'racket-affix v))
               (`(,sort ,pkg-sort)
                (get-text-property 0 'racket-sort v)))
