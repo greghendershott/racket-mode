@@ -696,16 +696,14 @@ extract."
 
 (defun racket--describe-search-parse-result (str)
   (when (string-match (rx bos
-                          (group-n 1 (+? (not (any ?\t)))) ?\t
-                          (group-n 2 (+? (not (any ?\t)))) ?\t
-                          (group-n 3 (*? (not (any ?\t)))) ?\t
-                          (group-n 4 (*? any))
+                          (group-n 1 (+? any)) ?\t ;term
+                          (group-n 2 (+? any)) ?\t ;path
+                          (group-n 3 (*? any)) ?\t ;anchor
+                          (group-n 4 (*? any))     ;lib
                           eos)
                       str)
-    (list (match-string 1 str)
-          (match-string 2 str)
-          (match-string 3 str)
-          (match-string 4 str))))
+    (cl-loop for group from 1 to 4
+             collect (match-string group str))))
 
 (defun racket--describe-search-display-sort (strs)
   "A value for display-sort-function metadata."
