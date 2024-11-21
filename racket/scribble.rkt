@@ -121,6 +121,9 @@
     (refresh-doc-index!))
   (trie-find doc-index-trie-root prefix limit))
 
+;; Find values for all nodes for which `prefix` is an exact match, and
+;; up to `limit` nodes for which `prefix` is an initial match.
+;; Oriented toward producing completion candidates.
 (define (trie-find root prefix limit)
   (match (string->list prefix)
     [(list)
@@ -144,8 +147,6 @@
           (find! sub more)]))
      (set->list results)]))
 
-;; Find values for all nodes for which `prefix` is an exact full or
-;; prefix match -- for use producing completion candidates.
 (define (trie-add! root str value)
   (let add! ([n   root]
              [chs (string->list str)])
