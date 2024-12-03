@@ -239,79 +239,84 @@ live prompt this marker will be at `point-max'.")
 (defun racket--repl-insert-output (kind value)
   (let ((moving (= (point) racket--repl-output-mark))
         (inhibit-read-only t))
+    ;; Previous chunks of output may have ended with a rear-nonsticky
+    ;; property to allow input to follow. Now that we're adding more
+    ;; output, remove that property so there are no read/write "seams"
+    ;; between chunks.
+    (let ((inhibit-modification-hooks t)) ;avoid after-change: #731
+      (remove-text-properties (point-min)
+                              (point-max)
+                              '(rear-nonsticky nil)))
     (save-excursion
       (goto-char racket--repl-output-mark)
       (let ((pt (point)))
-        ;; Previous chunks of output may have ended with a
-        ;; rear-nonsticky property to allow input to follow. Now that
-        ;; we're adding more output, remove that property so there are
-        ;; no read/write "seams" between chunks.
-        (remove-text-properties (point-min) (point) '(rear-nonsticky nil))
         (cl-flet*
-            ((fresh-line () (unless (bolp) (newline)))
-             (faced (str face) (propertize str 'font-lock-face face))
-             (insert-faced (str face) (insert (faced str face)))
-             (insert-filtered (str face) (insert (racket--repl-filter-output
-                                                  (faced str face)))))
-          (cl-case kind
-            ((run)
+            ((faced (str face)
+               (propertize str 'font-lock-face face))
+             (insert-faced (str face &optional no-fresh-line)
+               (let ((str (faced str face)))
+                 (insert (if (or no-fresh-line (bolp))
+                             str
+                           (concat "\n" str)))))
+             (insert-filtered (str face)
+               (insert (racket--repl-filter-output
+                        (faced str face)))))
+          (pcase kind
+            ('run
              (racket--repl-delete-prompt-mark 'abandon)
              (unless (equal value "")
-               (fresh-line)
                (insert-faced (format "————— run %s —————\n" value) 'racket-repl-message)))
-            ((prompt)
+            ('prompt
              (racket--repl-make-prompt-mark value))
-            ((message)
-             (fresh-line)
+            ('message
              (insert-faced value 'racket-repl-message)
              (unless (bolp) (newline)))
-            ((exit)
+            ('exit
              (racket--repl-delete-prompt-mark 'abandon)
-             (fresh-line)
              (insert-faced value 'racket-repl-message)
              (unless (bolp) (newline))
-             (setq moving t) ;leave point after, for tests
+             (setq moving t)        ;leave point after, for tests
              (setq racket--repl-session-id nil))
-            ((value)
-             (insert-faced value 'racket-repl-value))
-            ((value-special)
+            ('value
+             (insert-faced value 'racket-repl-value t))
+            ('value-special
              (pcase-let ((`(image . ,file) value))
                (racket--repl-insert-image file)))
-            ((error)
+            ('error
              (pcase value
                (`(,msg ,srclocs (,context-kind . ,context-names-and-locs))
-                (fresh-line)
-                (insert-faced msg 'racket-repl-error-message)
-                (newline)
-                ;; Heuristic: When something supplies exn-srclocs,
-                ;; show those only. Otherwise show context if any.
-                ;; This seems to work well for most runtime
-                ;; exceptions, as well as for rackunit test failures
-                ;; (where the srcloc suffices and the context esp
-                ;; w/errortrace is useless noise).
-                (cond (srclocs
-                       (dolist (loc srclocs)
-                         (insert " ")
-                         (insert (racket--format-error-location loc))
-                         (newline)))
-                      (context-names-and-locs
-                       (insert-faced (format "Context (%s):" context-kind)
-                                     'racket-repl-error-message)
-                       (newline)
-                       (dolist (v context-names-and-locs)
-                         (pcase-let ((`(,name . ,loc) v))
-                           (insert " ")
-                           (insert (racket--format-error-location loc))
-                           (insert " ")
-                           (when name
-                             (insert-faced name 'racket-repl-error-label)))
-                         (newline)))))))
-            ((stdout)
+                (combine-after-change-calls
+                  (insert-faced msg 'racket-repl-error-message)
+                  (newline)
+                  ;; Heuristic: When something supplies exn-srclocs,
+                  ;; show those only. Otherwise show context if any.
+                  ;; This seems to work well for most runtime
+                  ;; exceptions, as well as for rackunit test failures
+                  ;; (where the srcloc suffices and the context esp
+                  ;; w/errortrace is useless noise).
+                  (cond
+                   (srclocs
+                    (dolist (loc srclocs)
+                      (insert " ")
+                      (insert (racket--format-error-location loc))
+                      (newline)))
+                   (context-names-and-locs
+                    (insert-faced (format "Context (%s):" context-kind)
+                                  'racket-repl-error-message)
+                    (newline)
+                    (dolist (v context-names-and-locs)
+                      (pcase-let ((`(,name . ,loc) v))
+                        (insert " ")
+                        (insert (racket--format-error-location loc))
+                        (insert " ")
+                        (when name
+                          (insert-faced name 'racket-repl-error-label t)))
+                      (newline))))))))
+            ('stdout
              (insert-filtered value 'racket-repl-stdout))
-            ((stderr)
+            ('stderr
              (insert-filtered value 'racket-repl-stderr))
-            (otherwise
-             (fresh-line)
+            (_
              (insert-faced value 'racket-repl-message))))
         (unless (eq kind 'prompt)
           (add-text-properties pt (point)

@@ -297,7 +297,7 @@ A discussion of the information provided by a Racket language:
        (setq-local racket--hash-lang-id maybe-id)
        ;; These need non-nil `racket--hash-lang-id':
        (setq-local font-lock-fontify-region-function #'racket--hash-lang-fontify-region)
-       (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
+       (add-hook 'after-change-functions #'racket--hash-lang-after-change t t)
        (add-hook 'kill-buffer-hook #'racket--hash-lang-delete t t)
        (add-hook 'change-major-mode-hook #'racket--hash-lang-delete t t)
        (setq-local buffer-read-only nil))
@@ -342,8 +342,8 @@ live back end, downgrade them all to `prog-mode'."
 ;;; Updates: Front end --> back end
 
 (defun racket--hash-lang-repl-buffer-string (beg end)
-  "Like `buffer-substring-no-properties' treat as whitespace,
-preserving only line breaks for indentation, everything that is
+  "Like `buffer-substring-no-properties' but treat as whitespace --
+preserving only line breaks for indentation -- everything that is
 not a value output since the last run, or input after the last
 live prompt."
   (let ((result-str ""))
@@ -362,21 +362,22 @@ live prompt."
                                               raw)))))))
     result-str))
 
-(defun racket--hash-lang-after-change-hook (beg end len)
-  ;;;(message "racket--hash-lang-after-change-hook %s %s %s" beg end len)
+(defun racket--hash-lang-after-change (beg end len)
+  ;;;(message "racket--hash-lang-after-change %s %s %s" beg end len)
   ;; This might be called as frequently as once per single changed
   ;; character.
   (when racket--hash-lang-id
-    (racket--cmd/async
-     nil
-     `(hash-lang update
-                 ,racket--hash-lang-id
-                 ,(cl-incf racket--hash-lang-generation)
-                 ,beg
-                 ,len
-                 ,(if (eq major-mode 'racket-repl-mode)
-                      (racket--hash-lang-repl-buffer-string beg end)
-                    (buffer-substring-no-properties beg end))))))
+    (let ((str (if (eq major-mode 'racket-repl-mode)
+                   (racket--hash-lang-repl-buffer-string beg end)
+                 (buffer-substring-no-properties beg end))))
+      (racket--cmd/async
+       nil
+       `(hash-lang update
+                   ,racket--hash-lang-id
+                   ,(cl-incf racket--hash-lang-generation)
+                   ,beg
+                   ,len
+                   ,str)))))
 
 ;;; Notifications: Front end <-- back end
 
@@ -913,8 +914,8 @@ rhombus\"."
                   (with-current-buffer edit-buffer forward-sexp-function))
       (racket-hash-lang-repl-mode (if hash-lang-p 1 -1)) ;keybindings
       (if hash-lang-p
-          (add-hook 'after-change-functions #'racket--hash-lang-after-change-hook t t)
-        (remove-hook 'after-change-functions  #'racket--hash-lang-after-change-hook t))
+          (add-hook 'after-change-functions #'racket--hash-lang-after-change t t)
+        (remove-hook 'after-change-functions  #'racket--hash-lang-after-change t))
       (setq-local racket-repl-submit-function
                   (if hash-lang-p #'racket-hash-lang-submit nil)))))
 
