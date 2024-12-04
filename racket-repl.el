@@ -1211,22 +1211,36 @@ to supply this quickly enough or at all."
 
 ;;; eldoc
 
+(defun racket--repl-in-input-p (pos)
+  (or (eq 'input (field-at-pos pos))
+      (when-let (prompt-end (racket--repl-prompt-mark-end))
+        (<= prompt-end pos))))
+
 (defun racket-repl-eldoc-point (callback &rest _more)
   "Call eldoc CALLBACK about the identifier at point.
 A value for the variable `eldoc-documentation-functions'. Use
 information from back end \"type\" command."
-  (when (racket--cmd-open-p)
-    (racket--eldoc-type callback (point))))
+  (when (and (racket--cmd-open-p)
+             (racket--repl-in-input-p (point)))
+    (let ((pos (if (eq 32 (char-before))
+                   (point)
+                 (condition-case _
+                     (let ((pos (save-excursion
+                                  (backward-sexp)
+                                  (point))))
+                       (if (racket--repl-in-input-p pos)
+                           pos
+                         (point)))
+                   (scan-error (point))))))
+      (racket--eldoc-type callback pos))))
 
 (defun racket-repl-eldoc-sexp-app (callback &rest _more)
   "Call eldoc CALLBACK about sexp application around point.
 A value for the variable `eldoc-documentation-functions'. Use
 information from back end \"type\" command."
   (when (and (racket--cmd-open-p)
+             (racket--repl-in-input-p (point))
              (> (point) (point-min)))
-    ;; Preserve point during the dynamic extent of the eldoc calls,
-    ;; because things like eldoc-box may dismiss the UI if they notice
-    ;; point has moved.
     (when-let (pos (condition-case _
                        (save-excursion
                          (backward-up-list)
@@ -1242,7 +1256,7 @@ the surface syntax, or Typed Racket type information."
   (condition-case _
       (let* ((end (save-excursion (progn (goto-char pos) (forward-sexp) (point))))
              (thing (buffer-substring-no-properties pos end)))
-        (when thing
+        (when (and thing (not (string= thing "")))
           (when-let (str (racket--cmd/await
                           (racket--repl-session-id)
                           `(type namespace ,thing)))
