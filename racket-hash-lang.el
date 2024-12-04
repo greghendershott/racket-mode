@@ -507,13 +507,15 @@ belt+suspenders here. 2. It makes moot the value of
 that need be set."
   ;;;(message "racket--hash-lang-tokens+fontify %S %S <tokens>" beg end)
   (with-silent-modifications
-    ;; As this removes face property do it before adding face props
-    ;; from tokens.
-    (save-excursion
-      (font-lock-unfontify-region beg end))
-    (racket--hash-lang-put-tokens tokens)
-    (save-excursion
-      (font-lock-fontify-keywords-region beg end))))
+    (let ((beg (min beg (point-max)))
+          (end (min end (point-max))))
+      ;; As this removes face property do it before adding face props
+      ;; from tokens.
+      (save-excursion
+        (font-lock-unfontify-region beg end))
+      (racket--hash-lang-put-tokens tokens)
+      (save-excursion
+        (font-lock-fontify-keywords-region beg end)))))
 
 (defun racket--hash-lang-put-tokens (tokens)
   ;;;(message "racket--hash-lang-put-tokens %S" tokens)
