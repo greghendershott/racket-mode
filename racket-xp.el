@@ -685,7 +685,8 @@ racket-xp-doc and help-echo text properties added by
 (defun racket--get-text-property/bounds (pos prop)
   "Like `get-text-property' but also returning the bounds."
   (when-let (val (get-text-property pos prop))
-    (let* ((beg (if (not (get-text-property (1- pos) prop))
+    (let* ((beg (if (or (= 1 pos)
+                        (not (get-text-property (1- pos) prop)))
                     pos
                   (previous-single-property-change pos prop)))
            (end (or (next-single-property-change beg prop)
