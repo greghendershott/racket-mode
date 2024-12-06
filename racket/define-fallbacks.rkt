@@ -4,7 +4,8 @@
 #lang racket/base
 
 (require (for-syntax racket/base
-                     "safe-dynamic-require.rkt")
+                     (only-in "safe-dynamic-require.rkt"
+                              safe-dynamic-require))
          syntax/parse/define)
 
 (provide define-fallbacks)
