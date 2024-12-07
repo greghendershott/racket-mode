@@ -280,8 +280,11 @@ live prompt this marker will be at `point-max'.")
             ('value
              (insert-faced value 'racket-repl-value t))
             ('value-special
-             (pcase-let ((`(image . ,file) value))
-               (racket--repl-insert-image file)))
+             (pcase value
+               (`(image . ,file)
+                (racket--repl-insert-image file))
+               (value
+                (insert-faced (format "%s" value) 'racket-repl-value t))))
             ('error
              (pcase value
                (`(,msg ,srclocs (,context-kind . ,context-names-and-locs))

@@ -7,7 +7,16 @@
          racket/match
          racket/port
          racket/set
-         syntax/parse/define)
+         syntax/parse/define
+         "safe-dynamic-require.rkt")
+
+(define number-markup?
+  (safe-dynamic-require 'simple-tree-text-markup/data 'number-markup?
+                        (λ () (λ _ #f))))
+
+(define number-markup-number
+  (safe-dynamic-require 'simple-tree-text-markup/data 'number-markup-number
+                        (λ () (λ _ 0))))
 
 (provide elisp-read
          elisp-bool/c
@@ -77,8 +86,13 @@
          (? symbol? v)
          (? string? v)) (write v)]
     [(? bytes? bstr)    (write (bytes->string/utf-8 bstr))] ; ???
-    [v                  (eprintf "elisp-write can't write Racket value ~s\n" v)
-                        (void)]))
+    ;; #731: htdp/bsl assumes port-writes-special? means it can write
+    ;; number-markup structs. It ought not to, but accomodate here.
+    ;; Note: See gui.rkt for namespace-attach-module of
+    ;; simple-tree-text-markup/data, necessary because generative
+    ;; structs.
+    [(? number-markup? m) (write (number-markup-number m))]
+    [v                    (write (format "~s" v))]))
 
 (module+ test
   (require rackunit)

@@ -68,6 +68,11 @@
   ;; image.rkt.
   (namespace-attach-module our-ns 'file/convertible new-ns)
 
+  ;; Likewise for number-markup struct used in elisp.rkt to accomodate
+  ;; htdp/bsl; issue #732.
+  (with-handlers ([exn:fail? void])
+    (namespace-attach-module our-ns 'simple-tree-text-markup/data new-ns))
+
   new-ns)
 
 ;; Like mz/mr from racket/sandbox.
