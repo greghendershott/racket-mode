@@ -60,26 +60,24 @@
 ;;; requires
 
 (defun racket-tidy-requires ()
-  "Make a single \"require\" form, modules sorted, one per line.
+  "Make a single, sorted \"require\" form.
 
-The scope of this command is the innermost module around point,
-including the outermost module for a file using a \"#lang\" line.
-All require forms within that module are combined into a single
-form. Within that form:
+The scope of this command is the innermost module around point --
+whether an explicit submodule form or the outermost module for a
+file that has a \"#lang\" line.
 
-- A single subform is used for each phase level, sorted in this
-  order: for-syntax, for-template, for-label, for-meta, and
-  plain (phase 0).
+Merge all require forms within that module to one form.
 
-  - Within each level subform, the modules are sorted:
+Use a single require-spec for each phase-level, sorted in this
+order: for-syntax, for-template, for-label, for-meta, and
+plain (phase 0).
 
-    - Collection path modules -- sorted alphabetically.
+Within each phase-level, sort require-specs by module name.
 
-    - Subforms such as only-in.
+Format at most one module per line.
 
-    - Quoted relative requires -- sorted alphabetically.
-
-At most one required module is listed per line.
+Simplify gratuitous require-specs. For example reduce (only-in m)
+to m and elide (combine-in).
 
 See also: `racket-trim-requires' and `racket-base-requires'."
   (interactive)
@@ -110,16 +108,21 @@ See also: `racket-trim-requires' and `racket-base-requires'."
              (funcall callback result))))))
 
 (defun racket-trim-requires ()
-  "Like `racket-tidy-requires' but also deletes unnecessary requires.
+  "Like `racket-tidy-requires' but also delete unnecessary requires.
 
-Note: This only works when the source file can be fully expanded
-with no errors.
+Use macro-debugger/analysis/check-requires to analyze.
 
-Note: This only works for requires at the top level of a source
-file using #lang. It does NOT work for require forms inside
-module forms. Furthermore, it is not smart about module+ or
-module* forms -- it might delete top level requires that are
-actually needed by such submodules.
+The analysis:
+
+- Needs the `macro-debugger-lib` package.
+
+- Only works when the source file can be fully expanded with no
+errors.
+
+- Only works for requires at the top level of a source file using
+#lang -- not for requires inside submodule forms. Furthermore, it
+is not smart about module+ or module* forms -- it might delete
+outer requires that are actually needed by such submodules.
 
 See also: `racket-base-requires'."
   (interactive)
@@ -143,24 +146,16 @@ See also: `racket-base-requires'."
 (defun racket-base-requires ()
   "Change from \"#lang racket\" to \"#lang racket/base\".
 
-Adds explicit requires for imports that are provided by
-\"racket\" but not by \"racket/base\".
+Using \"racket/base\" is a recommended optimization for Racket
+applications. Loading all of \"racket\" is slower and uses more
+memory.
 
-This is a recommended optimization for Racket applications.
-Avoiding loading all of \"racket\" can reduce load time and
-memory footprint.
+Add explicit requires for imports that are provided by \"racket\"
+but not by \"racket/base\".
 
-Also, as does `racket-trim-requires', this removes unneeded
-modules and tidies everything into a single, sorted require form.
-
-Note: This only works when the source file can be fully expanded
-with no errors.
-
-Note: This only works for requires at the top level of a source
-file using #lang. It does NOT work for require forms inside
-module forms. Furthermore, it is not smart about module+ or
-module* forms -- it might delete top level requires that are
-actually needed by such submodules.
+Also do the equivalent of `racket-trim-requires' and
+`racket-tidy-require'. See those commands for additional notes
+and caveats.
 
 Note: Currently this only helps change \"#lang racket\" to
 \"#lang racket/base\". It does not help with other similar
@@ -268,29 +263,23 @@ module form, meaning the outermost, file module."
 Useful when you know the name of an export but don't remember
 from what module it is exported.
 
-At the prompt:
+1 At the prompt, you may:
 \\<minibuffer-local-map>
 
-Use \\[next-history-element] to load the identifier at point.
-You may also need to \\[move-end-of-line] to see candidates.
+- Use \\[next-history-element] to load the identifier at point.
+You might also need to \\[move-end-of-line] to see candidates.
 
-Or type anything.
+- Or, type anything.
 
-After you choose:
+2. After you choose, this command will:
 
-The identifier you chose is inserted at point if not already
-there.
+- Insert the identifier at point if not already there.
 
-A \"require\" form is inserted, followed by doing a
-`racket-tidy-requires'.
+- Insert a \"require\" form and do `racket-tidy-requires'.
 
-When more than one module supplies an identifer with the same
-name, the first is used -- for example \"racket/base\" instead of
-\"racket\".
-
-Caveat: This works in terms of identifiers that are documented.
-The mechanism is similar to that used for Racket's \"Search
-Manuals\" feature. Today there exists no system-wide database of
+Caveat: This works only for identifiers that are documented. The
+mechanism is similar to that used for Racket's \"Search Manuals\"
+feature. Today there exists no system-wide database of
 identifiers that are exported but not documented."
   (interactive)
   (racket--assert-sexp-edit-mode)
