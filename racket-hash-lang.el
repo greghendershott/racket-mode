@@ -898,6 +898,8 @@ rhombus\"."
       (set-syntax-table (with-current-buffer edit-buffer (syntax-table)))
       (setq-local syntax-propertize-function
                   (with-current-buffer edit-buffer syntax-propertize-function))
+      (setq-local syntax-propertize-extend-region-functions
+                  (with-current-buffer edit-buffer syntax-propertize-extend-region-functions))
       ;; font-lock
       (setq-local font-lock-keywords
                   (with-current-buffer edit-buffer font-lock-keywords))

@@ -78,7 +78,19 @@
 
     st))
 
-(defun racket-syntax-propertize-function (start end)
+(defun racket-syntax-propertize-extend-region (beg end)
+  "Value for hook `syntax-propertize-extend-region-functions'.
+
+Expects to be called after `syntax-propertize-wholelines',
+adjusting that result to start one line earlier. Ensures
+propertization of prefix syntax at BOL; see issue #734."
+  (let ((inhibit-field-text-motion t))
+    (let ((new-beg (line-beginning-position 0)))
+      (unless (eql new-beg beg)
+        (cons new-beg end)))))
+
+(defun racket-syntax-propertize (start end)
+  "Value for variable `syntax-propertize-function'."
   (goto-char start)
   (racket--syntax-propertize-here-string end)
   (funcall

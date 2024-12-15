@@ -140,7 +140,10 @@
   (set-syntax-table racket-mode-syntax-table)
   (setq-local multibyte-syntax-as-symbol t)
   (setq-local parse-sexp-ignore-comments t)
-  (setq-local syntax-propertize-function #'racket-syntax-propertize-function)
+  (setq-local syntax-propertize-function #'racket-syntax-propertize)
+  (add-hook 'syntax-propertize-extend-region-functions
+            #'racket-syntax-propertize-extend-region
+            t t)
   (syntax-propertize (point-max)) ;for e.g. paredit: see issue #222
   ;; -----------------------------------------------------------------
   ;; REPL
