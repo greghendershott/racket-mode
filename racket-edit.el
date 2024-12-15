@@ -60,107 +60,77 @@
 ;;; requires
 
 (defun racket-tidy-requires ()
-  "Make a single \"require\" form, modules sorted, one per line.
+  "Make a single, sorted \"require\" form for each module.
 
-The scope of this command is the innermost module around point,
-including the outermost module for a file using a \"#lang\" line.
-All require forms within that module are combined into a single
-form. Within that form:
+Use a single require-spec for each phase-level, sorted in this
+order: for-syntax, for-template, for-label, for-meta, and
+plain (phase 0).
 
-- A single subform is used for each phase level, sorted in this
-  order: for-syntax, for-template, for-label, for-meta, and
-  plain (phase 0).
+Within each phase-level, sort require-specs by module name.
 
-  - Within each level subform, the modules are sorted:
+Format at most one module per line.
 
-    - Collection path modules -- sorted alphabetically.
-
-    - Subforms such as only-in.
-
-    - Quoted relative requires -- sorted alphabetically.
-
-At most one required module is listed per line.
+Simplify gratuitous require-specs. For example reduce (only-in m)
+to m and elide (combine-in).
 
 See also: `racket-trim-requires' and `racket-base-requires'."
   (interactive)
   (racket--assert-sexp-edit-mode)
-  (racket--tidy-requires '() #'ignore))
+  (racket--tidy-requires))
 
-(defun racket--tidy-requires (add callback)
-  (pcase (append (racket--module-requires 'find) add)
-    (`() (user-error "The module has no requires; nothing to do"))
-    (reqs (racket--cmd/async
-           nil
-           `(requires/tidy ,reqs)
-           (lambda (result)
-             (pcase result
-               ("" nil)
-               (new
-                (pcase (racket--module-requires 'kill)
-                  (`()
-                   (goto-char (racket--inside-innermost-module))
-                   (forward-line 1))
-                  (pos (goto-char pos)))
-                (let ((pt (point)))
-                  (insert new)
-                  (when (eq (char-before pt) ?\n)
-                    (newline))
-                  (indent-region pt (1+ (point)))
-                  (goto-char pt))))
-             (funcall callback result))))))
+(defun racket--tidy-requires (&optional callback)
+  "Helper for both the `racket-tidy-requires' and
+`racket-add-require-for-identifier' commands."
+  (racket--save-if-changed)
+  (racket--cmd/async
+   nil
+   `(requires/tidy ,(racket--buffer-file-name))
+   (lambda (changes)
+     (racket--require-changes changes)
+     (when callback
+       (funcall callback changes)))))
 
 (defun racket-trim-requires ()
-  "Like `racket-tidy-requires' but also deletes unnecessary requires.
+  "Like `racket-tidy-requires' but also delete unnecessary requires.
 
-Note: This only works when the source file can be fully expanded
-with no errors.
+Use macro-debugger/analysis/check-requires to analyze.
 
-Note: This only works for requires at the top level of a source
-file using #lang. It does NOT work for require forms inside
-module forms. Furthermore, it is not smart about module+ or
-module* forms -- it might delete top level requires that are
-actually needed by such submodules.
+The analysis:
+
+- Needs the `macro-debugger-lib` package.
+
+- Only works when the source file can be fully expanded with no
+errors.
+
+- Only works for requires at the top level of a source file using
+#lang -- not for requires inside submodule forms. Furthermore,
+the analysis is not smart about module+ or module* forms -- it
+might delete outer requires that are actually needed by such
+submodules.
 
 See also: `racket-base-requires'."
   (interactive)
   (racket--assert-edit-mode)
   (when (racket--submodule-y-or-n-p)
    (racket--save-if-changed)
-   (pcase (racket--module-requires 'find t)
-     (`nil (user-error "The file module has no requires; nothing to do"))
-     (reqs (racket--cmd/async
-            nil
-            `(requires/trim
-              ,(racket--buffer-file-name)
-              ,reqs)
-            (lambda (result)
-              (pcase result
-                (`nil (user-error "Syntax error in source file"))
-                (""   (goto-char (racket--module-requires 'kill t)))
-                (new  (goto-char (racket--module-requires 'kill t))
-                      (insert (concat new "\n"))))))))))
+   (racket--cmd/async
+    nil
+    `(requires/trim ,(racket--buffer-file-name))
+    #'racket--require-changes)))
 
 (defun racket-base-requires ()
   "Change from \"#lang racket\" to \"#lang racket/base\".
 
-Adds explicit requires for imports that are provided by
-\"racket\" but not by \"racket/base\".
+Using \"racket/base\" is a recommended optimization for Racket
+applications. Loading all of \"racket\" is slower and uses more
+memory.
 
-This is a recommended optimization for Racket applications.
-Avoiding loading all of \"racket\" can reduce load time and
-memory footprint.
+Add explicit requires for imports that are provided by \"racket\"
+but not by \"racket/base\".
 
-Also, as does `racket-trim-requires', this removes unneeded
-modules and tidies everything into a single, sorted require form.
-
-Note: This only works when the source file can be fully expanded
-with no errors.
-
-Note: This only works for requires at the top level of a source
-file using #lang. It does NOT work for require forms inside
-module forms. Furthermore, it is not smart about module+ or
-module* forms -- it might delete top level requires that are
-actually needed by such submodules.
+Also do the equivalent of `racket-trim-requires' and
+`racket-tidy-require'. See those commands for additional notes
+and caveats.
 
 Note: Currently this only helps change \"#lang racket\" to
 \"#lang racket/base\". It does not help with other similar
@@ -174,22 +144,53 @@ typed/racket/base\"."
     (user-error "File does not use use #lang racket. Cannot change."))
   (when (racket--submodule-y-or-n-p)
     (racket--save-if-changed)
-    (let ((reqs (racket--module-requires 'find t)))
-      (racket--cmd/async
-       nil
-       `(requires/base
-         ,(racket--buffer-file-name)
-         ,reqs)
-       (lambda (result)
-         (pcase result
-           (`nil (user-error "Syntax error in source file"))
-           (new (goto-char (point-min))
-                (re-search-forward "^#lang.*? racket$")
-                (insert "/base")
-                (goto-char (or (racket--module-requires 'kill t)
-                               (progn (insert "\n\n") (point))))
-                (unless (string= "" new)
-                  (insert (concat new "\n"))))))))))
+    (racket--cmd/async
+     nil
+     `(requires/base ,(racket--buffer-file-name))
+     (lambda (changes)
+       (racket--require-changes changes)
+       (goto-char (point-min))
+       (re-search-forward "^#lang.*? racket$")
+       (insert "/base")))))
+
+(defun racket--require-changes (changes)
+  "Process response from back end tidy/trim/base commands.
+
+Each change is either a deletion, a replacement, or an insertion.
+
+The changes are sorted from greater to smaller positions -- so
+that by working backwards through the buffer, we need not worry
+about shifting positions of later items.
+
+The biggest wrinkle here is that, for esthetics, we want to
+remove surrounding whitepsace when deleting, or add when
+inserting something brand-new. Otherwise, for replacing, it
+suffices to make the change and re-indent."
+  (save-match-data
+    (dolist (change changes)
+      (pcase change
+        (`(delete ,pos ,span)
+         (delete-region pos (+ pos span))
+         (save-excursion
+           (goto-char pos)
+           (if (save-excursion
+                 (forward-line 0)
+                 (looking-at "[ \t]*)"))
+               (delete-indentation) ;i.e. join-line
+             (delete-blank-lines))))
+        (`(replace ,pos ,span ,str)
+         (delete-region pos (+ pos span))
+         (save-excursion
+           (goto-char pos)
+           (insert str)
+           (indent-region pos (point))))
+        (`(insert ,pos ,str)
+         (save-excursion
+           (goto-char pos)
+           (newline-and-indent)
+           (insert str)
+           (newline-and-indent)
+           (indent-region pos (point))))))))
 
 (defun racket--submodule-y-or-n-p ()
   (save-excursion
@@ -206,40 +207,6 @@ typed/racket/base\"."
       (re-search-forward re)
       t)))
 
-(defun racket--module-requires (what &optional outermost-p)
-  "Identify all require forms and do WHAT.
-
-When WHAT is \"find\", return the require forms.
-
-When WHAT is \"kill\", kill the require forms and return the
-position where the first one had started.
-
-OUTERMOST-P says which module's requires: true means the
-outermost file module, nil means the innermost module around
-point."
-  (save-excursion
-    (goto-char (if outermost-p
-                   (point-min)
-                 (racket--inside-innermost-module)))
-    (let ((first-beg nil)
-          (requires nil))
-      (while
-          (condition-case _
-              (let ((end (progn (forward-sexp  1) (point)))
-                    (beg (progn (forward-sexp -1) (point))))
-                (unless (equal end (point-max))
-                  (when (prog1 (racket--looking-at-require-form)
-                          (goto-char end))
-                    (unless first-beg (setq first-beg beg))
-                    (push (read (buffer-substring-no-properties beg end))
-                          requires)
-                    (when (eq 'kill what)
-                      (delete-region beg end)
-                      (delete-blank-lines)))
-                  t))
-            (scan-error nil)))
-      (if (eq 'kill what) first-beg requires))))
-
 (defun racket--inside-innermost-module ()
   "Position of the start of the inside of the innermost module
 around point. This could be \"(point-min)\" if point is within no
@@ -251,16 +218,13 @@ module form, meaning the outermost, file module."
           (while (not (racket--looking-at-module-form))
             (backward-up-list))
           (down-list)
+          (forward-line 1)
+          (re-search-forward "[ \t]*" nil t)
           (point))
-      (scan-error (point-min)))))
-
-(defun racket--looking-at-require-form ()
-  ;; Assumes you navigated to point using a method that ignores
-  ;; strings and comments, preferably `forward-sexp'.
-  (and (eq ?\( (char-syntax (char-after)))
-       (save-excursion
-         (down-list 1)
-         (looking-at-p "require"))))
+      (scan-error
+       (goto-char (point-min))
+       (or (re-search-forward "^#lang .+?\n$" nil t)
+           (point-min))))))
 
 (defun racket-add-require-for-identifier ()
   "Add a require for an identifier.
@@ -268,44 +232,41 @@ module form, meaning the outermost, file module."
 Useful when you know the name of an export but don't remember
 from what module it is exported.
 
-At the prompt:
+1 At the prompt, you may:
 \\<minibuffer-local-map>
 
-Use \\[next-history-element] to load the identifier at point.
-You may also need to \\[move-end-of-line] to see candidates.
+- Use \\[next-history-element] to load the identifier at point.
+You might also need to \\[move-end-of-line] to see candidates.
 
-Or type anything.
+- Or, type anything.
 
-After you choose:
+2. After you choose, this command will:
 
-The identifier you chose is inserted at point if not already
-there.
+- Insert the identifier at point if not already there.
 
-A \"require\" form is inserted, followed by doing a
-`racket-tidy-requires'.
+- Insert a \"require\" form and do `racket-tidy-requires'.
 
-When more than one module supplies an identifer with the same
-name, the first is used -- for example \"racket/base\" instead of
-\"racket\".
-
-Caveat: This works in terms of identifiers that are documented.
-The mechanism is similar to that used for Racket's \"Search
-Manuals\" feature. Today there exists no system-wide database of
+Caveat: This works only for identifiers that are documented. The
+mechanism is similar to that used for Racket's \"Search Manuals\"
+feature. Today there exists no system-wide database of
 identifiers that are exported but not documented."
   (interactive)
   (racket--assert-sexp-edit-mode)
   (when-let (result (racket--describe-search-completing-read))
     (pcase-let* ((`(,term ,_path ,_anchor ,lib) result)
-                 (req `(require ,(intern lib))))
+                 (req (format "(require %s)" lib)))
       (unless (equal (racket--thing-at-point 'symbol) term)
         (insert term))
-      (let ((pt  (copy-marker (point))))
-        (racket--tidy-requires
-         (list req)
-         (lambda (result)
-           (goto-char pt)
-           (when result
-             (message "Added \"%s\" and did racket-tidy-requires" req))))))))
+      (save-excursion
+        (goto-char (racket--inside-innermost-module))
+        (insert req)
+        (newline-and-indent)
+        (let ((pt  (copy-marker (point))))
+          (racket--tidy-requires
+           (lambda (result)
+             (goto-char pt)
+             (when result
+               (message "Added %S and did racket-tidy-requires" req)))))))))
 
 ;;; align
 
