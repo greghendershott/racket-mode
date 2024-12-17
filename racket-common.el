@@ -81,13 +81,12 @@
 (defun racket-syntax-propertize-extend-region (beg end)
   "Value for hook `syntax-propertize-extend-region-functions'.
 
-Expects to be called after `syntax-propertize-wholelines',
-adjusting that result to start one line earlier. Ensures
-propertization of prefix syntax at BOL; see issue #734."
-  (let ((inhibit-field-text-motion t))
-    (let ((new-beg (line-beginning-position 0)))
-      (unless (eql new-beg beg)
-        (cons new-beg end)))))
+Ensure propertization of # prefix syntax at BOL. Although I don't
+understand exactly why, `syntax-propertize-wholelines' is
+insufficient. See issue #734."
+  (when (and (eq ?# (char-after beg))
+             (< (point-min) beg))
+    (cons (1- beg) end)))
 
 (defun racket-syntax-propertize (start end)
   "Value for variable `syntax-propertize-function'."
