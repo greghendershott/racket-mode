@@ -262,6 +262,10 @@ A discussion of the information provided by a Racket language:
   (setq-local imenu-create-index-function nil)
   (setq-local completion-at-point-functions nil) ;rely on racket-xp-mode
   (setq racket-submodules-at-point-function nil) ;might change in on-new-lang
+  (when (boundp 'paredit-space-for-delimiter-predicates)
+    (add-hook 'paredit-space-for-delimiter-predicates
+              #'racket--paredit-space-for-delimiter-predicate
+              nil t))
   ;; Create back end hash-lang object.
   ;;
   ;; On the one hand, `racket--cmd/await' would be simpler to use

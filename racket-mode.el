@@ -200,7 +200,11 @@
   (add-hook 'xref-backend-functions
             #'racket-mode-xref-backend-function
             nil t)
-  (setq racket-submodules-at-point-function #'racket-submodules-at-point-text-sexp))
+  (setq racket-submodules-at-point-function #'racket-submodules-at-point-text-sexp)
+  (when (boundp 'paredit-space-for-delimiter-predicates)
+    (add-hook 'paredit-space-for-delimiter-predicates
+              #'racket--paredit-space-for-delimiter-predicate
+              nil t)))
 
 ;;;###autoload
 (progn

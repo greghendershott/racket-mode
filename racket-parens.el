@@ -1,6 +1,6 @@
 ;;; racket-parens.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2021 by Greg Hendershott.
+;; Copyright (c) 2013-2024 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -70,60 +70,48 @@ This is handy if you're not yet using something like
 (put 'racket-insert-closing 'delete-selection
      #'racket--electric-pair-mode-not-active)
 
-;;; paredit and reader literals
+(defun racket--open-paren (back-func)
+  "Use BACK-FUNC to find an opening ( [ or { if any.
+BACK-FUNC should be something like #\\='backward-sexp or #\\='backward-up-list."
+  (save-excursion
+    (ignore-errors
+      (funcall back-func)
+      (let ((ch (char-after)))
+        (and (eq ?\( (char-syntax ch))
+             ch)))))
 
-(defun racket--reader-literal-paredit-space-for-delimiter-predicate (endp _delimiter)
-  "`paredit-mode' shouldn't insert space beteween # and open delimiters.
+;;; paredit spaces in reader literals and at-expressions
 
-Examples: #() #2() #fl() #hasheq  etc.
-
-This function is a suitable element for the list variable
-`paredit-space-for-delimiter-predicates'."
+(defun racket--paredit-space-for-delimiter-predicate (endp delimiter)
+  "A value for hook `paredit-space-for-delimiter-predicates'."
   (if (and (racket--mode-edits-racket-p)
            (not endp))
-      (not (looking-back (rx ?# (* (or (syntax word)
-                                       (syntax symbol)
-                                       (syntax punctuation))))
-                         nil))
+      (not
+       (or
+        ;; reader literal: e.g. #(), #hasheq(), #"bstr", #px".*"
+        (looking-back (rx ?# (* (or (syntax word)
+                                    (syntax symbol)
+                                    (syntax punctuation))))
+                      nil)
+        ;; at-expression: @foo[ @foo{
+        (and (memq delimiter '(?\[ ?\{))
+             (looking-back (rx ?@ (* (or (syntax word)
+                                         (syntax symbol)
+                                         (syntax punctuation))))
+                           nil))
+        ;; at-expression: @foo[]{
+        (and (eq delimiter ?\{)
+             (looking-back (rx ?@ (* (or (syntax word)
+                                         (syntax symbol)
+                                         (syntax punctuation)))
+                               ?\[
+                               (* (or (syntax word)
+                                      (syntax symbol)
+                                      (syntax punctuation)))
+                               ?\])
+                           nil))
+        ))
     t))
-
-(eval-after-load 'paredit
-  '(add-hook 'paredit-space-for-delimiter-predicates
-             #'racket--reader-literal-paredit-space-for-delimiter-predicate))
-
-;;; paredit and at-expressions
-
-(defun racket--at-expression-paredit-space-for-delimiter-predicate (endp delimiter)
-  "`paredit-mode' shouldn't insert space before [ or { in Racket at-expressions.
-
-This function is a suitable element for the list variable
-`paredit-space-for-delimiter-predicates'."
-  (if (and (racket--mode-edits-racket-p)
-           (not endp))
-      (not (or
-            ;; @foo[ @foo{
-            (and (memq delimiter '(?\[ ?\{))
-                 (looking-back (rx ?@ (* (or (syntax word)
-                                             (syntax symbol)
-                                             (syntax punctuation))))
-                               nil))
-            ;; @foo[]{
-            (and (eq delimiter ?\{)
-                 (looking-back (rx ?@ (* (or (syntax word)
-                                             (syntax symbol)
-                                             (syntax punctuation)))
-                                   ?\[
-                                   (* (or (syntax word)
-                                          (syntax symbol)
-                                          (syntax punctuation)))
-                                   ?\])
-                               nil))))
-    t))
-
-(eval-after-load 'paredit
-  '(add-hook 'paredit-space-for-delimiter-predicates
-             #'racket--at-expression-paredit-space-for-delimiter-predicate))
-
 
 ;;; Cycle paren shapes
 
@@ -151,16 +139,6 @@ This function is a suitable element for the list variable
        (insert close))
       (_
        (user-error "Don't know that paren shape")))))
-
-(defun racket--open-paren (back-func)
-  "Use BACK-FUNC to find an opening ( [ or { if any.
-BACK-FUNC should be something like #\\='backward-sexp or #\\='backward-up-list."
-  (save-excursion
-    (ignore-errors
-      (funcall back-func)
-      (let ((ch (char-after)))
-        (and (eq ?\( (char-syntax ch))
-             ch)))))
 
 (provide 'racket-parens)
 

@@ -1509,7 +1509,11 @@ identifier bindings and modules from the REPL's namespace.
   (add-hook 'kill-emacs-hook #'racket-repl-write-all-histories nil t)
   (add-hook 'xref-backend-functions #'racket-repl-xref-backend-function nil t)
   (add-to-list 'semantic-symref-filepattern-alist
-               '(racket-repl-mode "*.rkt" "*.rktd" "*.rktl")))
+               '(racket-repl-mode "*.rkt" "*.rktd" "*.rktl"))
+  (when (boundp 'paredit-space-for-delimiter-predicates)
+    (add-hook 'paredit-space-for-delimiter-predicates
+              #'racket--paredit-space-for-delimiter-predicate
+              nil t)))
 
 (defun racket-repl-write-all-histories ()
   "Call `racket-repl-write-history' for all `racket-repl-mode' buffers.
