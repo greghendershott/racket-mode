@@ -202,9 +202,8 @@
             nil t)
   (setq racket-submodules-at-point-function #'racket-submodules-at-point-text-sexp)
   (when (boundp 'paredit-space-for-delimiter-predicates)
-    (add-hook 'paredit-space-for-delimiter-predicates
-              #'racket--paredit-space-for-delimiter-predicate
-              nil t)))
+    (setq-local paredit-space-for-delimiter-predicates
+                (list #'racket--paredit-space-for-delimiter-predicate))))
 
 ;;;###autoload
 (progn

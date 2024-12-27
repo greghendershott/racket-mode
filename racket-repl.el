@@ -1511,9 +1511,8 @@ identifier bindings and modules from the REPL's namespace.
   (add-to-list 'semantic-symref-filepattern-alist
                '(racket-repl-mode "*.rkt" "*.rktd" "*.rktl"))
   (when (boundp 'paredit-space-for-delimiter-predicates)
-    (add-hook 'paredit-space-for-delimiter-predicates
-              #'racket--paredit-space-for-delimiter-predicate
-              nil t)))
+    (setq-local paredit-space-for-delimiter-predicates
+                (list #'racket--paredit-space-for-delimiter-predicate))))
 
 (defun racket-repl-write-all-histories ()
   "Call `racket-repl-write-history' for all `racket-repl-mode' buffers.
