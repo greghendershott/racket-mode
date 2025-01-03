@@ -158,8 +158,7 @@ insufficient. See issue #734."
     ;; Treat |identifier with spaces| -- but not #|comment|# -- as
     ;; word syntax
     ((rx (not (any ?#))
-         (group ?| (*? (not (any ?\" ?\r ?\n))) ?|)
-         (not (any ?#)))
+         (group ?| (*? (not (any ?\" ?\r ?\n))) ?|))
      (1 "w")))
    (point)
    end))
