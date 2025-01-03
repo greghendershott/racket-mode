@@ -729,7 +729,8 @@ want to use the value of `racket-program' at run time."
 (defun racket-tests/same-faceup (file)
   "Test that FILE is fontified as the .faceup file describes.
 FILE is interpreted as relative to this source directory."
-  (let ((font-lock-maximum-decoration t))
+  (let ((font-lock-maximum-decoration t)
+        (faceup-properties '(face syntax-table)))
     (faceup-test-font-lock-file 'racket-mode
                                 (expand-file-name file racket-tests/here-dir))))
 

@@ -1,4 +1,4 @@
-«m:;; »«x:-*- racket-indent-sequence-depth: 100; racket-indent-curly-as-sequence: t; -*-
+«m:;; »«x:-*- racket-indent-sequence-depth: 100; racket-indent-curly-as-sequence: t; faceup-properties: (face syntax-table); -*-
 »
 «m:;;; »«x:NOTE: After changing this file you will need to M-x faceup-write-file
 »«m:;;; »«x:to regenerate the .faceup test comparison file.
@@ -35,19 +35,19 @@
 
 «m:;;; »«x:Syntax
 »
-#'(«k:for/list» ([x xs])
+«(syntax-table):(6):#'»(«k:for/list» ([x xs])
     x)
 
-#`(«k:for/list» ([x xs])
+«(syntax-table):(6):#`»(«k:for/list» ([x xs])
     x)
 
-#'(«k:#%app» («k:#%app» «b:hasheq» («k:quote» a) («k:quote» «c:42»))
+«(syntax-table):(6):#'»(«k:#%app» («k:#%app» «b:hasheq» («k:quote» a) («k:quote» «c:42»))
          («k:quote» a))
 
 («k:#%app» («k:#%app» «b:hasheq» («k:quote» a) («k:quote» «c:42»))
        («k:quote» a))
 
-#'(foo («k:#%app» «b:hasheq» («k:quote» a) («k:quote» «c:42»))
+«(syntax-table):(6):#'»(foo («k:#%app» «b:hasheq» («k:quote» a) («k:quote» «c:42»))
        («k:quote» a))
 
 «m:;;; »«x:Rackjure style dictionary (when racket-indent-curly-as-sequence is t).
@@ -63,7 +63,7 @@
 
 «m:;;; »«x:Vector
 »
-#(a b
+«(syntax-table):(6):#»(a b
   c d)
 
 «m:;;; »«x:List with a keyword as first member (e.g. in many contracts)
@@ -112,14 +112,14 @@
 «m:;; »«x:indent 2
 »
 («k:syntax-case» stx ()
-  [(«k:_» x) #'«c:#f»]
-  [(«k:_» x y) #'«c:#t»])
+  [(«k:_» x) «(syntax-table):(6):#'»«c:#f»]
+  [(«k:_» x y) «(syntax-table):(6):#'»«c:#t»])
 
 «m:;; »«x:indent 3
 »
 («k:syntax-case*» stx () x
-  [(«k:_» x) #'«c:#f»]
-  [(«k:_» x y) #'«c:#t»])
+  [(«k:_» x) «(syntax-table):(6):#'»«c:#f»]
+  [(«k:_» x y) «(syntax-table):(6):#'»«c:#t»])
 
 («k:syntax-case*»
     stx
@@ -133,8 +133,8 @@
      «k:struct»
      «k:define-struct»)
     x
-  [(«k:_» x) #'«c:#f»]
-  [(«k:_» x y) #'«c:#t»])
+  [(«k:_» x) «(syntax-table):(6):#'»«c:#f»]
+  [(«k:_» x y) «(syntax-table):(6):#'»«c:#t»])
 
 «m:;; »«x:begin and cond have 0 style
 »(«k:begin»
@@ -278,9 +278,9 @@
   («b:syntax-parse» stx
     [(«k:_» id:id (field:id «k:...»))
      («k:with-syntax» ([(accessor «k:...»)
-                    («k:for/list» ([fld («k:in-list» («b:syntax->list» #'(«b:field» «k:...»)))])
-                      («b:format-id» stx «s:"~a-~a"» («b:syntax->datum» «:racket-reader-syntax-quoted-symbol-face:#'id») fld))])
-       #'(serializable-struct
+                    («k:for/list» ([fld («k:in-list» («b:syntax->list» «(syntax-table):(6):#'»(«b:field» «k:...»)))])
+                      («b:format-id» stx «s:"~a-~a"» («b:syntax->datum» «(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#'»»«:racket-reader-syntax-quoted-symbol-face:id») fld))])
+       «(syntax-table):(6):#'»(serializable-struct
           id («b:field» «k:...») «:racket-keyword-argument-face:#:transparent»
           «:racket-keyword-argument-face:#:property» «b:prop:procedure»
           («k:lambda» (self . args)
@@ -300,33 +300,33 @@
 
 «m:;; »«x:Bug #123
 »
-#hash([a . (#hash()
+«(syntax-table):(6):#hash»([a . («(syntax-table):(6):#hash»()
             «c:0»)]
-      [b . (#hasheq()
+      [b . («(syntax-table):(6):#hasheq»()
             «c:0»)]
-      [c . (#fx(«c:0» «c:1» «c:2»)
+      [c . («(syntax-table):(6):#fx»(«c:0» «c:1» «c:2»)
             «c:0»)]
-      [d . (#fx3(«c:0» «c:1» «c:2»)
+      [d . («(syntax-table):(6):#fx3»(«c:0» «c:1» «c:2»)
             «c:0»)]
-      [e . (#fl(«c:0.0» «c:1.0» «c:2.0»)
+      [e . («(syntax-table):(6):#fl»(«c:0.0» «c:1.0» «c:2.0»)
             «c:0»)]
-      [f . (#fl3(«c:0.0» «c:1.0» «c:2.0»)
+      [f . («(syntax-table):(6):#fl3»(«c:0.0» «c:1.0» «c:2.0»)
             «c:0»)]
-      [g . (#s(foo x)
+      [g . («(syntax-table):(6):#s»(foo x)
             «c:0»)]
-      [h . (#3(«c:0» «c:1» «c:2»)
+      [h . («(syntax-table):(6):#3»(«c:0» «c:1» «c:2»)
             «c:0»)])
 
 «m:;; »«x:Bug #136
 »
-«m:#;»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-builtin-face:list»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-constant-face:1»«:racket--sexp-comment--default:
-        #;»«:racket--sexp-comment--font-lock-constant-face:2»«:racket--sexp-comment--default:
+«(syntax-table):(6):«m:#;»»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-builtin-face:list»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-constant-face:1»«:racket--sexp-comment--default:
+        «(syntax-table):(6):#;»»«:racket--sexp-comment--font-lock-constant-face:2»«:racket--sexp-comment--default:
         »«:racket--sexp-comment--font-lock-constant-face:3»«:racket--sexp-comment--default:)»
 
 («b:list» «c:1»
-      «m:#;»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-builtin-face:list»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-constant-face:1»«:racket--sexp-comment--default:
+      «(syntax-table):(6):«m:#;»»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-builtin-face:list»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-constant-face:1»«:racket--sexp-comment--default:
               (»«:racket--sexp-comment--font-lock-keyword-face:let»«:racket--sexp-comment--default: ([»«:racket--sexp-comment--font-lock-variable-name-face:x»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-constant-face:2»«:racket--sexp-comment--default:]
-                    #;[»«:racket--sexp-comment--font-lock-variable-name-face:y»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-constant-face:3»«:racket--sexp-comment--default:])
+                    «(syntax-table):(6):#;»[»«:racket--sexp-comment--font-lock-variable-name-face:y»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-constant-face:3»«:racket--sexp-comment--default:])
                 x)
               »«:racket--sexp-comment--font-lock-constant-face:3»«:racket--sexp-comment--default:)»
       «c:2»
@@ -372,10 +372,10 @@
 »(«k:module+» «f:test»
   («b:+»
    «c:1»
-   «:racket-here-string-face:#<<EOF
-()
-EOF
-»   )
+   «:racket-here-string-face:#<<EOF«(syntax-table):(15):
+»()
+EOF«(syntax-table):(15):
+»»   )
   «c:1»)
 
 (foo (bar «s:"

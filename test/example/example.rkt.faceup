@@ -1,4 +1,4 @@
-«m:;; »«x:-*- racket-indent-sequence-depth: 100; racket-indent-curly-as-sequence: t; -*-
+«m:;; »«x:-*- racket-indent-sequence-depth: 100; racket-indent-curly-as-sequence: t; faceup-properties: (face syntax-table); -*-
 »
 «m:;;; »«x:NOTE: After changing this file you will need to M-x faceup-write-file
 »«m:;;; »«x:to regenerate the .faceup test comparison file.
@@ -52,19 +52,19 @@
 («k:letrec-values» ([(«v:a» «v:b») («b:values» «c:1» «c:2»)])
   («b:values» a b))
 
-(«k:let-syntax» ([«v:foo» «:racket-reader-syntax-quoted-symbol-face:#'foo»])
+(«k:let-syntax» ([«v:foo» «(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#'»»«:racket-reader-syntax-quoted-symbol-face:foo»])
   foo)
 
-(«k:letrec-syntax» ([«v:foo» «:racket-reader-syntax-quoted-symbol-face:#'foo»])
+(«k:letrec-syntax» ([«v:foo» «(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#'»»«:racket-reader-syntax-quoted-symbol-face:foo»])
   foo)
 
-(«k:let-syntaxes» ([(«v:foo») «:racket-reader-syntax-quoted-symbol-face:#'foo»])
+(«k:let-syntaxes» ([(«v:foo») «(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#'»»«:racket-reader-syntax-quoted-symbol-face:foo»])
   foo)
 
-(«k:letrec-syntaxes» ([(«v:foo») «:racket-reader-syntax-quoted-symbol-face:#'foo»])
+(«k:letrec-syntaxes» ([(«v:foo») «(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#'»»«:racket-reader-syntax-quoted-symbol-face:foo»])
   foo)
 
-(«k:letrec-syntaxes+values» ([(«v:foo») «:racket-reader-syntax-quoted-symbol-face:#'foo»])
+(«k:letrec-syntaxes+values» ([(«v:foo») «(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#'»»«:racket-reader-syntax-quoted-symbol-face:foo»])
                         ([(a b) («b:values» «c:1» «c:2»)])
   foo)
 
@@ -87,7 +87,7 @@
   «c:3» «c:4»)
 
 «m:;; »«x:Smart indentation for vector literals:
-»#(«c:1» «c:2»
+»«(syntax-table):(6):#»(«c:1» «c:2»
   «c:3» «c:4»)
 
 «m:;; »«x:Smart indentation for Rackjure dict literals:
@@ -116,88 +116,91 @@ comment
 
 «x:#|(hello)|#»
 
-«m:#;»«:racket--sexp-comment--default:(sexpr comment)»
+«(syntax-table):(6):«m:#;»»«:racket--sexp-comment--default:(sexpr comment)»
 
 «m:;; »«x:Nested sexpr comments
 »
 («b:list» «c:2»
-      «m:#;»«:racket--sexp-comment--font-lock-constant-face:2»)
+      «(syntax-table):(6):«m:#;»»«:racket--sexp-comment--font-lock-constant-face:2»)
 
 («b:list» «c:1»
-      «m:#;»«:racket--sexp-comment--font-lock-constant-face:4»
-      «m:#;»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-constant-face:3»«:racket--sexp-comment--default:)»)
+      «(syntax-table):(6):«m:#;»»«:racket--sexp-comment--font-lock-constant-face:4»
+      «(syntax-table):(6):«m:#;»»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-constant-face:3»«:racket--sexp-comment--default:)»)
 
-(«k:let» («m:#;»«:racket--sexp-comment--default:[»«:racket--sexp-comment--font-lock-variable-name-face:x»«:racket--sexp-comment--default: #;»«:racket--sexp-comment--font-lock-constant-face:1»«:racket--sexp-comment--default:]»
+(«k:let» («(syntax-table):(6):«m:#;»»«:racket--sexp-comment--default:[»«:racket--sexp-comment--font-lock-variable-name-face:x»«:racket--sexp-comment--default: «(syntax-table):(6):#;»»«:racket--sexp-comment--font-lock-constant-face:1»«:racket--sexp-comment--default:]»
       [«v:y» «c:2»])
   y)
 
 «m:;; »«x:Issue 388
-»«c:1» «m:; »«x:#;
+»«c:1» «m:; »«(syntax-table):(6):«x:#;»»«x:
 »«c:2»
 
 «m:;; »«x:Issue 408
 »
-«s:"#;"»whatever
-«s:"#;"»(whatever)
-«s:"#;"»
+«s:"«(syntax-table):(6):#;»"»whatever
+«s:"«(syntax-table):(6):#;»"»(whatever)
+«s:"«(syntax-table):(6):#;»"»
 (whatever)
 
 «m:;; »«x:Issue 432
 »
-«m:#;» «m:#;» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
+«(syntax-table):(6):«m:#;»» «(syntax-table):(6):«m:#;»» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
 
-«m:#;#;» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
+«(syntax-table):(6):«m:#;#;»» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
 
-«m:#;» «m:#;» «m:#;» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
+«(syntax-table):(6):«m:#;»» «(syntax-table):(6):«m:#;»» «(syntax-table):(6):«m:#;»» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
 
-«m:#;#;#;» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
+«(syntax-table):(6):«m:#;#;#;»» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me» «:racket-reader-quoted-symbol-face:'but-not-me»
 
-«m:#;» «m:;; »«x:comment
+«(syntax-table):(6):«m:#;»» «m:;; »«x:comment
 »«m:;; »«x:comment
-»«m:#;» «x:#| comment |#»
+»«(syntax-table):(6):«m:#;»» «x:#| comment |#»
 «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me»
 «:racket--sexp-comment--racket-reader-quoted-symbol-face:'comment-me»
 «:racket-reader-quoted-symbol-face:'but-not-me»
 
 
-(«k:define» «v:x» «:racket-here-string-face:#<<FOO
+(«k:define» «v:x» «:racket-here-string-face:#<<FOO«(syntax-table):(15):
+»asdfasdf
 asdfasdf
 asdfasdf
-asdfasdf
-FOO
-»  )
+FOO«(syntax-table):(15):
+»»  )
 
-«m:#;»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-keyword-face:define»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-variable-name-face:x»«:racket--sexp-comment--default: »«:racket--sexp-comment--racket-here-string-face:#<<BAR
+«(syntax-table):(6):«m:#;»»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-keyword-face:define»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-variable-name-face:x»«:racket--sexp-comment--default: »«:racket--sexp-comment--racket-here-string-face:#<<BAR«(syntax-table):(15):
+»asdfasdf
 asdfasdf
 asdfasdf
-asdfasdf
-BAR
-»«:racket--sexp-comment--default:    )»
+BAR«(syntax-table):(15):
+»»«:racket--sexp-comment--default:    )»
 
-(«k:define» «v:x» «:racket-here-string-face:#<<Hello World
+(«k:define» «v:x» «:racket-here-string-face:#<<Hello World«(syntax-table):(15):
+»asdfasdf
 asdfasdf
 asdfasdf
-asdfasdf
-Hello World
-»  )
+Hello World«(syntax-table):(15):
+»»  )
 
-«m:#;»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-keyword-face:define»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-variable-name-face:x»«:racket--sexp-comment--default: »«:racket--sexp-comment--racket-here-string-face:#<<Hi Racket
+«(syntax-table):(6):«m:#;»»«:racket--sexp-comment--default:(»«:racket--sexp-comment--font-lock-keyword-face:define»«:racket--sexp-comment--default: »«:racket--sexp-comment--font-lock-variable-name-face:x»«:racket--sexp-comment--default: »«:racket--sexp-comment--racket-here-string-face:#<<Hi Racket«(syntax-table):(15):
+»asdfasdf
 asdfasdf
 asdfasdf
-asdfasdf
-Hi Racket
-»«:racket--sexp-comment--default:    )»
+Hi Racket«(syntax-table):(15):
+»»«:racket--sexp-comment--default:    )»
 
-|identifier with spaces|
+«(syntax-table):(2):|identifier with spaces|»
 
-|;no comment|
+«(syntax-table):(2):|;no comment|»
 
-| #|no comment|# |
+«(syntax-table):(2):| #|»no comment«(syntax-table):(2):|# |»
+
+«m:;; »«x:Issue 735
+»«(syntax-table):(2):|foo|» «(syntax-table):(2):|bar|»
 
 («k:define» («f:a-function» x «:racket-keyword-argument-face:#:keyword» [y «c:0»])
   («k:and» («b:append» («b:car» '(«c:1» «c:2» «c:3»))))
-  («b:regexp-match?» «c:#rx»«s:"foobar"» «s:"foobar"»)
-  («b:regexp-match?» «c:#px»«s:"foobar"» «s:"foobar"»)
+  («b:regexp-match?» «(syntax-table):(6):«c:#rx»»«s:"foobar"» «s:"foobar"»)
+  («b:regexp-match?» «(syntax-table):(6):«c:#px»»«s:"foobar"» «s:"foobar"»)
   («k:define» «v:a» «c:1»)
   («k:let» ([«v:a» «s:"foo"»]
         [«v:b» «s:"bar"»])
@@ -212,13 +215,13 @@ Hi Racket
           [«k:else» x])))
 
 «m:;; »«x:Issue 261
-»«s:"@|widget-id|"» @|foo|
+»«s:"@«(syntax-table):(2):|widget-id|»"» @«(syntax-table):(2):|foo|»
 
 «m:;; »«x:Issue 298
 »(«k:define» «v:x» («k:begin» «s:"|"» '\|))
 
 «m:;; »«x:Issue 376
-»(«k:define» «v:||» (|list|))
+»(«k:define» «(syntax-table):(2):«v:||»» («(syntax-table):(2):|list|»))
 
 («k:define» («f:foo»)
   («k:let» ([«v:x» «c:10»])
@@ -248,13 +251,13 @@ Hi Racket
    «c:#d123»
    «c:#x7f7f»
    «:racket-reader-quoted-symbol-face:'symbol»
-   «:racket-reader-quoted-symbol-face:'|symbol with spaces|»
-   «:racket-reader-quoted-symbol-face:'|;no comment|»
-   «:racket-reader-quoted-symbol-face:'| #|no comment|# |»
+   «(syntax-table):(2):«:racket-reader-quoted-symbol-face:'|symbol with spaces|»»
+   «(syntax-table):(2):«:racket-reader-quoted-symbol-face:'|;no comment|»»
+   «(syntax-table):(2):«:racket-reader-quoted-symbol-face:'| #|»»«:racket-reader-quoted-symbol-face:no comment«(syntax-table):(2):|# |»»
    «:racket-reader-quoted-symbol-face:'symbol-with-no-alpha/numeric-chars»
-   «c:#\c»
-   «c:#\space»
-   «c:#\newline»
+   «(syntax-table):(2):«c:#\c»»
+   «(syntax-table):(2):«c:#\space»»
+   «(syntax-table):(2):«c:#\newline»»
 
    «m:;; »«x:Literal number examples
 »
@@ -363,14 +366,14 @@ Hi Racket
   («k:cond»
     [dns-compliant?
      («k:and» («b:<=» «c:3» («b:string-length» s)) («b:<=» («b:string-length» s) «c:63»)
-          («b:not» («b:regexp-match» «c:#px»«s:"\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"» s))
-          («k:for/and» ([s («b:regexp-split» «c:#rx»«s:"\\."» s)])
+          («b:not» («b:regexp-match» «(syntax-table):(6):«c:#px»»«s:"\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}"» s))
+          («k:for/and» ([s («b:regexp-split» «(syntax-table):(6):«c:#rx»»«s:"\\."» s)])
             («k:define» («f:valid-first-or-last?» c)
               («k:or» («b:char-lower-case?» («b:string-ref» s «c:0»))
                   («b:char-numeric?» («b:string-ref» s «c:0»))))
             («k:define» («f:valid-mid?» c)
               («k:or» (valid-first-or-last? c)
-                  («b:equal?» c «c:#\-»)))
+                  («b:equal?» c «(syntax-table):(2):«c:#\-»»)))
             («k:define» «v:len» («b:string-length» s))
             («k:and» («b:<» «c:0» len)
                  (valid-first-or-last? («b:string-ref» s «c:0»))
@@ -384,44 +387,44 @@ Hi Racket
             («k:or» («b:char-numeric?» c)
                 («b:char-lower-case?» c)
                 («b:char-upper-case?» c)
-                («b:equal?» c «c:#\.»)
-                («b:equal?» c «c:#\-»)
-                («b:equal?» c «c:#\_»))))]))
+                («b:equal?» c «(syntax-table):(2):«c:#\.»»)
+                («b:equal?» c «(syntax-table):(2):«c:#\-»»)
+                («b:equal?» c «(syntax-table):(2):«c:#\_»»))))]))
 
 («b:displayln» «s:"I'm running!"»)
 
 «m:;; »«x:Issue 366
-»#«s:"1"»
-#«s:"22"»
-#«s:"333"»
+»«(syntax-table):(6):#»«s:"1"»
+«(syntax-table):(6):#»«s:"22"»
+«(syntax-table):(6):#»«s:"333"»
 
 «m:;; »«x:Issue 448
-»(fun «:racket-keyword-argument-face:#:1» #«s:"a"»)
-(fun «:racket-keyword-argument-face:#:12» #«s:"a"»)
-(fun «:racket-keyword-argument-face:#:123» #«s:"a"»)
-(fun «:racket-keyword-argument-face:#:1234» #«s:"a"»)
-(fun «:racket-keyword-argument-face:#:1» «c:#px»«s:"a"»)
-(fun «:racket-keyword-argument-face:#:12» «c:#px»«s:"a"»)
-(fun «:racket-keyword-argument-face:#:123» «c:#px»«s:"a"»)
-(fun «:racket-keyword-argument-face:#:1234» «c:#px»«s:"a"»)
+»(fun «:racket-keyword-argument-face:#:1» «(syntax-table):(6):#»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:12» «(syntax-table):(6):#»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:123» «(syntax-table):(6):#»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:1234» «(syntax-table):(6):#»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:1» «(syntax-table):(6):«c:#px»»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:12» «(syntax-table):(6):«c:#px»»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:123» «(syntax-table):(6):«c:#px»»«s:"a"»)
+(fun «:racket-keyword-argument-face:#:1234» «(syntax-table):(6):«c:#px»»«s:"a"»)
 
 «m:;; »«x:Issue 463
-»(«k:or» («b:equal?» c «c:#\"») («b:equal?» c «c:#\'»))
-«c:#\"» «c:#\"»
-«c:#\"» «m:;»«x:comment
-»«c:#\'» «c:#\'»
-«c:#\'» «m:;»«x:comment
-»«c:#\nul» «c:#\null» «c:#\backspace» «c:#\tab» «c:#\vtab» «c:#\newline» «c:#\linefeed»
-«c:#\page» «c:#\return» «c:#\space» «c:#\rubout»
-«c:#\012»
-«c:#\uF»
-«c:#\uFF»
-«c:#\uFFF»
-«c:#\uFFFF»
-«c:#\Ufffff»
-«c:#\Uffffff»
-«c:#\a» «c:#\z»
-«c:#\λ»
+»(«k:or» («b:equal?» c «(syntax-table):(2):«c:#\"»») («b:equal?» c «(syntax-table):(2):«c:#\'»»))
+«(syntax-table):(2):«c:#\"»» «(syntax-table):(2):«c:#\"»»
+«(syntax-table):(2):«c:#\"»» «m:;»«x:comment
+»«(syntax-table):(2):«c:#\'»» «(syntax-table):(2):«c:#\'»»
+«(syntax-table):(2):«c:#\'»» «m:;»«x:comment
+»«(syntax-table):(2):«c:#\nul»» «(syntax-table):(2):«c:#\null»» «(syntax-table):(2):«c:#\backspace»» «(syntax-table):(2):«c:#\tab»» «(syntax-table):(2):«c:#\vtab»» «(syntax-table):(2):«c:#\newline»» «(syntax-table):(2):«c:#\linefeed»»
+«(syntax-table):(2):«c:#\page»» «(syntax-table):(2):«c:#\return»» «(syntax-table):(2):«c:#\space»» «(syntax-table):(2):«c:#\rubout»»
+«(syntax-table):(2):«c:#\012»»
+«(syntax-table):(2):«c:#\uF»»
+«(syntax-table):(2):«c:#\uFF»»
+«(syntax-table):(2):«c:#\uFFF»»
+«(syntax-table):(2):«c:#\uFFFF»»
+«(syntax-table):(2):«c:#\Ufffff»»
+«(syntax-table):(2):«c:#\Uffffff»»
+«(syntax-table):(2):«c:#\a»» «(syntax-table):(2):«c:#\z»»
+«(syntax-table):(2):«c:#\λ»»
 
 «m:;; »«x:Issue 478
 »(«x:#|blah blah blah|#» «k:begin»)
@@ -437,40 +440,40 @@ Hi Racket
 »«m:;; »«x:font-lock-string-face, font-lock-constant-face,
 »«m:;; »«x:racket-reader-quoted-symbol-face, or none of those.
 »'«s:"string"»
-'«c:#px»«s:"regexp"»
+'«(syntax-table):(6):«c:#px»»«s:"regexp"»
 '«c:1234»
 '«c:#x1234»
 '«c:#t»
 '«c:+NaN.0»
-'«c:#\A»
+'«(syntax-table):(2):«c:#\A»»
 «:racket-reader-quoted-symbol-face:'symbol»
 «:racket-reader-quoted-symbol-face:`symbol»
 «:racket-reader-quoted-symbol-face:'1symbol» «m:;»«x:legal Racket identifier
 »«:racket-reader-quoted-symbol-face:`1symbol»
 «:racket-reader-quoted-symbol-face:'+»
 «:racket-reader-quoted-symbol-face:'Noon.0»
-«:racket-reader-quoted-symbol-face:'|foo bar|»
-«:racket-reader-quoted-symbol-face:'|foo \| bar|»
+«(syntax-table):(2):«:racket-reader-quoted-symbol-face:'|foo bar|»»
+«(syntax-table):(2):«:racket-reader-quoted-symbol-face:'|foo \|»»«:racket-reader-quoted-symbol-face: bar|»
 '(«s:"string"» «c:1» symbol) «m:;»«x:symbol not directly quoted
 »'(a b c)
 
 «m:;; »«x:Examples of quoted expressions that should receive
 »«m:;; »«x:font-lock-string-face, font-lock-constant-face,
 »«m:;; »«x:racket-reader-syntax-quoted-symbol-face, or none of those.
-»#'«s:"string"»
-#'«c:#px»«s:"regexp"»
-#'«c:1234»
-#'«c:#x1234»
-#'«c:#t»
-#'«c:+NaN.0»
-#'«c:#\A»
-«:racket-reader-syntax-quoted-symbol-face:#'symbol»
-«:racket-reader-syntax-quoted-symbol-face:#`symbol»
-«:racket-reader-syntax-quoted-symbol-face:#'1symbol» «m:;»«x:legal Racket identifier
-»«:racket-reader-syntax-quoted-symbol-face:#`1symbol»
-«:racket-reader-syntax-quoted-symbol-face:#'+»
-«:racket-reader-syntax-quoted-symbol-face:#'Noon.0»
-«:racket-reader-syntax-quoted-symbol-face:#'|foo bar|»
-«:racket-reader-syntax-quoted-symbol-face:#'|foo \| bar|»
-#'(«s:"string"» «c:1» symbol) «m:;»«x:symbol not directly quoted
-»#'(a b c)
+»«(syntax-table):(6):#'»«s:"string"»
+«(syntax-table):(6):#'«c:#px»»«s:"regexp"»
+«(syntax-table):(6):#'»«c:1234»
+«(syntax-table):(6):#'»«c:#x1234»
+«(syntax-table):(6):#'»«c:#t»
+«(syntax-table):(6):#'»«c:+NaN.0»
+«(syntax-table):(6):#'»«(syntax-table):(2):«c:#\A»»
+«(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#'»»«:racket-reader-syntax-quoted-symbol-face:symbol»
+«(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#`»»«:racket-reader-syntax-quoted-symbol-face:symbol»
+«(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#'»»«:racket-reader-syntax-quoted-symbol-face:1symbol» «m:;»«x:legal Racket identifier
+»«(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#`»»«:racket-reader-syntax-quoted-symbol-face:1symbol»
+«(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#'»»«:racket-reader-syntax-quoted-symbol-face:+»
+«(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#'»»«:racket-reader-syntax-quoted-symbol-face:Noon.0»
+«(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#'»»«:racket-reader-syntax-quoted-symbol-face:|foo bar|»
+«(syntax-table):(6):«:racket-reader-syntax-quoted-symbol-face:#'»»«:racket-reader-syntax-quoted-symbol-face:|foo \«(syntax-table):(2):| bar|»»
+«(syntax-table):(6):#'»(«s:"string"» «c:1» symbol) «m:;»«x:symbol not directly quoted
+»«(syntax-table):(6):#'»(a b c)
