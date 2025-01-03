@@ -88,80 +88,81 @@ insufficient. See issue #734."
              (< (point-min) beg))
     (cons (1- beg) end)))
 
+(defconst racket--syntax-propertize-rules
+  (syntax-propertize-rules
+   ;; here strings: The main responsibility here is to set the "|"
+   ;; char syntax around the "body" so it's treated as a string for
+   ;; indent, nav, font-lock. Think of the \n in #<<ID\n as the open
+   ;; | quote and the \n in ^ID\n as the close | quote.
+   ((rx "#<<" (group (+? (not (any ?\n)))) (group ?\n))
+    (2 (racket--syntax-propertize-open-here-string
+        (match-beginning 0)
+        (match-string-no-properties 1)
+        (match-beginning 2))))
+   ((rx (syntax string-delimiter))
+    (0 (ignore (racket--syntax-propertize-here-string end))))
+   ;; sexp comments should LOOK like comments but NOT ACT like
+   ;; comments: Give the #; itself the syntax class "prefix" [1], but
+   ;; allow the following sexp to get the usual syntaxes. That way
+   ;; things like indent and sexp nav work within the sexp. Only
+   ;; font-lock handles the sexp specially; see racket-font-lock.el.
+   ;;
+   ;; [1]: Although it's tempting to use punctuation -- so things like
+   ;; `backward-sexp' and `racket-send-last-sexp' ignore the #; --
+   ;; that would mess up indentation of things following the sexp
+   ;; comment. Instead special-case `racket-send-last-sexp'.
+   ((rx "#;")
+    (0 "'"))
+   ;; Character literals. See:
+   ;; <https://docs.racket-lang.org/reference/reader.html#(part._parse-character)>
+   ((rx (group "#\\" (or "nul" "null"
+                         "backspace"
+                         "tab" "vtab"
+                         "newline" "linefeed"
+                         "page"
+                         "return"
+                         "space"
+                         "rubout"
+                         (** 3 3 (any (?0 . ?7)))
+                         (seq ?u (** 1 4 hex-digit))
+                         (seq ?U (** 1 6 hex-digit))
+                         anything))
+        (or (not alphabetic) eol))
+    (1 "w"))
+   ;; Treat "complex" reader literals as a single sexp for nav and
+   ;; indent, by also marking as prefix syntax the stuff after the #.
+   ;; Racket predefines reader literals like #"" #rx"" #px"" #hash()
+   ;; #hasheq() #fx3(0 1 2) #s() and so on. I think these -- plus any
+   ;; user defined reader extensions -- can all be covered with the
+   ;; following general rx. Also it seems sufficient to look for just
+   ;; the opening delimiter -- the ( [ { or " -- here.
+   ((rx (not (any ?|))
+        (group ?#
+               (?? (not (any ?|         ;not comment #362
+                             ?:         ;not keyword arg #448
+                             space      ;not space #546
+                             ?\\))
+                   (*? (or (syntax symbol) (syntax word) (syntax punctuation)))))
+        (any ?\" ?\( ?\[ ?\{))
+    (1 "'"))
+   ;; Syntax quoting
+   ((rx ?# (or ?` ?' ?,))
+    (0 "'"))
+   ;; Treat '|symbol with spaces| as word syntax
+   ((rx ?' ?| (*? (not (any ?\" ?\r ?\n))) ?|)
+    (0 "w"))
+   ;; Treat |identifier with spaces| -- but not #|comment|# -- as
+   ;; word syntax
+   ((rx (not (any ?#))
+        (group ?| (*? (not (any ?\" ?\r ?\n))) ?|))
+    (1 "w")))
+  "A function value for use by `racket-syntax-propertize'.")
+
 (defun racket-syntax-propertize (start end)
   "Value for variable `syntax-propertize-function'."
   (goto-char start)
   (racket--syntax-propertize-here-string end)
-  (funcall
-   (syntax-propertize-rules
-    ;; here strings: The main responsibility here is to set the "|"
-    ;; char syntax around the "body" so it's treated as a string for
-    ;; indent, nav, font-lock. Think of the \n in #<<ID\n as the open
-    ;; | quote and the \n in ^ID\n as the close | quote.
-    ((rx "#<<" (group (+? (not (any ?\n)))) (group ?\n))
-     (2 (racket--syntax-propertize-open-here-string
-         (match-beginning 0)
-         (match-string-no-properties 1)
-         (match-beginning 2))))
-    ((rx (syntax string-delimiter))
-     (0 (ignore (racket--syntax-propertize-here-string end))))
-    ;; sexp comments should LOOK like comments but NOT ACT like
-    ;; comments: Give the #; itself the syntax class "prefix" [1], but
-    ;; allow the following sexp to get the usual syntaxes. That way
-    ;; things like indent and sexp nav work within the sexp. Only
-    ;; font-lock handles the sexp specially; see racket-font-lock.el.
-    ;;
-    ;; [1]: Although it's tempting to use punctuation -- so things like
-    ;; `backward-sexp' and `racket-send-last-sexp' ignore the #; --
-    ;; that would mess up indentation of things following the sexp
-    ;; comment. Instead special-case `racket-send-last-sexp'.
-    ((rx "#;")
-     (0 "'"))
-    ;; Character literals. See:
-    ;; <https://docs.racket-lang.org/reference/reader.html#(part._parse-character)>
-    ((rx (group "#\\" (or "nul" "null"
-                          "backspace"
-                          "tab" "vtab"
-                          "newline" "linefeed"
-                          "page"
-                          "return"
-                          "space"
-                          "rubout"
-                          (** 3 3 (any (?0 . ?7)))
-                          (seq ?u (** 1 4 hex-digit))
-                          (seq ?U (** 1 6 hex-digit))
-                          anything))
-         (or (not alphabetic) eol))
-     (1 "w"))
-    ;; Treat "complex" reader literals as a single sexp for nav and
-    ;; indent, by also marking as prefix syntax the stuff after the #.
-    ;; Racket predefines reader literals like #"" #rx"" #px"" #hash()
-    ;; #hasheq() #fx3(0 1 2) #s() and so on. I think these -- plus any
-    ;; user defined reader extensions -- can all be covered with the
-    ;; following general rx. Also it seems sufficient to look for just
-    ;; the opening delimiter -- the ( [ { or " -- here.
-    ((rx (not (any ?|))
-         (group ?#
-                (?? (not (any ?|        ;not comment #362
-                              ?:        ;not keyword arg #448
-                              space     ;not space #546
-                              ?\\))
-                    (*? (or (syntax symbol) (syntax word) (syntax punctuation)))))
-         (any ?\" ?\( ?\[ ?\{))
-     (1 "'"))
-    ;; Syntax quoting
-    ((rx ?# (or ?` ?' ?,))
-     (0 "'"))
-    ;; Treat '|symbol with spaces| as word syntax
-    ((rx ?' ?| (*? (not (any ?\" ?\r ?\n))) ?|)
-     (0 "w"))
-    ;; Treat |identifier with spaces| -- but not #|comment|# -- as
-    ;; word syntax
-    ((rx (not (any ?#))
-         (group ?| (*? (not (any ?\" ?\r ?\n))) ?|))
-     (1 "w")))
-   (point)
-   end))
+  (funcall racket--syntax-propertize-rules (point) end))
 
 (defun racket--syntax-propertize-open-here-string (start string eol)
   "Determine the syntax of the \\n after a #<<HERE
