@@ -28,7 +28,7 @@ jobs:
           - emacs_version: 'snapshot'
             racket_version: 'current'
             allow_failure: true
-    name: Ubuntu Emacs ${{ matrix.emacs_version }} and Racket ${{ matrix.racket_version }}
+    name: Ubuntu Emacs:${{ matrix.emacs_version }} Racket:${{ matrix.racket_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@master
@@ -62,7 +62,7 @@ jobs:
           - '29.1'              # most recent release
         racket_version:
           - 'stable'            # most recent release
-    name: Windows Emacs ${{ matrix.emacs_version }} and Racket ${{ matrix.racket_version }}
+    name: Windows Emacs:${{ matrix.emacs_version }} Racket:${{ matrix.racket_version }}
     steps:
       - name: Checkout
         uses: actions/checkout@master
