@@ -40,7 +40,16 @@
 (defconst ci-p (getenv "CI")
   "Is there an environment variable saying we're running on CI?")
 
-(defconst racket-tests/timeout (if ci-p 60 10))
+(defconst debian-buildd-p (getenv "DEBIAN_BUILDD")
+  "Is there an environment variable saying we're running on Debian buildd?")
+
+(defconst racket-tests/timeout
+  (cond
+   ;; Some Debian supported architectures are very slow and requires
+   ;; a longer timeout for some of the tests to finish.
+   (debian-buildd-p 900)
+   (ci-p 60)
+   (t 10)))
 
 (defun racket-tests/type (typing)
   (let ((blink-matching-paren nil)) ;suppress "Matches " messages
