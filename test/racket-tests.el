@@ -269,7 +269,7 @@ c.rkt. Visit each file, racket-run, and check as expected."
 
 (ert-deftest racket-tests/profile ()
   "Exercise `racket-profile'."
-  (skip-unless (not ci-p))
+  (skip-unless (not (or ci-p debian-buildd-p)))
   (message "racket-tests/profile")
   (racket-tests/with-back-end-settings
     (let* ((path (make-temp-file "test" nil ".rkt"))
@@ -726,11 +726,11 @@ want to use the value of `racket-program' at run time."
       dur)))
 
 (ert-deftest racket-tests/indent-speed-1 ()
-  (skip-unless (not ci-p))
+  (skip-unless (not (or ci-p debian-buildd-p)))
   (should (< (racket-tests/indent-time "example/class-internal.rkt") 10)))
 
 (ert-deftest racket-tests/indent-speed-2 ()
-  (skip-unless (not ci-p))
+  (skip-unless (not (or ci-p debian-buildd-p)))
   (should (< (racket-tests/indent-time "example/core.scm") 10)))
 
 ;;; Font-lock
