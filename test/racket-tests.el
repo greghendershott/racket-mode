@@ -1,16 +1,8 @@
 ;;; racket-tests.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2023 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 
-;; License:
-;; This is free software; you can redistribute it and/or modify it
-;; under the terms of the GNU General Public License as published by
-;; the Free Software Foundation; either version 2, or (at your option)
-;; any later version. This is distributed in the hope that it will be
-;; useful, but without any warranty; without even the implied warranty
-;; of merchantability or fitness for a particular purpose. See the GNU
-;; General Public License for more details. See
-;; http://www.gnu.org/licenses/ for details.
+;; SPDX-License-Identifier: GPL-3.0-or-later
 
 (require 'ert)
 (require 'compile)
@@ -37,10 +29,28 @@
 
 ;;; Utility functions for "integration" testing
 
-(defconst ci-p (getenv "CI")
-  "Is there an environment variable saying we're running on CI?")
+(defconst buildd-env-p (getenv "DEBIAN_BUILDD")
+  "Is there an environment variable saying we're running on Debian buildd?")
 
-(defconst racket-tests/timeout (if ci-p 60 10))
+(defconst ci-env-p (getenv "CI")
+  "Is there an environment variable saying we're running on CI?
+
+By convention, most CI systems like Travis CI or GitHub Actions
+set this, as well as perhaps setting their own env var.")
+
+(defconst racket-tests/timeout
+  (cond (buildd-env-p 900)
+        (ci-env-p      60)
+        (t             10))
+  "Because some of these integration tests await the result of
+asynchronous command responses from the back end, it is possible
+they might wait indefinitely. So wee impose a timeout, used
+primarily in `racket-tests/call-until-true'. By default, when
+running tests locally, we prefer a shorter timeout. We use a
+longer timeout in CI environments, which are likely to be slower.")
+
+(defconst ci-p (or buildd-env-p ci-env-p)
+  "Running under conditions for which we might want to disable some tests?")
 
 (defun racket-tests/type (typing)
   (let ((blink-matching-paren nil)) ;suppress "Matches " messages
@@ -61,23 +71,18 @@
       (sit-for 0.25))
     t))
 
-(defmacro racket-tests/eventually (&rest body)
-  `(racket-tests/call-until-true (lambda () ,@body)))
-
 (defmacro racket-tests/should-eventually (expr)
-  "Aside from avoiding some nesting, an advantage of this vs.
-composing `should` and eventually is that the `should` macro will
-be able to look up an ert-explainer property on the symbol
-supplied to it."
   `(progn
      (racket-tests/call-until-true (lambda () ,expr))
      (should ,expr)))
 
 (defun racket-tests/see-back-rx (rx)
-  (racket-tests/eventually (looking-back rx (point-min))))
+  (racket-tests/call-until-true
+   (lambda () (looking-back rx (point-min)))))
 
 (defun racket-tests/see-forward-rx (rx)
-  (racket-tests/eventually (looking-at-p rx)))
+  (racket-tests/call-until-true
+   (lambda () (looking-at-p rx))))
 
 (defun racket-tests/see-back (str)
   (racket-tests/see-back-rx (regexp-quote str)))
@@ -86,8 +91,8 @@ supplied to it."
   (racket-tests/see-forward-rx (regexp-quote str)))
 
 (defun racket-tests/see-char-property (pos name val)
-  (racket-tests/eventually
-   (equal (get-char-property pos name) val)))
+  (racket-tests/call-until-true
+   (lambda () (equal (get-char-property pos name) val))))
 
 (defun racket-tests/explain-see (_str &optional _dir)
   `(actual . ,(buffer-substring-no-properties
@@ -113,78 +118,80 @@ supplied to it."
 ;;; REPL
 
 (ert-deftest racket-tests/repl ()
-  "Start/exercise/stop REPL without any racket-run."
+  "Exercise `racket-repl' command."
   (message "racket-tests/repl")
   (racket-tests/with-back-end-settings
-    (racket-repl)
-    (racket-tests/eventually (racket--repl-session-id))
-    (with-racket-repl-buffer
-      (should
-       (racket-tests/see-back-rx
-        (rx "Welcome to Racket v" (+ (any digit ".")) (? " [" (or "bc" "cs") "]") ".\n"
-            (? "Warning: GUI programs might not work correctly because\n"
-               "your version of Racket lacks `current-get-interaction-evt`,\n"
-               "which was added in Racket 8.4.\n")
-            "> ")))
+   (racket-repl)
+   (should (get-buffer (find-file-noselect racket-repl-command-file)))
+   (with-current-buffer (find-file-noselect racket-repl-command-file)
+     (with-racket-repl-buffer
+       (should
+        (racket-tests/see-back-rx
+         (rx "Starting back end...\n"
+             "Welcome to Racket v" (+ (any hex ".-")) (? " [" (or "bc" "cs") "]") ".\n"
+             (? "Warning: GUI programs might not work correctly because\n"
+                "your version of Racket lacks `current-get-interaction-evt`,\n"
+                "which was added in Racket 8.4.\n")
+             "————— run repl.rkt —————\n"
+             "repl.rkt> ")))
 
-      ;; Completion
-      (racket-tests/should-eventually (member "current-output-port"
-                                              racket--repl-namespace-symbols))
-      (racket-tests/type "current-out")
-      (completion-at-point)
-      (should (racket-tests/see-back "current-output-port"))
-      (racket-tests/press "RET")
-      (should (racket-tests/see-back "#<procedure:current-output-port>\n> "))
+       ;; Completion
+       (racket-tests/should-eventually (member "current-output-port"
+                                               racket--repl-namespace-symbols))
+       (racket-tests/type "current-out")
+       (completion-at-point)
+       (should (racket-tests/see-back "current-output-port"))
+       (racket-tests/press "RET")
+       (should (racket-tests/see-back "#<procedure:current-output-port>\nrepl.rkt> "))
 
-      ;; Multiline expression indent
-      (racket-tests/type&press "(if 1" "C-j")
-      (should (racket-tests/see-back "(if 1\n      "))
-      (racket-tests/type&press "2" "C-j")
-      (should (racket-tests/see-back "2\n      "))
-      (racket-tests/type&press "3)" "RET")
-      (should (racket-tests/see-back "3)\n2\n> "))
+       ;; Multiline expression indent
+       (racket-tests/type&press "(if 1" "C-j")
+       (should (racket-tests/see-back "(if 1\n              "))
+       (racket-tests/type&press "2" "C-j")
+       (should (racket-tests/see-back "2\n              "))
+       (racket-tests/type&press "3)" "RET")
+       (should (racket-tests/see-back "3)\n2\nrepl.rkt> "))
 
-      ;;; This behavior no longer expected
-      ;; ;; Multiple expressions at one prompt should produce multiple
-      ;; ;; values, one per line.
-      ;; (racket-tests/type&press "1 2 3" "RET")
-      ;; (should (racket-tests/see-back "1\n2\n3\n> "))
-      ;; (racket-tests/type&press "(+ 1) (+ 2) (+ 3)" "RET")
-      ;; (should (racket-tests/see-back "1\n2\n3\n> "))
-      ;; (racket-tests/type&press "\"1\" '2 #(3)" "RET")
-      ;; (should (racket-tests/see-back "\"1\"\n2\n'#(3)\n> "))
+       ;; Multiple expressions at one prompt should produce multiple
+       ;; values, one per line.
+       (racket-tests/type&press "1 2 3" "RET")
+       (should (racket-tests/see-back "1\n2\n3\nrepl.rkt> "))
+       (racket-tests/type&press "(+ 1) (+ 2) (+ 3)" "RET")
+       (should (racket-tests/see-back "1\n2\n3\nrepl.rkt> "))
+       (racket-tests/type&press "\"1\" '2 #(3)" "RET")
+       (should (racket-tests/see-back "\"1\"\n2\n'#(3)\nrepl.rkt> "))
 
-      ;; A trailing space should not cause a hang until another
-      ;; expression is entered.
-      (racket-tests/type&press "1 " "RET")
-      (should (racket-tests/see-back "1\n> "))
+       ;; A trailing space should not cause a hang until another
+       ;; expression is entered.
+       (racket-tests/type&press "1 " "RET")
+       (should (racket-tests/see-back "1\nrepl.rkt> "))
 
-      ;; `racket-smart-open-bracket-mode'.
-      ;;
-      ;; For `paredit-mode' we test using the configuration we
-      ;; document in doc/racket-mode.org; see #647.
-      (dolist (k '("RET" "C-m" "C-j"))
-        (define-key paredit-mode-map (kbd k) nil))
-      (let ((typing   "[cond [[values 1] #t] [else #f]]")
-            (expected "(cond [(values 1) #t] [else #f])\n#t\n> "))
-        (mapc (lambda (modes)
-                (racket-smart-open-bracket-mode -1)
-                (electric-pair-mode (if (car modes) 1 -1))
-                (if (cdr modes) (enable-paredit-mode) (disable-paredit-mode))
-                ;; Enable /after/ enabling other mode, as our doc
-                ;; string tells users to do.
-                (racket-smart-open-bracket-mode 1)
-                (racket-tests/type&press typing "RET")
-                (should (racket-tests/see-back expected)))
-              (list (cons t   nil)      ;just `electric-pair-mode'
-                    (cons nil t)        ;just `paredit-mode'
-                    (cons nil nil))))   ;neither/plain
+       ;; `racket-smart-open-bracket-mode'.
+       ;;
+       ;; For `paredit-mode' we test using the configuration we
+       ;; document in doc/racket-mode.org; see #647.
+       (dolist (k '("RET" "C-m" "C-j"))
+         (define-key paredit-mode-map (kbd k) nil))
+       (let ((typing   "[cond [[values 1] #t] [else #f]]")
+             (expected "(cond [(values 1) #t] [else #f])\n#t\nrepl.rkt> "))
+         (mapc (lambda (modes)
+                 (racket-smart-open-bracket-mode -1)
+                 (electric-pair-mode (if (car modes) 1 -1))
+                 (if (cdr modes) (enable-paredit-mode) (disable-paredit-mode))
+                 ;; Enable /after/ enabling other mode, as our doc
+                 ;; string tells users to do.
+                 (racket-smart-open-bracket-mode 1)
+                 (racket-tests/type&press typing "RET")
+                 (should (racket-tests/see-back expected)))
+               (list (cons t   nil)       ;just `electric-pair-mode'
+                     (cons nil t)         ;just `paredit-mode'
+                     (cons nil nil))))    ;neither/plain
 
-      ;; Exit
-      (racket-tests/type&press "(exit)" "RET")
-      (should (racket-tests/see-back
-               "REPL session ended\n"))
-      (kill-buffer))))
+       ;; Exit
+       (racket-tests/type&press "(exit)" "RET")
+       (should (racket-tests/see-back
+                "REPL session ended\n"))
+       (kill-buffer)))))
 
 ;;; Multi REPLs
 
