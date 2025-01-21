@@ -55,42 +55,43 @@
         "(require net/url\n         (combine-in net/url\n                     racket/format))")
        (replace 39 42 "(require net/uri-codec\n         net/url)")))
 
-    ;; On older Rackets macro-debugger/analysis/check-requires might
-    ;; give error:
-    ;;
-    ;; derivation-parser: error on token #2: <local-value,
-    ;;#<syntax:/usr/share/racket/collects/syntax/parse/private/lib.rkt:63:55
-    ;;-string>>
-    (when (version<=? "8.14" (version))
-      (check-equal?
-       (requires/trim p)
-       '((delete 174 17)
-         (replace
-          129
-          44
-          "(require net/url\n         (combine-in net/url\n                     racket/format))")
-         (replace 39 42 "(require net/uri-codec\n         net/url)")))
-      (check-equal?
-       (requires/base p)
-       '((delete 174 17)
-         (replace
-          129
-          44
-          "(require (for-syntax racket/base)\n         net/url\n         (combine-in net/url\n                     racket/format)\n         racket/list\n         racket/match)")
-         (replace 39 42 "(require net/uri-codec\n         net/url)"))))))
+    (cond
+      [(not show-requires)
+       (displayln "Skipping requires analysis tests (macro-debugger-text-lib seemingly not installed).")]
+      ;; On older Rackets macro-debugger/analysis/check-requires might
+      ;; give error:
+      ;;   derivation-parser: error on token #2: <local-value, #<syntax:/usr/share/racket/collects/syntax/parse/private/lib.rkt:63:55 -string>>
+      [(version<? (version) "8.14")
+       (displayln "Skipping requires analysis tests (Racket < 8.14).")]
+      [else
+       (check-equal?
+        (requires/trim p)
+        '((delete 174 17)
+          (replace
+           129
+           44
+           "(require net/url\n         (combine-in net/url\n                     racket/format))")
+          (replace 39 42 "(require net/uri-codec\n         net/url)")))
+       (check-equal?
+        (requires/base p)
+        '((delete 174 17)
+          (replace
+           129
+           44
+           "(require (for-syntax racket/base)\n         net/url\n         (combine-in net/url\n                     racket/format)\n         racket/list\n         racket/match)")
+          (replace 39 42 "(require net/uri-codec\n         net/url)")))])))
 
 ;;; analysis by macro-debugger/analysis/check-requires
-
-(define (error-thunk)
-  (error 'requires
-         "Cannot work until you `raco pkg install macro-debugger-lib`"))
 
 (define show-requires
   (safe-dynamic-require 'macro-debugger/analysis/check-requires
                         'show-requires
-                        error-thunk))
+                        (λ () #f)))
 
 (define (analyze path-str)
+  (unless show-requires
+    (error 'analyze-requires
+           "Cannot work until you `raco pkg install macro-debugger-text-lib`"))
   (define-values (base name _) (split-path (string->path path-str)))
   (parameterize ([current-load-relative-directory base]
                  [current-directory base])
