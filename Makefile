@@ -1,4 +1,4 @@
-.PHONY : help show-versions clean compile deps test test-elisp test-racket test-slow
+.PHONY : help show-versions clean compile deps minimal-racket-deps test test-elisp test-racket test-slow
 
 help:
 	@echo "Targets: show-versions, clean, compile, deps, test, test-elisp, test-racket, test-slow"
@@ -54,6 +54,11 @@ deps:
       --eval '(package-refresh-contents)' \
       --eval '(package-install (quote faceup))' \
       --eval '(package-install (quote paredit))'
+
+minimal-racket-deps:
+	$(RACKET) -l raco pkg install --auto \
+     data-lib errortrace-lib macro-debugger-text-lib rackunit-lib \
+     racket-index scribble-lib drracket-tool-text-lib
 
 test: test-racket test-elisp
 

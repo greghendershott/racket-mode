@@ -53,6 +53,48 @@ jobs:
       - name: Run Racket Tests
         run: xvfb-run make test-racket
 
+  # The motivation for this job is to see if tests are likely to pass
+  # when run on headless servers such as Debian `buildd` with the
+  # Minimal Racket distriubtion (or equivalent), plus manually
+  # installing the Racket packages recommended in our documentation.
+  # The tests themselves should detect the absence of a display or a
+  # missing Racket package and skip. See *** in comments below.
+  minimal:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        emacs_version:
+          - '29.1'              # most recent release
+        racket_version:
+          - 'stable'            # most recent release
+    name: Minimal Racket
+    steps:
+      - name: Checkout
+        uses: actions/checkout@master
+      - name: Install Emacs
+        uses: purcell/setup-emacs@master
+        with:
+          version: ${{ matrix.emacs_version }}
+      - name: Install Racket
+        uses: Bogdanp/setup-racket@v1.11
+        with:
+          architecture: 'x64'
+          distribution: 'minimal' # *** NOT 'full'
+          version: ${{ matrix.racket_version }}
+      - name: Install some non-Minimal Racket packages # ***
+        run: make minimal-racket-deps
+      - name: Show versions
+        run: make show-versions
+      - name: Install Emacs Packages
+        run: make deps
+      - name: Compile Emacs Lisp
+        run: make compile
+      - name: Run Emacs Lisp Tests
+        run: make test-elisp
+      - name: Run Racket Tests
+        run: make test-racket # *** do NOT use xvfb-run
+
   windows:
     runs-on: windows-latest
     strategy:
