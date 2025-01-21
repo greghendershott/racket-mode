@@ -82,16 +82,22 @@
     [_ #f]))
 
 (module+ test
-  ;; This test succeeds on all Racket versions before and after 6.10.
-  ;; I spent an hour installing 6.10 locally and exploring the problem
-  ;; but so far have no clue. As neither 6.10 nor I are getting any
-  ;; younger, I am choosing to ignore this, for now.
-  ;;
-  ;; Probably https://github.com/racket/drracket/issues/118
-  (when racket-newer-than-6.12
-    (check-equal? (identifier->bluebox #'list)
-                  "(list v ...) -> list?\n  v : any/c"))
-  (check-false (identifier->bluebox (datum->syntax #f (gensym)))))
+  (cond
+    ;; racket-doc has an unfortunate dependency -- gui-lib -- meaning
+    ;; it might not be installed on a headless server. See #738.
+    [(not (xref-binding->definition-tag (get-xref) #'cons 0))
+     (displayln "Skipping identifier->bluebox tests (racket-doc seemingly not installed).")]
+    [else
+     ;; This test succeeds on all Racket versions before and after 6.10.
+     ;; I spent an hour installing 6.10 locally and exploring the problem
+     ;; but so far have no clue. As neither 6.10 nor I are getting any
+     ;; younger, I am choosing to ignore this, for now.
+     ;;
+     ;; Probably https://github.com/racket/drracket/issues/118
+     (when racket-newer-than-6.12
+       (check-equal? (identifier->bluebox #'list)
+                     "(list v ...) -> list?\n  v : any/c"))
+     (check-false (identifier->bluebox (datum->syntax #f (gensym))))]))
 
 ;;; Documentation search
 
