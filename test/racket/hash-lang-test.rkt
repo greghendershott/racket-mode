@@ -1,7 +1,6 @@
 #lang racket/base
 
 (require rackunit
-         framework
          racket/class
          racket/dict
          racket/async-channel
@@ -10,6 +9,17 @@
          net/url
          "../../racket/lang-info.rkt"
          "../../racket/util.rkt")
+
+(unless (getenv "DISPLAY")
+  (displayln "DISPLAY not available; SKIPPING hash-lang tests")
+  (exit 0))
+
+(define racket:text%
+  (with-handlers ([exn:fail?
+                   (λ _
+                     (displayln "racket:text% from framework not available; SKIPPING hash-lang tests")
+                     (exit 0))])
+    (dynamic-require 'framework 'racket:text%)))
 
 (define hash-lang%
   (with-handlers ([exn:fail:filesystem:missing-module?
