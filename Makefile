@@ -1,4 +1,4 @@
-.PHONY : help show-versions clean compile deps minimal-racket-deps test test-elisp test-racket test-slow
+.PHONY : help show-versions clean compile deps minimal-racket-deps test test-elisp test-racket test-racket-submod test-racket-plain test-racket-slow
 
 help:
 	@echo "Targets: show-versions, clean, compile, deps, test, test-elisp, test-racket, test-slow"
@@ -13,6 +13,11 @@ show-versions:
 	@$(RACKET) --version
 	@echo `which $(EMACS)`
 	@$(EMACS) --version
+
+test: test-racket test-elisp
+
+######################################################################
+# Emacs
 
 batch-emacs := \
   $(EMACS) --batch -Q -L . \
@@ -55,13 +60,6 @@ deps:
       --eval '(package-install (quote faceup))' \
       --eval '(package-install (quote paredit))'
 
-minimal-racket-deps:
-	$(RACKET) -l raco pkg install --auto \
-     data-lib errortrace-lib macro-debugger-text-lib rackunit-lib \
-     racket-index scribble-lib drracket-tool-text-lib
-
-test: test-racket test-elisp
-
 test-elisp:
 	$(batch-emacs) \
       -l ert \
@@ -69,17 +67,37 @@ test-elisp:
       --eval '(setq racket-program "$(RACKET)")' \
       -f ert-run-tests-batch-and-exit
 
-# Files to test using `raco test -x`.
-test-x-rkt-files := $(wildcard ./racket/*.rkt) $(wildcard ./racket/commands/*.rkt)
-# Exclude hash-lang.rkt because it will fail to eval on older Rackets;
-# normally we only dynamic-require it. Furthermore its tests are in
-# ./test/racket/hash-lang-test.rkt.
-test-x-rkt-files := $(filter-out ./racket/hash-lang.rkt, $(test-x-rkt-files))
+######################################################################
+# Racket
 
-test-racket:
-	$(RACKET) -l raco test -x $(test-x-rkt-files)
+# This target is for a CI configuration using the Minimal Racket
+# distribution. In that case we need some additional Racket packages
+# from the main distribution -- as described in our end user docs at
+# <https://www.racket-mode.com/#Minimal-Racket>.
+minimal-racket-deps:
+	$(RACKET) -l raco pkg install --auto \
+      data-lib errortrace-lib macro-debugger-text-lib rackunit-lib \
+      racket-index scribble-lib drracket-tool-text-lib
+
+test-racket: test-racket-submod test-racket-plain
+
+# Most tests exist inside `test` submodules of ordinary source files.
+#
+# Exclude racket/hash-lang.rkt because it fails to eval on older
+# Rackets. Normally we only dynamic-require it. Furthermore its tests
+# are in ./test/racket/hash-lang-test.rkt.
+test-racket-submod:
+	$(RACKET) -l raco test --submodule test --no-run-if-absent \
+      $(filter-out ./racket/hash-lang.rkt, $(wildcard ./racket/*.rkt)) \
+      $(wildcard ./racket/commands/*.rkt)
+
+# Plus we do have some files in a special directory that consist of
+# tests in the file's root module.
+test-racket-plain:
 	$(RACKET) -l raco test ./test/racket/
 
-test-slow:
+# Some very slow tests segregated in `slow-test` submodules so that
+# they're not run by default.
+test-racket-slow:
 	$(RACKET) -l raco test --submodule slow-test ./racket/imports.rkt
 	$(RACKET) -l raco test --submodule slow-test ./racket/commands/check-syntax.rkt
