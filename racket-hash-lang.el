@@ -197,6 +197,44 @@ re-tokenization has progressed sufficiently.")
 
 (defvar-local racket-hash-lang-mode-lighter "#lang")
 
+(defconst racket--agnostic-syntax-table
+  (let ((table (make-syntax-table)))
+    ;; From Emacs Lisp Info node "Syntax Table Internals":
+    ;;
+    ;;     Code Class
+    ;;     0    whitespace
+    ;;     1    punctuation
+    ;;     2    word
+    ;;     3    symbol
+    ;;     4    open parenthesis
+    ;;     5    close parenthesis
+    (map-char-table (lambda (key code+char)
+                      (unless (<= 0 (car code+char) 5)
+                        (aset table key '(3))))
+                    table)
+    table)
+  "Like `standard-syntax-table' but even simpler.
+
+The only syntax categories in this table are whitespace,
+punctuation, word, symbol, and open/close parens. Chars with any
+other syntax are changed to symbol syntax.
+
+For example we change all string-quote syntax to symbol, because
+the chars used to delimit strings vary among programming
+languages. Although that example happens to be the only practical
+difference from `standard-syntax-table', today, we still make a
+generalized pass over it to be sure.
+
+Note: Open/close paren syntax is preserved on the theory that,
+although the /meaning/ of those characters may vary among langs,
+their use as paired delimiters is likely universal, and it is
+useful to support various Emacs features such as
+rainbow-delimiters.
+
+Note: `standard-syntax-table' is a better choice for spans lexed
+as \"text\" tokens, because ?\" is definitely a string delimiter
+in English.")
+
 ;;;###autoload
 (define-derived-mode racket-hash-lang-mode prog-mode
   'racket-hash-lang-mode-lighter
@@ -226,7 +264,7 @@ A discussion of the information provided by a Racket language:
   (add-hook 'kill-buffer-hook
             #'racket-mode-maybe-offer-to-kill-repl-buffer
             nil t)
-  (set-syntax-table racket--plain-syntax-table)
+  (set-syntax-table racket--agnostic-syntax-table)
   ;; Tell `parse-partial-sexp' to consider syntax-table text
   ;; properties.
   (setq-local parse-sexp-lookup-properties t)
@@ -415,7 +453,7 @@ lang's attributes that we care about have changed."
       ;; properties we add from tokens.
       (set-syntax-table (if (plist-get plist 'racket-grouping)
                             racket-mode-syntax-table
-                          racket--plain-syntax-table))
+                          racket--agnostic-syntax-table))
       ;; Similarly for `forward-sexp-function'. The
       ;; drracket:grouping-position protocol doesn't support a nuance
       ;; where a `forward-sexp-function' should signal an exception
@@ -566,7 +604,7 @@ that need be set."
                (put-face beg end (racket--sexp-comment-face (get-face-at beg))))
               ('parenthesis (when (facep 'parenthesis)
                               (put-face beg end 'parenthesis)))
-              ('text (put-stx beg end racket--plain-syntax-table)
+              ('text (put-stx beg end (standard-syntax-table))
                      (put-face beg end racket-hash-lang-text))
               (kind
                (if-let (face (cdr (assq kind racket-hash-lang-token-face-alist)))
