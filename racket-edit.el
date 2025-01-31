@@ -232,15 +232,7 @@ module form, meaning the outermost, file module."
 Useful when you know the name of an export but don't remember
 from what module it is exported.
 
-1 At the prompt, you may:
-\\<minibuffer-local-map>
-
-- Use \\[next-history-element] to load the identifier at point.
-You might also need to \\[move-end-of-line] to see candidates.
-
-- Or, type anything.
-
-2. After you choose, this command will:
+After you choose an identifier, this command will:
 
 - Insert the identifier at point if not already there.
 

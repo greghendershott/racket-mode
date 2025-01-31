@@ -655,9 +655,9 @@ Return nil or \(term path anchor lib\)."
                    (get-text-property 0 'racket-affix v))))
          (prompt "Search Racket documentation: ")
          (require-match t)
-         (initial-input nil)
+         (initial-input (racket--thing-at-point 'symbol t))
          (history 'racket-identifier)
-         (default (racket--thing-at-point 'symbol t))
+         (default initial-input)
          (history-add-new-input nil)) ;we'll add history below
     (when-let (str (completing-read prompt
                                     collection

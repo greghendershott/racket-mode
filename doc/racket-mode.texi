@@ -1069,13 +1069,7 @@ Unfold (show) all test submodules.
 
 @kbd{M-x}  @code{racket-tidy-requires}
 
-Make a single, sorted ``require'' form.
-
-The scope of this command is the innermost module around point --
-whether an explicit submodule form or the outermost module for a
-file that has a ``#lang'' line.
-
-Merge all require forms within that module to one form.
+Make a single, sorted ``require'' form for each module.
 
 Use a single require-spec for each phase-level, sorted in this
 order: for-syntax, for-template, for-label, for-meta, and
@@ -1114,9 +1108,10 @@ errors.
 @item
 Only works for requires at the top level of a source file using
 @end itemize
-#lang -- not for requires inside submodule forms. Furthermore, it
-is not smart about module+ or module* forms -- it might delete
-outer requires that are actually needed by such submodules.
+#lang -- not for requires inside submodule forms. Furthermore,
+the analysis is not smart about module+ or module* forms -- it
+might delete outer requires that are actually needed by such
+submodules.
 
 See also: @ref{racket-base-requires}.
 
@@ -1153,21 +1148,9 @@ Add a require for an identifier.
 Useful when you know the name of an export but don't remember
 from what module it is exported.
 
-1 At the prompt, you may:
+After you choose an identifier, this command will:
 
 @itemize
-@item
-Use @kbd{<XF86Forward>} or @kbd{<next>} or @kbd{M-n}  to load the identifier at point.
-@end itemize
-You might also need to @kbd{C-e} or @kbd{<end>}  to see candidates.
-
-@itemize
-@item
-Or, type anything.
-
-@item
-After you choose, this command will:
-
 @item
 Insert the identifier at point if not already there.
 
