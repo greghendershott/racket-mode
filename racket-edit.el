@@ -246,19 +246,19 @@ identifiers that are exported but not documented."
   (racket--assert-sexp-edit-mode)
   (when-let (result (racket--describe-search-completing-read))
     (pcase-let* ((`(,term ,_path ,_anchor ,lib) result)
-                 (req (format "(require %s)" lib)))
+                 (req (format "(require %s)" lib))
+                 (pt (copy-marker (point) t)))
       (unless (equal (racket--thing-at-point 'symbol) term)
         (insert term))
-      (save-excursion
-        (goto-char (racket--inside-innermost-module))
-        (insert req)
-        (newline-and-indent)
-        (let ((pt  (copy-marker (point))))
-          (racket--tidy-requires
-           (lambda (result)
-             (goto-char pt)
-             (when result
-               (message "Added %S and did racket-tidy-requires" req)))))))))
+      (goto-char (racket--inside-innermost-module))
+      (newline-and-indent)
+      (insert req)
+      (newline-and-indent)
+      (racket--tidy-requires
+       (lambda (result)
+         (goto-char pt)
+         (when result
+           (message "Added %S and did racket-tidy-requires" req)))))))
 
 ;;; align
 
