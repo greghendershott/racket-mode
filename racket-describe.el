@@ -29,7 +29,7 @@
   "Forward navigation list. Each item is (cons path point).")
 
 (defun racket--do-describe (how repl-session-id str)
-  "Get or create a `racket-describe-mode' buffer and display it.
+  "Get/create, display and return a `racket-describe-mode'.
 
 HOW is somewhat complicated, due to this function being
 overloaded to handle both showing documentation for an
@@ -59,8 +59,8 @@ signature and/or type. So:
       (setq racket--describe-stack-forward nil)
       (let ((buffer-read-only nil))
         (erase-buffer))
-      ;; shr-insert-document seems to misbehave when buffer has no
-      ;; window so do this early.
+      ;; shr-insert-document needs window width for formatting, and we
+      ;; set window-point, so proactively give the window a buffer.
       (pop-to-buffer (current-buffer))
       (pcase how
         ;; If HOW is the doc path and anchor (the latter can be nil),
@@ -100,7 +100,8 @@ signature and/or type. So:
                (racket--describe-insert-dom nil ;path
                                             str ;anchor
                                             (racket--describe-not-found-dom str)))))))
-        (_ (error "Bad value for `how`: %s" how))))))
+        (_ (error "Bad value for `how`: %s" how)))
+      (current-buffer))))
 
 (defun racket--describe-not-found-dom (str)
   `(div ()
@@ -496,10 +497,7 @@ current line and looking back."
 
 ;; bookmark support
 
-(declare-function bookmark-make-record-default
-                  "bookmark" (&optional no-file no-context posn))
-(declare-function bookmark-prop-get
-                  "bookmark" (bookmark prop))
+(declare-function bookmark-prop-get "bookmark" (bookmark prop))
 
 (defun racket-describe-bookmark-make-record ()
   "A value for `bookmark-make-record-function'."
@@ -513,9 +511,10 @@ current line and looking back."
     (handler . racket-describe-bookmark-jump)))
 
 (defun racket-describe-bookmark-jump (bmk)
-  (racket--do-describe (cons (bookmark-prop-get bmk 'filename)
-                             (bookmark-prop-get bmk 'position))
-                       nil ""))
+  (set-buffer
+   (racket--do-describe (cons (bookmark-prop-get bmk 'filename)
+                              (bookmark-prop-get bmk 'position))
+                        nil "")))
 (put 'racket-describe-bookmark-jump 'bookmark-handler-type "Racket docs")
 
 ;; org-link support
