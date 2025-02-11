@@ -1,6 +1,6 @@
 ;;; racket-repl.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2024 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 ;; Image portions Copyright (C) 2012 Jose Antonio Ortega Ruiz.
 
@@ -1326,7 +1326,7 @@ something, regardless of whether it has installed documentation
     (pcase (racket--symbol-at-point-or-prompt prefix "Describe: "
                                               racket--repl-namespace-symbols)
       ((and (pred stringp) str)
-       (racket--do-describe 'namespace (racket--repl-session-id) str)))))
+       (racket--describe-string str 'namespace (racket--repl-session-id))))))
 
 ;;; racket-xref-repl
 

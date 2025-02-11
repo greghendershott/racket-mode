@@ -1,6 +1,6 @@
 ;;; racket-xp.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2024 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -1117,13 +1117,14 @@ press F1 or C-h in its pop up completion list."
        ;; at point. If available, use its path and anchor, because
        ;; that will be correct even for an identifier in a submodule
        ;; with different imports than the file module. Otherwise
-       ;; supply the file's path, and the "describe" command will
-       ;; treat str as a file module identifier.
-       (let ((how (pcase (and (not prefix)
-                              (get-text-property (racket--point) 'racket-xp-doc))
-                    (`(,path ,anchor ,_tag) `(,path . ,anchor))
-                    (_                      (racket--xp-buffer-file-name)))))
-         (racket--do-describe how nil str))))))
+       ;; supply the file's path, and the back end "describe" command
+       ;; will treat str as a file module identifier.
+       (pcase (and (not prefix)
+                   (get-text-property (racket--point) 'racket-xp-doc))
+         (`(,path ,anchor ,_tag)
+          (racket--describe-path+anchor path anchor))
+         (_
+          (racket--describe-string str (racket--xp-buffer-file-name))))))))
 
 ;;; xref
 

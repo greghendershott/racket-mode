@@ -1,6 +1,6 @@
 ;;; racket-describe.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2024 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -28,80 +28,70 @@
 (defvar-local racket--describe-stack-forward nil
   "Forward navigation list. Each item is (cons path point).")
 
-(defun racket--do-describe (how repl-session-id str)
-  "Get/create, display and return a `racket-describe-mode'.
+(defun racket--call-with-describe-buffer (thunk)
+  "Call THUNK in a blank `racket-describe-mode-buffer' and return
+the buffer.
 
-HOW is somewhat complicated, due to this function being
-overloaded to handle both showing documentation for an
-already-known path and anchor (e.g. from `racket-xp-mode') as
-well as seeing if STR is an identifier in a namespace for which
-we can find documentation, or least return a description of its
-signature and/or type. So:
-
-- When HOW is (cons path anchor) we load/show that documentation,
-  and ignore STR. We don't issue a back end command. (Earlier
-  versions of Racket Mode used the back end to fetch the HTML or
-  shr-dom, but these days we do it all in the front end.)
-  REPL-SESSION-ID and STR are unused and may be nil.
-
-- When HOW is \"namespace\" or a stringp pathname, we use that as
-  the namespace in which to see if STR is an identifier, using
-  the \"describe\" back end command. The command can return a few
-  kinds of values; see the implementation below. When HOW is
-  \"namespace\" then REPL-SESSION-ID should be
-  `racket--repl-session-id'; else may be nil."
+A helper for use by `racket--describe-path+anchor' and
+`racket--describe-string'."
   (let ((buf-name (format "*Racket Describe <%s>*"
                           (racket-back-end-name))))
     (with-current-buffer (get-buffer-create buf-name)
       (unless (eq major-mode 'racket-describe-mode)
         (racket-describe-mode))
-      (racket--describe-maybe-push-here 'back) ;do before erasing buffer
       (setq racket--describe-stack-forward nil)
+      (racket--describe-maybe-push-here 'back) ;before `erase-buffer'
       (let ((buffer-read-only nil))
         (erase-buffer))
       ;; shr-insert-document needs window width for formatting, and we
       ;; set window-point, so proactively give the window a buffer.
       (pop-to-buffer (current-buffer))
-      (pcase how
-        ;; If HOW is the doc path and anchor (the latter can be nil),
-        ;; there's no need to issue a back end describe command.
-        (`(,(and path (pred stringp)) . ,anchor)
-         (racket--describe-insert-dom path
-                                      anchor
-                                      (racket--scribble-path->shr-dom path)))
-        ;; If HOW is a string pathname or 'namspace, then we need to
-        ;; use the back end describe command. It returns one of three
-        ;; kinds of values.
-        ((guard (or (stringp how) (eq how 'namespace)))
-         (setq header-line-format
-               (propertize (format "Getting information from back end about %s ..." str)
-                           'face 'italic))
-         (racket--cmd/async
-          repl-session-id
-          `(describe ,(racket-how-front-to-back how) ,str)
-          (lambda (result)
-            (pcase result
-              ;; STR has documentation at path and anchor. Handle like
-              ;; the case where we knew the path and anchor up-front.
-              (`(,(and path (pred stringp)) . ,anchor)
-               (let ((path (racket-file-name-back-to-front path)))
-                 (racket--describe-insert-dom path
-                                              anchor
-                                              (racket--scribble-path->shr-dom path))))
-              ;; STR doesn't have documentation, but it does have a
-              ;; signature and/or type, and here is a dom about that
-              ;; we can insert.
-              (`(shr-dom ,dom)
-               (racket--describe-insert-dom nil ;path
-                                            str ;anchor
-                                            dom))
-              ;; STR doesn't seem to be an identifier we can describe.
-              (`()
-               (racket--describe-insert-dom nil ;path
-                                            str ;anchor
-                                            (racket--describe-not-found-dom str)))))))
-        (_ (error "Bad value for `how`: %s" how)))
+      (funcall thunk)
       (current-buffer))))
+
+(defun racket--describe-path+anchor (path anchor)
+  "Display/return `racket-describe-mode' buffer for PATH and ANCHOR."
+  (racket--call-with-describe-buffer
+   (lambda ()
+     (racket--describe-insert-dom path
+                                  anchor
+                                  (racket--scribble-path->shr-dom path)))))
+
+(defun racket--describe-string (str how &optional repl-session-id)
+  "Display/return `racket-describe-mode' buffer for STR.
+
+Use back end \"describe\" command to try to find documentation or
+a description of STR, where HOW is either the source file
+pathname or \\='namespace. When the latter, REPL-SESSION-ID must
+be supplied."
+  (racket--call-with-describe-buffer
+   (lambda ()
+     (setq header-line-format
+           (propertize (format "Getting information from back end about %s ..." str)
+                       'face 'italic))
+     (racket--cmd/async
+      repl-session-id
+      `(describe ,(racket-how-front-to-back how) ,str)
+      (lambda (result)
+        (pcase result
+          ;; STR has documentation at path and anchor.
+          (`(,(and path (pred stringp)) . ,anchor)
+           (let ((path (racket-file-name-back-to-front path)))
+             (racket--describe-insert-dom path
+                                          anchor
+                                          (racket--scribble-path->shr-dom path))))
+          ;; STR doesn't have documentation, but it does have a
+          ;; signature and/or type, and here is a dom about that
+          ;; we can insert.
+          (`(shr-dom ,dom)
+           (racket--describe-insert-dom nil     ;path
+                                        str     ;anchor
+                                        dom))
+          ;; STR doesn't seem to be an identifier we can describe.
+          (`()
+           (racket--describe-insert-dom nil     ;path
+                                        str     ;anchor
+                                        (racket--describe-not-found-dom str)))))))))
 
 (defun racket--describe-not-found-dom (str)
   `(div ()
@@ -512,9 +502,8 @@ current line and looking back."
 
 (defun racket-describe-bookmark-jump (bmk)
   (set-buffer
-   (racket--do-describe (cons (bookmark-prop-get bmk 'filename)
-                              (bookmark-prop-get bmk 'position))
-                        nil "")))
+   (racket--describe-path+anchor (bookmark-prop-get bmk 'filename)
+                                 (bookmark-prop-get bmk 'position))))
 (put 'racket-describe-bookmark-jump 'bookmark-handler-type "Racket docs")
 
 ;; org-link support
@@ -542,7 +531,8 @@ current line and looking back."
                           :description (racket--describe-label-for-point))))
 
 (defun racket--describe-org-link-follow (link)
-  (racket--do-describe (read link) nil ""))
+  (pcase-let ((`(,path . ,anchor) (read link)))
+    (racket--describe-path+anchor path anchor)))
 
 ;; keymap and major mode
 
@@ -613,11 +603,9 @@ browser program -- are given `racket-ext-link-face'.
   "Search installed documentation; view using `racket-describe-mode'."
   (interactive)
   (pcase (racket--describe-search-completing-read)
-    (`(,term ,path ,anchor ,_lib)
-     (racket--do-describe (cons (racket-file-name-back-to-front path)
-                                anchor)
-                          nil
-                          term))))
+    (`(,_term ,path ,anchor ,_lib)
+     (racket--describe-path+anchor (racket-file-name-back-to-front path)
+                                   anchor))))
 
 (defun racket--describe-search-completing-read ()
   "A `completing-read' UX for user to pick doc index item.
