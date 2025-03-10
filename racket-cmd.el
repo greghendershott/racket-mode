@@ -1,6 +1,6 @@
 ;;; racket-cmd.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -75,6 +75,7 @@ Before doing anything runs the hook `racket-stop-back-end-hook'."
   ;; Avoid excess processes/buffers like "racket-process<1>".
   (when (racket--cmd-open-p)
     (racket--cmd-close))
+  (racket--kill-startup-error-buffer)
   ;; Give the process buffer the current values of some vars; see
   ;; <https://github.com/purcell/envrc/issues/22>.
   (cl-letf* (((default-value 'process-environment) process-environment)
@@ -214,6 +215,8 @@ Although mostly these are 1:1 responses to command requests, some
 like \"logger\", \"debug-break\", and \"hash-lang\" are
 notifications."
   (pcase response
+    (`(startup-error ,kind ,data)
+     (run-at-time 0.001 nil #'racket--on-startup-error kind data))
     (`(logger ,str)
      (run-at-time 0.001 nil #'racket--logger-on-notify back-end str))
     (`(debug-break . ,response)
@@ -361,6 +364,48 @@ in a specific namespace."
                            (print-level nil))
                        (error "Unknown response to command %S from %S to %S:\n%S"
                               command-sexpr buf name v)))))))
+
+;;; Back end startup error buffer
+
+(defconst racket--startup-error-buffer-name
+  "*Racket Mode back end startup failure*")
+
+(defun racket--kill-startup-error-buffer ()
+  (let ((buf (get-buffer racket--startup-error-buffer-name)))
+    (when (buffer-live-p buf)
+      (kill-buffer buf))))
+
+(defun racket--on-startup-error (kind data)
+  (let ((buf (get-buffer-create racket--startup-error-buffer-name)))
+    (with-current-buffer buf
+      (unless (eq major-mode 'special-mode)
+        (special-mode))
+      (visual-line-mode 1)
+      (let ((buffer-read-only nil))
+        (erase-buffer)
+        (pop-to-buffer buf)
+        (pcase kind
+          ('missing-module
+           (let ((url "https://racket-mode.com/#Minimal-Racket-1"))
+             (insert "The Racket Mode back end could not start because it was unable to load the module "
+                     ?' data ?' "."
+                     "\n\n"
+                     "This could be because you did not install the full \"main distribution\" of Racket, but instead installed only \"Minimal Racket\" (the default when using homebrew)."
+                     "\n\n"
+                     "In that case, you will need either to install the full main distribution, or, manually install certain additional Racket packages."
+                     "\n\n"
+                     "Please see ")
+             (save-excursion ;leave point at start of link, for handy RET
+               (insert-button url
+                              'url url
+                              'face 'link
+                              'follow-link t
+                              'action (lambda (button)
+                                        (when-let (url (button-get button 'url))
+                                          (browse-url url))))
+               (insert "."))))
+          (_
+           (insert data)))))))
 
 (provide 'racket-cmd)
 

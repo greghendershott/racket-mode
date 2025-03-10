@@ -1,10 +1,11 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
 
-;;; Portions Copyright (C) 2012 Jose Antonio Ortega Ruiz.
+;; Portions Copyright (C) 2012 Jose Antonio Ortega Ruiz.
 
+;; Limit imports to those supplied by Minimal Racket!
 (require file/convertible
          racket/file
          racket/format
