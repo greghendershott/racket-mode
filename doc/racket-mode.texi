@@ -2772,10 +2772,6 @@ The expression may be either an at-expression or an s-expression.
 When the expression is a sexp comment, the sexp itself is sent,
 without the #; prefix.
 
-With a prefix argument (e.g. @kbd{C-u}  @kbd{C-x C-e} ), the sexp is copied
-into the REPL, followed by a ``=>'' line, to distinguish it
-from the zero or more values to which it evaluates.
-
 @node Collections
 @section Collections
 

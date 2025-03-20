@@ -278,13 +278,13 @@ live prompt this marker will be at `point-max'.")
              (setq moving t)        ;leave point after, for tests
              (setq racket--repl-session-id nil))
             ('value
-             (insert-faced value 'racket-repl-value t))
+             (insert-faced value 'racket-repl-value))
             ('value-special
              (pcase value
                (`(image . ,file)
                 (racket--repl-insert-image file))
                (value
-                (insert-faced (format "%s" value) 'racket-repl-value t))))
+                (insert-faced (format "%s" value) 'racket-repl-value))))
             ('error
              (pcase value
                (`(,msg ,srclocs (,context-kind . ,context-names-and-locs))
@@ -336,6 +336,7 @@ live prompt this marker will be at `point-max'.")
           ;; When stdout/stderr output ends with prompt following on
           ;; same line, push the prompt down to its own line.
           (when (and (memq kind '(stdout stderr))
+                     (not (equal "\n" (substring value -1 nil)))
                      racket--repl-prompt-mark
                      (equal (point) (marker-position racket--repl-prompt-mark)))
             (insert (propertize "\n"
@@ -990,7 +991,7 @@ If no buffer is visting the file, `find-file' it in `other-window'."
 
 ;;; send to REPL
 
-(defun racket--send-region-to-repl (start end &optional echo-p)
+(defun racket--send-region-to-repl (start end)
   "Internal function to send the region to the Racket REPL.
 
 Requires the REPL already to be started, e.g. from a run command.
@@ -1009,19 +1010,7 @@ see the results."
   (let ((source-buffer (current-buffer)))
     (racket--repl-forget-errors)
     (with-racket-repl-buffer
-      (save-excursion
-        (racket--repl-delete-prompt-mark nil)
-        (goto-char (point-max))
-        (insert ?\n)
-        (when echo-p
-          (insert (with-current-buffer source-buffer
-                    (buffer-substring start end)))
-          (insert (propertize "\n=>\n"
-                              'font-lock-face 'racket-repl-message)))
-        (add-text-properties racket--repl-output-mark (point)
-                             (list 'field 'send
-                                   'read-only t))
-        (set-marker racket--repl-output-mark (point))))
+      (racket--repl-delete-prompt-mark nil))
     (racket--cmd/async (racket--repl-session-id)
                        `(repl-submit ,(with-current-buffer source-buffer
                                         (buffer-substring-no-properties start end))))
@@ -1045,23 +1034,17 @@ see the results."
       (beginning-of-defun)
       (racket--send-region-to-repl (point) end))))
 
-(defun racket-send-last-sexp (&optional prefix)
+(defun racket-send-last-sexp ()
   "Send the expression before point to the Racket REPL.
 
 The expression may be either an at-expression or an s-expression.
 
 When the expression is a sexp comment, the sexp itself is sent,
-without the #; prefix.
-
-\\<racket-mode-map>
-With a prefix argument (e.g. \\[universal-argument] \\[racket-send-last-sexp]), the sexp is copied
-into the REPL, followed by a \"=>\" line, to distinguish it
-from the zero or more values to which it evaluates."
-  (interactive "P")
+without the #; prefix."
+  (interactive)
   (racket--assert-sexp-edit-mode)
   (racket--send-region-to-repl (racket--start-of-previous-expression)
-                               (point)
-                               prefix))
+                               (point)))
 
 (defun racket-eval-last-sexp ()
   "Eval the expression before point asynchronously.
