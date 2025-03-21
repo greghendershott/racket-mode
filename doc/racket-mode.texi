@@ -8,7 +8,7 @@
 @c %**end of header
 
 @copying
-Copyright (C) 2013-2024 by Greg Hendershott.
+Copyright (C) 2013-2025 by Greg Hendershott.
 
 SPDX-License-Identifier: GPL-3.0-or-later
 @end copying
@@ -465,7 +465,7 @@ NOTE: If you get an error message about ``contacting a host'' or ``downloading a
 @node Minimal Racket
 @section Minimal Racket
 
-If you have installed the minimal Racket distribution (for example by using the @uref{https://github.com/Homebrew/homebrew-core/blob/master/Formula/minimal-racket.rb, homebrew formula}) Racket Mode needs some additional Racket packages. A simple way to get all these packages is to install the @code{drracket} Racket package. In a command shell:
+If you have installed the minimal Racket distribution (for example by using the @uref{https://github.com/Homebrew/homebrew-core/blob/ebd95ad1db5c23b5b76a4a6aaaa60b1e0b58655e/Formula/m/minimal-racket.rb, homebrew formula}) Racket Mode needs some additional Racket packages. A simple way to get all these packages is to install the @code{drracket} Racket package. In a command shell:
 
 @example
 raco pkg install --auto drracket
