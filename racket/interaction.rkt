@@ -1,10 +1,11 @@
-;; Copyright (c) 2013-2023 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang at-exp racket/base
 
 (require racket/format
          racket/gui/dynamic
+         racket/match
          racket/set
          "safe-dynamic-require.rkt"
          "gui.rkt"
@@ -37,7 +38,10 @@
   (cond
     [(eof-object? v)
      (repl-output-prompt (string-append prompt ">"))
-     (current-submission-input-port (open-input-string (get-submission)))
+     (match-define (cons expr echo?) (get-submission))
+     (when echo?
+       (repl-output-message (string-append expr " => ")))
+     (current-submission-input-port (open-input-string expr))
      (port-count-lines! (current-submission-input-port))
      (get)]
     [else v]))
@@ -45,7 +49,7 @@
 (define current-get-interaction-evt
   (safe-dynamic-require 'racket/base 'current-get-interaction-evt))
 
-;; Get a string from current-submissions channel in the best manner
+;; Get value from current-submissions channel in the best manner
 ;; available given the version of Racket. Avoids hard dependency on
 ;; Racket 8.4+.
 (define (get-submission)

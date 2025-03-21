@@ -451,7 +451,8 @@ Otherwise send to current-input-port of user program."
                                  (list 'read-only t
                                        'rear-nonsticky t))
             (racket--repl-delete-prompt-mark nil)
-            (racket--cmd/async (racket--repl-session-id) `(repl-submit ,input+ret))))
+            (racket--cmd/async (racket--repl-session-id)
+                               `(repl-submit ,input+ret nil))))
       (end-of-line)
       (when (< racket--repl-output-mark (point))
         (let ((input (buffer-substring-no-properties racket--repl-output-mark (point))))
@@ -1011,11 +1012,14 @@ see the results."
       (racket--repl-delete-prompt-mark nil))
     (racket--cmd/async (racket--repl-session-id)
                        `(repl-submit ,(with-current-buffer source-buffer
-                                        (buffer-substring-no-properties start end))))
+                                        (buffer-substring-no-properties start end))
+                                     ,racket-repl-echo-sent-expressions))
     (display-buffer racket-repl-buffer-name)))
 
 (defun racket-send-region (start end)
-  "Send the current region (if any) to the Racket REPL."
+  "Send the current region (if any) to the Racket REPL.
+
+See the customization variable `racket-repl-echo-sent-expressions'."
   (interactive "r")
   (unless (region-active-p)
     (user-error "No region"))
@@ -1023,7 +1027,9 @@ see the results."
   (racket--send-region-to-repl start end))
 
 (defun racket-send-definition ()
-  "Send the current definition to the Racket REPL."
+  "Send the current definition to the Racket REPL.
+
+See the customization variable `racket-repl-echo-sent-expressions'."
   (interactive)
   (racket--assert-sexp-edit-mode)
   (save-excursion
@@ -1038,7 +1044,9 @@ see the results."
 The expression may be either an at-expression or an s-expression.
 
 When the expression is a sexp comment, the sexp itself is sent,
-without the #; prefix."
+without the #; prefix.
+
+See the customization variable `racket-repl-echo-sent-expressions'."
   (interactive)
   (racket--assert-sexp-edit-mode)
   (racket--send-region-to-repl (racket--start-of-previous-expression)

@@ -241,6 +241,7 @@ REPL variables
 * racket-images-do-not-use-svg::
 * racket-pretty-print::
 * racket-repl-command-file::
+* racket-repl-echo-sent-expressions::
 
 Other variables
 
@@ -2753,12 +2754,16 @@ variable @ref{racket-shell-or-terminal-function}.
 
 Send the current region (if any) to the Racket REPL@.
 
+See the customization variable @ref{racket-repl-echo-sent-expressions}.
+
 @node racket-send-definition
 @subsection racket-send-definition
 
 @kbd{C-M-x} 
 
 Send the current definition to the Racket REPL@.
+
+See the customization variable @ref{racket-repl-echo-sent-expressions}.
 
 @node racket-send-last-sexp
 @subsection racket-send-last-sexp
@@ -2771,6 +2776,8 @@ The expression may be either an at-expression or an s-expression.
 
 When the expression is a sexp comment, the sexp itself is sent,
 without the #; prefix.
+
+See the customization variable @ref{racket-repl-echo-sent-expressions}.
 
 @node Collections
 @section Collections
@@ -3486,6 +3493,7 @@ Use some of the regexp search-based fontification from classic
 * racket-images-do-not-use-svg::
 * racket-pretty-print::
 * racket-repl-command-file::
+* racket-repl-echo-sent-expressions::
 @end menu
 
 @node racket-repl-buffer-name-function
@@ -3604,6 +3612,17 @@ implement printing a non-s-expression syntax.
 @subsection racket-repl-command-file
 
 Name of the file used by @ref{racket-repl}.
+
+@node racket-repl-echo-sent-expressions
+@subsection racket-repl-echo-sent-expressions
+
+Should commands that send an expresion to the REPL echo it there?
+
+The echoed expression and `` => '' are displayed using the face
+@ref{racket-repl-message} to distinguish them from result values.
+
+Affects @ref{racket-send-last-sexp}, @ref{racket-send-region}, and
+@ref{racket-send-definition}.
 
 @node Other variables
 @section Other variables

@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -100,11 +100,11 @@
   (channel-put (current-repl-msg-chan) 'break))
 
 ;; Command. Called from a command-server thread
-(define/contract (repl-submit str)
-  (-> string? any)
+(define/contract (repl-submit str echo)
+  (-> string? any/c any)
   (unless (current-submissions)
     (error 'repl-submit "No REPL session for submit"))
-  (channel-put (current-submissions) str))
+  (channel-put (current-submissions) (cons str (as-racket-bool echo))))
 
 ;; Command. Called from a command-server thread
 (define/contract (repl-input str)

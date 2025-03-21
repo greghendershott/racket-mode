@@ -1,6 +1,6 @@
 ;;; racket-custom.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2024 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -450,6 +450,17 @@ from the variable `racket-repl-buffer-name'."
                     (locate-user-emacs-file (file-name-as-directory "racket-mode")))
   "Name of the file used by `racket-repl'."
   :type 'file)
+
+(defcustom racket-repl-echo-sent-expressions t
+  "Should commands that send an expresion to the REPL echo it there?
+
+The echoed expression and \" => \" are displayed using the face
+`racket-repl-message' to distinguish them from result values.
+
+Affects `racket-send-last-sexp', `racket-send-region', and
+`racket-send-definition'."
+  :type 'boolean
+  :safe #'booleanp)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; racket-other group

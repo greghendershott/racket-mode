@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2024 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -174,7 +174,7 @@
     [`(debug-resume ,v)                (debug-resume v)]
     [`(debug-disable)                  (debug-disable)]
     [`(repl-input ,str)                (repl-input str)]
-    [`(repl-submit ,str)               (repl-submit str)]
+    [`(repl-submit ,str, echo)         (repl-submit str echo)]
     [`(repl-break)                     (repl-break)]
     [`(repl-exit)                      (repl-exit)]))
 

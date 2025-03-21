@@ -1,6 +1,6 @@
 ;;; generate.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2024 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 ;;; Generate a reference.org file from doc strings
@@ -216,6 +216,7 @@
     racket-images-do-not-use-svg
     racket-pretty-print
     racket-repl-command-file
+    racket-repl-echo-sent-expressions
     "Other variables"
     racket-doc-index-directory
     racket-doc-index-predicate-function
