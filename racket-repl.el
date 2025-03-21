@@ -997,8 +997,6 @@ If no buffer is visting the file, `find-file' it in `other-window'."
 Requires the REPL already to be started, e.g. from a run command.
 
 Before sending the region, calls `racket--repl-forget-errors'.
-Also inserts a ?\n at the process mark so that output goes on a
-fresh line, not on the same line as the prompt.
 
 Finally, displays the REPL buffer in some window, so the user may
 see the results."
