@@ -44,7 +44,7 @@ set this, as well as perhaps setting their own env var.")
         (t              10))
   "Because some of these integration tests await the result of
 asynchronous command responses from the back end, it is possible
-they might wait indefinitely. So wee impose a timeout, used
+they might wait indefinitely. So we impose a timeout, used
 primarily in `racket-tests/call-until-true'. By default, when
 running tests locally, we prefer a shorter timeout. We use a
 longer timeout in CI environments, which are likely to be slower.")
