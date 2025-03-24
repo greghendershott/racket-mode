@@ -39,9 +39,9 @@ By convention, most CI systems like Travis CI or GitHub Actions
 set this, as well as perhaps setting their own env var.")
 
 (defconst racket-tests/timeout
-  (cond (buildd-env-p 900)
-        (ci-env-p      60)
-        (t             10))
+  (cond (buildd-env-p 1800)
+        (ci-env-p       60)
+        (t              10))
   "Because some of these integration tests await the result of
 asynchronous command responses from the back end, it is possible
 they might wait indefinitely. So wee impose a timeout, used
