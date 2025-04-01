@@ -1,6 +1,6 @@
 ;;; racket-hash-lang.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2020-2024 by Greg Hendershott.
+;; Copyright (c) 2020-2025 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -37,7 +37,6 @@
      ("C-c C-f"     racket-fold-all-tests)
      ("C-c C-u"     racket-unfold-all-tests)
      ("RET"         ,#'newline-and-indent)
-     ("DEL"         ,#'racket-hash-lang-delete-backward-char)
      ("C-M-b"       ,#'racket-hash-lang-backward)
      ("C-M-f"       ,#'racket-hash-lang-forward)
      ("C-M-u"       ,#'racket-hash-lang-up)
@@ -125,7 +124,7 @@ enabling \"fancy\" or \"classic\" Emacs behaviors only for
 s-expression langs.
 
 For example, maybe you want to use `paredit-mode' when it is
-suitable for the module language:
+suitable for the module language, else `electric-pair-local-mode':
 
 #+BEGIN_SRC elisp
   (defun my-hook (module-language)
@@ -133,21 +132,19 @@ suitable for the module language:
            (member module-language
                    (list \"racket\" \"racket/base\"
                          \"typed/racket\" \"typed/racket/base\"))))
-      (if rackety
-          (paredit-mode 1)
-        (paredit-mode -1))))
+      (electric-pair-local-mode (if rackety -1 1))
+      (paredit-mode (if rackety 1 -1))))
   (add-hook \\='racket-hash-lang-module-language-hook #\\='my-hook)
 #+END_SRC
 
-A similar tactic can be used for `smartparens' or
-`electric-pair-mode'. In general, none of these
-delimiter-matching modes is likely to work well unless the
+A similar tactic can be used for `smartparens'. In general,
+neither of these modes is likely to work well unless the
 hash-lang uses racket for drracket:grouping-position, in which
 case `racket-hash-lang-mode' uses the classic `racket-mode'
 syntax-table for the buffer. Otherwise you should not enable one
 of these modes, and instead just use the simple delimiter
-matching built into `racket-hash-lang-mode'; see
-`racket-hash-lang-pairs'.
+matching of `electric-pair-local-mode', as configured by
+`racket-hash-lang-mode'.
 
 As another example, if you prefer more colors than just tokens,
 choices include:
@@ -288,8 +285,9 @@ A discussion of the information provided by a Racket language:
   (setq-local text-property-default-nonsticky
               (append (list (cons 'racket-token t))
                       text-property-default-nonsticky))
-  (add-hook 'post-self-insert-hook #'racket-hash-lang-post-self-insert nil t)
-  (add-hook 'self-insert-uses-region-functions #'racket-hash-lang-will-use-region nil t)
+  ;; Default values for electric-pair-local-mode; see also
+  ;; `racket--hash-lang-configure-pairs' for values set whenever the
+  ;; hash lang changes.
   (electric-pair-local-mode -1)
   (setq-local electric-pair-pairs nil)
   (setq-local electric-pair-text-pairs nil)
@@ -734,124 +732,35 @@ However other users don't need that, so we supply this
 
 ;;; Pairs
 
-;; Although this may seem like (and in fact be) an Alan Perlis
-;; implementation of half of fancier auto-pair modes, we have two
-;; justifications:
-;;
-;; 1. A Racket lang may supply multi-chararacter open and close
-;; delimiters. AFAICT electric-pair-mode can't handle this.
-;;
-;; 2. Even with single characters, I couldn't see how to make
-;; electric-pair-mode work consistently -- including having it _not_
-;; pair things like ' inside tokens like comments, strings, text.
-
-(defvar-local racket-hash-lang-pairs nil
-  "Pairs of delimiters to insert or delete automatically.
-
-The format of each item is (cons string string).
-
-This is initialized whenever a module language changes, using
-values from the language's reported values for
-drracket:paren-matches and drracket:quote-matches.
-
-You may customize this default initialization in
-`racket-hash-lang-module-language-hook'.")
-
-(defvar-local racket-hash-lang-pairs-predicate
-  #'racket-hash-lang-pairs-predicate-default)
-(defun racket-hash-lang-pairs-predicate-default (pair pos)
-  (not
-   (and (equal (car pair) "'")
-        (pcase-let ((`(,_beg ,_end (,kind . ,_))
-                     (racket-hash-lang-classify (1- pos))))
-          (memq kind '(string comment text))))))
-
-(defun racket-hash-lang-classify (pos)
-  (racket--cmd/await nil
-                     `(hash-lang
-                       classify
-                       ,racket--hash-lang-id
-                       ,racket--hash-lang-generation
-                       ,pos)))
-
 (defun racket--hash-lang-configure-pairs (paren-matches quote-matches)
+  "Configure and enable `electric-pair-local-mode'.
+
+Caveat: Because elec-pair handles only single character
+delimiters we must ignore multi-character paren or quote strings.
+
+Caveat: When quote-matches includes \\=' we ignore that, because
+it's undesirable inside strings or comments. Although it might be
+more correct to omit that only from `electric-pair-text-pairs',
+elec-pair doesn't know how to use that based on our buffer
+tokenization, so for now this is a practical compromise."
   (let ((pairs nil))
-    (dolist (p paren-matches) (push p pairs))
-    (dolist (q quote-matches) (push (cons q q) pairs))
-    (setq-local racket-hash-lang-pairs (reverse pairs))))
-
-(defun racket--hash-lang-lookup-pair (char pos &optional prefer-larger-match-p)
-  ;; The idea behind PREFER-LARGER-MATCHES-P is that a lang might have
-  ;; paren-matches like both () and '()' as indeed does rhombus. When
-  ;; inserting let's treat that as '' then (). But when deleting back
-  ;; over '( we'd prefer to just delete that as one thing. So here we can
-  ;; lookup either way.
-  ;;
-  ;; This is written _not_ to assume that CHAR is already in the
-  ;; buffer, so that we can be used by a self-insert-uses-region
-  ;; function. Of course when OPEN consists of multiple characters, we
-  ;; must look for the others already in the buffer before POS.
-  (seq-reduce
-   (lambda (answer-so-far pair)
-     (let* ((open (car pair))
-            (len (length open)))
-       (or (and (< 0 (- pos 1 (1- len)))
-                (equal open
-                       (concat
-                        (buffer-substring-no-properties (- pos 1 (1- len)) (- pos 1))
-                        (string char)))
-                (funcall racket-hash-lang-pairs-predicate pair (point))
-                (or (not answer-so-far)
-                    (funcall (if prefer-larger-match-p #'> #'<)
-                             (length open) (length (car answer-so-far))))
-                pair)
-           answer-so-far)))
-   racket-hash-lang-pairs
-   nil))
-
-(defun racket-hash-lang-will-use-region ()
-  "A value for `self-insert-uses-region-functions'."
-  (and (use-region-p)
-       (racket--hash-lang-lookup-pair last-command-event (1+ (point)))
-       t))
-
-(defun racket-hash-lang-post-self-insert ()
-  "A value for `post-self-insert-hook'."
-  (pcase (racket--hash-lang-lookup-pair last-command-event (point))
-    (`(,open . ,close)
-     (cond ((not (use-region-p))
-            (save-excursion
-              (insert close)))
-           ((< (point) (mark))
-            (save-excursion
-              (goto-char (mark))
-              (insert close))
-            (goto-char (1- (point))))
-           ((< (mark) (point))
-            ;; Delete open already inserted after region.
-            (delete-char (- (length open)))
-            (insert close)
-            (save-excursion
-              (goto-char (mark))
-              (insert open)))))))
-
-(defun racket-hash-lang-delete-backward-char ()
-  "Delete previous character, and possibly paired delimiters.
-
-When point immediately follows text matching the longest open
-delimiter string in `racket-hash-lang-pairs`, delete that. When
-point also immediately precedes the matching close, also delete
-that."
-  (interactive)
-  (pcase (racket--hash-lang-lookup-pair (char-before) (point) t)
-    (`(,open . ,close)
-     (when (equal close
-                  (buffer-substring-no-properties (point) (+ (point) (length close))))
-       (save-excursion (delete-char (length close))))
-     (delete-char (- (length open))))
-    (_ (delete-char -1))))
-
-(put 'racket-hash-lang-delete-backward-char 'delete-selection 'supersede)
+    (cl-flet ((add (open close)
+                (when (and (= 1 (length open))
+                           (= 1 (length close)))
+                  (push (cons (aref open  0)
+                              (aref close 0))
+                        pairs))))
+      (dolist (p paren-matches)
+        (pcase-let ((`(,open . ,close) p))
+          (add open close)))
+      (dolist (q quote-matches)
+        (unless (equal q "'")
+          (add q q))))
+    (setq-local electric-pair-pairs (reverse pairs)))
+  (setq-local electric-pair-text-syntax-table
+              racket--agnostic-syntax-table)
+  (setq-local electric-pair-skip-self t) ;#747
+  (electric-pair-local-mode 1))
 
 ;;; Fill
 

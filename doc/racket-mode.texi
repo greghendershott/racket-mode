@@ -225,7 +225,6 @@ General variables
 Hash lang variables
 
 * racket-hash-lang-token-face-alist::
-* racket-hash-lang-pairs::
 * racket-hash-lang-module-language-hook::
 
 REPL variables
@@ -1597,8 +1596,6 @@ A discussion of the information provided by a Racket language:
 @tab @ref{racket-hash-lang-C-M-q-dwim}
 @item @kbd{C-M-b} 
 @tab @ref{racket-hash-lang-backward}
-@item @kbd{DEL} 
-@tab @code{racket-hash-lang-delete-backward-char}
 @item @kbd{C-M-d} 
 @tab @ref{racket-hash-lang-down}
 @item @kbd{C-M-f} 
@@ -3347,7 +3344,6 @@ The macro hiding policy for commands like @ref{racket-expand-file}.
 
 @menu
 * racket-hash-lang-token-face-alist::
-* racket-hash-lang-pairs::
 * racket-hash-lang-module-language-hook::
 @end menu
 
@@ -3384,20 +3380,6 @@ face @code{parenthesis} if defined, as by the paren-face package.
 String tokens use @code{font-lock-string-face}. Text tokens, e.g.
 Scribble text, use the face @ref{racket-hash-lang-text}.
 
-@node racket-hash-lang-pairs
-@subsection racket-hash-lang-pairs
-
-Pairs of delimiters to insert or delete automatically.
-
-The format of each item is (cons string string).
-
-This is initialized whenever a module language changes, using
-values from the language's reported values for
-drracket:paren-matches and drracket:quote-matches.
-
-You may customize this default initialization in
-@ref{racket-hash-lang-module-language-hook}.
-
 @node racket-hash-lang-module-language-hook
 @subsection racket-hash-lang-module-language-hook
 
@@ -3432,7 +3414,7 @@ enabling ``fancy'' or ``classic'' Emacs behaviors only for
 s-expression langs.
 
 For example, maybe you want to use @code{paredit-mode} when it is
-suitable for the module language:
+suitable for the module language, else @code{electric-pair-local-mode}:
 
 @lisp
   (defun my-hook (module-language)
@@ -3440,21 +3422,19 @@ suitable for the module language:
            (member module-language
                    (list "racket" "racket/base"
                          "typed/racket" "typed/racket/base"))))
-      (if rackety
-          (paredit-mode 1)
-        (paredit-mode -1))))
+      (electric-pair-local-mode (if rackety -1 1))
+      (paredit-mode (if rackety 1 -1))))
   (add-hook 'racket-hash-lang-module-language-hook #'my-hook)
 @end lisp
 
-A similar tactic can be used for @code{smartparens} or
-@code{electric-pair-mode}. In general, none of these
-delimiter-matching modes is likely to work well unless the
+A similar tactic can be used for @code{smartparens}. In general,
+neither of these modes is likely to work well unless the
 hash-lang uses racket for drracket:grouping-position, in which
 case @ref{racket-hash-lang-mode} uses the classic @ref{racket-mode}
 syntax-table for the buffer. Otherwise you should not enable one
 of these modes, and instead just use the simple delimiter
-matching built into @ref{racket-hash-lang-mode}; see
-@ref{racket-hash-lang-pairs}.
+matching of @code{electric-pair-local-mode}, as configured by
+@ref{racket-hash-lang-mode}.
 
 As another example, if you prefer more colors than just tokens,
 choices include:

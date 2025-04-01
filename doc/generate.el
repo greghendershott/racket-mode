@@ -202,7 +202,6 @@
     racket-expand-hiding
     "Hash lang variables"
     racket-hash-lang-token-face-alist
-    racket-hash-lang-pairs
     racket-hash-lang-module-language-hook
     "REPL variables"
     racket-repl-buffer-name-function
