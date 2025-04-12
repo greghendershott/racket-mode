@@ -454,12 +454,13 @@ a possibly slow remote connection."
 (defun racket--back-end-args->command (back-end racket-command-args)
   "Given RACKET-COMMAND-ARGS, prepend path to racket for BACK-END."
   (if (racket--back-end-local-p back-end)
-      (cons (or (executable-find (or (plist-get back-end :racket-program)
-                                     racket-program))
-                (error
-                 "Cannot executable-find Racket:\n  racket-program: %S\n  exec-path: %S"
-                 racket-program
-                 exec-path))
+      (cons (let ((racket-program (or (plist-get back-end :racket-program)
+                                      racket-program)))
+              (or (executable-find racket-program)
+                  (error
+                   "Cannot executable-find Racket:\n  racket-program: %S\n  exec-path: %S"
+                   racket-program
+                   exec-path)))
             racket-command-args)
     (pcase-let ((`(,host ,user ,port ,_name)
                  (racket--file-name->host+user+port+name
