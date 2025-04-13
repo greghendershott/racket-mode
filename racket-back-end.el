@@ -196,9 +196,9 @@ are a few examples.
 
     ;; 4. For example's sake, assume for buffers visiting
     ;; /ssh:headless:~/gui-project/ we want :racket-program instead
-    ;; to be \"xvfb-run racket\".
+    ;; to be \\='(\"xvfb-run\" \"racket\").
     (racket-add-back-end \"/ssh:headless:~/gui-project/\"
-                         :racket-program \"xvfb-run racket\")
+                         :racket-program \\='(\"xvfb-run\" \"racket\"))
 #+END_SRC
 
 If you use various versions of Racket by setting PATH values via
@@ -249,7 +249,12 @@ alongside each .envrc file:
                  (signal 'wrong-type-argument (list type key v)))))
             (number-or-null-p (n) (or (not n) (numberp n))))
     (check #'stringp :directory)
-    (check #'string-or-null-p :racket-program)
+    (let ((racket-program (plist-get plist :racket-program)))
+      (if (listp racket-program)
+          (dolist (s racket-program)
+            (unless (stringp s)
+              (signal 'wrong-type-argument (list #'stringp :racket-program s))))
+        (check #'stringp :racket-program)))
     (when (file-remote-p (plist-get plist :directory))
       (check #'stringp :remote-source-dir)
       (check #'file-name-absolute-p :remote-source-dir))
@@ -453,29 +458,33 @@ a possibly slow remote connection."
 
 (defun racket--back-end-args->command (back-end racket-command-args)
   "Given RACKET-COMMAND-ARGS, prepend path to racket for BACK-END."
-  (if (racket--back-end-local-p back-end)
-      (cons (let ((racket-program (or (plist-get back-end :racket-program)
-                                      racket-program)))
-              (or (executable-find racket-program)
-                  (error
-                   "Cannot executable-find Racket:\n  racket-program: %S\n  exec-path: %S"
-                   racket-program
-                   exec-path)))
-            racket-command-args)
-    (pcase-let ((`(,host ,user ,port ,_name)
-                 (racket--file-name->host+user+port+name
-                  (plist-get back-end :directory))))
-      `("ssh"
-        ,@(when port
-            `("-p" ,(format "%s" port)))
-        ,(if user
-             (format "%s@%s"
-                     user
-                     host)
-           host)
-        ,(or (plist-get back-end :racket-program)
-             racket-program) ;can't use `executable-find' remotely
-        ,@racket-command-args))))
+  (let* ((racket-program (or (plist-get back-end :racket-program)
+                             racket-program))
+         (command (if (stringp racket-program)
+                      (list racket-program)
+                    racket-program))
+         (program (car command))
+         (flags (cdr command)))
+    (if (racket--back-end-local-p back-end)
+        (let ((program (or (executable-find program)
+                           (error
+                            "Cannot executable-find Racket:\n  racket-program: %S\n  exec-path: %S"
+                            program
+                            exec-path))))
+          (cons program (append flags racket-command-args)))
+      (pcase-let ((`(,host ,user ,port ,_name)
+                   (racket--file-name->host+user+port+name
+                    (plist-get back-end :directory))))
+        `("ssh"
+          ,@(when port
+              `("-p" ,(format "%s" port)))
+          ,(if user
+               (format "%s@%s"
+                       user
+                       host)
+             host)
+          ,@command ;can't use `executable-find' remotely
+          ,@racket-command-args)))))
 
 ;;; File system watches
 

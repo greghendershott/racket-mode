@@ -3147,7 +3147,18 @@ Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 @node racket-program
 @subsection racket-program
 
-Pathname of the Racket executable.
+Pathname of the Racket executable or command line to launch it.
+
+@itemize
+@item
+If the value of this variable is a string, it will be interpreted as a
+simple command without arguments.
+
+@item
+If it is a list of strings, the first element will be taken to be the
+executable, and the rest of the list command line arguments to pass to
+it before any other arguments.
+@end itemize
 
 Note that a back end configuration can override this with a
 non-nil @code{racket-program} property list value. See
@@ -4195,9 +4206,9 @@ are a few examples.
 
     ;; 4. For example's sake, assume for buffers visiting
     ;; /ssh:headless:~/gui-project/ we want :racket-program instead
-    ;; to be "xvfb-run racket".
+    ;; to be '("xvfb-run" "racket").
     (racket-add-back-end "/ssh:headless:~/gui-project/"
-                         :racket-program "xvfb-run racket")
+                         :racket-program '("xvfb-run" "racket"))
 @end lisp
 
 If you use various versions of Racket by setting PATH values via
