@@ -60,11 +60,15 @@ Centralizes how to issue doc command and handle response correctly."
 
 (defun racket--search-doc-locally (str)
   (racket--doc-assert-local-back-end)
-  (call-process racket-program
-                nil ;INFILE: none
-                0   ;DESTINATION: discard/don't wait
-                nil ;DISPLAY: none
-                "-l" "raco" "docs" str))
+  (let ((command (if (stringp racket-program)
+                     (list racket-program)
+                   racket-program)))
+    (apply #'call-process `(,(car command)
+                            nil ;INFILE: none
+                            0   ;DESTINATION: discard/don't wait
+                            nil ;DISPLAY: none
+                            ,@(cdr command)
+                            "-l" "raco" "docs" ,str))))
 
 (provide 'racket-doc)
 

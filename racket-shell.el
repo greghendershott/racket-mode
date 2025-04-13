@@ -11,6 +11,7 @@
 (require 'racket-custom)
 (require 'racket-util)
 (require 'shell)
+(require 'subr-x)
 (require 'term)
 
 (defun racket-racket ()
@@ -34,11 +35,17 @@ variable `racket-shell-or-terminal-function'."
 
 (defun racket--shell-or-terminal (args)
   (racket--save-if-changed)
-  (let* ((exe (shell-quote-argument
-               (if (file-name-absolute-p racket-program)
-                   (expand-file-name racket-program) ;handle e.g. ~/
-                 racket-program)))
-         (cmd (concat exe " " args))
+  (let* ((command (if (stringp racket-program)
+                      (list racket-program)
+                    racket-program))
+         (program (car command))
+         (exe (shell-quote-argument
+               (if (file-name-absolute-p program)
+                   (expand-file-name program) ;handle e.g. ~/
+                 program)))
+         (flags (mapcar (lambda (x) (shell-quote-argument x))
+                        (cdr command)))
+         (cmd (concat exe " " (string-join flags " ") args))
          (win (selected-window)))
     (funcall racket-shell-or-terminal-function cmd)
     (select-window win)))

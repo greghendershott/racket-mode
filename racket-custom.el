@@ -40,12 +40,20 @@
 (defvar racket--winp (eq 'windows-nt system-type))
 
 (defcustom racket-program (if racket--winp "Racket.exe" "racket")
-  "Pathname of the Racket executable.
+  "Pathname of the Racket executable or command line to launch it.
+
+- If the value of this variable is a string, it will be interpreted as a
+  simple command without arguments.
+
+- If it is a list of strings, the first element will be taken to be the
+  executable, and the rest of the list command line arguments to pass to
+  it before any other arguments.
 
 Note that a back end configuration can override this with a
 non-nil `racket-program` property list value. See
 `racket-add-back-end'."
-  :type '(file :must-match t)
+  :type '(choice (string)
+                 (repeat string))
   :risky t)
 
 (make-obsolete-variable 'racket-command-port nil "2020-04-25")
