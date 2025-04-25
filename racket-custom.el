@@ -196,7 +196,8 @@ lines to show on screen."
   :group 'racket)
 
 (defcustom racket-hash-lang-token-face-alist
-  `((constant           . font-lock-constant-face)
+  `((builtin            . font-lock-builtin-face)
+    (constant           . font-lock-constant-face)
     (error              . error)
     (other              . font-lock-doc-face)
     (keyword            . font-lock-keyword-face)

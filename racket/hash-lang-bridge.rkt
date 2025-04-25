@@ -130,7 +130,8 @@
 (define (attribs->types attribs)
   (match attribs
     [(? symbol? s) (list s)]
-    [(? hash? ht)  (cons (hash-ref ht 'type 'unknown)
+    [(? hash? ht)  (cons (or (hash-ref ht 'semantic-type-guess #f)
+                             (hash-ref ht 'type 'unknown))
                          (if (hash-ref ht 'comment? #f)
                              '(sexp-comment-body)
                              null))]))
