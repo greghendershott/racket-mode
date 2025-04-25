@@ -58,7 +58,7 @@
 ;; well.
 (struct repl-output-item (kind value))
 (define ((repl-output-manager-thread session-id))
-  (define msec-threshold 500)
+  (define msec-threshold 20)
   (define size-threshold 4096)
 
   (define (put* kind value)
