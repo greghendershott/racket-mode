@@ -199,6 +199,7 @@ lines to show on screen."
   `((builtin            . font-lock-builtin-face)
     (constant           . font-lock-constant-face)
     (error              . error)
+    (operator           . font-lock-operator-face)
     (other              . font-lock-doc-face)
     (keyword            . font-lock-keyword-face)
     (hash-colon-keyword . racket-keyword-argument-face)
