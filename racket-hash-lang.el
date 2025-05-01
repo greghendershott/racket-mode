@@ -853,6 +853,7 @@ rhombus\"."
       ;; font-lock
       (setq-local font-lock-keywords
                   (with-current-buffer edit-buffer font-lock-keywords))
+      (setq-local font-lock-keywords-only t) ;#751
       (setq-local racket--repl-fontify-region-function
                   (with-current-buffer edit-buffer font-lock-fontify-region-function))
       (font-lock-flush)
