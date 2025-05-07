@@ -1,6 +1,6 @@
 ;;; racket-logger.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -70,7 +70,9 @@ For more information see:
 
 \\{racket-logger-mode-map}
 "
-  (setq-local font-lock-defaults (list racket-logger-font-lock-keywords))
+  (setq-local font-lock-defaults
+              (list racket-logger-font-lock-keywords
+                    t)) ;keywords-only #751
   (setq-local truncate-lines t)
   (setq-local buffer-undo-list t) ;disable undo
   (setq-local window-point-insertion-type t))
