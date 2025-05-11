@@ -8,6 +8,7 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(require 'compat) ;for text-property-search-{forward backward}
 (require 'easymenu)
 (require 'rx)
 (require 'racket-custom)
@@ -31,32 +32,6 @@
     "---"
     ["Clear" racket-logger-clear]))
 
-(defconst racket-logger-font-lock-keywords
-  (eval-when-compile
-    `((,#'racket--font-lock-config . racket-logger-config-face)
-      (,(rx bol "[  fatal]")       . racket-logger-fatal-face)
-      (,(rx bol "[  error]")       . racket-logger-error-face)
-      (,(rx bol "[warning]")       . racket-logger-warning-face)
-      (,(rx bol "[   info]")       . racket-logger-info-face)
-      (,(rx bol "[  debug]")       . racket-logger-debug-face)
-      (,(rx bol ?\[ (+? anything) ?\] space
-            (group (+? anything) ?:) space)
-       1 racket-logger-topic-face))))
-
-(defconst racket--logger-print-config-prefix
-  "racket-logger-config:\n")
-
-(defun racket--font-lock-config (limit)
-  "Handle multi-line font-lock of the configuration info."
-  (ignore-errors
-    (when (re-search-forward (concat "^" racket--logger-print-config-prefix) limit t)
-      (let ((md (match-data)))
-        (goto-char (match-end 0))
-        (forward-sexp 1)
-        (setf (elt md 1) (point)) ;; set (match-end 0)
-        (set-match-data md)
-        t))))
-
 (define-derived-mode racket-logger-mode special-mode "Racket-Logger"
   "Major mode for Racket logger output.
 \\<racket-logger-mode-map>
@@ -70,9 +45,7 @@ For more information see:
 
 \\{racket-logger-mode-map}
 "
-  (setq-local font-lock-defaults
-              (list racket-logger-font-lock-keywords
-                    t)) ;keywords-only #751
+  (setq-local font-lock-defaults (list nil t)) ;no font lock
   (setq-local truncate-lines t)
   (setq-local buffer-undo-list t) ;disable undo
   (setq-local window-point-insertion-type t))
@@ -90,7 +63,7 @@ For more information see:
         (racket--logger-activate-config)))
     (get-buffer name)))
 
-(defun racket--logger-on-notify (back-end-name str)
+(defun racket--logger-on-notify (back-end-name v)
   "This is called from `racket--cmd-dispatch-response'.
 
 As a result, we might create this buffer before the user does a
@@ -98,13 +71,29 @@ As a result, we might create this buffer before the user does a
   (when noninteractive ;emacs --batch
     (princ (format "{logger %s}: %s"
                    (racket-back-end-name)
-                   str)))
+                   v)))
   (with-current-buffer (racket--logger-get-buffer-create back-end-name)
-    (let* ((inhibit-read-only  t)
-           (original-point     (point))
-           (point-was-at-end-p (equal original-point (point-max))))
+    (pcase-let* ((`(,level ,topic ,message) v)
+                 (`(,level-str . ,level-face)
+                  (pcase level
+                    ('fatal   (cons "[  fatal]" racket-logger-fatal-face))
+                    ('error   (cons "[  error]" racket-logger-error-face))
+                    ('warning (cons "[warning]" racket-logger-warning-face))
+                    ('info    (cons "[   info]" racket-logger-info-face))
+                    ('debug   (cons "[  debug]" racket-logger-debug-face))))
+                 (inhibit-read-only  t)
+                 (original-point     (point))
+                 (point-was-at-end-p (equal original-point (point-max))))
       (goto-char (point-max))
-      (insert str)
+      (insert (propertize level-str
+                          'face level-face
+                          'racket-logger-item-level t)
+              " "
+              (propertize (symbol-name topic)
+                          'face racket-logger-topic-face)
+              ": "
+              message
+              "\n")
       (unless point-was-at-end-p
         (goto-char original-point)))))
 
@@ -115,9 +104,9 @@ As a result, we might create this buffer before the user does a
   (with-current-buffer (racket--logger-get-buffer-create)
     (let ((inhibit-read-only t))
       (goto-char (point-max))
-      (insert (propertize (concat racket--logger-print-config-prefix
+      (insert (propertize (concat "racket-logger-config:\n"
                                   (pp-to-string racket-logger-config))
-                          'font-lock-multiline t))
+                          'face racket-logger-config-face))
       (goto-char (point-max)))))
 
 (defun racket--logger-set (topic level)
@@ -168,31 +157,31 @@ As a result, we might create this buffer before the user does a
         (delete-region (point-min) (point-max)))
       (racket--logger-activate-config))))
 
-(defconst racket--logger-item-rx
-  (rx bol ?\[ (0+ space) (or "fatal" "error" "warning" "info" "debug") ?\] space))
-
 (defun racket-logger-next-item (&optional count)
-  "Move point N items forward.
+  "Move point forward COUNT logger output items.
 
-An \"item\" is a line starting with a log level in brackets.
-
-Interactively, N is the numeric prefix argument.
-If N is omitted or nil, move point 1 item forward."
-  (interactive "P")
-  (forward-char 1)
-  (if (re-search-forward racket--logger-item-rx nil t count)
-      (beginning-of-line)
-    (backward-char 1)))
+Interactively, COUNT is the numeric prefix argument. If COUNT is
+omitted or nil, move point 1 item forward."
+  (interactive "p")
+  (let* ((count (or count 1))
+         (step (if (< 0 count) -1 1))
+         (search (if (< 0 count)
+                     #'text-property-search-forward
+                   #'text-property-search-backward)))
+    (while (not (zerop count))
+      (let ((match (funcall search 'racket-logger-item-level t t t)))
+        (if (not match)
+            (setq count 0)
+          (goto-char (prop-match-beginning match))
+          (setq count (+ count step)))))))
 
 (defun racket-logger-previous-item (&optional count)
-  "Move point N items backward.
+  "Move point backward COUNT logger output items.
 
-An \"item\" is a line starting with a log level in brackets.
-
-Interactively, N is the numeric prefix argument.
-If N is omitted or nil, move point 1 item backward."
-  (interactive "P")
-  (re-search-backward racket--logger-item-rx nil t count))
+Interactively, COUNT is the numeric prefix argument. If COUNT is
+omitted or nil, move point 1 item backward."
+  (interactive "p")
+  (racket-logger-next-item (if count (- count) -1)))
 
 (defun racket-logger-topic-level ()
   "Set or unset the level for a topic.

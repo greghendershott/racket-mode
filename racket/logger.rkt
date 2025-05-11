@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2022, 2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang at-exp racket/base
@@ -37,37 +37,29 @@
                    [(vector level message _v topic)
                     (channel-put notify-channel
                                  `(logger
-                                   ,(~a (label level) " "
-                                        (ensure-topic-in-message topic message)
-                                        "\n")))
+                                   ,(cons level
+                                          (topic+message topic message))))
                     (wait receiver)])))))
 (void (thread racket-mode-log-receiver-thread))
 
-(define (ensure-topic-in-message topic message)
+(define (topic+message topic message)
   (match message
-    [(pregexp (format "^~a: " (regexp-quote (~a topic))))
-     message]
+    [(pregexp (format "^~a: (.*)$" (regexp-quote (~a topic)))
+              (list _ message))
+     (list topic
+           message)]
     [message-without-topic
-     (format "~a: ~a" (or topic "*") message-without-topic)]))
+     (list (or topic '*)
+           message-without-topic)]))
 
 (module+ test
   (require rackunit)
-  (check-equal? (ensure-topic-in-message 'topic "topic: message")
-                "topic: message")
-  (check-equal? (ensure-topic-in-message 'topic "message")
-                "topic: message")
-  (check-equal? (ensure-topic-in-message #f "message")
-                "*: message"))
-
-(define (label level)
-  ;; justify
-  (case level
-    [(debug)   "[  debug]"]
-    [(info)    "[   info]"]
-    [(warning) "[warning]"]
-    [(error)   "[  error]"]
-    [(fatal)   "[  fatal]"]
-    [else      @~a{[level]}]))
+  (check-equal? (topic+message 'topic "message")
+                (list 'topic "message"))
+  (check-equal? (topic+message 'topic "topic: message")
+                (list 'topic "message"))
+  (check-equal? (topic+message #f "message")
+                (list '* "message")))
 
 (define (make-receiver alist)
   (apply make-log-receiver (list* global-logger
