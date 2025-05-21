@@ -597,7 +597,7 @@ You can use different major modes for different kinds of files:
 For editing @code{.rkt} files and s-expression langs, which mode to use is personal preference.
 
 @item
-For @code{.scrbl} and at-expression langs like @code{scribble/manual}, @code{racket-hash-lang-mode} is probably better than @code{racket-mode}. (Note there is also an unrelated @code{scribble-mode} package.)
+For @code{.scrbl} files and at-expression langs like @code{scribble/manual}, @code{racket-hash-lang-mode} is probably better than @code{racket-mode}. (Note there is also an unrelated @code{scribble-mode} package.)
 
 @item
 For non-s-expression langs like @code{datalog} or @code{rhombus} (@code{.rhm}), @code{racket-hash-lang-mode} is definitely better than @code{racket-mode}. (Note there is also an unrelated @code{rhombus-mode} package.)
@@ -970,7 +970,14 @@ You can also view these by using the normal Emacs help mechanism:
 
 @kbd{M-x}  @code{racket-mode}
 
-Major mode for editing Racket source files.
+The ``classic'' major mode to edit an s-expression Racket #lang.
+
+This major mode is implemented entirely in Emacs and does @emph{not}
+need Racket Mode's back end racket process to be running.
+Font-lock (coloring) uses rules for a fixed set of identifiers
+from @code{racket} lang and popular modules like @code{racket/match}.
+Indentation uses rules for a fixed set of forms, and may be
+customized.
 
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
@@ -1554,10 +1561,11 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 
 @kbd{M-x}  @code{racket-hash-lang-mode}
 
-Use color-lexer, indent, and navigation supplied by a #lang.
+An ``experimental'' major mode to edit any Racket #lang.
 
-An experimental major mode alternative to @ref{racket-mode} for
-source file edit buffers.
+This major mode uses color-lexer, indent, and navigation supplied
+by each #lang -- which means Racket Mode's back end process needs
+to be running.
 
 In your Emacs configuration, you may want to update the
 variable @code{auto-mode-alist} to use @ref{racket-hash-lang-mode} for

@@ -132,7 +132,16 @@
 ;;;###autoload
 (define-derived-mode racket-mode prog-mode
   "Racket"
-  "Major mode for editing Racket source files.
+  "The \"classic\" major mode to edit an s-expression Racket #lang.
+
+This major mode is implemented entirely in Emacs and does /not/
+need Racket Mode's back end racket process to be running.
+Font-lock (coloring) uses rules for a fixed set of identifiers
+from ~racket~ lang and popular modules like ~racket/match~.
+Indentation uses rules for a fixed set of forms, and may be
+customized.
+
+See also `racket-hash-lang-mode'.
 
 \\{racket-mode-map}"
   (racket--polite-user-f-keys racket-mode-map racket--f5-bindings)

@@ -235,10 +235,11 @@ in English.")
 ;;;###autoload
 (define-derived-mode racket-hash-lang-mode prog-mode
   'racket-hash-lang-mode-lighter
-  "Use color-lexer, indent, and navigation supplied by a #lang.
+  "An \"experimental\" major mode to edit any Racket #lang.
 
-An experimental major mode alternative to `racket-mode' for
-source file edit buffers.
+This major mode uses color-lexer, indent, and navigation supplied
+by each #lang -- which means Racket Mode's back end process needs
+to be running.
 
 In your Emacs configuration, you may want to update the
 variable `auto-mode-alist' to use `racket-hash-lang-mode' for

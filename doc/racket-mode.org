@@ -183,7 +183,7 @@ You can use different major modes for different kinds of files:
 
 - For editing ~.rkt~ files and s-expression langs, which mode to use is personal preference.
 
-- For ~.scrbl~ and at-expression langs like ~scribble/manual~, ~racket-hash-lang-mode~ is probably better than ~racket-mode~. (Note there is also an unrelated ~scribble-mode~ package.)
+- For ~.scrbl~ files and at-expression langs like ~scribble/manual~, ~racket-hash-lang-mode~ is probably better than ~racket-mode~. (Note there is also an unrelated ~scribble-mode~ package.)
 
 - For non-s-expression langs like ~datalog~ or ~rhombus~ (~.rhm~), ~racket-hash-lang-mode~ is definitely better than ~racket-mode~. (Note there is also an unrelated ~rhombus-mode~ package.)
 
