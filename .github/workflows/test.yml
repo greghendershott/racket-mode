@@ -3,6 +3,8 @@ name: CI
 on:
   push:
   pull_request:
+  schedule:
+    - cron: '0 0 * * 2' # 00:00 every Tuesday
 
 jobs:
   ubuntu:
@@ -21,7 +23,7 @@ jobs:
         # Racket. Note that "allow_failure: true" doesn't seem to
         # actually work yet on GitHub Actions like it does on Travis
         # CI: If this fails it will say the overall job failed. :(
-        # Meanwhile in the GitHub protected branch settings by making
+        # Meanwhile in the GitHub protected branch settings we make
         # this one NOT a required status check -- which is some but
         # not all of the behavior we miss from Travis CI.
         include:
