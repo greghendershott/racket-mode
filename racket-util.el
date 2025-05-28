@@ -118,7 +118,9 @@ The \"project\" is determined by trying, in order:
         (and (fboundp 'vc-root-dir)
              (vc-root-dir))
         (and (fboundp 'project-current)
-             (cdr (project-current nil dir)))
+             (let ((pr (project-current nil dir)))
+               (and (fboundp 'project-root)
+                    (project-root pr))))
         dir)))
 
 (defun racket--edit-mode-p ()
