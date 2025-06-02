@@ -1,6 +1,6 @@
 ;;; racket-util.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -8,6 +8,7 @@
 
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
+(require 'project)
 (require 'subr-x)
 (require 'racket-custom)
 
@@ -106,19 +107,23 @@ When installed as a package, this can be found from the variable
 
 The \"project\" is determined by trying, in order:
 
-- `projectile-project-root'
-- `vc-root-dir'
+- `projectile-project-root', if that exists
 - `project-current'
 - `file-name-directory'"
-  (let ((dir (if file
+  (let ((dir (if (and (stringp file)
+                      (file-exists-p file))
                  (file-name-directory file)
                default-directory)))
     (or (and (fboundp 'projectile-project-root)
              (projectile-project-root dir))
-        (and (fboundp 'vc-root-dir)
-             (vc-root-dir))
-        (and (fboundp 'project-current)
-             (cdr (project-current nil dir)))
+        (when-let (pr (project-current nil dir))
+          ;; In newer Emacs `project-root' is defined; `project-roots'
+          ;; is deprecated (and someday may disappear). We check both
+          ;; with `fboundp' here, in order to work correctly and to
+          ;; please byte compiler on older, current, and future
+          ;; versions of Emacs.
+          (cond ((fboundp 'project-root)  (project-root pr))
+                ((fboundp 'project-roots) (car (project-roots pr)))))
         dir)))
 
 (defun racket--edit-mode-p ()

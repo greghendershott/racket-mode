@@ -979,6 +979,8 @@ from @code{racket} lang and popular modules like @code{racket/match}.
 Indentation uses rules for a fixed set of forms, and may be
 customized.
 
+See also @ref{racket-hash-lang-mode}.
+
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
@@ -4000,7 +4002,7 @@ A value for the variable @ref{racket-repl-buffer-name-function}.
 @code{(racket-repl-buffer-name-project)}
 
 
-Share a @ref{racket-repl-mode} buffer per back end and per project.
+Share one @ref{racket-repl-mode} buffer per back end and per project.
 
 A value for the variable @ref{racket-repl-buffer-name-function}.
 
@@ -4018,11 +4020,9 @@ The ``project'' is determined by trying, in order:
 
 @itemize
 @item
-@code{projectile-project-root}
+@code{projectile-project-root}, if that exists
 @item
-@code{vc-root-dir}
-@item
-@code{project-current}
+@code{project-current} and @code{project-root}
 @item
 @code{file-name-directory}
 @end itemize

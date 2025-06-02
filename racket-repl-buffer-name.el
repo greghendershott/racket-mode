@@ -1,6 +1,6 @@
 ;;; racket-repl-buffer-name.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2023 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -45,7 +45,7 @@ A value for the variable `racket-repl-buffer-name-function'."
 
 ;;;###autoload
 (defun racket-repl-buffer-name-project ()
-  "Share a `racket-repl-mode' buffer per back end and per project.
+  "Share one `racket-repl-mode' buffer per back end and per project.
 
 A value for the variable `racket-repl-buffer-name-function'.
 
