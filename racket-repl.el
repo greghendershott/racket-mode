@@ -311,8 +311,8 @@ live prompt this marker will be at `point-max'.")
                       (pcase-let ((`(,name . ,loc) v))
                         (insert " ")
                         (insert (racket--format-error-location loc))
-                        (insert " ")
                         (when name
+                          (insert " ")
                           (insert-faced name 'racket-repl-error-label t)))
                       (newline))))))))
             ('stdout

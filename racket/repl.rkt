@@ -236,9 +236,9 @@
     (compile-enforce-module-constants (eq? context-level 'low))
     (compile-context-preservation-enabled (not (eq? context-level 'low)))
     (current-eval
-     [cond [(debug-level? context-level) (make-debug-eval-handler debug-files)]
-           [(instrument-level? context-level)(make-instrumented-eval-handler)]
-           [else (let ([oe (current-eval)]) (λ (e) (with-stack-checkpoint (oe e))))]])
+     (cond [(debug-level? context-level) (make-debug-eval-handler debug-files)]
+           [(instrument-level? context-level) (make-instrumented-eval-handler)]
+           [else (let ([oe (current-eval)]) (λ (e) (with-stack-checkpoint (oe e))))]))
     (instrumenting-enabled (instrument-level? context-level))
     (profiling-enabled (eq? context-level 'profile))
     (test-coverage-enabled (eq? context-level 'coverage))

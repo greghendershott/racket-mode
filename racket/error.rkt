@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2023 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -65,12 +65,14 @@
         [else null]))
 
 (define (context e)
-  (define-values (kind pairs)
+  (define-values (kind fmt pairs)
     (cond [(instrumenting-enabled)
            (values 'errortrace
-                 (get-error-trace e))]
+                   ~s
+                   (get-error-trace e))]
           [else
            (values 'plain
+                   ~a
                    (for/list ([_ (error-print-context-length)]
                               [v (in-list
                                   (continuation-mark-set->trimmed-context
@@ -79,7 +81,7 @@
   (cons kind
         (for/list ([v (in-list pairs)])
           (match-define (cons label src) v)
-          (cons (and label (~a label))
+          (cons (and label (fmt label))
                 (and src (srcloc->elisp-value src))))))
 
 (define (srcloc->elisp-value loc)

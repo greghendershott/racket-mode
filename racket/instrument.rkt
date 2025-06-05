@@ -1,28 +1,16 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang at-exp racket/base
 
-(require data/interval-map
-         (only-in errortrace/errortrace-key
+(require (only-in errortrace/errortrace-key
                   errortrace-key)
          (only-in errortrace/errortrace-lib
-                  print-error-trace
                   error-context-display-depth)
-         (only-in errortrace/stacktrace
-                  stacktrace^
-                  stacktrace@
-                  stacktrace-imports^
-                  original-stx
-                  expanded-stx)
-         racket/format
+         errortrace/stacktrace
          racket/match
          racket/set
-         racket/unit
-         syntax/parse
-         "repl-output.rkt"
-         "repl-session.rkt"
-         "util.rkt")
+         racket/unit)
 
 (provide make-instrumented-eval-handler
          error-context-display-depth
@@ -39,87 +27,68 @@
 
 (define instrumenting-enabled (make-parameter #f))
 
-(define ((make-instrumented-eval-handler [orig-eval (current-eval)]) orig-exp)
+(define (make-instrumented-eval-handler [orig-eval (current-eval)])
   ;; This is modeled after the one in DrRacket.
-  (cond
-    [(or (not (instrumenting-enabled))
-         (compiled-expression? (syntax-or-sexpr->sexpr orig-exp)))
-     (orig-eval orig-exp)]
-    [else
-     (let loop ([exp (syntax-or-sexpr->syntax orig-exp)])
-       (let ([top-e (expand-syntax-to-top-form exp)])
-         (syntax-case top-e (begin)
-           [(begin expr ...)
-            ;; Found a `begin', so expand/eval each contained
-            ;; expression one at a time
-            (let i-loop ([exprs (syntax->list #'(expr ...))]
-                         [last-one (list (void))])
-              (cond
-                [(null? exprs)
-                 (apply values last-one)]
-                [else
-                 (i-loop (cdr exprs)
-                         (call-with-values
-                          (λ ()
-                            (call-with-continuation-prompt
-                             (λ () (loop (car exprs)))
-                             (default-continuation-prompt-tag)
-                             (λ args
-                               (apply
-                                abort-current-continuation
-                                (default-continuation-prompt-tag)
-                                args))))
-                          list))]))]
-           [_else
-            ;; Not `begin', so proceed with normal expand and eval
-            (let* ([expanded-e (expand-syntax top-e)]
-                   ;; For make-st-mark to work correctly we need to
-                   ;; parameterize original-stx and expanded-stx.
-                   [annotated (parameterize ([original-stx top-e]
-                                             [expanded-stx expanded-e])
-                                (annotate-top expanded-e
-                                              (namespace-base-phase)))])
-              (warn-about-time-apply expanded-e)
-              (orig-eval annotated))])))]))
-
-(define warned-sessions (mutable-set))
-(define (warn-about-time-apply stx)
-  (syntax-parse stx
-    #:datum-literals (#%app time-apply)
-    [(#%app time-apply . _)
-     (unless (set-member? warned-sessions (current-session-id))
-       (set-add! warned-sessions (current-session-id))
-       (repl-output-message
-        @~a{Warning: time or time-apply used in errortrace annotated code.
-            Instead use command-line racket for more-accurate measurements.
-            (Will not warn again for this REPL session.)}))
-       #t]
-    [(ss ...) (for/or ([stx (in-list (syntax->list #'(ss ...)))])
-                  (warn-about-time-apply stx))]
-    [_ #f]))
-
+  (define (racket-mode-instrumented-eval-handler orig-exp)
+    (cond
+      [(or #;(not (instrumenting-enabled))
+           (compiled-expression? (if (syntax? orig-exp)
+                                     (syntax-e orig-exp)
+                                     orig-exp)))
+       (orig-eval orig-exp)]
+      [else
+       (let loop ([exp (if (syntax? orig-exp)
+                           orig-exp
+                           (namespace-syntax-introduce
+                            (datum->syntax #f orig-exp)))])
+         (let ([top-e (expand-syntax-to-top-form exp)])
+           (syntax-case top-e (begin)
+             [(begin expr ...)
+              ;; Found a `begin', so expand/eval each contained
+              ;; expression one at a time
+              (let i-loop ([exprs (syntax->list #'(expr ...))]
+                           [last-one (list (void))])
+                (cond
+                  [(null? exprs)
+                   (apply values last-one)]
+                  [else
+                   (i-loop (cdr exprs)
+                           (call-with-values
+                            (λ ()
+                              (call-with-continuation-prompt
+                               (λ () (loop (car exprs)))
+                               (default-continuation-prompt-tag)
+                               (λ args
+                                 (apply
+                                  abort-current-continuation
+                                  (default-continuation-prompt-tag)
+                                  args))))
+                            list))]))]
+             [_else
+              ;; Not `begin', so proceed with normal expand and eval
+              (orig-eval (errortrace-annotate top-e #f))])))]))
+  racket-mode-instrumented-eval-handler)
 
 ;;; Better stack traces ("basic errortrace")
 
-(define base-phase
-  (variable-reference->module-base-phase (#%variable-reference)))
+(define (should-annotate? stx phase) ;stacktrace-filter^
+  (and (syntax-source stx)
+       (syntax-property stx 'errortrace:annotate)))
 
-(define (with-mark mark expr phase)
+(define key-module-name 'errortrace/errortrace-key) ;^key-module-name
+
+(define (with-mark mark expr phase) ;^stracktrace-imports
   ;; This is modeled after the one in errortrace-lib. Specifically,
   ;; use `make-st-mark' for its capture of the original syntax to show
   ;; in the stack trace error message.
   (match (make-st-mark mark phase)
-    [#f  expr]
-    [loc (define phase-shift (- phase base-phase))
-         (with-syntax ([expr expr]
-                       [loc loc]
-                       [errortrace-key errortrace-key]
-                       [qte (syntax-shift-phase-level #'quote phase-shift)]
-                       [wcm (syntax-shift-phase-level #'with-continuation-mark
-                                                      phase-shift)])
-           (syntax (wcm (qte errortrace-key)
-                        loc
-                        expr)))]))
+    [#f expr]
+    [mark
+     (with-syntax ([expr expr]
+                   [mark mark]
+                   [etk errortrace-key]
+                   [wcm (syntax-shift-phase-level #'with-continuation-mark phase)])
+       (syntax (wcm etk mark expr)))]))
 
 ;; Functional alternative to print-error-trace.
 (define (get-error-trace e)
@@ -127,7 +96,8 @@
              [stx (in-list
                    (map st-mark-source
                         (continuation-mark-set->list (exn-continuation-marks e)
-                                                     errortrace-key)))])
+                                                     errortrace-key)))]
+             #:when stx)
     (cons (syntax->datum stx)
           (srcloc (syntax-source stx)
                   (syntax-line stx)
@@ -245,16 +215,5 @@
 
 
 ;;; Finally, invoke the unit
-(define-values/invoke-unit/infer stacktrace@)
 
-
-;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-;;; example
-
-;; (parameterize ([instrumenting-enabled #t]
-;;                [test-coverage-enabled #t]
-;;                [profiling-enabled #f]
-;;                [current-eval (make-instrumented-eval-handler (current-eval))])
-;;   (namespace-require (string->path "/tmp/simple.rkt")))
-;; (get-test-coverage-info)
-;; (get-profile-info)
+(define-values/invoke-unit/infer stacktrace/filter/errortrace-annotate@)
