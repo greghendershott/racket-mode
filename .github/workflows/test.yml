@@ -17,7 +17,7 @@ jobs:
           - '26.3'
           - '30.1'              # most recent release
         racket_version:
-          - '6.12'              # our minimum supported version
+          - '7.8'               # our minimum supported version
           - 'stable'            # most recent release
         # Also include bleeding edge snapshots of both Emacs and
         # Racket. Note that "allow_failure: true" doesn't seem to

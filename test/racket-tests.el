@@ -392,35 +392,6 @@ c.rkt. Visit each file, racket-run, and check as expected."
 
 ;;; For both "shallow" and "deep" macro stepper tests
 
-(defun racket-tests/racket-7.6-p ()
-  "Is `racket-program' \"7.6\" or  \"7.6 [cs]\"?"
-  (string-match-p
-   (rx bos "Welcome to Racket v7.6" (? " [cs]") ".")
-   (with-temp-buffer
-     (call-process racket-program nil t nil "--version")
-     (buffer-substring-no-properties (point-min) (point-max)))))
-
-(defun racket-tests/expected-result-for-expand-file-p (result)
-  "Test expected to fail because macro-debugger broken in Racket 7.6.
-For use with :expected-result '(satisfies PRED). This matters
-because ert-deftest is a macro evaluated at compile time, and we
-want to use the value of `racket-program' at run time."
-  (if (racket-tests/racket-7.6-p)
-      (ert-test-failed-p result)
-    (ert-test-passed-p result)))
-
-(defun racket-tests/racket-8.10-or-newer-p ()
-  (zerop
-   (call-process
-    racket-program nil nil nil
-    "-e" "(require version/utils) (unless (version<=? \"8.10\" (version)) (exit 255))")))
-
-(defun racket-tests/expected-result-for-expand-expression-p (result)
-  "Test expected to fail because expansion differs in older Racket."
-  (if (racket-tests/racket-8.10-or-newer-p)
-      (ert-test-passed-p result)
-    (ert-test-failed-p result)))
-
 ;;; Macro stepper: File "shallow"
 
 (defconst racket-tests/expand-mod-name "foo")
@@ -444,7 +415,6 @@ want to use the value of `racket-program' at run time."
 ")
 
 (ert-deftest racket-tests/expand-file-shallow ()
-  :expected-result '(satisfies racket-tests/expected-result-for-expand-file-p)
   (message "racket-tests/expand-file-shallow")
   (racket-tests/with-back-end-settings
     (let* ((dir  (make-temp-file "test" t))
@@ -541,7 +511,6 @@ want to use the value of `racket-program' at run time."
 
 (unless (eq system-type 'windows-nt)    ;requires `diff` program
   (ert-deftest racket-tests/expand-file-deep ()
-    :expected-result '(satisfies racket-tests/expected-result-for-expand-file-p)
     (message "racket-tests/expand-file-deep")
     (racket-tests/with-back-end-settings
       (let* ((dir  (make-temp-file "test" t))
@@ -641,7 +610,6 @@ want to use the value of `racket-program' at run time."
 
 (unless (eq system-type 'windows-nt)    ;requires `diff` program
   (ert-deftest racket-tests/expand-expression ()
-    :expected-result '(satisfies racket-tests/expected-result-for-expand-expression-p)
     (message "racket-tests/expand-expression")
     (racket-tests/with-back-end-settings
       (let* ((path (make-temp-file "test" nil ".rkt"))

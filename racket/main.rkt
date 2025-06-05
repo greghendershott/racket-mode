@@ -63,7 +63,7 @@
 (module+ main
   (assert-racket-version (if (macos-sequoia-or-newer?)
                              "8.14.0.4" ;issue #722
-                             "6.12"))   ;general requirement
+                             "7.8"))    ;general requirement
 
   ;; Command-line flags (from Emacs front end invoking us)
   (match (current-command-line-arguments)
