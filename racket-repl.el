@@ -245,7 +245,7 @@ live prompt this marker will be at `point-max'.")
     ;; between chunks.
     (let ((inhibit-modification-hooks t)) ;avoid after-change: #731
       (remove-text-properties (point-min)
-                              (point-max)
+                              racket--repl-output-mark ;#754
                               '(rear-nonsticky nil)))
     (save-excursion
       (goto-char racket--repl-output-mark)
