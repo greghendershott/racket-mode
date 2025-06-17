@@ -1,6 +1,6 @@
 ;;; racket-debug.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2018-2022 by Greg Hendershott.
+;; Copyright (c) 2018-2025 by Greg Hendershott.
 
 ;; Author: Greg Hendershott
 ;; URL: https://github.com/greghendershott/racket-mode
@@ -10,11 +10,12 @@
 (require 'racket-back-end)
 (require 'racket-repl)
 (require 'easymenu)
-(require 'cl-lib)
 (require 'rx)
+(require 'seq)
 
 (defun racket-same-directory-files (file)
   "A suitable value for the variable `racket-debuggable-files'.
+
 Return FILE plus absolute paths for all Racket files in the same
 directory as FILE."
   (cons file
@@ -23,29 +24,16 @@ directory as FILE."
                          (rx "." (or "rkt" "ss" "scm" "scrbl") eos)
                          nil)))
 
-(defvar racket-debuggable-files #'racket-same-directory-files
-  "Used to tell `racket-run' what files may be instrumented for debugging.
-
-This isn't yet a defcustom becuase the debugger status is still
-\"experimental\".
-
-Must be either a list of file name strings, or, a function that
-takes the name of the file being run and returns a list of file
-names.
-
-Each file name in the list is made absolute using
-`expand-file-name' with respect to the file being run and given
-to `racket-file-name-front-to-back'.")
-
 (defun racket--debuggable-files (file-to-run)
   "Do the work described in doc str for variable `racket-debuggable-files'."
-  (mapcar (lambda (file)
-            (racket-file-name-front-to-back
-             (expand-file-name file file-to-run)))
-          (if (functionp racket-debuggable-files)
-              (funcall racket-debuggable-files file-to-run)
-            racket-debuggable-files)))
+  (seq-map (lambda (file)
+             (racket-file-name-front-to-back
+              (expand-file-name file file-to-run)))
+           (if (functionp racket-debuggable-files)
+               (funcall racket-debuggable-files file-to-run)
+             racket-debuggable-files)))
 
+(defvar racket--debug-break-span nil)
 (defvar racket--debug-breakable-positions nil)
 (defvar racket--debug-break-locals nil)
 (defvar racket--debug-break-info nil)
@@ -53,38 +41,57 @@ to `racket-file-name-front-to-back'.")
 ;;              (U (list 'before)
 ;;                 (list 'after string-of-racket-write-values))))
 
-(defvar racket--debug-breakpoints nil
-  "A list of overlays for breakpoints the user has set.")
+(defvar racket--debug-points nil
+  "A list of overlays for debug action points set by the user.
+
+We need this variable because we support debugging across
+multiple source files so these overlays may exist among various
+buffers.")
 
 ;;;###autoload
-(defun racket--debug-on-break (response)
-  (pcase response
-    (`((,src . ,pos) ,breakable-positions ,locals ,vals)
+(defun racket--debug-on-break (info)
+  (pcase info
+    (`((,src ,pos ,beg ,end) ,breakable-positions ,locals ,vals)
      (let ((src (racket-file-name-back-to-front src)))
-       (pcase (find-buffer-visiting src)
-         (`nil (other-window 1) (find-file src))
-         (buf  (pop-to-buffer buf)))
+       (if-let (buf (find-buffer-visiting src))
+           (pop-to-buffer-same-window buf)
+         (find-file src))
        (goto-char pos)
+       (setq racket--debug-break-span (cons beg end))
        (pcase vals
-         (`(,_id before)          (message "Break before expression"))
-         (`(,_id after (,_ . ,s)) (message "Break after expression: (values %s"
-                                           (substring s 1))))
+         (`(,_id before)
+          (message "Break before expression; press ? for help"))
+         (`(,_id after (,_ . ,s))
+          (message "Break after expression: (values %s; press ? for help"
+                   (substring s 1))))
        (setq racket--debug-breakable-positions
-             (mapcar (lambda (path+positions)
-                       (cons (racket-file-name-back-to-front (car path+positions))
-                             (sort (cdr path+positions) #'<)))
-                     breakable-positions))
+             (seq-map (lambda (path+positions)
+                        (cons (racket-file-name-back-to-front (car path+positions))
+                              (sort (cdr path+positions) #'<)))
+                      breakable-positions))
        (setq racket--debug-break-locals locals)
        (setq racket--debug-break-info vals)
        (racket-debug-mode 1)))))
 
-(defun racket--debug-resume (next-break value-prompt-p)
+(defun racket--debug-resume (next-break value-prompt-p &optional extra-debug-points)
   (unless racket--debug-break-info (user-error "Not debugging"))
-  (let ((info (if value-prompt-p
-                  (racket--debug-prompt-for-new-values)
-                racket--debug-break-info)))
+  (racket--debug-validate-points)
+  (let* ((info (if value-prompt-p
+                   (racket--debug-prompt-for-new-values)
+                 racket--debug-break-info))
+         (points (seq-map (lambda (o)
+                            (list (with-current-buffer (overlay-buffer o)
+                                    (racket-file-name-front-to-back
+                                     (racket--buffer-file-name)))
+                                  (overlay-start o)
+                                  (or (overlay-get o 'racket-point-condition)
+                                      "#t")
+                                  (or (overlay-get o 'racket-point-actions)
+                                      "(break)")))
+                          racket--debug-points))
+         (points (append extra-debug-points points)))
     (racket--cmd/async (racket--repl-session-id)
-                       `(debug-resume (,next-break ,info))))
+                       `(debug-resume ((,next-break . ,points) ,info))))
   (racket-debug-mode -1)
   (setq racket--debug-breakable-positions nil)
   (setq racket--debug-break-locals nil)
@@ -103,69 +110,77 @@ to `racket-file-name-front-to-back'.")
     (v v)))
 
 (defun racket-debug-step (&optional prefix)
-  "Step to next breakable position. With \\[universal-argument] substitute values."
+  "Step to next breakable position.
+
+With \\[universal-argument] substitute values."
   (interactive "P")
   (racket--debug-resume 'all prefix))
 
 (defun racket-debug-step-over (&optional prefix)
-  "Step over next expression. With \\[universal-argument], substitute values."
+  "Step over next expression.
+
+With \\[universal-argument], substitute values."
   (interactive "P")
   (racket--debug-resume 'over prefix))
 
 (defun racket-debug-step-out (&optional prefix)
-  "Step out. With \\[universal-argument], substitute values."
+  "Step out.
+
+With \\[universal-argument], substitute values."
   (interactive "P")
   (racket--debug-resume 'out prefix))
 
 (defun racket-debug-continue (&optional prefix)
-  "Continue to next breakpoint. With \\[universal-argument], substitute values."
-  (interactive "P")
-  (racket--debug-validate-breakpoints)
-  (racket--debug-resume (seq-map (lambda (o)
-                                   (list (with-current-buffer (overlay-buffer o)
-                                          (racket-file-name-front-to-back
-                                           (racket--buffer-file-name)))
-                                         (overlay-start o)
-                                         (or (overlay-get o 'racket-breakpoint-condition)
-                                             "#t")
-                                         (or (overlay-get o 'racket-breakpoint-actions)
-                                             "(break)")))
-                                 racket--debug-breakpoints)
-                        prefix))
+  "Continue utilizing `racket-debug-set-point' points.
 
-(defun racket--debug-validate-breakpoints ()
-  "Remove invalid overlays from the list."
-  (setq racket--debug-breakpoints
-        (seq-filter (lambda (o)
-                      (if (bufferp (overlay-buffer o))
-                          t
-                        (delete-overlay o)
-                        nil))
-                    racket--debug-breakpoints)))
+When execution reaches a point whose condition is true, the
+action(s) will be taken -- including pausing for a \"break\"
+action.
+
+With \\[universal-argument], substitute values."
+  (interactive "P")
+  (racket--debug-resume 'some
+   prefix))
+
+(defun racket-debug-run-to-here (&optional prefix)
+  "Run to point.
+
+Equivalent to adding a temporary unconditional break at point,
+followed by `racket-debug-continue'.
+
+With \\[universal-argument], substitute values."
+  (interactive)
+  (let ((extra (list (list (racket-file-name-front-to-back
+                            (racket--buffer-file-name))
+                           (point)
+                           "#t"
+                           "(break)"))))
+    (racket--debug-resume 'some prefix extra)))
 
 (defun racket-debug-go (&optional prefix)
-  "Go, don't break anymore. With \\[universal-argument], substitute values."
+  "Go, ignoring all debug points.
+
+Similar to running the program normally, not stepping, and
+without any break or watch points (although code annotated for
+debugging will run more slowly).
+
+With \\[universal-argument], substitute values."
   (interactive "P")
   (racket--debug-resume 'none prefix))
 
-(defun racket-debug-run-to-here (&optional prefix)
-  "Resume until point (if possible). With \\[universal-argument], substitute values."
-  (interactive)
-  ;; i.e. Act as if the only breakpoint is here.
-  (racket--debug-resume (list (list (racket-file-name-front-to-back
-                                     (racket--buffer-file-name))
-                                    (point)
-                                    "#t"
-                                    "(break)"))
-                        prefix))
+(defun racket-debug-forward-breakable ()
+  "Move to next breakable position in current buffer.
 
-(defun racket-debug-next-breakable ()
-  "Move point to next breakable position."
+Useful followed by commands like `racket-debug-run-to-here' or
+`racket-debug-set-point'."
   (interactive)
   (racket--debug-goto-breakable t))
 
-(defun racket-debug-prev-breakable ()
-  "Move point to previous breakable position."
+(defun racket-debug-backward-breakable ()
+  "Move to previous breakable position in current buffer.
+
+Useful followed by commands like `racket-debug-run-to-here' or
+`racket-debug-set-point'."
   (interactive)
   (racket--debug-goto-breakable nil))
 
@@ -174,111 +189,8 @@ to `racket-file-name-front-to-back'.")
     (`(,_src . ,ps)
      (let ((ps   (if forwardp ps (reverse ps)))
            (pred (apply-partially (if forwardp #'< #'>) (point))))
-       (goto-char (or (cl-find-if pred ps) (car ps)))))
+       (goto-char (or (seq-find pred ps) (car ps)))))
     (_ (user-error "No breakable positions in this buffer"))))
-
-(defun racket--debug-breakpoint-overlay-equal (o)
-  (and (equal (overlay-buffer o) (current-buffer))
-       (equal (overlay-start o)  (point))))
-
-(defvar racket-debug-breakpoint-conditions '("#t"))
-(defvar racket-debug-breakpoint-actions '("(break)" "(print)" "(log)"))
-(defun racket-debug-toggle-breakpoint ()
-  "Add or remove a breakpoint.
-
-Each breakpoint has a condition and a list of actions.
-
-The condition is a Racket expression that is evaluated in a
-context where local variables exist. Examples:
-
-  - \"#t\" means break always.
-
-  - If the code around the breakpoint is something like
-     \"(for ([n 100]) _)\", then a condition like
-     \"(zero? (modulo n 10))\" is every 10 times through the
-     loop.
-
-Actions is a list of symbols; you may specify one or more. The
-action symbols are:
-
-  - \"break\" causes a break, enabling `racket-debug-mode'.
-
-  - \"log\" and \"print\" display information about local
-    variables to the logger or REPL output, respectively.
-    Although `racket-debug-mode' already shows these values \"in
-    situ\" when you reach a break, this may be useful if you want
-    a history. Specifying \"log\" or \"print\", but not
-    \"break\", is equivalent to what many debuggers call a
-    watchpoint instead of a breakpoint: Output some information
-    and automatically resume.
-
-Note: Although `racket-debug-mode' provides a convenient
-keybinding, you may invoke this command anytime using M-x.
-
-Note: If you're warned that point isn't known to be a breakable
-position, that might be because it truly isn't, or, just because
-you are not in `racket-debug-mode' and the breakable positions
-aren't yet known. Worst case, if you set a breakpoint someplace
-that is not breakable, it is ignored. With a few exceptions --
-such as close paren positions that are tail calls -- most open
-parens and close parens are breakble positions."
-  (interactive)
-  (if-let (o (seq-find #'racket--debug-breakpoint-overlay-equal
-                        racket--debug-breakpoints))
-      (progn
-        (delete-overlay o)
-        (setq racket--debug-breakpoints
-              (seq-remove #'racket--debug-breakpoint-overlay-equal
-                          racket--debug-breakpoints)))
-    (when (or (pcase (assoc (racket--buffer-file-name) racket--debug-breakable-positions)
-                (`(,_src . ,ps) (memq (point) ps)))
-              (y-or-n-p "Point not known to be a breakable position; set anyway "))
-      (let* ((condition (read-string "Condition expression [RET for \"#t\"]: "
-                                     nil
-                                     'racket-debug-breakpoint-conditions
-                                     "#t"))
-             (actions   (read-string "Actions list [RET for \"(break)\"]: "
-                                     nil
-                                     'racket-debug-breakpoint-actions
-                                     "(break)"))
-             (o (make-overlay (point) (1+ (point)) (current-buffer) t nil)))
-        (overlay-put o 'name 'racket-debug-breakpoint)
-        (overlay-put o 'before-string (propertize
-                                       "⦿"
-                                       'face 'racket-debug-breakpoint-face))
-        (overlay-put o 'evaporate t)
-        (overlay-put o 'racket-breakpoint-condition condition)
-        (overlay-put o 'racket-breakpoint-actions actions)
-        (push o racket--debug-breakpoints)
-        (setq racket-debug-breakpoint-conditions
-              (seq-uniq racket-debug-breakpoint-conditions))
-        (setq racket-debug-breakpoint-actions
-              (seq-uniq racket-debug-breakpoint-actions))))))
-
-(defun racket-debug-next-breakpoint ()
-  "Move point to the next breakpoint in this buffer."
-  (interactive)
-  (racket--goto-breakpoint 'next))
-
-(defun racket-debug-prev-breakpoint ()
-  "Move point to the previous breakpoint in this buffer."
-  (interactive)
-  (racket--goto-breakpoint 'previous))
-
-(defun racket--goto-breakpoint (dir)
-  (if-let (p (seq-find (if (eq dir 'next)
-                           (lambda (pos) (< (point) pos))
-                         (lambda (pos) (< pos (point))))
-                       (sort (seq-map #'overlay-start
-                                      (seq-filter (lambda (o)
-                                                    (equal (overlay-buffer o)
-                                                           (current-buffer)))
-                                                  racket--debug-breakpoints))
-                             (if (eq dir 'next)
-                                 #'<
-                               #'>))))
-      (goto-char p)
-    (user-error (format "No %s breakpoint in this buffer" dir))))
 
 (defun racket-debug-disable ()
   (interactive)
@@ -291,6 +203,145 @@ parens and close parens are breakble positions."
 
 (add-hook 'racket--repl-before-run-hook #'racket-debug-disable)
 
+;;; breakpoint/watchpoint overlays
+
+(defun racket--debug-validate-points ()
+  "Remove invalid overlays from the list."
+  (setq racket--debug-points
+        (seq-filter (lambda (o)
+                      (if (bufferp (overlay-buffer o))
+                          t
+                        (delete-overlay o)
+                        nil))
+                    racket--debug-points)))
+
+(defun racket-debug-clear-point ()
+  "When a debug point exists at point, clear it and return true."
+  (interactive)
+  (let ((anyp nil)
+        (os (overlays-at (point))))
+    (dolist (o os)
+      (when (eq (overlay-get o 'name) 'racket-debug-point)
+        (delete-overlay o)
+        (setq racket--debug-points (remove o racket--debug-points))
+        (setq anyp t)))
+    anyp))
+
+(defun racket-debug-set-point (condition actions)
+  "Set a debug point.
+
+The debug point is displayed as \"⦿\" using an overlay.
+
+Each debug point consists of:
+
+- A /condition/, which is a Racket expression that is evaluated
+  in a context where local variables exist. Examples:
+
+  - `#t` means break always.
+
+  - If the code around the point is something like
+    `(for ([n 100]) _)`, then a condition like
+     `(zero? (modulo n 10))` is every 10 times through the
+     loop.
+
+- A list of one or more /actions/:
+
+  - `break` causes a break, enabling `racket-debug-mode'.
+
+  - `log` and `print` display information about local variables
+    to `racket-logger-mode' or `racket-repl-mode', respectively.
+    Although `racket-debug-mode' already shows these values /in
+    situ/ when at a break, this may be useful if you want a
+    history. Specifying log or print, but not break, is
+    equivalent to what is often called a watchpoint: Output some
+    information and automatically resume.
+
+Note: If you're warned that point isn't known to be a breakable
+position, that might be because it truly isn't, or, just because
+`racket-debug-mode' is inactive and the breakable positions
+aren't yet known. Worst case, if you set a debug point someplace
+that is not breakable, it is ignored. With a few exceptions --
+such as close paren positions that are tail calls -- most open
+parens and close parens are breakble positions."
+  (interactive
+   (progn
+     (unless (or (pcase (assoc (racket--buffer-file-name)
+                               racket--debug-breakable-positions)
+                   (`(,_src . ,ps) (memq (point) ps)))
+                 (y-or-n-p "Point not known to be a breakable position; set anyway "))
+       (keyboard-quit))
+     (list
+      (read-string "Condition expression [RET for \"#t\"]: "
+                   nil
+                   'racket-debug-point-conditions
+                   "#t")
+      (read-string "Actions list [RET for \"(break)\"]: "
+                   nil
+                   'racket-debug-point-actions
+                   '("(break)" "(print)" "(log)")))))
+  (racket-debug-clear-point)
+  (let ((o (make-overlay (point) (1+ (point)) (current-buffer) t nil)))
+    (overlay-put o 'name 'racket-debug-point)
+    (overlay-put o 'before-string (propertize
+                                   racket-debug-point-string
+                                   'face 'racket-debug-point-face
+                                   'help-echo (format "%s => %s" condition actions)))
+    (overlay-put o 'evaporate t)
+    (overlay-put o 'racket-point-condition condition)
+    (overlay-put o 'racket-point-actions actions)
+    (push o racket--debug-points)))
+
+(defun racket-debug-toggle-point ()
+  "`racket-debug-clear-point' or `racket-debug-set-point'."
+  (interactive)
+  (unless (racket-debug-clear-point)
+    (call-interactively #'racket-debug-set-point)))
+
+(defun racket-debug-forward-point ()
+  "Move to next `racket-debug-set-point' location."
+  (interactive)
+  (racket--debug-goto-point 'forward))
+
+(defun racket-debug-backward-point ()
+  "Move to previous `racket-debug-set-point' location."
+  (interactive)
+  (racket--debug-goto-point 'backward))
+
+(defun racket--debug-goto-point (dir)
+  "Move among debug overlays, in `buffer-list' order."
+  (let ((by-buffer (seq-group-by #'overlay-buffer
+                                 racket--debug-points)))
+    (pcase (seq-some (lambda (buffer)
+                       (when-let (overlays (cdr (assoc buffer by-buffer)))
+                         (let* ((old-pos (if (equal buffer (current-buffer))
+                                             (point)
+                                           (with-current-buffer buffer
+                                             (if (eq dir 'forward)
+                                                 (point-min)
+                                               (point-max)))))
+                                (new-pos (racket--debug-find-point old-pos
+                                                                   overlays
+                                                                   dir)))
+                           (and new-pos
+                                (cons buffer new-pos)))))
+                     (buffer-list))
+      (`(,buffer . ,pos)
+       (pop-to-buffer buffer)
+       (goto-char pos))
+      (_ (user-error "No debug action point found %s" dir)))))
+
+(defun racket--debug-find-point (orig-pos overlays dir)
+  (let ((cmp (if (eq dir 'forward) #'< #'>)))
+    (seq-reduce (lambda (pos ov)
+                  (let ((beg (overlay-start ov)))
+                    (if (and (funcall cmp orig-pos beg)
+                             (or (not pos)
+                                 (funcall cmp beg pos)))
+                        beg
+                      pos)))
+                overlays
+                nil)))
+
 (defun racket-debug-help ()
   (interactive)
   (describe-function 'racket-debug-mode))
@@ -298,77 +349,75 @@ parens and close parens are breakble positions."
 (defvar racket--debug-overlays nil)
 
 (define-minor-mode racket-debug-mode
-  "Minor mode for debug breaks.
+  "Minor mode enabled during step debugging breaks.
 
-This feature is **EXPERIMENTAL**!!! It is likely to have
-significant limitations and bugs. You are welcome to open an
-issue to provide feedback. Please understand that this feature
-might never be improved -- it might even be removed someday if it
-turns out to have too little value and/or too much cost.
-
-How to debug:
+How to step debug:
 
 1. \"Instrument\" code for step debugging.
 
-   Use two \\[universal-argument] command prefixes for either
-   `racket-run' or `racket-run-module-at-point'.
+   Use two \\[universal-argument] command prefixes -- for either
+   `racket-run' or `racket-run-module-at-point' -- to instrument
+   and run the file with step debugging.
 
-   The file will be instrumented for step debugging before it is
-   run. Any imported files are also instrumented if they are in
-   the variable `racket-debuggable-files'.
+   Imported files are also instrumented if they are in the
+   variable `racket-debuggable-files'.
 
-   The run will break at the first breakable position.
+   Execution will pause at the first breakable position.
 
-   Tip: After you run to completion and return to a normal
-   REPL prompt, the code remains instrumented. You may enter
-   expressions that evaluate instrumented code and it will
-   break so you can step debug again.
+2. Whenever a break occurs:
 
-2. When a break occurs, the `racket-repl-mode' prompt changes. In
-   this debug REPL, local variables are available for you to use
-   and even to `set!`.
+   - In the `racket-repl-mode' buffer, the prompt changes. In
+     this debug REPL, local variables are available for you to
+     use and even to `set!`.
 
-   Also, in the `racket-mode' buffer where the break is located,
-   `racket-debug-mode' is enabled. This minor mode makes the
-   buffer read-only, provides visual feedback -- about the break
-   position, local variable values, and result values -- and
-   provides shortcut keys:
+   - In the `racket-mode' buffer where the break is located,
+     `racket-debug-mode' is enabled. This minor mode makes the
+     buffer read-only, provides visual feedback -- about the
+     break position, local variable values, and result values --
+     and provides shortcut keys:
 
 \\{racket-debug-mode-map}
-"
+
+Tip: After your program runs to completion and returns to a
+normal REPL prompt, the code remains instrumented. As a result,
+in the REPL if you enter expressions that evaluate instrumented
+code, you can debug those, too."
   :lighter " RacketDebug"
   :keymap (racket--easy-keymap-define
            '(("SPC" racket-debug-step)
              ("o"   racket-debug-step-over)
              ("u"   racket-debug-step-out)
+             ("n"   racket-debug-forward-breakable)
+             ("p"   racket-debug-backward-breakable)
+             ("h"   racket-debug-run-to-here)
+             ("!"   racket-debug-toggle-point)
+             ("N"   racket-debug-forward-point)
+             ("P"   racket-debug-backward-point)
              ("c"   racket-debug-continue)
              ("g"   racket-debug-go)
-             ("n"   racket-debug-next-breakable)
-             ("p"   racket-debug-prev-breakable)
-             ("N"   racket-debug-next-breakpoint)
-             ("P"   racket-debug-prev-breakpoint)
-             ("!"   racket-debug-toggle-breakpoint)
-             ("h"   racket-debug-run-to-here)
              ("?"   racket-debug-help)))
   (racket--assert-edit-mode (lambda () (setq racket-debug-mode nil)))
   (cond
    (racket-debug-mode
     (racket--debug-make-overlay
+     (car racket--debug-break-span) (cdr racket--debug-break-span)
+     'name 'racket-debug-break-expression
+     'priority 90
+     'face racket-debug-break-expression-face)
+    (racket--debug-make-overlay
      (point) (1+ (point))
+     'name 'racket-debug-break
+     'priority 99
      'face racket-debug-break-face
-     'priority 99)
+     'after-string
+     (when-let (str (cdr (nth 2 racket--debug-break-info)))
+       (propertize (substring str 1 -1)
+                   'face racket-debug-locals-face)))
     (dolist (local racket--debug-break-locals)
       (pcase-let ((`(,_src ,pos ,span ,_name ,val) local))
         (racket--debug-make-overlay
          pos (+ pos span)
          'after-string (propertize val 'face racket-debug-locals-face))))
-    (pcase racket--debug-break-info
-      (`(,_id after (,_ . ,str))
-       (let ((eol (line-end-position)))
-         (racket--debug-make-overlay
-          (1- eol) eol
-          'after-string (propertize (concat "⇒ (values " (substring str 1))
-                                    'face racket-debug-result-face)))))
     (read-only-mode 1))
    (t
     (read-only-mode -1)

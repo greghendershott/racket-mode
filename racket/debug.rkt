@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -24,21 +24,10 @@
 (provide (rename-out [on-break-channel debug-notify-channel])
          debug-resume
          debug-disable
-         make-debug-eval-handler
-         next-break)
+         debug-enable-step
+         make-debug-eval-handler)
 
 (define-logger racket-mode-debugger)
-
-;; A gui-debugger/marks "mark" is a thunk that returns a
-;; full-mark-struct -- although gui-debugger/marks doesn't provide
-;; that struct. Instead the thunk can be passed to various accessor
-;; functions.
-(define mark/c (-> any/c))
-
-;; A "mark-binding" is a list whose first element is syntax of the
-;; identifier, and whose second element is a get/set! procedure.
-(define get/set!/c (case-> (-> any/c)
-                           (-> any/c void)))
 
 (define breakable-positions/c (hash/c path? (set/c #:cmp 'eq pos/c)))
 (define/contract breakable-positions breakable-positions/c (make-hash))
@@ -50,80 +39,87 @@
   (->* (syntax?) (#:source path?) syntax?)
   (repl-output-message (format "Debug annotate ~v" source))
   (define-values (annotated breakables)
-    (annotate-for-single-stepping stx break? break-before break-after))
+    (annotate-for-single-stepping stx pause? pause-before pause-after))
   (hash-update! breakable-positions
                 source
                 (λ (s) (set-union s (list->seteq breakables)))
                 (seteq))
   annotated)
 
-;; These contracts are suitable for "edge" with ELisp.
-(define break-point-elisp/c (list/c path-string? pos/c string? string?))
-(define break-when-elisp/c  (or/c 'all 'none (listof break-point-elisp/c)))
+;; A struct hierarchy related to the "next" variable.
+;;
+;; - The "resume" structs are more general, including "over" and "out"
+;;   types, which must be reduced to "next" structs.
+;;
+;; - The "next" structs are more specific, and represent values
+;;   actually permitted in the `next` variable.
+;;
+;; The `caps` field is conditional action points set by the user,
+;; represented as (hash/c (cons/c path? nat/c) (cons/c cond action)).
 
-;; These contracts are for actual `next-break` value.
-(define break-point/c (list/c path? pos/c any/c (listof symbol?)))
-(define break-when/c  (or/c 'all 'none (listof break-point/c)))
+(struct Resume (caps))
+(struct Resume:Over Resume ()) ;step over
+(struct Resume:Out  Resume ()) ;step out
 
-(define (from-elisp-break-when v)
-  (if (list? v)
-      (map from-elisp-break-point v)
-      v))
+(struct Next Resume ())
+(struct Next:All  Next ()) ;single step, and also `caps`
+(struct Next:Some Next ()) ;only `caps`
+(struct Next:None Next ()) ;nothing
 
-(define/contract from-elisp-break-point
-  (-> break-point-elisp/c break-point/c)
-  (match-lambda
-    [(list path-str pos condition actions)
-     (list (string->path path-str)
-           pos
-           (read (open-input-string condition))
-           (read (open-input-string actions)))]))
-
-(define/contract next-break
-  (case-> (-> break-when/c)
-          (-> break-when/c void))
-  (let ([v 'none])
+(define/contract next
+  (case-> (-> Next?)
+          (-> Next? void))
+  (let ([v (Next:None (hash))])
     (case-lambda [() v]
                  [(v!) (set! v v!)])))
 
 ;; Following are the functions we give `annotate-for-single-stepping`,
 ;; calls to which it "weaves into" the annotated code. When it calls
-;; `break?` and we return true, next it calls either `break-before` or
-;; `break-after`.
+;; `pause?` and we return true, next it calls either `pause-before` or
+;; `pause-after`.
 
-(define ((break? src) pos)
-  (match (next-break)
-    ['none        #f]
-    ['all         #t]
-    [(? list? xs) (for/or ([x (in-list xs)])
-                    (match x
-                      [(list (== src) (== pos) _condition _actions) x]
-                      [_                                            #f]))]
-    [_            #f]))
+(define ((pause? src) pos)
+  (match (next)
+    [(? Next:None?) #f]
+    [(and (Next points) v)
+     ;; Note: Although it would be nice to evaluate `conditions`,
+     ;; here, we don't have access to (mark-bindings top-mark), here
+     ;; -- only when the annotator calls our `pause-before` or
+     ;; `pause-after` functions.
+     ;;
+     ;; Note: Regardless of whether it's Next:Some or Next:All, when
+     ;; specific debug point matches this position, prefer it for its
+     ;; `actions`. Motivation: A user has a "watchpoint" (action is
+     ;; print and/or log) for some point, and we want that to happen
+     ;; also when they single step with Next:All.
+     (or (hash-ref points (cons src pos) #f)
+         (Next:All? v))]))
 
-(define/contract (break-before top-mark ccm)
+(define/contract (pause-before top-mark ccm)
   (-> mark/c continuation-mark-set? (or/c #f (listof any/c)))
-  (break 'before top-mark ccm #f))
+  (pause 'before top-mark ccm #f))
 
-(define/contract (break-after top-mark ccm . vals)
+(define/contract (pause-after top-mark ccm . vals)
   (->* (mark/c continuation-mark-set?) #:rest (listof any/c)
        any)
-  (apply values (break 'after top-mark ccm vals)))
+  (apply values (pause 'after top-mark ccm vals)))
 
-(define/contract (break before/after top-mark ccm vals)
+(define/contract (pause before/after top-mark ccm vals)
   (-> (or/c 'before 'after) mark/c continuation-mark-set? (or/c #f (listof any/c))
       (or/c #f (listof any/c)))
   (define stx (mark-source top-mark))
   (define src (syntax-source stx))
+  (define beg (syntax-position stx))
+  (define end (+ (syntax-position stx) (syntax-span stx) -1))
   (define pos (case before/after
-                [(before)    (syntax-position stx)]
-                [(after)  (+ (syntax-position stx) (syntax-span stx) -1)]))
+                [(before) beg]
+                [(after)  end]))
 
-  ;; What to do depends on whether the break is due to a user
-  ;; breakpoint, and if so, what condition and actions it specifies.
+  ;; What to do depends on whether the pause is due to a user debug
+  ;; point, and if so, its condition and actions.
   (define actions
-    (match ((break? src) pos)
-      [(list _src _pos condition actions)
+    (match ((pause? src) pos)
+      [(cons condition actions)
        (if (or (equal? condition #t) ;short-cut
                (with-handlers ([values
                                 (λ (e)
@@ -132,16 +128,16 @@
                                            (exn-message e)
                                            condition))
                                   #t)]) ;break anyway
-                (eval
-                 (call-with-session-context (current-session-id)
-                                            with-locals
-                                            condition
-                                            (mark-bindings top-mark)))))
+                 (eval
+                  (call-with-session-context (current-session-id)
+                                             with-locals
+                                             condition
+                                             (mark-bindings top-mark)))))
            actions
            null)]
       ;; Otherwise, e.g. for a simple step, the default and only
       ;; action is to break.
-      [_ '(break)]))
+      [#t '(break)]))
 
   (when (memq 'print actions)
     (unless (null? (mark-bindings top-mark))
@@ -165,7 +161,8 @@
        (string-append str (format "\n ~a = ~a" stx (~v (get/set!)))))))
 
   (cond
-    [(memq 'break actions)
+    [(or (memq 'break actions)
+         (Next:All? (next)))
      ;; Start a debug repl on its own thread, because below we're going to
      ;; block indefinitely with (channel-get on-resume-channel), waiting for
      ;; the Emacs front end to issue a debug-resume command.
@@ -203,7 +200,7 @@
                    (get/set!)))))
      (channel-put on-break-channel
                   (list 'debug-break
-                        (cons src pos)
+                        (list src pos beg (add1 end))
                         breakable-positions
                         locals
                         (cons this-break-id
@@ -214,9 +211,9 @@
      ;; wrong break ID, ignore and wait again.
      (let wait ()
        (match (channel-get on-resume-channel)
-         [(list (app from-elisp-break-when break-when)
+         [(list (app from-elisp-resume-next new-next)
                 (list* (== this-break-id) before/after more))
-          (next-break (calc-next-break break-when before/after top-mark ccm))
+          (next (calc-next new-next before/after top-mark ccm))
           (begin0
               ;; The step annotator needs us to return the values to
               ;; be used when resuming from before or after step --
@@ -234,10 +231,10 @@
             (kill-thread repl-thread))]
          [_ (wait)]))]
     ;; Otherwise, if we didn't break, we simply need to (a) calculate
-    ;; next-break and (b) tell the annotator to use the original
+    ;; the next point and (b) tell the annotator to use the original
     ;; values (no user substitution).
     [else
-     (next-break (calc-next-break (next-break) before/after top-mark ccm))
+     (next (calc-next (next) before/after top-mark ccm))
      (case before/after
        [(before) #f]
        [(after)  vals])]))
@@ -265,9 +262,9 @@
   (with-handlers ([exn:fail:read? (λ _ default)])
     (read (open-input-string str))))
 
-(define/contract (calc-next-break break-when before/after top-mark ccm)
-  (-> (or/c break-when/c 'over 'out) (or/c 'before 'after) mark/c continuation-mark-set?
-      break-when/c)
+(define/contract (calc-next next before/after top-mark ccm)
+  (-> Resume? (or/c 'before 'after) mark/c continuation-mark-set?
+      Next?)
   (define (big-step frames)
     (define num-marks (length (debug-marks (current-continuation-marks))))
     (or (for/or ([frame  (in-list frames)]
@@ -279,14 +276,16 @@
                  [right (and left (+ left (syntax-span stx) -1))])
             (and right
                  (breakable-position? src right)
-                 (list (list src right #t '(break))))))
-        'all))
-  (case break-when
-    [(out)  (big-step (debug-marks ccm))]
-    [(over) (case before/after
-              [(before) (big-step (cons top-mark (debug-marks ccm)))]
-              [(after)  'all])]
-    [else break-when])) ;'all, 'none, or user breakpoints
+                 (Next:Some
+                       (cons (list src right #t '(break))
+                             (Resume-caps next))))))
+        (Next:All (Resume-caps next))))
+  (match next
+    [(? Resume:Out?)  (big-step (debug-marks ccm))]
+    [(? Resume:Over?) (case before/after
+                        [(before) (big-step (cons top-mark (debug-marks ccm)))]
+                        [(after)  (Next:All (Resume-caps next))])]
+    [_ next]))
 
 (define break-id/c nat/c)
 (define/contract new-break-id
@@ -364,15 +363,36 @@
        #`(let-syntax #,syntax-bindings
            #,stx))]))
 
-
 ;;; Command interface
+
+;; These contracts are suitable for "edge" with ELisp.
+
+(define elisp-action-point/c (list/c path-string? pos/c string? string?))
+(define elisp-resume-next/c (cons/c (or/c 'over 'out 'all 'some 'none)
+                                    (listof elisp-action-point/c)))
+
+(define/contract (from-elisp-resume-next v)
+  (-> elisp-resume-next/c Resume?)
+  (define ctor (case (car v)
+                 [(over) Resume:Over]
+                 [(out)  Resume:Out]
+                 [(all)  Next:All]
+                 [(some) Next:Some]
+                 [(none) Next:None]))
+  (define caps (for/hash ([v (in-list (cdr v))])
+                 (match-define (list path-str pos condition actions) v)
+                 (values (cons (string->path path-str)
+                               pos)
+                         (cons (read (open-input-string condition))
+                               (read (open-input-string actions))))))
+  (ctor caps))
 
 (define locals/c (listof (list/c path-string? pos/c pos/c symbol? string?)))
 (define break-vals/c (cons/c break-id/c
                              (or/c (list/c 'before)
                                    (list/c 'after (cons/c boolean? string?)))))
 (define on-break/c (list/c 'debug-break
-                           (cons/c path? pos/c)
+                           (list/c path? pos/c pos/c pos/c)
                            breakable-positions/c
                            locals/c
                            break-vals/c))
@@ -382,7 +402,8 @@
                               (or/c (list/c 'before)
                                     (list/c 'before string?)
                                     (list/c 'after (cons/c elisp-bool/c string?)))))
-(define on-resume/c (list/c (or/c break-when-elisp/c 'out 'over) resume-vals/c))
+
+(define on-resume/c (list/c elisp-resume-next/c resume-vals/c))
 (define/contract on-resume-channel (channel/c on-resume/c) (make-channel))
 
 (define/contract (debug-resume resume-info)
@@ -391,10 +412,11 @@
   #t)
 
 (define (debug-disable)
-  (next-break 'none)
-  (for ([k (in-hash-keys breakable-positions)])
-    (hash-remove! breakable-positions k)))
+  (next (Next:None (hash)))
+  (hash-clear! breakable-positions))
 
+(define (debug-enable-step)
+   (next (Next:All (Resume-caps (next)))))
 
 ;;; Make eval handler to instrument entire files
 
@@ -408,7 +430,7 @@
          (define stx (syntax-or-sexpr->syntax v))
          (define top-stx (expand-syntax-to-top-form stx))
          (cond [(set-member? files (syntax-source stx))
-                (next-break 'all)
+                (next (Next:All (hash)))
                 (parameterize* ([current-eval orig-eval]
                                 [current-load/use-compiled
                                  (let ([orig (current-load/use-compiled)])
