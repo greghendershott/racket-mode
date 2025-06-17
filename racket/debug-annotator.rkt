@@ -1,11 +1,12 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
 
 (require (for-syntax racket/base)
-         (only-in racket/base [apply plain-apply]) ;;???
-         (prefix-in kernel: syntax/kerncase))
+         (only-in racket/base [apply plain-apply])
+         (prefix-in kernel: syntax/kerncase)
+         (only-in racket/contract -> any/c))
 
 ;; This is like gui-debugger/annotate except:
 ;;
@@ -26,7 +27,8 @@
 (provide annotate-for-single-stepping
          mark-source
          mark-bindings
-         debug-key)
+         debug-key
+         mark/c)
 
 (define (annotate-for-single-stepping stx break? break-before break-after)
   (define (break-wrap debug-info annotated raw is-tail?)
@@ -388,6 +390,12 @@
 ;; on racket/gui.
 
 (define-struct full-mark-struct (module-name source label bindings values))
+
+;; A gui-debugger/marks "mark" is a thunk that returns a
+;; full-mark-struct -- although, like gui-debugger/marks, we don't
+;; provide that struct. Instead the thunk can be passed to various
+;; accessor functions.
+(define mark/c (-> any/c))
 
 ;; debug-key: this key will be used as a key for the continuation marks.
 (define-struct debug-key-struct ())

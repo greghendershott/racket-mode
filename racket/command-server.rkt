@@ -172,6 +172,7 @@
     [`(get-uncovered)                  (get-uncovered file)]
     [`(eval ,v)                        (eval-command v)]
     [`(debug-resume ,v)                (debug-resume v)]
+    [`(debug-set-local ,v)             (debug-set-local v)]
     [`(debug-disable)                  (debug-disable)]
     [`(repl-input ,str)                (repl-input str)]
     [`(repl-submit ,str, echo)         (repl-submit str echo)]

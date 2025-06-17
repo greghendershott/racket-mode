@@ -27,6 +27,7 @@
 (require 'racket-edit)
 (require 'racket-xp)
 (require 'racket-custom)
+(require 'racket-debug)
 (require 'racket-smart-open)
 (require 'racket-imenu)
 (require 'racket-package)

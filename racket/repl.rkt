@@ -10,7 +10,7 @@
          (only-in racket/path path-only file-name-from-path)
          racket/set
          (only-in racket/string string-join)
-         (only-in "debug.rkt" make-debug-eval-handler next-break)
+         (only-in "debug.rkt" make-debug-eval-handler debug-enable-step)
          "elisp.rkt"
          "error.rkt"
          "gui.rkt"
@@ -302,7 +302,7 @@
   (define (racket-mode-prompt-read)
     (define prompt (maybe-module-path->prompt-string maybe-mod))
     (define stx (get-interaction prompt))
-    (next-break 'all) ;let debug-instrumented code break again
+    (debug-enable-step) ;let debug-instrumented code break again
     stx)
   racket-mode-prompt-read)
 

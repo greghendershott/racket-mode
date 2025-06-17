@@ -91,6 +91,7 @@ Commands
 * Collections::
 * Macro expand::
 * Packages::
+* Debug::
 * Other::
 
 Edit
@@ -156,7 +157,6 @@ Run
 * racket-profile-mode::
 * racket-logger::
 * racket-logger-mode::
-* racket-debug-mode::
 * racket-repl-clear::
 * racket-repl-clear-leaving-last-prompt::
 
@@ -190,9 +190,26 @@ Packages
 * racket-package-mode::
 * describe-racket-package::
 
+Debug
+
+* racket-debug-mode::
+* racket-debug-step::
+* racket-debug-step-over::
+* racket-debug-step-out::
+* racket-debug-forward-breakable::
+* racket-debug-backward-breakable::
+* racket-debug-run-to-here::
+* racket-debug-set-break-expression::
+* racket-debug-clear-break-expression::
+* racket-debug-toggle-break-expression::
+* racket-debug-forward-break-expression::
+* racket-debug-backward-break-expression::
+* racket-debug-set-local::
+* racket-debug-continue::
+* racket-debug-go::
+
 Other
 
-* racket-debug-toggle-breakpoint::
 * racket-mode-start-faster::
 * racket-mode-start-slower::
 
@@ -938,6 +955,7 @@ You can also view these by using the normal Emacs help mechanism:
 * Collections::
 * Macro expand::
 * Packages::
+* Debug::
 * Other::
 @end menu
 
@@ -984,50 +1002,50 @@ See also @ref{racket-hash-lang-mode}.
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{TAB} 
-@tab @code{indent-for-tab-command}
-@item @kbd{C-M-u} 
-@tab @ref{racket-backward-up-list}
-@item @kbd{C-c C-p} 
-@tab @ref{racket-cycle-paren-shapes}
-@item @kbd{C-c C-s} or @kbd{C-c C-.} 
-@tab @ref{racket-describe-search}
-@item @kbd{C-c C-d} 
-@tab @ref{racket-documentation-search}
+@item @kbd{C-c C-c} or @kbd{C-c C-k} 
+@tab @ref{racket-run-module-at-point}
 @item @kbd{C-c C-z} 
 @tab @code{racket-edit-switch-to-repl}
-@item @kbd{C-c C-e x} 
-@tab @ref{racket-expand-definition}
+@item @kbd{C-c C-t} 
+@tab @ref{racket-test}
+@item @kbd{C-c C-l} 
+@tab @ref{racket-logger}
+@item @kbd{C-c C-o} 
+@tab @ref{racket-profile}
+@item @kbd{C-c C-r} 
+@tab @ref{racket-send-region}
 @item @kbd{C-c C-e f} 
 @tab @ref{racket-expand-file}
+@item @kbd{C-c C-e x} 
+@tab @ref{racket-expand-definition}
 @item @kbd{C-c C-e e} 
 @tab @ref{racket-expand-last-sexp}
 @item @kbd{C-c C-e r} 
 @tab @ref{racket-expand-region}
-@item @kbd{C-c C-f} 
-@tab @ref{racket-fold-all-tests}
-@item @kbd{)} or @kbd{]} or @kbd{@}} 
-@tab @ref{racket-insert-closing}
-@item @kbd{C-M-y} 
-@tab @ref{racket-insert-lambda}
-@item @kbd{C-c C-l} 
-@tab @ref{racket-logger}
 @item @kbd{C-c C-x C-f} 
 @tab @ref{racket-open-require-path}
-@item @kbd{C-c C-o} 
-@tab @ref{racket-profile}
-@item @kbd{C-c C-c} or @kbd{C-c C-k} 
-@tab @ref{racket-run-module-at-point}
-@item @kbd{C-M-x} 
-@tab @ref{racket-send-definition}
-@item @kbd{C-x C-e} 
-@tab @ref{racket-send-last-sexp}
-@item @kbd{C-c C-r} 
-@tab @ref{racket-send-region}
-@item @kbd{C-c C-t} 
-@tab @ref{racket-test}
+@item @kbd{C-c C-p} 
+@tab @ref{racket-cycle-paren-shapes}
+@item @kbd{C-c C-d} 
+@tab @ref{racket-documentation-search}
+@item @kbd{C-c C-s} or @kbd{C-c C-.} 
+@tab @ref{racket-describe-search}
+@item @kbd{C-c C-f} 
+@tab @ref{racket-fold-all-tests}
 @item @kbd{C-c C-u} 
 @tab @ref{racket-unfold-all-tests}
+@item @kbd{C-M-x} 
+@tab @ref{racket-send-definition}
+@item @kbd{C-M-u} 
+@tab @ref{racket-backward-up-list}
+@item @kbd{C-M-y} 
+@tab @ref{racket-insert-lambda}
+@item @kbd{C-x C-e} 
+@tab @ref{racket-send-last-sexp}
+@item @kbd{TAB} 
+@tab @code{indent-for-tab-command}
+@item @kbd{)} or @kbd{]} or @kbd{@}} 
+@tab @ref{racket-insert-closing}
 @end multitable
 
 
@@ -1586,52 +1604,52 @@ A discussion of the information provided by a Racket language:
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{RET} 
-@tab @code{newline-and-indent}
+@item @kbd{C-c C-c} or @kbd{C-c C-k} 
+@tab @ref{racket-run-module-at-point}
 @item @kbd{C-c C-z} 
 @tab @code{racket-edit-switch-to-repl}
-@item @kbd{C-c C-e x} 
-@tab @ref{racket-expand-definition}
+@item @kbd{C-c C-t} 
+@tab @ref{racket-test}
+@item @kbd{C-c C-l} 
+@tab @ref{racket-logger}
+@item @kbd{C-c C-o} 
+@tab @ref{racket-profile}
+@item @kbd{C-c C-r} 
+@tab @ref{racket-send-region}
 @item @kbd{C-c C-e f} 
 @tab @ref{racket-expand-file}
+@item @kbd{C-c C-e x} 
+@tab @ref{racket-expand-definition}
 @item @kbd{C-c C-e e} 
 @tab @ref{racket-expand-last-sexp}
 @item @kbd{C-c C-e r} 
 @tab @ref{racket-expand-region}
-@item @kbd{C-c C-f} 
-@tab @ref{racket-fold-all-tests}
-@item @kbd{C-M-q} 
-@tab @ref{racket-hash-lang-C-M-q-dwim}
-@item @kbd{C-M-b} 
-@tab @ref{racket-hash-lang-backward}
-@item @kbd{C-M-d} 
-@tab @ref{racket-hash-lang-down}
-@item @kbd{C-M-f} 
-@tab @ref{racket-hash-lang-forward}
-@item @kbd{TAB} 
-@tab @code{racket-hash-lang-indent}
-@item @kbd{C-M-u} 
-@tab @ref{racket-hash-lang-up}
-@item @kbd{C-M-y} 
-@tab @ref{racket-insert-lambda}
-@item @kbd{C-c C-l} 
-@tab @ref{racket-logger}
 @item @kbd{C-c C-x C-f} 
 @tab @ref{racket-open-require-path}
-@item @kbd{C-c C-o} 
-@tab @ref{racket-profile}
-@item @kbd{C-c C-c} or @kbd{C-c C-k} 
-@tab @ref{racket-run-module-at-point}
-@item @kbd{C-M-x} 
-@tab @ref{racket-send-definition}
-@item @kbd{C-x C-e} 
-@tab @ref{racket-send-last-sexp}
-@item @kbd{C-c C-r} 
-@tab @ref{racket-send-region}
-@item @kbd{C-c C-t} 
-@tab @ref{racket-test}
+@item @kbd{C-c C-f} 
+@tab @ref{racket-fold-all-tests}
 @item @kbd{C-c C-u} 
 @tab @ref{racket-unfold-all-tests}
+@item @kbd{C-M-x} 
+@tab @ref{racket-send-definition}
+@item @kbd{C-M-y} 
+@tab @ref{racket-insert-lambda}
+@item @kbd{C-M-b} 
+@tab @ref{racket-hash-lang-backward}
+@item @kbd{C-M-f} 
+@tab @ref{racket-hash-lang-forward}
+@item @kbd{C-M-u} 
+@tab @ref{racket-hash-lang-up}
+@item @kbd{C-M-d} 
+@tab @ref{racket-hash-lang-down}
+@item @kbd{C-M-q} 
+@tab @ref{racket-hash-lang-C-M-q-dwim}
+@item @kbd{C-x C-e} 
+@tab @ref{racket-send-last-sexp}
+@item @kbd{TAB} 
+@tab @code{racket-hash-lang-indent}
+@item @kbd{RET} 
+@tab @code{newline-and-indent}
 @end multitable
 
 
@@ -1882,40 +1900,40 @@ commands directly to whatever keys you prefer.
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{C-c # N} 
-@tab @code{next-error}
-@item @kbd{C-c # P} 
-@tab @code{previous-error}
-@item @kbd{C-c C-s} 
-@tab @ref{racket-describe-search}
-@item @kbd{C-c # g} 
-@tab @code{racket-xp-annotate}
-@item @kbd{C-c C-.} 
-@tab @ref{racket-xp-describe}
-@item @kbd{C-c C-d} 
-@tab @ref{racket-xp-documentation}
 @item @kbd{C-c # j} 
 @tab @ref{racket-xp-next-definition}
-@item @kbd{C-c # n} 
-@tab @ref{racket-xp-next-use}
 @item @kbd{C-c # k} 
 @tab @ref{racket-xp-previous-definition}
+@item @kbd{C-c # n} 
+@tab @ref{racket-xp-next-use}
 @item @kbd{C-c # p} 
 @tab @ref{racket-xp-previous-use}
+@item @kbd{C-c # ?} 
+@tab @code{xref-find-references}
 @item @kbd{C-c # r} 
 @tab @code{racket-xp-rename}
+@item @kbd{C-c # ^} 
+@tab @ref{racket-xp-tail-up}
 @item @kbd{C-c # v} 
 @tab @ref{racket-xp-tail-down}
 @item @kbd{C-c # >} 
 @tab @ref{racket-xp-tail-next-sibling}
 @item @kbd{C-c # <} 
 @tab @ref{racket-xp-tail-previous-sibling}
-@item @kbd{C-c # ^} 
-@tab @ref{racket-xp-tail-up}
+@item @kbd{C-c # g} 
+@tab @code{racket-xp-annotate}
+@item @kbd{C-c # N} 
+@tab @code{next-error}
+@item @kbd{C-c # P} 
+@tab @code{previous-error}
+@item @kbd{C-c C-.} 
+@tab @ref{racket-xp-describe}
+@item @kbd{C-c C-d} 
+@tab @ref{racket-xp-documentation}
+@item @kbd{C-c C-s} 
+@tab @ref{racket-describe-search}
 @item @kbd{M-.} or @kbd{C-c # .} 
 @tab @code{xref-find-definitions}
-@item @kbd{C-c # ?} 
-@tab @code{xref-find-references}
 @end multitable
 
 
@@ -2158,34 +2176,34 @@ browser program -- are given @ref{racket-ext-link-face}.
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{<} 
-@tab @code{beginning-of-buffer}
-@item @kbd{>} 
-@tab @code{end-of-buffer}
 @item @kbd{q} 
 @tab @code{quit-window}
+@item @kbd{SPC} 
+@tab @code{scroll-up-command}
+@item @kbd{DEL} or @kbd{S-SPC} 
+@tab @code{scroll-down-command}
+@item @kbd{>} 
+@tab @code{end-of-buffer}
+@item @kbd{<} 
+@tab @code{beginning-of-buffer}
+@item @kbd{g} 
+@tab @code{revert-buffer}
 @item @kbd{l} or @kbd{b} or @kbd{C-c C-b} 
 @tab @code{racket-describe-back}
-@item @kbd{x} 
-@tab @code{racket-describe-browse-external}
 @item @kbd{r} or @kbd{f} or @kbd{C-c C-f} 
 @tab @code{racket-describe-forward}
+@item @kbd{i} or @kbd{C-c C-s} 
+@tab @ref{racket-describe-search}
 @item @kbd{n} 
 @tab @code{racket-describe-nav-next}
 @item @kbd{p} 
 @tab @code{racket-describe-nav-prev}
-@item @kbd{C-^} 
-@tab @code{racket-describe-nav-top}
 @item @kbd{^} 
 @tab @code{racket-describe-nav-up}
-@item @kbd{i} or @kbd{C-c C-s} 
-@tab @ref{racket-describe-search}
-@item @kbd{g} 
-@tab @code{revert-buffer}
-@item @kbd{DEL} or @kbd{S-SPC} 
-@tab @code{scroll-down-command}
-@item @kbd{SPC} 
-@tab @code{scroll-up-command}
+@item @kbd{C-^} 
+@tab @code{racket-describe-nav-top}
+@item @kbd{x} 
+@tab @code{racket-describe-browse-external}
 @end multitable
 
 
@@ -2217,7 +2235,6 @@ Search installed documentation; view using @ref{racket-describe-mode}.
 * racket-profile-mode::
 * racket-logger::
 * racket-logger-mode::
-* racket-debug-mode::
 * racket-repl-clear::
 * racket-repl-clear-leaving-last-prompt::
 @end menu
@@ -2238,54 +2255,54 @@ identifier bindings and modules from the REPL's namespace.
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{TAB} 
-@tab @code{indent-for-tab-command}
+@item @kbd{RET} 
+@tab @code{racket-repl-submit}
 @item @kbd{C-j} 
 @tab @code{newline-and-indent}
-@item @kbd{C-M-q} 
-@tab @code{prog-indent-sexp}
+@item @kbd{TAB} 
+@tab @code{indent-for-tab-command}
 @item @kbd{C-M-u} 
 @tab @ref{racket-backward-up-list}
-@item @kbd{C-c C-s} 
-@tab @ref{racket-describe-search}
-@item @kbd{C-c C-e x} 
-@tab @ref{racket-expand-definition}
+@item @kbd{C-M-q} 
+@tab @code{prog-indent-sexp}
+@item @kbd{M-p} 
+@tab @code{racket-repl-previous-input}
+@item @kbd{M-n} 
+@tab @code{racket-repl-next-input}
+@item @kbd{C-M-y} 
+@tab @ref{racket-insert-lambda}
+@item @kbd{C-c C-u} 
+@tab @code{racket-repl-clear-input}
+@item @kbd{C-c C-p} 
+@tab @code{racket-repl-previous-prompt-or-run}
+@item @kbd{C-c C-n} 
+@tab @code{racket-repl-next-prompt-or-run}
+@item @kbd{C-c C-o} 
+@tab @code{racket-repl-delete-output}
 @item @kbd{C-c C-e f} 
 @tab @ref{racket-expand-file}
+@item @kbd{C-c C-e x} 
+@tab @ref{racket-expand-definition}
 @item @kbd{C-c C-e e} 
 @tab @ref{racket-expand-last-sexp}
 @item @kbd{C-c C-e r} 
 @tab @ref{racket-expand-region}
-@item @kbd{)} or @kbd{]} or @kbd{@}} 
-@tab @ref{racket-insert-closing}
-@item @kbd{C-M-y} 
-@tab @ref{racket-insert-lambda}
+@item @kbd{C-c C-d} 
+@tab @ref{racket-repl-documentation}
+@item @kbd{C-c C-.} 
+@tab @ref{racket-repl-describe}
+@item @kbd{C-c C-s} 
+@tab @ref{racket-describe-search}
+@item @kbd{C-c C-z} 
+@tab @code{racket-repl-switch-to-edit}
 @item @kbd{C-c C-l} 
 @tab @ref{racket-logger}
 @item @kbd{C-c C-c} 
 @tab @code{racket-repl-break}
-@item @kbd{C-c C-u} 
-@tab @code{racket-repl-clear-input}
-@item @kbd{C-c C-o} 
-@tab @code{racket-repl-delete-output}
-@item @kbd{C-c C-.} 
-@tab @ref{racket-repl-describe}
-@item @kbd{C-c C-d} 
-@tab @ref{racket-repl-documentation}
 @item @kbd{C-c C-\} 
 @tab @code{racket-repl-exit}
-@item @kbd{M-n} 
-@tab @code{racket-repl-next-input}
-@item @kbd{C-c C-n} 
-@tab @code{racket-repl-next-prompt-or-run}
-@item @kbd{M-p} 
-@tab @code{racket-repl-previous-input}
-@item @kbd{C-c C-p} 
-@tab @code{racket-repl-previous-prompt-or-run}
-@item @kbd{RET} 
-@tab @code{racket-repl-submit}
-@item @kbd{C-c C-z} 
-@tab @code{racket-repl-switch-to-edit}
+@item @kbd{)} or @kbd{]} or @kbd{@}} 
+@tab @ref{racket-insert-closing}
 @end multitable
 
 
@@ -2525,10 +2542,10 @@ Major mode for results of @ref{racket-profile}.
 @tab @code{quit-window}
 @item @kbd{g} 
 @tab @code{racket-profile-refresh}
-@item @kbd{f} 
-@tab @code{racket-profile-show-non-project}
 @item @kbd{z} 
 @tab @code{racket-profile-show-zero}
+@item @kbd{f} 
+@tab @code{racket-profile-show-non-project}
 @item @kbd{.} or @kbd{RET} 
 @tab @code{racket-profile-visit}
 @end multitable
@@ -2564,16 +2581,16 @@ For more information see:
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{g} 
-@tab @code{racket-logger-clear}
-@item @kbd{n} 
-@tab @code{racket-logger-next-item}
-@item @kbd{p} 
-@tab @code{racket-logger-previous-item}
 @item @kbd{l} 
 @tab @code{racket-logger-topic-level}
 @item @kbd{w} 
 @tab @code{toggle-truncate-lines}
+@item @kbd{n} 
+@tab @code{racket-logger-next-item}
+@item @kbd{p} 
+@tab @code{racket-logger-previous-item}
+@item @kbd{g} 
+@tab @code{racket-logger-clear}
 @end multitable
 
 
@@ -2582,96 +2599,6 @@ For more information see:
 In addition to any hooks its parent mode @code{special-mode} might have
 run, this mode runs the hook @code{racket-logger-mode-hook}, as the final
 or penultimate step during initialization.
-
-@node racket-debug-mode
-@subsection racket-debug-mode
-
-@kbd{M-x} @code{racket-debug-mode}
-
-Minor mode for debug breaks.
-
-This feature is @strong{@strong{EXPERIMENTAL}}!!! It is likely to have
-significant limitations and bugs. You are welcome to open an
-issue to provide feedback. Please understand that this feature
-might never be improved -- it might even be removed someday if it
-turns out to have too little value and/or too much cost.
-
-How to debug:
-
-@enumerate
-@item
-``Instrument'' code for step debugging.
-
-Use two @kbd{C-u} command prefixes for either
-@ref{racket-run} or @ref{racket-run-module-at-point}.
-
-The file will be instrumented for step debugging before it is
-run. Any imported files are also instrumented if they are in
-the variable @ref{racket-debuggable-files}.
-
-The run will break at the first breakable position.
-
-Tip: After you run to completion and return to a normal
-REPL prompt, the code remains instrumented. You may enter
-expressions that evaluate instrumented code and it will
-break so you can step debug again.
-
-@item
-When a break occurs, the @ref{racket-repl-mode} prompt changes. In
-this debug REPL, local variables are available for you to use
-and even to @code{set!}.
-
-Also, in the @ref{racket-mode} buffer where the break is located,
-@ref{racket-debug-mode} is enabled. This minor mode makes the
-buffer read-only, provides visual feedback -- about the break
-position, local variable values, and result values -- and
-provides shortcut keys:
-@end enumerate
-
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
-@item Key
-@tab Binding
-@item @kbd{c} 
-@tab @code{racket-debug-continue}
-@item @kbd{g} 
-@tab @code{racket-debug-go}
-@item @kbd{?} 
-@tab @code{racket-debug-help}
-@item @kbd{n} 
-@tab @code{racket-debug-next-breakable}
-@item @kbd{N} 
-@tab @code{racket-debug-next-breakpoint}
-@item @kbd{p} 
-@tab @code{racket-debug-prev-breakable}
-@item @kbd{P} 
-@tab @code{racket-debug-prev-breakpoint}
-@item @kbd{h} 
-@tab @code{racket-debug-run-to-here}
-@item @kbd{SPC} 
-@tab @code{racket-debug-step}
-@item @kbd{u} 
-@tab @code{racket-debug-step-out}
-@item @kbd{o} 
-@tab @code{racket-debug-step-over}
-@item @kbd{!} 
-@tab @ref{racket-debug-toggle-breakpoint}
-@end multitable
-
-
-
-This is a minor mode.  If called interactively, toggle the @code{Racket-Debug
-mode} mode.  If the prefix argument is positive, enable the mode, and if
-it is zero or negative, disable the mode.
-
-If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable the
-mode if ARG is nil, omitted, or is a positive number.  Disable the mode
-if ARG is a negative number.
-
-To check whether the minor mode is enabled in the current buffer,
-evaluate the variable @ref{racket-debug-mode}.
-
-The mode's hook is called both when the mode is enabled and when it is
-disabled.
 
 @node racket-repl-clear
 @subsection racket-repl-clear
@@ -2842,14 +2769,14 @@ Used by the commands @ref{racket-expand-file},
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
+@item @kbd{RET} 
+@tab @code{racket-stepper-step}
 @item @kbd{n} or @kbd{j} 
 @tab @code{racket-stepper-next-item}
 @item @kbd{p} or @kbd{k} 
 @tab @code{racket-stepper-previous-item}
 @item @kbd{g} 
 @tab @code{racket-stepper-refresh}
-@item @kbd{RET} 
-@tab @code{racket-stepper-step}
 @end multitable
 
 
@@ -3013,66 +2940,293 @@ If the package is available from a catalog, additional details
 will be shown, assuming you have run the command
 @ref{racket-package-refresh}.
 
+@node Debug
+@section Debug
+
+@menu
+* racket-debug-mode::
+* racket-debug-step::
+* racket-debug-step-over::
+* racket-debug-step-out::
+* racket-debug-forward-breakable::
+* racket-debug-backward-breakable::
+* racket-debug-run-to-here::
+* racket-debug-set-break-expression::
+* racket-debug-clear-break-expression::
+* racket-debug-toggle-break-expression::
+* racket-debug-forward-break-expression::
+* racket-debug-backward-break-expression::
+* racket-debug-set-local::
+* racket-debug-continue::
+* racket-debug-go::
+@end menu
+
+@node racket-debug-mode
+@subsection racket-debug-mode
+
+@kbd{M-x} @code{racket-debug-mode}
+
+Minor mode enabled during step debugging breaks.
+
+How to step debug:
+
+@enumerate
+@item
+``Instrument'' code for step debugging.
+
+Use two @kbd{C-u} command prefixes -- for either
+@ref{racket-run} or @ref{racket-run-module-at-point} -- to instrument
+and run the file with step debugging.
+
+Imported files are also instrumented if they are in the
+variable @ref{racket-debuggable-files}.
+
+Execution will pause at the first breakable position.
+
+@item
+Whenever a break occurs:
+
+In the @ref{racket-mode} buffer where the break is located,
+@ref{racket-debug-mode} is enabled. This minor mode makes the buffer
+read-only, provides visual feedback -- about the break position,
+local variable values, and result values -- and provides shortcut
+keys:
+@end enumerate
+
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@item Key
+@tab Binding
+@item @kbd{SPC} 
+@tab @ref{racket-debug-step}
+@item @kbd{o} 
+@tab @ref{racket-debug-step-over}
+@item @kbd{u} 
+@tab @ref{racket-debug-step-out}
+@item @kbd{n} 
+@tab @ref{racket-debug-forward-breakable}
+@item @kbd{p} 
+@tab @ref{racket-debug-backward-breakable}
+@item @kbd{h} 
+@tab @ref{racket-debug-run-to-here}
+@item @kbd{!} 
+@tab @ref{racket-debug-toggle-break-expression}
+@item @kbd{N} 
+@tab @ref{racket-debug-forward-break-expression}
+@item @kbd{P} 
+@tab @ref{racket-debug-backward-break-expression}
+@item @kbd{=} 
+@tab @ref{racket-debug-set-local}
+@item @kbd{c} 
+@tab @ref{racket-debug-continue}
+@item @kbd{g} 
+@tab @ref{racket-debug-go}
+@item @kbd{?} 
+@tab @code{racket-debug-help}
+@end multitable
+
+
+
+Tip: After your program runs to completion and returns to a REPL prompt,
+the code remains instrumented. As a result, in the REPL if you enter
+expressions that evaluate instrumented code, you can debug those, too.
+
+This is a minor mode.  If called interactively, toggle the @code{Racket-Debug
+mode} mode.  If the prefix argument is positive, enable the mode, and if
+it is zero or negative, disable the mode.
+
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the mode
+if ARG is a negative number.
+
+To check whether the minor mode is enabled in the current buffer,
+evaluate the variable @ref{racket-debug-mode}.
+
+The mode's hook is called both when the mode is enabled and when it is
+disabled.
+
+@node racket-debug-step
+@subsection racket-debug-step
+
+@kbd{SPC} 
+
+Step to next breakable position.
+
+With @kbd{C-u} substitute values.
+
+@node racket-debug-step-over
+@subsection racket-debug-step-over
+
+@kbd{o} 
+
+Step over next expression.
+
+With @kbd{C-u} , substitute values.
+
+@node racket-debug-step-out
+@subsection racket-debug-step-out
+
+@kbd{u} 
+
+Step out.
+
+With @kbd{C-u} , substitute values.
+
+@node racket-debug-forward-breakable
+@subsection racket-debug-forward-breakable
+
+@kbd{n} 
+
+Move to next breakable position in current buffer.
+
+Useful followed by commands like @ref{racket-debug-run-to-here} or
+@ref{racket-debug-set-break-expression}.
+
+@node racket-debug-backward-breakable
+@subsection racket-debug-backward-breakable
+
+@kbd{p} 
+
+Move to previous breakable position in current buffer.
+
+Useful followed by commands like @ref{racket-debug-run-to-here} or
+@ref{racket-debug-set-break-expression}.
+
+@node racket-debug-run-to-here
+@subsection racket-debug-run-to-here
+
+@kbd{h} 
+
+Run to point.
+
+Equivalent to adding a temporary unconditional break at point,
+followed by @ref{racket-debug-continue}.
+
+With @kbd{C-u} , substitute values.
+
+@node racket-debug-set-break-expression
+@subsection racket-debug-set-break-expression
+
+@kbd{M-x} @code{racket-debug-set-break-expression}
+
+Set a break expression at a breakable position.
+
+Break expressions encapsulate a range of traditional debugger features
+like conditional breakpoints and watchpoints.
+
+Each break expression consists of a Racket expression, which will be
+evaluated in a context where local variables exist.
+
+Unless the expression evaluates to Racket false or void, execution will
+break there. In other words, this is a ``conditional breakpoint''.
+
+In addition, the expression may invoke @code{#%dump}, which displays
+information about all locals (and for after-breaks, the result values)
+to both the REPL and the racket-mode-debugger logger topic. In other
+words, this is a ``watchpoint''. Although @ref{racket-debug-mode} already
+shows these values @emph{in situ} when at a break, this may be useful if you
+want a history.
+
+For example, if the code around the point is something like
+@code{(for ([n 100]) ___)}, then:
+
+@itemize
+@item
+@code{#t} means break always.
+
+@item
+@code{(zero? (modulo n 10))} breaks every 10 times through the loop.
+
+@item
+@code{(when (even? n) (#%dump))} dumps watch information every other time
+through the loop, but never breaks.
+@end itemize
+
+The expression may consist of any Racket sub-expressions that evaluate
+without error in that local context.
+
+Each break expression is displayed using the customization variables
+@code{racket-debug-break-expression-string} and
+@code{racket-debug-break-expression-face}.
+
+Note: If you're warned that point isn't known to be a breakable
+position, that might be because it truly isn't, or, just because
+@ref{racket-debug-mode} is inactive therefore the breakable positions aren
+uknown. Worst case, if you set a break expression someplace that is not
+breakable, it is ignored. With a few exceptions -- such as close paren
+positions that are tail calls -- most open parens and close parens are
+breakble positions in s-expression languages. See the commands
+@ref{racket-debug-forward-breakable} and @ref{racket-debug-backward-breakable}.
+
+@node racket-debug-clear-break-expression
+@subsection racket-debug-clear-break-expression
+
+@kbd{M-x} @code{racket-debug-clear-break-expression}
+
+When a break expression exists at point, clear it and return true.
+
+@node racket-debug-toggle-break-expression
+@subsection racket-debug-toggle-break-expression
+
+@kbd{!} 
+
+Set or clear a break expression.
+
+See @ref{racket-debug-clear-break-expression} or
+@ref{racket-debug-set-break-expression}.
+
+@node racket-debug-forward-break-expression
+@subsection racket-debug-forward-break-expression
+
+@kbd{N} 
+
+Move to next @ref{racket-debug-set-break-expression} location.
+
+@node racket-debug-backward-break-expression
+@subsection racket-debug-backward-break-expression
+
+@kbd{P} 
+
+Move to previous @ref{racket-debug-set-break-expression} location.
+
+@node racket-debug-set-local
+@subsection racket-debug-set-local
+
+@kbd{=} 
+
+Set local variable to new value.
+
+@node racket-debug-continue
+@subsection racket-debug-continue
+
+@kbd{c} 
+
+Continue, utilizing break expressions.
+
+Execution pauses at any position whose break expression evaluates to a
+true, non-void value.
+
+With @kbd{C-u} , substitute values.
+
+@node racket-debug-go
+@subsection racket-debug-go
+
+@kbd{g} 
+
+Go unconditionally, ignoring all break expressions.
+
+Similar to continuing the program normally, without stepping or
+evaluating any break expressions -- although code annotated for
+debugging runs more slowly.
+
+With @kbd{C-u} , substitute values.
+
 @node Other
 @section Other
 
 @menu
-* racket-debug-toggle-breakpoint::
 * racket-mode-start-faster::
 * racket-mode-start-slower::
 @end menu
-
-@node racket-debug-toggle-breakpoint
-@subsection racket-debug-toggle-breakpoint
-
-@kbd{M-x} @code{racket-debug-toggle-breakpoint}
-
-Add or remove a breakpoint.
-
-Each breakpoint has a condition and a list of actions.
-
-The condition is a Racket expression that is evaluated in a
-context where local variables exist. Examples:
-
-@itemize
-@item
-``#t'' means break always.
-
-@item
-If the code around the breakpoint is something like
-``(for ([n 100]) _)'', then a condition like
-``(zero? (modulo n 10))'' is every 10 times through the
-loop.
-@end itemize
-
-Actions is a list of symbols; you may specify one or more. The
-action symbols are:
-
-@itemize
-@item
-``break'' causes a break, enabling @ref{racket-debug-mode}.
-
-@item
-``log'' and ``print'' display information about local
-variables to the logger or REPL output, respectively.
-Although @ref{racket-debug-mode} already shows these values ``in
-situ'' when you reach a break, this may be useful if you want
-a history. Specifying ``log'' or ``print'', but not
-``break'', is equivalent to what many debuggers call a
-watchpoint instead of a breakpoint: Output some information
-and automatically resume.
-@end itemize
-
-Note: Although @ref{racket-debug-mode} provides a convenient
-keybinding, you may invoke this command anytime using M-x.
-
-Note: If you're warned that point isn't known to be a breakable
-position, that might be because it truly isn't, or, just because
-you are not in @ref{racket-debug-mode} and the breakable positions
-aren't yet known. Worst case, if you set a breakpoint someplace
-that is not breakable, it is ignored. With a few exceptions --
-such as close paren positions that are tail calls -- most open
-parens and close parens are breakble positions.
 
 @node racket-mode-start-faster
 @subsection racket-mode-start-faster
@@ -3307,7 +3461,7 @@ This has a visible effect only when there is @emph{not} also a
 
 How much documentation to show via @code{eldoc}.
 
-Used by @code{nil} and @code{nil}.
+Used by @code{racket-xp-eldoc-point-or-sexp-head}.
 
 @itemize
 @item
@@ -3769,14 +3923,18 @@ need to use @code{racket-refresh-sexp-comment-faces}.
 @node racket-debuggable-files
 @subsection racket-debuggable-files
 
-Used to tell @ref{racket-run} what files may be instrumented for debugging.
+Used specify what files to instrument for debugging.
 
-This isn't yet a defcustom becuase the debugger status is still
-``experimental''.
+The value must be either:
 
-Must be either a list of file name strings, or, a function that
-takes the name of the file being run and returns a list of file
-names.
+@itemize
+@item
+A list of file name strings.
+
+@item
+A function that, given the name of the file being run, returns
+a list of file name strings.
+@end itemize
 
 Each file name in the list is made absolute using
 @code{expand-file-name} with respect to the file being run and given

@@ -61,24 +61,24 @@
     racket-complete-at-point
     "Hash Langs"
     racket-hash-lang-mode
-    (racket-hash-lang-backward ,racket-hash-lang-mode-map)
-    (racket-hash-lang-forward ,racket-hash-lang-mode-map)
-    (racket-hash-lang-up ,racket-hash-lang-mode-map)
-    (racket-hash-lang-down ,racket-hash-lang-mode-map)
+    (racket-hash-lang-backward   ,racket-hash-lang-mode-map)
+    (racket-hash-lang-forward    ,racket-hash-lang-mode-map)
+    (racket-hash-lang-up         ,racket-hash-lang-mode-map)
+    (racket-hash-lang-down       ,racket-hash-lang-mode-map)
     (racket-hash-lang-C-M-q-dwim ,racket-hash-lang-mode-map)
     "Explore"
     racket-xp-mode
-    (racket-xp-describe ,racket-xp-mode-map)
-    (racket-xp-documentation ,racket-xp-mode-map)
-    (racket-xp-next-definition ,racket-xp-mode-map)
-    (racket-xp-previous-definition ,racket-xp-mode-map)
-    (racket-xp-next-use ,racket-xp-mode-map)
-    (racket-xp-previous-use ,racket-xp-mode-map)
-    (racket-xp-next-error ,racket-xp-mode-map)
-    (racket-xp-previous-error ,racket-xp-mode-map)
-    (racket-xp-tail-up ,racket-xp-mode-map)
-    (racket-xp-tail-down ,racket-xp-mode-map)
-    (racket-xp-tail-next-sibling ,racket-xp-mode-map)
+    (racket-xp-describe              ,racket-xp-mode-map)
+    (racket-xp-documentation         ,racket-xp-mode-map)
+    (racket-xp-next-definition       ,racket-xp-mode-map)
+    (racket-xp-previous-definition   ,racket-xp-mode-map)
+    (racket-xp-next-use              ,racket-xp-mode-map)
+    (racket-xp-previous-use          ,racket-xp-mode-map)
+    (racket-xp-next-error            ,racket-xp-mode-map)
+    (racket-xp-previous-error        ,racket-xp-mode-map)
+    (racket-xp-tail-up               ,racket-xp-mode-map)
+    (racket-xp-tail-down             ,racket-xp-mode-map)
+    (racket-xp-tail-next-sibling     ,racket-xp-mode-map)
     (racket-xp-tail-previous-sibling ,racket-xp-mode-map)
     racket-documentation-search
     racket-describe-mode
@@ -96,7 +96,6 @@
     racket-profile-mode
     racket-logger
     racket-logger-mode
-    (racket-debug-mode ,racket-xp-mode-map)
     racket-repl-clear
     racket-repl-clear-leaving-last-prompt
     "Test"
@@ -119,8 +118,23 @@
     list-racket-packages
     racket-package-mode
     describe-racket-package
+    "Debug"
+    racket-debug-mode
+    (racket-debug-step                      ,racket-debug-mode-map)
+    (racket-debug-step-over                 ,racket-debug-mode-map)
+    (racket-debug-step-out                  ,racket-debug-mode-map)
+    (racket-debug-forward-breakable         ,racket-debug-mode-map)
+    (racket-debug-backward-breakable        ,racket-debug-mode-map)
+    (racket-debug-run-to-here               ,racket-debug-mode-map)
+    (racket-debug-set-break-expression      ,racket-debug-mode-map)
+    (racket-debug-clear-break-expression    ,racket-debug-mode-map)
+    (racket-debug-toggle-break-expression   ,racket-debug-mode-map)
+    (racket-debug-forward-break-expression  ,racket-debug-mode-map)
+    (racket-debug-backward-break-expression ,racket-debug-mode-map)
+    (racket-debug-set-local                 ,racket-debug-mode-map)
+    (racket-debug-continue                  ,racket-debug-mode-map)
+    (racket-debug-go                        ,racket-debug-mode-map)
     "Other"
-    racket-debug-toggle-breakpoint
     racket-mode-start-faster
     racket-mode-start-slower)
   "Commands to include in the Reference.")
@@ -415,10 +429,7 @@ sorted shortest key sequences first."
                   (add sym (reverse (cons key prefix-keys)))))))))
       ;; Recursively mutate `alist'.
       (keymap km nil)
-      ;; Navigate `alist' sorted by command.
-      (dolist (v (seq-sort-by (lambda (v) (symbol-name (car v)))
-                              #'string<
-                              alist))
+      (dolist (v alist)
         (let* ((command-str (racket--ref-or-code (car v)))
                (keys-strs (seq-map (lambda (binding)
                                      (format "{{{kbd(%s)}}}"
