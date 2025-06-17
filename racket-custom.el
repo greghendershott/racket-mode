@@ -637,6 +637,40 @@ ignore POS. Examples: `racket-show-echo-area' and
                                      (natnum :tag "natural number"))
                                (sexp :tag "sexp")))))))
 
+(defcustom racket-debuggable-files 'racket-same-directory-files
+  "Used specify what files to instrument for debugging.
+
+The value must be either:
+
+- A list of file name strings.
+
+- A function that, given the name of the file being run, returns
+  a list of file name strings.
+
+Each file name in the list is made absolute using
+`expand-file-name' with respect to the file being run and given
+to `racket-file-name-front-to-back'."
+  :type '(choice
+          (function :tag "Function")
+          (repeat :tag "Files" file))
+  :risky t)
+
+(defun racket--displayable-string (str fallback)
+  "Return STR if a font seems able to display it, else FALLBACK."
+  (if (seq-every-p (lambda (c)
+                     (pcase (char-displayable-p c)
+                       ((or 'nil 'unicode) nil)
+                       (v v)))
+                   str)
+      str
+    fallback))
+
+(defcustom racket-debug-break-expression-string
+  (racket--displayable-string "●" "!")
+  "String used in overlays for `racket-debug-set-break-expression'."
+  :type 'string
+  :safe #'stringp)
+
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; racket-faces group
 
@@ -784,20 +818,20 @@ values, including symbols quoted using \"syntax\" or
   "Face for `racket-logger-mode' debug level.")
 
 (defface-racket racket-debug-break-face
-  '((t (:background "red")))
+  '((t (:underline (color: "dark orange" :style line))))
   "Face for `racket-debug-mode' break position.")
 
-(defface-racket racket-debug-breakpoint-face
+(defface-racket racket-debug-break-span-face
+  '((t (:inherit highlight)))
+  "Face for `racket-debug-mode' break spans.")
+
+(defface-racket racket-debug-break-expression-face
   '((t (:foreground "red" :weight bold)))
-  "Face for `racket-debug-mode' breakpoint overlays.")
+  "Face for `racket-debug-set-break-expression' overlays.")
 
 (defface-racket racket-debug-locals-face
-  '((t (:inherit font-lock-constant-face :box (:line-width -1) :slant italic)))
+  '((t (:inherit tooltip :box (:line-width -1) :slant italic)))
   "Face for `racket-debug-mode' local variables.")
-
-(defface-racket racket-debug-result-face
-  '((t (:inherit font-lock-constant-face :box (:line-width -1) :slant italic :weight bold)))
-  "Face for `racket-debug-mode' result values.")
 
 (defface-racket racket-doc-link-face
   '((t (:underline (:color "gray" :style line))))
