@@ -31,7 +31,7 @@
   ;; This is modeled after the one in DrRacket.
   (define (racket-mode-instrumented-eval-handler orig-exp)
     (cond
-      [(or #;(not (instrumenting-enabled))
+      [(or (not (instrumenting-enabled))
            (compiled-expression? (if (syntax? orig-exp)
                                      (syntax-e orig-exp)
                                      orig-exp)))
