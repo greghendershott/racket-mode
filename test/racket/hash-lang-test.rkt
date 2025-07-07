@@ -209,8 +209,15 @@
        ;;    0123456789012 34567890
        ;;              1          2
        [o  (test-create str)])
-  (check-equal? (send o classify 1 14)
-                (list 14 15 'symbol))
+  (check-true
+   (or
+    ;; Older racket-lexer*
+    (equal? (send o classify 1 14)
+            (list 14 15 'symbol))
+    ;; Newer racket-lexer*
+    (equal? (send o classify 1 14)
+            (list 14 15 #hash((semantic-type-guess . keyword)
+                              (type . symbol))))))
   (check-equal? (test-update! o 2 17 0 "a")
                 '((17 18 symbol)))
   (check-equal? (send o classify 2 17)
@@ -269,11 +276,20 @@
   (test-update! o 2 13 0 "d")
   (test-update! o 3 14 0 "o")
   (check-equal? (send o -get-content) "#lang racket\ndo")
-  (check-equal? (send o get-tokens 3)
-                (list
-                 (list  0 12 'other)
-                 (list 12 13 'white-space)
-                 (list 13 15 'symbol))))
+  (check-true
+   (or
+    ;; Older racket-lexer*
+    (equal? (send o get-tokens 3)
+            (list
+             (list  0 12 'other)
+             (list 12 13 'white-space)
+             (list 13 15 'symbol)))
+    ;; Newer racket-lexer*
+    (equal? (send o get-tokens 3)
+            (list
+             (list  0 12 'other)
+             (list 12 13 'white-space)
+             (list 13 15 #hash((semantic-type-guess . keyword) (type . symbol))))))))
 
 (let* ([str "#lang racket\n"]
        ;;    0123456789012 3
