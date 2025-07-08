@@ -209,15 +209,10 @@
        ;;    0123456789012 34567890
        ;;              1          2
        [o  (test-create str)])
-  (check-true
-   (or
-    ;; Older racket-lexer*
-    (equal? (send o classify 1 14)
-            (list 14 15 'symbol))
-    ;; Newer racket-lexer*
-    (equal? (send o classify 1 14)
-            (list 14 15 #hash((semantic-type-guess . keyword)
-                              (type . symbol))))))
+  (check-match (send o classify 1 14)
+               (list 14 15 (or 'symbol ;older racket-lexer*
+                               (hash-table ['semantic-type-guess 'keyword]
+                                           ['type 'symbol]))))
   (check-equal? (test-update! o 2 17 0 "a")
                 '((17 18 symbol)))
   (check-equal? (send o classify 2 17)
@@ -276,20 +271,13 @@
   (test-update! o 2 13 0 "d")
   (test-update! o 3 14 0 "o")
   (check-equal? (send o -get-content) "#lang racket\ndo")
-  (check-true
-   (or
-    ;; Older racket-lexer*
-    (equal? (send o get-tokens 3)
-            (list
-             (list  0 12 'other)
-             (list 12 13 'white-space)
-             (list 13 15 'symbol)))
-    ;; Newer racket-lexer*
-    (equal? (send o get-tokens 3)
-            (list
-             (list  0 12 'other)
-             (list 12 13 'white-space)
-             (list 13 15 #hash((semantic-type-guess . keyword) (type . symbol))))))))
+  (check-match (send o get-tokens 3)
+               (list
+                (list  0 12 'other)
+                (list 12 13 'white-space)
+                (list 13 15 (or 'symbol ;older racket-lexer*
+                                (hash-table ['semantic-type-guess 'keyword]
+                                            ['type 'symbol]))))))
 
 (let* ([str "#lang racket\n"]
        ;;    0123456789012 3
@@ -456,47 +444,58 @@
   (let* ([o (test-create "#lang rhombus\n@//{block comment}")]
          ;;               01234567890123 4567890123456789012
          ;;                         1          2         3
-         [gen-1-tokens (send o get-tokens 1)]
-         [gen-2-tokens (test-update! o 2 16 0 " ")])
-    (check-true
-     (or
-      ;; Older rhombus-lexer
-      (equal? gen-2-tokens
-              '((14 15 #hasheq((invisible-open-count . 1) (rhombus-type . at) (type . at)))
-                (15 16 #hasheq((rhombus-type . operator) (type . operator)))
-                (16 17 #hasheq((rhombus-type . whitespace) (type . white-space)))
-                (17 18 #hasheq((rhombus-type . operator) (type . operator)))
-                (18 19 #hasheq((rhombus-type . opener) (type . parenthesis)))
-                (19 24 #hasheq((invisible-open-count . 1)
-                               (rhombus-type . identifier)
-                               ;; older rhombus lexers don't supply
-                               ;; semantic-type-guess mapping here
-                               (type . symbol)))
-                (24 25 #hasheq((rhombus-type . whitespace) (type . white-space)))
-                (25 32 #hasheq((invisible-close-count . 1) (rhombus-type . identifier) (type . symbol)))
-                (32 33 #hasheq((invisible-close-count . 1) (rhombus-type . closer) (type . parenthesis)))))
-      ;; Newer rhombus-lexer
-      (equal? gen-2-tokens
-              '((14 15 #hasheq((invisible-open-count . 1) (rhombus-type . at) (type . at)))
-                (15 16 #hasheq((rhombus-type . operator) (type . operator)))
-                (16 17 #hasheq((rhombus-type . whitespace) (type . white-space)))
-                (17 18 #hasheq((rhombus-type . operator) (type . operator)))
-                (18 19 #hasheq((rhombus-type . opener) (type . parenthesis)))
-                (19 24 #hasheq((invisible-open-count . 1)
-                               (rhombus-type . identifier)
-                               ;; only newer rhombus lexers supply this:
-                               (semantic-type-guess . keyword)
-                               (type . symbol)))
-                (24 25 #hasheq((rhombus-type . whitespace) (type . white-space)))
-                (25 32 #hasheq((invisible-close-count . 1) (rhombus-type . identifier) (type . symbol)))
-                (32 33 #hasheq((invisible-close-count . 1) (rhombus-type . closer) (type . parenthesis))))))
-     "non-zero backup amounts are used: edit removes block comment")
-    (check-equal? (test-update! o 3 16 1 "")
-                  '((14 17 #hasheq((invisible-open-count . 1) (rhombus-type . at-comment) (type . comment)))
-                    (17 18 #hasheq((comment? . #t) (rhombus-type . at-opener) (type . parenthesis)))
-                    (18 31 #hasheq((comment? . #t) (rhombus-type . at-content) (type . text)))
-                    (31 32 #hasheq((invisible-close-count . 1) (comment? . #t) (rhombus-type . at-closer) (type . parenthesis))))
-                  "non-zero backup amounts are used: edit restores block comment")
+         [gen-1-tokens (send o get-tokens 1)])
+    (with-check-info (['message "non-zero backup amounts are used: edit removes block comment"])
+      (check-match
+       (test-update! o 2 16 0 " ")
+       (list
+        (list 14 15 (hash-table ['invisible-open-count 1]
+                                ['rhombus-type 'at]
+                                ['type 'at]))
+        (list 15 16 (hash-table ['rhombus-type 'operator]
+                                ['type 'operator]))
+        (list 16 17 (hash-table ['rhombus-type 'whitespace]
+                                ['type 'white-space]))
+        (list 17 18 (hash-table ['rhombus-type 'operator]
+                                ['type 'operator]))
+        (list 18 19 (hash-table ['rhombus-type 'opener]
+                                ['type 'parenthesis]))
+        (list 19 24 (or (hash-table
+                         ['invisible-open-count 1]
+                         ['rhombus-type 'identifier]
+                         ['type 'symbol])
+                        (hash-table
+                         ['invisible-open-count 1]
+                         ['rhombus-type 'identifier]
+                         ['semantic-type-guess 'keyword] ;newer
+                         ['type 'symbol])))
+        (list 24 25 (hash-table ['rhombus-type 'whitespace]
+                                ['type 'white-space]))
+        (list 25 32 (hash-table ['invisible-close-count 1]
+                                ['rhombus-type 'identifier]
+                                ['type 'symbol]))
+        (list 32 33 (hash-table ['invisible-close-count 1]
+                                ['rhombus-type 'closer]
+                                ['type 'parenthesis])))))
+
+    (with-check-info (['message "non-zero backup amounts are used: edit restores block comment"])
+      (check-match
+       (test-update! o 3 16 1 "")
+       (list
+        (list 14 17 (hash-table ['invisible-open-count 1]
+                                ['rhombus-type 'at-comment]
+                                ['type 'comment]))
+        (list 17 18 (hash-table ['comment? #t]
+                                ['rhombus-type 'at-opener]
+                                ['type 'parenthesis]))
+        (list 18 31 (hash-table ['comment? #t]
+                                ['rhombus-type 'at-content]
+                                ['type 'text]))
+        (list 31 32 (hash-table ['comment? #t]
+                                ['invisible-close-count 1]
+                                ['rhombus-type 'at-closer]
+                                ['type 'parenthesis])))))
+
     (check-equal? gen-1-tokens
                   (send o get-tokens 3)
                   "non-zero backup amounts are used: edits remove and restore block comment")))
