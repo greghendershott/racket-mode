@@ -10,6 +10,7 @@
          racket/match
          (only-in racket/path path-only)
          racket/set
+         racket/string
          syntax/modread
          "debug-annotator.rkt"
          "elisp.rkt"
@@ -141,26 +142,30 @@
         actions]
        [_ null])))
 
-  (when (memq 'print actions)
-    (unless (null? (mark-bindings top-mark))
-      (repl-output-message "Debugger watchpoint; locals:")
-      (for* ([binding  (in-list (reverse (mark-bindings top-mark)))]
-             [stx      (in-value (first binding))]
-             [get/set! (in-value (second binding))]
-             #:when (and (syntax-original? stx) (syntax-source stx)))
-        (repl-output-message (format " ~a = ~a" stx (~v (get/set!)))))))
-
-  (when (memq 'log actions)
-    (log-racket-mode-debugger-info
-     "watch ~a ~v~a"
-     before/after
-     stx
-     (for*/fold ([str ""])
-                ([binding  (in-list (reverse (mark-bindings top-mark)))]
-                 [stx      (in-value (first binding))]
-                 [get/set! (in-value (second binding))]
-                 #:when (and (syntax-original? stx) (syntax-source stx)))
-       (string-append str (format "\n ~a = ~a" stx (~v (get/set!)))))))
+  (when (or (memq 'print actions)
+            (memq 'log actions))
+    (define strs
+      (for*/list ([binding  (in-list (reverse (mark-bindings top-mark)))]
+                  [stx      (in-value (first binding))]
+                  [get/set! (in-value (second binding))]
+                  #:when (and (syntax-original? stx) (syntax-source stx)))
+        (format " ~a = ~a" stx (~v (get/set!)))))
+    (unless (null? strs)
+      (when (memq 'print actions)
+        (repl-output-message (format "Debugger watchpoint ~a ~s"
+                                     before/after
+                                     stx))
+        (for-each repl-output-message strs)
+        (when (eq? before/after 'after)
+          (repl-output-message (format " => ~s" vals) )))
+      (when (memq 'log actions)
+        (log-racket-mode-debugger-info "watch ~a ~s\n~a~a"
+                                       before/after
+                                       stx
+                                       (string-join strs "\n")
+                                       (if (eq? before/after 'after)
+                                           (format "\n => ~s" vals)
+                                           "")))))
 
   (cond
     [(memq 'break actions)
