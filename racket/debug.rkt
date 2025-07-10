@@ -116,28 +116,30 @@
                 [(after)  end]))
 
   ;; What to do depends on whether the pause is due to a user debug
-  ;; point, and if so, its condition and actions.
+  ;; point, and if so, its condition and actions. Regardless, when
+  ;; single-stepping always do 'break action.
   (define actions
-    (match ((pause? src) pos)
-      [(cons condition actions)
-       (if (or (equal? condition #t) ;short-cut
-               (with-handlers ([values
-                                (λ (e)
-                                  (repl-output-message
-                                   (format "~a\nin debugger condition expression:\n  ~v"
-                                           (exn-message e)
-                                           condition))
-                                  #t)]) ;break anyway
-                 (eval
-                  (call-with-session-context (current-session-id)
-                                             with-locals
-                                             condition
-                                             (mark-bindings top-mark)))))
-           actions
-           null)]
-      ;; Otherwise, e.g. for a simple step, the default and only
-      ;; action is to break.
-      [#t '(break)]))
+    (append
+     (cond [(Next:All? (next)) '(break)]
+           [else                null])
+     (match ((pause? src) pos)
+       [(cons condition actions)
+        #:when
+        (or (equal? condition #t) ;short-cut
+            (with-handlers ([values
+                             (λ (e)
+                               (repl-output-message
+                                (format "~a\nin debugger condition expression:\n  ~v"
+                                        (exn-message e)
+                                        condition))
+                               #t)]) ;take the actions anyway
+              (eval
+               (call-with-session-context (current-session-id)
+                                          with-locals
+                                          condition
+                                          (mark-bindings top-mark)))))
+        actions]
+       [_ null])))
 
   (when (memq 'print actions)
     (unless (null? (mark-bindings top-mark))
@@ -161,8 +163,7 @@
        (string-append str (format "\n ~a = ~a" stx (~v (get/set!)))))))
 
   (cond
-    [(or (memq 'break actions)
-         (Next:All? (next)))
+    [(memq 'break actions)
      ;; Start a debug repl on its own thread, because below we're going to
      ;; block indefinitely with (channel-get on-resume-channel), waiting for
      ;; the Emacs front end to issue a debug-resume command.
