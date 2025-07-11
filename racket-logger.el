@@ -86,11 +86,11 @@ As a result, we might create this buffer before the user does a
                  (point-was-at-end-p (equal original-point (point-max))))
       (goto-char (point-max))
       (insert (propertize level-str
-                          'face level-face
+                          'font-lock-face level-face
                           'racket-logger-item-level t)
               " "
               (propertize (symbol-name topic)
-                          'face racket-logger-topic-face)
+                          'font-lock-face racket-logger-topic-face)
               ": "
               message
               "\n")
@@ -106,7 +106,7 @@ As a result, we might create this buffer before the user does a
       (goto-char (point-max))
       (insert (propertize (concat "racket-logger-config:\n"
                                   (pp-to-string racket-logger-config))
-                          'face racket-logger-config-face))
+                          'font-lock-face racket-logger-config-face))
       (goto-char (point-max)))))
 
 (defun racket--logger-set (topic level)
