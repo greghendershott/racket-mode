@@ -131,8 +131,7 @@ With \\[universal-argument], substitute values."
 (defun racket-debug-continue (&optional prefix)
   "Continue utilizing `racket-debug-set-point' points.
 
-When execution reaches a point whose expresion is true, the action(s)
-will be taken -- including pausing for a \"break\" action.
+Execution breaks at any point with a true expression.
 
 With \\[universal-argument], substitute values."
   (interactive "P")
@@ -157,9 +156,9 @@ With \\[universal-argument], substitute values."
 (defun racket-debug-go (&optional prefix)
   "Go, ignoring all debug points.
 
-Similar to running the program normally, not stepping, and
-without any break or watch points (although code annotated for
-debugging will run more slowly).
+Similar to running the program normally, not stepping, and without any
+breaking debug points (although code annotated for debugging will run
+more slowly).
 
 With \\[universal-argument], substitute values."
   (interactive "P")

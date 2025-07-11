@@ -3194,8 +3194,7 @@ Move to previous @ref{racket-debug-set-point} location.
 
 Continue utilizing @ref{racket-debug-set-point} points.
 
-When execution reaches a point whose expresion is true, the action(s)
-will be taken -- including pausing for a ``break'' action.
+Execution breaks at any point with a true expression.
 
 With @kbd{C-u} , substitute values.
 
@@ -3206,9 +3205,9 @@ With @kbd{C-u} , substitute values.
 
 Go, ignoring all debug points.
 
-Similar to running the program normally, not stepping, and
-without any break or watch points (although code annotated for
-debugging will run more slowly).
+Similar to running the program normally, not stepping, and without any
+breaking debug points (although code annotated for debugging will run
+more slowly).
 
 With @kbd{C-u} , substitute values.
 
