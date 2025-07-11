@@ -3113,45 +3113,43 @@ With @kbd{C-u} , substitute values.
 
 @kbd{M-x} @code{racket-debug-set-point}
 
-Set a debug point.
+Set a debug point expression.
 
-The debug point is displayed as ``⦿'' using an overlay.
+The debug point is displayed as @code{racket-debug-point-string}.
 
-Each debug point consists of:
+Debug point expressions enable debugger features like conditional
+breakpoints and watchpoints.
 
-@itemize
-@item
-A @emph{condition}, which is a Racket expression that is evaluated
-in a context where local variables exist. Examples:
+Each debug point consists of a a Racket expression, which will be
+evaluated in a context where local variables exist.
+
+Unless the expression evaluates to Racket false or void, execution will
+break there -- a ``conditional breakpoint''.
+
+In addition, the expression may invoke #%dump, which displays
+information about all locals -- and for after-breaks, the result
+value(s) -- to both the REPL and the racket-mode-debugger logger topic,
+that is, a ``watchpoint''. Although @ref{racket-debug-mode} already shows
+these values @emph{in situ} when at a break, this may be useful if you want a
+history.
+
+For example, if the code around the point is something like
+@code{(for ([n 100]) ___)}, then:
 
 @itemize
 @item
 @code{#t} means break always.
 
 @item
-If the code around the point is something like
-@code{(for ([n 100]) _)}, then a condition like
- @code{(zero? (modulo n 10))} is every 10 times through the
- loop.
-@end itemize
+@code{(zero? (modulo n 10))} breaks every 10 times through the loop.
 
 @item
-A list of one or more @emph{actions}:
-
-@itemize
-@item
-@code{break} causes a break, enabling @ref{racket-debug-mode}.
-
-@item
-@code{log} and @code{print} display information about local variables
-to @ref{racket-logger-mode} or @ref{racket-repl-mode}, respectively.
-Although @ref{racket-debug-mode} already shows these values @emph{in
-situ} when at a break, this may be useful if you want a
-history. Specifying log or print, but not break, is
-equivalent to what is often called a watchpoint: Output some
-information and automatically resume.
+@code{(when (even? n) (#%dump))} dumps watch information every other time
+through the loop, but never breaks.
 @end itemize
-@end itemize
+
+The expression may consist of any other Racket sub-expressions that
+evaluate without error in that local context.
 
 Note: If you're warned that point isn't known to be a breakable
 position, that might be because it truly isn't, or, just because
@@ -3196,9 +3194,8 @@ Move to previous @ref{racket-debug-set-point} location.
 
 Continue utilizing @ref{racket-debug-set-point} points.
 
-When execution reaches a point whose condition is true, the
-action(s) will be taken -- including pausing for a ``break''
-action.
+When execution reaches a point whose expresion is true, the action(s)
+will be taken -- including pausing for a ``break'' action.
 
 With @kbd{C-u} , substitute values.
 

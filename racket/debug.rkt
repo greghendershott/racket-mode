@@ -10,7 +10,6 @@
          racket/match
          (only-in racket/path path-only)
          racket/set
-         racket/string
          syntax/modread
          "debug-annotator.rkt"
          "elisp.rkt"
@@ -56,7 +55,7 @@
 ;;   actually permitted in the `next` variable.
 ;;
 ;; The `caps` field is conditional action points set by the user,
-;; represented as (hash/c (cons/c path? nat/c) (cons/c cond action)).
+;; represented as (hash/c (cons/c path? nat/c) any/c).
 
 (struct Resume (caps))
 (struct Resume:Over Resume ()) ;step over
@@ -82,32 +81,21 @@
 (define ((pause? src) pos)
   (match (next)
     [(? Next:None?) #f]
-    [(and (Next points) v)
-     ;; Note: Although it would be nice to evaluate `conditions`,
-     ;; here, we don't have access to (mark-bindings top-mark), here
-     ;; -- only when the annotator calls our `pause-before` or
-     ;; `pause-after` functions.
-     ;;
-     ;; Note: Regardless of whether it's Next:Some or Next:All, when
-     ;; specific debug point matches this position, prefer it for its
-     ;; `actions`. Motivation: A user has a "watchpoint" (action is
-     ;; print and/or log) for some point, and we want that to happen
-     ;; also when they single step with Next:All.
-     (or (hash-ref points (cons src pos) #f)
-         (Next:All? v))]))
+    [(? Next:All?) #t]
+    [(Next points) (hash-ref points (cons src pos) #f)]))
 
-(define/contract (pause-before top-mark ccm)
-  (-> mark/c continuation-mark-set? (or/c #f (listof any/c)))
+(define (pause-before top-mark ccm)
+  #;(-> mark/c continuation-mark-set? (or/c #f (listof any/c)))
   (pause 'before top-mark ccm #f))
 
-(define/contract (pause-after top-mark ccm . vals)
-  (->* (mark/c continuation-mark-set?) #:rest (listof any/c)
-       any)
+(define (pause-after top-mark ccm . vals)
+  #;(->* (mark/c continuation-mark-set?) #:rest (listof any/c)
+         any)
   (apply values (pause 'after top-mark ccm vals)))
 
-(define/contract (pause before/after top-mark ccm vals)
-  (-> (or/c 'before 'after) mark/c continuation-mark-set? (or/c #f (listof any/c))
-      (or/c #f (listof any/c)))
+(define (pause before/after top-mark ccm vals)
+  #;(-> (or/c 'before 'after) mark/c continuation-mark-set? (or/c #f (listof any/c))
+        (or/c #f (listof any/c)))
   (define stx (mark-source top-mark))
   (define src (syntax-source stx))
   (define beg (syntax-position stx))
@@ -115,60 +103,14 @@
   (define pos (case before/after
                 [(before) beg]
                 [(after)  end]))
-
-  ;; What to do depends on whether the pause is due to a user debug
-  ;; point, and if so, its condition and actions. Regardless, when
-  ;; single-stepping always do 'break action.
-  (define actions
-    (append
-     (cond [(Next:All? (next)) '(break)]
-           [else                null])
-     (match ((pause? src) pos)
-       [(cons condition actions)
-        #:when
-        (or (equal? condition #t) ;short-cut
-            (with-handlers ([values
-                             (λ (e)
-                               (repl-output-message
-                                (format "~a\nin debugger condition expression:\n  ~v"
-                                        (exn-message e)
-                                        condition))
-                               #t)]) ;take the actions anyway
-              (eval
-               (call-with-session-context (current-session-id)
-                                          with-locals
-                                          condition
-                                          (mark-bindings top-mark)))))
-        actions]
-       [_ null])))
-
-  (when (or (memq 'print actions)
-            (memq 'log actions))
-    (define strs
-      (for*/list ([binding  (in-list (reverse (mark-bindings top-mark)))]
-                  [stx      (in-value (first binding))]
-                  [get/set! (in-value (second binding))]
-                  #:when (and (syntax-original? stx) (syntax-source stx)))
-        (format " ~a = ~a" stx (~v (get/set!)))))
-    (unless (null? strs)
-      (when (memq 'print actions)
-        (repl-output-message (format "Debugger watchpoint ~a ~s"
-                                     before/after
-                                     stx))
-        (for-each repl-output-message strs)
-        (when (eq? before/after 'after)
-          (repl-output-message (format " => ~s" vals) )))
-      (when (memq 'log actions)
-        (log-racket-mode-debugger-info "watch ~a ~s\n~a~a"
-                                       before/after
-                                       stx
-                                       (string-join strs "\n")
-                                       (if (eq? before/after 'after)
-                                           (format "\n => ~s" vals)
-                                           "")))))
-
+  (define break?
+    (match (next)
+      [(and (Next points) v)
+       (or (eval-point-expression before/after top-mark vals stx
+                                  (hash-ref points (cons src pos) #f))
+           (Next:All? v))]))
   (cond
-    [(memq 'break actions)
+    [break?
      ;; Start a debug repl on its own thread, because below we're going to
      ;; block indefinitely with (channel-get on-resume-channel), waiting for
      ;; the Emacs front end to issue a debug-resume command.
@@ -245,6 +187,46 @@
        [(before) #f]
        [(after)  vals])]))
 
+(define (eval-point-expression before/after top-mark vals stx expr)
+  (match expr
+    [#t #t]
+    [#f #f]
+    [expr
+     (inject-dump before/after top-mark vals stx)
+     (with-handlers ([values
+                      (λ (e)
+                        (repl-output-message
+                         (format "~a\n  in debugger expression: ~s\n  ~a: ~s"
+                                 (exn-message e)
+                                 expr
+                                 before/after
+                                 stx))
+                        #f)])
+       (match (eval
+               (call-with-session-context (current-session-id)
+                                          with-locals
+                                          expr
+                                          (mark-bindings top-mark)))
+         [(? void?) #f]
+         [v v]))]))
+
+(define (inject-dump before/after top-mark vals stx)
+  (namespace-set-variable-value!
+   '#%dump
+   (λ ()
+     (let* ([s (format "#%dump ~a ~s" before/after stx)]
+            [s (for*/fold ([s s])
+                          ([binding  (in-list (reverse (mark-bindings top-mark)))]
+                           [stx      (in-value (first binding))]
+                           [get/set! (in-value (second binding))]
+                           #:when (and (syntax-original? stx) (syntax-source stx)))
+                 (string-append s (format "\n  ~a = ~a" stx (~v (get/set!)))))]
+            [s (if (eq? before/after 'after)
+                   (string-append s (format "\n => ~s" vals))
+                   s)])
+       (repl-output-message s)
+       (log-racket-mode-debugger-info s)))))
+
 (define (serializable? v)
   (with-handlers ([exn:fail:read? (λ _ #f)])
     (equal? v (write/read v))))
@@ -317,6 +299,8 @@
                                with-locals stx (mark-bindings top-mark)))
   racket-mode-debug-prompt-read)
 
+;; Locals
+
 (define (with-locals stx bindings)
   ;; Before or during module->namespace -- i.e. during a racket-run --
   ;; current-namespace won't (can't) yet be a namespace with module
@@ -373,7 +357,7 @@
 
 ;; These contracts are suitable for "edge" with ELisp.
 
-(define elisp-action-point/c (list/c path-string? pos/c string? string?))
+(define elisp-action-point/c (list/c path-string? pos/c string?))
 (define elisp-resume-next/c (cons/c (or/c 'over 'out 'all 'some 'none)
                                     (listof elisp-action-point/c)))
 
@@ -386,11 +370,15 @@
                  [(some) Next:Some]
                  [(none) Next:None]))
   (define caps (for/hash ([v (in-list (cdr v))])
-                 (match-define (list path-str pos condition actions) v)
+                 (match-define (list path-str pos condition) v)
                  (values (cons (string->path path-str)
                                pos)
-                         (cons (read (open-input-string condition))
-                               (read (open-input-string actions))))))
+                         (with-handlers ([exn:fail?
+                                          (λ (e)
+                                            `(begin
+                                              (println ,(exn-message e))
+                                              #f))])
+                           (read (open-input-string condition))))))
   (ctor caps))
 
 (define locals/c (listof (list/c path-string? pos/c pos/c symbol? string?)))

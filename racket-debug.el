@@ -84,10 +84,8 @@ buffers.")
                                     (racket-file-name-front-to-back
                                      (racket--buffer-file-name)))
                                   (overlay-start o)
-                                  (or (overlay-get o 'racket-point-condition)
-                                      "#t")
-                                  (or (overlay-get o 'racket-point-actions)
-                                      "(break)")))
+                                  (or (overlay-get o 'racket-point-expression)
+                                      "#t")))
                           racket--debug-points))
          (points (append extra-debug-points points)))
     (racket--cmd/async (racket--repl-session-id)
@@ -133,9 +131,8 @@ With \\[universal-argument], substitute values."
 (defun racket-debug-continue (&optional prefix)
   "Continue utilizing `racket-debug-set-point' points.
 
-When execution reaches a point whose condition is true, the
-action(s) will be taken -- including pausing for a \"break\"
-action.
+When execution reaches a point whose expresion is true, the action(s)
+will be taken -- including pausing for a \"break\" action.
 
 With \\[universal-argument], substitute values."
   (interactive "P")
@@ -227,34 +224,39 @@ Useful followed by commands like `racket-debug-run-to-here' or
         (setq anyp t)))
     anyp))
 
-(defun racket-debug-set-point (condition actions)
-  "Set a debug point.
+(defun racket-debug-set-point (expression)
+  "Set a debug point expression.
 
-The debug point is displayed as \"⦿\" using an overlay.
+The debug point is displayed as `racket-debug-point-string'.
 
-Each debug point consists of:
+Debug point expressions enable debugger features like conditional
+breakpoints and watchpoints.
 
-- A /condition/, which is a Racket expression that is evaluated
-  in a context where local variables exist. Examples:
+Each debug point consists of a a Racket expression, which will be
+evaluated in a context where local variables exist.
+
+Unless the expression evaluates to Racket false or void, execution will
+break there -- a \"conditional breakpoint\".
+
+In addition, the expression may invoke #%dump, which displays
+information about all locals -- and for after-breaks, the result
+value(s) -- to both the REPL and the racket-mode-debugger logger topic,
+that is, a \"watchpoint\". Although `racket-debug-mode' already shows
+these values /in situ/ when at a break, this may be useful if you want a
+history.
+
+For example, if the code around the point is something like
+`(for ([n 100]) ___)`, then:
 
   - `#t` means break always.
 
-  - If the code around the point is something like
-    `(for ([n 100]) _)`, then a condition like
-     `(zero? (modulo n 10))` is every 10 times through the
-     loop.
+  - `(zero? (modulo n 10))` breaks every 10 times through the loop.
 
-- A list of one or more /actions/:
+  - `(when (even? n) (#%dump))` dumps watch information every other time
+    through the loop, but never breaks.
 
-  - `break` causes a break, enabling `racket-debug-mode'.
-
-  - `log` and `print` display information about local variables
-    to `racket-logger-mode' or `racket-repl-mode', respectively.
-    Although `racket-debug-mode' already shows these values /in
-    situ/ when at a break, this may be useful if you want a
-    history. Specifying log or print, but not break, is
-    equivalent to what is often called a watchpoint: Output some
-    information and automatically resume.
+The expression may consist of any other Racket sub-expressions that
+evaluate without error in that local context.
 
 Note: If you're warned that point isn't known to be a breakable
 position, that might be because it truly isn't, or, just because
@@ -271,24 +273,19 @@ parens and close parens are breakble positions."
                  (y-or-n-p "Point not known to be a breakable position; set anyway "))
        (keyboard-quit))
      (list
-      (read-string "Condition expression [RET for \"#t\"]: "
+      (read-string "Expression [RET for \"#t\"]: "
                    nil
-                   'racket-debug-point-conditions
-                   "#t")
-      (read-string "Actions list [RET for \"(break)\"]: "
-                   nil
-                   'racket-debug-point-actions
-                   '("(break)" "(print)" "(log)")))))
+                   'racket-debug-point-expressions
+                   "#t"))))
   (racket-debug-clear-point)
   (let ((o (make-overlay (point) (1+ (point)) (current-buffer) t nil)))
     (overlay-put o 'name 'racket-debug-point)
     (overlay-put o 'before-string (propertize
                                    racket-debug-point-string
                                    'face 'racket-debug-point-face
-                                   'help-echo (format "%s => %s" condition actions)))
+                                   'help-echo expression))
     (overlay-put o 'evaporate t)
-    (overlay-put o 'racket-point-condition condition)
-    (overlay-put o 'racket-point-actions actions)
+    (overlay-put o 'racket-point-expression expression)
     (push o racket--debug-points)))
 
 (defun racket-debug-toggle-point ()
