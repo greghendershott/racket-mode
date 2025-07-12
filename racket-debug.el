@@ -129,9 +129,10 @@ With \\[universal-argument], substitute values."
   (racket--debug-resume 'out prefix))
 
 (defun racket-debug-continue (&optional prefix)
-  "Continue utilizing `racket-debug-set-point' points.
+  "Continue, utilizing `racket-debug-set-point' expressions.
 
-Execution breaks at any point with a true expression.
+Execution breaks at any position whose debug point expression evaluates
+to a true, non-void value.
 
 With \\[universal-argument], substitute values."
   (interactive "P")
@@ -156,9 +157,9 @@ With \\[universal-argument], substitute values."
 (defun racket-debug-go (&optional prefix)
   "Go, ignoring all debug points.
 
-Similar to running the program normally, not stepping, and without any
-breaking debug points (although code annotated for debugging will run
-more slowly).
+Similar to continuing the program normally, without stepping or
+evaluating any debug point expressions -- although code annotated for
+debugging runs more slowly.
 
 With \\[universal-argument], substitute values."
   (interactive "P")
@@ -224,9 +225,7 @@ Useful followed by commands like `racket-debug-run-to-here' or
     anyp))
 
 (defun racket-debug-set-point (expression)
-  "Set a debug point expression.
-
-The debug point is displayed as `racket-debug-point-string'.
+  "Set a debug point expression at a breakable position.
 
 Debug point expressions enable debugger features like conditional
 breakpoints and watchpoints.
@@ -256,6 +255,9 @@ For example, if the code around the point is something like
 
 The expression may consist of any other Racket sub-expressions that
 evaluate without error in that local context.
+
+Each debug point is displayed using the customization variables
+`racket-debug-point-string' and `racket-debug-point-face'.
 
 Note: If you're warned that point isn't known to be a breakable
 position, that might be because it truly isn't, or, just because
