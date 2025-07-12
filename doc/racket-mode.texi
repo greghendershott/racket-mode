@@ -3122,14 +3122,14 @@ Each debug point consists of a a Racket expression, which will be
 evaluated in a context where local variables exist.
 
 Unless the expression evaluates to Racket false or void, execution will
-break there -- a ``conditional breakpoint''.
+break there. In other words, this is a ``conditional breakpoint''.
 
-In addition, the expression may invoke #%dump, which displays
-information about all locals -- and for after-breaks, the result
-value(s) -- to both the REPL and the racket-mode-debugger logger topic,
-that is, a ``watchpoint''. Although @ref{racket-debug-mode} already shows
-these values @emph{in situ} when at a break, this may be useful if you want a
-history.
+In addition, the expression may invoke @code{#%dump}, which displays
+information about all locals (and for after-breaks, the result values)
+to both the REPL and the racket-mode-debugger logger topic. In other
+words, this is a ``watchpoint''. Although @ref{racket-debug-mode} already
+shows these values @emph{in situ} when at a break, this may be useful if you
+want a history.
 
 For example, if the code around the point is something like
 @code{(for ([n 100]) ___)}, then:
@@ -3146,19 +3146,20 @@ For example, if the code around the point is something like
 through the loop, but never breaks.
 @end itemize
 
-The expression may consist of any other Racket sub-expressions that
-evaluate without error in that local context.
+The expression may consist of any Racket sub-expressions that evaluate
+without error in that local context.
 
 Each debug point is displayed using the customization variables
 @code{racket-debug-point-string} and @code{racket-debug-point-face}.
 
 Note: If you're warned that point isn't known to be a breakable
 position, that might be because it truly isn't, or, just because
-@ref{racket-debug-mode} is inactive and the breakable positions
-aren't yet known. Worst case, if you set a debug point someplace
-that is not breakable, it is ignored. With a few exceptions --
-such as close paren positions that are tail calls -- most open
-parens and close parens are breakble positions.
+@ref{racket-debug-mode} is inactive therefore the breakable positions aren
+uknown. Worst case, if you set a debug point someplace that is not
+breakable, it is ignored. With a few exceptions -- such as close paren
+positions that are tail calls -- most open parens and close parens are
+breakble positions in s-expression languages. See the commands
+@ref{racket-debug-forward-breakable} and @ref{racket-debug-backward-breakable}.
 
 @node racket-debug-clear-point
 @subsection racket-debug-clear-point
