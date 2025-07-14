@@ -187,45 +187,50 @@
        [(before) #f]
        [(after)  vals])]))
 
+;; Note: This works using Racket language expressions, regardless of
+;; the user program #lang.
 (define (eval-point-expression before/after top-mark vals stx expr)
   (match expr
     [#t #t]
     [#f #f]
     [expr
-     (inject-dump before/after top-mark vals stx)
-     (with-handlers ([values
-                      (λ (e)
-                        (repl-output-message
-                         (format "~a\n  in debugger expression: ~s\n  ~a: ~s"
-                                 (exn-message e)
-                                 expr
-                                 before/after
-                                 stx))
-                        #f)])
-       (match (eval
-               (call-with-session-context (current-session-id)
-                                          with-locals
-                                          expr
-                                          (mark-bindings top-mark)))
-         [(? void?) #f]
-         [v v]))]))
-
-(define (inject-dump before/after top-mark vals stx)
-  (namespace-set-variable-value!
-   '#%dump
-   (λ ()
-     (let* ([s (format "#%dump ~a ~s" before/after stx)]
-            [s (for*/fold ([s s])
-                          ([binding  (in-list (reverse (mark-bindings top-mark)))]
-                           [stx      (in-value (first binding))]
-                           [get/set! (in-value (second binding))]
-                           #:when (and (syntax-original? stx) (syntax-source stx)))
-                 (string-append s (format "\n  ~a = ~a" stx (~v (get/set!)))))]
-            [s (if (eq? before/after 'after)
-                   (string-append s (format "\n => ~s" vals))
-                   s)])
-       (repl-output-message s)
-       (log-racket-mode-debugger-info s)))))
+     (define where (format "~a ~a::~a:~a"
+                           before/after
+                           (syntax-source stx)
+                           (syntax-position stx)
+                           (syntax-span stx)))
+     (define (#%dump)
+       (let* ([s (string-append "#%dump " where)]
+              [s (for*/fold ([s s])
+                            ([binding  (in-list (reverse (mark-bindings top-mark)))]
+                             [stx      (in-value (first binding))]
+                             [get/set! (in-value (second binding))]
+                             #:when (and (syntax-original? stx) (syntax-source stx)))
+                   (string-append s (format "\n  ~a = ~v" stx (get/set!))))]
+              [s (if (eq? before/after 'after)
+                     (string-append s (format "\n => ~s" vals))
+                     s)])
+         (repl-output-message s)
+         (log-racket-mode-debugger-info s)))
+     (define ht (bindings->hash-table (mark-bindings top-mark)))
+     (define new-expr
+       #`(let-values (#,@(for/list ([(sym get/set!) (in-hash ht)])
+                           #`[(#,(datum->syntax #f sym))
+                              #,(get/set!)])
+                      [(#%dump) #,#%dump])
+           #,expr))
+     (log-racket-mode-debugger-debug "new-expr ~s" new-expr)
+     (match (with-handlers ([values
+                             (λ (e)
+                               (repl-output-message
+                                (format "~a\n  in debugger expression: ~s\n  at: ~a"
+                                        (exn-message e)
+                                        expr
+                                        where))
+                               #f)])
+              (eval new-expr))
+       [(? void?) #f]
+       [v v])]))
 
 (define (serializable? v)
   (with-handlers ([exn:fail:read? (λ _ #f)])
@@ -290,16 +295,27 @@
   (parameterize ([current-prompt-read (make-prompt-read src pos top-mark)])
     (read-eval-print-loop)))
 
+(define original-current-read-interaction (current-read-interaction))
+
 (define (make-prompt-read src pos top-mark)
   (define (racket-mode-debug-prompt-read)
     (define-values (_base name _dir) (split-path src))
     (define prompt (format "[~a:~a]" name pos))
     (define stx (get-interaction prompt))
-    (call-with-session-context (current-session-id)
-                               with-locals stx (mark-bindings top-mark)))
+    (cond
+      [(equal? (current-read-interaction) original-current-read-interaction)
+       (call-with-session-context (current-session-id)
+                                  with-locals stx (mark-bindings top-mark))]
+      ;; When a lang has parameterized current-read-interaction, don't
+      ;; attempt to make locals available in the REPL. rhombus, for
+      ;; example, wraps the input stx in (multi (group _)), and its
+      ;; #%top-interactive seems restricted to forms beginning with
+      ;; 'multi or 'block, so we can't wrap this in let-syntax or even
+      ;; let-values. Unsure how to make this work without some new
+      ;; lang-supplied help. Best we can do for now is try to detect
+      ;; this situation and avoid changing the syntax.
+      [else stx]))
   racket-mode-debug-prompt-read)
-
-;; Locals
 
 (define (with-locals stx bindings)
   ;; Before or during module->namespace -- i.e. during a racket-run --
@@ -311,16 +327,7 @@
   (unless (member '#%app (namespace-mapped-symbols))
     (log-racket-mode-debug "debug prompt-read namespace-require racket/base")
     (namespace-require 'racket/base))
-  ;; Note that mark-bindings is ordered from inner to outer scopes --
-  ;; and can include outer variables shadowed by inner ones. So use
-  ;; only the first occurence of each identifier symbol we encounter.
-  ;; e.g. in (let ([x _]) (let ([x _]) ___)) we want only the inner x.
-  (define ht (make-hasheq))
-  (for* ([binding  (in-list bindings)]
-         [sym      (in-value (syntax->datum (first binding)))]
-         #:unless (hash-has-key? ht sym)
-         [get/set! (in-value (second binding))])
-    (hash-set! ht sym get/set!))
+  (define ht (bindings->hash-table bindings))
   (syntax-case stx ()
     ;; I couldn't figure out how to get a set! transformer to work for
     ;; Typed Racket -- how to annotate or cast a get/set! as (-> Any
@@ -352,6 +359,23 @@
               #`(#,id #,xform))])
        #`(let-syntax #,syntax-bindings
            #,stx))]))
+
+;;; Bindings hash-table
+
+(define (bindings->hash-table bindings)
+  ;; Note that mark-bindings is ordered from inner to outer scopes --
+  ;; and can include outer variables shadowed by inner ones. So use
+  ;; only the first occurence of each identifier symbol we encounter.
+  ;; e.g. in (let ([x _]) (let ([x _]) ___)) we want only the inner x.
+  (define ht (make-hasheq))
+  (for* ([binding  (in-list bindings)]
+         [stx      (in-value (first binding))]
+         #:when    (and (syntax-original? stx) (syntax-source stx))
+         [sym      (in-value (syntax->datum stx))]
+         #:unless  (hash-has-key? ht sym)
+         [get/set! (in-value (second binding))])
+    (hash-set! ht sym get/set!))
+  ht)
 
 ;;; Command interface
 
