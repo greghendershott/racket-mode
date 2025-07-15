@@ -196,10 +196,9 @@
 ;; Note: This works using Racket language expressions, regardless of
 ;; the user program #lang.
 (define (eval-point-expression before/after top-mark vals stx expr)
-  (match expr
-    [#t #t]
-    [#f #f]
-    [expr
+  (cond
+    [(boolean? expr) expr]
+    [else
      (define where (format "~a ~a::~a:~a"
                            before/after
                            (syntax-source stx)
@@ -225,18 +224,18 @@
                               #,(get/set!)])
                       [(#%dump) #,#%dump])
            #,expr))
-     (log-racket-mode-debugger-debug "new-expr ~s" new-expr)
-     (match (with-handlers ([values
-                             (λ (e)
-                               (repl-output-message
-                                (format "~a\n  in debugger expression: ~s\n  at: ~a"
-                                        (exn-message e)
-                                        expr
-                                        where))
-                               #f)])
-              (eval new-expr))
-       [(? void?) #f]
-       [v v])]))
+     (define (on-fail e)
+       (repl-output-message
+        (format "~a\n  in debugger expression: ~s\n  at: ~a"
+                (exn-message e)
+                expr
+                where))
+       #f)
+     (define result (with-handlers ([exn:fail? on-fail])
+                      (eval new-expr)))
+     (cond
+       [(void? result) #f]
+       [else result])]))
 
 (define (serializable? v)
   (with-handlers ([exn:fail:read? (λ _ #f)])
