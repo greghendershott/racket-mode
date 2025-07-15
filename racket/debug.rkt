@@ -35,8 +35,11 @@
   (-> path? pos/c boolean?)
   (set-member? (hash-ref breakable-positions src (seteq)) pos))
 
-(define/contract (annotate stx #:source [source (syntax-source stx)])
-  (->* (syntax?) (#:source path?) syntax?)
+(define file->mod-lang (make-hash)) ;(hash/c path? symbol?)
+
+(define/contract (annotate stx)
+  (-> syntax? syntax?)
+  (define source (syntax-source stx))
   (repl-output-message (format "Debug annotate ~v" source))
   (define-values (annotated breakables)
     (annotate-for-single-stepping stx pause? pause-before pause-after))
@@ -44,6 +47,9 @@
                 source
                 (λ (s) (set-union s (list->seteq breakables)))
                 (seteq))
+  (syntax-case annotated (module)
+    [(module _name lang . _)
+     (hash-set! file->mod-lang source (syntax->datum #'lang))])
   annotated)
 
 ;; A struct hierarchy related to the "next" variable.
@@ -292,10 +298,33 @@
 ;;; Debug REPL
 
 (define ((repl src pos top-mark))
+  (namespace-require-file-module-lang src)
   (parameterize ([current-prompt-read (make-prompt-read src pos top-mark)])
     (read-eval-print-loop)))
 
-(define original-current-read-interaction (current-read-interaction))
+(define (namespace-require-file-module-lang file)
+  ;; Normally a REPL runs with current-namespace set to the value
+  ;; returned from module->namespace, and thereby can access bindings
+  ;; from inside the module body, including but not limited to
+  ;; bindings from the module language.
+  ;;
+  ;; However this debug REPL runs _during_ module->namespace, so
+  ;; current-namespace might not yet be set like that. Indeed it might
+  ;; be just make-base-empty-namespace, and not even include
+  ;; racket/base bindings such as #%app.
+  ;;
+  ;; Therefore here we proactively namespace-require the file module's
+  ;; language, which we set aside when annotating.
+  ;;
+  ;; That way the debug REPL should have enough bindings at least to
+  ;; handle handle expressions involving file module bindings as well
+  ;; as any local bindings we might inject via a let-syntax wrapper.
+  (namespace-require (hash-ref file->mod-lang file 'racket/base)))
+
+(define default-read-interaction?
+  (let ([orig (current-read-interaction)])
+    (λ ()
+      (equal? orig (current-read-interaction)))))
 
 (define (make-prompt-read src pos top-mark)
   (define (racket-mode-debug-prompt-read)
@@ -303,30 +332,23 @@
     (define prompt (format "[~a:~a]" name pos))
     (define stx (get-interaction prompt))
     (cond
-      [(equal? (current-read-interaction) original-current-read-interaction)
+      ;; With the default read-interaction handler, we can arrange for
+      ;; locals to be visible.
+      [(default-read-interaction?)
        (call-with-session-context (current-session-id)
                                   with-locals stx (mark-bindings top-mark))]
-      ;; When a lang has parameterized current-read-interaction, don't
-      ;; attempt to make locals available in the REPL. rhombus, for
-      ;; example, wraps the input stx in (multi (group _)), and its
+      ;; Otherwise (with non-default read-interaction) don't attempt
+      ;; to make locals available in the REPL. rhombus, for example,
+      ;; wraps the input stx (multi (group _input_)), and its
       ;; #%top-interactive seems restricted to forms beginning with
-      ;; 'multi or 'block, so we can't wrap this in let-syntax or even
-      ;; let-values. Unsure how to make this work without some new
-      ;; lang-supplied help. Best we can do for now is try to detect
-      ;; this situation and avoid changing the syntax.
+      ;; 'multi or 'block -- so we can't wrap this in let-syntax or
+      ;; even let-values. Unsure how to make this work without some
+      ;; new lang-supplied help. Best we can do for now is try to
+      ;; detect this situation and avoid changing the syntax.
       [else stx]))
   racket-mode-debug-prompt-read)
 
 (define (with-locals stx bindings)
-  ;; Before or during module->namespace -- i.e. during a racket-run --
-  ;; current-namespace won't (can't) yet be a namespace with module
-  ;; body bindings. Indeed it might be from make-base-empty-namespace,
-  ;; and not even include racket/base bindings such as #%app. In that
-  ;; case make them available. That way the debug REPL at least can
-  ;; handle expressions involving local bindings.
-  (unless (member '#%app (namespace-mapped-symbols))
-    (log-racket-mode-debug "debug prompt-read namespace-require racket/base")
-    (namespace-require 'racket/base))
   (define ht (bindings->hash-table bindings))
   (syntax-case stx ()
     ;; I couldn't figure out how to get a set! transformer to work for
