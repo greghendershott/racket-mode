@@ -309,11 +309,11 @@
   ;;
   ;; However this debug REPL runs _during_ module->namespace, so
   ;; current-namespace might not yet be set like that. Indeed it might
-  ;; be just make-base-empty-namespace, and not even include
-  ;; racket/base bindings such as #%app.
+  ;; be just make-empty-namespace or equivalent -- and not even
+  ;; include racket/base bindings such as #%app.
   ;;
   ;; Therefore here we proactively namespace-require the file module's
-  ;; language, which we set aside when annotating.
+  ;; language, which we had set aside when annotating.
   ;;
   ;; That way the debug REPL should have enough bindings at least to
   ;; handle handle expressions involving file module bindings as well
