@@ -196,12 +196,46 @@ Useful followed by commands like `racket-debug-run-to-here' or
 (defun racket-debug-set-local ()
   "Set local variable to new value."
   (interactive)
-  (let ((o (seq-find (lambda (o)
-                       (eq (overlay-get o 'name) 'racket-debug-local))
-                     (overlays-at (point)))))
+  (let* ((candidates
+          (seq-filter
+           #'identity
+           (seq-map-indexed
+            (pcase-lambda (`(,src ,pos ,_span ,sym ,val) index)
+              (when (equal src (racket-file-name-back-to-front
+                                (racket--buffer-file-name)))
+                (concat
+                 (propertize (format "%s" sym)
+                             'racket-affix (list val (format "%s::%s" src pos))
+                             'racket-sort index)
+                 ;; `completing-read' strips props so return this via
+                 ;; appended invisible text
+                 (propertize (format "\t%S" pos)
+                             'display ""))))
+            racket--debug-break-locals)))
+         (affix (racket--make-affix [[8 font-lock-variable-name]
+                                     [8 racket-debug-locals-face]
+                                     0]))
+         (display-sort (lambda (strs)
+                         (seq-sort-by (lambda (v)
+                                        (get-text-property 0 'racket-sort v))
+                                      #'<
+                                      strs)))
+         (metadata `((category . racket-debug-local)
+                     (affixation-function . ,affix)
+                     (display-sort-function . ,display-sort)))
+         (collection (racket--completion-table candidates metadata))
+         (str (completing-read "Local binding to change: " collection nil t))
+         (pos (progn
+                (string-match (rx bos (+? any) "\t" (group-n 1 (+? any)) eos)
+                              str)
+                (read (match-string 1 str))))
+         (o (seq-find (lambda (o)
+                        (eq (overlay-get o 'name) 'racket-debug-local))
+                      (overlays-at pos))))
     (unless o
-      (user-error "No local variable at point"))
-    (let ((val (read-from-minibuffer "New value: " (overlay-get o 'racket-debug-local-value))))
+      (error "No local variable found"))
+    (let ((val (read-from-minibuffer "New value: "
+                                     (overlay-get o 'racket-debug-local-value))))
       (when (and val (not (equal val "")))
         (overlay-put o
                      'after-string
