@@ -13,9 +13,7 @@
          syntax/modread
          "debug-annotator.rkt"
          "elisp.rkt"
-         "interaction.rkt"
          "repl-output.rkt"
-         "repl-session.rkt"
          "util.rkt")
 
 (module+ test
@@ -23,6 +21,7 @@
 
 (provide (rename-out [on-break-channel debug-notify-channel])
          debug-resume
+         debug-set-local
          debug-disable
          debug-enable-step
          make-debug-eval-handler)
@@ -35,8 +34,6 @@
   (-> path? pos/c boolean?)
   (set-member? (hash-ref breakable-positions src (seteq)) pos))
 
-(define file->mod-lang (make-hash)) ;(hash/c path? symbol?)
-
 (define/contract (annotate stx)
   (-> syntax? syntax?)
   (define source (syntax-source stx))
@@ -47,9 +44,6 @@
                 source
                 (λ (s) (set-union s (list->seteq breakables)))
                 (seteq))
-  (syntax-case annotated (module)
-    [(module _name lang . _)
-     (hash-set! file->mod-lang source (syntax->datum #'lang))])
   annotated)
 
 ;; A struct hierarchy related to the "next" variable.
@@ -117,10 +111,6 @@
            (Next:All? v))]))
   (cond
     [break?
-     ;; Start a debug repl on its own thread, because below we're going to
-     ;; block indefinitely with (channel-get on-resume-channel), waiting for
-     ;; the Emacs front end to issue a debug-resume command.
-     (define repl-thread (thread (repl src pos top-mark)))
      ;; If it is not possible to round-trip serialize/deserialize the
      ;; values, use the original values when stepping (don't attempt to
      ;; substitute user-supplied values).
@@ -161,29 +151,50 @@
                               (case before/after
                                 [(before) (list 'before)]
                                 [(after)  (list 'after (maybe-serialized-vals))]))))
-     ;; Wait for debug-resume command to put to on-resume-channel. If
-     ;; wrong break ID, ignore and wait again.
      (let wait ()
-       (match (channel-get on-resume-channel)
-         [(list (app from-elisp-resume-next new-next)
-                (list* (== this-break-id) before/after more))
-          (next (calc-next new-next before/after top-mark ccm))
-          (begin0
-              ;; The step annotator needs us to return the values to
-              ;; be used when resuming from before or after step --
-              ;; either the original values, or those the user asked
-              ;; to be substituted.
-              (match* [before/after more]
-                [['before (list)]
-                 #f]
-                [['before (list new-vals-str)]
-                 (read-str/default new-vals-str vals)]
-                [['after (list new-vals-pair)]
-                 (match new-vals-pair
-                   [(cons #t  new-vals-str) (read-str/default new-vals-str vals)]
-                   [(cons '() _)            vals]) ])
-            (kill-thread repl-thread))]
-         [_ (wait)]))]
+       (sync
+        (handle-evt
+         ;; Wait for any debug-set-local command to put something to
+         ;; on-set-local-channel, then wait again.
+         on-set-local-channel
+         (match-lambda
+           [(list (== this-break-id)
+                  (app string->path source)
+                  pos
+                  new-value-str)
+            (for*/or ([binding (in-list (mark-bindings top-mark))]
+                      [stx (in-value (first binding))]
+                      #:when (and (syntax-original? stx) (syntax-source stx))
+                      #:when (and (equal? source (syntax-source stx))
+                                  (= pos (syntax-position stx)))
+                      [get/set! (in-value (second binding))])
+              (get/set! (read-str/default new-value-str (get/set!)))
+              #t)
+            (wait)]
+           [_ (wait)]))
+        ;; Wait for debug-resume command to put to on-resume-channel.
+        ;; If wrong break ID, ignore and wait again.
+        (handle-evt
+         on-resume-channel
+         (match-lambda
+           [(list (app from-elisp-resume-next new-next)
+                  (list* (== this-break-id) before/after more))
+            (next (calc-next new-next before/after top-mark ccm))
+            (begin0
+                ;; The step annotator needs us to return the values to
+                ;; be used when resuming from before or after step --
+                ;; either the original values, or those the user asked
+                ;; to be substituted.
+                (match* [before/after more]
+                  [['before (list)]
+                   #f]
+                  [['before (list new-vals-str)]
+                   (read-str/default new-vals-str vals)]
+                  [['after (list new-vals-pair)]
+                   (match new-vals-pair
+                     [(cons #t  new-vals-str) (read-str/default new-vals-str vals)]
+                     [(cons '() _)            vals]) ]))]
+           [_ (wait)]))))]
     ;; Otherwise, if we didn't break, we simply need to (a) calculate
     ;; the next point and (b) tell the annotator to use the original
     ;; values (no user substitution).
@@ -204,24 +215,33 @@
                            (syntax-source stx)
                            (syntax-position stx)
                            (syntax-span stx)))
+     (define bindings-outer-to-inner (reverse (mark-bindings top-mark)))
      (define (#%dump)
        (let* ([s (string-append "#%dump " where)]
               [s (for*/fold ([s s])
-                            ([binding  (in-list (reverse (mark-bindings top-mark)))]
+                            ([binding  (in-list bindings-outer-to-inner)]
                              [stx      (in-value (first binding))]
                              [get/set! (in-value (second binding))]
-                             #:when (and (syntax-original? stx) (syntax-source stx)))
+                             #:when (and (syntax-original? stx)
+                                         (syntax-source stx)))
                    (string-append s (format "\n  ~a = ~v" stx (get/set!))))]
               [s (if (eq? before/after 'after)
                      (string-append s (format "\n => ~s" vals))
                      s)])
          (repl-output-message s)
-         (log-racket-mode-debugger-info s)))
-     (define ht (bindings->hash-table (mark-bindings top-mark)))
+         (log-racket-mode-debugger-info s)
+         (void)))
+     (define ht
+       (for*/hasheq ([binding  (in-list bindings-outer-to-inner)]
+                     [stx      (in-value (first binding))]
+                     #:when    (and (syntax-original? stx)
+                                    (syntax-source stx))
+                     [sym      (in-value (syntax->datum stx))]
+                     [get/set! (in-value (second binding))])
+         (values sym get/set!)))
      (define new-expr
        #`(let-values (#,@(for/list ([(sym get/set!) (in-hash ht)])
-                           #`[(#,(datum->syntax #f sym))
-                              #,(get/set!)])
+                           #`[(#,(datum->syntax #f sym)) #,(get/set!)])
                       [(#%dump) #,#%dump])
            #,expr))
      (define (on-fail e)
@@ -294,110 +314,6 @@
   (-> continuation-mark-set? (listof mark/c))
   (continuation-mark-set->list ccm debug-key))
 
-;;; Debug REPL
-
-(define ((repl src pos top-mark))
-  (namespace-require-file-module-lang src)
-  (parameterize ([current-prompt-read (make-prompt-read src pos top-mark)])
-    (read-eval-print-loop)))
-
-(define (namespace-require-file-module-lang file)
-  ;; Normally a REPL runs with current-namespace set to the value
-  ;; returned from module->namespace, and thereby can access bindings
-  ;; from inside the module body, including but not limited to
-  ;; bindings from the module language.
-  ;;
-  ;; However this debug REPL runs _during_ module->namespace, so
-  ;; current-namespace might not yet be set like that. Indeed it might
-  ;; be just make-empty-namespace or equivalent -- and not even
-  ;; include racket/base bindings such as #%app.
-  ;;
-  ;; Therefore here we proactively namespace-require the file module's
-  ;; language, which we had set aside when annotating.
-  ;;
-  ;; That way the debug REPL should have enough bindings at least to
-  ;; handle handle expressions involving file module bindings as well
-  ;; as any local bindings we might inject via a let-syntax wrapper.
-  (namespace-require (hash-ref file->mod-lang file 'racket/base)))
-
-(define default-read-interaction?
-  (let ([orig (current-read-interaction)])
-    (λ ()
-      (equal? orig (current-read-interaction)))))
-
-(define (make-prompt-read src pos top-mark)
-  (define (racket-mode-debug-prompt-read)
-    (define-values (_base name _dir) (split-path src))
-    (define prompt (format "[~a:~a]" name pos))
-    (define stx (get-interaction prompt))
-    (cond
-      ;; With the default read-interaction handler, we can arrange for
-      ;; locals to be visible.
-      [(default-read-interaction?)
-       (call-with-session-context (current-session-id)
-                                  with-locals stx (mark-bindings top-mark))]
-      ;; Otherwise (with non-default read-interaction) don't attempt
-      ;; to make locals available in the REPL. rhombus, for example,
-      ;; wraps the input stx (multi (group _input_)), and its
-      ;; #%top-interactive seems restricted to forms beginning with
-      ;; 'multi or 'block -- so we can't wrap this in let-syntax or
-      ;; even let-values. Unsure how to make this work without some
-      ;; new lang-supplied help. Best we can do for now is try to
-      ;; detect this situation and avoid changing the syntax.
-      [else stx]))
-  racket-mode-debug-prompt-read)
-
-(define (with-locals stx bindings)
-  (define ht (bindings->hash-table bindings))
-  (syntax-case stx ()
-    ;; I couldn't figure out how to get a set! transformer to work for
-    ;; Typed Racket -- how to annotate or cast a get/set! as (-> Any
-    ;; Void). So instead, just intercept (set! id e) as a datum and
-    ;; effectively (get/set! (eval e debug-repl-ns)) here. In other
-    ;; words treat the stx like a REPL "command". Of course this
-    ;; totally bypasses type-checking, but this is a debugger. YOLO!
-    [(set! id e)
-     (and (module-declared? 'typed/racket/base)
-          (eq? 'set! (syntax->datum #'set!))
-          (identifier? #'id)
-          (hash-has-key? ht (syntax->datum #'id)))
-     (let ([set (hash-ref ht (syntax->datum #'id))]
-           [v   (eval #'e)])
-       (set v)
-       #`(void))]
-    ;; Wrap stx in a let-syntax form with a make-set!-transformer for
-    ;; every local variable in the mark-bindings results.
-    [_
-     (let ([syntax-bindings
-            (for/list ([(sym get/set!) (in-hash ht)])
-              (define id (datum->syntax #f sym))
-              (define xform
-                (make-set!-transformer
-                 (λ (stx)
-                   (syntax-case stx (set!)
-                     [(set! id v) (identifier? #'id) #`(#%plain-app #,get/set! v)]
-                     [id          (identifier? #'id) #`'#,(get/set!)]))))
-              #`(#,id #,xform))])
-       #`(let-syntax #,syntax-bindings
-           #,stx))]))
-
-;;; Bindings hash-table
-
-(define (bindings->hash-table bindings)
-  ;; Note that mark-bindings is ordered from inner to outer scopes --
-  ;; and can include outer variables shadowed by inner ones. So use
-  ;; only the first occurence of each identifier symbol we encounter.
-  ;; e.g. in (let ([x _]) (let ([x _]) ___)) we want only the inner x.
-  (define ht (make-hasheq))
-  (for* ([binding  (in-list bindings)]
-         [stx      (in-value (first binding))]
-         #:when    (and (syntax-original? stx) (syntax-source stx))
-         [sym      (in-value (syntax->datum stx))]
-         #:unless  (hash-has-key? ht sym)
-         [get/set! (in-value (second binding))])
-    (hash-set! ht sym get/set!))
-  ht)
-
 ;;; Command interface
 
 ;; These contracts are suitable for "edge" with ELisp.
@@ -443,11 +359,21 @@
                                     (list/c 'after (cons/c elisp-bool/c string?)))))
 
 (define on-resume/c (list/c elisp-resume-next/c resume-vals/c))
-(define/contract on-resume-channel (channel/c on-resume/c) (make-channel))
+(define/contract on-resume-channel
+  (channel/c on-resume/c) (make-channel))
 
 (define/contract (debug-resume resume-info)
   (-> on-resume/c #t)
   (channel-put on-resume-channel resume-info)
+  #t)
+
+(define on-set-local/c (list/c break-id/c string? pos/c string?))
+(define/contract on-set-local-channel
+  (channel/c on-set-local/c) (make-channel))
+
+(define/contract (debug-set-local set-local-info)
+  (-> on-set-local/c #t)
+  (channel-put on-set-local-channel set-local-info)
   #t)
 
 (define (debug-disable)

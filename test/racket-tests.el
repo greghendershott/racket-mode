@@ -365,27 +365,19 @@ c.rkt. Visit each file, racket-run, and check as expected."
          (racket-tests/should-eventually (get-buffer racket-repl-buffer-name))
          (racket-tests/should-eventually (racket--repl-session-id))
          (racket-tests/should-eventually racket-debug-mode)
-
-         (with-racket-repl-buffer
-           (should (racket-tests/see-back (concat "\n[" name ":42]> ")))) ;debugger prompt
          (should (racket-tests/see-debug-break-overlays))
 
          (racket-debug-step)
-         (with-racket-repl-buffer
-           (should (racket-tests/see-back (concat "\n[" name ":33]> "))))
          (should (racket-tests/see-debug-break-overlays))
          (should (racket-tests/see-char-property (- (point) 3) 'after-string
                                                  (propertize "41" 'face racket-debug-locals-face)))
 
          (racket-debug-step)
-         (with-racket-repl-buffer
-           (should (racket-tests/see-back (concat "\n[" name ":47]> "))))
+         (should (racket-tests/see-debug-break-overlays))
          (should (racket-tests/see-char-property (point) 'after-string
                                                  (propertize "42" 'face racket-debug-locals-face)))
 
          (racket-debug-step)              ;no more debug breaks left
-         (with-racket-repl-buffer
-           (should (racket-tests/see-back (concat "\n" name "> "))))
          (should (racket-tests/see-char-property (point) 'after-string
                                                  nil))
          (should-not racket-debug-mode)

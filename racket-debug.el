@@ -193,6 +193,29 @@ Useful followed by commands like `racket-debug-run-to-here' or
        (goto-char (or (seq-find pred ps) (car ps)))))
     (_ (user-error "No breakable positions in this buffer"))))
 
+(defun racket-debug-set-local ()
+  "Set local variable to new value."
+  (interactive)
+  (let ((o (seq-find (lambda (o)
+                       (eq (overlay-get o 'name) 'racket-debug-local))
+                     (overlays-at (point)))))
+    (unless o
+      (user-error "No local variable at point"))
+    (let ((val (read-from-minibuffer "New value: " (overlay-get o 'racket-debug-local-value))))
+      (when (and val (not (equal val "")))
+        (overlay-put o
+                     'after-string
+                     (propertize val 'face racket-debug-locals-face))
+        (overlay-put o
+                     'racket-debug-local-value
+                     val)
+        (let* ((break-id (car racket--debug-break-info))
+               (source (racket-file-name-front-to-back (racket--buffer-file-name)))
+               (pos (overlay-start o))
+               (info (list break-id source pos val)))
+          (racket--cmd/async (racket--repl-session-id)
+                             `(debug-set-local ,info)))))))
+
 (defun racket-debug-disable ()
   (interactive)
   (when (racket--cmd-open-p) ;otherwise no need
@@ -394,6 +417,7 @@ code, you can debug those, too."
              ("p"   racket-debug-backward-breakable)
              ("h"   racket-debug-run-to-here)
              ("!"   racket-debug-toggle-point)
+             ("="   racket-debug-set-local)
              ("N"   racket-debug-forward-point)
              ("P"   racket-debug-backward-point)
              ("c"   racket-debug-continue)
@@ -420,6 +444,8 @@ code, you can debug those, too."
       (pcase-let ((`(,_src ,pos ,span ,_name ,val) local))
         (racket--debug-make-overlay
          pos (+ pos span)
+         'name 'racket-debug-local
+         'racket-debug-local-value val
          'after-string (propertize val 'face racket-debug-locals-face))))
     (read-only-mode 1))
    (t
