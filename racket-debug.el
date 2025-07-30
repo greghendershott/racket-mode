@@ -9,6 +9,7 @@
 
 (require 'racket-back-end)
 (require 'racket-repl)
+(require 'compat) ;for seq-map-indexed, seq-sort-by
 (require 'easymenu)
 (require 'rx)
 (require 'seq)
@@ -41,7 +42,7 @@ directory as FILE."
 ;;              (U (list 'before)
 ;;                 (list 'after string-of-racket-write-values))))
 
-(defvar racket--debug-points nil
+(defvar racket--debug-point-overlays nil
   "A list of overlays for debug action points set by the user.
 
 We need this variable because we support debugging across
@@ -77,7 +78,8 @@ buffers.")
        (setq racket--debug-break-info vals)
        (racket-debug-mode 1)))))
 
-(defun racket--debug-resume (next-break value-prompt-p &optional extra-debug-points)
+(defun racket--debug-resume (next-break value-prompt-p
+                                        &optional extra-debug-points)
   (unless racket--debug-break-info (user-error "Not debugging"))
   (racket--debug-validate-points)
   (let* ((info (if value-prompt-p
@@ -90,7 +92,7 @@ buffers.")
                                   (overlay-start o)
                                   (or (overlay-get o 'racket-point-expression)
                                       "#t")))
-                          racket--debug-points))
+                          racket--debug-point-overlays))
          (points (append extra-debug-points points)))
     (racket--cmd/async (racket--repl-session-id)
                        `(debug-resume ((,next-break . ,points) ,info))))
@@ -140,8 +142,7 @@ to a true, non-void value.
 
 With \\[universal-argument], substitute values."
   (interactive "P")
-  (racket--debug-resume 'some
-   prefix))
+  (racket--debug-resume 'some prefix))
 
 (defun racket-debug-run-to-here (&optional prefix)
   "Run to point.
@@ -251,6 +252,7 @@ Useful followed by commands like `racket-debug-run-to-here' or
                              `(debug-set-local ,info)))))))
 
 (defun racket-debug-disable ()
+  "Disable `racket-debug-mode' and reset related variables."
   (interactive)
   (when (racket--cmd-open-p) ;otherwise no need
     (racket--cmd/async (racket--repl-session-id) `(debug-disable)))
@@ -265,23 +267,27 @@ Useful followed by commands like `racket-debug-run-to-here' or
 
 (defun racket--debug-validate-points ()
   "Remove invalid overlays from the list."
-  (setq racket--debug-points
+  (setq racket--debug-point-overlays
         (seq-filter (lambda (o)
                       (if (bufferp (overlay-buffer o))
                           t
                         (delete-overlay o)
                         nil))
-                    racket--debug-points)))
+                    racket--debug-point-overlays)))
 
 (defun racket-debug-clear-point ()
   "When a debug point exists at point, clear it and return true."
+  ;; Note: Actually this defensively deletes multiple debug points at
+  ;; point, in case we somehow mistakenly created more than one there.
+  ;; But that detail is N/A for user doc string.
   (interactive)
   (let ((anyp nil)
         (os (overlays-at (point))))
     (dolist (o os)
       (when (eq (overlay-get o 'name) 'racket-debug-point)
         (delete-overlay o)
-        (setq racket--debug-points (remove o racket--debug-points))
+        (setq racket--debug-point-overlays
+              (remove o racket--debug-point-overlays))
         (setq anyp t)))
     anyp))
 
@@ -349,7 +355,7 @@ breakble positions in s-expression languages. See the commands
                                    'help-echo expression))
     (overlay-put o 'evaporate t)
     (overlay-put o 'racket-point-expression expression)
-    (push o racket--debug-points)))
+    (push o racket--debug-point-overlays)))
 
 (defun racket-debug-toggle-point ()
   "`racket-debug-clear-point' or `racket-debug-set-point'."
@@ -370,7 +376,7 @@ breakble positions in s-expression languages. See the commands
 (defun racket--debug-goto-point (dir)
   "Move among debug overlays, in `buffer-list' order."
   (let ((by-buffer (seq-group-by #'overlay-buffer
-                                 racket--debug-points)))
+                                 racket--debug-point-overlays)))
     (pcase (seq-some (lambda (buffer)
                        (when-let (overlays (cdr (assoc buffer by-buffer)))
                          (let* ((old-pos (if (equal buffer (current-buffer))
