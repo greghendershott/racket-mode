@@ -9,7 +9,6 @@
 
 (require 'racket-back-end)
 (require 'racket-repl)
-(require 'compat) ;for seq-map-indexed, seq-sort-by
 (require 'easymenu)
 (require 'rx)
 (require 'seq)
@@ -197,17 +196,18 @@ Useful followed by commands like `racket-debug-run-to-here' or
 (defun racket-debug-set-local ()
   "Set local variable to new value."
   (interactive)
-  (let* ((candidates
+  (let* ((index 0)
+         (candidates
           (seq-filter
            #'identity
-           (seq-map-indexed
-            (pcase-lambda (`(,src ,pos ,_span ,sym ,val) index)
+           (seq-map
+            (pcase-lambda (`(,src ,pos ,_span ,sym ,val))
               (when (equal src (racket-file-name-back-to-front
                                 (racket--buffer-file-name)))
                 (concat
                  (propertize (format "%s" sym)
                              'racket-affix (list val (format "%s::%s" src pos))
-                             'racket-sort index)
+                             'racket-sort (prog1 index (setq index (1+ index))))
                  ;; `completing-read' strips props so return this via
                  ;; appended invisible text
                  (propertize (format "\t%S" pos)
@@ -217,10 +217,10 @@ Useful followed by commands like `racket-debug-run-to-here' or
                                      [8 racket-debug-locals-face]
                                      0]))
          (display-sort (lambda (strs)
-                         (seq-sort-by (lambda (v)
-                                        (get-text-property 0 'racket-sort v))
-                                      #'<
-                                      strs)))
+                         (seq-sort (lambda (a b)
+                                     (< (get-text-property 0 'racket-sort a)
+                                        (get-text-property 0 'racket-sort b)))
+                                   strs)))
          (metadata `((category . racket-debug-local)
                      (affixation-function . ,affix)
                      (display-sort-function . ,display-sort)))
