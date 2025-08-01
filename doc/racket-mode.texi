@@ -199,11 +199,12 @@ Debug
 * racket-debug-forward-breakable::
 * racket-debug-backward-breakable::
 * racket-debug-run-to-here::
-* racket-debug-set-point::
-* racket-debug-clear-point::
-* racket-debug-toggle-point::
-* racket-debug-forward-point::
-* racket-debug-backward-point::
+* racket-debug-set-break-expression::
+* racket-debug-clear-break-expression::
+* racket-debug-toggle-break-expression::
+* racket-debug-forward-break-expression::
+* racket-debug-backward-break-expression::
+* racket-debug-set-local::
 * racket-debug-continue::
 * racket-debug-go::
 
@@ -2950,11 +2951,12 @@ will be shown, assuming you have run the command
 * racket-debug-forward-breakable::
 * racket-debug-backward-breakable::
 * racket-debug-run-to-here::
-* racket-debug-set-point::
-* racket-debug-clear-point::
-* racket-debug-toggle-point::
-* racket-debug-forward-point::
-* racket-debug-backward-point::
+* racket-debug-set-break-expression::
+* racket-debug-clear-break-expression::
+* racket-debug-toggle-break-expression::
+* racket-debug-forward-break-expression::
+* racket-debug-backward-break-expression::
+* racket-debug-set-local::
 * racket-debug-continue::
 * racket-debug-go::
 @end menu
@@ -2984,22 +2986,14 @@ Execution will pause at the first breakable position.
 @item
 Whenever a break occurs:
 
-@itemize
-@item
-In the @ref{racket-repl-mode} buffer, the prompt changes. In
-this debug REPL, local variables are available for you to
-use and even to @code{set!}.
-
-@item
 In the @ref{racket-mode} buffer where the break is located,
-@ref{racket-debug-mode} is enabled. This minor mode makes the
-buffer read-only, provides visual feedback -- about the
-break position, local variable values, and result values --
-and provides shortcut keys:
-@end itemize
+@ref{racket-debug-mode} is enabled. This minor mode makes the buffer
+read-only, provides visual feedback -- about the break position,
+local variable values, and result values -- and provides shortcut
+keys:
 @end enumerate
 
-@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
+@multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
 @item @kbd{SPC} 
@@ -3015,11 +3009,13 @@ and provides shortcut keys:
 @item @kbd{h} 
 @tab @ref{racket-debug-run-to-here}
 @item @kbd{!} 
-@tab @ref{racket-debug-toggle-point}
+@tab @ref{racket-debug-toggle-break-expression}
 @item @kbd{N} 
-@tab @ref{racket-debug-forward-point}
+@tab @ref{racket-debug-forward-break-expression}
 @item @kbd{P} 
-@tab @ref{racket-debug-backward-point}
+@tab @ref{racket-debug-backward-break-expression}
+@item @kbd{=} 
+@tab @ref{racket-debug-set-local}
 @item @kbd{c} 
 @tab @ref{racket-debug-continue}
 @item @kbd{g} 
@@ -3030,10 +3026,9 @@ and provides shortcut keys:
 
 
 
-Tip: After your program runs to completion and returns to a
-normal REPL prompt, the code remains instrumented. As a result,
-in the REPL if you enter expressions that evaluate instrumented
-code, you can debug those, too.
+Tip: After your program runs to completion and returns to a REPL prompt,
+the code remains instrumented. As a result, in the REPL if you enter
+expressions that evaluate instrumented code, you can debug those, too.
 
 This is a minor mode.  If called interactively, toggle the @code{Racket-Debug
 mode} mode.  If the prefix argument is positive, enable the mode, and if
@@ -3084,7 +3079,7 @@ With @kbd{C-u} , substitute values.
 Move to next breakable position in current buffer.
 
 Useful followed by commands like @ref{racket-debug-run-to-here} or
-@ref{racket-debug-set-point}.
+@ref{racket-debug-set-break-expression}.
 
 @node racket-debug-backward-breakable
 @subsection racket-debug-backward-breakable
@@ -3094,7 +3089,7 @@ Useful followed by commands like @ref{racket-debug-run-to-here} or
 Move to previous breakable position in current buffer.
 
 Useful followed by commands like @ref{racket-debug-run-to-here} or
-@ref{racket-debug-set-point}.
+@ref{racket-debug-set-break-expression}.
 
 @node racket-debug-run-to-here
 @subsection racket-debug-run-to-here
@@ -3108,17 +3103,17 @@ followed by @ref{racket-debug-continue}.
 
 With @kbd{C-u} , substitute values.
 
-@node racket-debug-set-point
-@subsection racket-debug-set-point
+@node racket-debug-set-break-expression
+@subsection racket-debug-set-break-expression
 
-@kbd{M-x} @code{racket-debug-set-point}
+@kbd{M-x} @code{racket-debug-set-break-expression}
 
-Set a debug point expression at a breakable position.
+Set a break expression at a breakable position.
 
-Debug point expressions enable debugger features like conditional
-breakpoints and watchpoints.
+Break expressions encapsulate a range of traditional debugger features
+like conditional breakpoints and watchpoints.
 
-Each debug point consists of a a Racket expression, which will be
+Each break expression consists of a Racket expression, which will be
 evaluated in a context where local variables exist.
 
 Unless the expression evaluates to Racket false or void, execution will
@@ -3149,55 +3144,66 @@ through the loop, but never breaks.
 The expression may consist of any Racket sub-expressions that evaluate
 without error in that local context.
 
-Each debug point is displayed using the customization variables
-@code{racket-debug-point-string} and @code{racket-debug-point-face}.
+Each break expression is displayed using the customization variables
+@code{racket-debug-break-expression-string} and
+@code{racket-debug-break-expression-face}.
 
 Note: If you're warned that point isn't known to be a breakable
 position, that might be because it truly isn't, or, just because
 @ref{racket-debug-mode} is inactive therefore the breakable positions aren
-uknown. Worst case, if you set a debug point someplace that is not
+uknown. Worst case, if you set a break expression someplace that is not
 breakable, it is ignored. With a few exceptions -- such as close paren
 positions that are tail calls -- most open parens and close parens are
 breakble positions in s-expression languages. See the commands
 @ref{racket-debug-forward-breakable} and @ref{racket-debug-backward-breakable}.
 
-@node racket-debug-clear-point
-@subsection racket-debug-clear-point
+@node racket-debug-clear-break-expression
+@subsection racket-debug-clear-break-expression
 
-@kbd{M-x} @code{racket-debug-clear-point}
+@kbd{M-x} @code{racket-debug-clear-break-expression}
 
-When a debug point exists at point, clear it and return true.
+When a break expression exists at point, clear it and return true.
 
-@node racket-debug-toggle-point
-@subsection racket-debug-toggle-point
+@node racket-debug-toggle-break-expression
+@subsection racket-debug-toggle-break-expression
 
 @kbd{!} 
 
-@ref{racket-debug-clear-point} or @ref{racket-debug-set-point}.
+Set or clear a break expression.
 
-@node racket-debug-forward-point
-@subsection racket-debug-forward-point
+See @ref{racket-debug-clear-break-expression} or
+@ref{racket-debug-set-break-expression}.
+
+@node racket-debug-forward-break-expression
+@subsection racket-debug-forward-break-expression
 
 @kbd{N} 
 
-Move to next @ref{racket-debug-set-point} location.
+Move to next @ref{racket-debug-set-break-expression} location.
 
-@node racket-debug-backward-point
-@subsection racket-debug-backward-point
+@node racket-debug-backward-break-expression
+@subsection racket-debug-backward-break-expression
 
 @kbd{P} 
 
-Move to previous @ref{racket-debug-set-point} location.
+Move to previous @ref{racket-debug-set-break-expression} location.
+
+@node racket-debug-set-local
+@subsection racket-debug-set-local
+
+@kbd{=} 
+
+Set local variable to new value.
 
 @node racket-debug-continue
 @subsection racket-debug-continue
 
 @kbd{c} 
 
-Continue, utilizing @ref{racket-debug-set-point} expressions.
+Continue, utilizing break expressions.
 
-Execution breaks at any position whose debug point expression evaluates
-to a true, non-void value.
+Execution pauses at any position whose break expression evaluates to a
+true, non-void value.
 
 With @kbd{C-u} , substitute values.
 
@@ -3206,10 +3212,10 @@ With @kbd{C-u} , substitute values.
 
 @kbd{g} 
 
-Go, ignoring all debug points.
+Go unconditionally, ignoring all break expressions.
 
 Similar to continuing the program normally, without stepping or
-evaluating any debug point expressions -- although code annotated for
+evaluating any break expressions -- although code annotated for
 debugging runs more slowly.
 
 With @kbd{C-u} , substitute values.

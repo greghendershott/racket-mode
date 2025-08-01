@@ -120,19 +120,20 @@
     describe-racket-package
     "Debug"
     racket-debug-mode
-    (racket-debug-step               ,racket-debug-mode-map)
-    (racket-debug-step-over          ,racket-debug-mode-map)
-    (racket-debug-step-out           ,racket-debug-mode-map)
-    (racket-debug-forward-breakable  ,racket-debug-mode-map)
-    (racket-debug-backward-breakable ,racket-debug-mode-map)
-    (racket-debug-run-to-here        ,racket-debug-mode-map)
-    (racket-debug-set-point          ,racket-debug-mode-map)
-    (racket-debug-clear-point        ,racket-debug-mode-map)
-    (racket-debug-toggle-point       ,racket-debug-mode-map)
-    (racket-debug-forward-point      ,racket-debug-mode-map)
-    (racket-debug-backward-point     ,racket-debug-mode-map)
-    (racket-debug-continue           ,racket-debug-mode-map)
-    (racket-debug-go                 ,racket-debug-mode-map)
+    (racket-debug-step                      ,racket-debug-mode-map)
+    (racket-debug-step-over                 ,racket-debug-mode-map)
+    (racket-debug-step-out                  ,racket-debug-mode-map)
+    (racket-debug-forward-breakable         ,racket-debug-mode-map)
+    (racket-debug-backward-breakable        ,racket-debug-mode-map)
+    (racket-debug-run-to-here               ,racket-debug-mode-map)
+    (racket-debug-set-break-expression      ,racket-debug-mode-map)
+    (racket-debug-clear-break-expression    ,racket-debug-mode-map)
+    (racket-debug-toggle-break-expression   ,racket-debug-mode-map)
+    (racket-debug-forward-break-expression  ,racket-debug-mode-map)
+    (racket-debug-backward-break-expression ,racket-debug-mode-map)
+    (racket-debug-set-local                 ,racket-debug-mode-map)
+    (racket-debug-continue                  ,racket-debug-mode-map)
+    (racket-debug-go                        ,racket-debug-mode-map)
     "Other"
     racket-mode-start-faster
     racket-mode-start-slower)

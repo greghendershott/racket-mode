@@ -665,9 +665,9 @@ to `racket-file-name-front-to-back'."
       str
     fallback))
 
-(defcustom racket-debug-point-string
+(defcustom racket-debug-break-expression-string
   (racket--displayable-string "●" "!")
-  "String used in overlays for `racket-debug-set-point'."
+  "String used in overlays for `racket-debug-set-break-expression'."
   :type 'string
   :safe #'stringp)
 
@@ -821,13 +821,13 @@ values, including symbols quoted using \"syntax\" or
   '((t (:underline (color: "dark orange" :style line))))
   "Face for `racket-debug-mode' break position.")
 
-(defface-racket racket-debug-break-expression-face
+(defface-racket racket-debug-break-span-face
   '((t (:inherit highlight)))
-  "Face for `racket-debug-mode' break expression.")
+  "Face for `racket-debug-mode' break spans.")
 
-(defface-racket racket-debug-point-face
+(defface-racket racket-debug-break-expression-face
   '((t (:foreground "red" :weight bold)))
-  "Face for `racket-debug-set-point' overlays.")
+  "Face for `racket-debug-set-break-expression' overlays.")
 
 (defface-racket racket-debug-locals-face
   '((t (:inherit font-lock-constant-face :box (:line-width -1) :slant italic)))

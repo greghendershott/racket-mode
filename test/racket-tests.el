@@ -340,8 +340,8 @@ c.rkt. Visit each file, racket-run, and check as expected."
      (let ((names (seq-map (lambda (o)
                              (overlay-get o 'name))
                            (overlays-at (point)))))
-       (and (memq 'racket-debug-break            names)
-            (memq 'racket-debug-break-expression names))))))
+       (and (memq 'racket-debug-break      names)
+            (memq 'racket-debug-break-span names))))))
 
 (ert-deftest racket-tests/debugger ()
   (message "racket-tests/debugger")

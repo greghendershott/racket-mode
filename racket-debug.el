@@ -41,8 +41,8 @@ directory as FILE."
 ;;              (U (list 'before)
 ;;                 (list 'after string-of-racket-write-values))))
 
-(defvar racket--debug-point-overlays nil
-  "A list of overlays for debug action points set by the user.
+(defvar racket--debug-break-expression-overlays nil
+  "A list of overlays for break expressions set by the user.
 
 We need this variable because we support debugging across
 multiple source files so these overlays may exist among various
@@ -77,24 +77,23 @@ buffers.")
        (setq racket--debug-break-info vals)
        (racket-debug-mode 1)))))
 
-(defun racket--debug-resume (next-break value-prompt-p
-                                        &optional extra-debug-points)
+(defun racket--debug-resume (next-break value-prompt-p &optional extra-exprs)
   (unless racket--debug-break-info (user-error "Not debugging"))
-  (racket--debug-validate-points)
+  (racket--debug-validate-break-expressions)
   (let* ((info (if value-prompt-p
                    (racket--debug-prompt-for-new-values)
                  racket--debug-break-info))
-         (points (seq-map (lambda (o)
+         (exprs (seq-map (lambda (o)
                             (list (with-current-buffer (overlay-buffer o)
                                     (racket-file-name-front-to-back
                                      (racket--buffer-file-name)))
                                   (overlay-start o)
-                                  (or (overlay-get o 'racket-point-expression)
+                                  (or (overlay-get o 'racket-break-expression)
                                       "#t")))
-                          racket--debug-point-overlays))
-         (points (append extra-debug-points points)))
+                          racket--debug-break-expression-overlays))
+         (exprs (append extra-exprs exprs)))
     (racket--cmd/async (racket--repl-session-id)
-                       `(debug-resume ((,next-break . ,points) ,info))))
+                       `(debug-resume ((,next-break . ,exprs) ,info))))
   (racket-debug-mode -1)
   (setq racket--debug-breakable-positions nil)
   (setq racket--debug-break-locals nil)
@@ -134,10 +133,10 @@ With \\[universal-argument], substitute values."
   (racket--debug-resume 'out prefix))
 
 (defun racket-debug-continue (&optional prefix)
-  "Continue, utilizing `racket-debug-set-point' expressions.
+  "Continue, utilizing break expressions.
 
-Execution breaks at any position whose debug point expression evaluates
-to a true, non-void value.
+Execution pauses at any position whose break expression evaluates to a
+true, non-void value.
 
 With \\[universal-argument], substitute values."
   (interactive "P")
@@ -159,10 +158,10 @@ With \\[universal-argument], substitute values."
     (racket--debug-resume 'some prefix extra)))
 
 (defun racket-debug-go (&optional prefix)
-  "Go, ignoring all debug points.
+  "Go unconditionally, ignoring all break expressions.
 
 Similar to continuing the program normally, without stepping or
-evaluating any debug point expressions -- although code annotated for
+evaluating any break expressions -- although code annotated for
 debugging runs more slowly.
 
 With \\[universal-argument], substitute values."
@@ -173,7 +172,7 @@ With \\[universal-argument], substitute values."
   "Move to next breakable position in current buffer.
 
 Useful followed by commands like `racket-debug-run-to-here' or
-`racket-debug-set-point'."
+`racket-debug-set-break-expression'."
   (interactive)
   (racket--debug-goto-breakable t))
 
@@ -181,7 +180,7 @@ Useful followed by commands like `racket-debug-run-to-here' or
   "Move to previous breakable position in current buffer.
 
 Useful followed by commands like `racket-debug-run-to-here' or
-`racket-debug-set-point'."
+`racket-debug-set-break-expression'."
   (interactive)
   (racket--debug-goto-breakable nil))
 
@@ -263,41 +262,41 @@ Useful followed by commands like `racket-debug-run-to-here' or
 
 (add-hook 'racket--repl-before-run-hook #'racket-debug-disable)
 
-;;; breakpoint/watchpoint overlays
+;;; break expression overlays
 
-(defun racket--debug-validate-points ()
+(defun racket--debug-validate-break-expressions ()
   "Remove invalid overlays from the list."
-  (setq racket--debug-point-overlays
+  (setq racket--debug-break-expression-overlays
         (seq-filter (lambda (o)
                       (if (bufferp (overlay-buffer o))
                           t
                         (delete-overlay o)
                         nil))
-                    racket--debug-point-overlays)))
+                    racket--debug-break-expression-overlays)))
 
-(defun racket-debug-clear-point ()
-  "When a debug point exists at point, clear it and return true."
-  ;; Note: Actually this defensively deletes multiple debug points at
+(defun racket-debug-clear-break-expression ()
+  "When a break expression exists at point, clear it and return true."
+  ;; Note: Actually this defensively deletes multiple overlays at
   ;; point, in case we somehow mistakenly created more than one there.
   ;; But that detail is N/A for user doc string.
   (interactive)
   (let ((anyp nil)
         (os (overlays-at (point))))
     (dolist (o os)
-      (when (eq (overlay-get o 'name) 'racket-debug-point)
+      (when (eq (overlay-get o 'name) 'racket-break-expression)
         (delete-overlay o)
-        (setq racket--debug-point-overlays
-              (remove o racket--debug-point-overlays))
+        (setq racket--debug-break-expression-overlays
+              (remove o racket--debug-break-expression-overlays))
         (setq anyp t)))
     anyp))
 
-(defun racket-debug-set-point (expression)
-  "Set a debug point expression at a breakable position.
+(defun racket-debug-set-break-expression (expression)
+  "Set a break expression at a breakable position.
 
-Debug point expressions enable debugger features like conditional
-breakpoints and watchpoints.
+Break expressions encapsulate a range of traditional debugger features
+like conditional breakpoints and watchpoints.
 
-Each debug point consists of a a Racket expression, which will be
+Each break expression consists of a Racket expression, which will be
 evaluated in a context where local variables exist.
 
 Unless the expression evaluates to Racket false or void, execution will
@@ -323,13 +322,14 @@ For example, if the code around the point is something like
 The expression may consist of any Racket sub-expressions that evaluate
 without error in that local context.
 
-Each debug point is displayed using the customization variables
-`racket-debug-point-string' and `racket-debug-point-face'.
+Each break expression is displayed using the customization variables
+`racket-debug-break-expression-string' and
+`racket-debug-break-expression-face'.
 
 Note: If you're warned that point isn't known to be a breakable
 position, that might be because it truly isn't, or, just because
 `racket-debug-mode' is inactive therefore the breakable positions aren
-uknown. Worst case, if you set a debug point someplace that is not
+uknown. Worst case, if you set a break expression someplace that is not
 breakable, it is ignored. With a few exceptions -- such as close paren
 positions that are tail calls -- most open parens and close parens are
 breakble positions in s-expression languages. See the commands
@@ -344,39 +344,42 @@ breakble positions in s-expression languages. See the commands
      (list
       (read-string "Expression [RET for \"#t\"]: "
                    nil
-                   'racket-debug-point-expressions
+                   'racket-debug-break-expressions
                    "#t"))))
-  (racket-debug-clear-point)
+  (racket-debug-clear-break-expression)
   (let ((o (make-overlay (point) (1+ (point)) (current-buffer) t nil)))
-    (overlay-put o 'name 'racket-debug-point)
+    (overlay-put o 'name 'racket-break-expression)
     (overlay-put o 'before-string (propertize
-                                   racket-debug-point-string
-                                   'face 'racket-debug-point-face
+                                   racket-debug-break-expression-string
+                                   'face 'racket-debug-break-expression-face
                                    'help-echo expression))
     (overlay-put o 'evaporate t)
-    (overlay-put o 'racket-point-expression expression)
-    (push o racket--debug-point-overlays)))
+    (overlay-put o 'racket-break-expression expression)
+    (push o racket--debug-break-expression-overlays)))
 
-(defun racket-debug-toggle-point ()
-  "`racket-debug-clear-point' or `racket-debug-set-point'."
+(defun racket-debug-toggle-break-expression ()
+  "Set or clear a break expression.
+
+See `racket-debug-clear-break-expression' or
+`racket-debug-set-break-expression'."
   (interactive)
-  (unless (racket-debug-clear-point)
-    (call-interactively #'racket-debug-set-point)))
+  (unless (racket-debug-clear-break-expression)
+    (call-interactively #'racket-debug-set-break-expression)))
 
-(defun racket-debug-forward-point ()
-  "Move to next `racket-debug-set-point' location."
+(defun racket-debug-forward-break-expression ()
+  "Move to next `racket-debug-set-break-expression' location."
   (interactive)
-  (racket--debug-goto-point 'forward))
+  (racket--debug-goto-break-expression 'forward))
 
-(defun racket-debug-backward-point ()
-  "Move to previous `racket-debug-set-point' location."
+(defun racket-debug-backward-break-expression ()
+  "Move to previous `racket-debug-set-break-expression' location."
   (interactive)
-  (racket--debug-goto-point 'backward))
+  (racket--debug-goto-break-expression 'backward))
 
-(defun racket--debug-goto-point (dir)
-  "Move among debug overlays, in `buffer-list' order."
+(defun racket--debug-goto-break-expression (dir)
+  "Move among break expression overlays, in `buffer-list' order."
   (let ((by-buffer (seq-group-by #'overlay-buffer
-                                 racket--debug-point-overlays)))
+                                 racket--debug-break-expression-overlays)))
     (pcase (seq-some (lambda (buffer)
                        (when-let (overlays (cdr (assoc buffer by-buffer)))
                          (let* ((old-pos (if (equal buffer (current-buffer))
@@ -394,7 +397,7 @@ breakble positions in s-expression languages. See the commands
       (`(,buffer . ,pos)
        (pop-to-buffer buffer)
        (goto-char pos))
-      (_ (user-error "No debug action point found %s" dir)))))
+      (_ (user-error "No break expression found %s" dir)))))
 
 (defun racket--debug-find-point (orig-pos overlays dir)
   (let ((cmp (if (eq dir 'forward) #'< #'>)))
@@ -432,22 +435,17 @@ How to step debug:
 
 2. Whenever a break occurs:
 
-   - In the `racket-repl-mode' buffer, the prompt changes. In
-     this debug REPL, local variables are available for you to
-     use and even to `set!`.
-
-   - In the `racket-mode' buffer where the break is located,
-     `racket-debug-mode' is enabled. This minor mode makes the
-     buffer read-only, provides visual feedback -- about the
-     break position, local variable values, and result values --
-     and provides shortcut keys:
+   In the `racket-mode' buffer where the break is located,
+   `racket-debug-mode' is enabled. This minor mode makes the buffer
+   read-only, provides visual feedback -- about the break position,
+   local variable values, and result values -- and provides shortcut
+   keys:
 
 \\{racket-debug-mode-map}
 
-Tip: After your program runs to completion and returns to a
-normal REPL prompt, the code remains instrumented. As a result,
-in the REPL if you enter expressions that evaluate instrumented
-code, you can debug those, too."
+Tip: After your program runs to completion and returns to a REPL prompt,
+the code remains instrumented. As a result, in the REPL if you enter
+expressions that evaluate instrumented code, you can debug those, too."
   :lighter " RacketDebug"
   :keymap (racket--easy-keymap-define
            '(("SPC" racket-debug-step)
@@ -456,10 +454,10 @@ code, you can debug those, too."
              ("n"   racket-debug-forward-breakable)
              ("p"   racket-debug-backward-breakable)
              ("h"   racket-debug-run-to-here)
-             ("!"   racket-debug-toggle-point)
+             ("!"   racket-debug-toggle-break-expression)
+             ("N"   racket-debug-forward-break-expression)
+             ("P"   racket-debug-backward-break-expression)
              ("="   racket-debug-set-local)
-             ("N"   racket-debug-forward-point)
-             ("P"   racket-debug-backward-point)
              ("c"   racket-debug-continue)
              ("g"   racket-debug-go)
              ("?"   racket-debug-help)))
@@ -468,9 +466,9 @@ code, you can debug those, too."
    (racket-debug-mode
     (racket--debug-make-overlay
      (car racket--debug-break-span) (cdr racket--debug-break-span)
-     'name 'racket-debug-break-expression
+     'name 'racket-debug-break-span
      'priority 90
-     'face racket-debug-break-expression-face)
+     'face racket-debug-break-span-face)
     (racket--debug-make-overlay
      (point) (1+ (point))
      'name 'racket-debug-break
