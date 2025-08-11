@@ -830,7 +830,7 @@ values, including symbols quoted using \"syntax\" or
   "Face for `racket-debug-set-break-expression' overlays.")
 
 (defface-racket racket-debug-locals-face
-  '((t (:inherit font-lock-constant-face :box (:line-width -1) :slant italic)))
+  '((t (:inherit tooltip :box (:line-width -1) :slant italic)))
   "Face for `racket-debug-mode' local variables.")
 
 (defface-racket racket-doc-link-face
