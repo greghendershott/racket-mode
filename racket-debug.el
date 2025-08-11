@@ -75,7 +75,8 @@ buffers.")
                       breakable-positions))
        (setq racket--debug-break-locals locals)
        (setq racket--debug-break-info vals)
-       (racket-debug-mode 1)))))
+       (racket-debug-mode 1)))
+    (v (error "racket--debug-on-break: unexpected `info`: %S" v))))
 
 (defun racket--debug-resume (next-break value-prompt-p &optional extra-exprs)
   (unless racket--debug-break-info (user-error "Not debugging"))
@@ -153,8 +154,7 @@ With \\[universal-argument], substitute values."
   (let ((extra (list (list (racket-file-name-front-to-back
                             (racket--buffer-file-name))
                            (point)
-                           "#t"
-                           "(break)"))))
+                           "#t"))))
     (racket--debug-resume 'some prefix extra)))
 
 (defun racket-debug-go (&optional prefix)
