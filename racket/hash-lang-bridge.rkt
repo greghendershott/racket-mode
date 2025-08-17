@@ -1,4 +1,4 @@
-;; Copyright (c) 2020-2023 by Greg Hendershott.
+;; Copyright (c) 2020-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -71,15 +71,24 @@
 
 (define (hash-lang* . args)
   (match args
-    [`(create ,id ,ols ,str)                       (create id ols str)]
-    [`(delete ,id)                                 (delete id)]
-    [`(update ,id ,gen ,pos ,old-len ,str)         (update id gen pos old-len str)]
-    [`(indent-amount ,id ,gen ,pos)                (indent-amount id gen pos)]
-    [`(indent-region-amounts ,id ,gen ,from ,upto) (indent-region-amounts id gen from upto)]
-    [`(classify ,id ,gen ,pos)                     (classify id gen pos)]
-    [`(grouping ,id ,gen ,pos ,dir ,limit ,count)  (grouping id gen pos dir limit count)]
-    [`(get-tokens ,id ,gen ,from ,upto)            (get-tokens id gen from upto)]
-    [`(submit-predicate ,id ,str ,eos?)            (submit-predicate id str eos?)]))
+    [`(create ,id ,ols ,str)
+     (create id ols str)]
+    [`(delete ,id)
+     (delete id)]
+    [`(update ,id ,gen ,pos ,old-len ,str)
+     (update id gen pos old-len str)]
+    [`(indent-amount ,id ,gen ,pos)
+     (indent-amount id gen pos)]
+    [`(indent-range-amounts ,id ,gen ,from ,upto ,rev?)
+     (indent-range-amounts id gen from upto (as-racket-bool rev?))]
+    [`(classify ,id ,gen ,pos)
+     (classify id gen pos)]
+    [`(grouping ,id ,gen ,pos ,dir ,limit ,count)
+     (grouping id gen pos dir limit count)]
+    [`(get-tokens ,id ,gen ,from ,upto)
+     (get-tokens id gen from upto)]
+    [`(submit-predicate ,id ,str ,eos?)
+     (submit-predicate id str eos?)]))
 
 (define hash-lang-notify-channel (make-async-channel))
 
@@ -107,9 +116,9 @@
   (with-time/log "hash-lang indent-amount"
     (send (get-object id) indent-line-amount gen (sub1 pos))))
 
-(define (indent-region-amounts id gen from upto)
-  (with-time/log "hash-lang indent-region-amounts"
-    (match (send (get-object id) indent-range-amounts gen (sub1 from) (sub1 upto))
+(define (indent-range-amounts id gen from upto reverse?)
+  (with-time/log "hash-lang indent-range-amounts"
+    (match (send (get-object id) indent-range-amounts gen (sub1 from) (sub1 upto) reverse?)
       [#f 'false] ;avoid Elisp nil/`() punning problem
       [v v])))
 

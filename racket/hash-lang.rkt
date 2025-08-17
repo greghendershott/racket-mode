@@ -1,4 +1,4 @@
-;; Copyright (c) 2020-2023 by Greg Hendershott.
+;; Copyright (c) 2020-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -133,8 +133,8 @@
     ;; from the file for which it is a REPL.
     (init-field [other-lang-source #f])
     (define lang-info (if other-lang-source
-                        (read-lang-info (open-input-string other-lang-source))
-                        default-lang-info))
+                          (read-lang-info (open-input-string other-lang-source))
+                          default-lang-info))
     (define/public (get-lang-info) lang-info)
 
     ;; Some methods intended just for tests
@@ -522,8 +522,11 @@
               (racket-amount-to-indent this pos)))))
 
     ;; Can be called on any command thread.
-    (define/public (indent-range-amounts gen from upto)
-      (define range-indenter (lang-info-range-indenter lang-info))
+    (define/public (indent-range-amounts gen from upto reverse?)
+      (define accessor (if reverse?
+                           lang-info-reverse-range-indenter
+                           lang-info-range-indenter))
+      (define range-indenter (accessor lang-info))
       (cond [(not range-indenter) #f]
             [else
              (block-until-updated-thru gen upto)
@@ -689,6 +692,7 @@
              racket-amount-to-indent
              #f
              #f
+             #f
              #f))
 
 (define (read-lang-info* in)
@@ -704,6 +708,7 @@
                      (info 'drracket:grouping-position racket-grouping-position)
                      (info 'drracket:indentation racket-amount-to-indent)
                      (info 'drracket:range-indentation #f)
+                     (info 'drracket:range-indentation/reverse-choices #f)
                      (info 'drracket:submit-predicate #f)
                      (comment-delimiters info mod-lang))
           end-pos))

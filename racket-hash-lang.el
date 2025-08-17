@@ -31,7 +31,8 @@
      ("C-c C-e e"   racket-expand-last-sexp)
      ("C-c C-e r"   racket-expand-region)
      ("C-c C-x C-f" ,#'racket-open-require-path)
-     ("TAB"         ,#'indent-for-tab-command)
+     ("TAB"         ,#'racket-hash-lang-indent)
+     ("<backtab>"   ,#'racket-hash-lang-indent-reverse)
      ;; ("C-c C-p"     racket-cycle-paren-shapes) equivalent using paren-matches?
      ("M-C-y"       ,#'racket-insert-lambda)
      ("C-c C-f"     racket-fold-all-tests)
@@ -76,7 +77,8 @@
     ["Comment" comment-dwim]
     ["Insert λ" racket-insert-lambda]
     ["Insert Symbol" racket-insert-symbol]
-    ["Indent Region" indent-region]
+    ["Indent" racket-hash-lang-indent]
+    ["Indent Reverse" racket-hash-lang-indent-reverse]
     ["Cycle Paren Shapes" racket-cycle-paren-shapes :active (racket--sexp-edit-mode-p)]
     ["Align" racket-align :active (racket--sexp-edit-mode-p)]
     ["Unalign" racket-unalign :active (racket--sexp-edit-mode-p)]
@@ -645,31 +647,96 @@ We never use `racket-indent-line' from traditional
       (goto-char (- (point-max) pos)))))
 
 (defun racket-hash-lang-indent-region-function (from upto)
-  "Maybe use #lang drracket:range-indentation, else plain `indent-region'."
-  (pcase (racket--cmd/await             ;await = :(
-          nil
-          `(hash-lang indent-region-amounts
-                      ,racket--hash-lang-id
-                      ,racket--hash-lang-generation
-                      ,from
-                      ,upto))
+  "Supplied for use only by `indent-region'.
+
+Not used by `racket-hash-lang-indent'."
+  (pcase (racket--hash-lang-get-range-indent-changes from upto nil)
     ('false (let ((indent-region-function nil))
               (indent-region from upto)))
     (`() nil)
-    (results
-     (save-excursion
-       (goto-char from)
-       ;; drracket:range-indent docs say `results` could have more
-       ;; elements than lines in from..upto, and we should ignore
-       ;; extras. Handle that. (Although it could also have fewer, we
-       ;; need no special handling for that here.)
-       (let ((results (seq-take results (count-lines from upto))))
-         (dolist (result results)
-           (pcase-let ((`(,delete-amount ,insert-string) result))
-             (beginning-of-line)
-             (when (< 0 delete-amount) (delete-char delete-amount))
-             (unless (equal "" insert-string) (insert insert-string))
-             (end-of-line 2))))))))
+    (changes (racket--hash-lang-apply-changes from upto changes))))
+
+(defun racket-hash-lang-indent ()
+  "Indent the line or region using behavior supplied by the #lang.
+
+A variation of `indent-for-tab-command' intended to be bound to the TAB
+key. Unlike that command, any active region -- in the sense of
+`transient-mark-mode' -- is preserved.
+
+Some langs support indentation alternatives, in which case repeatedly
+invoking this command will cycle among those choices indefinitely.
+
+When this command does not change indent, and `tab-always-indent' is
+\\='complete, it behaves like `indent-for-tab-command' and calls
+`completion-at-point'."
+  (interactive)
+  (racket--hash-lang-range-indent nil))
+
+(defun racket-hash-lang-indent-reverse ()
+  "Like `racket-hash-lang-indent', but reversing indent choices if any.
+
+Uses drracket:range-indentation/reverse-choices when supplied by a lang,
+otherwise equivalent to `racket-hash-lang-indent'.
+
+Note that this is not necessarily an \"outdent\" command."
+  (interactive)
+  (racket--hash-lang-range-indent t))
+
+(defun racket--hash-lang-range-indent (reverse)
+  (let* ((deactivate-mark nil) ;don't deactivate mark
+         (region-p (use-region-p))
+         (from (if region-p (region-beginning) (line-beginning-position)))
+         (upto (if region-p (region-end)       (line-end-position)))
+         (upto (if (= from upto) (1+ upto) upto)))
+    (pcase (racket--hash-lang-get-range-indent-changes from upto reverse)
+      ('false
+       ;; When drracket:range-indentation/reverse-choices not
+       ;; supplied, fall back to trying drracket:range-indentation,
+       ;; then fall back to drracket:indentation via our
+       ;; `indent-line-function' via either `indent-region' or
+       ;; `indent-for-tab-command'.
+       (if reverse
+           (racket--hash-lang-range-indent nil)
+         (if region-p
+             (let ((indent-region-function nil))
+               (indent-region from upto))
+           (indent-for-tab-command))))
+      (changes
+       (let ((old-tick (buffer-chars-modified-tick)))
+         (racket--hash-lang-apply-changes from upto changes)
+         (unless region-p
+           (back-to-indentation))
+         ;; As with `indent-for-tab-command', maybe try completion.
+         (when (and (not reverse)
+                    (not region-p)
+                    (eq tab-always-indent 'complete)
+                    (eql old-tick (buffer-chars-modified-tick)))
+           (completion-at-point)))))))
+
+(defun racket--hash-lang-get-range-indent-changes (from upto reverse)
+  (racket--cmd/await             ;await = :(
+   nil
+   `(hash-lang indent-range-amounts
+               ,racket--hash-lang-id
+               ,racket--hash-lang-generation
+               ,from
+               ,upto
+               ,reverse)))
+
+(defun racket--hash-lang-apply-changes (from upto changes)
+  (save-excursion
+    (goto-char from)
+    ;; drracket:range-indentation docs say `changes` could have more
+    ;; elements than lines in from..upto, and we should ignore extras.
+    ;; Handle that. (Although it could also have fewer, we need no
+    ;; special handling for that here.)
+    (let ((changes (seq-take changes (count-lines from upto))))
+      (dolist (change changes)
+        (pcase-let ((`(,delete-amount ,insert-string) change))
+          (beginning-of-line)
+          (when (< 0 delete-amount) (delete-char delete-amount))
+          (unless (equal "" insert-string) (insert insert-string))
+          (end-of-line 2))))))
 
 ;; Motion
 
