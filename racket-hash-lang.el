@@ -702,14 +702,23 @@ Note that this is not necessarily an \"outdent\" command."
                (indent-region from upto))
            (indent-for-tab-command))))
       (changes
-       (let ((old-tick (buffer-chars-modified-tick)))
+       (let* ((old-tick (buffer-chars-modified-tick))
+              (old-point (point))
+              (within-indent-p (and (not region-p)
+                                    (save-excursion
+                                      (back-to-indentation)
+                                      (<= old-point (point))))))
          (racket--hash-lang-apply-changes from upto changes)
-         (unless region-p
+         ;; As with 'indent-for-tab-command', do `back-to-indentation'
+         ;; IFF point was already within the leading indentation.
+         (when within-indent-p
            (back-to-indentation))
-         ;; As with `indent-for-tab-command', maybe try completion.
+         ;; As with `indent-for-tab-command', when indent did not
+         ;; change maybe try completion.
          (when (and (not reverse)
                     (not region-p)
                     (eq tab-always-indent 'complete)
+                    (eql old-point (point))
                     (eql old-tick (buffer-chars-modified-tick)))
            (completion-at-point)))))))
 
