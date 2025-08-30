@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -52,7 +52,7 @@
       ;; Handle possible re-provide with a contract: Try again
       ;; starting with that other src-path. i.e. Do automatically what
       ;; the user could: Open that file, and try visit-definition
-      ;; again, there. from that.
+      ;; again, there, from that.
       (and (not (path-string-equal? how-path src-path))
            (for/or ([id-str (in-list id-strs)])
              (find-definition src-path id-str)))
@@ -106,7 +106,7 @@
             ;; do what the user could: Open that file, and try
             ;; visit-definition again, there.
             (match results
-              [(list (list* src-id src-path src-subs)
+              [(list (list* src-id src-path _src-subs)
                      (list* nom-id _))
                (or (and (or (equal? how 'namespace)
                             (not (path-string-equal? how src-path)))
@@ -231,9 +231,14 @@
 ;; give us the module bodies wrapped in begin.
 (define ($signature sym stx) ;;symbol? syntax? -> (or/c #f list?)
   (define eq-sym? (make-eq-sym? sym))
-  (syntax-case* stx (begin define define/contract case-lambda) syntax-e-eq?
-    [(begin . stxs)                               (ormap (λ (stx) ($signature sym stx))
-                                                         (syntax->list #'stxs))]
+  (define (any stxs)
+    (ormap (λ (stx) ($signature sym stx))
+           (syntax->list stxs)))
+  (syntax-case* stx
+      (begin define define/contract case-lambda library)
+      syntax-e-eq?
+    [(begin . stxs)                               (any #'stxs)]
+    [(library _ . stxs)                           (any #'stxs)] ;#760
     [(define          (s . as) . _)               (eq-sym? #'s) #'(s . as)]
     [(define/contract (s . as) . _)               (eq-sym? #'s) #'(s . as)]
     [(define s (case-lambda [(ass ...) . _] ...)) (eq-sym? #'s) #'((s ass ...) ...)]

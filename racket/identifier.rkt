@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2022 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -6,6 +6,7 @@
 (require racket/contract
          racket/format
          racket/match
+         racket/path
          "syntax.rkt")
 
 (provide how/c
@@ -130,12 +131,12 @@
          (match (resolved-module-path-name
                  (module-path-index-resolve mpi))
            [(? hash-percent-symbol) 'kernel]
-           [(? path-string? path)   (list path)]
+           [(? path-string? path)   (list (maybe-ss path))]
            [(? symbol? sym)
             (list (build-path (current-load-relative-directory)
-                              (~a sym ".rkt")))]
+                              (maybe-ss (~a sym ".rkt"))))]
            [(list (? path-string? path) (? symbol? subs) ...)
-            (list* path subs)]
+            (list* (maybe-ss path) subs)]
            ;; I've seen this odd case occur only when running
            ;; test/find.rkt. The module path index is
            ;; #<module-path-index:(submod "." m) + '|expanded
@@ -143,6 +144,18 @@
            ;; it should be '(#</path/to/find-example.rkt> m).
            [(list (? symbol?) (? symbol? subs) ...)
             (list* (syntax-source id) subs)])]))
+
+(define (maybe-ss p) ;issue #760
+  (cond
+    [(file-exists? p) p]
+    [(equal? (path-get-extension p) #".rkt")
+     (match (path-replace-extension p #".ss")
+       [(? file-exists? ss) ss]
+       [_ (error "resolved module path doesn't exist (even trying .ss):"
+                 p)])]
+    [else
+     (error "resolved module path doesn't exist:"
+            p)]))
 
 (define (self-module? mpi)
   (define-values (a b) (module-path-index-split mpi))
