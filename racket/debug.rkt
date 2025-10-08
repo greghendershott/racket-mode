@@ -8,7 +8,9 @@
          racket/format
          racket/list
          racket/match
-         (only-in racket/path path-only)
+         (only-in racket/path
+                  path-only
+                  file-name-from-path)
          racket/set
          syntax/modread
          "debug-annotator.rkt"
@@ -212,7 +214,7 @@
     [else
      (define where (format "~a ~a::~a:~a"
                            before/after
-                           (syntax-source stx)
+                           (file-name-from-path (syntax-source stx))
                            (syntax-position stx)
                            (syntax-span stx)))
      (define bindings-outer-to-inner (reverse (mark-bindings top-mark)))
@@ -224,7 +226,9 @@
                              [get/set! (in-value (second binding))]
                              #:when (and (syntax-original? stx)
                                          (syntax-source stx)))
-                   (string-append s (format "\n  ~a = ~v" stx (get/set!))))]
+                   (string-append s (format "\n  ~a = ~v"
+                                            (syntax-e stx)
+                                            (get/set!))))]
               [s (if (eq? before/after 'after)
                      (string-append s (format "\n => ~s" vals))
                      s)])
