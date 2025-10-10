@@ -31,7 +31,7 @@
   ;; This is modeled after the one in DrRacket.
   (define (racket-mode-instrumented-eval-handler orig-exp)
     (cond
-      [(or #;(not (instrumenting-enabled))
+      [(or (not (instrumenting-enabled))
            (compiled-expression? (if (syntax? orig-exp)
                                      (syntax-e orig-exp)
                                      orig-exp)))
@@ -75,9 +75,9 @@
   (and (syntax-source stx)
        (syntax-property stx 'errortrace:annotate)))
 
-(define key-module-name 'errortrace/errortrace-key) ;^key-module-name
+(define key-module-name 'errortrace/errortrace-key) ;key-module-name^
 
-(define (with-mark mark expr phase) ;^stracktrace-imports
+(define (with-mark mark expr phase) ;stracktrace-imports^
   ;; This is modeled after the one in errortrace-lib. Specifically,
   ;; use `make-st-mark' for its capture of the original syntax to show
   ;; in the stack trace error message.
@@ -107,23 +107,49 @@
 
 ;;; Test coverage
 
-(define test-coverage-enabled (make-parameter #f)) ;stacktrace-imports^
+(define test-coverage-enabled (make-parameter #f)) ;stacktrace/annotator-imports^
 
 (define test-coverage-info (make-hasheq)) ;(hash/c syntax? mpair?).
 ;; This approach taken from DrR. Presumably set-mcar! is faster than a
-;; box, which in turn is faster than hash-set!. The cdr cell is
+;; box, which in turn is faster than hash-set!. The mcdr cell is
 ;; ignored.
 
 (define (clear-test-coverage-info!)
   (hash-clear! test-coverage-info))
 
-(define (initialize-test-coverage-point expr) ;stacktrace-imports^
-  (hash-set! test-coverage-info expr (mcons #f #f)))
+(define (test-coverage-point body expr phase) ;stacktrace/annotator-imports^
+  (cond
+    [(and (test-coverage-enabled)
+          (zero? phase)
+          (should-annotate? expr phase))
+     ;; record as point that might get executed
+     (define v (mcons #f #f))
+     (hash-set! test-coverage-info expr v)
+     (define update-coverage #`(#%plain-app set-mcar! #,v #t))
+     (syntax-case expr (#%plain-module-begin)
+       [(_mod _name _init-import (#%plain-module-begin . _body))
+        (drop-in-sequence body '(tl tl tl hd tl) update-coverage)]
+       [_else
+        #`(begin #,update-coverage #,body)])]
+    [else body]))
 
-(define (test-covered expr) ;stacktrace-imports^
-  (define v (hash-ref test-coverage-info expr #f))
-  (and v (with-syntax ([v v])
-           #'(#%plain-app set-mcar! v #t))))
+(define (drop-in-sequence stx path to-add)
+  (let loop ([stx stx]
+             [path path])
+    (cond
+      [(null? path)
+       (cons to-add stx)]
+      [(syntax? stx)
+       (define dstx (syntax-disarm stx #f))
+       (syntax-rearm (datum->syntax dstx
+                                    (loop (syntax-e dstx) path)
+                                    dstx
+                                    dstx)
+                     stx)]
+      [(pair? stx)
+       (case (car path)
+         [(hd) (cons (loop (car stx) (cdr path)) (cdr stx))]
+         [(tl) (cons (car stx) (loop (cdr stx) (cdr path)))])])))
 
 (define (get-uncovered source)
   (for/set ([stx (in-list (get-uncovered-expressions source))])
@@ -162,9 +188,9 @@
 
 ;;; Profiling
 
-(define profile-key (gensym)) ;stacktrace-imports^
+(define profile-key (gensym)) ;stacktrace/annotator-imports^
 
-(define profiling-enabled (make-parameter #f)) ;stacktrace-imports^
+(define profiling-enabled (make-parameter #f)) ;stacktrace/annotator-imports^
 
 (define profile-info (make-hasheq)) ;(hash/c any/c prof?)
 
@@ -180,12 +206,12 @@
   #:mutable
   #:transparent)
 
-(define (initialize-profile-point key name expr) ;stacktrace-imports^
+(define (initialize-profile-point key name expr) ;stacktrace/annotator-imports^
   (hash-set! profile-info
              key
              (prof #f 0 0 (and (syntax? name) (syntax-e name)) expr)))
 
-(define (register-profile-start key) ;stacktrace-imports^
+(define (register-profile-start key) ;stacktrace/annotator-imports^
   (define p (hash-ref profile-info key))
   (set-prof-num! p (add1 (prof-num p)))
   (cond [(prof-nest? p) #f]
@@ -216,4 +242,4 @@
 
 ;;; Finally, invoke the unit
 
-(define-values/invoke-unit/infer stacktrace/filter/errortrace-annotate@)
+(define-values/invoke-unit/infer stacktrace/errortrace-annotate@)
