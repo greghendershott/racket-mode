@@ -9,7 +9,6 @@
                   error-context-display-depth)
          errortrace/stacktrace
          racket/match
-         racket/set
          racket/unit)
 
 (provide make-instrumented-eval-handler
@@ -152,39 +151,51 @@
          [(tl) (cons (car stx) (loop (cdr stx) (cdr path)))])])))
 
 (define (get-uncovered source)
-  (for/set ([stx (in-list (get-uncovered-expressions source))])
-    (define beg (syntax-position stx))
-    (define end (+ beg (syntax-span stx)))
-    (cons beg end)))
+  (parameterize ([error-print-width 65])
+    (for/list ([stx (in-list (get-uncovered-expressions source))]
+               [n (in-naturals 1)])
+      (list (format "~a: ~.a"
+                    n
+                    (syntax->datum stx))
+            source
+            (syntax-line stx)
+            (syntax-column stx)
+            (syntax-position stx)
+            (syntax-span stx)))))
 
-;; from sandbox-lib
+;; Unlike the example in sandbox-lib, this eliminates subset syntaxes
+;; (not just exact duplicates).
 (define (get-uncovered-expressions source)
-  (let* ([xs (hash-map test-coverage-info
-                       (lambda (k v) (cons k (mcar v))))]
-         [xs (filter (lambda (x) (and (syntax-position (car x))
-                                      (equal? (syntax-source (car x)) source)))
-                     xs)]
-         [xs (sort xs (lambda (x1 x2)
-                        (let ([p1 (syntax-position (car x1))]
-                              [p2 (syntax-position (car x2))])
-                          (or (< p1 p2) ; earlier first
-                              (and (= p1 p2)
-                                   (> (syntax-span (car x1)) ; wider first
-                                      (syntax-span (car x2))))))))]
-         [xs (reverse xs)])
-    (if (null? xs)
-      xs
-      (let loop ([xs (cdr xs)] [r (list (car xs))])
-        (if (null? xs)
-          (map car (filter (lambda (x) (not (cdr x))) r))
-          (loop (cdr xs)
-                (cond [(not (and (= (syntax-position (caar xs))
-                                    (syntax-position (caar r)))
-                                 (= (syntax-span (caar xs))
-                                    (syntax-span (caar r)))))
-                       (cons (car xs) r)]
-                      [(cdar r) r]
-                      [else (cons (car xs) (cdr r))])))))))
+  (define (earlier/wider? stx1 stx2)
+    (let ([p1 (syntax-position stx1)]
+          [p2 (syntax-position stx2)])
+      (or (< p1 p2) ; earlier first
+          (and (= p1 p2)
+               (> (syntax-span stx1) ; wider first
+                  (syntax-span stx2))))))
+  (define unsorted
+    (for*/list ([(stx mpair) (in-hash test-coverage-info)]
+                #:when (and (not (mcar mpair)) ;not covered
+                            (syntax-position stx)
+                            (equal? (syntax-source stx) source)))
+      stx))
+  (define sorted (sort unsorted earlier/wider?))
+  (let loop ([xs sorted])
+    (match xs
+      [(list* this next more)
+       (define this-beg (syntax-position this))
+       (define next-beg (syntax-position next))
+       (define this-end (+ this-beg (syntax-span this)))
+       (define next-end (+ next-beg (syntax-span next)))
+       (cond
+         ;; Omit `next` if only a subset of `this`
+         [(and (<= this-beg next-beg)
+               (<= next-end this-end))
+          (loop (cons this more))]
+         [else
+          (cons this (loop (cons next more)))])]
+      [(list this) (list this)]
+      [(list) null])))
 
 ;;; Profiling
 

@@ -691,9 +691,9 @@ Any rackunit test failure messages show the location. You may use
 With \\[universal-argument] uses errortrace for improved stack traces.
 Otherwise follows the `racket-error-context' setting.
 
-With \\[universal-argument] \\[universal-argument] also runs the
-tests with coverage instrumentation and highlights uncovered code
-using `font-lock-warning-face'.
+With \\[universal-argument] \\[universal-argument] also runs the tests
+with coverage instrumentation. Expressions not covered by tests are
+treated as errors -- see `next-error'.
 
 See also:
 - `racket-fold-all-tests'
@@ -701,7 +701,8 @@ See also:
 "
   (interactive "P")
   (let ((mod-path (list (racket--buffer-file-name) 'test))
-        (buf (current-buffer)))
+        (buf (current-buffer))
+        (repl-session-id (racket--repl-session-id)))
     ;; Originally this function's single optional argument was a
     ;; `coverage-p` boolean. For backward compatibility in case anyone
     ;; has Emacs Lisp calling this function non-interactively, we keep
@@ -710,30 +711,44 @@ See also:
       (`()  (racket--repl-run mod-path))
       (`(4) (racket--repl-run mod-path nil 'high))
       ((or '(16) 't)
-       (message "Running test submodule with coverage instrumentation...")
        (racket--repl-run
         mod-path
         nil
         'coverage
         (lambda ()
-          (message "Getting coverage results...")
           (racket--cmd/async
-           (racket--repl-session-id)
+           repl-session-id
            `(get-uncovered)
-           (lambda (xs)
-             (pcase xs
-               (`() (message "Full coverage."))
-               ((and xs `((,beg0 . ,_) . ,_))
-                (message "Missing coverage in %s place(s)." (length xs))
-                (with-current-buffer buf
-                  (with-silent-modifications
-                    (overlay-recenter (point-max))
-                    (dolist (x xs)
-                      (let ((o (make-overlay (car x) (cdr x) buf)))
-                        (overlay-put o 'name 'racket-uncovered-overlay)
-                        (overlay-put o 'priority 100)
-                        (overlay-put o 'face font-lock-warning-face)))
-                    (goto-char beg0)))))))))))))
+           (lambda (locs)
+             (cond
+              (locs
+               (racket--repl-on-output
+                repl-session-id
+                'error
+                (list (format "%s expression(s) not covered by tests:"
+                              (length locs))
+                      locs
+                      (list 'n/a-context)))
+               ;; Note: After adding this treatment of these as
+               ;; errors, IMHO the following overlays are now
+               ;; redundant. But will keep them so as not to move
+               ;; anyone's cheese.
+               (with-current-buffer buf
+                 (with-silent-modifications
+                   (overlay-recenter (point-max))
+                   (dolist (loc locs)
+                     (pcase-let*
+                         ((`(,_msg ,_file ,_line ,_col ,pos ,span) loc)
+                          (o (make-overlay pos (+ pos span) buf)))
+                       (overlay-put o 'name 'racket-uncovered-overlay)
+                       (overlay-put o 'priority 100)
+                       (overlay-put o 'face font-lock-warning-face)
+                       (overlay-put o 'help-echo "no test coverage"))))))
+              (t
+               (racket--repl-on-output
+                repl-session-id
+                'message
+                "All expressions covered by tests.")))))))))))
 
 (add-hook 'racket--repl-before-run-hook #'racket--remove-coverage-overlays)
 
