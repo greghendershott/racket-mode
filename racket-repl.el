@@ -14,7 +14,6 @@
 (require 'racket-complete)
 (require 'racket-describe)
 (require 'racket-doc)
-(require 'racket-eldoc)
 (require 'racket-custom)
 (require 'racket-common)
 (require 'racket-show)
@@ -1223,61 +1222,78 @@ to supply this quickly enough or at all."
 
 ;;; eldoc
 
+;; See comments in racket-xp.el about async eldoc.
+
 (defun racket--repl-in-input-p (pos)
   (or (eq 'input (field-at-pos pos))
       (when-let (prompt-end (racket--repl-prompt-mark-end))
         (<= prompt-end pos))))
 
-(defun racket-repl-eldoc-point (callback &rest _more)
-  "Call eldoc CALLBACK about the identifier at point.
-A value for the variable `eldoc-documentation-functions'. Use
-information from back end \"type\" command."
-  (when (and (racket--cmd-open-p)
+(defun racket-repl-eldoc-point-or-sexp-head (callback &rest _more)
+"A value for the variable `eldoc-documentation-functions'.
+
+Obtains documentation for point, if any, else the head of the
+s-expression."
+(when (and (racket--cmd-open-p)
              (racket--repl-in-input-p (point)))
-    (let ((pos (if (eq 32 (char-before))
-                   (point)
-                 (condition-case _
-                     (let ((pos (save-excursion
-                                  (backward-sexp)
-                                  (point))))
-                       (if (racket--repl-in-input-p pos)
-                           pos
-                         (point)))
-                   (scan-error (point))))))
-      (racket--eldoc-type callback pos))))
+    (let ((point-pos (if (eq 32 (char-before))
+                         (point)
+                       (condition-case _
+                           (let ((pos (save-excursion
+                                        (backward-sexp)
+                                        (point))))
+                             (if (racket--repl-in-input-p pos)
+                                 pos
+                               (point)))
+                         (scan-error (point)))))
+          (head-pos (and (> (point) (point-min))
+                         (condition-case _
+                             (save-excursion
+                               (backward-up-list)
+                               (forward-char 1)
+                               (point))
+                           (scan-error nil)))))
+      (run-with-timer 0 nil
+                      #'racket--repl-eldoc-async callback point-pos head-pos))
+    ;; Return non-nil non-string to say we'll make CALLBACK
+    ;; asynchronously.
+    t))
 
-(defun racket-repl-eldoc-sexp-app (callback &rest _more)
-  "Call eldoc CALLBACK about sexp application around point.
-A value for the variable `eldoc-documentation-functions'. Use
-information from back end \"type\" command."
-  (when (and (racket--cmd-open-p)
-             (racket--repl-in-input-p (point))
-             (> (point) (point-min)))
-    (when-let (pos (condition-case _
-                       (save-excursion
-                         (backward-up-list)
-                         (forward-char 1)
-                         (point))
-                     (scan-error nil)))
-      (racket--eldoc-type callback pos))))
-
-(defun racket--eldoc-type (callback pos)
-  "Obtain a \"type\" summary string from the back end.
-This might be a bluebox, or a function signature discovered from
-the surface syntax, or Typed Racket type information."
-  (condition-case _
-      (let* ((end (save-excursion (progn (goto-char pos) (forward-sexp) (point))))
-             (thing (buffer-substring-no-properties pos end)))
-        (when (and thing (not (string= thing "")))
-          (when-let (str (racket--cmd/await
+(defun racket--repl-eldoc-async (callback point-pos head-pos)
+  ;; Async expression of: "Try point-pos, else head-pos if non-nil,
+  ;; else fail.".
+  (cl-flet* ((succeed (thing str)
+               (funcall callback
+                        str
+                        :thing thing
+                        :face 'font-lock-function-name-face))
+             (try (pos fail-thunk)
+               (condition-case _
+                   (let* ((end (save-excursion
+                                 (progn (goto-char pos) (forward-sexp) (point))))
+                          (thing (buffer-substring-no-properties pos end)))
+                     (if (and thing (not (string= thing "")))
+                         (racket--cmd/async
                           (racket--repl-session-id)
-                          `(type namespace ,thing)))
-            (racket--eldoc-do-callback callback
-                                       thing
-                                       (if (string-match-p "\n" str)
-                                           (concat "\n" str)
-                                         str)))))
-    (scan-error nil)))
+                          `(type namespace ,thing)
+                          (lambda (str)
+                            (if str
+                                (succeed thing
+                                         (if (string-match-p "\n" str)
+                                             (concat "\n" str)
+                                           str))
+                              (funcall fail-thunk))))
+                       (funcall fail-thunk)))
+                 (scan-error (funcall fail-thunk))))
+             ;; For use below, /not/ by `try'.
+             (fail ()
+               (funcall callback nil)))
+    (try point-pos
+         (lambda ()
+           (if head-pos
+               (try head-pos
+                    #'fail)
+             (fail))))))
 
 (defun racket-repl-eldoc-function ()
   "A value for the obsolete variable `eldoc-documentation-function'.
@@ -1502,10 +1518,7 @@ identifier bindings and modules from the REPL's namespace.
   (setq-local completion-at-point-functions (list #'racket-repl-complete-at-point))
   (when (boundp 'eldoc-documentation-functions)
     (add-hook 'eldoc-documentation-functions
-              #'racket-repl-eldoc-sexp-app
-              nil t)
-    (add-hook 'eldoc-documentation-functions
-              #'racket-repl-eldoc-point
+              #'racket-repl-eldoc-point-or-sexp-head
               nil t))
   (setq-local next-error-function #'racket-repl-next-error)
   (racket-repl-read-history)
