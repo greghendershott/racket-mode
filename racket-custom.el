@@ -175,7 +175,7 @@ Used by `racket-xp-eldoc-point' and `racket-xp-eldoc-sexp-app'.
 
 - Minimal: Only the help-echo string.
 
-- Summary: Also the signature a.k.a. \"blubox\" from the
+- Summary: Also the signature a.k.a. \"bluebox\" from the
   documentation.
 
 - Complete: Also the complete prose documentation.

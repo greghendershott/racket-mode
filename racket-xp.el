@@ -12,7 +12,6 @@
 (require 'racket-scribble-anchor)
 (require 'racket-browse-url)
 (require 'racket-doc)
-(require 'racket-eldoc)
 (require 'racket-repl)
 (require 'racket-describe)
 (require 'racket-imenu)
@@ -290,10 +289,7 @@ commands directly to whatever keys you prefer.
                    nil t)
          (when (boundp 'eldoc-documentation-functions)
            (add-hook 'eldoc-documentation-functions
-                     #'racket-xp-eldoc-sexp-app
-                     nil t)
-           (add-hook 'eldoc-documentation-functions
-                     #'racket-xp-eldoc-point
+                     #'racket-xp-eldoc-point-or-sexp-head
                      nil t))
          (when (boundp 'eldoc-box-buffer-setup-function)
            (setq-local eldoc-box-buffer-setup-function
@@ -319,11 +315,9 @@ commands directly to whatever keys you prefer.
                       #'racket-xp-pre-redisplay
                       t)
          (when (boundp 'eldoc-documentation-functions)
-           (dolist (hook (list #'racket-xp-eldoc-sexp-app
-                               #'racket-xp-eldoc-point))
-            (remove-hook 'eldoc-documentation-functions
-                         hook
-                         t)))
+           (remove-hook 'eldoc-documentation-functions
+                        #'racket-xp-eldoc-point-or-sexp-head
+                        t))
          (when (and (boundp 'eldoc-box-buffer-setup-function))
            (kill-local-variable eldoc-box-buffer-setup-function)))))
 
@@ -620,67 +614,93 @@ point."
                                     ;; remove only those.
                                     'font-lock-face          nil)))))
 
-(defun racket-xp-eldoc-point (callback &rest _more)
-  "Call eldoc CALLBACK about the identifier at point.
-A value for the variable `eldoc-documentation-functions'. Use
-racket-xp-doc and help-echo text properties added by
-`racket-xp-mode'. See `racket-xp-eldoc-level'."
+;;; eldoc
+
+;; We want to take advantage of the newer eldoc API's ability for us
+;; to be "asynchronous". This is good because sometimes we need to
+;; issue a back end command to get "blueboxes". Even when we don't,
+;; because we have a path to the HTML file, (a) it could be on a
+;; remote host and (b) it needs /some/ processing to extract the doc
+;; fragment.
+;;
+;; However that eldoc API requires us to return `t`, meaning that
+;; additional eldoc functions won't be consulted when
+;; `eldoc-documentation-strategy' is something like the default. So we
+;; can't really keep doing the thing where we had two eldoc functions,
+;; one for point and another for a sexp head, if we want to be
+;; "async".
+;;
+;; Instead we have to combine them into one function.
+
+(defun racket-xp-eldoc-point-or-sexp-head (callback &rest _more)
+  "A value for the variable `eldoc-documentation-functions'.
+
+Obtains documentation for point, if any, else the head of the
+s-expression.
+
+See also the customization variable `racket-xp-eldoc-level'."
   (when (racket--cmd-open-p)
-    (racket--xp-eldoc callback (point))))
+    (let ((point-pos (point))
+          (head-pos (when (> (point) (point-min))
+                      (condition-case _
+                          (save-excursion
+                            (backward-up-list)
+                            (forward-char 1)
+                            (point))
+                        (scan-error nil)))))
+      (run-with-timer 0 nil
+                      #'racket--xp-eldoc-async callback point-pos head-pos))
+    ;; Return non-nil non-string to say we'll make CALLBACK
+    ;; asynchronously.
+    t))
 
-(defun racket-xp-eldoc-sexp-app (callback &rest _more)
-  "Call eldoc CALLBACK about sexp application around point.
-A value for the variable `eldoc-documentation-functions'. Use
-racket-xp-doc and help-echo text properties added by
-`racket-xp-mode'. See `racket-xp-eldoc-level'."
-  (when (and (racket--cmd-open-p)
-             (> (point) (point-min)))
-    ;; Preserve point during the dynamic extent of the eldoc calls,
-    ;; because things like eldoc-box may dismiss the UI if they notice
-    ;; point has moved.
-    (when-let (pos (condition-case _
-                       (save-excursion
-                         (backward-up-list)
-                         (forward-char 1)
-                         (point))
-                     (scan-error nil)))
-      ;; Avoid returning the same result as `racket-xp-eldoc-point',
-      ;; in case `eldoc-documentation-strategy' composes multiple.
-      (cl-flet* ((bounds (pos prop)
-                   (cdr (racket--get-text-property/bounds pos prop)))
-                 (same (a b prop)
-                   (equal (bounds a prop) (bounds b prop))))
-        (unless (and (boundp 'eldoc-documentation-functions)
-                     (member #'racket-xp-eldoc-point
-                                eldoc-documentation-functions)
-                     (same pos (point) 'racket-xp-doc)
-                     (same pos (point) 'help-echo))
-          (racket--xp-eldoc callback pos))))))
-
-(defun racket--xp-eldoc (callback pos)
-  (pcase (racket--get-text-property/bounds pos 'racket-xp-doc)
-    (`((,path ,anchor ,tag) ,beg ,end)
-     (let ((thing (buffer-substring-no-properties beg end))
-           (help-echo (if-let (s (get-text-property pos 'help-echo))
-                           (concat s "\n")
-                        "")))
-       (let ((str
-              (pcase racket-xp-eldoc-level
-                ('summary (racket--cmd/await nil `(bluebox ,tag)))
-                ('complete (racket--path+anchor->string path anchor)))))
-         (when (or help-echo str)
-           (racket--eldoc-do-callback callback thing
-                                      (propertize
-                                       (concat help-echo str)
-                                       'racket-xp-eldoc t))))))
-    (_
-     (pcase (racket--get-text-property/bounds pos 'help-echo)
-       (`(,str ,beg ,end)
-        (let ((thing (buffer-substring-no-properties beg end)))
-          (racket--eldoc-do-callback callback thing
-                                     (propertize
-                                      str
-                                      'racket-xp-eldoc t))))))))
+(defun racket--xp-eldoc-async (callback point-pos head-pos)
+  ;; Async expression of: "Try point-pos, else head-pos if non-nil,
+  ;; else fail.".
+  (cl-flet* ((succeed (thing &rest strs)
+               (funcall callback
+                        (propertize (string-join strs "\n")
+                                    'racket-xp-eldoc t)
+                        :thing thing
+                        :face 'font-lock-function-name-face))
+             (try (pos fail-thunk)
+               (pcase (racket--get-text-property/bounds pos 'racket-xp-doc)
+                 (`((,path ,anchor ,tag) ,beg ,end)
+                  (let ((thing (buffer-substring-no-properties beg end))
+                        (help-echo (get-text-property pos 'help-echo)))
+                    (pcase racket-xp-eldoc-level
+                      ('summary
+                       (racket--cmd/async
+                        nil `(bluebox ,tag)
+                        (lambda (str)
+                          (if (or help-echo str)
+                              (succeed thing help-echo str)
+                            (funcall fail-thunk)))))
+                      ('complete
+                       (let ((str (racket--path+anchor->string path anchor)))
+                         (if (or help-echo str)
+                             (succeed thing help-echo str)
+                           (funcall fail-thunk))))
+                      (_ ;minimal
+                       (if help-echo
+                           (succeed thing help-echo)
+                         (funcall fail-thunk))))))
+                 (_
+                  (pcase (racket--get-text-property/bounds pos 'help-echo)
+                    (`(,str ,beg ,end)
+                     (let ((thing (buffer-substring-no-properties beg end)))
+                       (succeed thing str)))
+                    (_
+                     (funcall fail-thunk))))))
+             ;; For use below, /not/ by `try'.
+             (fail ()
+               (funcall callback nil)))
+    (try point-pos
+         (lambda ()
+           (if head-pos
+               (try head-pos
+                    #'fail)
+             (fail))))))
 
 (defun racket--get-text-property/bounds (pos prop)
   "Like `get-text-property' but also returning the bounds."
