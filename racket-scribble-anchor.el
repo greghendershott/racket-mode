@@ -1,6 +1,6 @@
 ;;; racket-scribble-anchor.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2022-2024 by Greg Hendershott.
+;; Copyright (c) 2022-2025 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -75,38 +75,46 @@ Uses `racket--path+anchor-cache'."
 (defun racket--elements-for-anchor (dom anchor)
   "Return the subset of DOM elements pertaining to ANCHOR."
   (cl-flet
-      ((anchor-p (node name)
-         (dom-search node
-                     (lambda (node)
-                       (and (eq 'a (dom-tag node))
-                            (equal name (dom-attr node 'name))))))
-       (boxed-p (node)
-         (dom-search node
-                     (lambda (node)
-                       (and (eq 'table (dom-tag node))
-                            (equal "boxed RBoxed" (dom-attr node 'class))))))
-       (heading-p (node)
-         (memq (dom-tag node) '(h1 h2 h3 h4 h5 h6))))
-    ;; Consider immediate children of the "main" div.
-    (let ((result nil)
-          (xs (dom-children
-               (dom-search (dom-child-by-tag dom 'body)
-                           (lambda (node)
-                             (and (eq 'div (dom-tag node))
-                                  (equal "main" (dom-attr node 'class))))))))
-      ;; Discard elements before the one containing a matching anchor.
-      (while (and xs (not (anchor-p (car xs) anchor)))
-        (setq xs (cdr xs)))
-      ;; Accumulate result up to an element containing an RBoxed table
-      ;; or heading.
-      (when xs
-        (push (car xs) result)
-        (setq xs (cdr xs))
-        (while (and xs (not (or (heading-p (car xs))
-                                (boxed-p (car xs)))))
-          (push (car xs) result)
-          (setq xs (cdr xs))))
-      `(div () ,@(reverse result)))))
+      ((bluebox-p (node)
+         (and
+          (and (eq 'div (dom-tag node))
+               (equal "SIntrapara" (dom-attr node 'class)))
+          (dom-search node
+                      (lambda (node)
+                        (and (eq 'table (dom-tag node))
+                             (equal "boxed RBoxed" (dom-attr node 'class)))))))
+       (section-or-heading-p (node)
+         (memq (dom-tag node) '(section h1 h2 h3 h4 h5 h6))))
+    ;; Note: This is not optimized, due to using `dom-search' and
+    ;; `dom-parent'. It would be faster to hand-code a `dom-search'
+    ;; that, while descending, remembers the ancestor bluebox and its
+    ;; siblings.
+    (let* (;; Drill all the way down to the anchor element.
+           (a (car (dom-search dom
+                               (lambda (node)
+                                 (and (eq 'a (dom-tag node))
+                                      (equal anchor (dom-attr node 'name)))))))
+           ;; Nav back up to its ancestor `bluebox-p' element.
+           (bluebox (let ((n (dom-parent dom a)))
+                      (while (and n (not (bluebox-p n)))
+                        (setq n (dom-parent dom n)))
+                      n))
+           ;; Get all siblings at same level as bluebox.
+           (siblings (dom-parent dom bluebox))
+           (result nil))
+      ;; Discard siblings before the bluebox.
+      (while (and siblings (not (eq (car siblings) bluebox)))
+        (setq siblings (cdr siblings)))
+      ;; Accumulate the bluebox and subsequent siblings up to but not
+      ;; including some other bluebox, section, or heading.
+      (when siblings
+        (push (car siblings) result)
+        (setq siblings (cdr siblings))
+        (while (and siblings (not (or (bluebox-p (car siblings))
+                                      (section-or-heading-p (car siblings)))))
+          (push (car siblings) result)
+          (setq siblings (cdr siblings))))
+      `(div () ,@ (reverse result)))))
 
 (provide 'racket-scribble-anchor)
 
