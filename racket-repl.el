@@ -1232,7 +1232,7 @@ to supply this quickly enough or at all."
   "Call eldoc CALLBACK about the identifier at point.
 A value for the variable `eldoc-documentation-functions'. Use
 information from back end \"type\" command."
-  (when (and (racket--cmd-open-p)
+  (when (and (racket--cmd-ready-p)
              (racket--repl-in-input-p (point)))
     (let ((pos (if (eq 32 (char-before))
                    (point)
@@ -1250,7 +1250,7 @@ information from back end \"type\" command."
   "Call eldoc CALLBACK about sexp application around point.
 A value for the variable `eldoc-documentation-functions'. Use
 information from back end \"type\" command."
-  (when (and (racket--cmd-open-p)
+  (when (and (racket--cmd-ready-p)
              (racket--repl-in-input-p (point))
              (> (point) (point-min)))
     (when-let (pos (condition-case _

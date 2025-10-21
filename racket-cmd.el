@@ -61,10 +61,21 @@ Before doing anything runs the hook `racket-stop-back-end-hook'."
   (racket--cmd-close))
 
 (defun racket--cmd-open-p ()
-  "Does a running process exist for `racket-back-end-name'?"
+  "Does a running process exist for `racket-back-end'?"
   (pcase (get-process (racket--back-end-process-name (racket-back-end)))
     ((and (pred (processp)) proc)
      (eq 'run (process-status proc)))))
+
+(defun racket--cmd-ready-p ()
+  "Is `racket-back-end' ready to accept commands?
+
+This is a \"superset\" of `racket--cmd-open-p': Not merely is the Racket
+process running, but also has our back end code fully loaded and issued
+a \"ready\" notification. This is often the most helpful predicate."
+  (pcase (get-process (racket--back-end-process-name (racket-back-end)))
+    ((and (pred (processp)) proc)
+     (and (eq 'run (process-status proc))
+          (process-get proc 'racket-back-end-ready)))))
 
 (make-obsolete-variable
  'racket-adjust-run-rkt
@@ -160,9 +171,7 @@ sentinel is `ignore'."
       (with-current-buffer buffer
         (goto-char (point-max))
         (insert string)
-        (racket--cmd-read (apply-partially
-                           #'racket--cmd-dispatch
-                           (process-get proc 'racket-back-end-name)))))))
+        (racket--cmd-read (apply-partially #'racket--cmd-dispatch proc))))))
 
 ;; The process filter inserts text as it arrives in chunks. So the
 ;; challenge here is to read whenever the buffer accumulates one or
@@ -209,29 +218,33 @@ sentinel is `ignore'."
 (defvar racket--cmd-nonce 0
   "Number that increments for each command request we send.")
 
-(defun racket--cmd-dispatch (back-end response)
+(defun racket--cmd-dispatch (proc response)
   "Do something with a sexpr sent to us from the command server.
 Although mostly these are 1:1 responses to command requests, some
 like \"logger\", \"debug-break\", and \"hash-lang\" are
 notifications."
-  (pcase response
-    (`(startup-error ,kind ,data)
-     (run-at-time 0.001 nil #'racket--on-startup-error kind data))
-    (`(logger ,str)
-     (run-at-time 0.001 nil #'racket--logger-on-notify back-end str))
-    (`(debug-break . ,response)
-     (run-at-time 0.001 nil #'racket--debug-on-break response))
-    (`(hash-lang ,id . ,vs)
-     (run-at-time 0.001 nil #'racket--hash-lang-on-notify id vs))
-    (`(repl-output ,session-id ,kind ,v)
-     (run-at-time 0.001 nil #'racket--repl-on-output session-id kind v))
-    (`(pkg-op-notify . ,v)
-     (run-at-time 0.001 nil #'racket--package-on-notify v))
-    (`(,nonce . ,response)
-     (when-let (callback (gethash nonce racket--cmd-nonce->callback))
-       (remhash nonce racket--cmd-nonce->callback)
-       (run-at-time 0.001 nil callback response)))
-    (_ nil)))
+  (cl-flet ((soon (fun &rest args)
+              (apply #'run-at-time 0.001 nil fun args)))
+    (pcase response
+      (`(ready)
+       (process-put proc 'racket-back-end-ready t))
+      (`(startup-error ,kind ,data)
+       (soon #'racket--on-startup-error kind data))
+      (`(logger ,str)
+       (soon #'racket--logger-on-notify (process-get proc 'racket-back-end-name) str))
+      (`(debug-break . ,response)
+       (soon #'racket--debug-on-break response))
+      (`(hash-lang ,id . ,vs)
+       (soon #'racket--hash-lang-on-notify id vs))
+      (`(repl-output ,session-id ,kind ,v)
+       (soon #'racket--repl-on-output session-id kind v))
+      (`(pkg-op-notify . ,v)
+       (soon #'racket--package-on-notify v))
+      (`(,nonce . ,response)
+       (when-let (callback (gethash nonce racket--cmd-nonce->callback))
+         (remhash nonce racket--cmd-nonce->callback)
+         (soon callback response)))
+      (_ nil))))
 
 (defun racket--assert-readable (sexp)
   "Sanity check that SEXP is readable by Racket.

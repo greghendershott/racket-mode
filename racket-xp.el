@@ -625,7 +625,7 @@ point."
 A value for the variable `eldoc-documentation-functions'. Use
 racket-xp-doc and help-echo text properties added by
 `racket-xp-mode'. See `racket-xp-eldoc-level'."
-  (when (racket--cmd-open-p)
+  (when (racket--cmd-ready-p)
     (racket--xp-eldoc callback (point))))
 
 (defun racket-xp-eldoc-sexp-app (callback &rest _more)
@@ -633,7 +633,7 @@ racket-xp-doc and help-echo text properties added by
 A value for the variable `eldoc-documentation-functions'. Use
 racket-xp-doc and help-echo text properties added by
 `racket-xp-mode'. See `racket-xp-eldoc-level'."
-  (when (and (racket--cmd-open-p)
+  (when (and (racket--cmd-ready-p)
              (> (point) (point-min)))
     ;; Preserve point during the dynamic extent of the eldoc calls,
     ;; because things like eldoc-box may dismiss the UI if they notice
@@ -1320,7 +1320,7 @@ we've worked hard to help shr to convert these correctly."
 (defun racket--xp-mode-lighter ()
   (let ((prefix "Rkt"))
     (pcase-let*
-        ((status (and (racket--cmd-open-p)
+        ((status (and (racket--cmd-ready-p)
                       racket--xp-mode-status))
          (`(,suffix ,face ,help-echo)
           (cl-case status

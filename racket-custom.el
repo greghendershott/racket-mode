@@ -175,18 +175,16 @@ Used by `racket-xp-eldoc-point' and `racket-xp-eldoc-sexp-app'.
 
 - Minimal: Only the help-echo string.
 
-- Summary: Also the signature a.k.a. \"blubox\" from the
+- Summary: Also the signature a.k.a. \"bluebox\" from the
   documentation.
 
 - Complete: Also the complete prose documentation.
 
-A third-party package like `eldoc-box' can be useful for all but
-the minimal level. Even some bluebox signatures can take many
-lines to show on screen."
+Tip: When you use a level above minimal, consider using a package like
+`eldoc-box'. Many Racket bluebox signatures don't fit on one line."
   :type '(radio (const :tag "Minimal" nil)
                 (const :tag "Summary" summary)
-                (const :tag "Complete" complete))
-  :safe #'listp)
+                (const :tag "Complete" complete)))
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; racket-hash-lang group
