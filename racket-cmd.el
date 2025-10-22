@@ -69,13 +69,30 @@ Before doing anything runs the hook `racket-stop-back-end-hook'."
 (defun racket--cmd-ready-p ()
   "Is `racket-back-end' ready to accept commands?
 
-This is a \"superset\" of `racket--cmd-open-p': Not merely is the Racket
+This is a \"superset\" of `racket--cmd-open-p': Not only is the Racket
 process running, but also has our back end code fully loaded and issued
-a \"ready\" notification. This is often the most helpful predicate."
+a \"ready\" notification. The more relevant predicate for most code.
+
+Despite the \"-p\" suffix, returns nil or a value more interesting than
+t: See `racket--put-start-and-load-timings'."
   (pcase (get-process (racket--back-end-process-name (racket-back-end)))
     ((and (pred (processp)) proc)
      (and (eq 'run (process-status proc))
           (process-get proc 'racket-back-end-ready)))))
+
+(defun racket--put-start-and-load-timings (proc)
+  "Set process prop \\='racket-back-end-ready for `racket--cmd-ready-p'.
+
+The value is a cons of the duration of the Racket process startup, and,
+the subsequent duration of our back end loading sufficiently to become
+ready.
+
+Intended to be called after a (ready) notification from back end."
+  (pcase (process-get proc 'racket-back-end-startup)
+    (`(,proc0 ,proc1) ;times before/after `make-process'
+     (let ((proc-dur (float-time (time-subtract proc1 proc0)))
+           (load-dur (float-time (time-subtract nil proc1))))
+       (process-put proc 'racket-back-end-ready (cons proc-dur load-dur))))))
 
 (make-obsolete-variable
  'racket-adjust-run-rkt
@@ -120,6 +137,7 @@ a \"ready\" notification. This is often the most helpful predicate."
                        "--do-not-use-svg"))
            (args    (list main-dot-rkt svg-flag))
            (command (racket--back-end-args->command back-end args))
+           (t0      (current-time))
            (process
             (make-process
              :name            process-name
@@ -133,6 +151,7 @@ a \"ready\" notification. This is often the most helpful predicate."
              :sentinel        #'racket--cmd-process-sentinel))
            (status (process-status process)))
       (process-put process 'racket-back-end-name (racket-back-end-name back-end))
+      (process-put process 'racket-back-end-startup (list t0 (current-time)))
       (unless (eq status 'run)
         (error "%s process status is not \"run\", instead it is %s"
                process-name
@@ -227,7 +246,7 @@ notifications."
               (apply #'run-at-time 0.001 nil fun args)))
     (pcase response
       (`(ready)
-       (process-put proc 'racket-back-end-ready t))
+       (racket--put-start-and-load-timings proc))
       (`(startup-error ,kind ,data)
        (soon #'racket--on-startup-error kind data))
       (`(logger ,str)
