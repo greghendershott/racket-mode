@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2024 by Greg Hendershott.
+;; Copyright (c) 2013-2025 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -54,16 +54,13 @@
 
 ;;; Blueboxes
 
-(define racket-newer-than-6.12 (version<? "6.12" (version)))
-
 (define bluebox-cache #f)
 
 (define (get-bluebox-string tag)
   (unless bluebox-cache
     (set! bluebox-cache (make-blueboxes-cache #t)))
-  (match (and racket-newer-than-6.12
-              (fetch-blueboxes-strs tag
-                                    #:blueboxes-cache bluebox-cache))
+  (match (fetch-blueboxes-strs tag
+                               #:blueboxes-cache bluebox-cache)
     [(list* _kind strs)
      (string-replace (string-join strs "\n")
                      "\u00A0"
@@ -94,9 +91,8 @@
      ;; younger, I am choosing to ignore this, for now.
      ;;
      ;; Probably https://github.com/racket/drracket/issues/118
-     (when racket-newer-than-6.12
-       (check-equal? (identifier->bluebox #'list)
-                     "(list v ...) -> list?\n  v : any/c"))
+     (check-equal? (identifier->bluebox #'list)
+                   "(list v ...) -> list?\n  v : any/c")
      (check-false (identifier->bluebox (datum->syntax #f (gensym))))]))
 
 ;;; Documentation search
