@@ -447,13 +447,13 @@ When Emacs is configured to use NonGNU ELPA or MELPA:
 
 @enumerate
 @item
-Type @kbd{M-x}  @code{package-initialize} @kbd{RET} .
+Type @kbd{M-x} @code{package-initialize} @kbd{RET} .
 
 @item
-Type @kbd{M-x}  @code{package-refresh-contents} @kbd{RET} .
+Type @kbd{M-x} @code{package-refresh-contents} @kbd{RET} .
 
 @item
-Type @kbd{M-x}  @code{package-install} @kbd{RET}  @code{racket-mode} @kbd{RET} .
+Type @kbd{M-x} @code{package-install} @kbd{RET} @code{racket-mode} @kbd{RET} .
 @end enumerate
 
 @quotation
@@ -483,7 +483,7 @@ On a headless server, you might want to omit @code{gui-lib}. Unfortunately, @cod
 @node Uninstall
 @section Uninstall
 
-To uninstall Racket Mode, simply type @kbd{M-x}  @code{package-delete} @kbd{RET}  @code{racket-mode} @kbd{RET} .
+To uninstall Racket Mode, simply type @kbd{M-x} @code{package-delete} @kbd{RET} @code{racket-mode} @kbd{RET} .
 
 You should probably also exit and restart Emacs.
 
@@ -502,19 +502,19 @@ The ``easy path'' provided by Emacs is to update @emph{all} packages to their la
 
 @enumerate
 @item
-Use @kbd{M-x}  @code{package-initialize}.
+Use @kbd{M-x} @code{package-initialize}.
 
 @item
-Use @kbd{M-x}  @code{package-refresh-contents}.
+Use @kbd{M-x} @code{package-refresh-contents}.
 
 @item
-Use @kbd{M-x}  @code{list-packages}. It should display a message like ``42 packages can be upgraded; type ‘U’ to mark them for upgrading.''.
+Use @kbd{M-x} @code{list-packages}. It should display a message like ``42 packages can be upgraded; type ‘U’ to mark them for upgrading.''.
 
 @item
-Press @kbd{U}  as suggested to mark them all.
+Press @kbd{U} as suggested to mark them all.
 
 @item
-Press @kbd{x}  to execute.
+Press @kbd{x} to execute.
 @end enumerate
 
 After such a mass update, it might be wise to exit and restart Emacs.
@@ -551,7 +551,7 @@ On Windows or Linux, this default will probably work for you.
 
 On macOS, downloading Racket doesn't add its @code{bin} directory to your @code{PATH}. Even after you add it, GUI Emacs doesn't automatically use your path (unless you use the handy @uref{https://melpa.org/#/exec-path-from-shell, exec-path-from-shell} package). Therefore you might want to set @code{racket-program} to a complete pathname.
 
-You can @code{setq} this directly in your Emacs init file (@samp{~/.emacs} or @samp{~/.emacs.d/init.el}), or, use @kbd{M-x}  @code{customize}, as you prefer.
+You can @code{setq} this directly in your Emacs init file (@samp{~/.emacs} or @samp{~/.emacs.d/init.el}), or, use @kbd{M-x} @code{customize}, as you prefer.
 
 @menu
 * Which major mode to use::
@@ -608,7 +608,7 @@ You can use @code{auto-mode-alist} to tell Emacs which major mode to use initial
 @node Key bindings
 @section Key bindings
 
-To customize things like key bindings, you can use @code{racket-mode-hook} in your Emacs init file to modify @code{racket-mode-map}. For example, although @kbd{C-c C-c}  is bound by default to the @code{racket-run} command, let's say you wanted @kbd{F5}  to be an additional binding:
+To customize things like key bindings, you can use @code{racket-mode-hook} in your Emacs init file to modify @code{racket-mode-map}. For example, although @kbd{C-c C-c} is bound by default to the @code{racket-run} command, let's say you wanted @kbd{F5} to be an additional binding:
 
 @lisp
 (add-hook 'racket-mode-hook
@@ -661,13 +661,13 @@ In Emacs, a major mode may supply a ``completion-at-point function''. This funct
 
 These completion functions are set by default. (However, @code{racket-xp-mode} is not enabled by default. To do so: @ref{racket-xp-mode}.)
 
-If you want @kbd{TAB}  to do completion as well as indent, add the following to your Emacs init file:
+If you want @kbd{TAB} to do completion as well as indent, add the following to your Emacs init file:
 
 @lisp
 (setq tab-always-indent 'complete)
 @end lisp
 
-This changes the behavior of Emacs' standard @code{indent-for-tab-command}, to which @kbd{TAB}  is bound by default in @code{racket-mode} and @code{racket-repl-mode}.
+This changes the behavior of Emacs' standard @code{indent-for-tab-command}, to which @kbd{TAB} is bound by default in @code{racket-mode} and @code{racket-repl-mode}.
 
 @node Completion in minibuffer
 @section Completion in minibuffer
@@ -683,11 +683,11 @@ Several modes support the Emacs commands
 
 @itemize
 @item
-@kbd{M-.}  @code{xref-find-definitions}
+@kbd{M-.} @code{xref-find-definitions}
 @item
-@kbd{M-?}  @code{xref-find-references}
+@kbd{M-?} @code{xref-find-references}
 @item
-@kbd{M-,}  @code{xref-pop-marker-stack}
+@kbd{M-,} @code{xref-pop-marker-stack}
 @end itemize
 
 To do so, each mode adds a local hook for @code{xref-backend-functions}:
@@ -705,7 +705,7 @@ If you prefer, you can remove the local hook --- e.g. for @code{racket-mode}: @c
 
 You can @code{M-x customize-group} and enter @code{xref} to adjust some other settings. For example, the customization variable @code{xref-prompt-for-identifier} controls which commands prompt you and when. You might prefer to set it to @code{nil}.
 
-If you use @code{paredit}, by default it binds @kbd{M-?}  to @code{paredit-convolute-sexp}. You can change that binding in @code{paredit-mode-map} allowing the global binding for @kbd{M-?}  to be used, or, pick some other key for @code{xref-find-references} in the global map.
+If you use @code{paredit}, by default it binds @kbd{M-?} to @code{paredit-convolute-sexp}. You can change that binding in @code{paredit-mode-map} allowing the global binding for @kbd{M-?} to be used, or, pick some other key for @code{xref-find-references} in the global map.
 
 Finally, what to expect:
 
@@ -773,7 +773,7 @@ For example, with @uref{https://melpa.org/#/use-package, @code{use-package}}:
                ("M-@{" . paredit-wrap-curly))))
 @end lisp
 
-Starting c. November 2022, paredit binds the @kbd{RET}  key to its own command. Unfortunately this is @emph{not} compatible with interactive modes --- including but not limited to @code{racket-repl-mode} --- which expect @kbd{RET}  to be bound to a command to submit your input to the REPL@. In other words, if you type an expression and hit @kbd{RET} , nothing will happen and the REPL will seem frozen. You @code{M-x racket-repl-submit} to proceed.
+Starting c. November 2022, paredit binds the @kbd{RET} key to its own command. Unfortunately this is @emph{not} compatible with interactive modes --- including but not limited to @code{racket-repl-mode} --- which expect @kbd{RET} to be bound to a command to submit your input to the REPL@. In other words, if you type an expression and hit @kbd{RET} , nothing will happen and the REPL will seem frozen. You @code{M-x racket-repl-submit} to proceed.
 
 If you want to use paredit with interactive modes, their advice is to remove the binding from @code{paredit-mode-map} (note that this will also disable it for all buffers, including editing buffers). One way you can do this for all related keys:
 
@@ -920,9 +920,9 @@ You can also view these by using the normal Emacs help mechanism:
 
 @itemize
 @item
-@kbd{C-h f}  and enter the name of a command.
+@kbd{C-h f} and enter the name of a command.
 @item
-@kbd{C-h v}  and enter the name of a variable.
+@kbd{C-h v} and enter the name of a variable.
 @end itemize
 
 @node Commands
@@ -968,7 +968,7 @@ You can also view these by using the normal Emacs help mechanism:
 @node racket-mode
 @subsection racket-mode
 
-@kbd{M-x}  @code{racket-mode}
+@kbd{M-x} @code{racket-mode}
 
 The ``classic'' major mode to edit an s-expression Racket #lang.
 
@@ -990,7 +990,7 @@ See also @ref{racket-hash-lang-mode}.
 @tab @ref{racket-backward-up-list}
 @item @kbd{C-c C-p} 
 @tab @ref{racket-cycle-paren-shapes}
-@item @kbd{C-c C-s}  or @kbd{C-c C-.} 
+@item @kbd{C-c C-s} or @kbd{C-c C-.} 
 @tab @ref{racket-describe-search}
 @item @kbd{C-c C-d} 
 @tab @ref{racket-documentation-search}
@@ -1006,7 +1006,7 @@ See also @ref{racket-hash-lang-mode}.
 @tab @ref{racket-expand-region}
 @item @kbd{C-c C-f} 
 @tab @ref{racket-fold-all-tests}
-@item @kbd{)}  or @kbd{]}  or @kbd{@}} 
+@item @kbd{)} or @kbd{]} or @kbd{@}} 
 @tab @ref{racket-insert-closing}
 @item @kbd{C-M-y} 
 @tab @ref{racket-insert-lambda}
@@ -1016,7 +1016,7 @@ See also @ref{racket-hash-lang-mode}.
 @tab @ref{racket-open-require-path}
 @item @kbd{C-c C-o} 
 @tab @ref{racket-profile}
-@item @kbd{C-c C-c}  or @kbd{C-c C-k} 
+@item @kbd{C-c C-c} or @kbd{C-c C-k} 
 @tab @ref{racket-run-module-at-point}
 @item @kbd{C-M-x} 
 @tab @ref{racket-send-definition}
@@ -1048,7 +1048,7 @@ To insert Unicode symbols generally, see @ref{racket-input-mode}.
 @node racket-insert-symbol
 @subsection racket-insert-symbol
 
-@kbd{M-x}  @code{racket-insert-symbol}
+@kbd{M-x} @code{racket-insert-symbol}
 
 Insert a symbol from @ref{racket-input-translations}.
 
@@ -1076,7 +1076,7 @@ Unfold (show) all test submodules.
 @node racket-tidy-requires
 @subsection racket-tidy-requires
 
-@kbd{M-x}  @code{racket-tidy-requires}
+@kbd{M-x} @code{racket-tidy-requires}
 
 Make a single, sorted ``require'' form for each module.
 
@@ -1096,7 +1096,7 @@ See also: @ref{racket-trim-requires} and @ref{racket-base-requires}.
 @node racket-trim-requires
 @subsection racket-trim-requires
 
-@kbd{M-x}  @code{racket-trim-requires}
+@kbd{M-x} @code{racket-trim-requires}
 
 Like @ref{racket-tidy-requires} but also delete unnecessary requires.
 
@@ -1127,7 +1127,7 @@ See also: @ref{racket-base-requires}.
 @node racket-base-requires
 @subsection racket-base-requires
 
-@kbd{M-x}  @code{racket-base-requires}
+@kbd{M-x} @code{racket-base-requires}
 
 Change from ``#lang racket'' to ``#lang racket/base''.
 
@@ -1150,7 +1150,7 @@ typed/racket/base''.
 @node racket-add-require-for-identifier
 @subsection racket-add-require-for-identifier
 
-@kbd{M-x}  @code{racket-add-require-for-identifier}
+@kbd{M-x} @code{racket-add-require-for-identifier}
 
 Add a require for an identifier.
 
@@ -1175,7 +1175,7 @@ identifiers that are exported but not documented.
 @node racket-indent-line
 @subsection racket-indent-line
 
-@kbd{M-x}  @code{racket-indent-line}
+@kbd{M-x} @code{racket-indent-line}
 
 Indent current line as Racket code.
 
@@ -1310,7 +1310,7 @@ even ``let'' forms:
 @node racket-smart-open-bracket-mode
 @subsection racket-smart-open-bracket-mode
 
-@kbd{M-x}  @code{racket-smart-open-bracket-mode}
+@kbd{M-x} @code{racket-smart-open-bracket-mode}
 
 Minor mode to let you always type @code{[}' to insert @code{(} or @code{[} automatically.
 
@@ -1358,18 +1358,18 @@ the module langugage is something like ``racket''.
 
 This is a minor mode.  If called interactively, toggle the
 @code{Racket-Smart-Open-Bracket mode} mode.  If the prefix argument is
-positive, enable the mode, and if it is zero or negative, disable
-the mode.
+positive, enable the mode, and if it is zero or negative, disable the
+mode.
 
-If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
-the mode if ARG is nil, omitted, or is a positive number.
-Disable the mode if ARG is a negative number.
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the mode
+if ARG is a negative number.
 
 To check whether the minor mode is enabled in the current buffer,
-evaluate @ref{racket-smart-open-bracket-mode}.
+evaluate the variable @ref{racket-smart-open-bracket-mode}.
 
-The mode's hook is called both when the mode is enabled and when
-it is disabled.
+The mode's hook is called both when the mode is enabled and when it is
+disabled.
 
 @node racket-insert-closing
 @subsection racket-insert-closing
@@ -1378,7 +1378,7 @@ it is disabled.
 
 Insert a matching closing delimiter.
 
-With @kbd{C-u}  insert the typed character as-is.
+With @kbd{C-u} insert the typed character as-is.
 
 This is handy if you're not yet using something like
 @code{paredit-mode}, @code{smartparens-mode}, @code{parinfer-mode}, or simply
@@ -1407,7 +1407,7 @@ repeatedly.
 @node racket-input-mode
 @subsection racket-input-mode
 
-@kbd{M-x}  @code{racket-input-mode}
+@kbd{M-x} @code{racket-input-mode}
 
 A minor mode to enable the ``Racket'' input method.
 
@@ -1439,24 +1439,24 @@ See the Emacs manual for other information about input methods.
 Tip: Another way to use @ref{racket-input-translations} is by using a
 command: @ref{racket-insert-symbol}.
 
-This is a minor mode.  If called interactively, toggle the
-@code{Racket-Input mode} mode.  If the prefix argument is positive,
-enable the mode, and if it is zero or negative, disable the mode.
+This is a minor mode.  If called interactively, toggle the @code{Racket-Input
+mode} mode.  If the prefix argument is positive, enable the mode, and if
+it is zero or negative, disable the mode.
 
-If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
-the mode if ARG is nil, omitted, or is a positive number.
-Disable the mode if ARG is a negative number.
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the mode
+if ARG is a negative number.
 
 To check whether the minor mode is enabled in the current buffer,
-evaluate @ref{racket-input-mode}.
+evaluate the variable @ref{racket-input-mode}.
 
-The mode's hook is called both when the mode is enabled and when
-it is disabled.
+The mode's hook is called both when the mode is enabled and when it is
+disabled.
 
 @node racket-align
 @subsection racket-align
 
-@kbd{M-x}  @code{racket-align}
+@kbd{M-x} @code{racket-align}
 
 Align values in the same column.
 
@@ -1530,7 +1530,7 @@ See also: @ref{racket-unalign}.
 @node racket-unalign
 @subsection racket-unalign
 
-@kbd{M-x}  @code{racket-unalign}
+@kbd{M-x} @code{racket-unalign}
 
 The opposite of @ref{racket-align}.
 
@@ -1561,7 +1561,7 @@ completion candidates, enable the minor mode @ref{racket-xp-mode}.
 @node racket-hash-lang-mode
 @subsection racket-hash-lang-mode
 
-@kbd{M-x}  @code{racket-hash-lang-mode}
+@kbd{M-x} @code{racket-hash-lang-mode}
 
 An ``experimental'' major mode to edit any Racket #lang.
 
@@ -1586,8 +1586,6 @@ A discussion of the information provided by a Racket language:
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{TAB} 
-@tab @code{indent-for-tab-command}
 @item @kbd{RET} 
 @tab @code{newline-and-indent}
 @item @kbd{C-c C-z} 
@@ -1610,6 +1608,8 @@ A discussion of the information provided by a Racket language:
 @tab @ref{racket-hash-lang-down}
 @item @kbd{C-M-f} 
 @tab @ref{racket-hash-lang-forward}
+@item @kbd{TAB} 
+@tab @code{racket-hash-lang-indent}
 @item @kbd{C-M-u} 
 @tab @ref{racket-hash-lang-up}
 @item @kbd{C-M-y} 
@@ -1620,7 +1620,7 @@ A discussion of the information provided by a Racket language:
 @tab @ref{racket-open-require-path}
 @item @kbd{C-c C-o} 
 @tab @ref{racket-profile}
-@item @kbd{C-c C-c}  or @kbd{C-c C-k} 
+@item @kbd{C-c C-c} or @kbd{C-c C-k} 
 @tab @ref{racket-run-module-at-point}
 @item @kbd{C-M-x} 
 @tab @ref{racket-send-definition}
@@ -1718,7 +1718,7 @@ anything else, do @code{prog-indent-sexp}.
 @node racket-xp-mode
 @subsection racket-xp-mode
 
-@kbd{M-x}  @code{racket-xp-mode}
+@kbd{M-x} @code{racket-xp-mode}
 
 A minor mode that analyzes expanded code to explain and explore.
 
@@ -1863,7 +1863,7 @@ will stop after the first syntax error, some like Typed Racket
 will try to collect and report multiple errors.
 
 You may use @code{xref-find-definitions} @kbd{M-.} ,
-@code{xref-pop-marker-stack} @kbd{M-x}  @code{xref-pop-marker-stack}, and
+@code{xref-pop-marker-stack} @kbd{M-x} @code{xref-pop-marker-stack}, and
 @code{xref-find-references}: @ref{racket-xp-mode} adds a backend to the
 variable @code{xref-backend-functions}. This backend uses information
 from the drracket/check-syntax static analysis. Its ability to
@@ -1912,7 +1912,7 @@ commands directly to whatever keys you prefer.
 @tab @ref{racket-xp-tail-previous-sibling}
 @item @kbd{C-c # ^} 
 @tab @ref{racket-xp-tail-up}
-@item @kbd{M-.}  or @kbd{C-c # .} 
+@item @kbd{M-.} or @kbd{C-c # .} 
 @tab @code{xref-find-definitions}
 @item @kbd{C-c # ?} 
 @tab @code{xref-find-references}
@@ -1920,19 +1920,19 @@ commands directly to whatever keys you prefer.
 
 
 
-This is a minor mode.  If called interactively, toggle the
-@code{Racket-Xp mode} mode.  If the prefix argument is positive,
-enable the mode, and if it is zero or negative, disable the mode.
+This is a minor mode.  If called interactively, toggle the @code{Racket-Xp
+mode} mode.  If the prefix argument is positive, enable the mode, and if
+it is zero or negative, disable the mode.
 
-If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
-the mode if ARG is nil, omitted, or is a positive number.
-Disable the mode if ARG is a negative number.
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the mode
+if ARG is a negative number.
 
 To check whether the minor mode is enabled in the current buffer,
-evaluate @ref{racket-xp-mode}.
+evaluate the variable @ref{racket-xp-mode}.
 
-The mode's hook is called both when the mode is enabled and when
-it is disabled.
+The mode's hook is called both when the mode is enabled and when it is
+disabled.
 
 @node racket-xp-describe
 @subsection racket-xp-describe
@@ -1941,7 +1941,7 @@ it is disabled.
 
 Describe the identifier at point.
 
-The command varies based on how many @kbd{C-u}  command prefixes you supply.
+The command varies based on how many @kbd{C-u} command prefixes you supply.
 
 @itemize
 @item
@@ -1966,13 +1966,13 @@ arg-2-name)''.
 @end itemize
 
 @item
-@kbd{C-u}  @kbd{C-c C-.} 
+@kbd{C-u} @kbd{C-c C-.} 
 
 Always prompts you to enter a symbol, defaulting to the symbol
 at point if any.
 
 @item
-@kbd{C-u}  @kbd{C-u}  @kbd{C-c C-.} 
+@kbd{C-u} @kbd{C-u} @kbd{C-c C-.} 
 
 This is an alias for @ref{racket-describe-search}, which uses
 installed documentation in a @ref{racket-describe-mode} buffer
@@ -2009,13 +2009,13 @@ determines whether the search is done locally as with @code{raco
   doc}, or visits a URL@.
 
 @item
-@kbd{C-u}  @kbd{C-c C-d} 
+@kbd{C-u} @kbd{C-c C-d} 
 
 Always prompts you to enter a symbol, defaulting to the symbol
 at point if any.
 
 @item
-@kbd{C-u}  @kbd{C-u}  @kbd{C-c C-d} 
+@kbd{C-u} @kbd{C-u} @kbd{C-c C-d} 
 
 Always prompts you to enter anything, defaulting to the symbol
 at point if any.
@@ -2056,14 +2056,14 @@ When point is on a use, go to the previous, sibling use.
 @node racket-xp-next-error
 @subsection racket-xp-next-error
 
-@kbd{M-x}  @code{racket-xp-next-error}
+@kbd{M-x} @code{racket-xp-next-error}
 
 An obsolete alias for @code{next-error}.
 
 @node racket-xp-previous-error
 @subsection racket-xp-previous-error
 
-@kbd{M-x}  @code{racket-xp-previous-error}
+@kbd{M-x} @code{racket-xp-previous-error}
 
 An obsolete alias for @code{previous-error}.
 
@@ -2131,14 +2131,14 @@ the Racket ``Search Manuals'' page.
 @node racket-describe-mode
 @subsection racket-describe-mode
 
-@kbd{M-x}  @code{racket-describe-mode}
+@kbd{M-x} @code{racket-describe-mode}
 
 Major mode for viewing Racket documentation.
 
 Many of the default key bindings are similar to @code{Info-mode}, as
 listed below.
 
-To see ``On this page'' links, use @kbd{M-g i}  for @code{imenu}, or,
+To see ``On this page'' links, use @kbd{M-g i} for @code{imenu}, or,
 when @code{context-menu-mode} is enabled, right click the mouse.
 
 Supports bookmarks: @code{bookmark-set}.
@@ -2164,11 +2164,11 @@ browser program -- are given @ref{racket-ext-link-face}.
 @tab @code{end-of-buffer}
 @item @kbd{q} 
 @tab @code{quit-window}
-@item @kbd{l}  or @kbd{b}  or @kbd{C-c C-b} 
+@item @kbd{l} or @kbd{b} or @kbd{C-c C-b} 
 @tab @code{racket-describe-back}
 @item @kbd{x} 
 @tab @code{racket-describe-browse-external}
-@item @kbd{r}  or @kbd{f}  or @kbd{C-c C-f} 
+@item @kbd{r} or @kbd{f} or @kbd{C-c C-f} 
 @tab @code{racket-describe-forward}
 @item @kbd{n} 
 @tab @code{racket-describe-nav-next}
@@ -2178,11 +2178,11 @@ browser program -- are given @ref{racket-ext-link-face}.
 @tab @code{racket-describe-nav-top}
 @item @kbd{^} 
 @tab @code{racket-describe-nav-up}
-@item @kbd{i}  or @kbd{C-c C-s} 
+@item @kbd{i} or @kbd{C-c C-s} 
 @tab @ref{racket-describe-search}
 @item @kbd{g} 
 @tab @code{revert-buffer}
-@item @kbd{DEL}  or @kbd{S-SPC} 
+@item @kbd{DEL} or @kbd{S-SPC} 
 @tab @code{scroll-down-command}
 @item @kbd{SPC} 
 @tab @code{scroll-up-command}
@@ -2225,12 +2225,12 @@ Search installed documentation; view using @ref{racket-describe-mode}.
 @node racket-repl-mode
 @subsection racket-repl-mode
 
-@kbd{M-x}  @code{racket-repl-mode}
+@kbd{M-x} @code{racket-repl-mode}
 
 Major mode for Racket REPL@.
 
-You may use @code{xref-find-definitions} @kbd{M-.}  and
-@code{xref-pop-marker-stack} @kbd{M-x}  @code{xref-pop-marker-stack}:
+You may use @code{xref-find-definitions} @kbd{M-.} and
+@code{xref-pop-marker-stack} @kbd{M-x} @code{xref-pop-marker-stack}:
 @ref{racket-repl-mode} adds a backend to the variable
 @code{xref-backend-functions}. This backend uses information about
 identifier bindings and modules from the REPL's namespace.
@@ -2256,7 +2256,7 @@ identifier bindings and modules from the REPL's namespace.
 @tab @ref{racket-expand-last-sexp}
 @item @kbd{C-c C-e r} 
 @tab @ref{racket-expand-region}
-@item @kbd{)}  or @kbd{]}  or @kbd{@}} 
+@item @kbd{)} or @kbd{]} or @kbd{@}} 
 @tab @ref{racket-insert-closing}
 @item @kbd{C-M-y} 
 @tab @ref{racket-insert-lambda}
@@ -2296,7 +2296,7 @@ penultimate step during initialization.
 @node racket-run
 @subsection racket-run
 
-@kbd{M-x}  @code{racket-run}
+@kbd{M-x} @code{racket-run}
 
 Save the buffer in REPL and run your program.
 
@@ -2317,7 +2317,7 @@ prefix arguments you supply.
 Follows the @ref{racket-error-context} setting.
 
 @item
-@kbd{C-u}  @kbd{<f5>} 
+@kbd{C-u} @kbd{<f5>} 
 
 Uses errortrace for improved stack traces, as if
 @ref{racket-error-context} were set to ``high''.
@@ -2327,7 +2327,7 @@ value like ``low'' or ``medium'', then conveniently re-run
 when you need a better strack trace.
 
 @item
-@kbd{C-u}  @kbd{C-u}  @kbd{<f5>} 
+@kbd{C-u} @kbd{C-u} @kbd{<f5>} 
 
 Instruments code for step debugging. See @ref{racket-debug-mode}
 and the variable @ref{racket-debuggable-files}.
@@ -2378,7 +2378,7 @@ simply the outermost, file module.
 @node racket-repl
 @subsection racket-repl
 
-@kbd{M-x}  @code{racket-repl}
+@kbd{M-x} @code{racket-repl}
 
 Show a Racket REPL buffer in some window.
 
@@ -2402,7 +2402,7 @@ require other modules, or whatever.
 
 Describe the identifier at point.
 
-The command varies based on how many @kbd{C-u}  prefix arguments you supply.
+The command varies based on how many @kbd{C-u} prefix arguments you supply.
 
 @itemize
 @item
@@ -2427,13 +2427,13 @@ arg-2-name)''.
 @end itemize
 
 @item
-@kbd{C-u}  @kbd{C-c C-.} 
+@kbd{C-u} @kbd{C-c C-.} 
 
 Always prompts you to enter a symbol, defaulting to the symbol
 at point if any.
 
 @item
-@kbd{C-u}  @kbd{C-u}  @kbd{C-c C-.} 
+@kbd{C-u} @kbd{C-u} @kbd{C-c C-.} 
 
 This is an alias for @ref{racket-describe-search}, which uses
 installed documentation in a @ref{racket-describe-mode} buffer
@@ -2451,7 +2451,7 @@ something, regardless of whether it has installed documentation
 
 View documentation in an external web browser.
 
-The command varies based on how many @kbd{C-u}  command prefixes you supply.
+The command varies based on how many @kbd{C-u} command prefixes you supply.
 
 @itemize
 @item
@@ -2466,13 +2466,13 @@ determines whether the search is done locally as with @code{raco
   doc}, or visits a URL@.
 
 @item
-@kbd{C-u}  @kbd{C-c C-d} 
+@kbd{C-u} @kbd{C-c C-d} 
 
 Prompts you to enter a symbol, defaulting to the symbol at
 point if any.
 
 @item
-@kbd{C-u}  @kbd{C-u}  @kbd{C-c C-d} 
+@kbd{C-u} @kbd{C-u} @kbd{C-c C-d} 
 
 Prompts you to enter anything, defaulting to the symbol at
 point if any.
@@ -2514,7 +2514,7 @@ delete compiled/*.zo files.
 @node racket-profile-mode
 @subsection racket-profile-mode
 
-@kbd{M-x}  @code{racket-profile-mode}
+@kbd{M-x} @code{racket-profile-mode}
 
 Major mode for results of @ref{racket-profile}.
 
@@ -2529,7 +2529,7 @@ Major mode for results of @ref{racket-profile}.
 @tab @code{racket-profile-show-non-project}
 @item @kbd{z} 
 @tab @code{racket-profile-show-zero}
-@item @kbd{.}  or @kbd{RET} 
+@item @kbd{.} or @kbd{RET} 
 @tab @code{racket-profile-visit}
 @end multitable
 
@@ -2550,7 +2550,7 @@ Create the @ref{racket-logger-mode} buffer.
 @node racket-logger-mode
 @subsection racket-logger-mode
 
-@kbd{M-x}  @code{racket-logger-mode}
+@kbd{M-x} @code{racket-logger-mode}
 
 Major mode for Racket logger output.
 
@@ -2586,7 +2586,7 @@ or penultimate step during initialization.
 @node racket-debug-mode
 @subsection racket-debug-mode
 
-@kbd{M-x}  @code{racket-debug-mode}
+@kbd{M-x} @code{racket-debug-mode}
 
 Minor mode for debug breaks.
 
@@ -2602,7 +2602,7 @@ How to debug:
 @item
 ``Instrument'' code for step debugging.
 
-Use two @kbd{C-u}  command prefixes for either
+Use two @kbd{C-u} command prefixes for either
 @ref{racket-run} or @ref{racket-run-module-at-point}.
 
 The file will be instrumented for step debugging before it is
@@ -2659,19 +2659,19 @@ provides shortcut keys:
 
 
 
-This is a minor mode.  If called interactively, toggle the
-@code{Racket-Debug mode} mode.  If the prefix argument is positive,
-enable the mode, and if it is zero or negative, disable the mode.
+This is a minor mode.  If called interactively, toggle the @code{Racket-Debug
+mode} mode.  If the prefix argument is positive, enable the mode, and if
+it is zero or negative, disable the mode.
 
-If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable
-the mode if ARG is nil, omitted, or is a positive number.
-Disable the mode if ARG is a negative number.
+If called from Lisp, toggle the mode if ARG is @code{toggle}.  Enable the
+mode if ARG is nil, omitted, or is a positive number.  Disable the mode
+if ARG is a negative number.
 
 To check whether the minor mode is enabled in the current buffer,
-evaluate @ref{racket-debug-mode}.
+evaluate the variable @ref{racket-debug-mode}.
 
-The mode's hook is called both when the mode is enabled and when
-it is disabled.
+The mode's hook is called both when the mode is enabled and when it is
+disabled.
 
 @node racket-repl-clear
 @subsection racket-repl-clear
@@ -2690,7 +2690,7 @@ See also the command @ref{racket-repl-clear-leaving-last-prompt}.
 @node racket-repl-clear-leaving-last-prompt
 @subsection racket-repl-clear-leaving-last-prompt
 
-@kbd{M-x}  @code{racket-repl-clear-leaving-last-prompt}
+@kbd{M-x} @code{racket-repl-clear-leaving-last-prompt}
 
 Delete all text in the REPL, except for the last prompt.
 
@@ -2720,12 +2720,12 @@ Put your tests in a ``test'' submodule. For example:
 Any rackunit test failure messages show the location. You may use
 @code{next-error} to jump to the location of each failing test.
 
-With @kbd{C-u}  uses errortrace for improved stack traces.
+With @kbd{C-u} uses errortrace for improved stack traces.
 Otherwise follows the @ref{racket-error-context} setting.
 
-With @kbd{C-u}  @kbd{C-u}  also runs the
-tests with coverage instrumentation and highlights uncovered code
-using @code{font-lock-warning-face}.
+With @kbd{C-u} @kbd{C-u} also runs the tests
+with coverage instrumentation. Expressions not covered by tests are
+treated as errors -- see @code{next-error}.
 
 See also:
 @itemize
@@ -2738,7 +2738,7 @@ See also:
 @node racket-raco-test
 @subsection racket-raco-test
 
-@kbd{M-x}  @code{racket-raco-test}
+@kbd{M-x} @code{racket-raco-test}
 
 Use command-line raco test to run the ``test'' submodule.
 
@@ -2831,7 +2831,7 @@ C-g aborts.
 @node racket-stepper-mode
 @subsection racket-stepper-mode
 
-@kbd{M-x}  @code{racket-stepper-mode}
+@kbd{M-x} @code{racket-stepper-mode}
 
 Major mode for Racket stepper output.
 
@@ -2842,9 +2842,9 @@ Used by the commands @ref{racket-expand-file},
 @multitable {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa} {aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa}
 @item Key
 @tab Binding
-@item @kbd{n}  or @kbd{j} 
+@item @kbd{n} or @kbd{j} 
 @tab @code{racket-stepper-next-item}
-@item @kbd{p}  or @kbd{k} 
+@item @kbd{p} or @kbd{k} 
 @tab @code{racket-stepper-previous-item}
 @item @kbd{g} 
 @tab @code{racket-stepper-refresh}
@@ -2875,7 +2875,7 @@ If the file is non-trivial and/or is not compiled to a .zo
 bytecode file, then it might take many seconds before the
 original form is displayed and you can start stepping.
 
-With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
+With @kbd{C-u} behaves as if @ref{racket-expand-hiding}
 were 'disabled.
 
 @node racket-expand-region
@@ -2887,7 +2887,7 @@ Expand the active region using @ref{racket-stepper-mode}.
 
 Uses the @code{macro-debugger} package to do the expansion.
 
-With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
+With @kbd{C-u} behaves as if @ref{racket-expand-hiding}
 were 'disabled.
 
 @node racket-expand-definition
@@ -2899,7 +2899,7 @@ Expand the definition around point using @ref{racket-stepper-mode}.
 
 Uses the @code{macro-debugger} package to do the expansion.
 
-With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
+With @kbd{C-u} behaves as if @ref{racket-expand-hiding}
 were 'disabled.
 
 @node racket-expand-last-sexp
@@ -2911,7 +2911,7 @@ Expand the sexp before point using @ref{racket-stepper-mode}.
 
 Uses the @code{macro-debugger} package to do the expansion.
 
-With @kbd{C-u}  behaves as if @ref{racket-expand-hiding}
+With @kbd{C-u} behaves as if @ref{racket-expand-hiding}
 were 'disabled.
 
 @node Packages
@@ -2927,7 +2927,7 @@ were 'disabled.
 @node racket-package-refresh
 @subsection racket-package-refresh
 
-@kbd{M-x}  @code{racket-package-refresh}
+@kbd{M-x} @code{racket-package-refresh}
 
 Refresh the local copy of package catalogs.
 
@@ -2937,14 +2937,14 @@ seconds to complete.
 @node list-racket-packages
 @subsection list-racket-packages
 
-@kbd{M-x}  @code{list-racket-packages}
+@kbd{M-x} @code{list-racket-packages}
 
 Open a @ref{racket-package-mode} buffer for the active back end.
 
 @node racket-package-mode
 @subsection racket-package-mode
 
-@kbd{M-x}  @code{racket-package-mode}
+@kbd{M-x} @code{racket-package-mode}
 
 Major mode for Racket package management.
 
@@ -2975,7 +2975,7 @@ final or penultimate step during initialization.
 @node describe-racket-package
 @subsection describe-racket-package
 
-@kbd{M-x}  @code{describe-racket-package}
+@kbd{M-x} @code{describe-racket-package}
 
 Describe details of a Racket package.
 
@@ -3025,7 +3025,7 @@ will be shown, assuming you have run the command
 @node racket-debug-toggle-breakpoint
 @subsection racket-debug-toggle-breakpoint
 
-@kbd{M-x}  @code{racket-debug-toggle-breakpoint}
+@kbd{M-x} @code{racket-debug-toggle-breakpoint}
 
 Add or remove a breakpoint.
 
@@ -3077,7 +3077,7 @@ parens and close parens are breakble positions.
 @node racket-mode-start-faster
 @subsection racket-mode-start-faster
 
-@kbd{M-x}  @code{racket-mode-start-faster}
+@kbd{M-x} @code{racket-mode-start-faster}
 
 Compile Racket Mode's .rkt files for faster startup.
 
@@ -3115,7 +3115,7 @@ To revert to compiling on startup, use
 @node racket-mode-start-slower
 @subsection racket-mode-start-slower
 
-@kbd{M-x}  @code{racket-mode-start-slower}
+@kbd{M-x} @code{racket-mode-start-slower}
 
 Delete the ``compiled'' directories made by @ref{racket-mode-start-faster}.
 
@@ -3307,14 +3307,14 @@ This has a visible effect only when there is @emph{not} also a
 
 How much documentation to show via @code{eldoc}.
 
-Used by @code{racket-xp-eldoc-point} and @code{racket-xp-eldoc-sexp-app}.
+Used by @code{nil} and @code{nil}.
 
 @itemize
 @item
 Minimal: Only the help-echo string.
 
 @item
-Summary: Also the signature a.k.a. ``blubox'' from the
+Summary: Also the signature a.k.a. ``bluebox'' from the
 documentation.
 
 @item
@@ -4022,7 +4022,7 @@ The ``project'' is determined by trying, in order:
 @item
 @code{projectile-project-root}, if that exists
 @item
-@code{project-current} and @code{project-root}
+@code{project-current}
 @item
 @code{file-name-directory}
 @end itemize
