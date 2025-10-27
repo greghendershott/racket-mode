@@ -639,7 +639,7 @@ Obtains documentation for point, if any, else the head of the
 s-expression.
 
 See also the customization variable `racket-xp-eldoc-level'."
-  (when (racket--cmd-open-p)
+  (when (racket--cmd-ready-p)
     (let ((point-pos (point))
           (head-pos (when (> (point) (point-min))
                       (condition-case _
@@ -1340,7 +1340,7 @@ we've worked hard to help shr to convert these correctly."
 (defun racket--xp-mode-lighter ()
   (let ((prefix "Rkt"))
     (pcase-let*
-        ((status (and (racket--cmd-open-p)
+        ((status (and (racket--cmd-ready-p)
                       racket--xp-mode-status))
          (`(,suffix ,face ,help-echo)
           (cl-case status

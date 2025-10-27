@@ -1234,7 +1234,7 @@ to supply this quickly enough or at all."
 
 Obtains documentation for point, if any, else the head of the
 s-expression."
-(when (and (racket--cmd-open-p)
+(when (and (racket--cmd-ready-p)
              (racket--repl-in-input-p (point)))
     (let ((point-pos (if (eq 32 (char-before))
                          (point)

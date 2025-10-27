@@ -323,7 +323,7 @@ A discussion of the information provided by a Racket language:
   ;; plain `prog-mode'.
   (setq-local racket--hash-lang-id nil) ;until async command response
   (setq-local racket--hash-lang-generation 1)
-  (unless (racket--cmd-open-p)
+  (unless (racket--cmd-ready-p)
     (setq-local header-line-format "Waiting for back end to start..."))
   (setq-local buffer-read-only t)
   (racket--cmd/async
