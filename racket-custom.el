@@ -171,7 +171,7 @@ This has a visible effect only when there is /not/ also a
 (defcustom racket-xp-eldoc-level 'summary
   "How much documentation to show via `eldoc'.
 
-Used by `racket-xp-eldoc-point' and `racket-xp-eldoc-sexp-app'.
+Used by `racket-xp-eldoc-point-or-sexp-head'.
 
 - Minimal: Only the help-echo string.
 
