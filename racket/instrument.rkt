@@ -74,7 +74,8 @@
   (and (syntax-source stx)
        (syntax-property stx 'errortrace:annotate)))
 
-(define key-module-name 'errortrace/errortrace-key) ;key-module-name^
+(define base-phase
+  (variable-reference->module-base-phase (#%variable-reference)))
 
 (define (with-mark mark expr phase) ;stracktrace-imports^
   ;; This is modeled after the one in errortrace-lib. Specifically,
@@ -85,8 +86,10 @@
     [mark
      (with-syntax ([expr expr]
                    [mark mark]
-                   [etk errortrace-key]
-                   [wcm (syntax-shift-phase-level #'with-continuation-mark phase)])
+                   [etk (syntax-shift-phase-level #'errortrace-key
+                                                  (- phase base-phase))]
+                   [wcm (syntax-shift-phase-level #'with-continuation-mark
+                                                  (- phase base-phase))])
        (syntax (wcm etk mark expr)))]))
 
 ;; Functional alternative to print-error-trace.
