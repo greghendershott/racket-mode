@@ -7,6 +7,24 @@ on:
     - cron: '0 0 * * 2' # 00:00 every Tuesday
 
 jobs:
+
+  # This "summary" job exists to simplify setting branch protection
+  # rules in the GitHub web UI. Without this, we'd have to specify all
+  # the jobs, including matrix "sub-jobs". Worse, their names change
+  # when version numbers change. Instead, the idea here is to create a
+  # single job whose status depends on those other jobs.
+  summary:
+    runs-on: ubuntu-latest
+    needs: [ubuntu, minimal, windows] # the jobs defined below
+    if: always()
+    steps:
+      - name: All tests passed
+        if: ${{ !(contains(needs.*.result, 'failure')) }}
+        run: exit 0
+      - name: Some tests failed
+        if: ${{ (contains(needs.*.result, 'failure')) }}
+        run: exit 1
+
   ubuntu:
     runs-on: ubuntu-latest
     strategy:
@@ -19,18 +37,15 @@ jobs:
         racket_version:
           - '7.8'               # our minimum supported version
           - 'stable'            # most recent release
-        # Also include bleeding edge snapshots of both Emacs and
-        # Racket. Note that "allow_failure: true" doesn't seem to
-        # actually work yet on GitHub Actions like it does on Travis
-        # CI: If this fails it will say the overall job failed. :(
-        # Meanwhile in the GitHub protected branch settings we make
-        # this one NOT a required status check -- which is some but
-        # not all of the behavior we miss from Travis CI.
+        # Also include bleeding edge builds of both Emacs and Racket.
+        # Might supply useful "early warning" -- but might just flag
+        # some temporary flaw in those builds, so enable
+        # continue-on-error.
         include:
           - emacs_version: 'snapshot'
             racket_version: 'current'
-            allow_failure: true
-    name: Ubuntu Emacs:${{ matrix.emacs_version }} Racket:${{ matrix.racket_version }}
+            continue-on-error: true
+    name: Ubuntu
     steps:
       - name: Checkout
         uses: actions/checkout@master
@@ -106,7 +121,7 @@ jobs:
           - '30.2'              # most recent release
         racket_version:
           - 'stable'            # most recent release
-    name: Windows Emacs:${{ matrix.emacs_version }} Racket:${{ matrix.racket_version }}
+    name: Windows
     steps:
       - name: Checkout
         uses: actions/checkout@master
