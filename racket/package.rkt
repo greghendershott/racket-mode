@@ -1,3 +1,6 @@
+;; Copyright (c) 2024-2025 by Greg Hendershott.
+;; SPDX-License-Identifier: GPL-3.0-or-later
+
 #lang racket/base
 
 (require (only-in racket/format ~a ~v ~s)
