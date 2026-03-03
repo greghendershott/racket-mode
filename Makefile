@@ -87,9 +87,10 @@ test-racket: test-racket-submod test-racket-plain
 # Exclude racket/hash-lang.rkt because it fails to eval on older
 # Rackets. Normally we only dynamic-require it. Furthermore its tests
 # are in ./test/racket/hash-lang-test.rkt.
+no-test-rkts=./racket/hash-lang.rkt ./racket/keywords.rkt
 test-racket-submod:
 	$(RACKET) -l raco test --submodule test --no-run-if-absent \
-      $(filter-out ./racket/hash-lang.rkt, $(wildcard ./racket/*.rkt)) \
+      $(filter-out $(no-test-rkts), $(wildcard ./racket/*.rkt)) \
       $(wildcard ./racket/commands/*.rkt)
 
 # Plus we do have some files in a special directory that consist of
