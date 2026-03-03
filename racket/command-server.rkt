@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2025 by Greg Hendershott.
+;; Copyright (c) 2013-2026 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -28,7 +28,7 @@
  ["commands/module-names.rkt" (module-names)]
  ["find.rkt"                  (find-definition find-definition/drracket-jump)]
  ["hash-lang-bridge.rkt"      (hash-lang)]
- ["package-.rkt"              (package-list
+ ["package.rkt"               (package-list
                                package-details
                                package-op
                                catalog-package-doc-link)]
