@@ -335,14 +335,14 @@ in a specific namespace.
 CALLBACK is only called for \"ok\" responses, with (ok v ...)
 unwrapped to (v ...).
 
-\"error\" responses are handled here. Note: We use `message' not
-`error' here because:
+Other responses are handled here. Note: We don't use `error' here
+because:
 
-  1. It would show \"error running timer:\" which, although true,
-     is confusing or at best N/A for end users.
+  1. It would show \"error running timer:\" which, although true, is
+     confusing or at best N/A for end users.
 
-  2. More simply, we don't need to escape any call stack, we only
-     need to ... not call the callback!
+  2. More simply, we don't need to escape any call stack, just avoid
+     the callback.
 
 \"break\" responses are handled here, too. This is used when a
 command is somehow canceled, with no useful response except the
@@ -358,20 +358,18 @@ mistake."
      command-sexpr
      (if callback
          (lambda (response)
-           (pcase response
-             (`(ok ,v)    (when (buffer-live-p buf)
-                            (with-current-buffer buf (funcall callback v))))
-             (`(error ,m) (let ((print-length nil) ;for %S
-                                (print-level nil))
-                            (racket--log-warning (format "Exception for command %S with repl-id %S from %S to %S:\n%s"
-                                                         command-sexpr repl-session-id buf name m)
-                                                 '(back-end))))
-             (`(break)    nil)
-             (v           (let ((print-length nil) ;for %S
-                                (print-level nil))
-                            (racket--log-warning (format "Unknown response to command %S with repl-id %S from %S to %S:\n%S"
-                                                         command-sexpr repl-session-id buf name v)
-                                                 '(back-end))))))
+           (cl-flet ((warning (prefix v)
+                       (let ((print-length nil) ;for %S
+                             (print-level nil))
+                         (racket--log-warning (format "%s command %S with repl-id %S from %S to %S:\n%s"
+                                                      prefix command-sexpr repl-session-id buf name v)
+                                              '(back-end command)))))
+             (pcase response
+               (`(ok ,v)    (when (buffer-live-p buf)
+                              (with-current-buffer buf (funcall callback v))))
+               (`(break)    nil)
+               (`(error ,m) (warning "Exception for" m))
+               (v           (warning "Unknown response to" v)))))
        #'ignore))))
 
 (defun racket--cmd/await (repl-session-id command-sexpr)
