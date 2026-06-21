@@ -1,6 +1,6 @@
 ;;; racket-cmd.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2025 by Greg Hendershott.
+;; Copyright (c) 2013-2026 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -186,7 +186,18 @@ Intended to be called after a (ready) notification from back end."
 Won't show noise like \"process finished\" if stderr process
 sentinel is `ignore'."
   (racket--log-warning (format "{%s} %s" (process-name proc) string)
-                       '(back-end)))
+                       '(back-end stderr))
+  (racket--maybe-warn-about-snap-racket string))
+
+(defun racket--maybe-warn-about-snap-racket (string)
+  (when (string-match-p string "[Pp]ermission")
+    (let* ((back-end (racket-back-end))
+           (source-dir (if (racket--back-end-local-p back-end)
+                           racket--rkt-source-dir
+                         (plist-get back-end :remote-source-dir)))
+           (path-to-main.rkt (expand-file-name "main.rkt" source-dir)))
+      (when (string-match-p string path-to-main.rkt)
+        (racket--on-startup-error 'main-permission path-to-main.rkt)))))
 
 (defun racket--cmd-process-filter (proc string)
   "Read and dispatch sexprs as they become available from process output."
@@ -418,20 +429,8 @@ in a specific namespace."
       (unless (eq major-mode 'special-mode)
         (special-mode))
       (visual-line-mode 1)
-      (let ((buffer-read-only nil))
-        (erase-buffer)
-        (pop-to-buffer buf)
-        (pcase kind
-          ('missing-module
-           (let ((url "https://racket-mode.com/#Minimal-Racket-1"))
-             (insert "The Racket Mode back end could not start because it was unable to load the module "
-                     ?' data ?' "."
-                     "\n\n"
-                     "This could be because you did not install the full \"main distribution\" of Racket, but instead installed only \"Minimal Racket\" (the default when using homebrew)."
-                     "\n\n"
-                     "In that case, you will need either to install the full main distribution, or, manually install certain additional Racket packages."
-                     "\n\n"
-                     "Please see ")
+      (cl-flet
+          ((insert-link (url)
              (save-excursion ;leave point at start of link, for handy RET
                (insert-button url
                               'url url
@@ -441,8 +440,31 @@ in a specific namespace."
                                         (when-let (url (button-get button 'url))
                                           (browse-url url))))
                (insert "."))))
-          (_
-           (insert data)))))))
+       (let ((buffer-read-only nil))
+         (erase-buffer)
+         (pop-to-buffer buf)
+         (insert "The Racket Mode back end could not start.\n\n")
+         (pcase kind
+           ('missing-module
+            (insert "Racket was unable to load the module:\n\n"
+                    "  " data
+                    "\n\n"
+                    "Maybe you did not install the full \"main distribution\" of Racket, but instead installed only \"Minimal Racket\" (the default when using homebrew)?"
+                    "\n\n"
+                    "In that case, you will need either to install the full main distribution, or, manually install certain additional Racket packages."
+                    "\n\n"
+                    "Please see ")
+            (insert-link "https://racket-mode.com/#Minimal-Racket-1"))
+           ('main-permission
+            (insert "Racket lacked permission to read:\n\n"
+                    "  " data
+                    "\n\n"
+                    "Maybe you installed a distribution of Racket that is sandboxed, such as a Snap using \"strict\" confinement?"
+                    "\n\n"
+                    "Please see ")
+            (insert-link "https://github.com/greghendershott/racket-mode/issues/666"))
+           (_
+            (insert data))))))))
 
 (provide 'racket-cmd)
 
