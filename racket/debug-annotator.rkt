@@ -1,4 +1,4 @@
-;; Copyright (c) 2013-2025 by Greg Hendershott.
+;; Copyright (c) 2013-2026 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -331,6 +331,8 @@
         [(quote-syntax _) expr]
 
         [(quote-syntax _ #:local) expr]
+
+        [(#%foreign-inline _) expr]
 
         [(with-continuation-mark key mark body)
          (quasisyntax/loc expr
