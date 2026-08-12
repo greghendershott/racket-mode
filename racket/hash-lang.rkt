@@ -1,4 +1,4 @@
-;; Copyright (c) 2020-2025 by Greg Hendershott.
+;; Copyright (c) 2020-2026 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -715,25 +715,18 @@
                      (info 'documentation-language-family #f))
           end-pos))
 
-;; Handle the module-language lang info key, as documented at
-;; <https://docs.racket-lang.org/syntax/reader-helpers.html#%28mod-path._syntax%2Fmodule-reader%29>.
-;; (info-proc -> (or/c #f string?)
 (define (safe-info-module-language info)
-  (define (handle v)
-    (match v
-      [(== default-module-language) default-module-language]
-      [(? module-path? mp)
-       (~a mp)]
-      [(? syntax? stx)
-       #:when (module-path? (syntax->datum stx))
-       (~a (syntax->datum stx))]
-      [(? procedure? p)
-       (handle v)]
-      [hopeless
-       (log-racket-mode-debug "Ignoring value returned for module-language key: ~v"
-                              info hopeless)
-       default-module-language]))
-  (handle (info 'module-language default-module-language)))
+  (match (info 'module-language default-module-language)
+    [(== default-module-language) default-module-language]
+    [(? module-path? mp)
+     (~a mp)]
+    [(? syntax? stx)
+     #:when (module-path? (syntax->datum stx))
+     (~a (syntax->datum stx))]
+    [hopeless
+     (log-racket-mode-debug "Ignoring value returned for module-language key: ~v"
+                            info hopeless)
+     default-module-language]))
 
 ;; Return (list start continue end padding)
 (define (comment-delimiters info mod-lang)
