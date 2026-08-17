@@ -694,6 +694,7 @@
              #f
              #f
              #f
+             #f
              #f))
 
 (define (read-lang-info* in)
@@ -712,7 +713,8 @@
                      (info 'drracket:range-indentation/reverse-choices #f)
                      (info 'drracket:submit-predicate #f)
                      (comment-delimiters info mod-lang)
-                     (info 'documentation-language-family #f))
+                     (info 'documentation-language-family #f)
+                     (info 'drracket:default-instrumentation #f))
           end-pos))
 
 (define (safe-info-module-language info)

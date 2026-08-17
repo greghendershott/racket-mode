@@ -1,4 +1,4 @@
-;; Copyright (c) 2020-2025 by Greg Hendershott.
+;; Copyright (c) 2020-2026 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -57,8 +57,8 @@
           'quote-matches      (for/list ([c (in-list (lang-info-quote-matches li))])
                                 (make-string 1 c))
           'comment-delimiters (lang-info-comment-delimiters li)
-          'documentation-language-family
-          (lang-info-documentation-language-family li))))
+          'documentation-language-family (lang-info-documentation-language-family li)
+          'default-instrumentation (lang-info-default-instrumentation li))))
       (define/override (on-changed-tokens gen beg end)
         (when (< beg end)
           (async-channel-put hash-lang-notify-channel

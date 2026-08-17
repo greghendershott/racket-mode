@@ -1,4 +1,4 @@
-;; Copyright (c) 2020-2025 by Greg Hendershott.
+;; Copyright (c) 2020-2026 by Greg Hendershott.
 ;; SPDX-License-Identifier: GPL-3.0-or-later
 
 #lang racket/base
@@ -20,7 +20,8 @@
    reverse-range-indenter
    submit-predicate
    comment-delimiters
-   documentation-language-family)
+   documentation-language-family
+   default-instrumentation)
   #:transparent #:authentic)
 
 (define racket-grouping-position
