@@ -54,8 +54,13 @@ check-declares:
 melpa-url := https://melpa.org/packages/
 deps:
 	$(batch-emacs) \
+      --eval '(message "%s" package-archives)' \
       --eval '(add-to-list (quote package-archives) (cons "melpa" "$(melpa-url)"))' \
+      --eval '(when (equal (cdr (assoc "gnu" package-archives)) "http://elpa.gnu.org/packages/") (setcdr (assoc "gnu" package-archives) "https://elpa.gnu.org/packages/"))' \
       --eval '(unless (fboundp (quote lisp-data-mode)) (defalias (quote lisp-data-mode) (quote emacs-lisp-mode)))' \
+      --eval '(message "%s" package-archives)' \
+      --eval '(setq package-check-signature nil)' \
+      --eval '(toggle-debug-on-error)' \
       --eval '(package-refresh-contents)' \
       --eval '(unless (package-installed-p (quote compat)) (package-install (quote compat)))' \
       --eval '(unless (package-installed-p (quote faceup)) (package-install (quote faceup)))' \
