@@ -353,7 +353,7 @@ A discussion of the information provided by a Racket language:
       (t
        (prog-mode) ;wipes all local variables including buffer-read-only
        (racket--log-warning "hash-lang support not available; needs newer syntax-color-lib"
-                            '(hash-lang))))))  )
+                            '(hash-lang)))))))
 
 (defun racket--hash-lang-delete ()
   (when racket--hash-lang-id
