@@ -698,6 +698,10 @@
              #f))
 
 (define (read-lang-info* in)
+  ;; #768: Guard read-language with namespace module registry lock.
+  (namespace-call-with-registry-lock (current-namespace)
+                                     (λ () (read-lang-info** in))))
+(define (read-lang-info** in)
   (define info (or (with-handlers ([values (λ _ #f)])
                      (read-language in (λ _ #f)))
                    (λ (_key default) default)))
