@@ -1,6 +1,6 @@
 ;;; racket-custom.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2025 by Greg Hendershott.
+;; Copyright (c) 2013-2026 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -171,7 +171,8 @@ This has a visible effect only when there is /not/ also a
 (defcustom racket-xp-eldoc-level 'summary
   "How much documentation to show via `eldoc'.
 
-Used by `racket-xp-eldoc-point-or-sexp-head'.
+Used by `racket-xp-eldoc-point-or-sexp-head' in `racket-xp-mode'
+buffers.
 
 - Minimal: Only the help-echo string.
 
@@ -471,6 +472,27 @@ Affects `racket-send-last-sexp', `racket-send-region', and
 `racket-send-definition'."
   :type 'boolean
   :safe #'booleanp)
+
+(defcustom racket-repl-eldoc-level 'follow
+  "How much information to show via `eldoc'.
+
+Used by `racket-repl-eldoc-point-or-sexp-head' in `racket-repl-mode'
+buffers.
+
+- None: Show nothing.
+
+- Summary: Show the signature a.k.a. \"bluebox\" from the documentation.
+
+- Follow: Use the value of `racket-xp-eldoc-level', except that its
+  \"minimal\" value is treated as \"none\" here, and its \"complete\"
+  value is treated as \"summary\" here.
+
+A third-party package like `eldoc-box' can be useful, because even some
+bluebox signatures can take many lines to show on screen."
+  :type '(radio (const :tag "None" nil)
+                (const :tag "Summary" summary)
+                (const :tag "Follow" follow))
+  :safe #'listp)
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ;;; racket-other group

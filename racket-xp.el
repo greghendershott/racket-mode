@@ -1,6 +1,6 @@
 ;;; racket-xp.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2013-2025 by Greg Hendershott.
+;; Copyright (c) 2013-2026 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -636,7 +636,7 @@ point."
 (defun racket-xp-eldoc-point-or-sexp-head (callback &rest _more)
   "A value for the variable `eldoc-documentation-functions'.
 
-Obtains documentation for point, if any, else the head of the
+Obtains documentation, if any, for point, else for the head of the
 s-expression.
 
 See also the customization variable `racket-xp-eldoc-level'."

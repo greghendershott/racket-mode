@@ -1,6 +1,6 @@
 ;;; racket-repl.el -*- lexical-binding: t; -*-
 
-;; Copyright (c) 2013-2025 by Greg Hendershott.
+;; Copyright (c) 2013-2026 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 ;; Image portions Copyright (C) 2012 Jose Antonio Ortega Ruiz.
 
@@ -1230,34 +1230,40 @@ to supply this quickly enough or at all."
         (<= prompt-end pos))))
 
 (defun racket-repl-eldoc-point-or-sexp-head (callback &rest _more)
-"A value for the variable `eldoc-documentation-functions'.
+  "A value for the variable `eldoc-documentation-functions'.
 
-Obtains documentation for point, if any, else the head of the
-s-expression."
-(when (and (racket--cmd-ready-p)
-             (racket--repl-in-input-p (point)))
-    (let ((point-pos (if (eq 32 (char-before))
-                         (point)
-                       (condition-case _
-                           (let ((pos (save-excursion
-                                        (backward-sexp)
-                                        (point))))
-                             (if (racket--repl-in-input-p pos)
-                                 pos
-                               (point)))
-                         (scan-error (point)))))
-          (head-pos (and (> (point) (point-min))
+Obtains bluebox, if any, for point, else for the head of the
+s-expression.
+
+See also the customization variable `racket-repl-eldoc-level'."
+  (let ((level (if (eq racket-repl-eldoc-level 'follow)
+                   racket-xp-eldoc-level
+                 racket-repl-eldoc-level)))
+    (when (and (memq level '(summary complete))
+               (racket--cmd-ready-p)
+               (racket--repl-in-input-p (point)))
+      (let ((point-pos (if (eq 32 (char-before))
+                           (point)
                          (condition-case _
-                             (save-excursion
-                               (backward-up-list)
-                               (forward-char 1)
-                               (point))
-                           (scan-error nil)))))
-      (run-with-timer 0 nil
-                      #'racket--repl-eldoc-async callback point-pos head-pos))
-    ;; Return non-nil non-string to say we'll make CALLBACK
-    ;; asynchronously.
-    t))
+                             (let ((pos (save-excursion
+                                          (backward-sexp)
+                                          (point))))
+                               (if (racket--repl-in-input-p pos)
+                                   pos
+                                 (point)))
+                           (scan-error (point)))))
+            (head-pos (and (> (point) (point-min))
+                           (condition-case _
+                               (save-excursion
+                                 (backward-up-list)
+                                 (forward-char 1)
+                                 (point))
+                             (scan-error nil)))))
+        (run-with-timer 0 nil
+                        #'racket--repl-eldoc-async callback point-pos head-pos))
+      ;; Return non-nil non-string to say we'll make CALLBACK
+      ;; asynchronously.
+      t)))
 
 (defun racket--repl-eldoc-async (callback point-pos head-pos)
   ;; Async expression of: "Try point-pos, else head-pos if non-nil,

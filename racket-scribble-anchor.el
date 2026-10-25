@@ -1,6 +1,6 @@
 ;;; racket-scribble-anchor.el -*- lexical-binding: t -*-
 
-;; Copyright (c) 2022-2025 by Greg Hendershott.
+;; Copyright (c) 2022-2026 by Greg Hendershott.
 ;; Portions Copyright (C) 1985-1986, 1999-2013 Free Software Foundation, Inc.
 
 ;; Author: Greg Hendershott
@@ -38,7 +38,7 @@ Each ring item is (cons (cons path anchor) str).")
 
 (defun racket--path+anchor->string (path anchor)
   "A wrapper for `racket--scribble-path+anchor-insert'.
-Uses `racket--path+anchor-cache'."
+Uses `racket--path+anchor-ring'."
   (pcase (seq-some (lambda (item)
                      (and (equal (car item) (cons path anchor))
                           item))
